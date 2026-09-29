@@ -6,6 +6,10 @@ sealed class StratumWebViewSource {
   const new();
 
   /// A page loaded from [url].
+  ///
+  /// `StratumWebViewController.loadUrl` throws an [ArgumentError] unless
+  /// [url] uses the `http` or `https` scheme; other schemes (for example
+  /// `javascript:`) can run script in the app's own origin on web.
   const factory url(Uri url) = StratumWebViewUrlSource;
 
   /// A document rendered from an [html] string.

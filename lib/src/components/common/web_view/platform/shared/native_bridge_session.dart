@@ -47,7 +47,7 @@ final class NativeBridgeSession {
 
   /// Call when the platform reports a URL change without a page load.
   void didChangeUrl(String? url) {
-    if (url != null) _pageUrl = Uri.tryParse(url);
+    _pageUrl = url == null ? null : Uri.tryParse(url);
   }
 
   /// Whether the tracked page is still the controller's own HTML.
@@ -75,7 +75,8 @@ final class NativeBridgeSession {
         _isTrustedHtml || isAllowedOrigin(_pageUrl, _allowedOrigins());
     if (!allowed) {
       throw StateError(
-        'The current page ($_pageUrl) is not an allowed message destination.',
+        'The current page (${originOf(_pageUrl)}) is not an allowed '
+        'message destination.',
       );
     }
     return buildMessageDispatchScript(data);

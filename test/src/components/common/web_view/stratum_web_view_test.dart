@@ -90,6 +90,25 @@ void main() {
     expect(platforms.single.javaScriptChanges, [false]);
   });
 
+  testWidgets(
+    'reports a load error instead of throwing for a rejected scheme',
+    (tester) async {
+      final reported = <FlutterErrorDetails>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = reported.add;
+      addTearDown(() => FlutterError.onError = previous);
+      await tester.pumpWidget(
+        StratumWebView(
+          source: StratumWebViewSource.url(Uri.parse('javascript:0')),
+        ),
+      );
+      await tester.pump();
+      expect(reported, hasLength(1));
+      expect(reported.single.exception, isArgumentError);
+      expect(platforms.single.loads, isEmpty);
+    },
+  );
+
   testWidgets('switching to an external controller disposes the owned one', (
     tester,
   ) async {

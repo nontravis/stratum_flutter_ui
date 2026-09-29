@@ -115,10 +115,25 @@ class _StratumWebViewState extends State<StratumWebView> {
     unawaited(_load());
   }
 
-  Future<void> _load() => switch (widget.source) {
-    StratumWebViewUrlSource(:final url) => _controller.loadUrl(url),
-    StratumWebViewHtmlSource(:final html) => _controller.loadHtml(html),
-  };
+  Future<void> _load() async {
+    try {
+      switch (widget.source) {
+        case StratumWebViewUrlSource(:final url):
+          await _controller.loadUrl(url);
+        case StratumWebViewHtmlSource(:final html):
+          await _controller.loadHtml(html);
+      }
+    } on Object catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'stratum_ui',
+          context: ErrorDescription('while loading a StratumWebView source'),
+        ),
+      );
+    }
+  }
 
   StratumWebViewConfiguration _configuration() => StratumWebViewConfiguration(
     allowedOrigins: widget.allowedOrigins,
