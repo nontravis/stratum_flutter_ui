@@ -54,7 +54,8 @@ lib/src/components/common/web_view/
       webview_all_adapter.dart        # Windows, Linux
     shared/
       origin_policy.dart              # isAllowedOrigin(origin, allowed)
-      html_frame_guard.dart           # tracks whether the srcdoc frame still shows our HTML
+      html_frame_guard.dart           # native-only: tracks whether the page still shows our HTML
+      html_bridge_bootstrap.dart      # web-only: injects the per-render MessageChannel handshake script
       web_view_history.dart           # controller-initiated load history for the web implementation
       message_script.dart             # builds the dispatchEvent script with jsonEncode
       native_bridge_session.dart      # bridge and error rules shared by both native adapters
@@ -78,7 +79,7 @@ Each target file defines the same internal contract: an abstract `PlatformStratu
 
 The two adapters live in separate files because `webview_flutter` and `webview_platform_interface` export classes with identical names (`JavaScriptMode`, `NavigationDecision`, `WebResourceError`, and others). `webview_platform_interface` is a fork of `webview_flutter_platform_interface`, so both adapters follow the same method names: `loadRequest`, `loadHtmlString`, `addJavaScriptChannel`, `runJavaScript`, `canGoBack`, `goBack`, `goForward`, `reload`, `currentUrl`.
 
-The barrel `web_view.dart` is exported from `common/common.dart`, matching the existing layout components. Source files import `package:stratum_ui/src/src.dart`, use `const new(...)` constructors, and group fields with `///========== Section ==========///` comments, following the repository convention.
+The barrel `web_view.dart` is exported from `common/common.dart`, matching the existing layout components. Source files import `package:flutter/foundation.dart`, `package:flutter/widgets.dart`, and other web_view files by their `package:stratum_ui/src/components/common/web_view/...` path — never `package:stratum_ui/src/src.dart` or `package:stratum_ui/stratum_ui.dart`, which do not compile while the rest of the package has errors outside web_view. Source files use `const new(...)` constructors and group fields with `///========== Section ==========///` comments, following the repository convention.
 
 ## 4. Public API
 
@@ -112,27 +113,27 @@ if (await controller.canGoBack()) await controller.goBack();
 | `controller` | `StratumWebViewController?` | `null` | When `null`, the widget creates and disposes its own controller (the `TextField` pattern). |
 | `source` | `StratumWebViewSource` | required | Sealed: `StratumWebViewSource.url(Uri)` or `StratumWebViewSource.html(String)`. A change in `didUpdateWidget` triggers a new load. |
 | `allowedOrigins` | `Set<Uri>` | `{}` | Bridge allowlist. Empty disables the bridge: incoming messages are dropped and `postMessage` throws. |
-| `javaScriptEnabled` | `bool` | `true` | When `false`, the bridge is inactive. On web, the iframe gets a `sandbox` attribute without `allow-scripts` for both source types. |
+| `javaScriptEnabled` | `bool` | `true` | When `false`, the bridge is inactive: the controller drops incoming messages and `postMessage` throws `StateError`, on every platform, in addition to running the page without script. On web, the iframe gets a `sandbox` attribute without `allow-scripts` for both source types. |
 | `onMessage` | `ValueChanged<StratumWebViewMessage>?` | `null` | `StratumWebViewMessage` has `data` (`String`) and `origin` (`Uri?`). |
 | `onNavigationRequest` | `StratumNavigationDecision Function(Uri url)?` | `null` | `StratumNavigationDecision` is an enum: `navigate`, `prevent`. |
 | `onPageStarted` | `ValueChanged<Uri?>?` | `null` | |
 | `onPageFinished` | `ValueChanged<Uri?>?` | `null` | |
 | `onError` | `ValueChanged<StratumWebViewError>?` | `null` | Main-frame errors only. See section 6. |
 
-Callbacks live on the widget and are synchronized into the controller in `initState` and `didUpdateWidget`.
+Callbacks live on the widget and are synchronized into the controller in `initState` and `didUpdateWidget`. A `loadUrl`/`loadHtml` failure raised from there (for example the `ArgumentError` above) is caught and reported through `FlutterError.reportError` (library `stratum_ui`) instead of escaping as an uncaught async error.
 
 ### `StratumWebViewController`
 
 | Method | Returns |
 |---|---|
-| `loadUrl(Uri url)` | `Future<void>` |
+| `loadUrl(Uri url)` | `Future<void>`; throws `ArgumentError` unless `url` uses the `http` or `https` scheme (R13) |
 | `loadHtml(String html)` | `Future<void>` |
 | `reload()` | `Future<void>` |
 | `goBack()`, `goForward()` | `Future<void>` |
 | `canGoBack()`, `canGoForward()` | `Future<bool>` |
 | `currentUrl()` | `Future<Uri?>` |
-| `postMessage(String data)` | `Future<void>`; throws `StateError` when the current page is not an allowed destination |
-| `dispose()` | `void`; any later call throws `StateError` |
+| `postMessage(String data)` | `Future<void>`; throws `StateError` when the current page is not an allowed destination, `allowedOrigins` is empty, or `javaScriptEnabled` is `false` |
+| `dispose()` | `void`; any later call throws `StateError`; also resets the configuration to its default, releasing consumer callback references |
 
 ### Types
 
@@ -163,21 +164,23 @@ function sendToFlutter(data) {
 window.addEventListener('message', (event) => handle(event.data));
 ```
 
+On web, `window.StratumBridge` is also present for HTML content: the bootstrap script (see below) injects it before any page script runs, so the snippet's `StratumBridge` branch applies there too, not only on native. A `url` source on web has no injected bridge, so its page must use `window.parent.postMessage` instead.
+
 ### Transport
 
-| Direction | Web | Native |
-|---|---|---|
-| Page to Flutter | Page calls `parent.postMessage`; stratum_ui listens for `message` on the app window. | `addJavaScriptChannel('StratumBridge')`; `onMessageReceived`. |
-| Flutter to page | `iframe.contentWindow.postMessage(data, targetOrigin)`. | `runJavaScript` with `window.dispatchEvent(new MessageEvent('message', {data: <jsonEncode(data)>}))`. |
+| Direction | Web (`url` source) | Web (`html` source) | Native |
+|---|---|---|---|
+| Page to Flutter | Page calls `parent.postMessage`; stratum_ui listens for `message` on the app window. | Page calls `StratumBridge.postMessage`, delivered over the per-render `MessageChannel` port adopted during the handshake (see "HTML source on web"). | `addJavaScriptChannel('StratumBridge')`; `onMessageReceived`. |
+| Flutter to page | `iframe.contentWindow.postMessage(data, targetOrigin)`. | `port.postMessage(data)` on the adopted `MessagePort`. | `runJavaScript` with `window.dispatchEvent(new MessageEvent('message', {data: <jsonEncode(data)>}))`. |
 
 ### Acceptance rules (page to Flutter)
 
 | Case | A message is accepted when |
 |---|---|
 | Web, `url` source | `event.source == iframe.contentWindow` **and** `event.origin` passes `isAllowedOrigin`. |
-| Web, `html` source | `event.source == iframe.contentWindow`, `event.origin == "null"`, **and** `HtmlFrameGuard` reports that the frame still shows our HTML. |
+| Web, `html` source | The message arrives on the `MessagePort` adopted during the handshake (see "HTML source on web"). Every `"null"`-origin `window` message, including a forged handshake, is dropped. |
 | Native, `url` source | The origin of the current top-level page passes `isAllowedOrigin`. The origin is tracked from `onPageStarted` and `onUrlChange`, because `JavaScriptMessage` carries no origin. |
-| Native, `html` source | `HtmlFrameGuard` reports that the page is still our HTML. On native, the guard counts `onPageStarted` events instead of iframe `load` events. |
+| Native, `html` source | `HtmlFrameGuard` reports that the page is still our HTML **and** the tracked page has no origin (`about:blank`). On native, the guard counts `onPageStarted` events instead of iframe `load` events; between `willLoadHtml` and the HTML's first `onPageStarted` the previous page is still live, so the origin check keeps that page from being trusted as our HTML. |
 
 On every platform, an empty `allowedOrigins` disables the bridge entirely, including for HTML content. The controller enforces this rule before any platform rule runs.
 
@@ -185,18 +188,26 @@ On every platform, an empty `allowedOrigins` disables the bridge entirely, inclu
 
 ### HTML source on web
 
-The iframe uses `srcdoc` with `sandbox="allow-scripts"` (no `allow-same-origin`), so the document has an opaque origin serialized as `"null"`. A frame that navigates away keeps the sandbox flags and also reports `"null"`. `HtmlFrameGuard` counts iframe `load` events: the first `load` after `srcdoc` is set is our HTML. Any later `load` that the controller did not initiate marks the frame as navigated away. From then on, `"null"` messages are dropped and `postMessage` throws until the controller loads new content.
+The iframe uses `srcdoc` with `sandbox="allow-scripts"` (no `allow-same-origin`), so the document has an opaque origin serialized as `"null"`. A frame that navigates away keeps the sandbox flags and also reports `"null"`, and that page controls when its own `load` fires, so counting iframe `load` events cannot tell our HTML apart from a page reached by navigation.
+
+Instead, `injectBridgeBootstrap` (`platform/shared/html_bridge_bootstrap.dart`) inserts a bootstrap `<script>` into the HTML right after a leading `<!DOCTYPE ...>` (or at the start when there is none), before any page script runs. Each render of an HTML source generates a fresh nonce (16 bytes from `Random.secure()`, hex-encoded). The bootstrap script creates a `MessageChannel`, keeps `port1`, exposes `window.StratumBridge.postMessage` bound to it, forwards messages received on `port1` as `window` `message` events, and hands `port2` to the parent together with a handshake string `stratum-bridge-handshake:<nonce>`.
+
+The parent adopts `port2` only when a `"null"`-origin `window` message satisfies all of: `event.source == iframe.contentWindow`, the current history entry is an HTML source, the message data is exactly `stratum-bridge-handshake:<nonce>` for the nonce generated for that render, and `event.ports` holds exactly one port. Adopting a port closes and replaces any previously adopted port. Every other `"null"`-origin message — a forged handshake with the wrong nonce, one with no transferred port, or any other content — is dropped without side effects. A page reached by navigation cannot know the nonce, so it never obtains a working bridge even though it shares the same opaque origin.
+
+Re-inserting the view (`createView`) does not reset the nonce or the adopted port by itself: the web engine renders each platform view into a fresh, detached wrapper, so re-insertion discards the iframe's browsing context, `srcdoc` reloads, and the bootstrap runs again — the new handshake, carrying the same nonce, replaces the (now-stale) adopted port. `HtmlFrameGuard` is not used on web; it remains for the native adapters (section 3).
 
 ### Sending rules (Flutter to page)
 
 - Web, `url` source: `targetOrigin` is the origin of the current URL. If the frame has moved to another origin, the browser drops the message.
-- Web, `html` source: `targetOrigin` must be `'*'` because the origin is opaque. Sending is allowed only while `HtmlFrameGuard` reports our HTML.
+- Web, `html` source: sent over the `MessagePort` adopted during the handshake. `postMessage` throws `StateError` when no page has completed the handshake yet (before the first render, or before this render's bootstrap script has run).
 - Native: sending is allowed only while the current page origin passes `isAllowedOrigin`, or while `HtmlFrameGuard` reports our HTML. `jsonEncode` produces the JavaScript string literal (quotes, backslashes, and control characters are escaped). U+2028 and U+2029 are escaped as well for engines older than ES2019. `</script>` needs no escaping because `runJavaScript` evaluates the script directly, without an HTML parser.
 - A blocked send throws `StateError`.
 
 ### Known limitation (documented in doc comments)
 
 On native, the JavaScript channel is visible to every frame in the page. An untrusted iframe (for example an advertisement) inside an allowed page can send messages that appear to come from the allowed top-level origin. Only the top-level origin can be verified.
+
+The page origin is also inferred from navigation events, not from a commit signal. On iOS and macOS, `onPageStarted` is `didStartProvisionalNavigation`, which fires before the new page commits; the previous document keeps running scripts during that window. A disallowed page can navigate to an allowed origin and post messages until the navigation commits, and those messages are stamped with the new, allowed origin. Treat bridge messages as untrusted input regardless of origin, and use `onNavigationRequest` to prevent top-level navigation outside `allowedOrigins` when a hard boundary is needed.
 
 ## 6. Error handling and platform behavior
 
@@ -222,16 +233,21 @@ The doc comment recommends pairing the web view with an "open in new tab" action
 
 - `WebResourceError` maps to `StratumWebViewErrorType.network` (`code` = `errorCode`, `url` = `url`).
 - `HttpResponseError` maps to `StratumWebViewErrorType.http` (`code` = `response.statusCode`, `url` = `request.uri`).
-- Only main-frame errors are forwarded. For `WebResourceError`, a `null` `isForMainFrame` counts as main frame. `HttpResponseError` has no main-frame flag (Android reports sub-resource HTTP errors too), so an HTTP error is forwarded only when `request.uri`, without fragment, equals the current page URL.
+- Only main-frame errors are forwarded. For `WebResourceError`, a `null` `isForMainFrame` counts as main frame. `HttpResponseError` has no main-frame flag (Android reports sub-resource HTTP errors too), so a non-null `request.uri` is forwarded only when it equals the current page URL, without fragment. WebKit (iOS, macOS) reports HTTP errors only for navigation responses and never supplies a request URL; a `null` `request.uri` is treated as the current page instead of being dropped, with `url` set to the current page URL (`null` before any page has loaded).
+- `WebviewFlutterAdapter` drops `WebResourceError` with `errorCode == -999` (`NSURLErrorCancelled`) before it reaches `NativeBridgeSession`: WebKit (iOS, macOS) reports it whenever a navigation is superseded by another one in flight (a second link tap, or a `source` change during a load), not a failure of the page that ends up loading. Android's codes range -1..-16 and cannot collide with it.
+- `onError` on iOS and macOS may also report an HTTP error from an embedded iframe, not only the top-level page (WebKit's `decidePolicyForNavigationResponse` path carries no main-frame flag); this is a known, accepted trade-off (R11).
 
 ### Native navigation requests
 
-`onNavigationRequest` is consulted for main-frame requests only. Sub-frame requests and `about:` URLs (for example the `about:blank` document created by `loadHtml`) always navigate. Android does not report navigations started by `loadRequest`; iOS and macOS do.
+`onNavigationRequest` is consulted for main-frame requests only. Sub-frame requests and `about:` URLs (for example the `about:blank` document created by `loadHtml`) always navigate. Android does not report navigations started by `loadRequest`; iOS, macOS, and `webview_all_windows` (Windows) do.
 
 ### Lifecycle
 
 - A controller created by the widget is disposed by the widget. A controller passed in is disposed by its owner.
-- On web, `dispose()` removes the `message` listener from the app window.
+- On web, `dispose()` removes the `message` listener from the app window and navigates the iframe to `about:blank`. Both native adapters' `dispose()` also load `about:blank` (unawaited, after the adapter is ready), so audio, video, and timers stop immediately instead of running until the native view is collected.
+- `StratumWebViewController.dispose()` also resets its configuration to `const StratumWebViewConfiguration()`, releasing references to consumer callbacks (mitigates M1; the durable fix is `HtmlElementView.fromTagName`, tracked as a follow-up).
+- On native, navigating back or forward to an HTML entry leaves the bridge off (`HtmlFrameGuard` is fail-closed and terminal); call `loadHtml` again to re-arm it. Web restores the bridge automatically, because re-insertion re-runs the bootstrap script.
+- On web, the implementation yields one microtask (`await Future<void>.value();`) before touching the listener in `load`, `reload`, `goBack`, and `goForward` (R14), so a consumer callback that calls `setState` never runs inside the caller's build phase — this matches native, where every adapter method awaits its readiness future first.
 
 ### Consumer callback exceptions
 
@@ -272,10 +288,10 @@ Development follows TDD: each behavior starts with a failing test.
 
 | Layer | Runner | Coverage |
 |---|---|---|
-| 1. Pure logic (`platform/shared/`) | `flutter test` | `isAllowedOrigin` (default ports, host case, path ignored, `null` origin), `HtmlFrameGuard` transitions, `WebViewHistory`, `message_script` escaping (`"`, `\`, `</script>`, non-ASCII). |
+| 1. Pure logic (`platform/shared/`) | `flutter test` | `isAllowedOrigin` (default ports, host case, path ignored, `null` origin), `HtmlFrameGuard` transitions (native), `injectBridgeBootstrap` (doctype insertion, prepend, nonce, HTML preserved), `WebViewHistory`, `message_script` escaping (`"`, `\`, `</script>`, non-ASCII). |
 | 2. Adapters with a fake platform | `flutter test` | Hand-written fakes installed through `WebViewPlatform.instance` for both platform interfaces. Channel `StratumBridge` registration, origin gating, main-frame error filtering, adapter selection through `debugDefaultTargetPlatformOverride`. |
 | 3. Widget | `flutter test` | Widget-owned controller created and disposed; external controller not disposed; callback sync and reload on `source` change in `didUpdateWidget`; throwing callback reported through `FlutterError.reportError`. |
-| 4. Web | `flutter test --platform chrome`, `@TestOn('browser')` | iframe `srcdoc` and `sandbox` attributes; page `postMessage` reaches `onMessage`; mismatched `event.source` dropped; listener removed on dispose. |
+| 4. Web | `flutter test --platform chrome`, `@TestOn('browser')` | iframe `srcdoc` and `sandbox` attributes; `url`-source `postMessage` reaches `onMessage`; mismatched `event.source` dropped; listener removed on dispose; the `StratumBridge` handshake (genuine, forged, post-navigation, re-insertion) round-trips messages and rejects everything else. |
 
 - Test files mirror `lib/`: `test/src/components/common/web_view/...`.
 - Fakes are hand-written; no mocking library is added.
