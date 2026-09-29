@@ -52,8 +52,19 @@ final class StratumWebViewController {
   bool _disposed = false;
 
   /// Loads the page at [url].
+  ///
+  /// Throws an [ArgumentError] unless [url] uses the `http` or `https`
+  /// scheme. Other schemes (for example `javascript:` or a bare, scheme-less
+  /// URL) are rejected because a `url` source runs without a sandbox on web.
   Future<void> loadUrl(Uri url) async {
     _ensureActive();
+    if (!url.isScheme('http') && !url.isScheme('https')) {
+      throw ArgumentError.value(
+        url,
+        'url',
+        'must use the http or https scheme',
+      );
+    }
     await _platform.load(StratumWebViewSource.url(url));
   }
 
@@ -111,6 +122,11 @@ final class StratumWebViewController {
         'The bridge is disabled because allowedOrigins is empty.',
       );
     }
+    if (!_configuration.javaScriptEnabled) {
+      throw StateError(
+        'The bridge is disabled because javaScriptEnabled is false.',
+      );
+    }
     await _platform.postMessage(data);
   }
 
@@ -118,8 +134,14 @@ final class StratumWebViewController {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _configuration = const StratumWebViewConfiguration();
     _platform.dispose();
   }
+
+  /// The configuration from the last [configure] call, or the default after
+  /// [dispose].
+  @visibleForTesting
+  StratumWebViewConfiguration get debugConfiguration => _configuration;
 
   /// Applies the settings of the `StratumWebView` that shows this controller.
   @internal
@@ -164,7 +186,12 @@ final class _ControllerListener implements PlatformStratumWebViewListener {
   @override
   void onMessage(StratumWebViewMessage message) {
     final callback = _configuration.onMessage;
-    if (!_active || allowedOrigins.isEmpty || callback == null) return;
+    if (!_active ||
+        allowedOrigins.isEmpty ||
+        !_configuration.javaScriptEnabled ||
+        callback == null) {
+      return;
+    }
     _guard('onMessage', () => callback(message));
   }
 

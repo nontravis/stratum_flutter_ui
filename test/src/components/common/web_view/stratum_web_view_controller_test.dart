@@ -26,6 +26,22 @@ void main() {
     ]);
   });
 
+  test('loadUrl rejects a scheme other than http or https', () async {
+    await expectLater(
+      controller.loadUrl(Uri.parse('javascript:alert(1)')),
+      throwsArgumentError,
+    );
+    await expectLater(
+      controller.loadUrl(Uri.parse('file:///etc/passwd')),
+      throwsArgumentError,
+    );
+    await expectLater(
+      controller.loadUrl(Uri.parse('app.example.com/a')),
+      throwsArgumentError,
+    );
+    expect(platform().loads, isEmpty);
+  });
+
   test('navigation methods forward to the platform', () async {
     platform()
       ..canGoBackValue = true
@@ -67,6 +83,17 @@ void main() {
     await expectLater(controller.postMessage('x'), throwsStateError);
   });
 
+  test('postMessage throws while javaScriptEnabled is false', () async {
+    controller.configure(
+      StratumWebViewConfiguration(
+        allowedOrigins: {appOrigin},
+        javaScriptEnabled: false,
+      ),
+    );
+    await expectLater(controller.postMessage('x'), throwsStateError);
+    expect(platform().sentMessages, isEmpty);
+  });
+
   test('configure forwards JavaScript only when it changes', () {
     controller
       ..configure(const StratumWebViewConfiguration())
@@ -84,6 +111,16 @@ void main() {
     expect(
       () => controller.configure(const StratumWebViewConfiguration()),
       throwsStateError,
+    );
+  });
+
+  test('dispose resets the configuration to release consumer callbacks', () {
+    controller
+      ..configure(StratumWebViewConfiguration(allowedOrigins: {appOrigin}))
+      ..dispose();
+    expect(
+      controller.debugConfiguration.allowedOrigins,
+      const StratumWebViewConfiguration().allowedOrigins,
     );
   });
 
@@ -109,6 +146,18 @@ void main() {
       );
       platform().listener.onMessage(const StratumWebViewMessage(data: 'x'));
       expect(messages, [const StratumWebViewMessage(data: 'x')]);
+    });
+
+    test('drops messages while javaScriptEnabled is false', () {
+      controller.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          javaScriptEnabled: false,
+          onMessage: messages.add,
+        ),
+      );
+      platform().listener.onMessage(const StratumWebViewMessage(data: 'x'));
+      expect(messages, isEmpty);
     });
 
     test('reports a throwing callback without rethrowing', () {

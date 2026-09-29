@@ -46,6 +46,14 @@ void main() {
       allowed = {Uri.parse('https://other.example.net')};
       expect(session.acceptMessage('hi'), isNull);
     });
+
+    test('a null URL change clears the tracked page', () {
+      session
+        ..willLoadUrl()
+        ..didStartPage('https://app.example.com/home')
+        ..didChangeUrl(null);
+      expect(session.acceptMessage('hi'), isNull);
+    });
   });
 
   group('messages from loaded HTML', () {
@@ -126,6 +134,23 @@ void main() {
         ..willLoadUrl()
         ..didStartPage('https://evil.example.net/');
       expect(() => session.scriptForMessage('ping'), throwsStateError);
+    });
+
+    test('refusal error names the origin, not the full URL', () {
+      session
+        ..willLoadUrl()
+        ..didStartPage('https://evil.example.net/path?x=secret#tok');
+      expect(
+        () => session.scriptForMessage('ping'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The current page (https://evil.example.net) is not an '
+                'allowed message destination.',
+          ),
+        ),
+      );
     });
 
     test('refuses to build a script before any page', () {
