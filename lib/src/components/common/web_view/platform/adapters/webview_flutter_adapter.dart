@@ -111,7 +111,16 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   @override
   void dispose() {
     // webview_flutter releases the native view when WebViewWidget leaves the
-    // tree. The controller ignores events that arrive after dispose.
+    // tree. The controller ignores events that arrive after dispose. Load
+    // about:blank first, so audio, video, and timers stop immediately
+    // instead of running until the native view is collected (parity with
+    // the web implementation, which navigates the iframe away on dispose).
+    unawaited(_disposeLoad());
+  }
+
+  Future<void> _disposeLoad() async {
+    await _ready;
+    await _controller.loadRequest(Uri.parse('about:blank'));
   }
 
   wf.NavigationDecision _handleNavigationRequest(wf.NavigationRequest request) {
@@ -140,6 +149,12 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   }
 
   void _handleResourceError(wf.WebResourceError error) {
+    // WebKit (iOS, macOS) reports NSURLErrorCancelled (-999) whenever a
+    // navigation is superseded by another one in flight, for example a
+    // second link tap or a `source` change during a load. It is not a
+    // failure of the page that ends up loading, so it is dropped here.
+    // Android's error codes range -1..-16 and cannot collide with it.
+    if (error.errorCode == -999) return;
     final mapped = _session.networkError(
       code: error.errorCode,
       description: error.description,

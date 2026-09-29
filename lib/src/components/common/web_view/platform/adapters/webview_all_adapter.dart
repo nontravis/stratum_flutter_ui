@@ -124,7 +124,18 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   @override
   void dispose() {
     // The native view is released when its platform view leaves the tree.
-    // The controller ignores events that arrive after dispose.
+    // The controller ignores events that arrive after dispose. Load
+    // about:blank first, so audio, video, and timers stop immediately
+    // instead of running until the native view is collected (parity with
+    // the web implementation, which navigates the iframe away on dispose).
+    unawaited(_disposeLoad());
+  }
+
+  Future<void> _disposeLoad() async {
+    await _ready;
+    await _controller.loadRequest(
+      wa.LoadRequestParams(uri: Uri.parse('about:blank')),
+    );
   }
 
   wa.NavigationDecision _handleNavigationRequest(wa.NavigationRequest request) {

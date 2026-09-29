@@ -1,12 +1,32 @@
+import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/adapters/webview_flutter_adapter.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 
 import '../../fakes/fake_webview_flutter_platform.dart';
+import '../../fakes/recording_listener.dart';
 import 'native_adapter_contract.dart';
 
 void main() {
   runNativeAdapterContract('WebviewFlutterAdapter', _Harness.new);
+
+  test('drops the iOS/macOS cancelled-navigation error (-999)', () async {
+    final harness = _Harness();
+    final listener = RecordingListener(
+      allowedOrigins: {Uri.parse('https://app.example.com')},
+    );
+    harness.createAdapter(listener);
+    await pumpEventQueue();
+
+    harness.failResource(
+      code: -999,
+      description: 'cancelled',
+      isForMainFrame: true,
+      url: 'https://app.example.com/',
+    );
+
+    expect(listener.errors, isEmpty);
+  });
 }
 
 final class _Harness implements NativeAdapterHarness {
