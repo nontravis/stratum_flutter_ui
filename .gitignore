@@ -1,0 +1,86 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.serena
+benchmarks/
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+### IntelliJ ###
+*.iml
+*.ipr
+*.iws
+.idea/
+/*/build/
+/*/local.properties
+/*/out
+/*/*/build
+/*/*/production
+.navigation/
+captures/
+
+
+### Flutter ###
+# Libraries should not include pubspec.lock, per https://dart.dev/guides/libraries/private-files#pubspeclock.
+/pubspec.lock
+**/doc/api/
+.dart_tool/
+.flutter-plugins-dependencies
+/build/
+/coverage/
+.dart_tool
+.flutter-plugins
+.fvm/
+.packages
+.pub-cache/
+.pub/
+
+
+### Credential ###
+# Keystore files
+*.jks
+*.keystore
+.keystore/
+
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+GoogleService-Info.plist
+hosting.*
+.firebaserc
+
+# Flutter/Dart/Pub related
+
+
+### Android ###
+# Built application files
+.apk/
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+
+# AI
+.serena/
+.claude/worktrees/
+.claude.local.md
+.claude/settings.local.json
+.mcp.local.json
+.playwright-mcp
+
+# Worktrees
+.worktrees/
+
