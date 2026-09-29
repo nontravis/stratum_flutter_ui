@@ -54,7 +54,8 @@ lib/src/components/common/web_view/
       webview_all_adapter.dart        # Windows, Linux
     shared/
       origin_policy.dart              # isAllowedOrigin(origin, allowed)
-      html_frame_guard.dart           # tracks whether the srcdoc frame still shows our HTML
+      html_frame_guard.dart           # native-only: tracks whether the page still shows our HTML
+      html_bridge_bootstrap.dart      # web-only: injects the per-render MessageChannel handshake script
       web_view_history.dart           # controller-initiated load history for the web implementation
       message_script.dart             # builds the dispatchEvent script with jsonEncode
       native_bridge_session.dart      # bridge and error rules shared by both native adapters
@@ -163,6 +164,8 @@ function sendToFlutter(data) {
 window.addEventListener('message', (event) => handle(event.data));
 ```
 
+On web, `window.StratumBridge` is also present for HTML content: the bootstrap script (see below) injects it before any page script runs, so the snippet's `StratumBridge` branch applies there too, not only on native. A `url` source on web has no injected bridge, so its page must use `window.parent.postMessage` instead.
+
 ### Transport
 
 | Direction | Web | Native |
@@ -175,7 +178,7 @@ window.addEventListener('message', (event) => handle(event.data));
 | Case | A message is accepted when |
 |---|---|
 | Web, `url` source | `event.source == iframe.contentWindow` **and** `event.origin` passes `isAllowedOrigin`. |
-| Web, `html` source | `event.source == iframe.contentWindow`, `event.origin == "null"`, **and** `HtmlFrameGuard` reports that the frame still shows our HTML. |
+| Web, `html` source | The message arrives on the `MessagePort` adopted during the handshake (see "HTML source on web"). Every `"null"`-origin `window` message, including a forged handshake, is dropped. |
 | Native, `url` source | The origin of the current top-level page passes `isAllowedOrigin`. The origin is tracked from `onPageStarted` and `onUrlChange`, because `JavaScriptMessage` carries no origin. |
 | Native, `html` source | `HtmlFrameGuard` reports that the page is still our HTML **and** the tracked page has no origin (`about:blank`). On native, the guard counts `onPageStarted` events instead of iframe `load` events; between `willLoadHtml` and the HTML's first `onPageStarted` the previous page is still live, so the origin check keeps that page from being trusted as our HTML. |
 
@@ -185,12 +188,18 @@ On every platform, an empty `allowedOrigins` disables the bridge entirely, inclu
 
 ### HTML source on web
 
-The iframe uses `srcdoc` with `sandbox="allow-scripts"` (no `allow-same-origin`), so the document has an opaque origin serialized as `"null"`. A frame that navigates away keeps the sandbox flags and also reports `"null"`. `HtmlFrameGuard` counts iframe `load` events: the first `load` after `srcdoc` is set is our HTML. Any later `load` that the controller did not initiate marks the frame as navigated away. From then on, `"null"` messages are dropped and `postMessage` throws until the controller loads new content.
+The iframe uses `srcdoc` with `sandbox="allow-scripts"` (no `allow-same-origin`), so the document has an opaque origin serialized as `"null"`. A frame that navigates away keeps the sandbox flags and also reports `"null"`, and that page controls when its own `load` fires, so counting iframe `load` events cannot tell our HTML apart from a page reached by navigation.
+
+Instead, `injectBridgeBootstrap` (`platform/shared/html_bridge_bootstrap.dart`) inserts a bootstrap `<script>` into the HTML right after a leading `<!DOCTYPE ...>` (or at the start when there is none), before any page script runs. Each render of an HTML source generates a fresh nonce (16 bytes from `Random.secure()`, hex-encoded). The bootstrap script creates a `MessageChannel`, keeps `port1`, exposes `window.StratumBridge.postMessage` bound to it, forwards messages received on `port1` as `window` `message` events, and hands `port2` to the parent together with a handshake string `stratum-bridge-handshake:<nonce>`.
+
+The parent adopts `port2` only when a `"null"`-origin `window` message satisfies all of: `event.source == iframe.contentWindow`, the current history entry is an HTML source, the message data is exactly `stratum-bridge-handshake:<nonce>` for the nonce generated for that render, and `event.ports` holds exactly one port. Adopting a port closes and replaces any previously adopted port. Every other `"null"`-origin message — a forged handshake with the wrong nonce, one with no transferred port, or any other content — is dropped without side effects. A page reached by navigation cannot know the nonce, so it never obtains a working bridge even though it shares the same opaque origin.
+
+Re-inserting the view (`createView`) does not reset the nonce or the adopted port by itself: the web engine renders each platform view into a fresh, detached wrapper, so re-insertion discards the iframe's browsing context, `srcdoc` reloads, and the bootstrap runs again — the new handshake, carrying the same nonce, replaces the (now-stale) adopted port. `HtmlFrameGuard` is not used on web; it remains for the native adapters (section 3).
 
 ### Sending rules (Flutter to page)
 
 - Web, `url` source: `targetOrigin` is the origin of the current URL. If the frame has moved to another origin, the browser drops the message.
-- Web, `html` source: `targetOrigin` must be `'*'` because the origin is opaque. Sending is allowed only while `HtmlFrameGuard` reports our HTML.
+- Web, `html` source: sent over the `MessagePort` adopted during the handshake. `postMessage` throws `StateError` when no page has completed the handshake yet (before the first render, or before this render's bootstrap script has run).
 - Native: sending is allowed only while the current page origin passes `isAllowedOrigin`, or while `HtmlFrameGuard` reports our HTML. `jsonEncode` produces the JavaScript string literal (quotes, backslashes, and control characters are escaped). U+2028 and U+2029 are escaped as well for engines older than ES2019. `</script>` needs no escaping because `runJavaScript` evaluates the script directly, without an HTML parser.
 - A blocked send throws `StateError`.
 
@@ -274,10 +283,10 @@ Development follows TDD: each behavior starts with a failing test.
 
 | Layer | Runner | Coverage |
 |---|---|---|
-| 1. Pure logic (`platform/shared/`) | `flutter test` | `isAllowedOrigin` (default ports, host case, path ignored, `null` origin), `HtmlFrameGuard` transitions, `WebViewHistory`, `message_script` escaping (`"`, `\`, `</script>`, non-ASCII). |
+| 1. Pure logic (`platform/shared/`) | `flutter test` | `isAllowedOrigin` (default ports, host case, path ignored, `null` origin), `HtmlFrameGuard` transitions (native), `injectBridgeBootstrap` (doctype insertion, prepend, nonce, HTML preserved), `WebViewHistory`, `message_script` escaping (`"`, `\`, `</script>`, non-ASCII). |
 | 2. Adapters with a fake platform | `flutter test` | Hand-written fakes installed through `WebViewPlatform.instance` for both platform interfaces. Channel `StratumBridge` registration, origin gating, main-frame error filtering, adapter selection through `debugDefaultTargetPlatformOverride`. |
 | 3. Widget | `flutter test` | Widget-owned controller created and disposed; external controller not disposed; callback sync and reload on `source` change in `didUpdateWidget`; throwing callback reported through `FlutterError.reportError`. |
-| 4. Web | `flutter test --platform chrome`, `@TestOn('browser')` | iframe `srcdoc` and `sandbox` attributes; page `postMessage` reaches `onMessage`; mismatched `event.source` dropped; listener removed on dispose. |
+| 4. Web | `flutter test --platform chrome`, `@TestOn('browser')` | iframe `srcdoc` and `sandbox` attributes; `url`-source `postMessage` reaches `onMessage`; mismatched `event.source` dropped; listener removed on dispose; the `StratumBridge` handshake (genuine, forged, post-navigation, re-insertion) round-trips messages and rejects everything else. |
 
 - Test files mirror `lib/`: `test/src/components/common/web_view/...`.
 - Fakes are hand-written; no mocking library is added.

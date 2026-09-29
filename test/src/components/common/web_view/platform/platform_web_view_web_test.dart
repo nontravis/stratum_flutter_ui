@@ -27,17 +27,6 @@ void main() {
 
   void attach() => web.document.body!.appendChild(view.iframe);
 
-  Future<void> nextLoad() {
-    final completer = Completer<void>();
-    late final JSFunction handler;
-    handler = ((web.Event _) {
-      view.iframe.removeEventListener('load', handler);
-      completer.complete();
-    }).toJS;
-    view.iframe.addEventListener('load', handler);
-    return completer.future.timeout(const Duration(seconds: 5));
-  }
-
   void dispatchMessage(JSAny data, {required String origin, JSObject? source}) {
     web.window.dispatchEvent(
       web.MessageEvent(
@@ -116,44 +105,144 @@ void main() {
     },
   );
 
-  test('trusts its own HTML until the frame navigates away', () async {
-    final loaded = nextLoad();
-    await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
-    attach();
-    await loaded;
-    dispatchMessage('from html'.toJS, origin: 'null');
-    view.iframe.dispatchEvent(web.Event('load'));
-    dispatchMessage('after navigation'.toJS, origin: 'null');
-    expect(listener.messages, [const StratumWebViewMessage(data: 'from html')]);
-    await expectLater(view.postMessage('ping'), throwsStateError);
-  });
-
-  test('receives a real postMessage from sandboxed HTML', () async {
+  test('StratumBridge.postMessage from our HTML reaches the listener '
+      'with origin null', () async {
     final received = Completer<StratumWebViewMessage>();
     listener.onMessageCallback = received.complete;
     await view.load(
       const StratumWebViewSource.html(
-        '<script>parent.postMessage("ready", "*");</script>',
+        "<script>StratumBridge.postMessage('hi');</script>",
       ),
     );
     attach();
     expect(
       await received.future.timeout(const Duration(seconds: 5)),
-      const StratumWebViewMessage(data: 'ready'),
+      const StratumWebViewMessage(data: 'hi'),
     );
   });
 
-  test('re-inserting the view re-arms the HTML bridge', () async {
-    final loaded = nextLoad();
+  test('drops a direct postMessage and a synthetic null message, '
+      'keeps the bridge message', () async {
+    final viaBridge = Completer<void>();
+    listener.onMessageCallback = (message) {
+      if (message.data == 'via-bridge' && !viaBridge.isCompleted) {
+        viaBridge.complete();
+      }
+    };
+    await view.load(
+      const StratumWebViewSource.html(
+        '<script>\n'
+        "parent.postMessage('direct', '*');\n"
+        "StratumBridge.postMessage('via-bridge');\n"
+        '</script>',
+      ),
+    );
+    attach();
+    await viaBridge.future.timeout(const Duration(seconds: 5));
+    dispatchMessage('spoofed'.toJS, origin: 'null');
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(listener.messages, [
+      const StratumWebViewMessage(data: 'via-bridge'),
+    ]);
+  });
+
+  test('round-trips a message through StratumBridge', () async {
+    final ready = Completer<void>();
+    final echoed = Completer<String>();
+    listener.onMessageCallback = (message) {
+      if (message.data == 'ready') {
+        ready.complete();
+      } else if (!echoed.isCompleted) {
+        echoed.complete(message.data);
+      }
+    };
+    await view.load(
+      const StratumWebViewSource.html(
+        '<script>\n'
+        "window.addEventListener('message', function(e) {\n"
+        "StratumBridge.postMessage('echo:' + e.data);\n"
+        '});\n'
+        "StratumBridge.postMessage('ready');\n"
+        '</script>',
+      ),
+    );
+    attach();
+    await ready.future.timeout(const Duration(seconds: 5));
+    await view.postMessage('ping');
+    expect(
+      await echoed.future.timeout(const Duration(seconds: 5)),
+      'echo:ping',
+    );
+  });
+
+  test('refuses to post before the handshake completes', () async {
     await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
     attach();
-    await loaded;
-    view.iframe.dispatchEvent(web.Event('load'));
-    view.createView();
-    dispatchMessage('after re-insert'.toJS, origin: 'null');
-    expect(listener.messages, [
-      const StratumWebViewMessage(data: 'after re-insert'),
-    ]);
+    await expectLater(view.postMessage('ping'), throwsStateError);
+  });
+
+  test(
+    'drops a forged handshake and a direct message after navigating away',
+    () async {
+      final ours = Completer<void>();
+      listener.onMessageCallback = (message) {
+        if (message.data == 'ours' && !ours.isCompleted) ours.complete();
+      };
+      await view.load(
+        const StratumWebViewSource.html(r'''
+<script>
+StratumBridge.postMessage('ours');
+location.href = 'data:text/html,' + encodeURIComponent(
+  '<script>parent.postMessage("stratum-bridge-handshake:forged","*");' +
+  'parent.postMessage("evil","*");<\/script>'
+);
+</script>
+'''),
+      );
+      attach();
+      await ours.future.timeout(const Duration(seconds: 5));
+      await Future<void>.delayed(const Duration(seconds: 1));
+      expect(listener.messages, [const StratumWebViewMessage(data: 'ours')]);
+    },
+  );
+
+  test('re-inserting the view re-establishes the bridge', () async {
+    final firstReady = Completer<void>();
+    final secondReady = Completer<void>();
+    final echoed = Completer<String>();
+    listener.onMessageCallback = (message) {
+      if (message.data == 'ready') {
+        if (!firstReady.isCompleted) {
+          firstReady.complete();
+        } else if (!secondReady.isCompleted) {
+          secondReady.complete();
+        }
+      } else if (!echoed.isCompleted) {
+        echoed.complete(message.data);
+      }
+    };
+    await view.load(
+      const StratumWebViewSource.html(
+        '<script>\n'
+        "window.addEventListener('message', function(e) {\n"
+        "StratumBridge.postMessage('echo:' + e.data);\n"
+        '});\n'
+        "StratumBridge.postMessage('ready');\n"
+        '</script>',
+      ),
+    );
+    attach();
+    await firstReady.future.timeout(const Duration(seconds: 5));
+
+    view.iframe.remove();
+    web.document.body!.appendChild(view.createView());
+    await secondReady.future.timeout(const Duration(seconds: 5));
+
+    await view.postMessage('ping');
+    expect(
+      await echoed.future.timeout(const Duration(seconds: 5)),
+      'echo:ping',
+    );
   });
 
   test('posts to the current URL origin and refuses others', () async {
