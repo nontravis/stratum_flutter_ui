@@ -19,7 +19,11 @@ class StratumWebViewExampleApp extends StatelessWidget {
           appBar: AppBar(
             title: const Text('StratumWebView'),
             bottom: const TabBar(
-              tabs: [Tab(text: 'URL'), Tab(text: 'HTML'), Tab(text: 'Bridge')],
+              tabs: [
+                Tab(text: 'URL'),
+                Tab(text: 'HTML'),
+                Tab(text: 'Bridge'),
+              ],
             ),
           ),
           body: const TabBarView(
@@ -76,9 +80,7 @@ class _UrlTabState extends State<_UrlTab> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             if (_error != null)
-              Expanded(
-                child: Text(_error!, overflow: TextOverflow.ellipsis),
-              ),
+              Expanded(child: Text(_error!, overflow: TextOverflow.ellipsis)),
           ],
         ),
         Expanded(
@@ -160,9 +162,8 @@ class _BridgeTabState extends State<_BridgeTab> {
       await _controller.postMessage('flutter message $_sent');
     } on StateError catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
@@ -193,10 +194,11 @@ class _BridgeTabState extends State<_BridgeTab> {
             controller: _controller,
             source: const StratumWebViewSource.html(_bridgeHtml),
             // The bridge stays off while the allowlist is empty, even for
-            // HTML content, so the demo lists the one site it trusts.
-            allowedOrigins: {Uri.parse('https://flutter.dev')},
-            onMessage: (message) =>
-                setState(() => _received.add(message.data)),
+            // HTML content, so it needs at least one entry. Real apps list
+            // origins they own here, not a third party's; this demo uses a
+            // placeholder app origin only because it has none of its own.
+            allowedOrigins: {Uri.parse('https://app.example.com')},
+            onMessage: (message) => setState(() => _received.add(message.data)),
           ),
         ),
       ],

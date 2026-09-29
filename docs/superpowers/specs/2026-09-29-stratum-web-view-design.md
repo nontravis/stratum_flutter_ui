@@ -79,7 +79,7 @@ Each target file defines the same internal contract: an abstract `PlatformStratu
 
 The two adapters live in separate files because `webview_flutter` and `webview_platform_interface` export classes with identical names (`JavaScriptMode`, `NavigationDecision`, `WebResourceError`, and others). `webview_platform_interface` is a fork of `webview_flutter_platform_interface`, so both adapters follow the same method names: `loadRequest`, `loadHtmlString`, `addJavaScriptChannel`, `runJavaScript`, `canGoBack`, `goBack`, `goForward`, `reload`, `currentUrl`.
 
-The barrel `web_view.dart` is exported from `common/common.dart`, matching the existing layout components. Source files import `package:stratum_ui/src/src.dart`, use `const new(...)` constructors, and group fields with `///========== Section ==========///` comments, following the repository convention.
+The barrel `web_view.dart` is exported from `common/common.dart`, matching the existing layout components. Source files import `package:flutter/foundation.dart`, `package:flutter/widgets.dart`, and other web_view files by their `package:stratum_ui/src/components/common/web_view/...` path — never `package:stratum_ui/src/src.dart` or `package:stratum_ui/stratum_ui.dart`, which do not compile while the rest of the package has errors outside web_view. Source files use `const new(...)` constructors and group fields with `///========== Section ==========///` comments, following the repository convention.
 
 ## 4. Public API
 
@@ -113,27 +113,27 @@ if (await controller.canGoBack()) await controller.goBack();
 | `controller` | `StratumWebViewController?` | `null` | When `null`, the widget creates and disposes its own controller (the `TextField` pattern). |
 | `source` | `StratumWebViewSource` | required | Sealed: `StratumWebViewSource.url(Uri)` or `StratumWebViewSource.html(String)`. A change in `didUpdateWidget` triggers a new load. |
 | `allowedOrigins` | `Set<Uri>` | `{}` | Bridge allowlist. Empty disables the bridge: incoming messages are dropped and `postMessage` throws. |
-| `javaScriptEnabled` | `bool` | `true` | When `false`, the bridge is inactive. On web, the iframe gets a `sandbox` attribute without `allow-scripts` for both source types. |
+| `javaScriptEnabled` | `bool` | `true` | When `false`, the bridge is inactive: the controller drops incoming messages and `postMessage` throws `StateError`, on every platform, in addition to running the page without script. On web, the iframe gets a `sandbox` attribute without `allow-scripts` for both source types. |
 | `onMessage` | `ValueChanged<StratumWebViewMessage>?` | `null` | `StratumWebViewMessage` has `data` (`String`) and `origin` (`Uri?`). |
 | `onNavigationRequest` | `StratumNavigationDecision Function(Uri url)?` | `null` | `StratumNavigationDecision` is an enum: `navigate`, `prevent`. |
 | `onPageStarted` | `ValueChanged<Uri?>?` | `null` | |
 | `onPageFinished` | `ValueChanged<Uri?>?` | `null` | |
 | `onError` | `ValueChanged<StratumWebViewError>?` | `null` | Main-frame errors only. See section 6. |
 
-Callbacks live on the widget and are synchronized into the controller in `initState` and `didUpdateWidget`.
+Callbacks live on the widget and are synchronized into the controller in `initState` and `didUpdateWidget`. A `loadUrl`/`loadHtml` failure raised from there (for example the `ArgumentError` above) is caught and reported through `FlutterError.reportError` (library `stratum_ui`) instead of escaping as an uncaught async error.
 
 ### `StratumWebViewController`
 
 | Method | Returns |
 |---|---|
-| `loadUrl(Uri url)` | `Future<void>` |
+| `loadUrl(Uri url)` | `Future<void>`; throws `ArgumentError` unless `url` uses the `http` or `https` scheme (R13) |
 | `loadHtml(String html)` | `Future<void>` |
 | `reload()` | `Future<void>` |
 | `goBack()`, `goForward()` | `Future<void>` |
 | `canGoBack()`, `canGoForward()` | `Future<bool>` |
 | `currentUrl()` | `Future<Uri?>` |
-| `postMessage(String data)` | `Future<void>`; throws `StateError` when the current page is not an allowed destination |
-| `dispose()` | `void`; any later call throws `StateError` |
+| `postMessage(String data)` | `Future<void>`; throws `StateError` when the current page is not an allowed destination, `allowedOrigins` is empty, or `javaScriptEnabled` is `false` |
+| `dispose()` | `void`; any later call throws `StateError`; also resets the configuration to its default, releasing consumer callback references |
 
 ### Types
 
@@ -168,10 +168,10 @@ On web, `window.StratumBridge` is also present for HTML content: the bootstrap s
 
 ### Transport
 
-| Direction | Web | Native |
-|---|---|---|
-| Page to Flutter | Page calls `parent.postMessage`; stratum_ui listens for `message` on the app window. | `addJavaScriptChannel('StratumBridge')`; `onMessageReceived`. |
-| Flutter to page | `iframe.contentWindow.postMessage(data, targetOrigin)`. | `runJavaScript` with `window.dispatchEvent(new MessageEvent('message', {data: <jsonEncode(data)>}))`. |
+| Direction | Web (`url` source) | Web (`html` source) | Native |
+|---|---|---|---|
+| Page to Flutter | Page calls `parent.postMessage`; stratum_ui listens for `message` on the app window. | Page calls `StratumBridge.postMessage`, delivered over the per-render `MessageChannel` port adopted during the handshake (see "HTML source on web"). | `addJavaScriptChannel('StratumBridge')`; `onMessageReceived`. |
+| Flutter to page | `iframe.contentWindow.postMessage(data, targetOrigin)`. | `port.postMessage(data)` on the adopted `MessagePort`. | `runJavaScript` with `window.dispatchEvent(new MessageEvent('message', {data: <jsonEncode(data)>}))`. |
 
 ### Acceptance rules (page to Flutter)
 
@@ -234,15 +234,20 @@ The doc comment recommends pairing the web view with an "open in new tab" action
 - `WebResourceError` maps to `StratumWebViewErrorType.network` (`code` = `errorCode`, `url` = `url`).
 - `HttpResponseError` maps to `StratumWebViewErrorType.http` (`code` = `response.statusCode`, `url` = `request.uri`).
 - Only main-frame errors are forwarded. For `WebResourceError`, a `null` `isForMainFrame` counts as main frame. `HttpResponseError` has no main-frame flag (Android reports sub-resource HTTP errors too), so a non-null `request.uri` is forwarded only when it equals the current page URL, without fragment. WebKit (iOS, macOS) reports HTTP errors only for navigation responses and never supplies a request URL; a `null` `request.uri` is treated as the current page instead of being dropped, with `url` set to the current page URL (`null` before any page has loaded).
+- `WebviewFlutterAdapter` drops `WebResourceError` with `errorCode == -999` (`NSURLErrorCancelled`) before it reaches `NativeBridgeSession`: WebKit (iOS, macOS) reports it whenever a navigation is superseded by another one in flight (a second link tap, or a `source` change during a load), not a failure of the page that ends up loading. Android's codes range -1..-16 and cannot collide with it.
+- `onError` on iOS and macOS may also report an HTTP error from an embedded iframe, not only the top-level page (WebKit's `decidePolicyForNavigationResponse` path carries no main-frame flag); this is a known, accepted trade-off (R11).
 
 ### Native navigation requests
 
-`onNavigationRequest` is consulted for main-frame requests only. Sub-frame requests and `about:` URLs (for example the `about:blank` document created by `loadHtml`) always navigate. Android does not report navigations started by `loadRequest`; iOS and macOS do.
+`onNavigationRequest` is consulted for main-frame requests only. Sub-frame requests and `about:` URLs (for example the `about:blank` document created by `loadHtml`) always navigate. Android does not report navigations started by `loadRequest`; iOS, macOS, and `webview_all_windows` (Windows) do.
 
 ### Lifecycle
 
 - A controller created by the widget is disposed by the widget. A controller passed in is disposed by its owner.
-- On web, `dispose()` removes the `message` listener from the app window.
+- On web, `dispose()` removes the `message` listener from the app window and navigates the iframe to `about:blank`. Both native adapters' `dispose()` also load `about:blank` (unawaited, after the adapter is ready), so audio, video, and timers stop immediately instead of running until the native view is collected.
+- `StratumWebViewController.dispose()` also resets its configuration to `const StratumWebViewConfiguration()`, releasing references to consumer callbacks (mitigates M1; the durable fix is `HtmlElementView.fromTagName`, tracked as a follow-up).
+- On native, navigating back or forward to an HTML entry leaves the bridge off (`HtmlFrameGuard` is fail-closed and terminal); call `loadHtml` again to re-arm it. Web restores the bridge automatically, because re-insertion re-runs the bootstrap script.
+- On web, the implementation yields one microtask (`await Future<void>.value();`) before touching the listener in `load`, `reload`, `goBack`, and `goForward` (R14), so a consumer callback that calls `setState` never runs inside the caller's build phase — this matches native, where every adapter method awaits its readiness future first.
 
 ### Consumer callback exceptions
 

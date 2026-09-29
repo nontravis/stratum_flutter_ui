@@ -1,13 +1,18 @@
 /// Tracks whether a frame still shows HTML that the controller loaded.
 ///
-/// HTML content has no verifiable origin (web reports the opaque origin
-/// `null`, native reports `about:blank`). A page that the user reaches from
-/// that HTML can look the same, so the guard counts loads instead:
+/// Native only. The web implementation uses a different mechanism (see
+/// `html_bridge_bootstrap.dart`), because on web a navigated-to page
+/// controls when its own `load` event fires, so counting iframe `load`
+/// events cannot tell it apart from our own HTML.
+///
+/// HTML content has no verifiable origin (native reports `about:blank`). A
+/// page that the user reaches from that HTML can look the same, so the
+/// guard counts loads instead:
 ///
 /// * Call [expectOwnHtml] right before loading HTML content.
 /// * Call [expectNavigation] right before loading a URL.
-/// * Call [didLoadFrame] for every main-frame load that the platform reports
-///   (the iframe `load` event on web, `onPageStarted` on native).
+/// * Call [didLoadFrame] for every main-frame load that the platform
+///   reports (`onPageStarted`).
 ///
 /// The first load after [expectOwnHtml] is the controller's HTML. Any later
 /// load means the frame navigated away.
