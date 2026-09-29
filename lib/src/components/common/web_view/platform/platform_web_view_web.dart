@@ -1,9 +1,10 @@
 import 'dart:js_interop';
+import 'dart:math';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
-import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_frame_guard.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/web_view_history.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
@@ -16,10 +17,19 @@ PlatformStratumWebView createPlatformStratumWebView(
 
 /// [PlatformStratumWebView] for the web, built on an `<iframe>`.
 ///
-/// Pages reach Flutter with `window.parent.postMessage`. A message is
-/// accepted only when it comes from this iframe's window and either its
-/// origin is allowed, or the iframe still shows HTML loaded by the
-/// controller.
+/// A `url` source reaches Flutter with `window.parent.postMessage`. A
+/// message is accepted only when it comes from this iframe's window and its
+/// origin is allowed.
+///
+/// An `html` source has no verifiable origin: `srcdoc` renders with an
+/// opaque origin serialized as `"null"`, and a page reached by navigating
+/// away from it reports the same opaque origin. Counting iframe `load`
+/// events cannot tell the two apart, because a navigated-to page controls
+/// when its own `load` fires. Instead, HTML content is bootstrapped with a
+/// per-render nonce and a private `MessageChannel` (see
+/// [injectBridgeBootstrap]): only a handshake carrying the current nonce, on
+/// a real channel port, is trusted. A `"null"`-origin `window` message that
+/// is not that handshake is always dropped.
 final class WebPlatformStratumWebView implements PlatformStratumWebView {
   new(this._listener) : _viewType = 'stratum-web-view-${_nextViewId++}' {
     _iframe.style
@@ -35,17 +45,19 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   }
 
   static int _nextViewId = 0;
+  static final Random _random = Random.secure();
 
   final PlatformStratumWebViewListener _listener;
   final String _viewType;
   final web.HTMLIFrameElement _iframe = web.HTMLIFrameElement();
-  final HtmlFrameGuard _guard = HtmlFrameGuard();
   final WebViewHistory<StratumWebViewSource> _history =
       WebViewHistory<StratumWebViewSource>();
   late final JSFunction _messageListener = _handleMessage.toJS;
   late final JSFunction _loadListener = _handleLoad.toJS;
   bool _javaScriptEnabled = true;
   bool _disposed = false;
+  String? _htmlNonce;
+  web.MessagePort? _bridgePort;
 
   /// The iframe that shows the page.
   @visibleForTesting
@@ -53,13 +65,13 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
 
   /// Returns the element for a new platform view.
   ///
-  /// Flutter calls this each time the view is inserted into the page.
-  /// Re-inserting an iframe reloads it, so loaded HTML is expected again.
+  /// Flutter calls this each time the view is inserted into the page. The
+  /// engine renders each platform view into a fresh, detached wrapper
+  /// element, so re-insertion always discards the iframe's browsing
+  /// context: `srcdoc` reloads, the bootstrap script runs again, and a new
+  /// handshake carrying the same nonce replaces the adopted port.
   @visibleForTesting
-  web.HTMLElement createView() {
-    if (_history.current is StratumWebViewHtmlSource) _guard.expectOwnHtml();
-    return _iframe;
-  }
+  web.HTMLElement createView() => _iframe;
 
   @override
   Future<void> setJavaScriptEnabled(bool enabled) async {
@@ -117,20 +129,22 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
 
   @override
   Future<void> postMessage(String data) async {
-    final frameWindow = _iframe.contentWindow;
     final current = _history.current;
-    if (frameWindow == null || current == null) {
+    if (current == null) {
       throw StateError('The web view has no page to receive messages.');
     }
     switch (current) {
       case StratumWebViewHtmlSource():
-        if (!_guard.isShowingOwnHtml) {
-          throw StateError('The frame navigated away from the loaded HTML.');
+        final port = _bridgePort;
+        if (port == null) {
+          throw StateError('The HTML page has not connected the bridge yet.');
         }
-        frameWindow.postMessage(data.toJS, '*'.toJS);
+        port.postMessage(data.toJS);
       case StratumWebViewUrlSource(:final url):
+        final frameWindow = _iframe.contentWindow;
         final origin = originOf(url);
-        if (origin == null ||
+        if (frameWindow == null ||
+            origin == null ||
             !isAllowedOrigin(origin, _listener.allowedOrigins)) {
           throw StateError('$url is not an allowed message destination.');
         }
@@ -151,20 +165,24 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
       ..removeEventListener('load', _loadListener)
       ..removeAttribute('srcdoc')
       ..src = 'about:blank';
+    _htmlNonce = null;
+    _closeBridgePort();
   }
 
   void _show(StratumWebViewSource source) {
     _applySandbox(source);
+    _closeBridgePort();
     switch (source) {
       case StratumWebViewUrlSource(:final url):
-        _guard.expectNavigation();
+        _htmlNonce = null;
         _iframe
           ..removeAttribute('srcdoc')
           ..src = url.toString();
         _listener.onPageStarted(url);
       case StratumWebViewHtmlSource(:final html):
-        _guard.expectOwnHtml();
-        _iframe.srcdoc = html.toJS;
+        final nonce = _generateNonce();
+        _htmlNonce = nonce;
+        _iframe.srcdoc = injectBridgeBootstrap(html, nonce).toJS;
         _listener.onPageStarted(null);
     }
   }
@@ -184,11 +202,20 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     }
   }
 
+  void _closeBridgePort() {
+    _bridgePort?.close();
+    _bridgePort = null;
+  }
+
+  String _generateNonce() {
+    final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
+
   void _handleLoad(web.Event event) {
     if (_disposed) return;
     final current = _history.current;
     if (current == null) return;
-    _guard.didLoadFrame();
     _listener.onPageFinished(
       current is StratumWebViewUrlSource ? current.url : null,
     );
@@ -199,20 +226,45 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     final frameWindow = _iframe.contentWindow;
     if (frameWindow == null) return;
     if (!event.source.strictEquals(frameWindow).toDart) return;
+    if (event.origin == 'null') {
+      _handleHandshake(event);
+      return;
+    }
     final data = event.data;
     if (data == null || !data.isA<JSString>()) return;
     final text = (data as JSString).toDart;
-    if (event.origin == 'null') {
-      final showingHtml =
-          _history.current is StratumWebViewHtmlSource &&
-          _guard.isShowingOwnHtml;
-      if (showingHtml) _listener.onMessage(StratumWebViewMessage(data: text));
-      return;
-    }
     final origin = Uri.tryParse(event.origin);
     if (!isAllowedOrigin(origin, _listener.allowedOrigins)) return;
     _listener.onMessage(
       StratumWebViewMessage(data: text, origin: originOf(origin)),
     );
+  }
+
+  /// Adopts the port from a genuine bootstrap handshake.
+  ///
+  /// Every other `"null"`-origin `window` message, including one that
+  /// forges the `stratum-bridge-handshake:` prefix without a matching
+  /// nonce, or without a real transferred port, is dropped here.
+  void _handleHandshake(web.MessageEvent event) {
+    final nonce = _htmlNonce;
+    if (nonce == null || _history.current is! StratumWebViewHtmlSource) {
+      return;
+    }
+    final data = event.data;
+    if (data == null || !data.isA<JSString>()) return;
+    final text = (data as JSString).toDart;
+    if (text != 'stratum-bridge-handshake:$nonce') return;
+    final ports = event.ports.toDart;
+    if (ports.length != 1) return;
+    _closeBridgePort();
+    final port = ports.first..onmessage = _handlePortMessage.toJS;
+    _bridgePort = port;
+  }
+
+  void _handlePortMessage(web.MessageEvent event) {
+    if (_disposed) return;
+    final data = event.data;
+    if (data == null || !data.isA<JSString>()) return;
+    _listener.onMessage(StratumWebViewMessage(data: (data as JSString).toDart));
   }
 }
