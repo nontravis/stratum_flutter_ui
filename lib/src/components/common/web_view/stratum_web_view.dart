@@ -7,18 +7,36 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 /// Displays a web page or an HTML document on Android, iOS, macOS, Windows,
 /// Linux, and the web.
 ///
-/// **Bridge.** Pages send messages with `StratumBridge.postMessage(data)` on
-/// native platforms and `window.parent.postMessage(data, appOrigin)` on the
-/// web; both reach [onMessage]. `StratumWebViewController.postMessage`
-/// delivers a `message` event to the page. The bridge stays off while
-/// [allowedOrigins] is empty. HTML content is trusted until the user
-/// navigates away from it.
+/// **Bridge.** A page calls `StratumBridge.postMessage(data)` whenever
+/// `window.StratumBridge` exists: on every native platform, and for HTML
+/// content on web. A `url` page on web has no injected bridge and instead
+/// calls `window.parent.postMessage(data, appOrigin)`. Feature-detect both:
+///
+/// ```js
+/// function sendToFlutter(data) {
+///   if (window.StratumBridge) StratumBridge.postMessage(data);
+///   else window.parent.postMessage(data, 'https://your-app.example');
+/// }
+/// ```
+///
+/// `StratumWebViewController.postMessage` delivers a `message` event to the
+/// page on every platform. The bridge stays off while [allowedOrigins] is
+/// empty, HTML content included: give HTML a non-empty [allowedOrigins]
+/// too. HTML content is trusted until the user navigates away from it. On
+/// native, navigating back or forward to that HTML afterward does not
+/// re-arm the bridge; call `loadHtml` again. On web, a strict app
+/// Content-Security-Policy without inline scripts blocks the bootstrap
+/// script and disables the HTML bridge; scripts that run in the app's own
+/// window are trusted regardless, since the handshake is visible there.
 ///
 /// **Limitations.**
 /// * Web: the page is an `<iframe>`. [onError] never fires, and
-///   [onNavigationRequest] only sees loads started by the controller. Many
-///   sites refuse to be framed; offer an "open in new tab" fallback. Flutter
-///   overlays drawn above the view need `PointerInterceptor`.
+///   [onNavigationRequest] only sees loads started by the controller. A
+///   `url` page runs without a sandbox, so a page reached inside the frame
+///   can navigate the whole app window after a click. Many sites refuse to
+///   be framed; offer an "open in new tab" fallback. Flutter overlays
+///   drawn above the view need `PointerInterceptor`. An HTML page's URL is
+///   always `null`; on native it is `about:blank`.
 /// * Linux: the page is a native GTK widget, so Flutter widgets cannot draw
 ///   above it, and scale or rotation transforms hide it.
 /// * Native: the bridge channel is visible to every frame of an allowed
@@ -26,9 +44,11 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 ///   origin is inferred from navigation events (`onPageStarted`); on iOS
 ///   and macOS that fires at the provisional start of a navigation, before
 ///   the new page commits, so a disallowed page can still be running when
-///   its origin is recorded as allowed. Treat bridge messages as untrusted
-///   input, and use [onNavigationRequest] to prevent top-level navigation
-///   outside [allowedOrigins] when a hard boundary is needed.
+///   its origin is recorded as allowed. [onError] may also report an HTTP
+///   error from an embedded iframe on iOS and macOS, not only the
+///   top-level page. Treat bridge messages as untrusted input, and use
+///   [onNavigationRequest] to prevent top-level navigation outside
+///   [allowedOrigins] when a hard boundary is needed.
 class StratumWebView extends StatefulWidget {
   const new({
     super.key,
