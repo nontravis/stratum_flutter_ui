@@ -3,9 +3,13 @@ library;
 
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_web.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
+import 'package:stratum_ui/src/components/common/web_view/stratum_web_view.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 import 'package:web/web.dart' as web;
 
@@ -258,6 +262,23 @@ location.href = 'data:text/html,' + encodeURIComponent(
     await expectLater(view.postMessage('ping'), throwsStateError);
   });
 
+  test('refusal error names the origin, not the full URL', () async {
+    final url = appOrigin.replace(path: '/secret', query: 'x=1');
+    await view.load(StratumWebViewSource.url(url));
+    attach();
+    listener.allowedOrigins = {};
+    await expectLater(
+      view.postMessage('ping'),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          '${originOf(url)} is not an allowed message destination.',
+        ),
+      ),
+    );
+  });
+
   test('navigates the controller history', () async {
     await view.load(StratumWebViewSource.url(appOrigin.replace(path: '/one')));
     await view.load(const StratumWebViewSource.html('<p>Two</p>'));
@@ -282,4 +303,63 @@ location.href = 'data:text/html,' + encodeURIComponent(
     );
     expect(listener.messages, isEmpty);
   });
+
+  test(
+    'sends to the loaded page origin only, never a wildcard target',
+    () async {
+      await view.load(missingPage());
+      attach();
+      final frameWindow = view.iframe.contentWindow!;
+      final targets = <String>[];
+      void spy(JSAny? data, JSAny? targetOrigin) {
+        targets.add((targetOrigin! as JSString).toDart);
+      }
+
+      (frameWindow as JSObject)['postMessage'] = spy.toJS;
+      await view.postMessage('ping');
+      expect(targets, [appOrigin.toString()]);
+    },
+  );
+
+  testWidgets(
+    'a setState-in-onPageStarted loading indicator never rebuilds during '
+    'build',
+    (tester) async {
+      final errors = <FlutterErrorDetails>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = errors.add;
+      addTearDown(() => FlutterError.onError = previous);
+
+      await tester.pumpWidget(
+        _LoadingHarness(source: StratumWebViewSource.url(appOrigin)),
+      );
+      await tester.pump();
+      await tester.pumpWidget(
+        _LoadingHarness(
+          source: StratumWebViewSource.url(appOrigin.replace(path: '/two')),
+        ),
+      );
+      await tester.pump();
+
+      expect(errors, isEmpty);
+    },
+  );
+}
+
+/// Rebuilds on every `onPageStarted` call, the way a loading indicator does.
+class _LoadingHarness extends StatefulWidget {
+  const new({required this.source});
+
+  final StratumWebViewSource source;
+
+  @override
+  State<_LoadingHarness> createState() => _LoadingHarnessState();
+}
+
+class _LoadingHarnessState extends State<_LoadingHarness> {
+  @override
+  Widget build(BuildContext context) => StratumWebView(
+    source: widget.source,
+    onPageStarted: (_) => setState(() {}),
+  );
 }
