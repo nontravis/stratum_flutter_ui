@@ -82,6 +82,10 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
 
   @override
   Future<void> load(StratumWebViewSource source) async {
+    // Yield one microtask before touching the listener, so a callback that
+    // runs `setState` never lands inside the caller's build phase (matches
+    // native, where every adapter method awaits `_ready` first).
+    await Future<void>.value();
     if (source case StratumWebViewUrlSource(:final url)) {
       final decision = _listener.onNavigationRequest(url);
       if (decision == StratumNavigationDecision.prevent) return;
@@ -92,18 +96,21 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
 
   @override
   Future<void> reload() async {
+    await Future<void>.value();
     final current = _history.current;
     if (current != null) _show(current);
   }
 
   @override
   Future<void> goBack() async {
+    await Future<void>.value();
     final previous = _history.back();
     if (previous != null) _show(previous);
   }
 
   @override
   Future<void> goForward() async {
+    await Future<void>.value();
     final next = _history.forward();
     if (next != null) _show(next);
   }
@@ -146,7 +153,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
         if (frameWindow == null ||
             origin == null ||
             !isAllowedOrigin(origin, _listener.allowedOrigins)) {
-          throw StateError('$url is not an allowed message destination.');
+          throw StateError('$origin is not an allowed message destination.');
         }
         frameWindow.postMessage(data.toJS, origin.toString().toJS);
     }

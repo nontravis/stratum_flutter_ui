@@ -21,6 +21,30 @@ void main() {
       expect(result, endsWith('<p>Hi</p>'));
     });
 
+    test('matches the doctype after a leading HTML comment', () {
+      final result = injectBridgeBootstrap(
+        '<!-- generated -->\n<!DOCTYPE html><p>Hi</p>',
+        'abc123',
+      );
+      expect(
+        result,
+        startsWith('<!-- generated -->\n<!DOCTYPE html><script>(function(){'),
+      );
+      expect(result, endsWith('<p>Hi</p>'));
+    });
+
+    test('matches the doctype after whitespace and a comment combined', () {
+      final result = injectBridgeBootstrap(
+        '  <!-- a -->\n  <!doctype html>\n<p>Hi</p>',
+        'abc123',
+      );
+      expect(
+        result,
+        startsWith('  <!-- a -->\n  <!doctype html><script>(function(){'),
+      );
+      expect(result, endsWith('<p>Hi</p>'));
+    });
+
     test('prepends the script when there is no doctype', () {
       final result = injectBridgeBootstrap('<p>Hi</p>', 'abc123');
       expect(result, startsWith('<script>(function(){'));

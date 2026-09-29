@@ -15,8 +15,9 @@
 /// `stratum-bridge-handshake:` prefix.
 ///
 /// Returns [html] with the script inserted right after a leading
-/// `<!DOCTYPE ...>` declaration (matched case-insensitively), or prepended
-/// when [html] has none.
+/// `<!DOCTYPE ...>` declaration (matched case-insensitively, allowing
+/// leading whitespace and HTML comments before it), or prepended when
+/// [html] has none.
 String injectBridgeBootstrap(String html, String nonce) {
   // Each piece below ends with an explicit `\n`. A blank line between
   // statements is valid, whitespace-insensitive JavaScript, and it gives
@@ -34,8 +35,9 @@ String injectBridgeBootstrap(String html, String nonce) {
       "'*',[c.port2]);\n"
       '})();</script>';
   final match = RegExp(
-    r'^\s*<!doctype[^>]*>',
+    r'^(?:\s|<!--.*?-->)*<!doctype[^>]*>',
     caseSensitive: false,
+    dotAll: true,
   ).firstMatch(html);
   if (match == null) return '$script$html';
   return html.replaceRange(match.end, match.end, script);
