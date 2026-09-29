@@ -222,5 +222,11 @@ void runNativeAdapterContract(
       harness.setCurrentUrl(null);
       expect(await adapter.currentUrl(), isNull);
     });
+
+    test('dispose loads about:blank, for parity with web', () async {
+      adapter.dispose();
+      await pumpEventQueue();
+      expect(harness.loadedUrls, [Uri.parse('about:blank')]);
+    });
   });
 }
