@@ -1,0 +1,1 @@
+- [Breakpoint source access](reference_breakpoint_source_access.md) — M3 needs r.jina.ai; Apple HIG JSON + Wayback 20260702 for device tables; androidx, StatCounter CSV, DeviceAtlas

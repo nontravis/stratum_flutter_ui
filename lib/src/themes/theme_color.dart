@@ -1,7 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
 
 abstract class BaseThemeColor {
-  const BaseThemeColor();
+  const new();
 
   ///===================== BRAND COLOR =========================///
   abstract final Color brandPrimary;
