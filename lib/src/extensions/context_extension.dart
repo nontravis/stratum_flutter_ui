@@ -1,16 +1,15 @@
 import 'package:stratum_ui/src/src.dart';
 
-extension ThemeContextExtension on BuildContext {
-  StratumThemeData get theme => ThemeApplication.of(this);
+extension StratumThemeContextExtension on BuildContext {
+  StratumThemeData get theme => StratumThemeApplication.of(this);
 
   StratumThemeData getTheme([ThemeMode? mode]) =>
-      ThemeApplication.of(this, themeMode: mode);
-
-  WindowSize get windowSize => WindowSizeScope.of(this);
+      StratumThemeApplication.of(this, themeMode: mode);
 
   void clearFocus() => FocusScope.of(this).unfocus();
 
   void requestScopeFocus() => FocusScope.of(this).requestScopeFocus();
 
-  void requestFocus() => FocusScope.of(this).requestFocus();
+  void requestFocus([FocusNode? node]) =>
+      FocusScope.of(this).requestFocus(node);
 }

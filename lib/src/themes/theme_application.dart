@@ -1,6 +1,6 @@
 import 'package:stratum_ui/src/src.dart';
 
-class ThemeApplication extends InheritedWidget {
+class StratumThemeApplication extends InheritedWidget {
   const new({
     super.key,
     required this.themeMode,
@@ -15,11 +15,11 @@ class ThemeApplication extends InheritedWidget {
 
   static StratumThemeData of(BuildContext context, {ThemeMode? themeMode}) {
     final theme = context
-        .dependOnInheritedWidgetOfExactType<ThemeApplication>();
+        .dependOnInheritedWidgetOfExactType<StratumThemeApplication>();
     if (theme == null) {
       throw FlutterError(
-        'ThemeApplication.of() called with a context that does not contain a '
-        'ThemeApplication.',
+        'StratumThemeApplication.of() called with a context that does not contain a '
+        'StratumThemeApplication.',
       );
     }
 
@@ -40,12 +40,12 @@ class ThemeApplication extends InheritedWidget {
   // Helper method to wrap widgets that need theme access
   static Widget wrap(BuildContext context, {required Widget child}) {
     final theme = context
-        .dependOnInheritedWidgetOfExactType<ThemeApplication>();
+        .dependOnInheritedWidgetOfExactType<StratumThemeApplication>();
     if (theme == null) {
       return child;
     }
 
-    return ThemeApplication(
+    return StratumThemeApplication(
       themeMode: theme.themeMode,
       lightTheme: theme.lightTheme,
       darkTheme: theme.darkTheme,
@@ -54,13 +54,13 @@ class ThemeApplication extends InheritedWidget {
   }
 
   @override
-  bool updateShouldNotify(covariant ThemeApplication oldWidget) {
+  bool updateShouldNotify(covariant StratumThemeApplication oldWidget) {
     return lightTheme != oldWidget.lightTheme;
   }
 }
 
-extension AppThemeApplicationExtensions on ThemeMode {
+extension AppStratumThemeApplicationExtensions on ThemeMode {
   StratumThemeData theme(BuildContext context) {
-    return ThemeApplication.of(context, themeMode: this);
+    return StratumThemeApplication.of(context, themeMode: this);
   }
 }
