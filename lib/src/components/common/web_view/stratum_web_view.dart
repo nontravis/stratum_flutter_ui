@@ -22,7 +22,13 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 /// * Linux: the page is a native GTK widget, so Flutter widgets cannot draw
 ///   above it, and scale or rotation transforms hide it.
 /// * Native: the bridge channel is visible to every frame of an allowed
-///   page. Allow only pages that embed no untrusted iframes.
+///   page. Allow only pages that embed no untrusted iframes. The page
+///   origin is inferred from navigation events (`onPageStarted`); on iOS
+///   and macOS that fires at the provisional start of a navigation, before
+///   the new page commits, so a disallowed page can still be running when
+///   its origin is recorded as allowed. Treat bridge messages as untrusted
+///   input, and use [onNavigationRequest] to prevent top-level navigation
+///   outside [allowedOrigins] when a hard boundary is needed.
 class StratumWebView extends StatefulWidget {
   const new({
     super.key,

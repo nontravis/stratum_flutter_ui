@@ -50,9 +50,19 @@ final class NativeBridgeSession {
     if (url != null) _pageUrl = Uri.tryParse(url);
   }
 
+  /// Whether the tracked page is still the controller's own HTML.
+  ///
+  /// The guard alone is not enough: between [willLoadHtml] and the HTML's
+  /// first [didStartPage], the previous page is still live and the guard
+  /// already reports `awaitingLoad`. A page with a real origin is never our
+  /// HTML, so this also requires [_pageUrl] to be host-less (the adapters
+  /// load HTML without a base URL, so our HTML reports `about:blank`).
+  bool get _isTrustedHtml =>
+      _guard.isShowingOwnHtml && originOf(_pageUrl) == null;
+
   /// Returns the message to deliver for [data], or `null` to drop it.
   StratumWebViewMessage? acceptMessage(String data) {
-    if (_guard.isShowingOwnHtml) return StratumWebViewMessage(data: data);
+    if (_isTrustedHtml) return StratumWebViewMessage(data: data);
     if (!isAllowedOrigin(_pageUrl, _allowedOrigins())) return null;
     return StratumWebViewMessage(data: data, origin: originOf(_pageUrl));
   }
@@ -62,7 +72,7 @@ final class NativeBridgeSession {
   /// Throws a [StateError] when the current page may not receive messages.
   String scriptForMessage(String data) {
     final allowed =
-        _guard.isShowingOwnHtml || isAllowedOrigin(_pageUrl, _allowedOrigins());
+        _isTrustedHtml || isAllowedOrigin(_pageUrl, _allowedOrigins());
     if (!allowed) {
       throw StateError(
         'The current page ($_pageUrl) is not an allowed message destination.',
@@ -91,19 +101,26 @@ final class NativeBridgeSession {
   /// sub-resource instead of the current page.
   ///
   /// Android reports HTTP errors for images and scripts too, without a
-  /// main-frame flag, so the request URL is compared with the page URL.
+  /// main-frame flag, so a non-null request URL is compared with the page
+  /// URL. WebKit (iOS, macOS) reports HTTP errors only for navigation
+  /// responses and never supplies a request URL, so a `null` [requestUrl]
+  /// is treated as the current page instead of being dropped.
   StratumWebViewError? httpError({
     required int? statusCode,
     required Uri? requestUrl,
   }) {
     final pageUrl = _pageUrl;
-    if (requestUrl == null || pageUrl == null) return null;
-    if (requestUrl.removeFragment() != pageUrl.removeFragment()) return null;
+    if (requestUrl != null) {
+      if (pageUrl == null) return null;
+      if (requestUrl.removeFragment() != pageUrl.removeFragment()) {
+        return null;
+      }
+    }
     return StratumWebViewError(
       type: StratumWebViewErrorType.http,
       description: statusCode == null ? 'HTTP error' : 'HTTP error $statusCode',
       code: statusCode,
-      url: requestUrl,
+      url: requestUrl ?? pageUrl,
     );
   }
 }

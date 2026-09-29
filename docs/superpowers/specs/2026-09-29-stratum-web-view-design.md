@@ -177,7 +177,7 @@ window.addEventListener('message', (event) => handle(event.data));
 | Web, `url` source | `event.source == iframe.contentWindow` **and** `event.origin` passes `isAllowedOrigin`. |
 | Web, `html` source | `event.source == iframe.contentWindow`, `event.origin == "null"`, **and** `HtmlFrameGuard` reports that the frame still shows our HTML. |
 | Native, `url` source | The origin of the current top-level page passes `isAllowedOrigin`. The origin is tracked from `onPageStarted` and `onUrlChange`, because `JavaScriptMessage` carries no origin. |
-| Native, `html` source | `HtmlFrameGuard` reports that the page is still our HTML. On native, the guard counts `onPageStarted` events instead of iframe `load` events. |
+| Native, `html` source | `HtmlFrameGuard` reports that the page is still our HTML **and** the tracked page has no origin (`about:blank`). On native, the guard counts `onPageStarted` events instead of iframe `load` events; between `willLoadHtml` and the HTML's first `onPageStarted` the previous page is still live, so the origin check keeps that page from being trusted as our HTML. |
 
 On every platform, an empty `allowedOrigins` disables the bridge entirely, including for HTML content. The controller enforces this rule before any platform rule runs.
 
@@ -197,6 +197,8 @@ The iframe uses `srcdoc` with `sandbox="allow-scripts"` (no `allow-same-origin`)
 ### Known limitation (documented in doc comments)
 
 On native, the JavaScript channel is visible to every frame in the page. An untrusted iframe (for example an advertisement) inside an allowed page can send messages that appear to come from the allowed top-level origin. Only the top-level origin can be verified.
+
+The page origin is also inferred from navigation events, not from a commit signal. On iOS and macOS, `onPageStarted` is `didStartProvisionalNavigation`, which fires before the new page commits; the previous document keeps running scripts during that window. A disallowed page can navigate to an allowed origin and post messages until the navigation commits, and those messages are stamped with the new, allowed origin. Treat bridge messages as untrusted input regardless of origin, and use `onNavigationRequest` to prevent top-level navigation outside `allowedOrigins` when a hard boundary is needed.
 
 ## 6. Error handling and platform behavior
 
@@ -222,7 +224,7 @@ The doc comment recommends pairing the web view with an "open in new tab" action
 
 - `WebResourceError` maps to `StratumWebViewErrorType.network` (`code` = `errorCode`, `url` = `url`).
 - `HttpResponseError` maps to `StratumWebViewErrorType.http` (`code` = `response.statusCode`, `url` = `request.uri`).
-- Only main-frame errors are forwarded. For `WebResourceError`, a `null` `isForMainFrame` counts as main frame. `HttpResponseError` has no main-frame flag (Android reports sub-resource HTTP errors too), so an HTTP error is forwarded only when `request.uri`, without fragment, equals the current page URL.
+- Only main-frame errors are forwarded. For `WebResourceError`, a `null` `isForMainFrame` counts as main frame. `HttpResponseError` has no main-frame flag (Android reports sub-resource HTTP errors too), so a non-null `request.uri` is forwarded only when it equals the current page URL, without fragment. WebKit (iOS, macOS) reports HTTP errors only for navigation responses and never supplies a request URL; a `null` `request.uri` is treated as the current page instead of being dropped, with `url` set to the current page URL (`null` before any page has loaded).
 
 ### Native navigation requests
 

@@ -85,6 +85,29 @@ void main() {
         ..didStartPage('https://evil.example.net/');
       expect(session.acceptMessage('hi'), isNull);
     });
+
+    test('does not trust a foreign page still shown during an html switch', () {
+      session
+        ..willLoadUrl()
+        ..didStartPage('https://evil.example.net/')
+        ..willLoadHtml();
+      expect(session.acceptMessage('hi'), isNull);
+      expect(() => session.scriptForMessage('hi'), throwsStateError);
+      session.didStartPage('about:blank');
+      expect(
+        session.acceptMessage('hi'),
+        const StratumWebViewMessage(data: 'hi'),
+      );
+    });
+
+    test('a late report of a foreign page after reload is not our html', () {
+      session
+        ..willLoadHtml()
+        ..didStartPage('about:blank')
+        ..willReload()
+        ..didStartPage('https://evil.example.net/');
+      expect(session.acceptMessage('hi'), isNull);
+    });
   });
 
   group('scriptForMessage', () {
@@ -186,6 +209,30 @@ void main() {
           requestUrl: Uri.parse('https://app.example.com/'),
         ),
         isNull,
+      );
+    });
+
+    test('treats a null request URL as the current page', () {
+      session.didStartPage('https://app.example.com/home');
+      expect(
+        session.httpError(statusCode: 500, requestUrl: null),
+        StratumWebViewError(
+          type: StratumWebViewErrorType.http,
+          description: 'HTTP error 500',
+          code: 500,
+          url: Uri.parse('https://app.example.com/home'),
+        ),
+      );
+    });
+
+    test('treats a null request URL as the page before any page', () {
+      expect(
+        session.httpError(statusCode: 500, requestUrl: null),
+        const StratumWebViewError(
+          type: StratumWebViewErrorType.http,
+          description: 'HTTP error 500',
+          code: 500,
+        ),
       );
     });
   });
