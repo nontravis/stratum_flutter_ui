@@ -1,34 +1,17 @@
-import 'package:stratum_ui/src/src.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/widgets.dart';
+import 'package:stratum_ui/src/components/common/layout/container_layout.dart';
+import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 
 class WrapLayout extends StatelessWidget {
   const WrapLayout({
     super.key,
+    this.style,
     this.ratio,
-    this.width,
-    this.height,
-    this.minWidth,
-    this.maxWidth,
-    this.minHeight,
-    this.maxHeight,
     this.rotate,
-    this.decoration,
-    this.padding,
-    this.margin,
-    this.border,
-    this.borderRadius,
-    this.backgroundColor,
-    this.backgroundGradient,
-    this.backgroundImage,
-    this.foregroundColor,
-    this.foregroundGradient,
-    this.foregroundImage,
-    this.opacity,
     this.keepAlive = false,
     this.repaintBoundary = false,
     this.debug = false,
-    this.innerShadow,
-    this.dropShadow,
-    this.backgroundBlur,
     this.transform,
     this.direction = Axis.horizontal,
     this.alignment = WrapAlignment.start,
@@ -41,83 +24,35 @@ class WrapLayout extends StatelessWidget {
     this.clipBehavior = Clip.none,
     this.gap,
     this.scrollable = false,
-    this.animate,
-    this.animateDuration,
-    this.animateCurve,
     this.onEndAnimate,
     this.semantics,
     required this.children,
   }) : _effectiveSpacing = spacing ?? gap ?? 0.0,
        _effectiveRunSpacing = runSpacing ?? gap ?? 0.0,
-       _hasContainerFeatures = ratio != null ||
-            width != null ||
-            height != null ||
-            minWidth != null ||
-            maxWidth != null ||
-            minHeight != null ||
-            maxHeight != null ||
-            rotate != null ||
-            decoration != null ||
-            padding != null ||
-            margin != null ||
-            border != null ||
-            borderRadius != null ||
-            backgroundColor != null ||
-            backgroundGradient != null ||
-            backgroundImage != null ||
-            foregroundColor != null ||
-            foregroundGradient != null ||
-            foregroundImage != null ||
-            opacity != null ||
-            keepAlive ||
-            repaintBoundary ||
-            debug ||
-            innerShadow != null ||
-            dropShadow != null ||
-            backgroundBlur != null ||
-            transform != null ||
-            animate != null;
+       _hasContainerFeatures = style != null ||
+           ratio != null ||
+           rotate != null ||
+           transform != null ||
+           keepAlive ||
+           repaintBoundary ||
+           debug ||
+           semantics != null;
 
   ///========== Frame ==========///
-  // If you use width,height will override min and max width, height.
-  final double? width;
-  final double? height;
-  final double? minWidth;
-  final double? maxWidth;
-  final double? minHeight;
-  final double? maxHeight;
   final double? rotate; // 0-360 degree
   final double? ratio;
 
   ///========== Layout ==========///
-  final BoxDecoration? decoration;
-  final EdgeInsetsGeometry? padding;
-  final EdgeInsetsGeometry? margin;
-  final Border? border;
-  final BorderRadius? borderRadius;
   final Matrix4? transform;
-  final Color? backgroundColor;
-  final Gradient? backgroundGradient;
-  final DecorationImage? backgroundImage;
-  final Color? foregroundColor;
-  final Gradient? foregroundGradient;
-  final DecorationImage? foregroundImage;
-  final double? opacity;
   final bool keepAlive;
   final bool repaintBoundary;
   final bool debug;
 
 
   ///===== Animate ======///
-  final bool? animate;
-  final Duration? animateDuration;
-  final Curve? animateCurve;
   final VoidCallback? onEndAnimate;
 
   ///===== Effect ======///
-  final List<BoxShadow>? innerShadow;
-  final List<BoxShadow>? dropShadow;
-  final ImageFilter? backgroundBlur;
 
   ///====== Wrap ======///
   final Axis direction;
@@ -134,6 +69,9 @@ class WrapLayout extends StatelessWidget {
 
   final SemanticsProperties? semantics;
 
+
+  ///========== Style ==========///
+  final WidgetStyle? style;
 
   ///===== Child Widget ======///
   final List<Widget> children;
@@ -162,37 +100,13 @@ class WrapLayout extends StatelessWidget {
     // Apply container features only if needed
     if (_hasContainerFeatures) {
       wrapWidget = ContainerLayout(
+        style: style,
         ratio: ratio,
-        width: width,
-        height: height,
-        minWidth: minWidth,
-        maxWidth: maxWidth,
-        minHeight: minHeight,
-        maxHeight: maxHeight,
         rotate: rotate,
-        decoration: decoration,
-        padding: padding,
-        margin: margin,
-        border: border,
-        borderRadius: borderRadius,
-        backgroundColor: backgroundColor,
-        backgroundGradient: backgroundGradient,
-        backgroundImage: backgroundImage,
-        foregroundColor: foregroundColor,
-        foregroundGradient: foregroundGradient,
-        foregroundImage: foregroundImage,
-        opacity: opacity,
         keepAlive: keepAlive,
         repaintBoundary: repaintBoundary,
         debug: debug,
-        clipBehavior: clipBehavior,
-        innerShadow: innerShadow,
-        dropShadow: dropShadow,
-        backgroundBlur: backgroundBlur,
         transform: transform,
-        animate: animate,
-        animateDuration: animateDuration,
-        animateCurve: animateCurve,
         onEndAnimate: onEndAnimate,
         semantics: semantics,
         child: wrapWidget,
