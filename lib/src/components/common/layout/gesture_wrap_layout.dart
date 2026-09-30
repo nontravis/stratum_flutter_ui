@@ -3,31 +3,11 @@ import 'package:stratum_ui/src/src.dart';
 class GestureWrapLayout extends StatelessWidget {
   const GestureWrapLayout({
     super.key,
+    this.style,
     this.ratio,
-    this.width,
-    this.height,
-    this.minWidth,
-    this.maxWidth,
-    this.minHeight,
-    this.maxHeight,
     this.rotate,
-    this.decoration,
-    this.padding,
-    this.margin,
-    this.border,
-    this.borderRadius,
-    this.backgroundColor,
-    this.backgroundGradient,
-    this.backgroundImage,
-    this.foregroundColor,
-    this.foregroundGradient,
-    this.foregroundImage,
-    this.opacity,
     this.keepAlive = false,
     this.repaintBoundary = false,
-    this.innerShadow,
-    this.dropShadow,
-    this.backgroundBlur,
     this.transform,
     this.direction = Axis.horizontal,
     this.alignment = WrapAlignment.start,
@@ -40,9 +20,6 @@ class GestureWrapLayout extends StatelessWidget {
     this.clipBehavior = Clip.none,
     this.gap,
     this.scrollable = false,
-    this.animate = true,
-    this.animateDuration,
-    this.animateCurve,
     this.onEndAnimate,
     this.semantics,
     //=== InkWell ===//
@@ -79,44 +56,19 @@ class GestureWrapLayout extends StatelessWidget {
                onFocusChange != null);
 
   ///========== Frame ==========///
-  // If you use width,height will override min and max width, height.
-  final double? width;
-  final double? height;
-  final double? minWidth;
-  final double? maxWidth;
-  final double? minHeight;
-  final double? maxHeight;
   final double? rotate; // 0-360 degree
   final double? ratio;
 
   ///========== Layout ==========///
-  final BoxDecoration? decoration;
-  final EdgeInsets? padding;
-  final EdgeInsets? margin;
-  final Border? border;
-  final BorderRadius? borderRadius;
   final Matrix4? transform;
-  final Color? backgroundColor;
-  final Gradient? backgroundGradient;
-  final DecorationImage? backgroundImage;
-  final Color? foregroundColor;
-  final Gradient? foregroundGradient;
-  final DecorationImage? foregroundImage;
-  final double? opacity;
   final bool keepAlive;
   final bool repaintBoundary;
 
   ///===== Animate ======///
-  final bool? animate;
-  final Duration? animateDuration;
-  final Curve? animateCurve;
   final VoidCallback? onEndAnimate;
   final SemanticsProperties? semantics;
 
   ///===== Effect ======///
-  final List<BoxShadow>? innerShadow;
-  final List<BoxShadow>? dropShadow;
-  final ImageFilter? backgroundBlur;
 
   ///===== InkWell ======///
   final bool disabledPressAnimation;
@@ -151,6 +103,9 @@ class GestureWrapLayout extends StatelessWidget {
   final double? gap;
   final bool scrollable;
 
+  ///========== Style ==========///
+  final WidgetStyle? style;
+
   ///===== Child Widget ======///
   final List<Widget> children;
 
@@ -178,32 +133,11 @@ class GestureWrapLayout extends StatelessWidget {
     // Apply gesture container only if gestures are needed
     if (_hasGestures) {
       wrapWidget = GestureContainerLayout(
+        style: style,
         ratio: ratio,
-        width: width,
-        height: height,
-        minWidth: minWidth,
-        maxWidth: maxWidth,
-        minHeight: minHeight,
-        maxHeight: maxHeight,
         rotate: rotate,
-        decoration: decoration,
-        padding: padding,
-        margin: margin,
-        border: border,
-        borderRadius: borderRadius,
-        backgroundColor: backgroundColor,
-        backgroundGradient: backgroundGradient,
-        backgroundImage: backgroundImage,
-        foregroundColor: foregroundColor,
-        foregroundGradient: foregroundGradient,
-        foregroundImage: foregroundImage,
-        opacity: opacity,
         keepAlive: keepAlive,
         repaintBoundary: repaintBoundary,
-        clipBehavior: clipBehavior,
-        innerShadow: innerShadow,
-        dropShadow: dropShadow,
-        backgroundBlur: backgroundBlur,
         transform: transform,
         focusType: focusType,
         disabled: disabled,
@@ -223,9 +157,6 @@ class GestureWrapLayout extends StatelessWidget {
         autofocus: autofocus,
         showFocusOnPrimary: showFocusOnPrimary,
         statesController: statesController,
-        animate: animate,
-        animateDuration: animateDuration,
-        animateCurve: animateCurve,
         onEndAnimate: onEndAnimate,
         semantics: semantics,
         child: wrapWidget,
@@ -233,36 +164,12 @@ class GestureWrapLayout extends StatelessWidget {
     } else {
       // Apply only container styling without gestures
       wrapWidget = ContainerLayout(
+        style: style,
         ratio: ratio,
-        width: width,
-        height: height,
-        minWidth: minWidth,
-        maxWidth: maxWidth,
-        minHeight: minHeight,
-        maxHeight: maxHeight,
         rotate: rotate,
-        decoration: decoration,
-        padding: padding,
-        margin: margin,
-        border: border,
-        borderRadius: borderRadius,
-        backgroundColor: backgroundColor,
-        backgroundGradient: backgroundGradient,
-        backgroundImage: backgroundImage,
-        foregroundColor: foregroundColor,
-        foregroundGradient: foregroundGradient,
-        foregroundImage: foregroundImage,
-        opacity: opacity,
         keepAlive: keepAlive,
         repaintBoundary: repaintBoundary,
-        clipBehavior: clipBehavior,
-        innerShadow: innerShadow,
-        dropShadow: dropShadow,
-        backgroundBlur: backgroundBlur,
         transform: transform,
-        animate: animate,
-        animateDuration: animateDuration,
-        animateCurve: animateCurve,
         onEndAnimate: onEndAnimate,
         semantics: semantics,
         child: wrapWidget,

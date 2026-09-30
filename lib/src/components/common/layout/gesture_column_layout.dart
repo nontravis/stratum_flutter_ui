@@ -3,32 +3,11 @@ import 'package:stratum_ui/src/src.dart';
 class GestureColumnLayout extends StatelessWidget {
   const GestureColumnLayout({
     super.key,
+    this.style,
     this.ratio,
-    this.width,
-    this.height,
-    this.minWidth,
-    this.maxWidth,
-    this.minHeight,
-    this.maxHeight,
     this.rotate,
-    this.decoration,
-    this.padding,
-    this.margin,
-    this.border,
-    this.borderRadius,
-    this.backgroundColor,
-    this.backgroundGradient,
-    this.backgroundImage,
-    this.foregroundColor,
-    this.foregroundGradient,
-    this.foregroundImage,
-    this.opacity,
     this.keepAlive = false,
     this.repaintBoundary = false,
-    this.clipBehavior = Clip.none,
-    this.innerShadow,
-    this.dropShadow,
-    this.backgroundBlur,
     this.transform,
     this.crossAxisIntrinsic = false,
     this.mainAxisAlignment = MainAxisAlignment.start,
@@ -39,9 +18,6 @@ class GestureColumnLayout extends StatelessWidget {
     this.textBaseline,
     this.gap,
     this.scrollable = false,
-    this.animate = true,
-    this.animateDuration,
-    this.animateCurve,
     this.onEndAnimate,
     this.semantics,
     //=== InkWell ===//
@@ -65,50 +41,31 @@ class GestureColumnLayout extends StatelessWidget {
     this.statesController,
     //===============//
     required this.children,
-  }) : _effectiveMainAxisSize = height != null || maxHeight != null
-           ? MainAxisSize.max
-           : mainAxisSize,
-       _needsIntrinsicWidth = crossAxisIntrinsic && width == null;
+  });
 
   ///========== Frame ==========///
-  // If you use width,height will override min and max width, height.
-  final double? width;
-  final double? height;
-  final double? minWidth;
-  final double? maxWidth;
-  final double? minHeight;
-  final double? maxHeight;
   final double? rotate; // 0-360 degree
   final double? ratio;
 
   ///========== Layout ==========///
-  final BoxDecoration? decoration;
-  final EdgeInsets? padding;
-  final EdgeInsets? margin;
-  final Border? border;
-  final BorderRadius? borderRadius;
   final Matrix4? transform;
-  final Color? backgroundColor;
-  final Gradient? backgroundGradient;
-  final DecorationImage? backgroundImage;
-  final Color? foregroundColor;
-  final Gradient? foregroundGradient;
-  final DecorationImage? foregroundImage;
-  final double? opacity;
   final bool keepAlive;
-  final Clip clipBehavior;
   final bool repaintBoundary;
 
   ///===== Animate ======///
-  final bool? animate;
-  final Duration? animateDuration;
-  final Curve? animateCurve;
   final VoidCallback? onEndAnimate;
 
   ///===== Effect ======///
-  final List<BoxShadow>? innerShadow;
-  final List<BoxShadow>? dropShadow;
-  final ImageFilter? backgroundBlur;
+
+  ///========== Style ==========///
+  final WidgetStyle? style;
+
+  MainAxisSize get _effectiveMainAxisSize =>
+      style?.height != null || style?.maxHeight != null
+          ? MainAxisSize.max
+          : mainAxisSize;
+
+  bool get _needsIntrinsicWidth => crossAxisIntrinsic && style?.width == null;
 
   ///===== InkWell ======///
   final bool disabled;
@@ -146,9 +103,6 @@ class GestureColumnLayout extends StatelessWidget {
   ///===== Child Widget ======///
   final List<Widget> children;
 
-  // Pre-computed values
-  final MainAxisSize _effectiveMainAxisSize;
-  final bool _needsIntrinsicWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -162,32 +116,11 @@ class GestureColumnLayout extends StatelessWidget {
 
     // Build the complete widget with container and gestures
     Widget result = GestureContainerLayout(
+      style: style,
       ratio: ratio,
-      width: width,
-      height: height,
-      minWidth: minWidth,
-      maxWidth: maxWidth,
-      minHeight: minHeight,
-      maxHeight: maxHeight,
       rotate: rotate,
-      decoration: decoration,
-      padding: padding,
-      margin: margin,
-      border: border,
-      borderRadius: borderRadius,
-      backgroundColor: backgroundColor,
-      backgroundGradient: backgroundGradient,
-      backgroundImage: backgroundImage,
-      foregroundColor: foregroundColor,
-      foregroundGradient: foregroundGradient,
-      foregroundImage: foregroundImage,
-      opacity: opacity,
       keepAlive: keepAlive,
       repaintBoundary: repaintBoundary,
-      clipBehavior: clipBehavior,
-      innerShadow: innerShadow,
-      dropShadow: dropShadow,
-      backgroundBlur: backgroundBlur,
       transform: transform,
       focusType: focusType,
       disabled: disabled,
@@ -207,9 +140,6 @@ class GestureColumnLayout extends StatelessWidget {
       showFocusOnPrimary: showFocusOnPrimary,
       autofocus: autofocus,
       statesController: statesController,
-      animate: animate,
-      animateDuration: animateDuration,
-      animateCurve: animateCurve,
       onEndAnimate: onEndAnimate,
       semantics: semantics,
       child: columnContent,
