@@ -113,9 +113,12 @@ class _StratumWebViewState extends State<StratumWebView> {
   void didUpdateWidget(StratumWebView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
-      if (oldWidget.controller == null) {
+      final oldController = oldWidget.controller;
+      if (oldController == null) {
         _ownedController?.dispose();
         _ownedController = null;
+      } else {
+        oldController.detach();
       }
       _attach();
       return;

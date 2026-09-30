@@ -123,4 +123,46 @@ void main() {
     expect(owned.disposed, isTrue);
     expect(external.loads, [urlA]);
   });
+
+  testWidgets('a replaced external controller stops reaching the callbacks', (
+    tester,
+  ) async {
+    final received = <StratumWebViewMessage>[];
+    final first = StratumWebViewController();
+    final second = StratumWebViewController();
+    addTearDown(first.dispose);
+    addTearDown(second.dispose);
+    final firstPlatform = platforms.first;
+    await tester.pumpWidget(
+      StratumWebView(
+        controller: first,
+        source: urlA,
+        allowedOrigins: {appOrigin},
+        onMessage: received.add,
+      ),
+    );
+    await tester.pumpWidget(
+      StratumWebView(
+        controller: second,
+        source: urlA,
+        allowedOrigins: {appOrigin},
+        onMessage: received.add,
+      ),
+    );
+    firstPlatform.listener.onMessage(const StratumWebViewMessage(data: 'x'));
+    expect(received, isEmpty);
+  });
+
+  testWidgets('replacing an already disposed external controller is safe', (
+    tester,
+  ) async {
+    final first = StratumWebViewController();
+    final second = StratumWebViewController();
+    addTearDown(second.dispose);
+    await tester.pumpWidget(StratumWebView(controller: first, source: urlA));
+    first.dispose();
+    await tester.pumpWidget(StratumWebView(controller: second, source: urlA));
+    expect(tester.takeException(), isNull);
+    expect(platforms.last.loads, [urlA]);
+  });
 }
