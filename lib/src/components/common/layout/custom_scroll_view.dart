@@ -59,8 +59,7 @@ class AppCustomScrollView extends AppStatelessWidget {
     // Apply container only if needed
     if (hasContainer) {
       return ContainerLayout(
-        width: width,
-        border: border,
+        style: WidgetStyle(width: width, border: border),
         child: scrollView,
       );
     }
