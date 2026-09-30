@@ -1,3 +1,5 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/widgets.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';
@@ -110,5 +112,107 @@ class WidgetStyle with _$WidgetStyle {
       dropShadow: other.dropShadow ?? dropShadow,
       animationStyle: other.animationStyle ?? animationStyle,
     );
+  }
+
+  /// Interpolates between two styles, for implicit animation.
+  ///
+  /// Returns [a] at `t == 0` and [b] at `t == 1`. A null style counts as
+  /// `const WidgetStyle()`. A size switches at `t = 0.5` when one side is
+  /// null, because null means unconstrained. [clipBehavior] switches at
+  /// `t = 0.5`, and [animationStyle] always comes from [b]. Opacity,
+  /// spacing, sizes, and blur are clamped to legal values, so a curve that
+  /// overshoots cannot throw.
+  static WidgetStyle? lerp(WidgetStyle? a, WidgetStyle? b, double t) {
+    if (identical(a, b)) return a;
+    if (t == 0) return a;
+    if (t == 1) return b;
+    final from = a ?? const WidgetStyle();
+    final to = b ?? const WidgetStyle();
+    return WidgetStyle(
+      opacity: _lerpOpacity(from.opacity, to.opacity, t),
+      padding: _lerpSpacing(from.padding, to.padding, t),
+      margin: _lerpSpacing(from.margin, to.margin, t),
+      width: _lerpSize(from.width, to.width, t),
+      height: _lerpSize(from.height, to.height, t),
+      minWidth: _lerpSize(from.minWidth, to.minWidth, t),
+      maxWidth: _lerpSize(from.maxWidth, to.maxWidth, t),
+      minHeight: _lerpSize(from.minHeight, to.minHeight, t),
+      maxHeight: _lerpSize(from.maxHeight, to.maxHeight, t),
+      alignment: AlignmentGeometry.lerp(from.alignment, to.alignment, t),
+      border: Border.lerp(from.border, to.border, t),
+      borderRadius: BorderRadiusGeometry.lerp(
+        from.borderRadius,
+        to.borderRadius,
+        t,
+      ),
+      backgroundColor: Color.lerp(
+        from.backgroundColor,
+        to.backgroundColor,
+        t,
+      ),
+      backgroundGradient: Gradient.lerp(
+        from.backgroundGradient,
+        to.backgroundGradient,
+        t,
+      ),
+      backgroundImage: DecorationImage.lerp(
+        from.backgroundImage,
+        to.backgroundImage,
+        t,
+      ),
+      backgroundBlur: ImageBlurFilter.lerp(
+        from.backgroundBlur,
+        to.backgroundBlur,
+        t,
+      ),
+      foregroundColor: Color.lerp(
+        from.foregroundColor,
+        to.foregroundColor,
+        t,
+      ),
+      foregroundGradient: Gradient.lerp(
+        from.foregroundGradient,
+        to.foregroundGradient,
+        t,
+      ),
+      foregroundImage: DecorationImage.lerp(
+        from.foregroundImage,
+        to.foregroundImage,
+        t,
+      ),
+      foregroundBlur: ImageBlurFilter.lerp(
+        from.foregroundBlur,
+        to.foregroundBlur,
+        t,
+      ),
+      clipBehavior: t < 0.5 ? from.clipBehavior : to.clipBehavior,
+      innerShadow: BoxShadow.lerpList(from.innerShadow, to.innerShadow, t),
+      dropShadow: BoxShadow.lerpList(from.dropShadow, to.dropShadow, t),
+      animationStyle: to.animationStyle,
+    );
+  }
+
+  static double? _lerpOpacity(double? a, double? b, double t) {
+    if (a == null && b == null) return null;
+    final value = lerpDouble(a ?? 1, b ?? 1, t)!;
+    if (value < 0) return 0;
+    if (value > 1) return 1;
+    return value;
+  }
+
+  static EdgeInsetsGeometry? _lerpSpacing(
+    EdgeInsetsGeometry? a,
+    EdgeInsetsGeometry? b,
+    double t,
+  ) {
+    final value = EdgeInsetsGeometry.lerp(a, b, t);
+    if (value == null || value.isNonNegative) return value;
+    return value.clamp(EdgeInsets.zero, EdgeInsetsGeometry.infinity);
+  }
+
+  static double? _lerpSize(double? a, double? b, double t) {
+    if (a == null || b == null) return t < 0.5 ? a : b;
+    final value = lerpDouble(a, b, t)!;
+    return value < 0 ? 0 : value;
   }
 }
