@@ -114,6 +114,55 @@ void main() {
     );
   });
 
+  group('allowedOrigins validation (debug)', () {
+    test('rejects an entry without a scheme', () {
+      expect(
+        () => controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {Uri.parse('app.example.com')},
+          ),
+        ),
+        throwsAssertionError,
+      );
+    });
+
+    test('rejects a non-http scheme', () {
+      expect(
+        () => controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {Uri.parse('ftp://app.example.com')},
+          ),
+        ),
+        throwsAssertionError,
+      );
+    });
+
+    test('rejects a Unicode host that is not punycode', () {
+      expect(
+        () => controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {Uri.parse('https://bücher.de')},
+          ),
+        ),
+        throwsAssertionError,
+      );
+    });
+
+    test('accepts http and https origins, with or without a path', () {
+      expect(
+        () => controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {
+              Uri.parse('https://xn--bcher-kva.de'),
+              Uri.parse('http://localhost:8080/app/'),
+            },
+          ),
+        ),
+        returnsNormally,
+      );
+    });
+  });
+
   test('detach drops callbacks but keeps the JavaScript setting', () {
     controller
       ..configure(

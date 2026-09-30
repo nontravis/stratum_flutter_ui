@@ -72,6 +72,10 @@ class StratumWebView extends StatefulWidget {
 
   ///========== Bridge ==========///
   /// Origins allowed to exchange messages. Empty disables the bridge.
+  ///
+  /// Each entry needs an http or https scheme and an ASCII host (punycode
+  /// for internationalized domains, `https://xn--bcher-kva.de`); debug
+  /// builds assert this, because any other entry never matches.
   final Set<Uri> allowedOrigins;
 
   /// Whether pages may run JavaScript. The bridge needs JavaScript.
