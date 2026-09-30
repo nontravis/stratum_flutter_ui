@@ -11,7 +11,7 @@ import 'package:stratum_ui/src/themes/constant/window_size.dart';
 ///
 /// Holds the props of [StratumWidgetProps]; `build` reads them through the
 /// `resolve*` methods.
-abstract class AppStatelessWidget extends StatelessWidget
+abstract class StratumStatelessWidget extends StatelessWidget
     with StratumWidgetProps {
   const new({
     super.key,

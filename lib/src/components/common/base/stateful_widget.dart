@@ -1,33 +1,51 @@
-import 'package:stratum_ui/src/src.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_falmodel/flutter_falmodel.dart' show FullWidgetState;
+import 'package:stratum_ui/src/components/common/base/widget_props.dart';
+import 'package:stratum_ui/src/components/common/model/widget_style.dart';
+import 'package:stratum_ui/src/themes/constant/color.dart';
+import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
+import 'package:stratum_ui/src/themes/constant/widget_size.dart';
+import 'package:stratum_ui/src/themes/constant/window_size.dart';
 
-abstract class AppStatefulWidget extends StatefulWidget {
-  const AppStatefulWidget({
+/// Base class for a Stratum component with state, such as the hovered,
+/// pressed, and focused states it derives at runtime.
+///
+/// Holds the props of [StratumWidgetProps]; the `State` reads them through
+/// `widget`, for example `widget.resolveSize(context)`.
+abstract class StratumStatefulWidget extends StatefulWidget
+    with StratumWidgetProps {
+  const new({
     super.key,
-    this.debug = false,
     this.size,
+    this.color,
+    this.themeMode,
+    this.windowSize,
     this.state = FullWidgetState.normal,
     this.feedbackState,
-    this.themeMode,
-    this.breakpoint,
-    this.padding,
-    this.margin,
-    this.border,
-    this.borderRadius,
-    this.disabled,
-    this.loading,
+    this.disabled = false,
+    this.loading = false,
+    this.debug = false,
+    this.customStyle,
   });
 
-  final bool debug;
+  @override
   final WidgetSize? size;
-  final FullWidgetState state;
-  final FeedbackState? feedbackState;
+  @override
+  final ColorEnum? color;
+  @override
   final ThemeMode? themeMode;
-  final Breakpoint? breakpoint;
-  final EdgeInsets? padding;
-  final EdgeInsets? margin;
-  final Border? border;
-  final BorderRadius? borderRadius;
-  final bool? disabled;
-  final bool? loading;
-
+  @override
+  final WindowSize? windowSize;
+  @override
+  final FullWidgetState state;
+  @override
+  final FeedbackState? feedbackState;
+  @override
+  final bool disabled;
+  @override
+  final bool loading;
+  @override
+  final bool debug;
+  @override
+  final WidgetStyle? customStyle;
 }
