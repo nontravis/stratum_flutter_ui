@@ -182,7 +182,7 @@ The overlay animates to its target color over 100 ms with `Curves.easeInOutSine`
 ### Semantics
 
 - `hasActivation` is true when `onTap`, `onDoubleTap`, `onLongPress`, or `onSecondaryTap` is non-null. It ignores `disabled`.
-- With `excludeFromSemantics`, `StratumInkWell` adds no `Semantics` and `InkWell` drops its actions.
+- With `excludeFromSemantics`, `StratumInkWell` adds no container node or role and `InkWell` drops its actions. A caller `semantics` still applies, because `excludeFromSemantics` plus a custom label and actions is the usual way to replace gesture semantics.
 - Otherwise the outer node is `Semantics(container: true, enabled: hasActivation ? !disabled : null, button: semantics == null && hasActivation)`. `InkWell`'s own `Semantics(onTap:)` is not a container, so its action merges into this node.
 - A disabled widget with a callback reads as a dimmed button with no action.
 
@@ -261,3 +261,4 @@ Gesture layout tests:
 - 2026-10-01, added while writing the spec: `GlobalKey` around the `boxBuilder` result; `MouseRegion` for `onHover` (D10); `boxBuilder` receives the animated style so the overlay radius follows a radius animation.
 - 2026-10-01, owner approval: overlay timing stays 100 ms with `easeInOutSine`; the unused theme token `animation.normal` is not adopted.
 - 2026-10-01, planning amendments: internal focus node and states controller live until `dispose`; the overlay listens through a `ListenableBuilder` below `InkWell`; the `onHover` `MouseRegion` stays in place while disabled; the theme-change test swaps `lightTheme`.
+- 2026-10-01, final review: a caller `semantics` applies even with `excludeFromSemantics` (fixes a regression against the old `GestureContainerLayout`).
