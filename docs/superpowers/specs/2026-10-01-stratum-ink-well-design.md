@@ -1,7 +1,7 @@
 # StratumInkWell design
 
 - **Date:** 2026-10-01
-- **Status:** Sections 1–4 approved during brainstorming; written spec awaiting owner review.
+- **Status:** Approved by the owner on 2026-10-01; planning amendments in section 12.
 - **Location:** new `lib/src/components/common/stratum_ink_well.dart`; changes in `lib/src/components/common/style/animated_styled_box.dart`, `lib/src/components/common/layout/container_layout.dart`, and the five `gesture_*_layout.dart` files.
 
 ## 1. Goal
@@ -135,11 +135,11 @@ final Widget Function(WidgetStyle style, Widget box)? boxBuilder;
 Semantics(container: true, enabled: …, button: …)   skipped when excludeFromSemantics
  └ Semantics.fromProperties(semantics)               only when semantics != null
    └ FocusSpread(focus: ring, borderRadius)          only when focusType is focused or focusedVisible
-     └ MouseRegion(onEnter, onExit)                  only when onHover != null and not disabled (D10)
+     └ MouseRegion(onEnter, onExit)                  only when onHover != null; null handlers while disabled (D10)
        └ Material(type: MaterialType.transparency)   satisfies InkWell's Material ancestor check
          └ InkWell(splashFactory: NoSplash.splashFactory, overlayColor: transparent,
                    statesController, focusNode, callbacks …)
-           └ overlay: TweenAnimationBuilder<Color?> → DecoratedBox(position: foreground)
+           └ overlay: ListenableBuilder → TweenAnimationBuilder<Color?> → DecoratedBox(position: foreground)
              └ child
 ```
 
@@ -154,7 +154,7 @@ ContainerLayout rotate (Transform.rotate)
 
 Data flow:
 
-- `InkWell` writes `hovered`, `pressed`, `focused`, and `disabled` into the states controller. `StratumInkWell` listens to it and rebuilds the overlay.
+- `InkWell` writes `hovered`, `pressed`, `focused`, and `disabled` into the states controller. The overlay listens to it through a `ListenableBuilder` below `InkWell`. `InkWell` updates the controller inside its own `didUpdateWidget`, and a listener above `InkWell` would then call `setState` during the build of a descendant, which Flutter rejects.
 - `FocusManager.instance.highlightMode` and the focus node decide the ring. `StratumInkWell` listens to both.
 - Colors come from `context.theme.color` in `build`. The ring color is the `FocusSpread` default (`borderBrand` at 30 % alpha).
 
@@ -173,7 +173,7 @@ The overlay animates to its target color over 100 ms with `Curves.easeInOutSine`
 
 ### Focus
 
-- **Ownership.** With `focusNode == null`, the state creates a node and disposes it. A caller node is never disposed. When the parameter changes from the internal node to a caller node, the internal node is disposed; when it changes from a caller node to `null`, a new internal node is created.
+- **Ownership.** With `focusNode == null`, the state creates a node on first use and keeps it until `dispose`, the pattern `TextField` uses. A caller node is never disposed. A change of the parameter moves the listener from the old node to the new one; the internal node is not disposed mid-update, because `InkWell`'s `Focus` still holds it until its own update runs. The internal states controller follows the same pattern.
 - **Focusable.** `canRequestFocus` passed to `InkWell` is `!disabled && focusType != FocusType.none && canRequestFocus`.
 - **Ring.** `none` and `invisible` never show it. `focusedVisible` shows it while focused and `highlightMode == FocusHighlightMode.traditional`. `focused` shows it while focused. "Focused" means `hasPrimaryFocus` when `showFocusOnPrimary` is true, else `hasFocus`.
 - **Tap.** With `focusType == FocusType.focused`, a tap requests focus before it calls `onTap`. Other values leave focus where it is.
@@ -188,7 +188,7 @@ The overlay animates to its target color over 100 ms with `Curves.easeInOutSine`
 
 ### Disabled
 
-- Every callback passed to `InkWell` is `null`, and the `MouseRegion` for `onHover` is not built.
+- Every callback passed to `InkWell` is `null`, and the `MouseRegion` for `onHover` keeps its place with null handlers, so toggling `disabled` never changes the widget structure.
 - No overlay, no ring, and no focus. When the node holds focus as `disabled` turns true, Flutter moves focus away because the node can no longer request it.
 - The cursor is `mouseCursor ?? (disabled ? SystemMouseCursors.forbidden : null)`; `null` keeps `InkWell`'s default, as today.
 
@@ -198,7 +198,7 @@ The overlay animates to its target color over 100 ms with `Curves.easeInOutSine`
 |---|---|
 | Style wrappers above `boxBuilder` appear or disappear (for example `opacity` drops below 1) | `AnimatedStyledBox` wraps the `boxBuilder` result in a `KeyedSubtree` with its own `GlobalKey`, the same way it keeps the child today (`animated_styled_box.dart:60`). Without it, `StratumInkWell` would lose its focus node and states mid-hover. |
 | `boxBuilder` with a null `style` | Applied anyway; `AnimatedStyledBox` already falls back to `const WidgetStyle()`. |
-| Caller swaps `statesController` | Remove the listener from the old controller, add it to the new one, and dispose the old one only when the widget created it. |
+| Caller swaps `statesController` | The overlay's `ListenableBuilder` and `InkWell` both move to the new controller. The internal controller, if one was created, lives until `dispose`. |
 | A quick tap shorter than 100 ms | The overlay may not reach full `overlayActive` before it fades. Accepted. |
 | `onHover` with no activation callback | Called through `MouseRegion` (D10). No overlay appears, because `InkWell` sets `hovered` only when an activation callback exists. |
 | `disabled` turns true while hovered or pressed | The overlay fades out on the next build; `InkWell` clears its own highlights. |
@@ -211,7 +211,7 @@ Theme setup follows `widget_props_test.dart`: `StratumThemeApplication(lightThem
 
 | Group | Tests |
 |---|---|
-| Overlay | A `{hovered}` preset paints `overlayHover`. `pressed` wins over `hovered`. `disabled` and `disabledPressAnimation` paint nothing. A light to dark switch changes the color (D6). The duration is 100 ms and the default curve is `easeInOutSine`. The overlay `DecoratedBox` is a foreground decoration between `InkWell` and the child (D4). |
+| Overlay | A `{hovered}` preset paints `overlayHover`. `pressed` wins over `hovered`. `disabled` and `disabledPressAnimation` paint nothing. A new `lightTheme` changes the color (D6); the test swaps `lightTheme` because `StratumThemeApplication.updateShouldNotify` compares only `lightTheme`. The duration is 100 ms and the default curve is `easeInOutSine`. The overlay `DecoratedBox` is a foreground decoration between `InkWell` and the child (D4). |
 | Focus | Unmounting leaves a caller `focusNode` usable (D5). The node swaps from internal to caller and back without error. `focusedVisible` shows the ring only in traditional highlight mode. `focused` takes focus on tap. `focusedVisible` keeps focus on another focused node after a tap. `none` cannot take focus. `invisible` takes focus with no ring. `disabled` cannot take focus. |
 | Semantics | `onTap` gives a container node with button, enabled, and a tap action (D1–D3). `disabled` gives button and `enabled: false` with no action (D2). `onHover` alone gives no button flag. A `semantics` value with `checked` gives no button flag and keeps the enabled flag. `excludeFromSemantics` gives no flags and no action. |
 | Gestures | Tap, double tap, long press, and secondary tap call the matching callback. `disabled` calls none. Enter calls `onTap`. `onHover` alone is called on pointer enter and exit (D10). |
@@ -259,3 +259,5 @@ Gesture layout tests:
 
 - 2026-10-01: flat overlay; layered callback naming; scope includes `GestureContainerLayout`; tap focus tied to `focusType`; `semantics` parameter carries the role; one class reads the theme; `boxBuilder` placement.
 - 2026-10-01, added while writing the spec: `GlobalKey` around the `boxBuilder` result; `MouseRegion` for `onHover` (D10); `boxBuilder` receives the animated style so the overlay radius follows a radius animation.
+- 2026-10-01, owner approval: overlay timing stays 100 ms with `easeInOutSine`; the unused theme token `animation.normal` is not adopted.
+- 2026-10-01, planning amendments: internal focus node and states controller live until `dispose`; the overlay listens through a `ListenableBuilder` below `InkWell`; the `onHover` `MouseRegion` stays in place while disabled; the theme-change test swaps `lightTheme`.
