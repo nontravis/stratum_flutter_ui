@@ -35,6 +35,7 @@ class AnimatedStyledBox extends ImplicitlyAnimatedWidget {
 
 class _AnimatedStyledBoxState
     extends AnimatedWidgetBaseState<AnimatedStyledBox> {
+  final GlobalKey _childKey = GlobalKey(debugLabel: 'AnimatedStyledBox.child');
   _WidgetStyleTween? _style;
 
   @override
@@ -52,7 +53,13 @@ class _AnimatedStyledBoxState
   Widget _buildBox(WidgetStyle style) {
     final child = widget.child;
     final blur = style.backgroundBlur;
-    var current = child ?? const SizedBox.shrink();
+    // Wrappers above the child come and go with the style. The GlobalKey
+    // makes Flutter move the child's element instead of rebuilding it, so
+    // the child keeps its State.
+    Widget current = KeyedSubtree(
+      key: _childKey,
+      child: child ?? const SizedBox.shrink(),
+    );
 
     final ratio = widget.ratio;
     if (ratio != null) {
