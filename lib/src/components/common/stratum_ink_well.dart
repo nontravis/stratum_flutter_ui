@@ -82,7 +82,7 @@ class StratumInkWell extends StatefulWidget {
   final ValueChanged<bool>? onFocusChange;
 
   /// Replaces the default button role; `container` and `enabled` are still
-  /// set.
+  /// set. Applies also when [excludeFromSemantics] is true.
   final SemanticsProperties? semantics;
   final bool excludeFromSemantics;
 
@@ -231,14 +231,13 @@ class _StratumInkWellState extends State<StratumInkWell> {
         child: result,
       );
     }
+    // A caller's semantics apply even with excludeFromSemantics, the usual
+    // way to replace the gesture semantics with a custom label and actions.
+    final properties = widget.semantics;
+    if (properties != null) {
+      result = Semantics.fromProperties(properties: properties, child: result);
+    }
     if (!widget.excludeFromSemantics) {
-      final properties = widget.semantics;
-      if (properties != null) {
-        result = Semantics.fromProperties(
-          properties: properties,
-          child: result,
-        );
-      }
       final hasActivation = _hasActivation;
       result = Semantics(
         container: true,
