@@ -29,12 +29,21 @@ mixin StratumWidgetProps {
 
   /// Forces a visual state for previews and golden tests. When it is
   /// `normal`, the widget derives hovered, pressed, and focused at runtime.
+  ///
+  /// Holds interaction values only: `normal`, `hovered`, `pressed`,
+  /// `focused`, and `dragged`. Use [disabled] and [loading], not
+  /// `FullWidgetState.disabled` or `FullWidgetState.loading`.
   FullWidgetState get state;
 
+  /// The feedback tone (`info`, `negative`, `warning`, `positive`); null
+  /// shows none.
   FeedbackState? get feedbackState;
 
+  /// Shows the disabled state. Each component decides which input it then
+  /// ignores.
   bool get disabled;
 
+  /// Shows the loading state, such as an indeterminate spinner.
   bool get loading;
 
   /// Forwarded to `ContainerLayout.debug`.
@@ -43,12 +52,18 @@ mixin StratumWidgetProps {
   /// Merged over the component's default style; see [resolveStyle].
   WidgetStyle? get customStyle;
 
+  /// Throws a [FlutterError] when no [StratumThemeApplication] is above
+  /// [context].
   StratumThemeData resolveTheme(BuildContext context) =>
       StratumThemeApplication.of(context, themeMode: themeMode);
 
+  /// A null [size] reads the theme, so it throws like [resolveTheme] when no
+  /// theme is above [context].
   WidgetSize resolveSize(BuildContext context) =>
       size ?? resolveTheme(context).defaultWidgetSize;
 
+  /// Throws a [FlutterError] when [windowSize] is null and no
+  /// `WindowSizeScope` is above [context].
   WindowSize resolveWindowSize(BuildContext context) =>
       windowSize ?? context.deviceWindow.windowSize;
 
