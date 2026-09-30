@@ -132,7 +132,10 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     if (current is! StratumWebViewUrlSource) return null;
     try {
       final href = _iframe.contentWindow?.location.href;
-      if (href != null) return Uri.tryParse(href);
+      final frameUrl = href == null ? null : Uri.tryParse(href);
+      // Before the requested page commits, a same-origin frame still shows
+      // its initial about:blank document; report the requested URL instead.
+      if (frameUrl != null && !frameUrl.isScheme('about')) return frameUrl;
     } on Object {
       // Cross-origin frame: the browser hides its location.
     }
@@ -242,6 +245,9 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
       _handleHandshake(event);
       return;
     }
+    // Messages must come from the content the controller shows now: after a
+    // switch to HTML, the outgoing URL page no longer speaks for the view.
+    if (_history.current is! StratumWebViewUrlSource) return;
     final data = event.data;
     if (data == null || !data.isA<JSString>()) return;
     final text = (data as JSString).toDart;

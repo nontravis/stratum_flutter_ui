@@ -304,6 +304,24 @@ location.href = 'data:text/html,' + encodeURIComponent(
     expect(listener.messages, isEmpty);
   });
 
+  test(
+    'currentUrl reports the requested URL before the frame commits',
+    () async {
+      final url = appOrigin.replace(path: '/missing');
+      await view.load(StratumWebViewSource.url(url));
+      attach();
+      expect(await view.currentUrl(), url);
+    },
+  );
+
+  test('drops URL-origin messages once HTML is the current source', () async {
+    await view.load(missingPage());
+    attach();
+    await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
+    dispatchMessage('late'.toJS, origin: appOrigin.toString());
+    expect(listener.messages, isEmpty);
+  });
+
   test('a load started just before dispose leaves the frame blank', () async {
     final pending = view.load(const StratumWebViewSource.html('<p>Hi</p>'));
     view.dispose();
