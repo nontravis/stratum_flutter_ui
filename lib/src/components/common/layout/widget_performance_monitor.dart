@@ -1,4 +1,5 @@
-import 'package:stratum_ui/src/src.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 class WidgetPerformanceMonitor extends StatefulWidget {
   const WidgetPerformanceMonitor({
     super.key,
