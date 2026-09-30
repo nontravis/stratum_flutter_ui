@@ -292,5 +292,40 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(_decorated(), findsNothing);
     });
+
+    testWidgets('the child keeps its State when wrappers come and go',
+        (tester) async {
+      await tester.pumpWidget(
+        _host(const WidgetStyle(), child: const _Probe()),
+      );
+      final before = tester.state(find.byType(_Probe));
+
+      for (final style in const [
+        WidgetStyle(foregroundColor: Color(0x1F000000)),
+        WidgetStyle(opacity: 0.5),
+        WidgetStyle(margin: EdgeInsets.all(4), backgroundBlur: _blur),
+        WidgetStyle(animationStyle: AnimationStyle.noAnimation),
+        WidgetStyle(),
+      ]) {
+        await tester.pumpWidget(_host(style, child: const _Probe()));
+        expect(
+          identical(tester.state(find.byType(_Probe)), before),
+          isTrue,
+          reason: '$style',
+        );
+      }
+    });
   });
+}
+
+class _Probe extends StatefulWidget {
+  const new();
+
+  @override
+  State<_Probe> createState() => _ProbeState();
+}
+
+class _ProbeState extends State<_Probe> {
+  @override
+  Widget build(BuildContext context) => const SizedBox(width: 40, height: 20);
 }
