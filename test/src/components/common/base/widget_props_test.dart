@@ -219,6 +219,18 @@ void main() {
       expect(theme, same(_light));
     });
 
+    testWidgets('follows a dark app theme mode when themeMode is null', (
+      tester,
+    ) async {
+      final theme = await _readInBuild(
+        tester,
+        const _StatelessProbe().resolveTheme,
+        wrap: (child) => _themed(child, themeMode: ThemeMode.dark),
+      );
+
+      expect(theme, same(_dark));
+    });
+
     testWidgets('themeMode overrides the app theme mode', (tester) async {
       final theme = await _readInBuild(
         tester,
@@ -229,7 +241,7 @@ void main() {
       expect(theme, same(_dark));
     });
 
-    testWidgets('ThemeMode.system follows the platform brightness', (
+    testWidgets('ThemeMode.system follows a dark platform brightness', (
       tester,
     ) async {
       tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
@@ -242,6 +254,21 @@ void main() {
       );
 
       expect(theme, same(_dark));
+    });
+
+    testWidgets('ThemeMode.system follows a light platform brightness', (
+      tester,
+    ) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+
+      final theme = await _readInBuild(
+        tester,
+        const _StatelessProbe(themeMode: ThemeMode.system).resolveTheme,
+        wrap: (child) => _themed(child, themeMode: ThemeMode.dark),
+      );
+
+      expect(theme, same(_light));
     });
 
     testWidgets('throws a FlutterError without a StratumThemeApplication', (
