@@ -1,10 +1,5 @@
 import 'dart:math' as math;
-
-import 'package:flutter/semantics.dart';
-import 'package:flutter/widgets.dart';
-import 'package:stratum_ui/src/components/common/layout/widget_performance_monitor.dart';
-import 'package:stratum_ui/src/components/common/model/widget_style.dart';
-import 'package:stratum_ui/src/components/common/style/animated_styled_box.dart';
+import 'package:stratum_ui/src/src.dart';
 
 /// A box that paints a [WidgetStyle] around [child].
 ///
@@ -25,6 +20,7 @@ class ContainerLayout extends StatelessWidget {
     this.debug = false,
     this.semantics,
     this.onEndAnimate,
+    this.boxBuilder,
     this.child,
   });
 
@@ -52,6 +48,10 @@ class ContainerLayout extends StatelessWidget {
   /// An instant change, whose style has no animation duration, does not
   /// call it, so the callback never runs during a build.
   final VoidCallback? onEndAnimate;
+
+  /// Wraps the styled box inside its margin, transform, and opacity; see
+  /// [AnimatedStyledBox.boxBuilder].
+  final StyledBoxBuilder? boxBuilder;
   final Widget? child;
 
   @override
@@ -64,6 +64,7 @@ class ContainerLayout extends StatelessWidget {
       transform: transform,
       transformAlignment: transformAlignment,
       onEnd: duration > Duration.zero ? onEndAnimate : null,
+      boxBuilder: boxBuilder,
       child: child,
     );
     final degrees = rotate;

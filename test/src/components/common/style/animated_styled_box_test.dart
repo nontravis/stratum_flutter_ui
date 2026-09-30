@@ -15,11 +15,17 @@ Widget _host(
   WidgetStyle? style, {
   Widget? child = const SizedBox(width: 40, height: 20),
   double? ratio,
+  StyledBoxBuilder? boxBuilder,
 }) {
   return Directionality(
     textDirection: TextDirection.ltr,
     child: Center(
-      child: AnimatedStyledBox(style: style, ratio: ratio, child: child),
+      child: AnimatedStyledBox(
+        style: style,
+        ratio: ratio,
+        boxBuilder: boxBuilder,
+        child: child,
+      ),
     ),
   );
 }
@@ -37,6 +43,22 @@ Color? _fillColor(WidgetTester tester) {
   final box = tester.widget<DecoratedBox>(_decorated());
   return (box.decoration as StyleDecoration).color;
 }
+
+class _BoxProbe extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_BoxProbe> createState() => _BoxProbeState();
+}
+
+class _BoxProbeState extends State<_BoxProbe> {
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+Widget _probe(WidgetStyle style, Widget box) => _BoxProbe(child: box);
 
 void main() {
   _robustnessTests();
@@ -230,6 +252,24 @@ void main() {
     });
 
     testWidgets('a set duration interpolates half-way', (tester) async {
+      const linear = AnimationStyle(
+        duration: Duration(milliseconds: 100),
+        curve: Curves.linear,
+      );
+      await tester.pumpWidget(
+        _host(const WidgetStyle(backgroundColor: _red, animationStyle: linear)),
+      );
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(backgroundColor: _blue, animationStyle: linear),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(_fillColor(tester), Color.lerp(_red, _blue, 0.5));
+    });
+
+    testWidgets('a missing curve defaults to easeInOutSine', (tester) async {
       await tester.pumpWidget(
         _host(const WidgetStyle(backgroundColor: _red, animationStyle: _slow)),
       );
@@ -240,7 +280,10 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 50));
 
-      expect(_fillColor(tester), Color.lerp(_red, _blue, 0.5));
+      expect(
+        _fillColor(tester),
+        Color.lerp(_red, _blue, Curves.easeInOutSine.transform(0.5)),
+      );
     });
 
     testWidgets('an equal style does not restart the animation',
@@ -316,6 +359,103 @@ void main() {
           reason: '$style',
         );
       }
+    });
+  });
+
+  group('AnimatedStyledBox boxBuilder', () {
+    testWidgets('wraps the box inside the margin and outside the size', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            width: 40,
+            height: 20,
+            margin: EdgeInsets.all(8),
+          ),
+          boxBuilder: _probe,
+        ),
+      );
+
+      expect(
+        find.ancestor(
+          of: find.byType(_BoxProbe),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Padding &&
+                widget.padding == const EdgeInsets.all(8),
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(_BoxProbe),
+          matching: find.byType(ConstrainedBox),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.getSize(find.byType(_BoxProbe)), const Size(40, 20));
+    });
+
+    testWidgets('keeps the builder State when an Opacity appears', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(const WidgetStyle(width: 40, height: 20), boxBuilder: _probe),
+      );
+      final before = tester.state(find.byType(_BoxProbe));
+
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(width: 40, height: 20, opacity: 0.5),
+          boxBuilder: _probe,
+        ),
+      );
+
+      expect(find.byType(Opacity), findsOneWidget);
+      expect(tester.state(find.byType(_BoxProbe)), same(before));
+    });
+
+    testWidgets('passes the style of the current frame', (tester) async {
+      final radii = <BorderRadiusGeometry?>[];
+      Widget record(WidgetStyle style, Widget box) {
+        radii.add(style.borderRadius);
+        return box;
+      }
+
+      const linear = AnimationStyle(
+        duration: Duration(milliseconds: 100),
+        curve: Curves.linear,
+      );
+
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            borderRadius: BorderRadius.zero,
+            animationStyle: linear,
+          ),
+          boxBuilder: record,
+        ),
+      );
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+            animationStyle: linear,
+          ),
+          boxBuilder: record,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(radii.last, const BorderRadius.all(Radius.circular(4)));
+    });
+
+    testWidgets('applies with a null style', (tester) async {
+      await tester.pumpWidget(_host(null, boxBuilder: _probe));
+
+      expect(find.byType(_BoxProbe), findsOneWidget);
     });
   });
 }

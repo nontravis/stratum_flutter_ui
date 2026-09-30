@@ -2,12 +2,17 @@ import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/components/common/style/style_decoration.dart';
 
+/// Wraps the styled box of an [AnimatedStyledBox] with the style of the
+/// current animation frame; see [AnimatedStyledBox.boxBuilder].
+typedef StyledBoxBuilder = Widget Function(WidgetStyle style, Widget box);
+
 /// Paints a [WidgetStyle] around [child] and animates between styles.
 ///
 /// Duration and curve come from the target style's
 /// [WidgetStyle.animationStyle]; a null value applies the new style in the
-/// same frame. `AnimationStyle.reverseDuration` and `reverseCurve` are not
-/// used, because [ImplicitlyAnimatedWidget] has no reverse settings.
+/// same frame. A null curve uses [Curves.easeInOutSine], because a linear
+/// change looks stiff. `AnimationStyle.reverseDuration` and `reverseCurve`
+/// are not used, because [ImplicitlyAnimatedWidget] has no reverse settings.
 class AnimatedStyledBox extends ImplicitlyAnimatedWidget {
   new({
     super.key,
@@ -16,16 +21,24 @@ class AnimatedStyledBox extends ImplicitlyAnimatedWidget {
     this.transform,
     this.transformAlignment,
     super.onEnd,
+    this.boxBuilder,
     this.child,
   }) : super(
          duration: style?.animationStyle?.duration ?? Duration.zero,
-         curve: style?.animationStyle?.curve ?? Curves.linear,
+         curve: style?.animationStyle?.curve ?? Curves.easeInOutSine,
        );
 
   final WidgetStyle? style;
   final double? ratio;
   final Matrix4? transform;
   final AlignmentGeometry? transformAlignment;
+
+  /// Wraps the box after its size constraints and before its margin,
+  /// transform, and opacity.
+  ///
+  /// Receives the style of the current animation frame. The result keeps
+  /// its State when wrappers above it come and go.
+  final StyledBoxBuilder? boxBuilder;
   final Widget? child;
 
   @override
@@ -36,6 +49,7 @@ class AnimatedStyledBox extends ImplicitlyAnimatedWidget {
 class _AnimatedStyledBoxState
     extends AnimatedWidgetBaseState<AnimatedStyledBox> {
   final GlobalKey _childKey = GlobalKey(debugLabel: 'AnimatedStyledBox.child');
+  final GlobalKey _boxKey = GlobalKey(debugLabel: 'AnimatedStyledBox.box');
   _WidgetStyleTween? _style;
 
   @override
@@ -130,6 +144,13 @@ class _AnimatedStyledBoxState
     final constraints = _constraints(style);
     if (constraints != null) {
       current = ConstrainedBox(constraints: constraints, child: current);
+    }
+    final boxBuilder = widget.boxBuilder;
+    if (boxBuilder != null) {
+      current = KeyedSubtree(
+        key: _boxKey,
+        child: boxBuilder(style, current),
+      );
     }
     final margin = style.margin;
     if (margin != null) {
