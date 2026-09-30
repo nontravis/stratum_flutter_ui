@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_falmodel/flutter_falmodel.dart' show FullWidgetState;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/base/stateful_widget.dart';
 import 'package:stratum_ui/src/components/common/base/stateless_widget.dart';
 import 'package:stratum_ui/src/components/common/base/widget_props.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
@@ -10,7 +11,7 @@ import 'package:stratum_ui/src/themes/constant/window_size.dart';
 import 'package:stratum_ui/src/themes/theme_application.dart';
 import 'package:stratum_ui/src/themes/theme_data.dart';
 
-class _StatelessProbe extends AppStatelessWidget {
+class _StatelessProbe extends StratumStatelessWidget {
   const new({
     super.size,
     super.themeMode,
@@ -18,6 +19,18 @@ class _StatelessProbe extends AppStatelessWidget {
     super.customStyle,
   });
 
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class _StatefulProbe extends StratumStatefulWidget {
+  const new({super.size});
+
+  @override
+  State<_StatefulProbe> createState() => _StatefulProbeState();
+}
+
+class _StatefulProbeState extends State<_StatefulProbe> {
   @override
   Widget build(BuildContext context) => const SizedBox();
 }
@@ -73,7 +86,7 @@ Future<T> _readInBuild<T>(
 }
 
 void main() {
-  test('AppStatelessWidget defaults to a normal state with no overrides', () {
+  test('StratumStatelessWidget defaults to normal with no overrides', () {
     expect(_props(const _StatelessProbe()), [
       null,
       null,
@@ -251,6 +264,36 @@ void main() {
           contains('StratumThemeApplication.of() called'),
         ),
       );
+    });
+  });
+
+  group('StratumStatefulWidget', () {
+    test('has the same defaults as StratumStatelessWidget', () {
+      expect(
+        _props(const _StatefulProbe()),
+        _props(const _StatelessProbe()),
+      );
+    });
+
+    testWidgets('resolveSize returns the given size', (tester) async {
+      final size = await _readInBuild(
+        tester,
+        const _StatefulProbe(size: WidgetSize.huge).resolveSize,
+      );
+
+      expect(size, WidgetSize.huge);
+    });
+
+    testWidgets('resolveSize falls back to the theme defaultWidgetSize', (
+      tester,
+    ) async {
+      final size = await _readInBuild(
+        tester,
+        const _StatefulProbe().resolveSize,
+        wrap: _themed,
+      );
+
+      expect(size, WidgetSize.small);
     });
   });
 }
