@@ -116,6 +116,24 @@ void main() {
         ..didStartPage('https://evil.example.net/');
       expect(session.acceptMessage('hi'), isNull);
     });
+
+    test(
+      'an unknown URL during an html switch does not trust the old page',
+      () {
+        session
+          ..willLoadUrl()
+          ..didStartPage('https://evil.example.net/')
+          ..willLoadHtml()
+          ..didChangeUrl(null);
+        expect(session.acceptMessage('hi'), isNull);
+        expect(() => session.scriptForMessage('hi'), throwsStateError);
+        session.didStartPage('about:blank');
+        expect(
+          session.acceptMessage('hi'),
+          const StratumWebViewMessage(data: 'hi'),
+        );
+      },
+    );
   });
 
   group('scriptForMessage', () {
