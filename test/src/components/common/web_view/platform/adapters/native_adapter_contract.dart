@@ -142,6 +142,15 @@ void runNativeAdapterContract(
       ]);
     });
 
+    test('prevents an unparsable main-frame URL without asking', () async {
+      final allowed = await harness.requestNavigation(
+        'http://[::1',
+        isMainFrame: true,
+      );
+      expect(allowed, isFalse);
+      expect(listener.navigationRequests, isEmpty);
+    });
+
     test('lets sub-frame and about: navigation through', () async {
       listener.decision = StratumNavigationDecision.prevent;
       expect(

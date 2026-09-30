@@ -109,6 +109,13 @@ void main() {
     },
   );
 
+  test('drops an opaque-origin message while a URL is shown', () async {
+    await view.load(missingPage());
+    attach();
+    dispatchMessage('opaque'.toJS, origin: 'null');
+    expect(listener.messages, isEmpty);
+  });
+
   test('StratumBridge.postMessage from our HTML reaches the listener '
       'with origin null', () async {
     final received = Completer<StratumWebViewMessage>();
@@ -192,6 +199,22 @@ void main() {
       listener.onMessageCallback = (message) {
         if (message.data == 'ours' && !ours.isCompleted) ours.complete();
       };
+      // Positive control: prove the navigated-to page really ran and posted.
+      // The view registered its listener first, so it has already judged the
+      // 'evil' message (and the forged handshake before it) by the time this
+      // raw listener sees it.
+      final evilArrived = Completer<void>();
+      final raw = ((web.MessageEvent event) {
+        final data = event.data;
+        if (data != null &&
+            data.isA<JSString>() &&
+            (data as JSString).toDart == 'evil' &&
+            !evilArrived.isCompleted) {
+          evilArrived.complete();
+        }
+      }).toJS;
+      web.window.addEventListener('message', raw);
+      addTearDown(() => web.window.removeEventListener('message', raw));
       await view.load(
         const StratumWebViewSource.html(r'''
 <script>
@@ -205,7 +228,7 @@ location.href = 'data:text/html,' + encodeURIComponent(
       );
       attach();
       await ours.future.timeout(const Duration(seconds: 5));
-      await Future<void>.delayed(const Duration(seconds: 1));
+      await evilArrived.future.timeout(const Duration(seconds: 5));
       expect(listener.messages, [const StratumWebViewMessage(data: 'ours')]);
     },
   );

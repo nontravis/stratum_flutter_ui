@@ -66,4 +66,42 @@ void main() {
       ),
     );
   });
+
+  test('errors differ when any single field differs', () {
+    final base = StratumWebViewError(
+      type: StratumWebViewErrorType.http,
+      description: 'HTTP error 500',
+      code: 500,
+      url: Uri.parse('https://app.example.com'),
+    );
+    final variants = [
+      StratumWebViewError(
+        type: StratumWebViewErrorType.network,
+        description: base.description,
+        code: base.code,
+        url: base.url,
+      ),
+      StratumWebViewError(
+        type: base.type,
+        description: 'other',
+        code: base.code,
+        url: base.url,
+      ),
+      StratumWebViewError(
+        type: base.type,
+        description: base.description,
+        code: 404,
+        url: base.url,
+      ),
+      StratumWebViewError(
+        type: base.type,
+        description: base.description,
+        code: base.code,
+        url: Uri.parse('https://example.net'),
+      ),
+    ];
+    for (final variant in variants) {
+      expect(variant, isNot(base), reason: '$variant');
+    }
+  });
 }

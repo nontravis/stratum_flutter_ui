@@ -84,6 +84,15 @@ void main() {
       expect(session.acceptMessage('hi'), isNotNull);
     });
 
+    test('switching from HTML to a URL ends HTML trust at once', () {
+      session
+        ..willLoadHtml()
+        ..didStartPage('about:blank')
+        ..willLoadUrl();
+      expect(session.acceptMessage('hi'), isNull);
+      expect(() => session.scriptForMessage('hi'), throwsStateError);
+    });
+
     test('reload after navigating away does not restore trust', () {
       session
         ..willLoadHtml()
@@ -220,6 +229,30 @@ void main() {
         ),
         expected,
       );
+    });
+
+    test('maps the failing URL of a network error', () {
+      expect(
+        session
+            .networkError(
+              code: -6,
+              description: 'refused',
+              isForMainFrame: true,
+              url: 'https://app.example.com/x',
+            )
+            ?.url,
+        Uri.parse('https://app.example.com/x'),
+      );
+    });
+
+    test('describes an HTTP error without a status code', () {
+      session.didStartPage('https://app.example.com/home');
+      final error = session.httpError(
+        statusCode: null,
+        requestUrl: Uri.parse('https://app.example.com/home'),
+      );
+      expect(error?.description, 'HTTP error');
+      expect(error?.code, isNull);
     });
 
     test('drops sub-frame network errors', () {

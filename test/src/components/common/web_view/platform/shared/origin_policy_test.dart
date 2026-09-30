@@ -80,6 +80,17 @@ void main() {
       );
     });
 
+    test('judges by host, not by user info that looks like a host', () {
+      expect(
+        isAllowedOrigin(Uri.parse('https://app.example.com@evil.com'), allowed),
+        isFalse,
+      );
+      expect(
+        isAllowedOrigin(Uri.parse('https://evil.com@app.example.com'), allowed),
+        isTrue,
+      );
+    });
+
     test('rejects null and host-less origins', () {
       expect(isAllowedOrigin(null, allowed), isFalse);
       expect(isAllowedOrigin(Uri.parse('null'), allowed), isFalse);
