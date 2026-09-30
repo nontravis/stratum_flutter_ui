@@ -90,7 +90,11 @@ class _StylePainter extends BoxPainter {
 
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
-    _paintDropShadows(canvas, offset, configuration);
+    final rect = offset & configuration.size!;
+    final rrect = (_decoration.borderRadius ?? BorderRadius.zero)
+        .resolve(configuration.textDirection)
+        .toRRect(rect);
+    _paintDropShadows(canvas, offset, configuration, rect, rrect);
     _fillPainter ??= BoxDecoration(
       color: _decoration.color,
       gradient: _decoration.gradient,
@@ -98,12 +102,15 @@ class _StylePainter extends BoxPainter {
       borderRadius: _decoration.borderRadius,
     ).createBoxPainter(onChanged);
     _fillPainter!.paint(canvas, offset, configuration);
+    _paintInnerShadows(canvas, rect, rrect);
   }
 
   void _paintDropShadows(
     Canvas canvas,
     Offset offset,
     ImageConfiguration configuration,
+    Rect rect,
+    RRect rrect,
   ) {
     final shadows = _decoration.dropShadow;
     if (shadows == null || shadows.isEmpty) return;
@@ -111,7 +118,52 @@ class _StylePainter extends BoxPainter {
       borderRadius: _decoration.borderRadius,
       boxShadow: shadows,
     ).createBoxPainter(onChanged);
+    if (_decoration.isOpaque) {
+      _shadowPainter!.paint(canvas, offset, configuration);
+      return;
+    }
+    final outside = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRect(rect.inflate(_reach(shadows)))
+      ..addRRect(rrect);
+    canvas
+      ..save()
+      ..clipPath(outside);
     _shadowPainter!.paint(canvas, offset, configuration);
+    canvas.restore();
+  }
+
+  void _paintInnerShadows(Canvas canvas, Rect rect, RRect rrect) {
+    final shadows = _decoration.innerShadow;
+    if (shadows == null || shadows.isEmpty) return;
+    for (final shadow in shadows) {
+      final hole = rrect.shift(shadow.offset).deflate(shadow.spreadRadius);
+      final ring = Path()
+        ..fillType = PathFillType.evenOdd
+        ..addRect(rect.inflate(_reach([shadow])))
+        ..addRRect(hole);
+      final paint = Paint()..color = shadow.color;
+      if (shadow.blurSigma > 0) {
+        paint.maskFilter = MaskFilter.blur(BlurStyle.normal, shadow.blurSigma);
+      }
+      canvas
+        ..save()
+        ..clipRRect(rrect)
+        ..drawPath(ring, paint)
+        ..restore();
+    }
+  }
+
+  /// How far any of [shadows] can reach past the box edge.
+  static double _reach(List<BoxShadow> shadows) {
+    var reach = 0.0;
+    for (final shadow in shadows) {
+      final extent = shadow.blurSigma * 3 +
+          shadow.spreadRadius.abs() +
+          shadow.offset.distance;
+      if (extent > reach) reach = extent;
+    }
+    return reach;
   }
 
   @override
