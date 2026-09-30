@@ -24,7 +24,7 @@ class GestureColumnLayout extends StatelessWidget {
     this.disabledPressAnimation = false,
     this.disabled = false,
     this.onTap,
-    this.onSecondaryPress,
+    this.onSecondaryTap,
     this.onDoubleTap,
     this.onLongPress,
     this.onHighlightChanged,
@@ -62,8 +62,8 @@ class GestureColumnLayout extends StatelessWidget {
 
   MainAxisSize get _effectiveMainAxisSize =>
       style?.height != null || style?.maxHeight != null
-          ? MainAxisSize.max
-          : mainAxisSize;
+      ? MainAxisSize.max
+      : mainAxisSize;
 
   bool get _needsIntrinsicWidth => crossAxisIntrinsic && style?.width == null;
 
@@ -71,7 +71,7 @@ class GestureColumnLayout extends StatelessWidget {
   final bool disabled;
   final bool disabledPressAnimation;
   final GestureTapCallback? onTap;
-  final GestureTapCallback? onSecondaryPress;
+  final GestureTapCallback? onSecondaryTap;
   final GestureTapCallback? onDoubleTap;
   final GestureLongPressCallback? onLongPress;
   final ValueChanged<bool>? onHighlightChanged;
@@ -103,7 +103,6 @@ class GestureColumnLayout extends StatelessWidget {
   ///===== Child Widget ======///
   final List<Widget> children;
 
-
   @override
   Widget build(BuildContext context) {
     // Build Column content with gap spacing if needed
@@ -126,7 +125,7 @@ class GestureColumnLayout extends StatelessWidget {
       disabled: disabled,
       disabledPressAnimation: disabledPressAnimation,
       onTap: onTap,
-      onSecondaryPress: onSecondaryPress,
+      onSecondaryTap: onSecondaryTap,
       onDoubleTap: onDoubleTap,
       onLongPress: onLongPress,
       onHighlightChanged: onHighlightChanged,

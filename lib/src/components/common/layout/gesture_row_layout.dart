@@ -25,7 +25,7 @@ class GestureRowLayout extends StatelessWidget {
     this.disabled = false,
     this.disableFocused = false,
     this.onTap,
-    this.onSecondaryPress,
+    this.onSecondaryTap,
     this.onDoubleTap,
     this.onLongPress,
     this.onHighlightChanged,
@@ -74,7 +74,7 @@ class GestureRowLayout extends StatelessWidget {
   final bool disabled;
   final bool disableFocused;
   final GestureTapCallback? onTap;
-  final GestureTapCallback? onSecondaryPress;
+  final GestureTapCallback? onSecondaryTap;
   final GestureTapCallback? onDoubleTap;
   final GestureLongPressCallback? onLongPress;
   final ValueChanged<bool>? onHighlightChanged;
@@ -131,7 +131,7 @@ class GestureRowLayout extends StatelessWidget {
       disabledPressAnimation: disabledPressAnimation,
       disabled: disabled,
       onTap: onTap,
-      onSecondaryPress: onSecondaryPress,
+      onSecondaryTap: onSecondaryTap,
       onDoubleTap: onDoubleTap,
       onLongPress: onLongPress,
       onHighlightChanged: onHighlightChanged,
