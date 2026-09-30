@@ -2,9 +2,9 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/layout/container_layout.dart';
-import 'package:stratum_ui/src/components/common/layout/widget_performance_monitor.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/components/common/style/animated_styled_box.dart';
+import 'package:stratum_ui/src/components/common/widget_performance_monitor.dart';
 
 const _style = WidgetStyle(
   backgroundColor: Color(0xFFFFFFFF),
@@ -47,6 +47,24 @@ void main() {
       expect(box.style, _style);
       expect(box.ratio, 2);
       expect(box.transform, transform);
+    });
+
+    testWidgets('hands boxBuilder to AnimatedStyledBox', (tester) async {
+      Widget builder(WidgetStyle style, Widget box) => box;
+
+      await tester.pumpWidget(
+        _host(
+          ContainerLayout(
+            boxBuilder: builder,
+            child: const SizedBox(width: 40, height: 20),
+          ),
+        ),
+      );
+
+      final box = tester.widget<AnimatedStyledBox>(
+        find.byType(AnimatedStyledBox),
+      );
+      expect(box.boxBuilder, builder);
     });
 
     testWidgets('adds no outer wrappers by default', (tester) async {
