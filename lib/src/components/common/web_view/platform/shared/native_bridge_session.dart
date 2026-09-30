@@ -18,26 +18,21 @@ final class NativeBridgeSession {
   final HtmlFrameGuard _guard = HtmlFrameGuard();
   Uri? _pageUrl;
   bool _pageUrlUnknown = false;
-  bool _lastLoadWasHtml = false;
-
-  /// URL of the current top-level page, as last reported by the platform.
-  Uri? get pageUrl => _pageUrl;
 
   /// Call right before the adapter loads a URL.
   void willLoadUrl() {
-    _lastLoadWasHtml = false;
     _guard.expectNavigation();
   }
 
   /// Call right before the adapter loads an HTML string.
   void willLoadHtml() {
-    _lastLoadWasHtml = true;
     _guard.expectOwnHtml();
   }
 
   /// Call right before the adapter reloads the current page.
   void willReload() {
-    if (_lastLoadWasHtml && _guard.isShowingOwnHtml) _guard.expectOwnHtml();
+    // The guard only reports own HTML after an HTML load or reload.
+    if (_guard.isShowingOwnHtml) _guard.expectOwnHtml();
   }
 
   /// Call when the platform reports that a main-frame page started loading.
