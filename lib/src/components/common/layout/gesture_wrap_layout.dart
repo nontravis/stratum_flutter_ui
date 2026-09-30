@@ -25,8 +25,8 @@ class GestureWrapLayout extends StatelessWidget {
     //=== InkWell ===//
     this.disabledPressAnimation = false,
     this.disabled = false,
-    this.onPress,
-    this.onSecondaryPress,
+    this.onTap,
+    this.onSecondaryTap,
     this.onDoubleTap,
     this.onLongPress,
     this.onHighlightChanged,
@@ -46,14 +46,13 @@ class GestureWrapLayout extends StatelessWidget {
   }) : _effectiveSpacing = spacing ?? gap ?? 0.0,
        _effectiveRunSpacing = runSpacing ?? gap ?? 0.0,
        _hasGestures =
-           !disabled &&
-           (onPress != null ||
-               onSecondaryPress != null ||
-               onDoubleTap != null ||
-               onLongPress != null ||
-               onHighlightChanged != null ||
-               onHover != null ||
-               onFocusChange != null);
+           onTap != null ||
+           onSecondaryTap != null ||
+           onDoubleTap != null ||
+           onLongPress != null ||
+           onHighlightChanged != null ||
+           onHover != null ||
+           onFocusChange != null;
 
   ///========== Frame ==========///
   final double? rotate; // 0-360 degree
@@ -73,8 +72,8 @@ class GestureWrapLayout extends StatelessWidget {
   ///===== InkWell ======///
   final bool disabledPressAnimation;
   final bool disabled;
-  final GestureTapCallback? onPress;
-  final GestureTapCallback? onSecondaryPress;
+  final GestureTapCallback? onTap;
+  final GestureTapCallback? onSecondaryTap;
   final GestureTapCallback? onDoubleTap;
   final GestureLongPressCallback? onLongPress;
   final ValueChanged<bool>? onHighlightChanged;
@@ -142,8 +141,8 @@ class GestureWrapLayout extends StatelessWidget {
         focusType: focusType,
         disabled: disabled,
         disabledPressAnimation: disabledPressAnimation,
-        onTap: onPress,
-        onSecondaryPress: onSecondaryPress,
+        onTap: onTap,
+        onSecondaryTap: onSecondaryTap,
         onDoubleTap: onDoubleTap,
         onLongPress: onLongPress,
         onHighlightChanged: onHighlightChanged,

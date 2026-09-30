@@ -19,7 +19,7 @@ class GestureStackLayout extends StatelessWidget {
     this.disabledPressAnimation = false,
     this.disabled = false,
     this.onTap,
-    this.onSecondaryPress,
+    this.onSecondaryTap,
     this.onDoubleTap,
     this.onLongPress,
     this.onHighlightChanged,
@@ -37,13 +37,14 @@ class GestureStackLayout extends StatelessWidget {
     this.semantics,
     //===============//
     required this.children,
-  }) : _hasGestures = !disabled && (onTap != null ||
-            onSecondaryPress != null ||
-            onDoubleTap != null ||
-            onLongPress != null ||
-            onHighlightChanged != null ||
-            onHover != null ||
-            onFocusChange != null);
+  }) : _hasGestures =
+           onTap != null ||
+           onSecondaryTap != null ||
+           onDoubleTap != null ||
+           onLongPress != null ||
+           onHighlightChanged != null ||
+           onHover != null ||
+           onFocusChange != null;
 
   ///========== Frame ==========///
   final double? rotate; // 0-360 degree
@@ -64,7 +65,7 @@ class GestureStackLayout extends StatelessWidget {
   final bool disabledPressAnimation;
   final bool disabled;
   final GestureTapCallback? onTap;
-  final GestureTapCallback? onSecondaryPress;
+  final GestureTapCallback? onSecondaryTap;
   final GestureTapCallback? onDoubleTap;
   final GestureLongPressCallback? onLongPress;
   final ValueChanged<bool>? onHighlightChanged;
@@ -122,7 +123,7 @@ class GestureStackLayout extends StatelessWidget {
         disabled: disabled,
         disabledPressAnimation: disabledPressAnimation,
         onTap: onTap,
-        onSecondaryPress: onSecondaryPress,
+        onSecondaryTap: onSecondaryTap,
         onDoubleTap: onDoubleTap,
         onLongPress: onLongPress,
         onHighlightChanged: onHighlightChanged,
