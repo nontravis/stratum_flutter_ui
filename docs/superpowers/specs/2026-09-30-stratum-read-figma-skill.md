@@ -58,7 +58,7 @@ The script reads only; it never mutates the file. It keeps its own helpers pure 
 |------------------------------------------------|-------------------------------------------------------------------------------------------------------|
 | `style`                                        | `style: Stratum<Component>Style` (or a shared enum)                                                   |
 | `type`, `status`, any other variant            | `Stratum<Component><Prop>` enum (or a shared enum)                                                    |
-| `size`                                         | `size: WidgetSize` (base field), see `size_mapping.md`                                                |
+| `size`                                         | `size: WidgetSize?` (base field; null resolves to the theme default), see `size_mapping.md`           |
 | `state`                                        | split, see `state_mapping.md`                                                                         |
 | `color`                                        | `color: ColorEnum?` (base field); feedback values go to `feedbackState`                               |
 | `theme`, dark mode                             | `themeMode` (base field): `DARK` → `ThemeMode.dark`, `LIGHT` → `light`, `AUTO` → `system`              |
@@ -157,7 +157,7 @@ const StratumButton({
   super.loading,
   this.progress,
   this.onPressed,
-  this.customStyle,
+  super.customStyle,
 });
 ```
 
