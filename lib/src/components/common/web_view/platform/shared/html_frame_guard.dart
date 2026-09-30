@@ -23,6 +23,9 @@ final class HtmlFrameGuard {
   bool get isShowingOwnHtml =>
       _state == _FrameState.awaitingLoad || _state == _FrameState.showing;
 
+  /// Whether own HTML is expected but its first load has not arrived yet.
+  bool get isAwaitingLoad => _state == _FrameState.awaitingLoad;
+
   /// Marks that the controller is about to load HTML content.
   void expectOwnHtml() {
     _state = _FrameState.awaitingLoad;

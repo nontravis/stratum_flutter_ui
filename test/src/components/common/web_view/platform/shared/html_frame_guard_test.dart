@@ -47,6 +47,14 @@ void main() {
     expect(guard.isShowingOwnHtml, isFalse);
   });
 
+  test('reports awaiting only between expectOwnHtml and the first load', () {
+    expect(guard.isAwaitingLoad, isFalse);
+    guard.expectOwnHtml();
+    expect(guard.isAwaitingLoad, isTrue);
+    guard.didLoadFrame();
+    expect(guard.isAwaitingLoad, isFalse);
+  });
+
   test('loads without an expectation change nothing', () {
     guard.didLoadFrame();
     expect(guard.isShowingOwnHtml, isFalse);
