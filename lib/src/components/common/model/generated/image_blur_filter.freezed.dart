@@ -1,48 +1,54 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
-part of '../filter.dart';
+part of '../image_blur_filter.dart';
 
 // **************************************************************************
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
-mixin _$AppImageFilter {
+mixin _$ImageBlurFilter {
 
  double get sigmaX; double get sigmaY; TileMode? get tileMode;
-/// Create a copy of AppImageFilter
+/// Create a copy of ImageBlurFilter
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$AppImageFilterCopyWith<AppImageFilter> get copyWith => _$AppImageFilterCopyWithImpl<AppImageFilter>(this as AppImageFilter, _$identity);
+$ImageBlurFilterCopyWith<ImageBlurFilter> get copyWith => _$ImageBlurFilterCopyWithImpl<ImageBlurFilter>(this as ImageBlurFilter, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppImageFilter&&(identical(other.sigmaX, sigmaX) || other.sigmaX == sigmaX)&&(identical(other.sigmaY, sigmaY) || other.sigmaY == sigmaY)&&(identical(other.tileMode, tileMode) || other.tileMode == tileMode));
+  final _this = this as ImageBlurFilter;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ImageBlurFilter&&(identical(other.sigmaX, _this.sigmaX) || other.sigmaX == _this.sigmaX)&&(identical(other.sigmaY, _this.sigmaY) || other.sigmaY == _this.sigmaY)&&(identical(other.tileMode, _this.tileMode) || other.tileMode == _this.tileMode));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sigmaX,sigmaY,tileMode);
+int get hashCode {
+  final _this = this as ImageBlurFilter;
+  return Object.hash(runtimeType,_this.sigmaX,_this.sigmaY,_this.tileMode);
+}
 
 @override
 String toString() {
-  return 'AppImageFilter(sigmaX: $sigmaX, sigmaY: $sigmaY, tileMode: $tileMode)';
+  final _this = this as ImageBlurFilter;
+  return 'ImageBlurFilter(sigmaX: ${_this.sigmaX}, sigmaY: ${_this.sigmaY}, tileMode: ${_this.tileMode})';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $AppImageFilterCopyWith<$Res>  {
-  factory $AppImageFilterCopyWith(AppImageFilter value, $Res Function(AppImageFilter) _then) = _$AppImageFilterCopyWithImpl;
+abstract mixin class $ImageBlurFilterCopyWith<$Res>  {
+  factory $ImageBlurFilterCopyWith(ImageBlurFilter value, $Res Function(ImageBlurFilter) _then) = _$ImageBlurFilterCopyWithImpl;
 @useResult
 $Res call({
  double sigmaX, double sigmaY, TileMode? tileMode
@@ -53,17 +59,17 @@ $Res call({
 
 }
 /// @nodoc
-class _$AppImageFilterCopyWithImpl<$Res>
-    implements $AppImageFilterCopyWith<$Res> {
-  _$AppImageFilterCopyWithImpl(this._self, this._then);
+class _$ImageBlurFilterCopyWithImpl<$Res>
+    implements $ImageBlurFilterCopyWith<$Res> {
+  _$ImageBlurFilterCopyWithImpl(this._self, this._then);
 
-  final AppImageFilter _self;
-  final $Res Function(AppImageFilter) _then;
+  final ImageBlurFilter _self;
+  final $Res Function(ImageBlurFilter) _then;
 
-/// Create a copy of AppImageFilter
+/// Create a copy of ImageBlurFilter
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? sigmaX = null,Object? sigmaY = null,Object? tileMode = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ImageBlurFilter(
 sigmaX: null == sigmaX ? _self.sigmaX : sigmaX // ignore: cast_nullable_to_non_nullable
 as double,sigmaY: null == sigmaY ? _self.sigmaY : sigmaY // ignore: cast_nullable_to_non_nullable
 as double,tileMode: freezed == tileMode ? _self.tileMode : tileMode // ignore: cast_nullable_to_non_nullable
@@ -74,8 +80,8 @@ as TileMode?,
 }
 
 
-/// Adds pattern-matching-related methods to [AppImageFilter].
-extension AppImageFilterPatterns on AppImageFilter {
+/// Adds pattern-matching-related methods to [ImageBlurFilter].
+extension ImageBlurFilterPatterns on ImageBlurFilter {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -88,10 +94,10 @@ extension AppImageFilterPatterns on AppImageFilter {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _AppImageFilter value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ImageBlurFilter value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _AppImageFilter() when $default != null:
+case _ImageBlurFilter() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -110,10 +116,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _AppImageFilter value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ImageBlurFilter value)  $default,){
 final _that = this;
 switch (_that) {
-case _AppImageFilter():
+case _ImageBlurFilter():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -131,10 +137,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _AppImageFilter value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ImageBlurFilter value)?  $default,){
 final _that = this;
 switch (_that) {
-case _AppImageFilter() when $default != null:
+case _ImageBlurFilter() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -154,7 +160,7 @@ return $default(_that);case _:
 
 @optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double sigmaX,  double sigmaY,  TileMode? tileMode)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _AppImageFilter() when $default != null:
+case _ImageBlurFilter() when $default != null:
 return $default(_that.sigmaX,_that.sigmaY,_that.tileMode);case _:
   return orElse();
 
@@ -175,7 +181,7 @@ return $default(_that.sigmaX,_that.sigmaY,_that.tileMode);case _:
 
 @optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double sigmaX,  double sigmaY,  TileMode? tileMode)  $default,) {final _that = this;
 switch (_that) {
-case _AppImageFilter():
+case _ImageBlurFilter():
 return $default(_that.sigmaX,_that.sigmaY,_that.tileMode);case _:
   throw StateError('Unexpected subclass');
 
@@ -195,7 +201,7 @@ return $default(_that.sigmaX,_that.sigmaY,_that.tileMode);case _:
 
 @optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double sigmaX,  double sigmaY,  TileMode? tileMode)?  $default,) {final _that = this;
 switch (_that) {
-case _AppImageFilter() when $default != null:
+case _ImageBlurFilter() when $default != null:
 return $default(_that.sigmaX,_that.sigmaY,_that.tileMode);case _:
   return null;
 
@@ -207,42 +213,44 @@ return $default(_that.sigmaX,_that.sigmaY,_that.tileMode);case _:
 /// @nodoc
 
 
-class _AppImageFilter extends AppImageFilter {
-  const _AppImageFilter({this.sigmaX = 0.0, this.sigmaY = 0.0, this.tileMode}): super._();
+class _ImageBlurFilter extends ImageBlurFilter {
+  const _ImageBlurFilter({this.sigmaX = 0.0, this.sigmaY = 0.0, this.tileMode}): super._();
   
 
 @override@JsonKey() final  double sigmaX;
 @override@JsonKey() final  double sigmaY;
 @override final  TileMode? tileMode;
 
-/// Create a copy of AppImageFilter
+/// Create a copy of ImageBlurFilter
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$AppImageFilterCopyWith<_AppImageFilter> get copyWith => __$AppImageFilterCopyWithImpl<_AppImageFilter>(this, _$identity);
+_$ImageBlurFilterCopyWith<_ImageBlurFilter> get copyWith => __$ImageBlurFilterCopyWithImpl<_ImageBlurFilter>(this, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppImageFilter&&(identical(other.sigmaX, sigmaX) || other.sigmaX == sigmaX)&&(identical(other.sigmaY, sigmaY) || other.sigmaY == sigmaY)&&(identical(other.tileMode, tileMode) || other.tileMode == tileMode));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ImageBlurFilter&&(identical(other.sigmaX, sigmaX) || other.sigmaX == sigmaX)&&(identical(other.sigmaY, sigmaY) || other.sigmaY == sigmaY)&&(identical(other.tileMode, tileMode) || other.tileMode == tileMode));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sigmaX,sigmaY,tileMode);
+int get hashCode {
+    return Object.hash(runtimeType,sigmaX,sigmaY,tileMode);
+}
 
 @override
 String toString() {
-  return 'AppImageFilter(sigmaX: $sigmaX, sigmaY: $sigmaY, tileMode: $tileMode)';
+    return 'ImageBlurFilter(sigmaX: $sigmaX, sigmaY: $sigmaY, tileMode: $tileMode)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$AppImageFilterCopyWith<$Res> implements $AppImageFilterCopyWith<$Res> {
-  factory _$AppImageFilterCopyWith(_AppImageFilter value, $Res Function(_AppImageFilter) _then) = __$AppImageFilterCopyWithImpl;
+abstract mixin class _$ImageBlurFilterCopyWith<$Res> implements $ImageBlurFilterCopyWith<$Res> {
+  factory _$ImageBlurFilterCopyWith(_ImageBlurFilter value, $Res Function(_ImageBlurFilter) _then) = __$ImageBlurFilterCopyWithImpl;
 @override @useResult
 $Res call({
  double sigmaX, double sigmaY, TileMode? tileMode
@@ -253,17 +261,17 @@ $Res call({
 
 }
 /// @nodoc
-class __$AppImageFilterCopyWithImpl<$Res>
-    implements _$AppImageFilterCopyWith<$Res> {
-  __$AppImageFilterCopyWithImpl(this._self, this._then);
+class __$ImageBlurFilterCopyWithImpl<$Res>
+    implements _$ImageBlurFilterCopyWith<$Res> {
+  __$ImageBlurFilterCopyWithImpl(this._self, this._then);
 
-  final _AppImageFilter _self;
-  final $Res Function(_AppImageFilter) _then;
+  final _ImageBlurFilter _self;
+  final $Res Function(_ImageBlurFilter) _then;
 
-/// Create a copy of AppImageFilter
+/// Create a copy of ImageBlurFilter
 /// with the given fields replaced by the non-null parameter values.
 @override @pragma('vm:prefer-inline') $Res call({Object? sigmaX = null,Object? sigmaY = null,Object? tileMode = freezed,}) {
-  return _then(_AppImageFilter(
+  return _then(_ImageBlurFilter(
 sigmaX: null == sigmaX ? _self.sigmaX : sigmaX // ignore: cast_nullable_to_non_nullable
 as double,sigmaY: null == sigmaY ? _self.sigmaY : sigmaY // ignore: cast_nullable_to_non_nullable
 as double,tileMode: freezed == tileMode ? _self.tileMode : tileMode // ignore: cast_nullable_to_non_nullable
