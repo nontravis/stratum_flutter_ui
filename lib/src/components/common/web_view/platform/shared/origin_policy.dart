@@ -22,3 +22,20 @@ bool isAllowedOrigin(Uri? origin, Set<Uri> allowed) {
   if (candidate == null) return false;
   return allowed.any((entry) => originOf(entry) == candidate);
 }
+
+/// Describes why [entry] can never match a page origin, or returns `null`
+/// when it works as an allowlist entry.
+///
+/// Pages report http or https origins with an ASCII (punycode) host. An entry
+/// without a scheme, with another scheme, or with a Unicode host (which
+/// [Uri] percent-encodes instead of converting to punycode) never matches.
+String? allowedOriginProblem(Uri entry) {
+  if (!entry.isScheme('http') && !entry.isScheme('https')) {
+    return '$entry needs an http or https scheme';
+  }
+  if (entry.host.isEmpty) return '$entry has no host';
+  if (entry.host.contains('%')) {
+    return '$entry has a non-ASCII host; use its punycode form (xn--…)';
+  }
+  return null;
+}

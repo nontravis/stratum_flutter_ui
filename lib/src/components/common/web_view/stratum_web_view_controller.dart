@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 /// Replaces the platform implementation for new controllers in tests.
@@ -160,6 +161,14 @@ final class StratumWebViewController {
   @internal
   void configure(StratumWebViewConfiguration configuration) {
     _ensureActive();
+    // An entry that can never match would silently disable the bridge.
+    assert(
+      configuration.allowedOrigins.every(
+        (origin) => allowedOriginProblem(origin) == null,
+      ),
+      'allowedOrigins: '
+      '${configuration.allowedOrigins.map(allowedOriginProblem).nonNulls}',
+    );
     final javaScriptChanged =
         configuration.javaScriptEnabled != _configuration.javaScriptEnabled;
     _configuration = configuration;
