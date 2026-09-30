@@ -17,6 +17,7 @@ final class NativeBridgeSession {
   final Set<Uri> Function() _allowedOrigins;
   final HtmlFrameGuard _guard = HtmlFrameGuard();
   Uri? _pageUrl;
+  bool _pageUrlUnknown = false;
   bool _lastLoadWasHtml = false;
 
   /// URL of the current top-level page, as last reported by the platform.
@@ -42,12 +43,17 @@ final class NativeBridgeSession {
   /// Call when the platform reports that a main-frame page started loading.
   void didStartPage(String url) {
     _pageUrl = Uri.tryParse(url);
+    _pageUrlUnknown = false;
     _guard.didLoadFrame();
   }
 
   /// Call when the platform reports a URL change without a page load.
+  ///
+  /// A `null` URL means the platform does not know the page, not that the
+  /// page is our HTML, so it denies HTML trust until the next [didStartPage].
   void didChangeUrl(String? url) {
     _pageUrl = url == null ? null : Uri.tryParse(url);
+    _pageUrlUnknown = url == null;
   }
 
   /// Whether the tracked page is still the controller's own HTML.
@@ -58,7 +64,7 @@ final class NativeBridgeSession {
   /// HTML, so this also requires [_pageUrl] to be host-less (the adapters
   /// load HTML without a base URL, so our HTML reports `about:blank`).
   bool get _isTrustedHtml =>
-      _guard.isShowingOwnHtml && originOf(_pageUrl) == null;
+      _guard.isShowingOwnHtml && !_pageUrlUnknown && originOf(_pageUrl) == null;
 
   /// Returns the message to deliver for [data], or `null` to drop it.
   StratumWebViewMessage? acceptMessage(String data) {
