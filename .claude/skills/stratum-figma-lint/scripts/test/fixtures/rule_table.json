@@ -1,0 +1,824 @@
+{
+  "synthetic": true,
+  "source": "figma-audit-2026-09-30 'Other known findings' table plus synthetic references",
+  "components": [
+    {
+      "id": "10:1",
+      "name": "SocialButton",
+      "type": "COMPONENT_SET",
+      "page": "❖ Buttons",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "🚦 state": {
+          "type": "VARIANT",
+          "defaultValue": "NORMAL",
+          "variantOptions": [
+            "NORMAL",
+            "HOVERD",
+            "PRESSED",
+            "DISABLED"
+          ]
+        }
+      },
+      "variantCount": 4,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:2",
+      "name": "RatingEmoji",
+      "type": "COMPONENT_SET",
+      "page": "❖ Rating",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "🚦state": {
+          "type": "VARIANT",
+          "defaultValue": "NORMAL",
+          "variantOptions": [
+            "NORMAL",
+            "HOVERDED",
+            "ACTIVE",
+            "INACTIVE"
+          ]
+        }
+      },
+      "variantCount": 4,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:3",
+      "name": "LeftToggle",
+      "type": "COMPONENT_SET",
+      "page": "❖ Toggle",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "✅ checked": {
+          "type": "VARIANT",
+          "defaultValue": "False",
+          "variantOptions": [
+            "False",
+            "MXIED",
+            "True"
+          ]
+        }
+      },
+      "variantCount": 3,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:4",
+      "name": "RightToggle",
+      "type": "COMPONENT_SET",
+      "page": "❖ Toggle",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "✅ checked": {
+          "type": "VARIANT",
+          "defaultValue": "False",
+          "variantOptions": [
+            "False",
+            "MIXED",
+            "True"
+          ]
+        }
+      },
+      "variantCount": 3,
+      "unboundPaints": [],
+      "note": "synthetic reference: supplies a more frequent neighbour for the L01 frequency leg"
+    },
+    {
+      "id": "10:5",
+      "name": "Checkbox",
+      "type": "COMPONENT_SET",
+      "page": "❖ Checkbox",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "✅ checked": {
+          "type": "VARIANT",
+          "defaultValue": "FALSE",
+          "variantOptions": [
+            "FALSE",
+            "MIXED",
+            "TRUE"
+          ]
+        },
+        "🚦 state": {
+          "type": "VARIANT",
+          "defaultValue": "NORMAL",
+          "variantOptions": [
+            "NORMAL",
+            "HOVERED",
+            "ERROR",
+            "DISABLED"
+          ]
+        }
+      },
+      "variantCount": 12,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:6",
+      "name": "SegmentedBar",
+      "type": "COMPONENT_SET",
+      "page": "❖ Loading",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "🚦 state": {
+          "type": "VARIANT",
+          "defaultValue": "NORMALL",
+          "variantOptions": [
+            "NORMALL",
+            "DISABLED"
+          ]
+        },
+        "👁️ showLebel#10:60": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        }
+      },
+      "variantCount": 2,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:7",
+      "name": "ProgressBar",
+      "type": "COMPONENT_SET",
+      "page": "❖ Loading",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "👁️ showLabel#10:70": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": [],
+      "note": "synthetic reference: supplies a more frequent neighbour for the L01 frequency leg"
+    },
+    {
+      "id": "10:8",
+      "name": "ProgressCircle",
+      "type": "COMPONENT_SET",
+      "page": "❖ Loading",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "👁️ showLabel#10:80": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": [],
+      "note": "synthetic reference: supplies a more frequent neighbour for the L01 frequency leg"
+    },
+    {
+      "id": "10:9",
+      "name": "NumberInput",
+      "type": "COMPONENT_SET",
+      "page": "❖ Number input",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "🚦 state": {
+          "type": "VARIANT",
+          "defaultValue": "NORMAL",
+          "variantOptions": [
+            "NORMAL",
+            "🟡 WARNGIN",
+            "DISABLED"
+          ]
+        }
+      },
+      "variantCount": 3,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:10",
+      "name": "MenuItem",
+      "type": "COMPONENT_SET",
+      "page": "❖ Menu",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "💬 descrtiption#10:100": {
+          "type": "TEXT",
+          "defaultValue": "Description"
+        },
+        "📐 size": {
+          "type": "VARIANT",
+          "defaultValue": "SMALL",
+          "variantOptions": [
+            "SMALL",
+            "MEDIUM",
+            "LARGE"
+          ]
+        },
+        "🚦 state": {
+          "type": "VARIANT",
+          "defaultValue": "NORMAL",
+          "variantOptions": [
+            "NORMAL",
+            "HOVERED",
+            "PRESSED",
+            "DISABLED",
+            "SELECTED"
+          ]
+        },
+        "🔖 type": {
+          "type": "VARIANT",
+          "defaultValue": "DEFAULT",
+          "variantOptions": [
+            "DEFAULT",
+            "CHECKBOX",
+            "RADIO",
+            "SWITCH",
+            "ICON",
+            "AVATAR",
+            "SUBMENU",
+            "DIVIDER",
+            "HEADER"
+          ]
+        }
+      },
+      "variantCount": 96,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:11",
+      "name": "ListItem",
+      "type": "COMPONENT_SET",
+      "page": "❖ List",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "💬 description#10:110": {
+          "type": "TEXT",
+          "defaultValue": "Description"
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": [],
+      "note": "synthetic reference: supplies a more frequent neighbour for the L01 frequency leg"
+    },
+    {
+      "id": "10:12",
+      "name": "Card",
+      "type": "COMPONENT_SET",
+      "page": "❖ Card",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "💬 description#10:120": {
+          "type": "TEXT",
+          "defaultValue": "Description"
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": [],
+      "note": "synthetic reference: supplies a more frequent neighbour for the L01 frequency leg"
+    },
+    {
+      "id": "10:13",
+      "name": "BreadcrumbSectionLink",
+      "type": "COMPONENT_SET",
+      "page": "❖ Breadcrumb",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "📐 size": {
+          "type": "VARIANT",
+          "defaultValue": "SMALL",
+          "variantOptions": [
+            "SMALL",
+            "MEDIUm",
+            "LARGE"
+          ]
+        }
+      },
+      "variantCount": 3,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:14",
+      "name": "UploadedFile",
+      "type": "COMPONENT_SET",
+      "page": "❖ File uploader",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "💬 size#10:140": {
+          "type": "TEXT",
+          "defaultValue": "2 MB"
+        },
+        "📐 size": {
+          "type": "VARIANT",
+          "defaultValue": "SMALL",
+          "variantOptions": [
+            "SMALL",
+            "MEDIUM"
+          ]
+        }
+      },
+      "variantCount": 2,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:15",
+      "name": "ChartBar",
+      "type": "COMPONENT_SET",
+      "page": "❖ Chart & Graphs",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "%": {
+          "type": "VARIANT",
+          "defaultValue": "00",
+          "variantOptions": [
+            "00",
+            "05",
+            "10",
+            "50",
+            "100"
+          ]
+        },
+        "🚦 state": {
+          "type": "VARIANT",
+          "defaultValue": "NORMAL",
+          "variantOptions": [
+            "NORMAL",
+            "HOVERED",
+            "ACTIVE"
+          ]
+        },
+        "🎨 color": {
+          "type": "VARIANT",
+          "defaultValue": "BRAND",
+          "variantOptions": [
+            "BRAND",
+            "BLUE"
+          ]
+        }
+      },
+      "variantCount": 30,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:16",
+      "name": "ShortcutGroup",
+      "type": "COMPONENT_SET",
+      "page": "❖ Shortcut",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "⌥#10:160": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        },
+        "⇧#10:161": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        },
+        "⌃#10:162": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        },
+        "⌘#10:163": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:17",
+      "name": "NumberCell",
+      "type": "COMPONENT_SET",
+      "page": "❖ Table",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "📈 dymanic": {
+          "type": "VARIANT",
+          "defaultValue": "False",
+          "variantOptions": [
+            "False",
+            "True"
+          ]
+        }
+      },
+      "variantCount": 2,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:18",
+      "name": "TextCell",
+      "type": "COMPONENT_SET",
+      "page": "❖ Table",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "📈 dynamic": {
+          "type": "VARIANT",
+          "defaultValue": "False",
+          "variantOptions": [
+            "False",
+            "True"
+          ]
+        }
+      },
+      "variantCount": 2,
+      "unboundPaints": [],
+      "note": "synthetic reference: supplies a more frequent neighbour for the L01 frequency leg"
+    },
+    {
+      "id": "10:19",
+      "name": "AmountCell",
+      "type": "COMPONENT_SET",
+      "page": "❖ Table",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "📈 dynamic": {
+          "type": "VARIANT",
+          "defaultValue": "False",
+          "variantOptions": [
+            "False",
+            "True"
+          ]
+        }
+      },
+      "variantCount": 2,
+      "unboundPaints": [],
+      "note": "synthetic reference: supplies a more frequent neighbour for the L01 frequency leg"
+    },
+    {
+      "id": "10:20",
+      "name": "Accordion",
+      "type": "COMPONENT_SET",
+      "page": "❖ Accordion",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        " ⏳ loading#10:200": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:21",
+      "name": "Note",
+      "type": "COMPONENT_SET",
+      "page": "☀ Handoff & Helpers",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "✏️ Text:#10:210": {
+          "type": "TEXT",
+          "defaultValue": "Note"
+        },
+        "➡️ Direction": {
+          "type": "VARIANT",
+          "defaultValue": "↑",
+          "variantOptions": [
+            "↑",
+            "→",
+            "←"
+          ]
+        }
+      },
+      "variantCount": 3,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:22",
+      "name": "NativeMenuItem",
+      "type": "COMPONENT_SET",
+      "page": "❖ Menu",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "☑️ Selected": {
+          "type": "VARIANT",
+          "defaultValue": "Off",
+          "variantOptions": [
+            "Off",
+            "On"
+          ]
+        },
+        "✏️ Label text:#10:220": {
+          "type": "TEXT",
+          "defaultValue": "Item"
+        }
+      },
+      "variantCount": 2,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:23",
+      "name": "CloseButton",
+      "type": "COMPONENT_SET",
+      "page": "❖ Buttons",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "🔖 type": {
+          "type": "VARIANT",
+          "defaultValue": "OUTLINE",
+          "variantOptions": [
+            "OUTLINE",
+            "GHOST"
+          ]
+        }
+      },
+      "variantCount": 2,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:24",
+      "name": "FilterButton",
+      "type": "COMPONENT_SET",
+      "page": "❖ Buttons",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "🚦 state": {
+          "type": "VARIANT",
+          "defaultValue": "NORMAL",
+          "variantOptions": [
+            "NORMAL"
+          ]
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:25",
+      "name": "Toggle",
+      "type": "COMPONENT_SET",
+      "page": "❖ Toggle",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "✅ checked": {
+          "type": "VARIANT",
+          "defaultValue": "False",
+          "variantOptions": [
+            "False",
+            "True",
+            "LOADING"
+          ]
+        },
+        "💬 helper#10:250": {
+          "type": "TEXT",
+          "defaultValue": "Helper"
+        },
+        "👁️ showHelper#10:251": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        }
+      },
+      "variantCount": 3,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:26",
+      "name": "Combobox",
+      "type": "COMPONENT_SET",
+      "page": "❖ Combobox",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "💬 helperText#10:260": {
+          "type": "TEXT",
+          "defaultValue": "Helper"
+        },
+        "👁️ showHelperText#10:261": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:27",
+      "name": "Spinner",
+      "type": "COMPONENT_SET",
+      "page": "❖ Loading",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "❖ type": {
+          "type": "VARIANT",
+          "defaultValue": "🔴 ERROR",
+          "variantOptions": [
+            "🔴 ERROR",
+            "🟢 SUCCESS"
+          ]
+        },
+        "📐 size": {
+          "type": "VARIANT",
+          "defaultValue": "SMALL",
+          "variantOptions": [
+            "SMALL",
+            "MEDIUM",
+            "EXTRA_TINY"
+          ]
+        },
+        "🌈 color": {
+          "type": "VARIANT",
+          "defaultValue": "False",
+          "variantOptions": [
+            "False",
+            "True"
+          ]
+        }
+      },
+      "variantCount": 12,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:28",
+      "name": "Popover",
+      "type": "COMPONENT_SET",
+      "page": "❖ Popover",
+      "description": "",
+      "descriptionMarkdown": "",
+      "properties": {
+        "💬 title#10:280": {
+          "type": "TEXT",
+          "defaultValue": "Title"
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:29",
+      "name": "Badge",
+      "type": "COMPONENT_SET",
+      "page": "❖ Badges & Tags",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "🌈 color": {
+          "type": "VARIANT",
+          "defaultValue": "BRAND",
+          "variantOptions": [
+            "BRAND",
+            "BLACK",
+            "GHOST",
+            "PURPLE"
+          ]
+        },
+        "💡 accent": {
+          "type": "VARIANT",
+          "defaultValue": "LIGHT",
+          "variantOptions": [
+            "LIGHT",
+            "MEDIUM",
+            "STRONG"
+          ]
+        }
+      },
+      "variantCount": 12,
+      "unboundPaints": []
+    },
+    {
+      "id": "10:30",
+      "name": "Tag",
+      "type": "COMPONENT_SET",
+      "page": "❖ Badges & Tags",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "💡 accent": {
+          "type": "VARIANT",
+          "defaultValue": "LIGHT",
+          "variantOptions": [
+            "LIGHT",
+            "STRONG"
+          ]
+        }
+      },
+      "variantCount": 2,
+      "unboundPaints": [],
+      "note": "synthetic reference: supplies a more frequent neighbour for the L01 frequency leg"
+    },
+    {
+      "id": "10:31",
+      "name": "Divider",
+      "type": "COMPONENT_SET",
+      "page": "❖ Divider",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "🔖 variant": {
+          "type": "VARIANT",
+          "defaultValue": "HORIZONTAL",
+          "variantOptions": [
+            "HORIZONTAL",
+            "VERTICAL"
+          ]
+        }
+      },
+      "variantCount": 2,
+      "unboundPaints": [
+        {
+          "kind": "fill",
+          "hex": "#E5E7EB",
+          "count": 2
+        }
+      ],
+      "note": "synthetic: exercises L12"
+    },
+    {
+      "id": "10:32",
+      "name": "StepItem",
+      "type": "COMPONENT_SET",
+      "page": "❖ Stepper",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "💬 step#10:320": {
+          "type": "TEXT",
+          "defaultValue": "1"
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": [],
+      "note": "synthetic: exercises L16 conceptPairs"
+    },
+    {
+      "id": "10:33",
+      "name": "StepIndicator",
+      "type": "COMPONENT_SET",
+      "page": "❖ Stepper",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "💬 stepNumber#10:330": {
+          "type": "TEXT",
+          "defaultValue": "1"
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": [],
+      "note": "synthetic: exercises L16 conceptPairs"
+    },
+    {
+      "id": "10:34",
+      "name": "ProgressStep",
+      "type": "COMPONENT_SET",
+      "page": "❖ Stepper",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "💬 stepNumber#10:340": {
+          "type": "TEXT",
+          "defaultValue": "1"
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": [],
+      "note": "synthetic: exercises L16 conceptPairs"
+    },
+    {
+      "id": "10:35",
+      "name": "ToggleGroup",
+      "type": "COMPONENT_SET",
+      "page": "❖ Toggle",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "1. Toggle#10:350": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "2. Toggle#10:351": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "3. Toggle#10:352": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        }
+      },
+      "variantCount": 1,
+      "unboundPaints": [],
+      "note": "real-file run 2026-09-30 had 1. Toggle to 8. Toggle; exercises L20"
+    }
+  ]
+}

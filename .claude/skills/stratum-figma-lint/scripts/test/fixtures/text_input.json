@@ -1,0 +1,112 @@
+{
+  "synthetic": false,
+  "source": "figma-audit-2026-09-30 raw capture (entry_lint.js, mode raw)",
+  "components": [
+    {
+      "id": "55517:28353",
+      "name": "TextInput",
+      "type": "COMPONENT_SET",
+      "page": "❖ Text input",
+      "description": "# Purpose\nThe standard single-line text entry field for **free-form text input** across the product — from search to form fields to settings entries.\n\n# Use when\n- Collecting any single string value: name, email, URL, quantity, search query\n- The answer is open-ended and does not need to resolve into structured values\n\n# Don&#39;t use when\n- Multiple independent values are needed — use `TagInput`\n- Input is a **fixed-length code** (OTP, PIN) — use `PinInput`\n- Multi-line input is required — use a textarea variant\n\n# Content guidelines\n- **Label**: sentence case, noun or short noun phrase (&quot;Email address&quot;, not &quot;Please enter your email address&quot;)\n- **Placeholder**: use only when the format is non-obvious (e.g. &quot;name@company.com&quot;)\n- **Helper text**: one line max; explains constraints before the user types\n- **Error message**: be specific (&quot;Must be at least 8 characters&quot;, not &quot;Invalid input&quot;)\n\n# Related\n- Use `PinInput` for fixed-length codes\n- Use `TagInput` for multi-value entry\n- Pair with `LargeTextInputLeftItem`, `MediumTextInputLeftItem`, or `SmallTextInputLeftItem` for left-slot content\n- Pair with `LargeTextInputRightItem`, `MediumTextInputRightItem`, or `SmallTextInputRightItem` for right-slot content",
+      "descriptionMarkdown": "",
+      "properties": {
+        "👁️ showRequired#3635:0": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        },
+        "⏳ loading#55517:13": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        },
+        "💬 label#55517:14": {
+          "type": "TEXT",
+          "defaultValue": "Label"
+        },
+        "👁️ showHelper#55517:15": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        },
+        "💬 helper#55517:16": {
+          "type": "TEXT",
+          "defaultValue": "Hint is a helpful description"
+        },
+        "💨 showClearButton#55517:17": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        },
+        "👁️ showLabel#55517:18": {
+          "type": "BOOLEAN",
+          "defaultValue": false
+        },
+        "👁️ showErrorText#55519:48": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "💬 errorText#55519:54": {
+          "type": "TEXT",
+          "defaultValue": "⚠ Error message"
+        },
+        "👁️ showWarningText#55519:60": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "💬 warningText#55519:68": {
+          "type": "TEXT",
+          "defaultValue": "⚠ Warning message"
+        },
+        "👁️ showSuccessText#55519:76": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "💬 showSuccessText#55519:84": {
+          "type": "TEXT",
+          "defaultValue": "✓ Success message"
+        },
+        "💬 input#55526:0": {
+          "type": "TEXT",
+          "defaultValue": "Input text"
+        },
+        "🕶️ style": {
+          "type": "VARIANT",
+          "defaultValue": "OUTLINE",
+          "variantOptions": [
+            "OUTLINE",
+            "SHADED"
+          ]
+        },
+        "📐 size": {
+          "type": "VARIANT",
+          "defaultValue": "LARGE",
+          "variantOptions": [
+            "LARGE",
+            "MEDIUM",
+            "SMALL"
+          ]
+        },
+        "🚦 state": {
+          "type": "VARIANT",
+          "defaultValue": "NORMAL",
+          "variantOptions": [
+            "NORMAL",
+            "HOVER",
+            "ACTIVE",
+            "🔴 NEGATIVE",
+            "🟡 WARNING",
+            "🟢 POSITIVE",
+            "DISABLED"
+          ]
+        },
+        "✍️ filled": {
+          "type": "VARIANT",
+          "defaultValue": "False",
+          "variantOptions": [
+            "False",
+            "True"
+          ]
+        }
+      },
+      "variantCount": 84,
+      "unboundPaints": []
+    }
+  ]
+}

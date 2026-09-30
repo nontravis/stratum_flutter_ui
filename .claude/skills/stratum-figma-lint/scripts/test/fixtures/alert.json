@@ -1,0 +1,97 @@
+{
+  "synthetic": false,
+  "source": "figma-audit-2026-09-30 raw capture (entry_lint.js, mode raw)",
+  "components": [
+    {
+      "id": "55936:96720",
+      "name": "Alert",
+      "type": "COMPONENT_SET",
+      "page": "❖ Alert",
+      "description": "# Purpose\nCommunicates a system-level status message that requires user awareness or a follow-up action. Used at page or section scope — **not tied to a single field or inline element**.\n\n# Use when\n- A system event (error, warning, success, or informational notice) applies to the entire page or a major section\n- The message includes a primary action (e.g. retry, undo) or a dismiss control\n- Feedback must be prominently visible and not buried within content\n\n# Don&#39;t use when\n- The message is contextual to a specific row, record, or inline element — use `InlineAlert` instead\n- The status is a passive label that doesn&#39;t need user acknowledgment\n\n# Content guidelines\n- **Title:** one short phrase; 60 characters max; sentence case\n- **Body:** expand on the title only when the cause or resolution is non-obvious; omit if the title is self-explanatory\n- **Action label:** 1–3 words; use a verb (&quot;Retry&quot;, &quot;View details&quot;); never &quot;Click here&quot;\n- Dismiss is optional — include only when the user should be able to clear the message manually\n\n# Related\n- Use `InlineAlert` instead when the message is scoped to a specific piece of inline content rather than the whole page or section",
+      "descriptionMarkdown": "",
+      "properties": {
+        "👁️ showTitle#55936:0": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "👁️ showIcon#55936:7": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "❎ showCloseable#55936:14": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "➕ showActions#55936:21": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "💬 title#55936:42": {
+          "type": "TEXT",
+          "defaultValue": "Short descriptive message"
+        },
+        "💬 description#55936:49": {
+          "type": "TEXT",
+          "defaultValue": "In a perfect world, content stays brief. Yet, when more words are essential, it unfolds like this."
+        },
+        "🎛️ showPrimaryButton#55936:56": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "🎛️ showSecondaryButton#55936:63": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "🔗 showLink#55936:70": {
+          "type": "BOOLEAN",
+          "defaultValue": true
+        },
+        "✏️ InfoIcon#56460:66": {
+          "type": "INSTANCE_SWAP",
+          "defaultValue": "56181:109411"
+        },
+        "✏️ errorIcon#56460:91": {
+          "type": "INSTANCE_SWAP",
+          "defaultValue": "56181:109634"
+        },
+        "✏️ warningIcon#56485:0": {
+          "type": "INSTANCE_SWAP",
+          "defaultValue": "56181:109634"
+        },
+        "✏️ positiveIcon#56485:25": {
+          "type": "INSTANCE_SWAP",
+          "defaultValue": "56181:110093"
+        },
+        "🌈 color": {
+          "type": "VARIANT",
+          "defaultValue": "🔵 INFO",
+          "variantOptions": [
+            "🔵 INFO",
+            "🔴 NEGATIVE",
+            "🟡 WARNING",
+            "🟢 POSITIVE"
+          ]
+        },
+        "💡 accent": {
+          "type": "VARIANT",
+          "defaultValue": "LIGHT",
+          "variantOptions": [
+            "LIGHT",
+            "MEDIUM",
+            "STRING"
+          ]
+        },
+        "📐 size": {
+          "type": "VARIANT",
+          "defaultValue": "MEDIUM",
+          "variantOptions": [
+            "MEDIUM",
+            "SMALL"
+          ]
+        }
+      },
+      "variantCount": 24,
+      "unboundPaints": []
+    }
+  ]
+}
