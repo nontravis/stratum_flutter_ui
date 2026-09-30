@@ -555,6 +555,25 @@ void main() {
       );
       handle.dispose();
     });
+
+    testWidgets('excludeFromSemantics keeps the caller semantics', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            excludeFromSemantics: true,
+            semantics: SemanticsProperties(label: 'Open settings'),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(find.bySemanticsLabel('Open settings'), findsOneWidget);
+      handle.dispose();
+    });
   });
 
   group('StratumInkWell gestures', () {
