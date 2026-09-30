@@ -39,6 +39,8 @@ Color? _fillColor(WidgetTester tester) {
 }
 
 void main() {
+  _robustnessTests();
+
   group('AnimatedStyledBox structure', () {
     testWidgets('a fill, radius, and padding add no effect layers',
         (tester) async {
@@ -314,6 +316,87 @@ void main() {
           reason: '$style',
         );
       }
+    });
+  });
+}
+
+void _robustnessTests() {
+  group('AnimatedStyledBox robustness', () {
+    testWidgets('removing a shadow with an overshooting curve does not throw',
+        (tester) async {
+      const bouncy = AnimationStyle(
+        duration: Duration(milliseconds: 100),
+        curve: Curves.easeOutBack,
+      );
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            backgroundColor: _red,
+            dropShadow: [BoxShadow(blurRadius: 8)],
+            animationStyle: bouncy,
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(backgroundColor: _red, animationStyle: bouncy),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('min and max that cross mid-animation do not throw',
+        (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            backgroundColor: _red,
+            minWidth: 0,
+            maxWidth: 100,
+            animationStyle: _slow,
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            backgroundColor: _red,
+            minWidth: 300,
+            animationStyle: _slow,
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a focused child keeps focus when a foreground tint appears',
+        (tester) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      Widget build(WidgetStyle style) {
+        return _host(
+          style,
+          child: Focus(
+            focusNode: node,
+            child: const SizedBox(width: 40, height: 20),
+          ),
+        );
+      }
+
+      await tester.pumpWidget(build(const WidgetStyle()));
+      node.requestFocus();
+      await tester.pump();
+      expect(node.hasFocus, isTrue);
+
+      await tester.pumpWidget(
+        build(const WidgetStyle(foregroundColor: Color(0x1F000000))),
+      );
+
+      expect(node.hasFocus, isTrue);
     });
   });
 }
