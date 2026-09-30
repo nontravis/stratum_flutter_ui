@@ -186,8 +186,8 @@ class WidgetStyle with _$WidgetStyle {
         t,
       ),
       clipBehavior: t < 0.5 ? from.clipBehavior : to.clipBehavior,
-      innerShadow: BoxShadow.lerpList(from.innerShadow, to.innerShadow, t),
-      dropShadow: BoxShadow.lerpList(from.dropShadow, to.dropShadow, t),
+      innerShadow: _lerpShadows(from.innerShadow, to.innerShadow, t),
+      dropShadow: _lerpShadows(from.dropShadow, to.dropShadow, t),
       animationStyle: to.animationStyle,
     );
   }
@@ -211,8 +211,49 @@ class WidgetStyle with _$WidgetStyle {
   }
 
   static double? _lerpSize(double? a, double? b, double t) {
-    if (a == null || b == null) return t < 0.5 ? a : b;
+    if (a == null || b == null || !a.isFinite || !b.isFinite) {
+      return t < 0.5 ? a : b;
+    }
     final value = lerpDouble(a, b, t)!;
     return value < 0 ? 0 : value;
+  }
+
+  /// Like `BoxShadow.lerpList`, but a blur radius never goes below 0.
+  ///
+  /// `BoxShadow.lerpList` scales an unmatched shadow by `1 - t`, which is
+  /// negative when a curve overshoots, and a negative blur radius fails the
+  /// `Shadow` assertion.
+  static List<BoxShadow>? _lerpShadows(
+    List<BoxShadow>? a,
+    List<BoxShadow>? b,
+    double t,
+  ) {
+    if (a == null && b == null) return null;
+    final from = a ?? const <BoxShadow>[];
+    final to = b ?? const <BoxShadow>[];
+    final length = from.length > to.length ? from.length : to.length;
+    return [
+      for (var i = 0; i < length; i++)
+        _lerpShadow(
+          i < from.length ? from[i] : null,
+          i < to.length ? to[i] : null,
+          t,
+        ),
+    ];
+  }
+
+  /// An unmatched side counts as the other shadow scaled to nothing, as in
+  /// `BoxShadow.lerpList`.
+  static BoxShadow _lerpShadow(BoxShadow? a, BoxShadow? b, double t) {
+    final from = a ?? b!.scale(0);
+    final to = b ?? a!.scale(0);
+    final blur = lerpDouble(from.blurRadius, to.blurRadius, t)!;
+    return BoxShadow(
+      color: Color.lerp(from.color, to.color, t)!,
+      offset: Offset.lerp(from.offset, to.offset, t)!,
+      blurRadius: blur < 0 ? 0 : blur,
+      spreadRadius: lerpDouble(from.spreadRadius, to.spreadRadius, t)!,
+      blurStyle: t < 0.5 ? from.blurStyle : to.blurStyle,
+    );
   }
 }

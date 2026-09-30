@@ -89,6 +89,30 @@ void main() {
     });
   });
 
+  group('StyleDecoration in Container', () {
+    testWidgets('clips to the rounded shape when Container asks for a clip',
+        (tester) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: Container(
+              decoration: const StyleDecoration(
+                color: Color(0xFFFFFFFF),
+                borderRadius: _radius,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: const SizedBox(width: 100, height: 60),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ClipPath), paints..clipPath());
+    });
+  });
+
   group('StyleDecoration painting', () {
     testWidgets('paints the shadow, then the fill, with no clip when opaque',
         (tester) async {

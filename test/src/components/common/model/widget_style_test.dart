@@ -163,5 +163,28 @@ void main() {
       expect(over.padding!.isNonNegative, isTrue);
       expect(over.width, 0);
     });
+
+    test('keeps shadow blur legal when the curve overshoots', () {
+      const shadowed = WidgetStyle(
+        dropShadow: [BoxShadow(blurRadius: 8)],
+        innerShadow: [BoxShadow(blurRadius: 4)],
+      );
+      const plain = WidgetStyle();
+
+      final removed = WidgetStyle.lerp(shadowed, plain, 1.2)!;
+      final added = WidgetStyle.lerp(plain, shadowed, -0.2)!;
+
+      expect(removed.dropShadow!.single.blurRadius, 0);
+      expect(removed.innerShadow!.single.blurRadius, 0);
+      expect(added.dropShadow!.single.blurRadius, 0);
+    });
+
+    test('switches a non-finite size at t = 0.5', () {
+      const full = WidgetStyle(width: double.infinity);
+      const fixed = WidgetStyle(width: 200);
+
+      expect(WidgetStyle.lerp(full, fixed, 0.25)!.width, double.infinity);
+      expect(WidgetStyle.lerp(full, fixed, 0.75)!.width, 200);
+    });
   });
 }

@@ -53,6 +53,13 @@ class StyleDecoration extends Decoration {
   }
 
   @override
+  Path getClipPath(Rect rect, TextDirection textDirection) {
+    final radius = borderRadius;
+    if (radius == null) return Path()..addRect(rect);
+    return Path()..addRRect(radius.resolve(textDirection).toRRect(rect));
+  }
+
+  @override
   BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
       _StylePainter(this, onChanged);
 

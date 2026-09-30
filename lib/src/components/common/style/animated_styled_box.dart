@@ -189,6 +189,9 @@ class _AnimatedStyledBoxState
   }
 
   /// Same rules as `Container`: min and max win over width and height.
+  ///
+  /// The range is normalized first, because min and max animate on their
+  /// own and can cross mid-animation.
   static BoxConstraints? _constraints(WidgetStyle style) {
     final hasRange = style.minWidth != null ||
         style.maxWidth != null ||
@@ -200,7 +203,7 @@ class _AnimatedStyledBoxState
             maxWidth: style.maxWidth ?? double.infinity,
             minHeight: style.minHeight ?? 0,
             maxHeight: style.maxHeight ?? double.infinity,
-          )
+          ).normalize()
         : null;
     if (style.width != null || style.height != null) {
       constraints = constraints?.tighten(
