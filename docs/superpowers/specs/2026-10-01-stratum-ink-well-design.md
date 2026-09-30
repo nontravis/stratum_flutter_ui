@@ -1,7 +1,7 @@
 # StratumInkWell design
 
 - **Date:** 2026-10-01
-- **Status:** Approved by the owner on 2026-10-01; planning amendments in section 12.
+- **Status:** Implemented on master on 2026-10-01; planning amendments in section 12.
 - **Location:** new `lib/src/components/common/stratum_ink_well.dart`; changes in `lib/src/components/common/style/animated_styled_box.dart`, `lib/src/components/common/layout/container_layout.dart`, and the five `gesture_*_layout.dart` files.
 
 ## 1. Goal
