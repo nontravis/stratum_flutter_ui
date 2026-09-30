@@ -116,12 +116,24 @@ void main() {
 
   test('dispose resets the configuration to release consumer callbacks', () {
     controller
-      ..configure(StratumWebViewConfiguration(allowedOrigins: {appOrigin}))
+      ..configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          onMessage: (_) {},
+          onNavigationRequest: (_) => StratumNavigationDecision.navigate,
+          onPageStarted: (_) {},
+          onPageFinished: (_) {},
+          onError: (_) {},
+        ),
+      )
       ..dispose();
-    expect(
-      controller.debugConfiguration.allowedOrigins,
-      const StratumWebViewConfiguration().allowedOrigins,
-    );
+    final configuration = controller.debugConfiguration;
+    expect(configuration.allowedOrigins, isEmpty);
+    expect(configuration.onMessage, isNull);
+    expect(configuration.onNavigationRequest, isNull);
+    expect(configuration.onPageStarted, isNull);
+    expect(configuration.onPageFinished, isNull);
+    expect(configuration.onError, isNull);
   });
 
   group('listener', () {

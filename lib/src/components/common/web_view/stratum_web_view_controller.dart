@@ -140,6 +140,7 @@ final class StratumWebViewController {
 
   /// The configuration from the last [configure] call, or the default after
   /// [dispose].
+  @internal
   @visibleForTesting
   StratumWebViewConfiguration get debugConfiguration => _configuration;
 
