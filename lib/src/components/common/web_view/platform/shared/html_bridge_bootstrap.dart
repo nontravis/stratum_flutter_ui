@@ -34,10 +34,13 @@ String injectBridgeBootstrap(String html, String nonce) {
       "parent.postMessage('stratum-bridge-handshake:$nonce',\n"
       "'*',[c.port2]);\n"
       '})();</script>';
+  // Each comment must end at its first `-->`. Letting `.*?` run on to a
+  // later `-->` gives n comments 2^(n-1) ways to match, which backtracks
+  // exponentially when no doctype follows and lets a "comment" swallow the
+  // markup between two real comments.
   final match = RegExp(
-    r'^(?:\s|<!--.*?-->)*<!doctype[^>]*>',
+    r'^(?:\s|<!--(?:(?!-->)[\s\S])*-->)*<!doctype[^>]*>',
     caseSensitive: false,
-    dotAll: true,
   ).firstMatch(html);
   if (match == null) return '$script$html';
   return html.replaceRange(match.end, match.end, script);
