@@ -304,6 +304,27 @@ location.href = 'data:text/html,' + encodeURIComponent(
     expect(listener.messages, isEmpty);
   });
 
+  test('a load started just before dispose leaves the frame blank', () async {
+    final pending = view.load(const StratumWebViewSource.html('<p>Hi</p>'));
+    view.dispose();
+    await pending;
+    expect(view.iframe.hasAttribute('srcdoc'), isFalse);
+    expect(view.iframe.src, 'about:blank');
+    expect(listener.pagesStarted, isEmpty);
+  });
+
+  test('history navigation started just before dispose leaves the frame '
+      'blank', () async {
+    await view.load(missingPage());
+    await view.load(const StratumWebViewSource.html('<p>Two</p>'));
+    listener.pagesStarted.clear();
+    final pending = view.goBack();
+    view.dispose();
+    await pending;
+    expect(view.iframe.src, 'about:blank');
+    expect(listener.pagesStarted, isEmpty);
+  });
+
   test(
     'sends to the loaded page origin only, never a wildcard target',
     () async {
