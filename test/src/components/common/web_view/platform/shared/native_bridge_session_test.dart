@@ -117,6 +117,18 @@ void main() {
       expect(session.acceptMessage('hi'), isNull);
     });
 
+    test('a late start of a superseded URL does not take the html slot', () {
+      session
+        ..willLoadUrl()
+        ..willLoadHtml()
+        ..didStartPage('https://app.example.com/a')
+        ..didStartPage('about:blank');
+      expect(
+        session.acceptMessage('hi'),
+        const StratumWebViewMessage(data: 'hi'),
+      );
+    });
+
     test(
       'an unknown URL during an html switch does not trust the old page',
       () {

@@ -42,8 +42,14 @@ final class NativeBridgeSession {
 
   /// Call when the platform reports that a main-frame page started loading.
   void didStartPage(String url) {
-    _pageUrl = Uri.tryParse(url);
+    final pageUrl = Uri.tryParse(url);
+    _pageUrl = pageUrl;
     _pageUrlUnknown = false;
+    // While our HTML is still loading, a page with a real origin is the late
+    // start of the load it superseded, never our HTML (which reports a
+    // host-less URL). Letting it count would use up the HTML's first-load
+    // slot, and our HTML's own start would then read as navigating away.
+    if (_guard.isAwaitingLoad && originOf(pageUrl) != null) return;
     _guard.didLoadFrame();
   }
 
