@@ -114,6 +114,28 @@ void main() {
     );
   });
 
+  test('detach drops callbacks but keeps the JavaScript setting', () {
+    controller
+      ..configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          javaScriptEnabled: false,
+          onMessage: (_) {},
+        ),
+      )
+      ..detach();
+    final configuration = controller.debugConfiguration;
+    expect(configuration.allowedOrigins, isEmpty);
+    expect(configuration.onMessage, isNull);
+    expect(configuration.javaScriptEnabled, isFalse);
+    expect(platform().javaScriptChanges, [false]);
+  });
+
+  test('detach after dispose does nothing', () {
+    controller.dispose();
+    expect(controller.detach, returnsNormally);
+  });
+
   test('dispose resets the configuration to release consumer callbacks', () {
     controller
       ..configure(

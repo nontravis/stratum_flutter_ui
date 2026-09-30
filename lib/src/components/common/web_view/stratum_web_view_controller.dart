@@ -144,6 +144,18 @@ final class StratumWebViewController {
   @visibleForTesting
   StratumWebViewConfiguration get debugConfiguration => _configuration;
 
+  /// Drops the callbacks and allowlist of the `StratumWebView` that stopped
+  /// showing this controller, so a page that keeps running cannot reach
+  /// them. The JavaScript setting is kept because the platform still has it.
+  /// Does nothing after [dispose].
+  @internal
+  void detach() {
+    if (_disposed) return;
+    _configuration = StratumWebViewConfiguration(
+      javaScriptEnabled: _configuration.javaScriptEnabled,
+    );
+  }
+
   /// Applies the settings of the `StratumWebView` that shows this controller.
   @internal
   void configure(StratumWebViewConfiguration configuration) {
