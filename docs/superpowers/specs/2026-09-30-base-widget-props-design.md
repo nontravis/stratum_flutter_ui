@@ -12,7 +12,7 @@ Success criteria:
 
 - `dart analyze lib/src/components/common/base/ test/src/components/common/base/` reports 0 issues.
 - Both base classes declare the same 10 fields with the same defaults, and share one implementation of the `resolve*` helpers.
-- Unit tests cover every `resolve*` fallback (section 7). They run once the `src.dart` barrel compiles (section 8).
+- Unit tests cover every `resolve*` fallback (section 7), are written before each implementation, and pass.
 
 ## 2. Decisions
 
@@ -29,8 +29,8 @@ Success criteria:
 | `buildResponsive`, `buildTapClearFocus`, `buildTapRequestScopeFocus` | Removed | No caller exists. They are widget utilities, not props, and `context.clearFocus()` and `context.requestScopeFocus()` already exist in `context_extension.dart`. |
 | `resolveBorderRadius` | Removed | `borderRadius` moves into `customStyle`; each component's default `WidgetStyle` reads the theme radius itself. |
 | Missing `WindowSizeScope` | `resolveWindowSize` throws the existing `FlutterError` from `WindowSizeScope.of`; no `MediaQuery` fallback | A fallback would rebuild on every pixel of a resize and hide a missing scope in the app setup. |
-| Imports | All three base files import only the libraries they use, not the `src.dart` barrel | Follows the rule set by the ContainerLayout design. It does not make the tests load yet, because `theme_data.dart`, `theme_application.dart`, and `color.dart` import the barrel. |
-| Test run | Code and tests land now, gated by the analyzer; the tests run once the barrel compiles | Owner ruling 2026-09-30 (option A). No subclass exists, so no runtime caller can break while the tests wait. |
+| Imports | All three base files import only the libraries they use, not the `src.dart` barrel | Follows the rule set by the ContainerLayout design. The barrel loads in tests today (section 10), but narrow imports keep the base files loadable if it breaks again. |
+| Test run | Test-first: each test in section 7 fails before its implementation exists | Owner ruling 2026-09-30. It replaces the earlier ruling (option A: land code gated by the analyzer, run the tests after the green build), which rested on the barrel failing to compile; a probe showed the barrel loads once the `BaseResponse` export is hidden. |
 
 ## 3. Current defects
 
@@ -160,13 +160,12 @@ File: `test/src/components/common/base/widget_props_test.dart`, with narrow impo
 
 ## 8. Phases and prerequisites
 
-1. **Base refactor and tests.** Write `widget_props.dart`, rewrite both base classes, export all three from `base.dart`, and add the test file. Fix the base files before exporting them, so the barrel gains no new errors. Gate: `dart analyze lib/src/components/common/base/ test/src/components/common/base/` reports 0 issues.
+1. **Base refactor, test-first.** Write each test in section 7, watch it fail, then write the code that passes it: `widget_props.dart`, both base classes, and the exports in `base.dart`. Fix the base files before exporting them, so the barrel gains no new errors. Gate: `flutter test test/src/components/common/base/` passes and `dart analyze lib/src/components/common/base/ test/src/components/common/base/` reports 0 issues.
 2. **Doc sync.** In `docs/superpowers/specs/2026-09-30-stratum-read-figma-skill.md`, change the `platform` mapping row from `resolveBreakpoint()` to `resolveWindowSize()`, and change the `customStyle` row, which cites `customColor` and `customHeight` as the base class pattern, to cite `customStyle` alone.
-3. **Test run.** Run `flutter test test/src/components/common/base/` once the `src.dart` barrel compiles. Blockers found on 2026-09-30: the ambiguous `BaseResponse` export (handled as a separate change) and 9 errors in `custom_scroll_view.dart`, `grid_view.dart`, and `list_view.dart` left by the owner's in-progress removal of `AppStatelessWidget` from those classes.
 
 ## 9. Out of scope
 
-- The 9 errors in `custom_scroll_view.dart`, `grid_view.dart`, and `list_view.dart` (owner's work in progress). Layout primitives do not extend the base classes.
+- The 9 errors in `custom_scroll_view.dart`, `grid_view.dart`, and `list_view.dart` (owner's work in progress). `layout.dart` does not export these files and no library imports them, so they do not block the barrel. Layout primitives do not extend the base classes.
 - Other green-build errors listed in the ContainerLayout design, section 11.
 - Resolving `color: ColorEnum?` to a theme color; each component maps it.
 - Validating combinations of `state`, `disabled`, and `loading`.
@@ -176,8 +175,9 @@ File: `test/src/components/common/base/widget_props_test.dart`, with narrow impo
 
 Checked on 2026-09-30:
 
-- `dart analyze lib/src/components/common/base/` reports the 5 errors in section 3; `dart analyze lib` reports errors only in the base files, the three scroll views, and `src.dart`.
+- `dart analyze lib/src/components/common/base/` reports the 5 errors in section 3; `dart analyze lib` reports errors only in the base files, the three scroll views, and `src.dart`. The base files are not reachable from the barrel, because `base.dart` is empty.
 - `git grep AppStatelessWidget HEAD -- lib` lists only the three scroll views outside `base/`; the working tree has no subclass.
 - `git show HEAD:lib/src/components/common/base/base.dart` is empty.
-- `flutter test test/stratum_ui_test.dart` fails to compile: `'BaseResponse' is exported from both 'package:dart_falmodel/networks/https/responses/base_response.dart' and 'package:http/src/base_response.dart'`.
+- `flutter test test/stratum_ui_test.dart` failed to compile: `'BaseResponse' is exported from both 'package:dart_falmodel/networks/https/responses/base_response.dart' and 'package:http/src/base_response.dart'`. Adding `BaseResponse` to the `hide` list of the `extended_image` export in `lib/stratum_ui.dart` removed it. The analyzer then reported `ImageDecoderCallback` as an ambiguous export (from `dart:ui` through `flutter_falconx` and from Flutter's `image_provider.dart`); `hide ImageDecoderCallback` on the `flutter_falconx` export in `src.dart` removed it, and `src.dart` reports no further issue.
+- A throwaway test that imports `src.dart` and `theme_application.dart` passes (`+1: All tests passed!`), so the barrel loads in tests.
 - `WindowSizeScope.of` and `StratumThemeApplication.of` both throw `FlutterError` when their ancestor is missing.
