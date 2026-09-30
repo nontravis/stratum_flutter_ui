@@ -239,7 +239,12 @@ location.href = 'data:text/html,' + encodeURIComponent(
     await firstReady.future.timeout(const Duration(seconds: 5));
 
     view.iframe.remove();
-    web.document.body!.appendChild(view.createView());
+    final host = web.HTMLDivElement();
+    web.document.body!.appendChild(host);
+    // A tear-off of a JS interop member does not compile, so wrap it.
+    // ignore: unnecessary_lambdas
+    addTearDown(() => host.remove());
+    view.attachTo(host);
     await secondReady.future.timeout(const Duration(seconds: 5));
 
     await view.postMessage('ping');
@@ -302,6 +307,14 @@ location.href = 'data:text/html,' + encodeURIComponent(
       source: frameWindow,
     );
     expect(listener.messages, isEmpty);
+  });
+
+  test('attachTo puts the iframe, filling it, into the host element', () {
+    final host = web.HTMLDivElement();
+    view.attachTo(host);
+    expect(view.iframe.parentElement, host);
+    expect(host.style.width, '100%');
+    expect(host.style.height, '100%');
   });
 
   test(

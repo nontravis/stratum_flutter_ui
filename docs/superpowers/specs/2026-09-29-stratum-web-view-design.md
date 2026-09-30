@@ -194,7 +194,7 @@ Instead, `injectBridgeBootstrap` (`platform/shared/html_bridge_bootstrap.dart`) 
 
 The parent adopts `port2` only when a `"null"`-origin `window` message satisfies all of: `event.source == iframe.contentWindow`, the current history entry is an HTML source, the message data is exactly `stratum-bridge-handshake:<nonce>` for the nonce generated for that render, and `event.ports` holds exactly one port. Adopting a port closes and replaces any previously adopted port. Every other `"null"`-origin message — a forged handshake with the wrong nonce, one with no transferred port, or any other content — is dropped without side effects. A page reached by navigation cannot know the nonce, so it never obtains a working bridge even though it shares the same opaque origin.
 
-Re-inserting the view (`createView`) does not reset the nonce or the adopted port by itself: the web engine renders each platform view into a fresh, detached wrapper, so re-insertion discards the iframe's browsing context, `srcdoc` reloads, and the bootstrap runs again — the new handshake, carrying the same nonce, replaces the (now-stale) adopted port. `HtmlFrameGuard` is not used on web; it remains for the native adapters (section 3).
+Re-inserting the view does not reset the nonce or the adopted port by itself: `HtmlElementView.fromTagName` creates a fresh host element for each insertion and `attachTo` moves the iframe into it, so re-insertion discards the iframe's browsing context, `srcdoc` reloads, and the bootstrap runs again — the new handshake, carrying the same nonce, replaces the (now-stale) adopted port. `HtmlFrameGuard` is not used on web; it remains for the native adapters (section 3).
 
 ### Sending rules (Flutter to page)
 
@@ -245,7 +245,7 @@ The doc comment recommends pairing the web view with an "open in new tab" action
 
 - A controller created by the widget is disposed by the widget. A controller passed in is disposed by its owner.
 - On web, `dispose()` removes the `message` listener from the app window and navigates the iframe to `about:blank`. Both native adapters' `dispose()` also load `about:blank` (unawaited, after the adapter is ready), so audio, video, and timers stop immediately instead of running until the native view is collected.
-- `StratumWebViewController.dispose()` also resets its configuration to `const StratumWebViewConfiguration()`, releasing references to consumer callbacks (mitigates M1; the durable fix is `HtmlElementView.fromTagName`, tracked as a follow-up).
+- `StratumWebViewController.dispose()` also resets its configuration to `const StratumWebViewConfiguration()`, releasing references to consumer callbacks (mitigates M1). The web view is built with `HtmlElementView.fromTagName`, so no per-instance factory stays registered in `platformViewRegistry` after dispose.
 - On native, navigating back or forward to an HTML entry leaves the bridge off (`HtmlFrameGuard` is fail-closed and terminal); call `loadHtml` again to re-arm it. Web restores the bridge automatically, because re-insertion re-runs the bootstrap script.
 - On web, the implementation yields one microtask (`await Future<void>.value();`) before touching the listener in `load`, `reload`, `goBack`, and `goForward` (R14), so a consumer callback that calls `setState` never runs inside the caller's build phase — this matches native, where every adapter method awaits its readiness future first.
 
