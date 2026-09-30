@@ -91,4 +91,77 @@ void main() {
       expect(cleared.dropShadow, isEmpty);
     });
   });
+
+  group('lerp', () {
+    const a = WidgetStyle(
+      opacity: 1,
+      padding: EdgeInsets.all(8),
+      width: 100,
+      backgroundColor: Color(0xFF000000),
+      clipBehavior: Clip.none,
+      animationStyle: AnimationStyle(duration: Duration(milliseconds: 100)),
+    );
+    const b = WidgetStyle(
+      opacity: 0.5,
+      padding: EdgeInsets.all(16),
+      width: 200,
+      backgroundColor: Color(0xFFFFFFFF),
+      clipBehavior: Clip.antiAlias,
+      animationStyle: AnimationStyle(duration: Duration(milliseconds: 300)),
+    );
+
+    test('returns a at t = 0 and b at t = 1', () {
+      expect(identical(WidgetStyle.lerp(a, b, 0), a), isTrue);
+      expect(identical(WidgetStyle.lerp(a, b, 1), b), isTrue);
+    });
+
+    test('interpolates opacity, spacing, sizes, and colors', () {
+      final mid = WidgetStyle.lerp(a, b, 0.5)!;
+
+      expect(mid.opacity, 0.75);
+      expect(mid.padding, const EdgeInsets.all(12));
+      expect(mid.width, 150);
+      expect(
+        mid.backgroundColor,
+        Color.lerp(a.backgroundColor, b.backgroundColor, 0.5),
+      );
+    });
+
+    test('switches clipBehavior at t = 0.5 and takes animationStyle from b',
+        () {
+      expect(WidgetStyle.lerp(a, b, 0.4)!.clipBehavior, Clip.none);
+      expect(WidgetStyle.lerp(a, b, 0.6)!.clipBehavior, Clip.antiAlias);
+      expect(WidgetStyle.lerp(a, b, 0.1)!.animationStyle, b.animationStyle);
+    });
+
+    test('switches a size at t = 0.5 when one side is null', () {
+      const unsized = WidgetStyle();
+      const sized = WidgetStyle(height: 48);
+
+      expect(WidgetStyle.lerp(unsized, sized, 0.4)!.height, isNull);
+      expect(WidgetStyle.lerp(unsized, sized, 0.6)!.height, 48);
+    });
+
+    test('treats a null style as an empty style', () {
+      const target = WidgetStyle(
+        backgroundColor: Color(0xFFFFFFFF),
+        opacity: 0.5,
+      );
+      final mid = WidgetStyle.lerp(null, target, 0.5)!;
+
+      expect(
+        mid.backgroundColor,
+        Color.lerp(null, const Color(0xFFFFFFFF), 0.5),
+      );
+      expect(mid.opacity, 0.75);
+    });
+
+    test('keeps values legal when the curve overshoots', () {
+      final over = WidgetStyle.lerp(b, a, 2.5)!;
+
+      expect(over.opacity, 1);
+      expect(over.padding!.isNonNegative, isTrue);
+      expect(over.width, 0);
+    });
+  });
 }
