@@ -115,7 +115,9 @@ final class StratumWebViewController {
   /// Sends [data] to the page as a `message` event.
   ///
   /// Throws a [StateError] when `StratumWebView.allowedOrigins` is empty or
-  /// the current page is not an allowed destination.
+  /// the current page is not an allowed destination. On web, a message sent
+  /// to HTML content after the user navigated away from it is dropped
+  /// without an error: the browser gives no signal that the page left.
   Future<void> postMessage(String data) async {
     _ensureActive();
     if (_configuration.allowedOrigins.isEmpty) {
