@@ -1,6 +1,5 @@
 import 'dart:js_interop';
 import 'dart:math';
-import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
@@ -31,24 +30,18 @@ PlatformStratumWebView createPlatformStratumWebView(
 /// a real channel port, is trusted. A `"null"`-origin `window` message that
 /// is not that handshake is always dropped.
 final class WebPlatformStratumWebView implements PlatformStratumWebView {
-  new(this._listener) : _viewType = 'stratum-web-view-${_nextViewId++}' {
+  new(this._listener) {
     _iframe.style
       ..border = 'none'
       ..width = '100%'
       ..height = '100%';
-    ui_web.platformViewRegistry.registerViewFactory(
-      _viewType,
-      (int viewId) => createView(),
-    );
     web.window.addEventListener('message', _messageListener);
     _iframe.addEventListener('load', _loadListener);
   }
 
-  static int _nextViewId = 0;
   static final Random _random = Random.secure();
 
   final PlatformStratumWebViewListener _listener;
-  final String _viewType;
   final web.HTMLIFrameElement _iframe = web.HTMLIFrameElement();
   final WebViewHistory<StratumWebViewSource> _history =
       WebViewHistory<StratumWebViewSource>();
@@ -63,15 +56,20 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   @visibleForTesting
   web.HTMLIFrameElement get iframe => _iframe;
 
-  /// Returns the element for a new platform view.
+  /// Puts the iframe into [host], the element Flutter created for a new
+  /// platform view, and makes [host] fill the view.
   ///
-  /// Flutter calls this each time the view is inserted into the page. The
-  /// engine renders each platform view into a fresh, detached wrapper
-  /// element, so re-insertion always discards the iframe's browsing
+  /// Flutter creates a fresh host each time the view is inserted into the
+  /// page, so re-insertion always moves the iframe and discards its browsing
   /// context: `srcdoc` reloads, the bootstrap script runs again, and a new
   /// handshake carrying the same nonce replaces the adopted port.
   @visibleForTesting
-  web.HTMLElement createView() => _iframe;
+  void attachTo(web.HTMLElement host) {
+    host.style
+      ..width = '100%'
+      ..height = '100%';
+    host.appendChild(_iframe);
+  }
 
   @override
   Future<void> setJavaScriptEnabled(bool enabled) async {
@@ -168,8 +166,12 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   }
 
   @override
-  Widget buildView(BuildContext context) =>
-      HtmlElementView(viewType: _viewType);
+  Widget buildView(BuildContext context) => HtmlElementView.fromTagName(
+    // A per-instance factory registered with `platformViewRegistry` could
+    // never be unregistered, so every disposed view stayed reachable.
+    tagName: 'div',
+    onElementCreated: (host) => attachTo(host as web.HTMLElement),
+  );
 
   @override
   void dispose() {
