@@ -84,8 +84,10 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   Future<void> load(StratumWebViewSource source) async {
     // Yield one microtask before touching the listener, so a callback that
     // runs `setState` never lands inside the caller's build phase (matches
-    // native, where every adapter method awaits `_ready` first).
+    // native, where every adapter method awaits `_ready` first). A dispose
+    // that ran during the yield wins: nothing renders into the blank frame.
     await Future<void>.value();
+    if (_disposed) return;
     if (source case StratumWebViewUrlSource(:final url)) {
       final decision = _listener.onNavigationRequest(url);
       if (decision == StratumNavigationDecision.prevent) return;
@@ -97,6 +99,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   @override
   Future<void> reload() async {
     await Future<void>.value();
+    if (_disposed) return;
     final current = _history.current;
     if (current != null) _show(current);
   }
@@ -104,6 +107,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   @override
   Future<void> goBack() async {
     await Future<void>.value();
+    if (_disposed) return;
     final previous = _history.back();
     if (previous != null) _show(previous);
   }
@@ -111,6 +115,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   @override
   Future<void> goForward() async {
     await Future<void>.value();
+    if (_disposed) return;
     final next = _history.forward();
     if (next != null) _show(next);
   }
