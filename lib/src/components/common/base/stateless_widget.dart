@@ -1,82 +1,50 @@
-import 'package:stratum_ui/src/src.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_falmodel/flutter_falmodel.dart' show FullWidgetState;
+import 'package:stratum_ui/src/components/common/base/widget_props.dart';
+import 'package:stratum_ui/src/components/common/model/widget_style.dart';
+import 'package:stratum_ui/src/themes/constant/color.dart';
+import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
+import 'package:stratum_ui/src/themes/constant/widget_size.dart';
+import 'package:stratum_ui/src/themes/constant/window_size.dart';
 
-abstract class AppStatelessWidget extends StatelessWidget {
-  const AppStatelessWidget({
+/// Base class for a Stratum component without state.
+///
+/// Holds the props of [StratumWidgetProps]; `build` reads them through the
+/// `resolve*` methods.
+abstract class AppStatelessWidget extends StatelessWidget
+    with StratumWidgetProps {
+  const new({
     super.key,
     this.size,
+    this.color,
     this.themeMode,
-    this.breakpoint,
-    this.opacity,
-    this.debug = false,
+    this.windowSize,
     this.state = FullWidgetState.normal,
     this.feedbackState,
     this.disabled = false,
     this.loading = false,
-    this.padding,
-    this.margin,
-    this.color,
-    this.customColor,
-    this.border,
-    this.borderRadius,
+    this.debug = false,
+    this.customStyle,
   });
 
+  @override
   final WidgetSize? size;
-  final Breakpoint? breakpoint;
-  final Border? border;
-  final BorderRadius? borderRadius;
-
-  final FullWidgetState state;
-  final FeedbackState? feedbackState;
-  final bool debug;
-  final double? opacity;
-  final ThemeMode? themeMode;
-  final EdgeInsets? padding;
-  final EdgeInsets? margin;
+  @override
   final ColorEnum? color;
-  final Color? customColor;
+  @override
+  final ThemeMode? themeMode;
+  @override
+  final WindowSize? windowSize;
+  @override
+  final FullWidgetState state;
+  @override
+  final FeedbackState? feedbackState;
+  @override
   final bool disabled;
+  @override
   final bool loading;
-
-  Locale get currentLocale => LocaleSettings.currentLocale.flutterLocale;
-
-  WidgetSize resolveSize(BuildContext context) =>
-      size ?? resolveTheme(context).defaultWidgetSize;
-
-  AppThemeData resolveTheme(BuildContext context) =>
-      ThemeApplication.of(context, themeMode: themeMode);
-
-  Breakpoint resolveBreakpoint(BuildContext context) =>
-      breakpoint ?? context.breakpoint;
-
-  BorderRadius resolveBorderRadius(BuildContext context) =>
-      borderRadius ?? resolveTheme(context).borderRadius.md;
-
-  Widget buildResponsive(
-    BuildContext context, {
-    required ResponsiveBuilder child,
-  }) {
-    final breakpoint = ResponsiveBreakpoints.of(context).breakpoint;
-    return child(PlatformChecker.platform, breakpoint);
-  }
-
-  Widget buildTapClearFocus(BuildContext context, {required Widget child}) {
-    return GestureDetector(
-      onTap: () {
-        context.clearFocus();
-      },
-      child: child,
-    );
-  }
-
-  Widget buildTapRequestScopeFocus(
-    BuildContext context, {
-    required Widget child,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        context.requestScopeFocus();
-      },
-      child: child,
-    );
-  }
+  @override
+  final bool debug;
+  @override
+  final WidgetStyle? customStyle;
 }
