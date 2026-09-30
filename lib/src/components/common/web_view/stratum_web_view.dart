@@ -86,6 +86,9 @@ class StratumWebView extends StatefulWidget {
 
   ///========== Navigation ==========///
   /// Decides whether a main-frame navigation may proceed.
+  ///
+  /// Not called for sub-frames or `about:` URLs, which always proceed, nor
+  /// for a main-frame URL that cannot be parsed, which is always prevented.
   final StratumNavigationDecision Function(Uri url)? onNavigationRequest;
 
   /// Called when a page starts loading.
@@ -95,6 +98,9 @@ class StratumWebView extends StatefulWidget {
   final ValueChanged<Uri?>? onPageFinished;
 
   /// Called for main-frame loading failures on native platforms.
+  ///
+  /// On iOS and macOS an HTTP error from an embedded iframe can also arrive
+  /// here, because WebKit does not mark which frame a response belongs to.
   final ValueChanged<StratumWebViewError>? onError;
 
   @override

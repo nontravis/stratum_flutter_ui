@@ -199,7 +199,7 @@ Re-inserting the view does not reset the nonce or the adopted port by itself: `H
 ### Sending rules (Flutter to page)
 
 - Web, `url` source: `targetOrigin` is the origin of the current URL. If the frame has moved to another origin, the browser drops the message.
-- Web, `html` source: sent over the `MessagePort` adopted during the handshake. `postMessage` throws `StateError` when no page has completed the handshake yet (before the first render, or before this render's bootstrap script has run).
+- Web, `html` source: sent over the `MessagePort` adopted during the handshake. `postMessage` throws `StateError` when no page has completed the handshake yet (before the first render, or before this render's bootstrap script has run). After the user navigates away from the HTML, the adopted port's peer document is gone: a send resolves normally and the message is dropped, because the browser gives no signal that the page left.
 - Native: sending is allowed only while the current page origin passes `isAllowedOrigin`, or while `HtmlFrameGuard` reports our HTML. `jsonEncode` produces the JavaScript string literal (quotes, backslashes, and control characters are escaped). U+2028 and U+2029 are escaped as well for engines older than ES2019. `</script>` needs no escaping because `runJavaScript` evaluates the script directly, without an HTML parser.
 - A blocked send throws `StateError`.
 
@@ -239,7 +239,7 @@ The doc comment recommends pairing the web view with an "open in new tab" action
 
 ### Native navigation requests
 
-`onNavigationRequest` is consulted for main-frame requests only. Sub-frame requests and `about:` URLs (for example the `about:blank` document created by `loadHtml`) always navigate. Android does not report navigations started by `loadRequest`; iOS, macOS, and `webview_all_windows` (Windows) do.
+`onNavigationRequest` is consulted for main-frame requests only. Sub-frame requests and `about:` URLs (for example the `about:blank` document created by `loadHtml`) always navigate; a main-frame URL that `Uri.tryParse` cannot parse is always prevented, without consulting the callback. Android does not report navigations started by `loadRequest`; iOS, macOS, and `webview_all_windows` (Windows) do.
 
 ### Lifecycle
 
