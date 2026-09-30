@@ -6,39 +6,14 @@ import 'package:stratum_ui/src/src.dart';
 class GestureContainerLayout extends StatefulWidget {
   const GestureContainerLayout({
     super.key,
+    this.style,
     this.ratio,
-    this.width,
-    this.height,
-    this.minWidth,
-    this.maxWidth,
-    this.minHeight,
-    this.maxHeight,
     this.rotate,
-    this.alignment,
-    this.decoration,
-    this.padding,
-    this.margin,
-    this.border,
-    this.borderRadius,
-    this.backgroundColor,
-    this.backgroundGradient,
-    this.backgroundImage,
-    this.foregroundColor,
-    this.foregroundGradient,
-    this.foregroundImage,
-    this.opacity,
     this.keepAlive = false,
     this.repaintBoundary = false,
     this.debug = false,
-    this.clipBehavior = Clip.none,
-    this.innerShadow,
-    this.dropShadow,
-    this.backgroundBlur,
     this.transform,
     this.transformAlignment,
-    this.animate = true,
-    this.animateDuration,
-    this.animateCurve,
     this.onEndAnimate,
     //=== InkWell ===//
     this.disabledPressAnimation = false,
@@ -65,47 +40,25 @@ class GestureContainerLayout extends StatefulWidget {
   });
 
   ///========== Frame ==========///
-  // If you use width,height will override min and max width, height.
-  final double? width;
-  final double? height;
-  final double? minWidth;
-  final double? maxWidth;
-  final double? minHeight;
-  final double? maxHeight;
   final double? rotate; // 0-360 degree
   final double? ratio;
 
   ///========== Layout ==========///
-  final BoxDecoration? decoration;
-  final EdgeInsets? padding;
-  final EdgeInsets? margin;
-  final Border? border;
-  final BorderRadius? borderRadius;
-  final Alignment? alignment;
   final Alignment? transformAlignment;
   final Matrix4? transform;
-  final Color? backgroundColor;
-  final Gradient? backgroundGradient;
-  final DecorationImage? backgroundImage;
-  final Color? foregroundColor;
-  final Gradient? foregroundGradient;
-  final DecorationImage? foregroundImage;
-  final double? opacity;
   final bool keepAlive;
-  final Clip clipBehavior;
   final bool repaintBoundary;
   final bool debug;
 
   ///===== Animate ======///
-  final bool? animate;
-  final Duration? animateDuration;
-  final Curve? animateCurve;
   final VoidCallback? onEndAnimate;
 
   ///===== Effect ======///
-  final List<BoxShadow>? innerShadow;
-  final List<BoxShadow>? dropShadow;
-  final ImageFilter? backgroundBlur;
+
+  ///========== Style ==========///
+  /// Style changes animate over 100 ms unless the style sets its own
+  /// `animationStyle`, keeping the old `animate: true` default.
+  final WidgetStyle? style;
 
   ///===== InkWell ======///
   final bool disabledPressAnimation;
@@ -225,11 +178,7 @@ class _GestureContainerLayoutState extends FalconState<GestureContainerLayout> {
           oldWidget.onDoubleTap != widget.onDoubleTap ||
           oldWidget.onHover != widget.onHover ||
           oldWidget.onHighlightChanged != widget.onHighlightChanged ||
-          oldWidget.focusType != widget.focusType ||
-          oldWidget.padding != widget.padding ||
-          oldWidget.decoration?.borderRadius !=
-              widget.decoration?.borderRadius ||
-          oldWidget.borderRadius != widget.borderRadius;
+          oldWidget.focusType != widget.focusType;
 
       final needsThemeUpdate =
           oldWidget.disabledPressAnimation != widget.disabledPressAnimation;
@@ -249,44 +198,29 @@ class _GestureContainerLayoutState extends FalconState<GestureContainerLayout> {
     }
   }
 
+  static const _defaultAnimation = AnimationStyle(
+    duration: Duration(milliseconds: 100),
+  );
+
+  WidgetStyle? get _effectiveStyle {
+    final style = widget.style;
+    if (style == null || style.animationStyle != null) return style;
+    return style.copyWith(animationStyle: _defaultAnimation);
+  }
+
   @override
   Widget buildStates(BuildContext context, FullWidgetStates states) {
     // Build child content with constraints and padding
     Widget content = ContainerLayout(
-      width: widget.width,
-      height: widget.height,
-      minWidth: widget.minWidth,
-      maxWidth: widget.maxWidth,
-      minHeight: widget.minHeight,
-      maxHeight: widget.maxHeight,
+      style: _effectiveStyle,
       ratio: widget.ratio,
       rotate: widget.rotate,
-      decoration: widget.decoration,
-      padding: widget.padding,
-      margin: widget.margin,
-      border: widget.border,
-      borderRadius: widget.borderRadius,
-      backgroundColor: widget.backgroundColor,
-      backgroundGradient: widget.backgroundGradient,
-      backgroundImage: widget.backgroundImage,
-      foregroundColor: widget.foregroundColor,
-      foregroundGradient: widget.foregroundGradient,
-      foregroundImage: widget.foregroundImage,
-      opacity: widget.opacity,
       keepAlive: widget.keepAlive,
       repaintBoundary: widget.repaintBoundary,
       debug: widget.debug,
-      clipBehavior: widget.clipBehavior,
-      innerShadow: widget.innerShadow,
-      dropShadow: widget.dropShadow,
-      backgroundBlur: widget.backgroundBlur,
       transform: widget.transform,
       transformAlignment: widget.transformAlignment,
-      animate: widget.animate,
-      animateDuration: widget.animateDuration,
-      animateCurve: widget.animateCurve,
       onEndAnimate: widget.onEndAnimate,
-      alignment: widget.alignment,
       child: widget.child,
     );
 
@@ -300,7 +234,7 @@ class _GestureContainerLayoutState extends FalconState<GestureContainerLayout> {
         (widget.focusType.isFocused || widget.focusType.isFocusedVisible)) {
       content = FocusSpread(
         focus: _isFocusSpread,
-        borderRadius: widget.decoration?.borderRadius ?? widget.borderRadius,
+        borderRadius: widget.style?.borderRadius,
         child: content,
       );
     }
@@ -321,7 +255,9 @@ class _GestureContainerLayoutState extends FalconState<GestureContainerLayout> {
     Widget result = Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: widget.borderRadius,
+        borderRadius: widget.style?.borderRadius?.resolve(
+          Directionality.of(context),
+        ),
         hoverColor: widget.disabledPressAnimation
             ? Colors.transparent
             : _hoverColor,
