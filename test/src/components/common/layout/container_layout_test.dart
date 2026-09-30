@@ -151,6 +151,40 @@ void main() {
       expect(ends, 1);
     });
 
+    testWidgets('onEndAnimate stays silent on a change without animation',
+        (tester) async {
+      var ends = 0;
+      Widget build(Color color) {
+        return _host(
+          ContainerLayout(
+            style: WidgetStyle(backgroundColor: color),
+            onEndAnimate: () => ends++,
+          ),
+        );
+      }
+
+      await tester.pumpWidget(build(const Color(0xFFFF0000)));
+      await tester.pumpWidget(build(const Color(0xFF0000FF)));
+      await tester.pumpAndSettle();
+
+      expect(ends, 0);
+    });
+
+    testWidgets('a ratio of 0 is ignored instead of asserting',
+        (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const ContainerLayout(
+            ratio: 0,
+            child: SizedBox(width: 40, height: 20),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(AspectRatio), findsNothing);
+    });
+
     testWidgets('semantics, repaintBoundary, and debug add their wrappers',
         (tester) async {
       await tester.pumpWidget(

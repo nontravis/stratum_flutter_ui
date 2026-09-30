@@ -30,7 +30,7 @@ class ContainerLayout extends StatelessWidget {
 
   final WidgetStyle? style;
 
-  /// Width divided by height for the child.
+  /// Width divided by height for the child; ignored unless greater than 0.
   final double? ratio;
 
   /// Clockwise rotation in degrees.
@@ -48,17 +48,22 @@ class ContainerLayout extends StatelessWidget {
   final SemanticsProperties? semantics;
 
   /// Called when a style animation completes.
+  ///
+  /// An instant change, whose style has no animation duration, does not
+  /// call it, so the callback never runs during a build.
   final VoidCallback? onEndAnimate;
   final Widget? child;
 
   @override
   Widget build(BuildContext context) {
+    final aspect = ratio;
+    final duration = style?.animationStyle?.duration ?? Duration.zero;
     Widget content = AnimatedStyledBox(
       style: style,
-      ratio: ratio,
+      ratio: aspect != null && aspect > 0 ? aspect : null,
       transform: transform,
       transformAlignment: transformAlignment,
-      onEnd: onEndAnimate,
+      onEnd: duration > Duration.zero ? onEndAnimate : null,
       child: child,
     );
     final degrees = rotate;
