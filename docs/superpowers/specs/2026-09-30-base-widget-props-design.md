@@ -21,15 +21,16 @@ Success criteria:
 | Sharing between the two base classes | A `mixin StratumWidgetProps` declares the contract as abstract getters plus concrete `resolve*` methods; both base classes mix it in and store the fields (approach A) | The analyzer rejects a base class that misses a field. The helpers exist once. Constructors stay flat, so a Figma property maps to one named argument. The mixin has no instance fields, so both constructors stay `const`. |
 | Rejected: props value object (approach B) | `final StratumProps props` on both base classes | Call sites become `StratumButton(props: StratumProps(disabled: true))`, and the flat read-figma mapping table no longer applies. |
 | Rejected: no base class (approach C) | Generator template plus `BuildContext` extensions | Consistency would live only in the skill template, with no compile check, and the `base:` key of the read-figma contract would lose its meaning. |
+| Class names | `StratumStatelessWidget` and `StratumStatefulWidget` | Owner rename 2026-09-30, matching `StratumWidgetProps` and `StratumThemeData`. Statements about the code before this change keep the old names `AppStatelessWidget` and `AppStatefulWidget`. |
 | Visual override | One `customStyle: WidgetStyle?` replaces `padding`, `margin`, `border`, `borderRadius`, `opacity`, `customWidth`, `customHeight`, `customMinWidth`, `customMaxWidth`, `customMinHeight`, `customMaxHeight`, and `customColor` | Those fields duplicate `WidgetStyle`. The read-figma spec already maps "override of the look" to `customStyle: WidgetStyle?`. |
 | Fields kept | `size`, `color`, `themeMode`, `windowSize`, `state`, `feedbackState`, `disabled`, `loading`, `debug`, `customStyle` | Each one maps to a Figma axis in the read-figma mapping, or (`debug`) forwards to `ContainerLayout.debug`. |
-| `disabled` and `loading` | `bool` with default `false` in both base classes | `StratumStatefulWidget` declared them as `bool?`, `StratumStatelessWidget` as `bool = false`; a nullable flag gives components a third state that nothing defines. |
+| `disabled` and `loading` | `bool` with default `false` in both base classes | The old `AppStatefulWidget` declared them as `bool?`, the old `AppStatelessWidget` as `bool = false`; a nullable flag gives components a third state that nothing defines. |
 | `resolveStyle(WidgetStyle defaults)` | Added; returns `defaults.merge(customStyle)` | States the precedence rule once: `customStyle` wins over the component defaults. Without it, every generated component writes the merge itself. |
 | `resolveBreakpoint` | Renamed to `resolveWindowSize`, returns `WindowSize` | `Breakpoint` no longer exists; `WindowSize` replaced it. |
 | `buildResponsive`, `buildTapClearFocus`, `buildTapRequestScopeFocus` | Removed | No caller exists. They are widget utilities, not props, and `context.clearFocus()` and `context.requestScopeFocus()` already exist in `context_extension.dart`. |
 | `resolveBorderRadius` | Removed | `borderRadius` moves into `customStyle`; each component's default `WidgetStyle` reads the theme radius itself. |
 | Missing `WindowSizeScope` | `resolveWindowSize` throws the existing `FlutterError` from `WindowSizeScope.of`; no `MediaQuery` fallback | A fallback would rebuild on every pixel of a resize and hide a missing scope in the app setup. |
-| Imports | All three base files import only the libraries they use, not the `src.dart` barrel | Follows the rule set by the ContainerLayout design. The barrel loads in tests today (section 10), but narrow imports keep the base files loadable if it breaks again. |
+| Imports | All three base files import only the libraries they use, not the `src.dart` barrel | Follows the rule set by the ContainerLayout design and keeps each file's dependencies visible. It does not isolate the base from the barrel: `widget_props.dart` imports `theme_application.dart`, which imports `src.dart`, so a broken barrel still breaks the base. |
 | Test run | Test-first: each test in section 7 fails before its implementation exists | Owner ruling 2026-09-30. It replaces the earlier ruling (option A: land code gated by the analyzer, run the tests after the green build), which rested on the barrel failing to compile; a probe showed the barrel loads once the `BaseResponse` export is hidden. |
 
 ## 3. Current defects
@@ -132,7 +133,7 @@ Widget build(BuildContext context) {
 }
 ```
 
-- `resolveTheme` depends on `StratumThemeApplication`, so the widget rebuilds when the theme changes.
+- `resolveTheme` depends on `StratumThemeApplication`, so the widget rebuilds when that widget notifies. `StratumThemeApplication.updateShouldNotify` compares only `lightTheme`, so a change of the app `themeMode` or `darkTheme` alone does not rebuild dependents; that gap is outside this spec.
 - `resolveWindowSize` depends on `WindowSizeScope` only when `windowSize` is null, because `??` returns before the lookup. A widget that receives `windowSize` does not rebuild when the window crosses a breakpoint. The implementation must keep the lookup on the right side of `??`.
 - `resolveSize` reads the theme only when `size` is null.
 - The `resolve*` methods are virtual, so a component may override one, for example to refuse a `padding` override in `resolveStyle`.
@@ -176,7 +177,7 @@ File: `test/src/components/common/base/widget_props_test.dart`, with narrow impo
 Checked on 2026-09-30:
 
 - `dart analyze lib/src/components/common/base/` reports the 5 errors in section 3; `dart analyze lib` reports errors only in the base files, the three scroll views, and `src.dart`. The base files are not reachable from the barrel, because `base.dart` is empty.
-- `git grep StratumStatelessWidget HEAD -- lib` lists only the three scroll views outside `base/`; the working tree has no subclass.
+- `git grep AppStatelessWidget e6025a0 -- lib` lists only the three scroll views outside `base/` (the base classes were then named `AppStatelessWidget` and `AppStatefulWidget`); the working tree has no subclass.
 - `git show HEAD:lib/src/components/common/base/base.dart` is empty.
 - `flutter test test/stratum_ui_test.dart` failed to compile: `'BaseResponse' is exported from both 'package:dart_falmodel/networks/https/responses/base_response.dart' and 'package:http/src/base_response.dart'`. Adding `BaseResponse` to the `hide` list of the `extended_image` export in `lib/stratum_ui.dart` removed it. The analyzer then reported `ImageDecoderCallback` as an ambiguous export (from `dart:ui` through `flutter_falconx` and from Flutter's `image_provider.dart`); `hide ImageDecoderCallback` on the `flutter_falconx` export in `src.dart` removed it, and `src.dart` reports no further issue.
 - A throwaway test that imports `src.dart` and `theme_application.dart` passes (`+1: All tests passed!`), so the barrel loads in tests.
