@@ -67,7 +67,7 @@ First matching row wins.
 | direction | ➡️ | VARIANT | `direction`, `arrow` |
 | layout | ⬒ | VARIANT | `layout` |
 | platform | 🖥️ | VARIANT | `platform`, `os`, `browser` |
-| count | 🔢 | VARIANT | `items`, `tabs`, `steps`, `section`, `page`, `attachments`, `rating`, `avatars`, `frame` |
+| count | 🔢 | VARIANT | `items`, `tabs`, `steps`, `section`, `page`, `attachments`, `rating`, `avatars`, `count`, `frame` |
 | graphic | 🏞️ | VARIANT | `graphic`, `image`, `emotion` |
 | variant | 🔖 | VARIANT | any name |
 
@@ -246,7 +246,7 @@ Roles: `platform`.
 | name | `showLineNumber`, `showLink`, `showLoading`, `showMaxValue`, `showMediaButton`, `showMetaData` |
 | name | `showMinimizeButton`, `showMinValue`, `showMore`, `showMoreButton`, `showMoreMediaAttachment`, `showName` |
 | name | `showNegativeButton`, `showNextAndBack`, `showNotification`, `showNumber`, `showOption`, `showOverflow`, `showPagination` |
-| name | `showPath`, `showPopover`, `showPrimaryButton`, `showReplyButton`, `showRequired`, `showRight`, `showRightIcon` |
+| name | `showPath`, `showPopover`, `showPrimaryButton`, `showProp`, `showReplyButton`, `showRequired`, `showRight`, `showRightIcon` |
 | name | `showRightItems`, `showScrollbar`, `showSearchButton`, `showSecondaryButton`, `showShift`, `showShortcut`, `showSideButtons` |
 | name | `showSnackbar`, `showSortButton`, `showSplit`, `showStatusBar`, `showStatusDot`, `showStatusRing`, `showSubMenu`, `showSubmenu` |
 | name | `showSubtitle`, `showSuggestionBar`, `showTab`, `showTertiaryButton`, `showText` |
