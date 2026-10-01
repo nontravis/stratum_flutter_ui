@@ -9,7 +9,7 @@ import 'package:stratum_ui/src/components/common/layout/gesture_row_layout.dart'
 import 'package:stratum_ui/src/components/common/layout/gesture_stack_layout.dart';
 import 'package:stratum_ui/src/components/common/layout/gesture_wrap_layout.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
-import 'package:stratum_ui/src/components/common/stratum_ink_well.dart';
+import 'package:stratum_ui/src/components/common/ink_well.dart';
 
 import '../fakes/fake_stratum_theme.dart';
 
