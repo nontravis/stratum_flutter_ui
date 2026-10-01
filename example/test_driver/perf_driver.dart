@@ -3,13 +3,16 @@ import 'dart:io';
 import 'package:flutter_driver/flutter_driver.dart' as driver;
 import 'package:integration_test/integration_test_driver.dart';
 
-/// Length of every traced window in `layout_perf_test.dart`.
+/// Length of every traced window: `traceWindow` in
+/// `integration_test/perf/perf_host.dart`.
 const _traceWindow = Duration(seconds: 2);
 
-/// Writes one timeline summary per trace key into
-/// `build/perf/run<PERF_RUN>/`, so repeated runs never overwrite each other.
+/// Writes one timeline and one summary per report key into
+/// `build/perf/abba/r<PERF_RUN>g<PERF_GROUP>/`, the run folder that
+/// `tool/perf_abba.dart` reads.
 Future<void> main() {
   final run = Platform.environment['PERF_RUN'] ?? '0';
+  final group = Platform.environment['PERF_GROUP'] ?? '0';
   return integrationDriver(
     responseDataCallback: (data) async {
       if (data == null) return;
@@ -21,8 +24,7 @@ Future<void> main() {
         _checkCoverage(entry.key, summary.summaryJson);
         await summary.writeTimelineToFile(
           entry.key,
-          destinationDirectory: 'build/perf/run$run',
-          pretty: true,
+          destinationDirectory: 'build/perf/abba/r${run}g$group',
         );
       }
     },

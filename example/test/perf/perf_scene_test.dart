@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/perf/perf_scene.dart';
 import '../../integration_test/perf/perf_scenes.dart';
+import '../../tool/perf_abba.dart' show groups;
 
 void main() {
   group('abbaSteps', () {
@@ -56,6 +57,10 @@ void main() {
 
     test('rejects an unknown group', () {
       expect(() => perfGroup(4), throwsArgumentError);
+    });
+
+    test('matches the groups perf_abba runs', () {
+      expect(perfGroups.keys, groups);
     });
   });
 }

@@ -56,20 +56,112 @@ typedef TracePair = ({TraceMetrics base, TraceMetrics cand});
 /// A 95% interval for the median paired change, in percent.
 typedef ConfidenceInterval = ({double lower, double upper});
 
-/// Judges the in-process ABBA benchmark (spec section 9.5).
+/// Runs and judges the in-process ABBA benchmark (spec section 9.5).
 ///
-/// Usage, from `example/`: `dart run tool/perf_abba.dart report` judges
-/// the runs stored under `build/perf/abba/`, prints the report, writes it
-/// to `build/perf/abba/report.md`, and exits with 0 for PASS, 1 for FAIL or
-/// INVALID, and 2 for INCONCLUSIVE.
+/// Usage, from `example/`:
+/// - `dart run tool/perf_abba.dart run --runs 6` runs `flutter drive` once
+///   per run and group, recording `uptime` before each, then reports.
+/// - `dart run tool/perf_abba.dart run --from 7 --runs 6` adds the one
+///   escalation, up to 12 runs (24 pairs per scene).
+/// - `dart run tool/perf_abba.dart report` judges the stored runs again.
+///
+/// Prints the report, writes it to `build/perf/abba/report.md`, and exits
+/// with 0 for PASS, 1 for FAIL or INVALID, and 2 for INCONCLUSIVE.
 Future<void> main(List<String> args) async {
   switch (args) {
     case ['report']:
       exitCode = _report();
+    case ['run', ...final options] when _option(options, '--runs') != null:
+      exitCode = await _run(
+        from: _option(options, '--from') ?? 1,
+        runs: _option(options, '--runs')!,
+      );
     default:
       stderr.writeln(_usage);
       exitCode = 64;
   }
+}
+
+int? _option(List<String> options, String name) {
+  final index = options.indexOf(name);
+  return index < 0 || index + 1 >= options.length
+      ? null
+      : int.tryParse(options[index + 1]);
+}
+
+/// Why runs [from] to `from + runs - 1` cannot run, or null when they can.
+String? runRangeError({required int from, required int runs}) {
+  final last = from + runs - 1;
+  if (from < 1 || runs < 1 || last > maxRuns) {
+    return 'runs $from to $last fall outside 1 to $maxRuns '
+        '(24 pairs per scene)';
+  }
+  return null;
+}
+
+/// Run folders under [root] that runs [from] to `from + runs - 1` would
+/// write into but that exist already.
+List<String> clashingRuns(
+  Directory root, {
+  required int from,
+  required int runs,
+}) {
+  return [
+    for (var run = from; run < from + runs; run++)
+      for (final group in groups)
+        if (Directory('${root.path}/r${run}g$group').existsSync())
+          '${root.path}/r${run}g$group',
+  ];
+}
+
+Future<int> _run({required int from, required int runs}) async {
+  final rangeError = runRangeError(from: from, runs: runs);
+  if (rangeError != null) {
+    stderr.writeln(rangeError);
+    return 64;
+  }
+  final clashes = clashingRuns(Directory(abbaRoot), from: from, runs: runs);
+  if (clashes.isNotEmpty) {
+    stderr.writeln(
+      '${clashes.join(', ')} exist: rm -rf $abbaRoot for a new comparison, '
+      'or pass --from after the last stored run',
+    );
+    return 64;
+  }
+  for (var run = from; run < from + runs; run++) {
+    for (final group in groups) {
+      final directory = Directory('$abbaRoot/r${run}g$group')
+        ..createSync(recursive: true);
+      final uptime = await Process.run('uptime', const []);
+      final load = (uptime.stdout as String).trim();
+      File('${directory.path}/load.txt').writeAsStringSync(load);
+      stdout.writeln('run $run group $group: $load');
+      final drive = await Process.start(
+        'flutter',
+        [
+          'drive',
+          '--profile',
+          '--endless-trace-buffer',
+          '-d',
+          'macos',
+          '--driver=test_driver/perf_driver.dart',
+          '--target=integration_test/layout_perf_test.dart',
+          '--dart-define=PERF_GROUP=$group',
+        ],
+        environment: {'PERF_RUN': '$run', 'PERF_GROUP': '$group'},
+        mode: ProcessStartMode.inheritStdio,
+      );
+      final code = await drive.exitCode;
+      if (code != 0) {
+        stderr.writeln(
+          'flutter drive exited $code on run $run group $group; '
+          'rm -rf $abbaRoot/r${run}g* and pass --from $run to continue',
+        );
+        return 1;
+      }
+    }
+  }
+  return _report();
 }
 
 int _report() {
