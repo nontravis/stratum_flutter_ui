@@ -264,6 +264,28 @@ void main() {
       expect(_overlayColor(tester), fakeHover);
     });
 
+    testWidgets('returning to the internal controller drops a stale hover', (
+      tester,
+    ) async {
+      final caller = _states({});
+      Widget build(WidgetStatesController? states) => themedHost(
+        StratumInkWell(onTap: _noop, statesController: states, child: _box),
+      );
+      await tester.pumpWidget(build(null));
+      final mouse = await _mouse(tester);
+      await mouse.moveTo(tester.getCenter(find.byType(StratumInkWell)));
+      await tester.pumpAndSettle();
+      expect(_overlayColor(tester), fakeHover);
+
+      await tester.pumpWidget(build(caller));
+      await mouse.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(build(null));
+      await tester.pumpAndSettle();
+
+      expect(_overlayColor(tester), isNull);
+    });
+
     testWidgets('a directional radius paints under right-to-left text', (
       tester,
     ) async {
