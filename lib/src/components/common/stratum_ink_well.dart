@@ -293,9 +293,13 @@ class _StateOverlay extends StatelessWidget {
         tween: ColorTween(end: _target(states.value)),
         duration: _duration,
         curve: Curves.easeInOutSine,
+        // Alpha 0 becomes no color, so an idle surface paints nothing.
         builder: (context, color, child) => DecoratedBox(
           position: DecorationPosition.foreground,
-          decoration: BoxDecoration(color: color, borderRadius: borderRadius),
+          decoration: BoxDecoration(
+            color: color == null || color.a == 0 ? null : color,
+            borderRadius: borderRadius,
+          ),
           child: child,
         ),
         child: child,
