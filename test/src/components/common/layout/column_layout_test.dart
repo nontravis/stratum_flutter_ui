@@ -1,8 +1,5 @@
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stratum_ui/src/components/common/layout/column_layout.dart';
-import 'package:stratum_ui/src/components/common/layout/container_layout.dart';
-import 'package:stratum_ui/src/components/common/model/widget_style.dart';
+import 'package:stratum_ui/src/src.dart';
 
 Widget _host(Widget child) {
   return Directionality(
