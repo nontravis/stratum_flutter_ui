@@ -1,0 +1,1 @@
+- [Benchmark noise on the shared Mac](project_benchmark_noise.md) — sub-ms deltas are noise-dominated; split phases, then trust the spec section 9 in-process ABBA verdict
