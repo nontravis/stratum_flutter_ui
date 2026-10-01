@@ -371,7 +371,7 @@ Phase 2 builds the harness that the container-layout spec (2026-09-30, section 1
 | 3. Layout family | `BoxLayout`, the five layouts, `StratumInteraction` without phase 4 fields, `scrollBuilder` with `ScrollFrame` and no keys, gesture twins deleted, the `AnimatedStyledBox` state rewrite with `preserve` and reduced motion, the S2 versus S2-plain decision | Phase 3 tests pass and the benchmark passes |
 | 4. Keyboard and accessibility | K1 to K4 with the text-entry guard, `StratumFocusGroup`, `ScrollFocus`, shortcut-only focus, focus keep-alive, guideline tests | Phase 4 tests pass and the benchmark still passes |
 
-Each phase gets its own implementation plan. Phase 1 meets the done-when of the roadmap phase `stratum-green-build`. Phase 2 absorbs the benchmark part of `stratum-style-benchmark`, whose gesture-layout tests become phase 3's ported tests; that phase's deferred `WidgetStyle` minors stay separate work.
+Each phase gets its own implementation plan. Phase 1 met the done-when of the roadmap phase `stratum-green-build`, which the owner closed on 2026-10-01. Phase 2 absorbs the benchmark of the former `stratum-style-benchmark` phase, whose gesture-layout tests become phase 3's ported tests; its deferred `WidgetStyle` minors stay separate work in the roadmap phase `stratum-style-minors`, after phase 3.
 
 ## 11. Out of scope
 
