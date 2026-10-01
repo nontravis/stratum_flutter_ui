@@ -33,7 +33,7 @@ The Figma facts measured on 2026-09-30 (page count, the 20 KB result limit, the 
    - Nested instances: grep the frontmatter `figma.componentKey` of every contract in `docs/specs/stratum_ui/components/`. A match gives the Dart class. No match marks the instance `unresolved`; ask the user whether to read that component first. Never recurse on your own.
    - Enum reuse: search `lib/` and the `## Enums` section of existing contracts for an enum with exactly the same value set. Reuse it when found. When the same value set appears for the first time in a second component, ask the user for the shared enum name (for example `StratumFieldStyle`).
 5. **Map** the JSON to a contract with the rules in `references/`. For any value no rule covers (an unknown `state` value, a symbol-only value, a size outside every vocabulary), ask the user. Never guess.
-6. **Write** `docs/specs/stratum_ui/components/<snake_name>.md`. When the file exists, show the diff and ask before overwriting.
+6. **Write** `docs/specs/stratum_ui/components/<section>/<snake_name>/<snake_name>.md` (for example `control/button/button.md`). When the file exists, show the diff and ask before overwriting.
 7. **Hand off.** Tell the user to run `stratum-create-flutter-widget` on the contract.
 
 ## Extracted data (`scripts/entry_read.js`)
@@ -72,8 +72,10 @@ The script reads only; it never mutates the file. It keeps its own helpers pure 
 | TEXT                                           | `String`; required when it has no `show*` pair                                                        |
 | INSTANCE_SWAP icon or illustration             | `Widget?` wrapped in a `SizedBox` whose size comes from the slot table per `WidgetSize`               |
 | INSTANCE_SWAP slot or content                  | `Widget?` sized by `HUG` (no wrapper) or `FILL` (`Expanded` or `SizedBox.expand`) as in Figma         |
-| nested instance                                | typed slot `Stratum<Nested>? <name>`; each property the designer exposed becomes a flattened field `<name><Prop>` |
-| callbacks                                      | `onPressed` when `state` has `HOVERED` or `PRESSED`; `onChanged` for inputs; `on<Name>Pressed` for a nested button |
+| nested instance with its own contract or Dart class | typed slot `Stratum<Nested>? <name>`; the caller configures it, so its exposed properties are not flattened; a `show<Name>` toggle merges into the slot (null hides it) |
+| nested helper instance (from a `☀` page, such as FocusBorder, Caret, SelectBackground, Slot) | no field; the widget draws it |
+| nested instances whose names differ only by a size word (`LargeTextInputLeftItem`, `MediumTextInputLeftItem`, `SmallTextInputLeftItem`) | one slot; its name drops the size word and the parent component name (`leftItem`), and the widget picks the size from its own `size` |
+| callbacks                                      | `onChanged` for components in the Form section (never `onPressed`); otherwise `onPressed` when `state` has `HOVERED` or `PRESSED`; `on<Name>Pressed` for a nested button |
 | override of the look                           | `customStyle: WidgetStyle?` (base field), merged over the component defaults by `resolveStyle()`      |
 
 Enum naming: `Stratum<Component><Prop>` (for example `StratumButtonStyle`) so names never clash with Material types such as `ButtonStyle`. Shared enums get a user-chosen name the first time their value set repeats.
@@ -109,7 +111,7 @@ The constructor `state` forces a visual state for previews and golden tests. Whe
 ### `token_mapping.md`
 
 - Bound color variables map to theme color tokens by variable name; bound spacing and radius variables map to the `space` and `radius` keys of the theme YAML (`assets/themes/example.yaml`).
-- Text styles named like `UI Text 14 Semi Bold` map to `FontType.ui` + `FontSize.s14` + the weight.
+- Text styles are named `<type>[-<scale>]/<size>-<weight>` (for example `body/14-semi-bold`, `body-large/16-semi-bold`): `<type>` maps to the `FontType` value of the same name (`body` → `FontType.body`), `<size>` to `FontSize.s<size>`, `<weight>` to the `FontWeight` (`semi-bold` → `w600`); the `-<scale>` suffix repeats the size and is ignored.
 - A hard-coded value (not bound) is copied into the contract with a `hard-coded` marker; `stratum-figma-lint` rule L12 already reports it.
 
 ### `contract_template.md`
@@ -165,7 +167,7 @@ const StratumButton({
 
 1. **Fixtures.** `scripts/test/fixtures/` holds `entry_read.js` output for Button, Alert, and TextInput captured from the real file.
 2. **Golden contract.** `scripts/test/expected/button.md` holds the contract for Button that matches the worked example above. The behavioral test reads Button and compares the result with it.
-3. **Behavioral checks** after build: reading Alert stops at the lint gate (the `STRING` typo is blocking) until the user confirms; reading TextInput reports the `showSuccessText` collision through the gate.
+3. **Behavioral checks** after build: reading Button passes the lint gate and yields the golden contract; the gate stops on a blocking finding until the user confirms. The reference file has no blocking finding since the 2026-10-01 cleanup (Alert `STRING` and the TextInput `showSuccessText` collision are fixed), so the gate stop is proven with a synthetic blocking fixture.
 
 ## Out of scope
 
@@ -186,3 +188,7 @@ const StratumButton({
 - 2026-09-30: no hardcoded Figma file key or URL; the user names the file on every run, and the Dart folder comes from the section separator only when it matches an existing folder.
 - 2026-10-01: `LOADING` in any variant maps to `loading: true`, and a feedback value (`🔵 INFO`, `🔴 NEGATIVE`, `🟡 WARNING`, `🟢 POSITIVE`) in any variant maps to `FeedbackState`, not only inside `state` (owner ruling on Figma cleanup group 2). The widget may still expose a component-specific enum when the variant mixes these with other values (Spinner `type`, ModalContent `type`).
 - 2026-10-01: a `state` value with a `_LEFT` or `_RIGHT` suffix is the state of that half of a split control (SplitButton); `FILL_WIDTH` means full available width; `CUSTOM` color means the caller passes the color; `EXTRA_TINY`, `BLACK`, and `GHOST` are design-only and are resolved when the widget is built.
+- 2026-10-01: the reference file passed the cleanup (0 blocking, 0 rename findings), so the gate-stop check moves to a synthetic fixture; fixtures are captured from the cleaned file.
+- 2026-10-01 (owner): `🔢` item counts (`items`, `tabs`, `steps`, `section`, `page`, `avatars`, `attachments`) map to `List<Widget>`; value-like `🔢` (`rating`, `percent`) map to `int` or `double`; `🔢 frame` (animation frames) is not a field. `✅ selected` maps to the base `selected`; `✍️ filled` and `↕️ expanded` are not fields, because the widget derives them from its value and its open state. A slot value pairs with its slot: Figma uses `SLOT` with `❖ slot`, so the enum keeps `slot` and the slot becomes `Widget? slot`; the widget asserts in debug when `slot` is set while the variant is not `SLOT`.
+- 2026-10-01 (owner, after the first real Button capture): a nested instance with its own class is a typed slot only (no flattened fields; `showBadge` merges into `badge`), matching the worked example; nested helpers from `☀` pages map to no field; Form components get `onChanged` only; contracts live at `<section>/<component>/<component>.md`; text style `body` maps to `FontType.body` (the Dart enum value `ui` was renamed to `body`). Builder-derived rules accepted: a show toggle pairs with the nested instance whose visibility it binds (also through a wrapper frame); an untoggled, unexposed nested instance maps to no field; base fields keep the base default; `darkMode` True/False maps to `ThemeMode.dark`/`light`; a numeric `size` property gets a provisional non-base name and an ask.
+- 2026-10-01 (owner): size-specific nested instances merge into one slot (TextInput: `leftItem`, `rightItem`); `✅ selected` is the component's own `bool selected` field, not a base field, because the base props have no `selected` (supersedes the earlier "base `selected`" line).

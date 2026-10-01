@@ -1,0 +1,939 @@
+{
+ "synthetic": false,
+ "source": "use_figma capture of the reference file, 2026-10-01, by the entry_read.js that records the nested page, helper, and wrapper-toggle fields.",
+ "component": {
+  "id": "55936:96720",
+  "key": "2ae9d6e7ea0e406f41b9dca4c3987226b4ffe8e1",
+  "name": "Alert",
+  "type": "COMPONENT_SET",
+  "page": "❖ Alert",
+  "section": {
+   "page": "─── Feedback ───────────",
+   "label": "Feedback"
+  },
+  "description": {
+   "text": "# Purpose\nCommunicates a system-level status message that requires user awareness or a follow-up action. Used at page or section scope — **not tied to a single field or inline element**.\n\n# Use when\n- A system event (error, warning, success, or informational notice) applies to the entire page or a major section\n- The message includes a primary action (e.g. retry, undo) or a dismiss control\n- Feedback must be prominently visible and not buried within content\n\n# Don't use when\n- The message is contextual to a specific row, record, or inline element — use `InlineAlert` instead\n- The status is a passive label that doesn't need user acknowledgment\n\n# Content guidelines\n- **Title:** one short phrase; 60 characters max; sentence case\n- **Body:** expand on the title only when the cause or resolution is non-obvious; omit if the title is self-explanatory\n- **Action label:** 1–3 words; use a verb (\"Retry\", \"View details\"); never \"Click here\"\n- Dismiss is optional — include only when the user should be able to clear the message manually\n\n# Related\n- Use `InlineAlert` instead when the message is scoped to a specific piece of inline content rather than the whole page or section",
+   "source": "description",
+   "empty": false
+  },
+  "documentationLinks": [],
+  "properties": [
+   {
+    "rawName": "👁️ showTitle#55936:0",
+    "name": "showTitle",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "👁️ showIcon#55936:7",
+    "name": "showIcon",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "👁️ showCloseable#55936:14",
+    "name": "showCloseable",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "👁️ showActions#55936:21",
+    "name": "showActions",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "💬 title#55936:42",
+    "name": "title",
+    "type": "TEXT",
+    "defaultValue": "Short descriptive message"
+   },
+   {
+    "rawName": "💬 description#55936:49",
+    "name": "description",
+    "type": "TEXT",
+    "defaultValue": "In a perfect world, content stays brief. Yet, when more words are essential, it unfolds like this."
+   },
+   {
+    "rawName": "👁️ showPrimaryButton#55936:56",
+    "name": "showPrimaryButton",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "👁️ showSecondaryButton#55936:63",
+    "name": "showSecondaryButton",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "👁️ showLink#55936:70",
+    "name": "showLink",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "✏️ infoIcon#56460:66",
+    "name": "infoIcon",
+    "type": "INSTANCE_SWAP",
+    "defaultValue": "56181:109411",
+    "preferredValues": [
+     {
+      "type": "COMPONENT_SET",
+      "key": "6edd948f4b0a52c041105466be8e6f33b2910fd3"
+     }
+    ],
+    "defaultName": "Info"
+   },
+   {
+    "rawName": "✏️ errorIcon#56460:91",
+    "name": "errorIcon",
+    "type": "INSTANCE_SWAP",
+    "defaultValue": "56181:109634",
+    "preferredValues": [
+     {
+      "type": "COMPONENT_SET",
+      "key": "53d43143f934c95cfa612a95dd7e56c159cd6eb1"
+     }
+    ],
+    "defaultName": "Warning"
+   },
+   {
+    "rawName": "✏️ warningIcon#56485:0",
+    "name": "warningIcon",
+    "type": "INSTANCE_SWAP",
+    "defaultValue": "56181:109634",
+    "preferredValues": [
+     {
+      "type": "COMPONENT_SET",
+      "key": "53d43143f934c95cfa612a95dd7e56c159cd6eb1"
+     }
+    ],
+    "defaultName": "Warning"
+   },
+   {
+    "rawName": "✏️ positiveIcon#56485:25",
+    "name": "positiveIcon",
+    "type": "INSTANCE_SWAP",
+    "defaultValue": "56181:110093",
+    "preferredValues": [
+     {
+      "type": "COMPONENT_SET",
+      "key": "9ec52400db9b6ae022becce238fd908b999ccf40"
+     }
+    ],
+    "defaultName": "CheckCircle"
+   },
+   {
+    "rawName": "🌈 color",
+    "name": "color",
+    "type": "VARIANT",
+    "defaultValue": "🔵 INFO",
+    "variantOptions": [
+     "🔵 INFO",
+     "🔴 NEGATIVE",
+     "🟡 WARNING",
+     "🟢 POSITIVE"
+    ]
+   },
+   {
+    "rawName": "💡 accent",
+    "name": "accent",
+    "type": "VARIANT",
+    "defaultValue": "LIGHT",
+    "variantOptions": [
+     "LIGHT",
+     "MEDIUM",
+     "STRONG"
+    ]
+   },
+   {
+    "rawName": "📐 size",
+    "name": "size",
+    "type": "VARIANT",
+    "defaultValue": "MEDIUM",
+    "variantOptions": [
+     "MEDIUM",
+     "SMALL"
+    ]
+   }
+  ],
+  "variants": {
+   "axes": [
+    "🌈 color",
+    "💡 accent",
+    "📐 size"
+   ],
+   "count": 24,
+   "product": 24,
+   "combinations": [
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     2,
+     0,
+     0
+    ],
+    [
+     3,
+     0,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     2,
+     1,
+     0
+    ],
+    [
+     3,
+     1,
+     0
+    ],
+    [
+     0,
+     2,
+     0
+    ],
+    [
+     1,
+     2,
+     0
+    ],
+    [
+     2,
+     2,
+     0
+    ],
+    [
+     3,
+     2,
+     0
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     2,
+     0,
+     1
+    ],
+    [
+     3,
+     0,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     1,
+     1,
+     1
+    ],
+    [
+     2,
+     1,
+     1
+    ],
+    [
+     3,
+     1,
+     1
+    ],
+    [
+     0,
+     2,
+     1
+    ],
+    [
+     1,
+     2,
+     1
+    ],
+    [
+     2,
+     2,
+     1
+    ],
+    [
+     3,
+     2,
+     1
+    ]
+   ]
+  },
+  "variantDocs": [],
+  "nested": [
+   {
+    "layer": "Primary button",
+    "name": "Button",
+    "key": "7687e83a1ce129a5ae07141a00699e2d0484a42c",
+    "page": "❖ Buttons",
+    "helper": false,
+    "visibleProperty": "👁️ showPrimaryButton#55936:56",
+    "exposed": true,
+    "exposedProperties": [
+     {
+      "name": "✏️ rightIcon#56214:109",
+      "type": "INSTANCE_SWAP"
+     },
+     {
+      "name": "💬 label#55483:95",
+      "type": "TEXT"
+     },
+     {
+      "name": "👁️ showRightIcon#55483:38",
+      "type": "BOOLEAN"
+     },
+     {
+      "name": "✏️ leftIcon#56214:0",
+      "type": "INSTANCE_SWAP"
+     },
+     {
+      "name": "👁️ showBadge#55483:19",
+      "type": "BOOLEAN"
+     },
+     {
+      "name": "👁️ showLeftIcon#55483:0",
+      "type": "BOOLEAN"
+     },
+     {
+      "name": "🕶️ style",
+      "type": "VARIANT"
+     },
+     {
+      "name": "📐 size",
+      "type": "VARIANT"
+     },
+     {
+      "name": "🚦 state",
+      "type": "VARIANT"
+     }
+    ],
+    "variants": 24
+   },
+   {
+    "layer": "Secondary button",
+    "name": "Button",
+    "key": "7687e83a1ce129a5ae07141a00699e2d0484a42c",
+    "page": "❖ Buttons",
+    "helper": false,
+    "visibleProperty": "👁️ showSecondaryButton#55936:63",
+    "exposed": true,
+    "exposedProperties": [
+     {
+      "name": "✏️ rightIcon#56214:109",
+      "type": "INSTANCE_SWAP"
+     },
+     {
+      "name": "💬 label#55483:95",
+      "type": "TEXT"
+     },
+     {
+      "name": "👁️ showRightIcon#55483:38",
+      "type": "BOOLEAN"
+     },
+     {
+      "name": "✏️ leftIcon#56214:0",
+      "type": "INSTANCE_SWAP"
+     },
+     {
+      "name": "👁️ showBadge#55483:19",
+      "type": "BOOLEAN"
+     },
+     {
+      "name": "👁️ showLeftIcon#55483:0",
+      "type": "BOOLEAN"
+     },
+     {
+      "name": "🕶️ style",
+      "type": "VARIANT"
+     },
+     {
+      "name": "📐 size",
+      "type": "VARIANT"
+     },
+     {
+      "name": "🚦 state",
+      "type": "VARIANT"
+     }
+    ],
+    "variants": 24
+   },
+   {
+    "layer": "Link",
+    "name": "LinkText",
+    "key": "bd136a75a006849c53f91345fd96bbafbb1c16c2",
+    "page": "❖ Link",
+    "helper": false,
+    "visibleProperty": "👁️ showLink#55936:70",
+    "exposed": true,
+    "exposedProperties": [
+     {
+      "name": "👁️ showExternal#56458:23",
+      "type": "BOOLEAN"
+     },
+     {
+      "name": "💬 text#55607:15",
+      "type": "TEXT"
+     },
+     {
+      "name": "🔘 underlined#55607:10",
+      "type": "BOOLEAN"
+     },
+     {
+      "name": "📐 size",
+      "type": "VARIANT"
+     },
+     {
+      "name": "🚦 state",
+      "type": "VARIANT"
+     }
+    ],
+    "variants": 24
+   },
+   {
+    "layer": "ModalCloseButton",
+    "name": "ModalCloseButton",
+    "key": "3a4689fc380a726b0e644424cb8de63842aaa90c",
+    "page": "❖ Buttons",
+    "helper": false,
+    "visibleProperty": "👁️ showCloseable#55936:14",
+    "exposed": false,
+    "exposedProperties": [],
+    "variants": 24
+   }
+  ],
+  "slots": {
+   "✏️ infoIcon#56460:66": {
+    "visibleProperty": "👁️ showIcon#55936:7",
+    "table": [
+     {
+      "width": 24,
+      "height": 24,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     },
+     {
+      "width": 16,
+      "height": 16,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     }
+    ],
+    "byVariant": [
+     0,
+     -1,
+     -1,
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     -1,
+     -1
+    ]
+   },
+   "✏️ errorIcon#56460:91": {
+    "visibleProperty": "👁️ showIcon#55936:7",
+    "table": [
+     {
+      "width": 24,
+      "height": 24,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     },
+     {
+      "width": 16,
+      "height": 16,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     }
+    ],
+    "byVariant": [
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     -1
+    ]
+   },
+   "✏️ warningIcon#56485:0": {
+    "visibleProperty": "👁️ showIcon#55936:7",
+    "table": [
+     {
+      "width": 24,
+      "height": 24,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     },
+     {
+      "width": 16,
+      "height": 16,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     }
+    ],
+    "byVariant": [
+     -1,
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     -1,
+     -1,
+     1,
+     -1
+    ]
+   },
+   "✏️ positiveIcon#56485:25": {
+    "visibleProperty": "👁️ showIcon#55936:7",
+    "table": [
+     {
+      "width": 24,
+      "height": 24,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     },
+     {
+      "width": 16,
+      "height": 16,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     }
+    ],
+    "byVariant": [
+     -1,
+     -1,
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     0,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     -1,
+     -1,
+     1,
+     -1,
+     -1,
+     -1,
+     1
+    ]
+   }
+  },
+  "tokens": {
+   "columns": [
+    "background",
+    "foreground",
+    "border",
+    "radius",
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+    "gap",
+    "text"
+   ],
+   "values": [
+    "var:background/control/popover",
+    "var:text/default/primary",
+    "var:border/default/normal",
+    "var:md",
+    "var:lg",
+    "var:xl",
+    "var:md",
+    "style:body/14-semi-bold",
+    "var:background/subtle/blue",
+    "var:border/subtle/blue",
+    "var:background/subtle/negative",
+    "var:border/subtle/negative",
+    "var:background/subtle/warning",
+    "var:border/subtle/warning",
+    "var:background/subtle/positive",
+    "var:border/subtle/positive",
+    "var:background/color/blue",
+    "var:text/default/primary-on-color",
+    "var:background/color/negative",
+    "var:background/color/warning",
+    "var:background/color/positive",
+    "var:sm",
+    "var:sm",
+    "style:body-small/12-semi-bold"
+   ],
+   "rows": [
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     8,
+     1,
+     9,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     10,
+     1,
+     11,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     12,
+     1,
+     13,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     14,
+     1,
+     15,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     16,
+     17,
+     -1,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     18,
+     17,
+     -1,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     19,
+     1,
+     -1,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     20,
+     17,
+     -1,
+     3,
+     4,
+     4,
+     5,
+     4,
+     6,
+     7
+    ],
+    [
+     0,
+     1,
+     2,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     0,
+     1,
+     2,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     0,
+     1,
+     2,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     0,
+     1,
+     2,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     8,
+     1,
+     9,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     10,
+     1,
+     11,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     12,
+     1,
+     13,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     14,
+     1,
+     15,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     16,
+     17,
+     -1,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     18,
+     17,
+     -1,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     19,
+     1,
+     -1,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ],
+    [
+     20,
+     17,
+     -1,
+     21,
+     22,
+     22,
+     6,
+     22,
+     6,
+     23
+    ]
+   ]
+  }
+ }
+}

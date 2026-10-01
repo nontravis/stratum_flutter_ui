@@ -1,0 +1,820 @@
+{
+ "synthetic": true,
+ "source": "synthetic gate stop: Alert before the cleanup, `💡 accent` = STRING (one L01 blocking finding).",
+ "component": {
+  "id": "55936:96720",
+  "key": "synthetic-alert-key",
+  "name": "Alert",
+  "type": "COMPONENT_SET",
+  "page": "❖ Alert",
+  "section": {
+   "page": "─── Feedback",
+   "label": "Feedback"
+  },
+  "description": {
+   "text": "# Purpose\nCommunicates a system-level status message that requires user awareness or a follow-up action. Used at page or section scope — **not tied to a single field or inline element**.\n\n# Use when\n- A system event (error, warning, success, or informational notice) applies to the entire page or a major section\n- The message includes a primary action (e.g. retry, undo) or a dismiss control\n- Feedback must be prominently visible and not buried within content\n\n# Don't use when\n- The message is contextual to a specific row, record, or inline element — use `InlineAlert` instead\n- The status is a passive label that doesn't need user acknowledgment\n\n# Content guidelines\n- **Title:** one short phrase; 60 characters max; sentence case\n- **Body:** expand on the title only when the cause or resolution is non-obvious; omit if the title is self-explanatory\n- **Action label:** 1–3 words; use a verb (\"Retry\", \"View details\"); never \"Click here\"\n- Dismiss is optional — include only when the user should be able to clear the message manually\n\n# Related\n- Use `InlineAlert` instead when the message is scoped to a specific piece of inline content rather than the whole page or section",
+   "source": "description",
+   "empty": false
+  },
+  "documentationLinks": [
+   "https://example.com/alert-guidelines"
+  ],
+  "properties": [
+   {
+    "rawName": "👁️ showTitle#55936:0",
+    "name": "showTitle",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "👁️ showIcon#55936:7",
+    "name": "showIcon",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "👁️ showCloseable#55936:14",
+    "name": "showCloseable",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "👁️ showActions#55936:21",
+    "name": "showActions",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "💬 title#55936:42",
+    "name": "title",
+    "type": "TEXT",
+    "defaultValue": "Short descriptive message"
+   },
+   {
+    "rawName": "💬 description#55936:49",
+    "name": "description",
+    "type": "TEXT",
+    "defaultValue": "In a perfect world, content stays brief. Yet, when more words are essential, it unfolds like this."
+   },
+   {
+    "rawName": "👁️ showPrimaryButton#55936:56",
+    "name": "showPrimaryButton",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "👁️ showSecondaryButton#55936:63",
+    "name": "showSecondaryButton",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "👁️ showLink#55936:70",
+    "name": "showLink",
+    "type": "BOOLEAN",
+    "defaultValue": true
+   },
+   {
+    "rawName": "✏️ infoIcon#56460:66",
+    "name": "infoIcon",
+    "type": "INSTANCE_SWAP",
+    "defaultValue": "56181:109411",
+    "defaultName": "Info"
+   },
+   {
+    "rawName": "✏️ errorIcon#56460:91",
+    "name": "errorIcon",
+    "type": "INSTANCE_SWAP",
+    "defaultValue": "56181:109634",
+    "defaultName": "Warning"
+   },
+   {
+    "rawName": "✏️ warningIcon#56485:0",
+    "name": "warningIcon",
+    "type": "INSTANCE_SWAP",
+    "defaultValue": "56181:109634",
+    "defaultName": "Warning"
+   },
+   {
+    "rawName": "✏️ positiveIcon#56485:25",
+    "name": "positiveIcon",
+    "type": "INSTANCE_SWAP",
+    "defaultValue": "56181:110093",
+    "defaultName": "Check circle"
+   },
+   {
+    "rawName": "🌈 color",
+    "name": "color",
+    "type": "VARIANT",
+    "defaultValue": "🔵 INFO",
+    "variantOptions": [
+     "🔵 INFO",
+     "🔴 NEGATIVE",
+     "🟡 WARNING",
+     "🟢 POSITIVE"
+    ]
+   },
+   {
+    "rawName": "💡 accent",
+    "name": "accent",
+    "type": "VARIANT",
+    "defaultValue": "LIGHT",
+    "variantOptions": [
+     "LIGHT",
+     "MEDIUM",
+     "STRING"
+    ]
+   },
+   {
+    "rawName": "📐 size",
+    "name": "size",
+    "type": "VARIANT",
+    "defaultValue": "MEDIUM",
+    "variantOptions": [
+     "MEDIUM",
+     "SMALL"
+    ]
+   }
+  ],
+  "variants": {
+   "axes": [
+    "🌈 color",
+    "💡 accent",
+    "📐 size"
+   ],
+   "count": 24,
+   "product": 24,
+   "combinations": [
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     2,
+     0
+    ],
+    [
+     0,
+     2,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     1,
+     1
+    ],
+    [
+     1,
+     2,
+     0
+    ],
+    [
+     1,
+     2,
+     1
+    ],
+    [
+     2,
+     0,
+     0
+    ],
+    [
+     2,
+     0,
+     1
+    ],
+    [
+     2,
+     1,
+     0
+    ],
+    [
+     2,
+     1,
+     1
+    ],
+    [
+     2,
+     2,
+     0
+    ],
+    [
+     2,
+     2,
+     1
+    ],
+    [
+     3,
+     0,
+     0
+    ],
+    [
+     3,
+     0,
+     1
+    ],
+    [
+     3,
+     1,
+     0
+    ],
+    [
+     3,
+     1,
+     1
+    ],
+    [
+     3,
+     2,
+     0
+    ],
+    [
+     3,
+     2,
+     1
+    ]
+   ]
+  },
+  "variantDocs": [],
+  "nested": [
+   {
+    "layer": "primaryButton",
+    "name": "Button",
+    "key": "synthetic-button-key",
+    "visibleProperty": "👁️ showPrimaryButton#55936:56",
+    "exposed": true,
+    "exposedProperties": [
+     {
+      "name": "💬 label#55483:95",
+      "type": "TEXT"
+     }
+    ],
+    "variants": 24
+   },
+   {
+    "layer": "secondaryButton",
+    "name": "Button",
+    "key": "synthetic-button-key",
+    "visibleProperty": "👁️ showSecondaryButton#55936:63",
+    "exposed": false,
+    "exposedProperties": [],
+    "variants": 24
+   },
+   {
+    "layer": "link",
+    "name": "Link",
+    "key": "synthetic-link-key",
+    "visibleProperty": "👁️ showLink#55936:70",
+    "exposed": false,
+    "exposedProperties": [],
+    "variants": 24
+   },
+   {
+    "layer": "closeButton",
+    "name": "IconButton",
+    "key": "synthetic-icon-button-key",
+    "visibleProperty": "👁️ showCloseable#55936:14",
+    "exposed": false,
+    "exposedProperties": [],
+    "variants": 24
+   }
+  ],
+  "slots": {
+   "✏️ infoIcon#56460:66": {
+    "visibleProperty": "👁️ showIcon#55936:7",
+    "table": [
+     {
+      "width": 20,
+      "height": 20,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     },
+     {
+      "width": 16,
+      "height": 16,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     }
+    ],
+    "byVariant": [
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ]
+   },
+   "✏️ errorIcon#56460:91": {
+    "visibleProperty": "👁️ showIcon#55936:7",
+    "table": [
+     {
+      "width": 20,
+      "height": 20,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     },
+     {
+      "width": 16,
+      "height": 16,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     }
+    ],
+    "byVariant": [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ]
+   },
+   "✏️ warningIcon#56485:0": {
+    "visibleProperty": "👁️ showIcon#55936:7",
+    "table": [
+     {
+      "width": 20,
+      "height": 20,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     },
+     {
+      "width": 16,
+      "height": 16,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     }
+    ],
+    "byVariant": [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1
+    ]
+   },
+   "✏️ positiveIcon#56485:25": {
+    "visibleProperty": "👁️ showIcon#55936:7",
+    "table": [
+     {
+      "width": 20,
+      "height": 20,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     },
+     {
+      "width": 16,
+      "height": 16,
+      "sizingH": "FIXED",
+      "sizingV": "FIXED"
+     }
+    ],
+    "byVariant": [
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     -1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1
+    ]
+   }
+  },
+  "tokens": {
+   "columns": [
+    "background",
+    "foreground",
+    "border",
+    "radius",
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+    "gap",
+    "text"
+   ],
+   "values": [
+    "var:background/info/light",
+    "var:text/info/strong",
+    "var:border/info",
+    "var:radius/md",
+    "var:space/md",
+    "var:space/sm",
+    "style:UI Text 14 Semi Bold",
+    "style:UI Text 12 Semi Bold",
+    "var:background/info/medium",
+    "var:background/info/string",
+    "var:background/negative/light",
+    "var:text/negative/strong",
+    "var:border/negative",
+    "var:background/negative/medium",
+    "var:background/negative/string",
+    "var:background/warning/light",
+    "var:text/warning/strong",
+    "var:border/warning",
+    "var:background/warning/medium",
+    "var:background/warning/string",
+    "var:background/positive/light",
+    "var:text/positive/strong",
+    "var:border/positive",
+    "var:background/positive/medium",
+    "var:background/positive/string"
+   ],
+   "rows": [
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     0,
+     1,
+     2,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     8,
+     1,
+     2,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     8,
+     1,
+     2,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     9,
+     1,
+     2,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     9,
+     1,
+     2,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     10,
+     11,
+     12,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     10,
+     11,
+     12,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     13,
+     11,
+     12,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     13,
+     11,
+     12,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     14,
+     11,
+     12,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     14,
+     11,
+     12,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     15,
+     16,
+     17,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     15,
+     16,
+     17,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     18,
+     16,
+     17,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     18,
+     16,
+     17,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     19,
+     16,
+     17,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     19,
+     16,
+     17,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     20,
+     21,
+     22,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     20,
+     21,
+     22,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     23,
+     21,
+     22,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     23,
+     21,
+     22,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ],
+    [
+     24,
+     21,
+     22,
+     3,
+     4,
+     4,
+     4,
+     4,
+     5,
+     6
+    ],
+    [
+     24,
+     21,
+     22,
+     3,
+     5,
+     5,
+     5,
+     5,
+     5,
+     7
+    ]
+   ]
+  }
+ }
+}
