@@ -8,7 +8,8 @@ import 'package:stratum_ui/src/src.dart';
 /// while the content scrolls. In children mode `style.padding` becomes a
 /// [SliverPadding], so it scrolls with the content; with [slivers], wrap
 /// them in a [SliverPadding] yourself, because grouping several slivers
-/// changes how pinned headers behave.
+/// changes how pinned headers behave. A [focusable] view is a Tab stop
+/// that scrolls by keyboard; see [ScrollFocus].
 class CustomScrollViewLayout extends StatelessWidget {
   const new({
     super.key,
@@ -21,6 +22,8 @@ class CustomScrollViewLayout extends StatelessWidget {
     this.shrinkWrap = false,
     this.physics,
     this.showScrollbar,
+    this.focusable,
+    this.semanticsLabel,
   }) : assert(
          (slivers == null) != (children == null),
          'Pass exactly one of slivers and children',
@@ -38,6 +41,13 @@ class CustomScrollViewLayout extends StatelessWidget {
   /// Null keeps the scroll behavior's choice: a scrollbar on desktop.
   final bool? showScrollbar;
 
+  /// Whether the view is a Tab stop that scrolls by keyboard; null means
+  /// on web and desktop ([defaultScrollFocusable]).
+  final bool? focusable;
+
+  /// Names the focusable view for a screen reader.
+  final String? semanticsLabel;
+
   @override
   Widget build(BuildContext context) {
     final style = this.style;
@@ -49,20 +59,34 @@ class CustomScrollViewLayout extends StatelessWidget {
     );
     Widget view = ScrollFrame(
       showScrollbar: showScrollbar,
-      child: CustomScrollView(
-        controller: controller,
-        scrollDirection: scrollDirection,
-        reverse: reverse,
-        shrinkWrap: shrinkWrap,
-        physics: physics,
-        semanticChildCount: slivers == null ? children!.length : null,
-        slivers: slivers ?? [_buildChildrenSliver(style?.padding)],
+      child: Builder(
+        builder: (context) => CustomScrollView(
+          controller: ScrollFocus.controllerOf(context),
+          scrollDirection: scrollDirection,
+          reverse: reverse,
+          shrinkWrap: shrinkWrap,
+          physics: physics,
+          semanticChildCount: slivers == null ? children!.length : null,
+          slivers: slivers ?? [_buildChildrenSliver(style?.padding)],
+        ),
       ),
     );
     if (style != null) {
       view = ContainerLayout(style: ScrollFrame.boxStyle(style), child: view);
     }
-    return view;
+    return ScrollFocus(
+      focusable:
+          focusable ??
+          defaultScrollFocusable(
+            isWeb: kIsWeb,
+            platform: defaultTargetPlatform,
+          ),
+      axis: scrollDirection,
+      controller: controller,
+      semanticsLabel: semanticsLabel,
+      borderRadius: style?.borderRadius,
+      child: view,
+    );
   }
 
   Widget _buildChildrenSliver(EdgeInsetsGeometry? padding) {

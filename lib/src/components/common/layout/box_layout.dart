@@ -123,16 +123,21 @@ abstract class BoxLayout extends StatelessWidget {
     final aspect = ratio;
     final duration = style?.animationStyle?.duration ?? Duration.zero;
     final scroll = this.scroll;
+    // Box layouts take no focusable parameter: a scrolling box is a Tab
+    // stop on web and desktop.
+    final focusable =
+        scroll != null &&
+        defaultScrollFocusable(isWeb: kIsWeb, platform: defaultTargetPlatform);
     Widget current = AnimatedStyledBox(
       style: style,
       ratio: aspect != null && aspect > 0 ? aspect : null,
       transform: transform,
       transformAlignment: transformAlignment,
       onEnd: duration > Duration.zero ? onEndAnimate : null,
-      boxBuilder: _boxBuilder,
+      boxBuilder: focusable ? _focusBuilder(scroll) : _boxBuilder,
       scrollBuilder: scroll == null
           ? null
-          : (content) => _buildScroll(scroll, content),
+          : (content) => _buildScroll(scroll, content, linked: focusable),
       child: buildContent(context),
     );
     final degrees = rotate;
@@ -161,6 +166,24 @@ abstract class BoxLayout extends StatelessWidget {
     }
     if (semantics != null) return _buildSemantics;
     return null;
+  }
+
+  /// [_boxBuilder] inside a [ScrollFocus], which sits outside the clip so
+  /// its ring stays visible. With a tap surface, the surface's node takes
+  /// focus and [ScrollFocus] creates none.
+  StyledBoxBuilder _focusBuilder(StratumScroll scroll) {
+    final inner = _boxBuilder;
+    final interaction = this.interaction;
+    final hasSurface = interaction != null && _needsTapSurface(interaction);
+    return (style, box) => ScrollFocus(
+      focusable: true,
+      axis: scroll.direction ?? scrollDirection,
+      controller: scroll.controller,
+      primary: scroll.primary,
+      borderRadius: style.borderRadius,
+      ownsFocus: !hasSurface,
+      child: inner == null ? box : inner(style, box),
+    );
   }
 
   static bool _needsTapSurface(StratumInteraction interaction) =>
@@ -210,13 +233,19 @@ abstract class BoxLayout extends StatelessWidget {
   }
 
   /// Scrolls [content] (the padding and the layout's content) inside the
-  /// box, as [scroll] says.
-  Widget _buildScroll(StratumScroll scroll, Widget content) {
+  /// box, as [scroll] says. A [linked] scroll view takes its controller
+  /// from the [ScrollFocus] that [_focusBuilder] builds.
+  Widget _buildScroll(
+    StratumScroll scroll,
+    Widget content, {
+    required bool linked,
+  }) {
     return ScrollFrame(
       showScrollbar: scroll.showScrollbar,
       child: _BoxScrollView(
         scroll: scroll,
         axis: scroll.direction ?? scrollDirection,
+        linked: linked,
         child: content,
       ),
     );
@@ -229,17 +258,27 @@ abstract class BoxLayout extends StatelessWidget {
 /// viewport stretches to it through a [LayoutBuilder]; in a parent that is
 /// unbounded along [axis] the content keeps its own size (D17).
 class _BoxScrollView extends StatelessWidget {
-  const new({required this.scroll, required this.axis, required this.child});
+  const new({
+    required this.scroll,
+    required this.axis,
+    required this.linked,
+    required this.child,
+  });
 
   final StratumScroll scroll;
   final Axis axis;
+
+  /// Whether a [ScrollFocus] above hands over the controller.
+  final bool linked;
   final Widget child;
 
-  Widget _view(Widget content) {
+  Widget _view(BuildContext context, Widget content) {
     return SingleChildScrollView(
       scrollDirection: axis,
       reverse: scroll.reverse,
-      controller: scroll.controller,
+      controller: linked
+          ? ScrollFocus.controllerOf(context)
+          : scroll.controller,
       primary: scroll.primary,
       physics: scroll.physics,
       keyboardDismissBehavior: scroll.keyboardDismissBehavior,
@@ -250,7 +289,7 @@ class _BoxScrollView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!scroll.fillViewport) return _view(child);
+    if (!scroll.fillViewport) return _view(context, child);
     return LayoutBuilder(
       builder: (context, constraints) {
         final extent = axis == Axis.vertical
@@ -258,6 +297,7 @@ class _BoxScrollView extends StatelessWidget {
             : constraints.maxWidth;
         final min = extent.isFinite ? extent : 0.0;
         return _view(
+          context,
           ConstrainedBox(
             constraints: axis == Axis.vertical
                 ? BoxConstraints(minHeight: min)
