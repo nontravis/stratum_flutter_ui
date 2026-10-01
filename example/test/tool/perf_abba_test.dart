@@ -8,13 +8,15 @@ TraceMetrics _metrics({
   double average = 0.25,
   double p99Build = 0.5,
   double p99Raster = 3.5,
-  double interval = 6.94,
+  double period = 6.94,
+  int frames = 288,
 }) {
   return (
     average: average,
     p99Build: p99Build,
     p99Raster: p99Raster,
-    interval: interval,
+    period: period,
+    frames: frames,
   );
 }
 
@@ -24,36 +26,57 @@ Trace _trace(
   String side,
   int pair, {
   double average = 0.25,
-  double interval = 6.94,
+  double period = 6.94,
+  int frames = 288,
 }) {
   return (
     run: run,
     scene: scene,
     side: side,
     pair: pair,
-    metrics: _metrics(average: average, interval: interval),
+    metrics: _metrics(average: average, period: period, frames: frames),
   );
 }
 
-/// Pairs of [scene] over [changes], one pair per entry, in runs r1g1 on.
-List<Trace> _pairs(String scene, List<double> changes) {
+/// The four traces of one block of [scene] in run folder [run]; each side
+/// has the same average in both of its slots.
+List<Trace> _block(
+  String run,
+  String scene, {
+  double base = 0.2,
+  double cand = 0.2,
+}) {
   return [
-    for (var i = 0; i < changes.length; i++) ...[
-      _trace('r${i + 1}g1', scene, 'base', 1, average: 0.2),
-      _trace(
-        'r${i + 1}g1',
-        scene,
-        'cand',
-        1,
-        average: 0.2 * (1 + changes[i] / 100),
-      ),
-    ],
+    _trace(run, scene, 'base', 1, average: base),
+    _trace(run, scene, 'cand', 1, average: cand),
+    _trace(run, scene, 'cand', 2, average: cand),
+    _trace(run, scene, 'base', 2, average: base),
   ];
 }
 
-/// The paired changes of the phase 3 S4 RCA (12 pairs, median −10.1%).
+/// Blocks of [scene] over [changes], one block per entry, in run folders
+/// r1g1 on.
+List<Trace> _blocks(String scene, List<double> changes) {
+  return [
+    for (var i = 0; i < changes.length; i++)
+      ..._block('r${i + 1}g1', scene, cand: 0.2 * (1 + changes[i] / 100)),
+  ];
+}
+
+/// The block changes of the phase 3 S4 RCA (12 values, median −10.1%).
 const _rcaS4 = [
-  -46.1, -4.9, -6.5, -10.4, 7.3, 0.0, -48.2, -20.7, -14.2, -9.8, -21.6, -9.0,
+  -46.1,
+  -4.9,
+  -6.5,
+  -10.4,
+  7.3,
+  0.0,
+  -48.2,
+  -20.7,
+  -14.2,
+  -9.8,
+  -21.6,
+  -9.0,
 ];
 
 void main() {
@@ -64,6 +87,7 @@ void main() {
       expect(ciRank(12), 3);
       expect(ciRank(24), 7);
       expect(ciRank(36), 12);
+      expect(ciRank(72), 28);
     });
   });
 
@@ -78,17 +102,36 @@ void main() {
   });
 
   group('metricsOf', () {
-    test('reads the three metrics and the median frame interval', () {
+    test(
+      'reads the three metrics, the frame count, and the display period',
+      () {
+        final metrics = metricsOf({
+          'average_frame_build_time_millis': 0.31,
+          '99th_percentile_frame_build_time_millis': 1.02,
+          '99th_percentile_frame_rasterizer_time_millis': 3.4,
+          'frame_begin_times': [for (var i = 0; i < 10; i++) i * 6940, 100000],
+        });
+        expect(metrics.average, 0.31);
+        expect(metrics.p99Build, 1.02);
+        expect(metrics.p99Raster, 3.4);
+        expect(metrics.frames, 11);
+        expect(metrics.period, closeTo(6.94, 1e-9));
+      },
+    );
+
+    test('takes the 10th-percentile gap, which skipped frames do not move', () {
+      // Nine of ten gaps skip a frame: the median gap would read 13.88 ms.
       final metrics = metricsOf({
         'average_frame_build_time_millis': 0.31,
         '99th_percentile_frame_build_time_millis': 1.02,
         '99th_percentile_frame_rasterizer_time_millis': 3.4,
-        'frame_begin_times': [0, 6940, 13880, 20820, 40000],
+        'frame_begin_times': [
+          0,
+          6940,
+          for (var i = 1; i <= 9; i++) 6940 + i * 13880,
+        ],
       });
-      expect(metrics.average, 0.31);
-      expect(metrics.p99Build, 1.02);
-      expect(metrics.p99Raster, 3.4);
-      expect(metrics.interval, closeTo(6.94, 1e-9));
+      expect(metrics.period, closeTo(6.94, 1e-9));
     });
   });
 
@@ -115,115 +158,148 @@ void main() {
     });
   });
 
-  group('pairTraces', () {
-    test('pairs base and cand by run, scene, and pair number', () {
-      final pairs = pairTraces([
-        _trace('r1g1', 'S1', 'base', 1, average: 0.20),
-        _trace('r1g1', 'S1', 'cand', 1, average: 0.22),
-        _trace('r1g1', 'S1', 'cand', 2, average: 0.30),
-        _trace('r1g1', 'S1', 'base', 2, average: 0.25),
-        _trace('r2g1', 'S1', 'base', 1, average: 0.40),
-        _trace('r2g1', 'S1', 'cand', 1, average: 0.38),
+  group('blockTraces', () {
+    test('makes one block per run folder and scene', () {
+      final blocks = blockTraces([
+        ..._block('r1g1', 'S1', base: 0.2, cand: 0.3),
+        ..._block('r1g2', 'S2-plain'),
+        ..._block('r2g1', 'S1', base: 0.4, cand: 0.4),
+        ..._block('r1g1', 'S2'),
       ]);
-      expect(
-        [for (final pair in pairs['S1']!) (pair.base.average, pair.cand.average)],
-        unorderedEquals([(0.20, 0.22), (0.25, 0.30), (0.40, 0.38)]),
-      );
+      expect(blocks.keys, unorderedEquals(['S1', 'S2', 'S2-plain']));
+      expect([
+        for (final block in blocks['S1']!) block.cand1.average,
+      ], unorderedEquals([0.3, 0.4]));
     });
 
-    test('leaves a trace without its partner out', () {
-      final pairs = pairTraces([
-        _trace('r1g1', 'S1', 'base', 1),
-        _trace('r1g1', 'S1', 'cand', 1),
-        _trace('r1g1', 'S1', 'cand', 2),
+    test('leaves out a block that misses any of its four traces', () {
+      final blocks = blockTraces([
+        ..._block('r1g1', 'S1'),
+        ..._block('r2g1', 'S1').take(3),
       ]);
-      expect(pairs['S1'], hasLength(1));
+      expect(blocks['S1'], hasLength(1));
+    });
+  });
+
+  group('blockChange', () {
+    test('compares the sums of the two slots of each side', () {
+      final change = blockChange((
+        base1: _metrics(average: 0.2),
+        cand1: _metrics(average: 0.25),
+        cand2: _metrics(average: 0.3),
+        base2: _metrics(average: 0.3),
+      ));
+      expect(change, closeTo(10, 1e-9));
+    });
+  });
+
+  group('lostFrames', () {
+    test('needs 90% of the frames the window holds at its period', () {
+      // 2000 ms at 6.94 ms holds 288 frames; 90% is 259.4.
+      expect(lostFrames(_metrics(frames: 259)), isTrue);
+      expect(lostFrames(_metrics(frames: 260)), isFalse);
+      expect(lostFrames(_metrics(period: 16.67, frames: 110)), isFalse);
     });
   });
 
   group('invalidRuns', () {
-    test('marks a run invalid when one trace\'s interval drifts', () {
+    test("marks a run invalid when one trace's display period drifts", () {
       expect(
         invalidRuns([
-          _trace('r1g1', 'S1', 'base', 1),
-          _trace('r1g1', 'S1', 'cand', 1),
+          ..._block('r1g1', 'S1'),
           _trace('r1g1', 'S2', 'base', 1),
-          _trace('r1g1', 'S2', 'cand', 1, interval: 16.67),
-          _trace('r2g1', 'S1', 'base', 1),
-          _trace('r2g1', 'S1', 'cand', 1, interval: 7.3),
-        ]),
-        {'r1'},
+          _trace('r1g1', 'S2', 'cand', 1, period: 16.67),
+          ..._block('r2g1', 'S1'),
+        ]).keys,
+        ['r1'],
       );
     });
-  });
 
-  group('invalidRuns across invocations', () {
     test('marks a run invalid when one whole invocation ran on another '
         'display', () {
       expect(
         invalidRuns([
-          _trace('r1g1', 'S1', 'base', 1),
-          _trace('r1g1', 'S1', 'cand', 1),
-          _trace('r1g2', 'S3', 'base', 1),
-          _trace('r1g2', 'S3', 'cand', 1),
-          _trace('r1g3', 'S4', 'base', 1, interval: 16.67),
-          _trace('r1g3', 'S4', 'cand', 1, interval: 16.67),
-          _trace('r2g1', 'S1', 'base', 1),
-          _trace('r2g1', 'S1', 'cand', 1),
+          ..._block('r1g1', 'S1'),
+          ..._block('r1g2', 'S3'),
+          _trace('r1g3', 'S4', 'base', 1, period: 16.67),
+          _trace('r1g3', 'S4', 'cand', 1, period: 16.67),
+          ..._block('r2g1', 'S1'),
         ]),
-        {'r1'},
+        {'r1': 'display period'},
       );
     });
 
     test('marks a run invalid when all of it ran on another display', () {
       expect(
         invalidRuns([
-          for (final run in ['r1g1', 'r2g1', 'r3g1']) ...[
-            _trace(run, 'S1', 'base', 1),
-            _trace(run, 'S1', 'cand', 1),
-          ],
-          _trace('r4g1', 'S1', 'base', 1, interval: 16.67),
-          _trace('r4g1', 'S1', 'cand', 1, interval: 16.67),
+          ..._block('r1g1', 'S1'),
+          ..._block('r2g1', 'S1'),
+          ..._block('r3g1', 'S1'),
+          _trace('r4g1', 'S1', 'base', 1, period: 16.67),
+          _trace('r4g1', 'S1', 'cand', 1, period: 16.67),
+        ]).keys,
+        ['r4'],
+      );
+    });
+
+    test('marks a run invalid on lost frames and names the side', () {
+      expect(
+        invalidRuns([
+          ..._block('r1g1', 'S1'),
+          _trace('r2g1', 'S4', 'base', 1),
+          _trace('r2g1', 'S4', 'cand', 1, frames: 120),
+          _trace('r3g1', 'S4', 'base', 1, frames: 19),
+          _trace('r3g1', 'S4', 'cand', 1, frames: 130),
         ]),
-        {'r4'},
+        {
+          'r2': 'lost frames on current',
+          'r3': 'lost frames on baseline and current',
+        },
       );
     });
   });
 
-  group('averageChange', () {
-    test('is the percent change from base to cand', () {
-      expect(
-        averageChange((base: _metrics(average: 0.2), cand: _metrics(average: 0.21))),
-        closeTo(5, 1e-9),
-      );
+  group('runInvalid', () {
+    test('is true once a trace of the run lost frames', () {
+      final traces = [
+        ..._block('r6g1', 'S1'),
+        _trace('r7g1', 'S1', 'base', 1),
+        _trace('r7g1', 'S1', 'cand', 1, frames: 40),
+      ];
+      expect(runInvalid(traces, 7), isTrue);
+      expect(runInvalid(traces, 6), isFalse);
     });
   });
 
   group('withinBudget', () {
-    TracePair pair(double base, double cand) => (
-      base: _metrics(p99Build: base, p99Raster: 3),
-      cand: _metrics(p99Build: cand, p99Raster: 3),
+    Block block(double base, double cand) => (
+      base1: _metrics(p99Build: base, p99Raster: 3),
+      cand1: _metrics(p99Build: cand, p99Raster: 3),
+      cand2: _metrics(p99Build: cand, p99Raster: 3),
+      base2: _metrics(p99Build: base, p99Raster: 3),
     );
 
     test('passes below 8.3 ms', () {
-      expect(withinBudget([pair(1, 7.9)]), isTrue);
+      expect(withinBudget([block(1, 7.9)]), isTrue);
     });
 
     test('fails at or above 8.3 ms when the baseline was below', () {
-      expect(withinBudget([pair(7, 8.3)]), isFalse);
+      expect(withinBudget([block(7, 8.3)]), isFalse);
     });
 
     test('accepts no worse than a baseline already over budget', () {
-      expect(withinBudget([pair(9, 8.9)]), isTrue);
-      expect(withinBudget([pair(9, 9.5)]), isFalse);
+      expect(withinBudget([block(9, 8.9)]), isTrue);
+      expect(withinBudget([block(9, 9.5)]), isFalse);
     });
 
     test('checks p99 raster too', () {
       expect(
         withinBudget([
           (
-            base: _metrics(p99Raster: 3),
-            cand: _metrics(p99Raster: 8.4),
+            base1: _metrics(p99Raster: 3),
+            cand1: _metrics(p99Raster: 8.4),
+            cand2: _metrics(p99Raster: 8.4),
+            base2: _metrics(p99Raster: 3),
           ),
         ]),
         isFalse,
@@ -259,8 +335,7 @@ void main() {
       );
     });
 
-    test('is inconclusive when the interval straddles +5% or is missing',
-        () {
+    test('is inconclusive when the interval straddles +5% or is missing', () {
       expect(
         sceneVerdict(ci: (lower: 5, upper: 9), p99WithinBudget: true),
         Verdict.inconclusive,
@@ -280,10 +355,7 @@ void main() {
         sceneVerdict(ci: (lower: -20, upper: -5), p99WithinBudget: false),
         Verdict.fail,
       );
-      expect(
-        sceneVerdict(ci: null, p99WithinBudget: false),
-        Verdict.fail,
-      );
+      expect(sceneVerdict(ci: null, p99WithinBudget: false), Verdict.fail);
     });
   });
 
@@ -327,19 +399,26 @@ void main() {
         loadOf('18:27  up 9 days, 5 users, load averages: 16.19 13.38 13.78'),
         16.19,
       );
-      expect(loadOf(' 10:00:00 up 1 day,  load average: 0.52, 0.40, 0.31'),
-          0.52);
+      expect(
+        loadOf(' 10:00:00 up 1 day,  load average: 0.52, 0.40, 0.31'),
+        0.52,
+      );
       expect(loadOf('no load here'), isNull);
     });
   });
 
   group('judge', () {
     test('passes S4 on the RCA data behind a quiet null control', () {
-      final result = judge([
-        ..._pairs('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
-        ..._pairs('S4', _rcaS4),
-      ], loads: [9.1, 16.4], scenes: const ['S2-plain', 'S4']);
+      final result = judge(
+        [
+          ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
+          ..._blocks('S4', _rcaS4),
+        ],
+        loads: [9.1, 16.4],
+        scenes: const ['S2-plain', 'S4'],
+      );
       expect(result.verdict, Verdict.pass);
+      expect(result.text, contains('| scene | blocks |'));
       expect(result.text, contains('| S4 | 12 |'));
       expect(result.text, contains('[-21.6, -4.9]'));
       expect(result.text, contains('| S2-plain (null) | 6 |'));
@@ -348,48 +427,97 @@ void main() {
     });
 
     test('is INVALID when the null interval misses 0', () {
-      final result = judge([
-        ..._pairs('S2-plain', [3, 2, 1, 4, 5, 2]),
-        ..._pairs('S4', _rcaS4),
-      ], loads: const [], scenes: const ['S2-plain', 'S4']);
+      final result = judge(
+        [
+          ..._blocks('S2-plain', [3, 2, 1, 4, 5, 2]),
+          ..._blocks('S4', _rcaS4),
+        ],
+        loads: const [],
+        scenes: const ['S2-plain', 'S4'],
+      );
       expect(result.verdict, Verdict.invalid);
       expect(result.text, contains('overall: INVALID'));
     });
 
-    test('leaves an invalid run out and lists it', () {
-      final result = judge([
-        ..._pairs('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
-        ..._pairs('S4', _rcaS4),
-        _trace('r99g1', 'S4', 'base', 1),
-        _trace('r99g1', 'S4', 'cand', 1, interval: 16.67),
-        _trace('r99g1', 'S4', 'base', 2),
-        _trace('r99g1', 'S4', 'cand', 2),
-      ], loads: const [], scenes: const ['S2-plain', 'S4']);
+    test('leaves an invalid run out and lists it with its reason', () {
+      final result = judge(
+        [
+          ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
+          ..._blocks('S4', _rcaS4),
+          _trace('r99g1', 'S4', 'base', 1),
+          _trace('r99g1', 'S4', 'cand', 1, frames: 30),
+          _trace('r99g1', 'S4', 'cand', 2),
+          _trace('r99g1', 'S4', 'base', 2),
+        ],
+        loads: const [],
+        scenes: const ['S2-plain', 'S4'],
+      );
       expect(result.text, contains('| S4 | 12 |'));
-      expect(result.text, contains('invalid runs: r99'));
+      expect(
+        result.text,
+        contains('invalid runs: r99 (lost frames on current)'),
+      );
     });
 
-    test('keeps an expected scene without pairs as INCONCLUSIVE', () {
-      final result = judge([
-        ..._pairs('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
-        ..._pairs('S4', _rcaS4),
-      ], loads: const [], scenes: const ['S2-plain', 'S4', 'S5']);
+    test('keeps an expected scene without blocks as INCONCLUSIVE', () {
+      final result = judge(
+        [
+          ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
+          ..._blocks('S4', _rcaS4),
+        ],
+        loads: const [],
+        scenes: const ['S2-plain', 'S4', 'S5'],
+      );
       expect(
         result.text,
         contains('| S5 | 0 | - | - | - | - | - | INCONCLUSIVE |'),
       );
       expect(result.verdict, Verdict.inconclusive);
     });
+
+    test('lists run folders that recorded another code state', () {
+      final result = judge(
+        [
+          ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
+          ..._blocks('S4', _rcaS4),
+        ],
+        loads: const [],
+        scenes: const ['S2-plain', 'S4'],
+        codeStates: const {
+          'r1g1': 'abc 111',
+          'r2g1': 'abc 111',
+          'r3g1': 'def 222',
+        },
+      );
+      expect(
+        result.text,
+        contains('code states differ: abc 111 in r1g1, r2g1; def 222 in r3g1'),
+      );
+    });
+  });
+
+  group('codeStateError', () {
+    test('accepts runs on the stored code state', () {
+      expect(codeStateError(const {}, 'abc 111'), isNull);
+      expect(codeStateError(const {'r1g1': 'abc 111'}, 'abc 111'), isNull);
+    });
+
+    test('refuses runs on another code state', () {
+      expect(
+        codeStateError(const {'r1g1': 'abc 111', 'r1g2': 'abc 222'}, 'abc 111'),
+        contains('r1g2'),
+      );
+    });
   });
 
   group('runRangeError', () {
-    test('accepts runs within the cap of 24 pairs', () {
-      expect(runRangeError(from: 1, runs: 6), isNull);
-      expect(runRangeError(from: 7, runs: 6), isNull);
+    test('accepts runs within the cap of 24 runs', () {
+      expect(runRangeError(from: 1, runs: 12), isNull);
+      expect(runRangeError(from: 13, runs: 12), isNull);
     });
 
     test('refuses runs beyond the cap or outside 1', () {
-      expect(runRangeError(from: 7, runs: 7), contains('1 to 12'));
+      expect(runRangeError(from: 13, runs: 13), contains('1 to 24'));
       expect(runRangeError(from: 0, runs: 1), isNotNull);
       expect(runRangeError(from: 1, runs: 0), isNotNull);
     });
@@ -403,10 +531,7 @@ void main() {
 
     test('refuses run folders that exist', () {
       Directory('${root.path}/r2g3').createSync();
-      expect(
-        clashingRuns(root, from: 1, runs: 6),
-        ['${root.path}/r2g3'],
-      );
+      expect(clashingRuns(root, from: 1, runs: 6), ['${root.path}/r2g3']);
       expect(clashingRuns(root, from: 3, runs: 4), isEmpty);
     });
   });
@@ -428,19 +553,6 @@ void main() {
       expect(args, contains('--endless-trace-buffer'));
       expect(args, contains('--driver=test_driver/perf_driver.dart'));
       expect(args, contains('--target=integration_test/layout_perf_test.dart'));
-    });
-  });
-
-  group('runLostFrames', () {
-    test('is true once a trace of the run drifts off the frame interval', () {
-      final traces = [
-        _trace('r6g1', 'S1', 'base', 1),
-        _trace('r6g1', 'S1', 'cand', 1),
-        _trace('r7g1', 'S1', 'base', 1),
-        _trace('r7g1', 'S1', 'cand', 1, interval: 55.5),
-      ];
-      expect(runLostFrames(traces, 7), isTrue);
-      expect(runLostFrames(traces, 6), isFalse);
     });
   });
 }

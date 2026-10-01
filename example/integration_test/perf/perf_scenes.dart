@@ -181,11 +181,15 @@ final perfScenes = <PerfScene>[
     'S2-plain',
     build: (_) => _list(_plainRow),
     drive: _scroll(),
-    check: (tester, kit) async {
+    check: (tester, _) async {
       // Equal row heights give equal list extents, so S2-plain scrolls the
-      // same rows as S2-box.
+      // same rows as S2-box. The current kit draws S2-box on both sides, so
+      // the null control's two sides do identical work before every trace
+      // (spec section 9.4).
       final plainExtent = _position(tester).maxScrollExtent;
-      await tester.pumpWidget(perfHost(_list((index) => _boxRow(kit, index))));
+      await tester.pumpWidget(
+        perfHost(_list((index) => _boxRow(const CurrentKit(), index))),
+      );
       final boxExtent = _position(tester).maxScrollExtent;
       await tester.pumpWidget(perfHost(_list(_plainRow)));
       expect(plainExtent, closeTo(boxExtent, 0.5));

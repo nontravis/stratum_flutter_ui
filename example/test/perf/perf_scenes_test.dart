@@ -59,5 +59,16 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byType(AnimatedStyledBox), findsNothing);
     });
+
+    testWidgets("S2-plain's check draws S2-box with the current kit on both "
+        'sides', (tester) async {
+      final scene = perfScene('S2-plain');
+      await tester.pumpWidget(perfHost(scene.build(const _RefusingKit())));
+
+      await scene.check!(tester, const _RefusingKit());
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(AnimatedStyledBox), findsNothing);
+    });
   });
 }
