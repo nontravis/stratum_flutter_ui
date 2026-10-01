@@ -1,7 +1,7 @@
 # Layout primitives design
 
 - **Date:** 2026-10-01
-- **Status:** Approved by the owner on 2026-10-01; revised the same day after the quality review (section 13); phase 3 done, phase 4 next.
+- **Status:** Approved by the owner on 2026-10-01; revised the same day after the quality review (section 13); phase 3 done; section 9 amended to in-process ABBA comparison on 2026-10-01; phase 4 next.
 - **Location:** `lib/src/components/common/layout/` (all files), new `lib/src/components/common/model/interaction.dart`, and changes in `lib/src/components/common/ink_well.dart`, `lib/src/components/common/style/animated_styled_box.dart`, `lib/src/themes/behavior/`, and `lib/src/themes/theme_application.dart`.
 
 ## 1. Goal
@@ -36,7 +36,7 @@ Success criteria:
 | Shortcut shape | `Map<ShortcutActivator, VoidCallback>`, focus-scoped only | Owner chose the callback map. Components that need menu labels can wrap Flutter's `Shortcuts` and `Actions` themselves. |
 | Scroll focus default | `focusable: null` resolves to `kIsWeb \|\| {macOS, windows, linux}.contains(defaultTargetPlatform)` | Firefox model: every scroller is a Tab stop. The Chrome model (focusable only when no child is) needs a descendant scan on every list change. |
 | Spec shape | One spec with four phases, one plan per phase | Owner ruling 2026-10-01; the phases share every decision above. |
-| Performance proof | Benchmark baseline on the current layouts before the refactor, judged on macOS in profile mode | Owner rulings 2026-10-01. |
+| Performance proof | Benchmark baseline on the current layouts before the refactor, judged on macOS in profile mode by in-process ABBA pairs against frozen copies of the baseline classes (section 9) | Owner rulings 2026-10-01. Separate `flutter drive` runs per side could not resolve a 5% change on the shared machine. |
 
 ## 3. Current defects
 
@@ -346,28 +346,84 @@ Widget tests with `flutter_test`; no golden images. "(pin)" marks a case that gu
 | 4 | `scroll_frame_test.dart` | `defaultScrollFocusable` for web, desktop, and mobile inputs; under `TargetPlatformVariant.desktop()` the viewport takes focus, carries `semanticsLabel`, and shows a ring that a rounded box does not clip; arrows, Page Down, Home, and End scroll; End reaches the true end of a lazy list; with a button item focused, Page Down still scrolls; Home and End inside a `TextField` item leave the list where it is; a list with `primary: null` on iOS uses `PrimaryScrollController` |
 | 4 | `a11y_guidelines_test.dart` | `meetsGuideline(labeledTapTargetGuideline)` and `meetsGuideline(androidTapTargetGuideline)` on a tappable row; (pin) a tappable row with `minHeight: 48` and two lines of text grows at `TextScaler.linear(2)` without overflow |
 
+The benchmark tools (section 9) have unit tests in `example/test/tool/`: `perf_freeze_test.dart` (a public name is renamed in every copied file, private names and imports stay, the header names the commit) and `perf_abba_test.dart` (pairing by run, group, scene, and pair; the rank k for 6, 12, 24, and 36 pairs and no interval below 6; each verdict, the budget override, and the overall order INVALID, FAIL, INCONCLUSIVE, PASS; the interval check; the cap). Run them with `flutter test --no-pub test/tool/` from `example/`.
+
 Run with `flutter test --no-pub test/src/components/common/ test/src/themes/`. Layout test paths are under `test/src/components/common/`.
 
 ## 9. Benchmark
 
-Phase 2 builds the harness that the container-layout spec (2026-09-30, section 10) describes, renamed from `container_layout_perf_test.dart` to `layout_perf_test.dart` because it now covers the whole family: `example/integration_test/layout_perf_test.dart` runs each scene inside `binding.traceAction` and reports a `TimelineSummary` through `example/test_driver/perf_driver.dart`, run with `flutter drive --profile`.
+Phase 2 builds the harness that the container-layout spec (2026-09-30, section 10) describes, renamed from `container_layout_perf_test.dart` to `layout_perf_test.dart` because it covers the whole family. The baseline and the current code run in one profile app and are compared by interleaved pairs (ABBA). The owner measures under normal multitasking, and on the shared machine the S2-plain null control moved by about ±50% per run when each side ran as its own `flutter drive` process, so a 5% rule cannot be judged across processes. In one process, 12 ABBA pairs of the phase 3 S4 box against a verbatim copy of the old box resolved a median of −10.1%. The project memory entry holds both measurements.
+
+### 9.1 Scenes
 
 | Scene | Content | Decides |
 |---|---|---|
 | S1 | List of 1000 rows: a row of two columns with text, no style, scrolled down and back at a constant 4000 px/s | Bare-tier gain for column and row |
+| S1-fast | S1 at 16000 px/s, so more than one row builds per frame at 144 Hz | Bare-tier gain when rows build on every frame |
 | S2 | S1 with fill, radius, drop shadow, and inner shadow on each row; replaces the container-layout spec's 500-item scene | Decoration cost in a list |
-| S2-plain | S2 drawn with `ConstrainedBox`, `DecoratedBox(StyleDecoration)`, and `ClipRRect` directly, without `AnimatedStyledBox` | The 10% lazy-controller threshold, compared with S2 (phase 3 only) |
+| S2-box | S2's styled row around plain Flutter `Column`s, so the row's `AnimatedStyledBox` is the only one in each row | Cost of the row box alone |
+| S2-plain | S2-box drawn with `Padding`, `ConstrainedBox`, `DecoratedBox(StyleDecoration)`, and `ClipRRect` directly, without `AnimatedStyledBox` and without the kit | Null control: both sides run the same code, so its confidence interval must contain 0. In phase 3 it also decided the lazy controller (section 2). |
 | S3 | S2 with an interaction (`onTap`) and a 100 ms animated style | Cost of the tap surface |
 | S4 | 50 boxes animating their style in a loop | Animation (from the container-layout spec) |
 | S5 | 20 glass cards in one `BackdropGroup` scrolling over an image | Blur (from the container-layout spec) |
 
-- Each scene has one builder function, so moving from the old API (`GestureRowLayout`) to the new one (`RowLayout(interaction:)`) changes only that function.
+### 9.2 Files
+
+| Path under `example/` | Role |
+|---|---|
+| `integration_test/layout_perf_test.dart` | Entry point: builds the run order for one scene group and traces each step |
+| `integration_test/perf/perf_host.dart` | The fake theme and `perfHost` |
+| `integration_test/perf/perf_scene.dart` | `PerfScene` (`key`, `build(kit)`, `drive`, optional `check`) and the run-order function |
+| `integration_test/perf/perf_scenes.dart` | The scene catalog: one `PerfScene` per row of the 9.1 table; a new scene is one new entry |
+| `integration_test/perf/perf_kit.dart` | `PerfKit` with `row`, `column`, and `container`. `CurrentKit` builds the current API; `BaselineKit` builds the frozen baseline classes. |
+| `integration_test/widgets/` | Scene widgets: `AnimatingBoxes` (S4), `GlassCards` and its stripe painter (S5) |
+| `integration_test/baseline/` | Frozen baseline classes written by `perf_freeze`; committed |
+| `test_driver/perf_driver.dart` | Writes one summary and one timeline per report key and runs the coverage guard |
+| `tool/perf_freeze.dart` | Freezes the baseline classes (9.3) |
+| `tool/perf_abba.dart` | Runs the invocations, then pairs, judges, and reports (9.4, 9.5) |
+
+Scenes reach layouts only through the kit, except S2-plain. Moving to a new API changes the two kits and leaves the scenes as they are.
+
+### 9.3 Baseline freeze
+
+- `dart run tool/perf_freeze.dart <commit> <path>...` reads each path with `git show <commit>:<path>`. It prefixes `Baseline` to every public top-level name that the copied files declare (class, mixin, enum, extension, typedef), applies each rename in all copied files, adds a header that names the commit and the source path, and replaces the content of `integration_test/baseline/`.
+- A frozen file is verbatim except for that header and the renames. It keeps importing `package:stratum_ui/src/src.dart`, so types the phase leaves unchanged, such as `WidgetStyle`, `StyleDecoration`, and `StratumInkWell`, are shared by both sides.
+- The copy set is every file the phase changes that a scene reaches. `flutter analyze` must report 0 errors in `integration_test/baseline/`. An error there means the copy set misses a file: a baseline class refers to a name that the phase removed.
+- Phase 3 freezes five files of fd59ffa under `lib/src/components/common/`: `style/animated_styled_box.dart`, `layout/container_layout.dart`, `layout/column_layout.dart`, `layout/row_layout.dart`, and `layout/gesture_row_layout.dart`. Each later phase freezes the commit it starts from and updates `BaselineKit`.
+
+### 9.4 Run protocol
+
 - Device: macOS desktop in profile mode decides the pass. A physical iOS or Android device adds data when the owner runs it. Profile mode is disabled on emulators and simulators.
-- Each scene traces two seconds of constant-speed scrolling (S5 scrolls a fixed 2000 px; S4 animates continuously) with semantics off, records only the `Dart`, `Embedder`, and `GC` timeline streams, and runs under `flutter drive --profile --endless-trace-buffer`. The driver fails any run whose summary covers less than the two-second window minus two frames, and the median tool reports frame count and frame interval; a different interval (another display or refresh rate) makes a comparison invalid. Semantics stay off through phase 4, so the metric measures layout work, not accessibility changes.
-- Each scene runs three times; the median counts. Measured numbers go to the project memory entry, not into this spec.
-- Metrics: `average_frame_build_time_millis`, `99th_percentile_frame_build_time_millis`, and `99th_percentile_frame_rasterizer_time_millis` from `TimelineSummary`.
-- Pass after phases 3 and 4, per scene: p99 build and p99 raster below 8.3 ms, or no worse than the baseline when the baseline already exceeds 8.3 ms; and average build time no more than 5% above the baseline.
-- Compare by interleaved runs, not against stored medians: the machine is shared, so run-to-run spread exceeds 5%. In the same session, build the baseline commit in a separate worktree and alternate baseline and candidate runs (five or more each); judge on the median of the paired differences. The stored baseline in the project memory entry is a sanity reference only.
+- Trace: two seconds of constant-speed scrolling (S5 scrolls a fixed 2000 px; S4 animates continuously) with semantics off, recording only the `Dart`, `Embedder`, and `GC` timeline streams, under `--endless-trace-buffer`. The driver fails any trace whose summary covers less than the two-second window minus two frames. Semantics stay off through phase 4, so the metric measures layout work, not accessibility changes.
+- Invocation: one `flutter drive --profile --endless-trace-buffer -d macos --driver=test_driver/perf_driver.dart --target=integration_test/layout_perf_test.dart --dart-define=PERF_GROUP=<group>`, with `PERF_RUN=<run>` and `PERF_GROUP=<group>` in the driver's environment. One invocation holds at most 16 traces, because the binding sends every trace's timeline to the driver in one message after the last test (section 12).
+- Groups: g1 is S2-plain, S1, S1-fast, and S2; g2 is S2-plain, S2-box, and S3; g3 is S2-plain, S4, and S5. Every group carries the null control, so each invocation measures its own noise. A run is one invocation per group.
+- Order within an invocation: first a warm-up pass that builds and drives each scene of the group once per side without tracing, then one block per scene in the order baseline, current, current, baseline. Each block yields two pairs, one led by each side, so a linear drift cancels within the block.
+- Each step pumps its scene, runs `check`, pumps 250 ms without tracing, and then traces `drive`. The report key is `<scene>.<side>.<pair>`, with side `base` or `cand`; the driver writes to `build/perf/abba/r<run>g<group>/`.
+- Load: `perf_abba` records the `uptime` load averages of each invocation in the report. It never waits for a quiet machine and never discards data for load (owner ruling 2026-10-01).
+
+### 9.5 Analysis and verdict
+
+- Metrics from `TimelineSummary`: `average_frame_build_time_millis`, `99th_percentile_frame_build_time_millis`, and `99th_percentile_frame_rasterizer_time_millis`.
+- A pair is the `base` and `cand` traces with the same run, group, scene, and pair number. Its change in average build time is (cand / base − 1) × 100%.
+- Interval check: a run with any trace whose frame interval differs by more than 10% from the run's median interval is invalid; the report lists it and the analysis leaves it out. No other data is discarded.
+- Confidence interval: the distribution-free 95% interval for the median of the paired changes is [x(k), x(n−k+1)] of the sorted changes, where k is the largest rank with P(Bin(n, ½) ≤ k − 1) ≤ 0.025. Fewer than 6 pairs give no interval. 12 pairs give k = 3 (coverage 96.1%), 24 pairs k = 7 (97.7%), and 36 pairs k = 12 (97.1%).
+- Null gate: the S2-plain interval must contain 0. Otherwise the comparison is INVALID and is run again. Half the width of the S2-plain interval is reported as the comparison's resolution.
+- Average build, per scene: PASS when the interval's upper bound is at most +5%; FAIL when its lower bound is above +5%; INCONCLUSIVE otherwise, including a scene with fewer than 6 pairs.
+- Budget, per scene: the current side's median p99 build and median p99 raster stay below 8.3 ms, or, where the baseline median is already 8.3 ms or more, the median paired difference is at most 0. A scene that misses the budget FAILs, whatever its average-build result.
+- Overall: INVALID when the null gate fails; otherwise FAIL when any scene fails; otherwise INCONCLUSIVE when any scene is inconclusive; otherwise PASS. `perf_abba` exits with 0 for PASS, 1 for FAIL or INVALID, and 2 for INCONCLUSIVE.
+- Escalation: a comparison starts with 6 runs, which give 12 pairs per scene and 36 for S2-plain. On INCONCLUSIVE, add 6 runs once, to a cap of 24 pairs per scene; `perf_abba` refuses runs beyond the cap. A scene still inconclusive at the cap goes to the owner with its median and interval. The milestone or phase closes on the owner's ruling.
+- Pass after phases 3 and 4: an overall PASS, or an owner ruling on the inconclusive scenes at the cap.
+- Report: `perf_abba` prints one row per scene (pairs, base and current average build, median change, interval, p99 build, p99 raster, verdict) under a header with the run count, load range, frame interval, and resolution, and writes the same table to `build/perf/abba/report.md`. Measured numbers go to the project memory entry, not into this spec.
+
+Commands, from `example/`:
+
+```bash
+dart run tool/perf_freeze.dart <baseline commit> <path>...
+rm -rf build/perf/abba
+dart run tool/perf_abba.dart run --runs 6
+dart run tool/perf_abba.dart run --from 7 --runs 6   # escalation, once
+dart run tool/perf_abba.dart report                  # judge stored runs again
+```
 
 ## 10. Phases
 
@@ -412,6 +468,7 @@ Checked in the local Flutter SDK 3.47.3 and the repository on 2026-10-01. SDK pa
 - `lib/src/components/common/focus_spread.dart:31,40`: the ring uses `BorderSide.strokeAlignOutside`.
 - No file in `lib/` or `example/lib/` outside `layout/` constructs a layout, so the API changes have no callers to migrate.
 - Dart 3.13.3: a named constructor in the `new` form is written `new name(...)`; `new.name(...)` fails with `new_constructor_dot_name`.
+- `flutter-sdk/packages/integration_test/lib/integration_test.dart:361-362`: `traceAction` stores the whole timeline under its report key. `flutter-sdk/packages/integration_test/lib/src/_callback_io.dart:36-45`: the binding answers the driver's `request_data` only after every test has ended, with all report data in one message. One stored two-second scene timeline from phase 3 is about 6 MB (pretty-printed).
 
 External sources, checked 2026-10-01:
 
@@ -431,3 +488,4 @@ External sources, checked 2026-10-01:
 - 2026-10-01: primitives use the Flutter name plus `Layout` without prefix; scroll views become `*ViewLayout`. This replaced the earlier ruling that renamed the family to `Stratum*`.
 - 2026-10-01: design sections 1 to 5 approved in brainstorming; written spec approved.
 - 2026-10-01: quality review returned the spec for fixes (4 blockers, 21 important, 13 minor). The owner accepted three defaults: reduced motion through `AnimationBehavior.preserve` with one rule on every platform; macOS profile mode decides the benchmark pass, with a no-worse-than-baseline fallback; the lazy-controller threshold compares S2 with S2-plain on average build time. The revision also adds the text-entry guard, `ScrollFocus` outside the clip, the controller rule that keeps the primary controller, the semantics role constraints, `semanticsLabel` on focusable scroll views, D17, and the narrowed D16, and moves pinned-header focus out of scope.
+- 2026-10-01: section 9 compares in one process. Owner rulings: the baseline enters the profile app as frozen copies that `perf_freeze` writes and the repository commits; a scene is judged on a distribution-free 95% interval of the median paired change, with a three-way verdict and the S2-plain null gate; an inconclusive comparison gets one escalation to 24 pairs per scene, and then the owner rules; the declarative ABBA harness replaces the per-scene tests in `layout_perf_test.dart`, `tool/perf_pairs.dart`, and `tool/perf_median.dart`, with scene widgets in `integration_test/widgets/`.
