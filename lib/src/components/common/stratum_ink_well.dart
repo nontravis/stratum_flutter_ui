@@ -60,7 +60,9 @@ class StratumInkWell extends StatefulWidget {
   /// Receives the interaction states from [InkWell] and drives the overlay.
   ///
   /// A controller that starts with a state, for example
-  /// `{WidgetState.hovered}`, shows that state without a pointer.
+  /// `{WidgetState.hovered}`, shows that state without a pointer, as long as
+  /// an activation callback is set and [disabled] is false. Otherwise
+  /// [InkWell] marks the controller disabled and the overlay stays idle.
   final WidgetStatesController? statesController;
 
   /// Shape of the overlay and the focus ring.
