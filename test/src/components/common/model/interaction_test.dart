@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
-import 'fakes/fake_stratum_theme.dart';
+import '../fakes/fake_stratum_theme.dart';
 
 const _child = SizedBox(width: 40, height: 20);
 

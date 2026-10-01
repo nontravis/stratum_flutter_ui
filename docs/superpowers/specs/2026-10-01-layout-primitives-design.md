@@ -2,7 +2,7 @@
 
 - **Date:** 2026-10-01
 - **Status:** Approved by the owner on 2026-10-01; revised the same day after the quality review (section 13); phase 1 plan in progress.
-- **Location:** `lib/src/components/common/layout/` (all files), new `lib/src/components/common/interaction.dart`, and changes in `lib/src/components/common/ink_well.dart`, `lib/src/components/common/common.dart`, `lib/src/components/common/style/animated_styled_box.dart`, `lib/src/themes/behavior/`, and `lib/src/themes/theme_application.dart`.
+- **Location:** `lib/src/components/common/layout/` (all files), new `lib/src/components/common/model/interaction.dart`, and changes in `lib/src/components/common/ink_well.dart`, `lib/src/components/common/common.dart`, `lib/src/components/common/style/animated_styled_box.dart`, `lib/src/themes/behavior/`, and `lib/src/themes/theme_application.dart`.
 
 ## 1. Goal
 
@@ -141,7 +141,7 @@ class StratumInteraction {
 }
 ```
 
-`common.dart` exports `interaction.dart`. The fields map one to one onto `StratumInkWell`. `semantics` stays on `BoxLayout`, because non-interactive layouts use it too, and `BoxLayout` hands it to `StratumInkWell` when a tap surface is built. The class does not override `==`: callbacks compare by identity, and a `StatelessWidget` parent rebuilds its subtree either way. Phase 4 adds `shortcuts` and `secondaryTapSemanticsLabel`; both have defaults, so the change does not break callers.
+`model/model.dart` exports `interaction.dart`. The fields map one to one onto `StratumInkWell`. `semantics` stays on `BoxLayout`, because non-interactive layouts use it too, and `BoxLayout` hands it to `StratumInkWell` when a tap surface is built. The class does not override `==`: callbacks compare by identity, and a `StatelessWidget` parent rebuilds its subtree either way. Phase 4 adds `shortcuts` and `secondaryTapSemanticsLabel`; both have defaults, so the change does not break callers.
 
 A layout builds `StratumInkWell` when `interaction` is non-null and has at least one of: an activation callback (`onTap`, `onDoubleTap`, `onLongPress`, `onSecondaryTap`), `onHover`, `onHighlightChanged`, `onFocusChange`, or a non-empty `shortcuts` map. A non-null `interaction` with none of them keeps the box tier and adds no tap surface.
 
@@ -188,7 +188,7 @@ class StratumFocusGroup {
 | `layout/focus_group.dart` | new: `StratumFocusGroup` and its traversal policy (phase 4) |
 | `layout/gesture_*_layout.dart` (5 files) | deleted (phase 3) |
 | `layout/layout.dart` | exports every public layout class above |
-| `common/interaction.dart`, `common/common.dart` | new `StratumInteraction` and its export (phase 3) |
+| `common/model/interaction.dart`, `common/model/model.dart` | new `StratumInteraction` and its export (phase 3) |
 | `common/ink_well.dart` | phase 4: K1, K2, shortcut-only focus, focus keep-alive |
 | `style/animated_styled_box.dart` | phase 3: `scrollBuilder` hook, `AnimationBehavior.preserve`, reduced motion, and the lazy controller if section 9 calls for it |
 | `themes/behavior/scroll_behavior.dart`, `behavior.dart`, `no_glow_scroll_behavior.dart` | fix, update export, delete (phase 1) |
