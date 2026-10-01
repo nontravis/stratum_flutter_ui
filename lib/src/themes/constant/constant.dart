@@ -1,3 +1,5 @@
+export 'color.dart';
+export 'feedback_state.dart';
 export 'focus_type.dart';
 export 'font_color.dart';
 export 'font_size.dart';

@@ -1,0 +1,525 @@
+$schema: stratum-theme/v1.0.0
+name: stratum-default
+
+assets:
+  splash-screen:
+  loading:
+
+space:
+  mobile-space: 16
+  mobile-space-half: 8
+  desktop-space: 32
+  desktop-space-half: 16
+  zero: 0
+  5xs: 2
+  4xs: 4
+  3xs: 6
+  2xs: 8
+  xs: 10
+  sm: 12
+  md: 16
+  lg: 20
+  xl: 24
+  2xl: 28
+  3xl: 32
+  4xl: 40
+  5xl: 48
+  6xl: 56
+  7xl: 64
+  8xl: 80
+  9xl: 96
+  10xl: 128
+  11xl: 160
+  12xl: 192
+  13xl: 224
+  14xl: 256
+
+radius:
+  full: 999
+  card-large: 24
+  card-medium: 20
+  card-small: 16
+  zero: 0
+  2xs: 4
+  xs: 6
+  sm: 8
+  md: 10
+  lg: 12
+  xl: 14
+  2xl: 16
+  3xl: 20
+  4xl: 24
+  5xl: 32
+  ios: 42
+
+layouts:
+  max-width-content: 1000
+  max-width-read: 720
+
+color:
+  light:
+    brand:
+      primary:
+        normal: #FFFFFF
+        hover: #FFFFFF
+        active: #FFFFFF
+        text: #FFFFFF
+        icon: #FFFFFF
+      secondary:
+        normal: #FFFFFF
+        hover: #FFFFFF
+        active: #FFFFFF
+        text: #FFFFFF
+        icon: #FFFFFF
+      tertiary:
+        normal: #FFFFFF
+        hover: #FFFFFF
+        active: #FFFFFF
+        text: #FFFFFF
+        icon: #FFFFFF
+      accent:
+        normal: #FFFFFF
+        hover: #FFFFFF
+        active: #FFFFFF
+        text: #FFFFFF
+        icon: #FFFFFF
+    text:
+      default:
+        primary: #FFFFFF
+        primary-on-color: #FFFFFF
+        primary-inverse: #FFFFFF
+        secondary: #FFFFFF
+        secondary-inverse: #FFFFFF
+        tertiary: #FFFFFF
+        tertiary-inverse: #FFFFFF
+      color:
+        brand:
+        red:
+        pink:
+        rose:
+        violet:
+        purple:
+        indigo:
+        blue:
+        cyan:
+        teal:
+        emerald:
+        green:
+        moss:
+        lime:
+        yellow:
+        amber:
+        orange:
+        brown:
+        blueGray:
+        gray:
+    icon:
+      default:
+      color:
+    border:
+      default:
+      control:
+      color:
+      subtle:
+    button:
+      primary:
+      secondary:
+      shaded:
+      destructive:
+      filled:
+    background:
+      default:
+      color:
+      muted:
+      subtle:
+      surface:
+      control:
+    state:
+    shadow:
+
+  dark:
+
+typography:
+  fonts:
+    header:
+      s56:
+        default:
+          fontFamily: Inter
+          letterSpace: 1.0%
+          adjustSize: 0.0
+        en_GB:
+          fontFamily: Inter
+          letterSpace: 1.0%
+          adjustSize: 0.0
+        th_TH:
+          fontFamily: Inter
+          letterSpace: 1.0%
+          adjustSize: 0.0
+      s48:
+        default:
+          fontFamily: Inter
+          letterSpace: 1.0%
+          adjustSize: 0.0
+        en_GB:
+          fontFamily: Inter
+          letterSpace: 1.0%
+          adjustSize: 0.0
+        th_TH:
+          fontFamily: Inter
+          letterSpace: 1.0%
+          adjustSize: 0.0
+      s36:
+        default:
+          fontFamily: Inter
+          letterSpace: 1.0%
+          adjustSize: 0.0
+        en_GB:
+          fontFamily: Inter
+          letterSpace: 1.0%
+          adjustSize: 0.0
+        th_TH:
+          fontFamily: Inter
+          letterSpace: 1.0%
+          adjustSize: 0.0
+    headerMono:
+      s56:
+      s48:
+      s36:
+      s24:
+      s18:
+      s16:
+      s14:
+      s12:
+    number:
+      s56:
+      s48:
+      s36:
+      s24:
+      s18:
+      s16:
+      s14:
+      s12:
+      s10:
+    numberMono:
+      s56:
+      s48:
+      s36:
+      s24:
+      s18:
+      s16:
+      s14:
+      s12:
+      s10:
+    paragraph:
+      s20:
+      s18:
+      s16:
+      s14:
+      s12:
+    paragraphMono:
+      s20:
+      s18:
+      s16:
+      s14:
+      s12:
+    code:
+      s20:
+      s18:
+      s16:
+      s14:
+      s12:
+    body:
+      s18:
+      s16:
+      s14:
+      s12:
+      s10:
+    bodyMono:
+      s18:
+      s16:
+      s14:
+      s12:
+      s10:
+
+# ─── PALETTE ──────────────────
+palette:
+  brand:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  red:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  pink:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  rose:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  violet:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  purple:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  indigo:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  blue:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  cyan:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  teal:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  emerald:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  green:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  moss:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  lime:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  yellow:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  amber:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  orange:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  brown:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  blueGray:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
+  gray:
+    c25: #F5F8FF
+    c50: #EEF4FF
+    c100: #E0EAFF
+    c200: #C7D7FE
+    c300: #A4BCFD
+    c400: #8098F9
+    c500: #6172F3
+    c600: #444CE7
+    c700: #3538CD
+    c800: #2D31A6
+    c900: #2D3282
+    c950: #1F235B
+    c975: #14173A
