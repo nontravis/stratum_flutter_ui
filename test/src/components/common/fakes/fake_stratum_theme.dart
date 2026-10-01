@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/themes/behavior/scroll_behavior.dart';
 import 'package:stratum_ui/src/themes/color/transparent.dart';
 import 'package:stratum_ui/src/themes/theme_application.dart';
 import 'package:stratum_ui/src/themes/theme_color.dart';
@@ -32,13 +33,24 @@ class _FakeColors extends Fake implements BaseThemeColor {
   TransparentColors get transparent => _FakeTransparent();
 }
 
-/// A theme that answers only what the interaction widgets read.
+/// A theme that answers only what the interaction widgets and the scroll
+/// views read.
 class FakeStratumTheme extends Fake implements StratumThemeData {
-  new({Color hover = fakeHover, Color active = fakeActive})
-    : color = _FakeColors(hover, active);
+  new({
+    Color hover = fakeHover,
+    Color active = fakeActive,
+    this.scrollBehavior = const StratumScrollBehavior(),
+    this.physics = const ClampingScrollPhysics(),
+  }) : color = _FakeColors(hover, active);
 
   @override
   final BaseThemeColor color;
+
+  @override
+  final ScrollBehavior scrollBehavior;
+
+  @override
+  final ScrollPhysics physics;
 }
 
 /// The default theme of [themedHost].
