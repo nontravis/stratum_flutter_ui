@@ -119,6 +119,81 @@ Widget sceneStyledRow(int index) {
   );
 }
 
+/// S1's two columns as plain Flutter [Column]s.
+///
+/// The old `ColumnLayout` builds an [AnimatedStyledBox] of its own (D7),
+/// which would sit in both decision scenes and hide the row box's cost.
+List<Widget> _plainChildren(int index) {
+  return [
+    Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [Text('Item $index'), const Text('Subtitle')],
+    ),
+    Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [Text('${index * 3}'), const Text('units')],
+    ),
+  ];
+}
+
+/// S2-box: S2's styled row around plain columns, so the row's
+/// [AnimatedStyledBox] is the only one in each row (spec section 2, the
+/// lazy-controller threshold).
+Widget sceneBoxRow(int index) {
+  return RowLayout(
+    style: _cardStyle,
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: _plainChildren(index),
+  );
+}
+
+/// S2-plain: the S2-box row drawn without [AnimatedStyledBox], to measure
+/// that widget's own cost.
+///
+/// The same margin, decoration, padding, and children as S2-box.
+/// `_cardStyle` sets no size and no `clipBehavior`, so S2-box builds no
+/// `RenderConstrainedBox` and no `RenderClipRRect`; S2-plain builds both as
+/// pass-through render objects, which add a little work to S2-plain and
+/// bias the decision toward skipping Task 4.
+Widget scenePlainRow(int index) {
+  return Padding(
+    padding: _cardStyle.margin!,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(),
+      child: DecoratedBox(
+        decoration: StyleDecoration(
+          color: _cardStyle.backgroundColor,
+          borderRadius: _cardStyle.borderRadius,
+          dropShadow: _cardStyle.dropShadow,
+          innerShadow: _cardStyle.innerShadow,
+        ),
+        child: ClipRRect(
+          borderRadius: _cardStyle.borderRadius!,
+          clipBehavior: Clip.none,
+          child: Padding(
+            padding: _cardStyle.padding!,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: _plainChildren(index),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// The estimated scroll extent of the first [Scrollable]; two lists of
+/// rows with the same height report the same value.
+double _scrollExtent(WidgetTester tester) {
+  return tester
+      .state<ScrollableState>(find.byType(Scrollable).first)
+      .position
+      .maxScrollExtent;
+}
+
 /// S3: S2 with a tap callback and the 100 ms default style animation.
 Widget sceneTappableRow(int index) {
   return GestureRowLayout(
@@ -266,12 +341,55 @@ void main() {
     expect(tester.takeException(), isNull);
   }, semanticsEnabled: false);
 
+  testWidgets('S1-fast plain rows at 16000 px/s', (tester) async {
+    await tester.pumpWidget(perfHost(_list(sceneRow)));
+    // More than one new row per frame at 144 Hz: 16000 px/s over 144
+    // frames is 111 px per frame.
+    expect(
+      tester.getSize(find.byType(RowLayout).first).height,
+      lessThan(16000 / 144),
+    );
+    await binding.traceAction(
+      () => scrollFor(tester, traceTime, distance: 16000),
+      streams: _streams,
+      reportKey: 'S1-fast',
+    );
+    expect(tester.takeException(), isNull);
+  }, semanticsEnabled: false);
+
   testWidgets('S2 styled rows', (tester) async {
     await tester.pumpWidget(perfHost(_list(sceneStyledRow)));
     await binding.traceAction(
       () => scrollFor(tester, traceTime),
       streams: _streams,
       reportKey: 'S2',
+    );
+    expect(tester.takeException(), isNull);
+  }, semanticsEnabled: false);
+
+  testWidgets('S2-box styled rows around plain columns', (tester) async {
+    await tester.pumpWidget(perfHost(_list(sceneBoxRow)));
+    await binding.traceAction(
+      () => scrollFor(tester, traceTime),
+      streams: _streams,
+      reportKey: 'S2-box',
+    );
+    expect(tester.takeException(), isNull);
+  }, semanticsEnabled: false);
+
+  testWidgets('S2-plain: the S2-box rows without AnimatedStyledBox', (
+    tester,
+  ) async {
+    // Equal row heights give equal list extents, so both decision scenes
+    // scroll the same rows.
+    await tester.pumpWidget(perfHost(_list(sceneBoxRow)));
+    final boxExtent = _scrollExtent(tester);
+    await tester.pumpWidget(perfHost(_list(scenePlainRow)));
+    expect(_scrollExtent(tester), closeTo(boxExtent, 0.5));
+    await binding.traceAction(
+      () => scrollFor(tester, traceTime),
+      streams: _streams,
+      reportKey: 'S2-plain',
     );
     expect(tester.takeException(), isNull);
   }, semanticsEnabled: false);
