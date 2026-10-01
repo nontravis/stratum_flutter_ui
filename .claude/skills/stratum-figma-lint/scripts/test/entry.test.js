@@ -78,7 +78,9 @@ test('the larger real 10-page batch and a long-id batch keep every mode bundle a
 
 test('the sandbox gets no doc-only data and lints the fixtures exactly as the full conventions do', () => {
   const shipped = sandboxConventions(null);
-  assert.ok(assemble(parseArgs(['--node', '1:1'])).startsWith('const CONVENTIONS = ' + JSON.stringify(shipped) + ';\n'));
+  const line = assemble(parseArgs(['--node', '1:1'])).split('\n')[0];
+  assert.ok(line.startsWith('const CONVENTIONS = ') && line.endsWith(';'));
+  assert.deepEqual(new Function('return ' + line.slice('const CONVENTIONS = '.length, -1))(), shipped);
   assert.deepEqual([shipped.listToggles.canonical, shipped.listToggles.legacy], [undefined, undefined]);
   Object.keys(shipped.vocabularies).forEach((key) => assert.equal(shipped.vocabularies[key].codeOnly, undefined, key));
   assert.deepEqual(Object.keys(CONVENTIONS.vocabularies).filter((key) => !shipped.vocabularies[key]), ['fontSize'],
@@ -94,7 +96,7 @@ test('raw and vocab bundles leave out lint_lib.js; only vocab carries vocab_lib.
   const has = (mode, symbol) => assemble(parseArgs(['--node', '1:1', '--mode', mode])).includes(symbol);
   assert.deepEqual(['findings', 'raw', 'vocab'].map((m) => has(m, 'function lintComponents')), [true, false, false]);
   assert.deepEqual(['findings', 'raw', 'vocab'].map((m) => has(m, 'function packVocabulary')), [false, false, true]);
-  assert.deepEqual(['findings', 'raw', 'vocab'].map((m) => has(m, '"knownWords"')), [true, false, false]);
+  assert.deepEqual(['findings', 'raw', 'vocab'].map((m) => has(m, 'knownWords:')), [true, false, false]);
 });
 
 test('findings mode lints the listed pages, skips skip-rule pages, and ends with the summary line', async () => {

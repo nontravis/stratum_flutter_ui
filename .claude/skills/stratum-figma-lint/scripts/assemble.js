@@ -49,8 +49,10 @@ function sandboxConventions(keys) {
   return out;
 }
 
+// A JavaScript object literal, not JSON: identifier keys go out unquoted, the same value in fewer characters. Inside a
+// JSON string every quote is escaped, so only a real key matches `"name":`.
 function conventionsLine(keys) {
-  return 'const CONVENTIONS = ' + JSON.stringify(sandboxConventions(keys)) + ';';
+  return 'const CONVENTIONS = ' + JSON.stringify(sandboxConventions(keys)).replace(/"([A-Za-z_$][\w$]*)":/g, '$1:') + ';';
 }
 
 function assemble(args) {

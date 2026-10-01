@@ -48,6 +48,7 @@ First matching row wins.
 | loading | ⏳ | BOOLEAN | `loading` |
 | checked | ✅ | BOOLEAN, VARIANT | `checked`, `selected` |
 | expanded | ↕️ | VARIANT | `expanded` |
+| fill | ↔ | VARIANT | `fill` |
 | filled | ✍️ | VARIANT | `filled` |
 | theme | 🌗 | VARIANT | `theme`, `darkMode` |
 | flag | 🔘 | BOOLEAN | any name |

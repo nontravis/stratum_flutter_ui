@@ -76,6 +76,7 @@ const CONVENTIONS = {
     { key: 'loading', emoji: '⏳', types: ['BOOLEAN'], names: ['loading'] },
     { key: 'checked', emoji: '✅', types: ['BOOLEAN', 'VARIANT'], names: ['checked', 'selected'] },
     { key: 'expanded', emoji: '↕️', types: ['VARIANT'], names: ['expanded'] },
+    { key: 'fill', emoji: '↔', types: ['VARIANT'], names: ['fill'] },
     { key: 'filled', emoji: '✍️', types: ['VARIANT'], names: ['filled'] },
     { key: 'theme', emoji: '🌗', types: ['VARIANT'], names: ['theme', 'darkMode'] },
     { key: 'flag', emoji: '🔘', types: ['BOOLEAN'] },
