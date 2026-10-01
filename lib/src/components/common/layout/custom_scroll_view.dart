@@ -1,6 +1,6 @@
 import 'package:stratum_ui/src/src.dart';
 
-class AppCustomScrollView extends AppStatelessWidget {
+class AppCustomScrollView extends StatelessWidget {
   const AppCustomScrollView({
     super.key,
     super.padding,
