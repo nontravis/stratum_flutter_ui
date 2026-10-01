@@ -73,6 +73,19 @@ class _ScrollProbe extends StatelessWidget {
 
 Widget _scroll(Widget content) => _ScrollProbe(child: content);
 
+/// Counts its own builds; a const instance is never rebuilt by its parent.
+class _CountingChild extends StatelessWidget {
+  const new(this.builds);
+
+  final List<int> builds;
+
+  @override
+  Widget build(BuildContext context) {
+    builds[0]++;
+    return const SizedBox(width: 40, height: 20);
+  }
+}
+
 void main() {
   _robustnessTests();
 
@@ -372,6 +385,46 @@ void main() {
           reason: '$style',
         );
       }
+    });
+
+    testWidgets(
+        '(pin) an animation frame rebuilds only the box, with one ticker',
+        (tester) async {
+      final builds = [0];
+      final child = _CountingChild(builds);
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(backgroundColor: _red, animationStyle: _slow),
+          child: child,
+        ),
+      );
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(backgroundColor: _blue, animationStyle: _slow),
+          child: child,
+        ),
+      );
+      final childBuildsBefore = builds[0];
+      final rebuilds = <Type, int>{};
+      debugOnRebuildDirtyWidget = (element, _) => rebuilds.update(
+            element.widget.runtimeType,
+            (count) => count + 1,
+            ifAbsent: () => 1,
+          );
+      addTearDown(() => debugOnRebuildDirtyWidget = null);
+
+      // The ticker starts on the first frame (elapsed 0) and completes on
+      // the eleventh (elapsed 100 ms); the twelfth frame has nothing to do.
+      for (var frame = 0; frame < 12; frame++) {
+        await tester.pump(const Duration(milliseconds: 10));
+        expect(tester.binding.transientCallbackCount, frame < 10 ? 1 : 0);
+      }
+
+      // One build of the State and of the KeyedSubtree that holds the
+      // child per animation frame; nothing above the box and not the
+      // child.
+      expect(rebuilds, {AnimatedStyledBox: 11, KeyedSubtree: 11});
+      expect(builds[0], childBuildsBefore);
     });
   });
 
