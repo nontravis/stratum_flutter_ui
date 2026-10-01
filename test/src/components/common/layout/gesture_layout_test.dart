@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/ink_well.dart';
 import 'package:stratum_ui/src/components/common/layout/container_layout.dart';
 import 'package:stratum_ui/src/components/common/layout/gesture_column_layout.dart';
 import 'package:stratum_ui/src/components/common/layout/gesture_container_layout.dart';
@@ -9,7 +10,6 @@ import 'package:stratum_ui/src/components/common/layout/gesture_row_layout.dart'
 import 'package:stratum_ui/src/components/common/layout/gesture_stack_layout.dart';
 import 'package:stratum_ui/src/components/common/layout/gesture_wrap_layout.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
-import 'package:stratum_ui/src/components/common/ink_well.dart';
 
 import '../fakes/fake_stratum_theme.dart';
 
