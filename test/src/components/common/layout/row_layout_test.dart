@@ -95,7 +95,7 @@ void main() {
     });
   });
 
-  group('RowLayout scrollable', () {
+  group('RowLayout scroll', () {
     testWidgets('scrolls horizontally inside the box', (tester) async {
       await tester.pumpWidget(
         _host(
@@ -103,7 +103,7 @@ void main() {
             width: 100,
             height: 50,
             child: RowLayout(
-              scrollable: true,
+              scroll: StratumScroll(),
               style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
               children: [SizedBox(width: 500, height: 20)],
             ),
@@ -122,14 +122,16 @@ void main() {
       );
     });
 
-    testWidgets('short content fills a bounded viewport', (tester) async {
+    testWidgets('fillViewport stretches short content to the viewport', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           const SizedBox(
             width: 300,
             height: 50,
             child: RowLayout(
-              scrollable: true,
+              scroll: StratumScroll(fillViewport: true),
               style: WidgetStyle(padding: EdgeInsets.all(10)),
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -146,42 +148,35 @@ void main() {
       expect(tester.getTopRight(find.byKey(_b)).dx - left, 290);
     });
 
-    testWidgets(
-      'a min-size scrollable row in a Center keeps width 50 (ruling A)',
-      (tester) async {
-        await tester.pumpWidget(
-          _host(
-            const RowLayout(
-              scrollable: true,
-              mainAxisSize: MainAxisSize.min,
+    testWidgets('without fillViewport a max-size row keeps its content '
+        'width', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const RowLayout(
+            scroll: StratumScroll(),
+            children: [SizedBox(width: 50, height: 20)],
+          ),
+        ),
+      );
+
+      expect(tester.getSize(find.byType(RowLayout)).width, 50);
+    });
+
+    testWidgets('a scrolling row inside IntrinsicHeight lays out without '
+        'fillViewport', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const IntrinsicHeight(
+            child: RowLayout(
+              scroll: StratumScroll(),
               children: [SizedBox(width: 50, height: 20)],
             ),
           ),
-        );
+        ),
+      );
 
-        expect(tester.getSize(find.byType(RowLayout)).width, 50);
-      },
-    );
-
-    testWidgets(
-      'a min-size scrollable row inside IntrinsicHeight builds with no '
-      'exception (ruling A)',
-      (tester) async {
-        await tester.pumpWidget(
-          _host(
-            const IntrinsicHeight(
-              child: RowLayout(
-                scrollable: true,
-                mainAxisSize: MainAxisSize.min,
-                children: [SizedBox(width: 50, height: 20)],
-              ),
-            ),
-          ),
-        );
-
-        expect(tester.takeException(), isNull);
-      },
-    );
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('an unbounded parent sizes it to the content', (tester) async {
       await tester.pumpWidget(
@@ -190,7 +185,7 @@ void main() {
           child: Row(
             children: [
               RowLayout(
-                scrollable: true,
+                scroll: StratumScroll(fillViewport: true),
                 children: [SizedBox(width: 50, height: 20)],
               ),
             ],

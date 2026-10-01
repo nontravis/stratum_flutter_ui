@@ -4,7 +4,8 @@ import 'package:stratum_ui/src/src.dart';
 /// come from the base class.
 ///
 /// [clipBehavior] clips the stack's own children; the box clips through
-/// `style.clipBehavior`. `scrollable` scrolls vertically.
+/// `style.clipBehavior`. `scroll` scrolls vertically unless its `direction`
+/// says otherwise.
 class StackLayout extends BoxLayout {
   const new({
     super.key,
@@ -19,7 +20,7 @@ class StackLayout extends BoxLayout {
     super.semantics,
     super.onEndAnimate,
     super.interaction,
-    super.scrollable,
+    super.scroll,
     this.alignment = AlignmentDirectional.topStart,
     this.fit = StackFit.loose,
     this.textDirection,

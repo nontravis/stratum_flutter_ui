@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
@@ -21,7 +22,7 @@ class _Layout extends BoxLayout {
     super.semantics,
     super.onEndAnimate,
     super.interaction,
-    super.scrollable,
+    super.scroll,
     this.axis = Axis.vertical,
   });
 
@@ -81,7 +82,7 @@ void main() {
       'rotate': const _Layout(rotate: 0),
       'transform': _Layout(transform: Matrix4.identity()),
       'interaction': const _Layout(interaction: StratumInteraction()),
-      'scrollable': const _Layout(scrollable: true),
+      'scroll': const _Layout(scroll: StratumScroll()),
     };
     for (final MapEntry(key: name, value: layout) in rules.entries) {
       testWidgets('$name alone builds the box', (tester) async {
@@ -355,13 +356,13 @@ void main() {
     });
   });
 
-  group('BoxLayout scrollable', () {
+  group('BoxLayout scroll', () {
     testWidgets('scrolls inside the box along scrollDirection', (tester) async {
       await tester.pumpWidget(
         themedHost(
           const _Layout(
             style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
-            scrollable: true,
+            scroll: StratumScroll(),
             axis: Axis.horizontal,
           ),
         ),
@@ -380,6 +381,214 @@ void main() {
         find.ancestor(of: scroll, matching: find.byType(ScrollConfiguration)),
         findsWidgets,
       );
+    });
+
+    testWidgets('a null scroll builds no scroll view', (tester) async {
+      await tester.pumpWidget(themedHost(const _Layout(style: WidgetStyle())));
+
+      expect(find.byType(SingleChildScrollView), findsNothing);
+      expect(find.byType(ScrollFrame), findsNothing);
+    });
+
+    testWidgets('every StratumScroll field reaches the scroll view', (
+      tester,
+    ) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      const physics = BouncingScrollPhysics();
+      await tester.pumpWidget(
+        themedHost(
+          _Layout(
+            scroll: StratumScroll(
+              direction: Axis.horizontal,
+              reverse: true,
+              controller: controller,
+              primary: false,
+              physics: physics,
+              showScrollbar: false,
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              restorationId: 'box',
+            ),
+          ),
+        ),
+      );
+
+      final view = tester.widget<SingleChildScrollView>(
+        find.byType(SingleChildScrollView),
+      );
+      expect(view.scrollDirection, Axis.horizontal);
+      expect(view.reverse, isTrue);
+      expect(view.controller, same(controller));
+      expect(view.primary, isFalse);
+      expect(view.physics, same(physics));
+      expect(
+        view.keyboardDismissBehavior,
+        ScrollViewKeyboardDismissBehavior.onDrag,
+      );
+      expect(view.restorationId, 'box');
+      expect(
+        tester.widget<ScrollFrame>(find.byType(ScrollFrame)).showScrollbar,
+        isFalse,
+      );
+    });
+
+    testWidgets('scroll.physics applies on top of the theme', (tester) async {
+      await tester.pumpWidget(
+        themedHost(
+          const SizedBox(
+            width: 100,
+            height: 100,
+            child: ColumnLayout(
+              scroll: StratumScroll(physics: BouncingScrollPhysics()),
+              children: [SizedBox(height: 500)],
+            ),
+          ),
+        ),
+      );
+
+      final types = <Type>[];
+      for (
+        ScrollPhysics? physics = tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .physics;
+        physics != null;
+        physics = physics.parent
+      ) {
+        types.add(physics.runtimeType);
+      }
+      expect(
+        types,
+        containsAll([BouncingScrollPhysics, ClampingScrollPhysics]),
+      );
+    });
+
+    final horizontal = <String, Widget>{
+      'ContainerLayout': const ContainerLayout(
+        scroll: StratumScroll(direction: Axis.horizontal),
+        child: SizedBox(width: 500, height: 20),
+      ),
+      'StackLayout': const StackLayout(
+        scroll: StratumScroll(direction: Axis.horizontal),
+        children: [SizedBox(width: 500, height: 20)],
+      ),
+    };
+    for (final MapEntry(key: name, value: layout) in horizontal.entries) {
+      testWidgets('direction: Axis.horizontal scrolls a $name sideways', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          themedHost(SizedBox(width: 100, height: 50, child: layout)),
+        );
+
+        expect(
+          tester
+              .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+              .scrollDirection,
+          Axis.horizontal,
+        );
+        expect(
+          tester
+              .state<ScrollableState>(find.byType(Scrollable))
+              .position
+              .maxScrollExtent,
+          400,
+        );
+      });
+    }
+
+    final dialogs = <String, Widget>{
+      'StackLayout': const StackLayout(
+        scroll: StratumScroll(),
+        children: [SizedBox(width: 200, height: 40)],
+      ),
+      'WrapLayout': const WrapLayout(
+        scroll: StratumScroll(),
+        children: [SizedBox(width: 200, height: 40)],
+      ),
+      'ColumnLayout': const ColumnLayout(
+        scroll: StratumScroll(),
+        children: [SizedBox(width: 200, height: 40)],
+      ),
+    };
+    for (final MapEntry(key: name, value: layout) in dialogs.entries) {
+      testWidgets('a scrolling $name lays out inside AlertDialog content', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          MaterialApp(home: AlertDialog(content: layout)),
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(SingleChildScrollView), findsOneWidget);
+      });
+    }
+
+    testWidgets('ratio with scroll shapes the frame and scrolls the content', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        themedHost(
+          const SizedBox(
+            width: 320,
+            child: ColumnLayout(
+              ratio: 16 / 9,
+              style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
+              scroll: StratumScroll(),
+              children: [SizedBox(height: 600)],
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.getSize(find.byType(ColumnLayout)), const Size(320, 180));
+      expect(
+        tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .maxScrollExtent,
+        420,
+      );
+    });
+
+    testWidgets('changing reverse or showScrollbar keeps the scroll offset', (
+      tester,
+    ) async {
+      Widget build({bool reverse = false, bool? showScrollbar}) {
+        return themedHost(
+          SizedBox(
+            width: 100,
+            height: 100,
+            child: ColumnLayout(
+              style: const WidgetStyle(),
+              scroll: StratumScroll(
+                reverse: reverse,
+                showScrollbar: showScrollbar,
+              ),
+              children: const [SizedBox(height: 500)],
+            ),
+          ),
+        );
+      }
+
+      double pixels() => tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .pixels;
+
+      await tester.pumpWidget(build());
+      tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .jumpTo(100);
+      await tester.pump();
+
+      await tester.pumpWidget(build(showScrollbar: false));
+      expect(pixels(), 100);
+
+      await tester.pumpWidget(build(showScrollbar: false, reverse: true));
+      expect(pixels(), 100);
     });
   });
 }

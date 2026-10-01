@@ -611,6 +611,45 @@ void main() {
       );
     });
 
+    testWidgets('ratio shapes the viewport outside the decorations', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            backgroundColor: Color(0xFFFFFFFF),
+            padding: EdgeInsets.all(8),
+          ),
+          ratio: 2,
+          scrollBuilder: _scroll,
+        ),
+      );
+
+      final ratio = find.byType(AspectRatio);
+      expect(ratio, findsOneWidget);
+      expect(find.ancestor(of: _decorated(), matching: ratio), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(_ScrollProbe), matching: ratio),
+        findsNothing,
+      );
+    });
+
+    testWidgets('(pin) without scrollBuilder ratio wraps the child', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(const WidgetStyle(backgroundColor: Color(0xFFFFFFFF)), ratio: 2),
+      );
+
+      expect(
+        find.ancestor(
+          of: find.byType(AspectRatio),
+          matching: _decorated(),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('the child keeps its State when scrollBuilder comes', (
       tester,
     ) async {

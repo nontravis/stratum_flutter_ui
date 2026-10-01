@@ -3,7 +3,7 @@ import 'package:stratum_ui/src/src.dart';
 /// A [Wrap] on [BoxLayout]: style, interaction, semantics, and scrolling
 /// come from the base class.
 ///
-/// `scrollable` scrolls across [direction], so a horizontal wrap keeps its
+/// `scroll` scrolls across [direction], so a horizontal wrap keeps its
 /// width, wraps into runs, and scrolls vertically.
 class WrapLayout extends BoxLayout {
   const new({
@@ -19,7 +19,7 @@ class WrapLayout extends BoxLayout {
     super.semantics,
     super.onEndAnimate,
     super.interaction,
-    super.scrollable,
+    super.scroll,
     this.direction = Axis.horizontal,
     this.alignment = WrapAlignment.start,
     this.gap,
