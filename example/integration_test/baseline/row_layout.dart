@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from fd59ffa:lib/src/components/common/layout/row_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from fe31fdc:lib/src/components/common/layout/row_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
@@ -6,16 +6,27 @@ import 'baseline.dart';
 
 import 'package:stratum_ui/src/src.dart';
 
-class BaselineRowLayout extends StatelessWidget {
-  const BaselineRowLayout({
+/// A [Row] on [BaselineBoxLayout]: style, interaction, semantics, and scrolling
+/// come from the base class.
+///
+/// A width or max width in [style] forces [MainAxisSize.max], so the row
+/// fills the width it is given. [gap] becomes [Row.spacing], and
+/// `scrollable` scrolls horizontally.
+class BaselineRowLayout extends BaselineBoxLayout {
+  const new({
     super.key,
-    this.style,
-    this.ratio,
-    this.rotate,
-    this.keepAlive = false,
-    this.repaintBoundary = false,
-    this.debug = false,
-    this.transform,
+    super.style,
+    super.ratio,
+    super.rotate,
+    super.transform,
+    super.transformAlignment,
+    super.keepAlive,
+    super.repaintBoundary,
+    super.debug,
+    super.semantics,
+    super.onEndAnimate,
+    super.interaction,
+    super.scrollable,
     this.mainAxisAlignment = MainAxisAlignment.start,
     this.mainAxisSize = MainAxisSize.max,
     this.crossAxisAlignment = CrossAxisAlignment.center,
@@ -24,96 +35,42 @@ class BaselineRowLayout extends StatelessWidget {
     this.textBaseline,
     this.crossAxisIntrinsic = false,
     this.gap,
-    this.scrollable = false,
-    this.onEndAnimate,
-    this.semantics,
     required this.children,
   });
 
-  ///========== Frame ==========///
-  final double? rotate; // 0-360 degree
-  final double? ratio;
-
-  ///========== Layout ==========///
-  final Matrix4? transform;
-  final bool keepAlive;
-  final bool repaintBoundary;
-  final bool debug;
-
-  ///========== Style ==========///
-  final WidgetStyle? style;
-
-  MainAxisSize get _effectiveMainAxisSize =>
-      style?.width != null || style?.maxWidth != null
-          ? MainAxisSize.max
-          : mainAxisSize;
-
-  bool get _needsIntrinsicHeight =>
-      crossAxisIntrinsic && style?.height == null;
-
-  ///===== Semantics ======///
-  final SemanticsProperties? semantics;
-
-
-  ///===== Animate ======///
-  final VoidCallback? onEndAnimate;
-
-  ///===== Effect ======///
-
-  ///====== Row ======///
   final MainAxisAlignment mainAxisAlignment;
   final MainAxisSize mainAxisSize;
   final CrossAxisAlignment crossAxisAlignment;
   final TextDirection? textDirection;
   final VerticalDirection verticalDirection;
   final TextBaseline? textBaseline;
-  final bool crossAxisIntrinsic;
-  final double? gap;
-  final bool scrollable;
 
-  ///===== Child Widget ======///
+  /// Sizes the row to its tallest child through [IntrinsicHeight], unless
+  /// [style] sets a height.
+  final bool crossAxisIntrinsic;
+
+  /// Space between children.
+  final double? gap;
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) {
-    // Build Row content first
-    var rowContent = _buildRowContent();
+  Axis get scrollDirection => Axis.horizontal;
 
-    // Apply intrinsic height only if needed
-    if (_needsIntrinsicHeight) {
-      rowContent = IntrinsicHeight(child: rowContent);
-    }
-
-    // Apply decorations and effects through BaselineContainerLayout
-    Widget result = BaselineContainerLayout(
-      style: style,
-      ratio: ratio,
-      rotate: rotate,
-      keepAlive: keepAlive,
-      repaintBoundary: repaintBoundary,
-      debug: debug,
-      transform: transform,
-      onEndAnimate: onEndAnimate,
-      semantics: semantics,
-      child: rowContent,
-    );
-
-    // Apply scrollable wrapper last if needed
-    if (scrollable) {
-      result = SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none,
-        child: result,
-      );
-    }
-
-    return result;
+  MainAxisSize get _mainAxisSize {
+    final style = this.style;
+    final fills = style?.width != null || style?.maxWidth != null;
+    return fills ? MainAxisSize.max : mainAxisSize;
   }
 
-  Widget _buildRowContent() {
-    return Row(
+  @override
+  bool get stretchesToViewport => _mainAxisSize == MainAxisSize.max;
+
+  @override
+  Widget buildContent(BuildContext context) {
+    final style = this.style;
+    final Widget row = Row(
       mainAxisAlignment: mainAxisAlignment,
-      mainAxisSize: _effectiveMainAxisSize,
+      mainAxisSize: _mainAxisSize,
       crossAxisAlignment: crossAxisAlignment,
       textDirection: textDirection,
       verticalDirection: verticalDirection,
@@ -121,5 +78,7 @@ class BaselineRowLayout extends StatelessWidget {
       spacing: gap ?? 0,
       children: children,
     );
+    if (!crossAxisIntrinsic || style?.height != null) return row;
+    return IntrinsicHeight(child: row);
   }
 }
