@@ -349,7 +349,7 @@ Phase 2 builds the harness that the container-layout spec (2026-09-30, section 1
 
 | Scene | Content | Decides |
 |---|---|---|
-| S1 | List of 1000 rows: a row of two columns with text, no style, flung for five seconds | Bare-tier gain for column and row |
+| S1 | List of 1000 rows: a row of two columns with text, no style, scrolled down and back at a constant 4000 px/s | Bare-tier gain for column and row |
 | S2 | S1 with fill, radius, drop shadow, and inner shadow on each row; replaces the container-layout spec's 500-item scene | Decoration cost in a list |
 | S2-plain | S2 drawn with `ConstrainedBox`, `DecoratedBox(StyleDecoration)`, and `ClipRRect` directly, without `AnimatedStyledBox` | The 10% lazy-controller threshold, compared with S2 (phase 3 only) |
 | S3 | S2 with an interaction (`onTap`) and a 100 ms animated style | Cost of the tap surface |
@@ -358,6 +358,7 @@ Phase 2 builds the harness that the container-layout spec (2026-09-30, section 1
 
 - Each scene has one builder function, so moving from the old API (`GestureRowLayout`) to the new one (`RowLayout(interaction:)`) changes only that function.
 - Device: macOS desktop in profile mode decides the pass. A physical iOS or Android device adds data when the owner runs it. Profile mode is disabled on emulators and simulators.
+- Each scene traces two seconds of constant-speed scrolling (S4: two seconds of animation) and records only the `Dart`, `Embedder`, and `GC` timeline streams. The default `all` streams and longer traces overflow the timeline recorder's buffer at 144 Hz and drop frames from the summary; a two-second trace keeps about 288 frames per scene.
 - Each scene runs three times; the median counts. Measured numbers go to the project memory entry, not into this spec.
 - Metrics: `average_frame_build_time_millis`, `99th_percentile_frame_build_time_millis`, and `99th_percentile_frame_rasterizer_time_millis` from `TimelineSummary`.
 - Pass after phases 3 and 4, per scene: p99 build and p99 raster below 8.3 ms, or no worse than the baseline when the baseline already exceeds 8.3 ms; and average build time no more than 5% above the baseline.
