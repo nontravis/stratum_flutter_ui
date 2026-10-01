@@ -1,100 +1,46 @@
 import 'package:stratum_ui/src/src.dart';
 
-class StackLayout extends StatelessWidget {
-  const StackLayout({
+/// A [Stack] on [BoxLayout]: style, interaction, semantics, and scrolling
+/// come from the base class.
+///
+/// [clipBehavior] clips the stack's own children; the box clips through
+/// `style.clipBehavior`. `scrollable` scrolls vertically.
+class StackLayout extends BoxLayout {
+  const new({
     super.key,
-    this.style,
-    this.ratio,
-    this.rotate,
-    this.keepAlive = false,
-    this.repaintBoundary = false,
-    this.debug = false,
-    this.clipBehavior = Clip.hardEdge,
-    this.transform,
+    super.style,
+    super.ratio,
+    super.rotate,
+    super.transform,
+    super.transformAlignment,
+    super.keepAlive,
+    super.repaintBoundary,
+    super.debug,
+    super.semantics,
+    super.onEndAnimate,
+    super.interaction,
+    super.scrollable,
     this.alignment = AlignmentDirectional.topStart,
     this.fit = StackFit.loose,
     this.textDirection,
-    this.scrollable = false,
-    this.onEndAnimate,
-    this.semantics,
+    this.clipBehavior = Clip.hardEdge,
     required this.children,
-  }) : _hasContainerFeatures = style != null ||
-           ratio != null ||
-           rotate != null ||
-           transform != null ||
-           keepAlive ||
-           repaintBoundary ||
-           debug ||
-           semantics != null;
+  });
 
-  ///========== Frame ==========///
-  final double? rotate; // 0-360 degree
-  final double? ratio;
-
-  ///========== Layout ==========///
-  final Matrix4? transform;
-  final bool keepAlive;
-  final bool repaintBoundary;
-  final bool debug;
-  final Clip clipBehavior;
-
-  ///===== Animate ======///
-  final VoidCallback? onEndAnimate;
-  final SemanticsProperties? semantics;
-
-
-  ///===== Effect ======///
-
-  ///====== Stack ======///
-  final TextDirection? textDirection;
-  final StackFit fit;
   final AlignmentGeometry alignment;
-  final bool scrollable;
-
-  ///========== Style ==========///
-  final WidgetStyle? style;
-
-  ///===== Child Widget ======///
+  final StackFit fit;
+  final TextDirection? textDirection;
+  final Clip clipBehavior;
   final List<Widget> children;
 
-  // Pre-computed values
-  final bool _hasContainerFeatures;
-
   @override
-  Widget build(BuildContext context) {
-    // Build the core Stack widget
-    Widget stackWidget = Stack(
+  Widget buildContent(BuildContext context) {
+    return Stack(
+      alignment: alignment,
       textDirection: textDirection,
       fit: fit,
-      alignment: alignment,
       clipBehavior: clipBehavior,
       children: children,
     );
-
-    // Apply container features only if needed
-    if (_hasContainerFeatures) {
-      stackWidget = ContainerLayout(
-        style: style,
-        ratio: ratio,
-        rotate: rotate,
-        keepAlive: keepAlive,
-        repaintBoundary: repaintBoundary,
-        debug: debug,
-        transform: transform,
-        onEndAnimate: onEndAnimate,
-        semantics: semantics,
-        child: stackWidget,
-      );
-    }
-
-    // Apply scrollable wrapper only if needed
-    if (scrollable) {
-      return SingleChildScrollView(
-        scrollDirection: Axis.vertical,
-        child: stackWidget,
-      );
-    }
-
-    return stackWidget;
   }
 }

@@ -12,17 +12,18 @@ Widget _host(Widget child) {
 
 void main() {
   group('StackLayout', () {
-    testWidgets('builds no ContainerLayout without container values',
-        (tester) async {
+    testWidgets('builds no AnimatedStyledBox without box values', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(const StackLayout(children: [SizedBox(width: 20, height: 20)])),
       );
 
-      expect(find.byType(ContainerLayout), findsNothing);
+      expect(find.byType(AnimatedStyledBox), findsNothing);
+      expect(find.byType(Stack), findsOneWidget);
     });
 
-    testWidgets('wraps the stack in ContainerLayout when a style is set',
-        (tester) async {
+    testWidgets('passes its style to AnimatedStyledBox', (tester) async {
       await tester.pumpWidget(
         _host(
           const StackLayout(
@@ -32,11 +33,13 @@ void main() {
         ),
       );
 
-      final box = tester.widget<ContainerLayout>(find.byType(ContainerLayout));
+      final box = tester.widget<AnimatedStyledBox>(
+        find.byType(AnimatedStyledBox),
+      );
       expect(box.style, _style);
     });
 
-    testWidgets('semantics alone still wraps the stack', (tester) async {
+    testWidgets('semantics alone add a node without a box', (tester) async {
       await tester.pumpWidget(
         _host(
           const StackLayout(
@@ -46,11 +49,18 @@ void main() {
         ),
       );
 
-      expect(find.byType(ContainerLayout), findsOneWidget);
+      expect(find.byType(AnimatedStyledBox), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is Semantics && widget.properties.label == 'stack',
+        ),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('keeps clipBehavior and alignment on the Stack',
-        (tester) async {
+    testWidgets('keeps clipBehavior and alignment on the Stack', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           const StackLayout(
@@ -65,8 +75,49 @@ void main() {
       final stack = tester.widget<Stack>(find.byType(Stack));
       expect(stack.clipBehavior, Clip.none);
       expect(stack.alignment, Alignment.center);
-      final box = tester.widget<ContainerLayout>(find.byType(ContainerLayout));
+      final box = tester.widget<AnimatedStyledBox>(
+        find.byType(AnimatedStyledBox),
+      );
       expect(box.style?.clipBehavior, isNull);
+    });
+
+    testWidgets('(pin) clips the Stack with Clip.hardEdge by default', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(const StackLayout(children: [SizedBox(width: 20, height: 20)])),
+      );
+
+      expect(
+        tester.widget<Stack>(find.byType(Stack)).clipBehavior,
+        Clip.hardEdge,
+      );
+    });
+
+    testWidgets('scrolls vertically inside the box', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const SizedBox(
+            width: 100,
+            height: 100,
+            child: StackLayout(
+              scrollable: true,
+              style: _style,
+              children: [SizedBox(width: 20, height: 400)],
+            ),
+          ),
+        ),
+      );
+
+      final scroll = find.byType(SingleChildScrollView);
+      expect(
+        find.ancestor(of: scroll, matching: find.byType(AnimatedStyledBox)),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<SingleChildScrollView>(scroll).scrollDirection,
+        Axis.vertical,
+      );
     });
   });
 }

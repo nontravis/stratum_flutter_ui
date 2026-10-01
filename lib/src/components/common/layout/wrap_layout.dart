@@ -1,91 +1,63 @@
 import 'package:stratum_ui/src/src.dart';
 
-class WrapLayout extends StatelessWidget {
-  const WrapLayout({
+/// A [Wrap] on [BoxLayout]: style, interaction, semantics, and scrolling
+/// come from the base class.
+///
+/// `scrollable` scrolls across [direction], so a horizontal wrap keeps its
+/// width, wraps into runs, and scrolls vertically.
+class WrapLayout extends BoxLayout {
+  const new({
     super.key,
-    this.style,
-    this.ratio,
-    this.rotate,
-    this.keepAlive = false,
-    this.repaintBoundary = false,
-    this.debug = false,
-    this.transform,
+    super.style,
+    super.ratio,
+    super.rotate,
+    super.transform,
+    super.transformAlignment,
+    super.keepAlive,
+    super.repaintBoundary,
+    super.debug,
+    super.semantics,
+    super.onEndAnimate,
+    super.interaction,
+    super.scrollable,
     this.direction = Axis.horizontal,
     this.alignment = WrapAlignment.start,
-    this.spacing,
+    this.gap,
+    this.runGap,
     this.runAlignment = WrapAlignment.start,
-    this.runSpacing,
     this.crossAxisAlignment = WrapCrossAlignment.start,
     this.textDirection,
     this.verticalDirection = VerticalDirection.down,
     this.clipBehavior = Clip.none,
-    this.gap,
-    this.scrollable = false,
-    this.onEndAnimate,
-    this.semantics,
     required this.children,
-  }) : _effectiveSpacing = spacing ?? gap ?? 0.0,
-       _effectiveRunSpacing = runSpacing ?? gap ?? 0.0,
-       _hasContainerFeatures = style != null ||
-           ratio != null ||
-           rotate != null ||
-           transform != null ||
-           keepAlive ||
-           repaintBoundary ||
-           debug ||
-           semantics != null;
+  });
 
-  ///========== Frame ==========///
-  final double? rotate; // 0-360 degree
-  final double? ratio;
-
-  ///========== Layout ==========///
-  final Matrix4? transform;
-  final bool keepAlive;
-  final bool repaintBoundary;
-  final bool debug;
-
-
-  ///===== Animate ======///
-  final VoidCallback? onEndAnimate;
-
-  ///===== Effect ======///
-
-  ///====== Wrap ======///
   final Axis direction;
   final WrapAlignment alignment;
-  final double? spacing;
+
+  /// Space between children in a run.
+  final double? gap;
+
+  /// Space between runs; null uses [gap].
+  final double? runGap;
   final WrapAlignment runAlignment;
-  final double? runSpacing;
   final WrapCrossAlignment crossAxisAlignment;
   final TextDirection? textDirection;
   final VerticalDirection verticalDirection;
   final Clip clipBehavior;
-  final double? gap;
-  final bool scrollable;
-
-  final SemanticsProperties? semantics;
-
-
-  ///========== Style ==========///
-  final WidgetStyle? style;
-
-  ///===== Child Widget ======///
   final List<Widget> children;
 
-  // Pre-computed values
-  final double _effectiveSpacing;
-  final double _effectiveRunSpacing;
-  final bool _hasContainerFeatures;
+  @override
+  Axis get scrollDirection => flipAxis(direction);
 
   @override
-  Widget build(BuildContext context) {
-    // Build the core Wrap widget
-    Widget wrapWidget = Wrap(
+  Widget buildContent(BuildContext context) {
+    final gap = this.gap ?? 0;
+    return Wrap(
       direction: direction,
       alignment: alignment,
-      spacing: _effectiveSpacing,
-      runSpacing: _effectiveRunSpacing,
+      spacing: gap,
+      runSpacing: runGap ?? gap,
       runAlignment: runAlignment,
       crossAxisAlignment: crossAxisAlignment,
       textDirection: textDirection,
@@ -93,31 +65,5 @@ class WrapLayout extends StatelessWidget {
       clipBehavior: clipBehavior,
       children: children,
     );
-
-    // Apply container features only if needed
-    if (_hasContainerFeatures) {
-      wrapWidget = ContainerLayout(
-        style: style,
-        ratio: ratio,
-        rotate: rotate,
-        keepAlive: keepAlive,
-        repaintBoundary: repaintBoundary,
-        debug: debug,
-        transform: transform,
-        onEndAnimate: onEndAnimate,
-        semantics: semantics,
-        child: wrapWidget,
-      );
-    }
-
-    // Apply scrollable wrapper only if needed
-    if (scrollable) {
-      return SingleChildScrollView(
-        scrollDirection: direction,
-        child: wrapWidget,
-      );
-    }
-
-    return wrapWidget;
   }
 }
