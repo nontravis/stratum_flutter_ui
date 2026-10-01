@@ -7,7 +7,8 @@ import 'package:stratum_ui/src/src.dart';
 /// The box (fill, border, radius, and shadow) stays in place while the
 /// items scroll. `style.padding` becomes the grid padding, so it scrolls
 /// with the items. Scroll behavior and physics come from
-/// [resolveScrollBehavior]; [physics] applies on top of them.
+/// [resolveScrollBehavior]; [physics] applies on top of them. A [focusable]
+/// grid is a Tab stop that scrolls by keyboard; see [ScrollFocus].
 class GridViewLayout extends StatelessWidget {
   const new builder({
     super.key,
@@ -32,6 +33,8 @@ class GridViewLayout extends StatelessWidget {
     this.keyboardDismissBehavior,
     this.restorationId,
     this.clipBehavior = Clip.hardEdge,
+    this.focusable,
+    this.semanticsLabel,
   });
 
   final WidgetStyle? style;
@@ -58,37 +61,59 @@ class GridViewLayout extends StatelessWidget {
   final String? restorationId;
   final Clip clipBehavior;
 
+  /// Whether the grid is a Tab stop that scrolls by keyboard; null means
+  /// on web and desktop ([defaultScrollFocusable]).
+  final bool? focusable;
+
+  /// Names the focusable grid for a screen reader.
+  final String? semanticsLabel;
+
   @override
   Widget build(BuildContext context) {
     final style = this.style;
     Widget grid = ScrollFrame(
       showScrollbar: showScrollbar,
-      child: GridView.builder(
-        gridDelegate: gridDelegate,
-        scrollDirection: scrollDirection,
-        reverse: reverse,
-        controller: controller,
-        primary: primary,
-        physics: physics,
-        shrinkWrap: shrinkWrap,
-        padding: style?.padding,
-        itemBuilder: itemBuilder,
-        findChildIndexCallback: findChildIndexCallback,
-        itemCount: itemCount,
-        addAutomaticKeepAlives: addAutomaticKeepAlives,
-        addRepaintBoundaries: addRepaintBoundaries,
-        addSemanticIndexes: addSemanticIndexes,
-        scrollCacheExtent: scrollCacheExtent,
-        semanticChildCount: semanticChildCount,
-        dragStartBehavior: dragStartBehavior,
-        keyboardDismissBehavior: keyboardDismissBehavior,
-        restorationId: restorationId,
-        clipBehavior: clipBehavior,
+      child: Builder(
+        builder: (context) => GridView.builder(
+          gridDelegate: gridDelegate,
+          scrollDirection: scrollDirection,
+          reverse: reverse,
+          controller: ScrollFocus.controllerOf(context),
+          primary: primary,
+          physics: physics,
+          shrinkWrap: shrinkWrap,
+          padding: style?.padding,
+          itemBuilder: itemBuilder,
+          findChildIndexCallback: findChildIndexCallback,
+          itemCount: itemCount,
+          addAutomaticKeepAlives: addAutomaticKeepAlives,
+          addRepaintBoundaries: addRepaintBoundaries,
+          addSemanticIndexes: addSemanticIndexes,
+          scrollCacheExtent: scrollCacheExtent,
+          semanticChildCount: semanticChildCount,
+          dragStartBehavior: dragStartBehavior,
+          keyboardDismissBehavior: keyboardDismissBehavior,
+          restorationId: restorationId,
+          clipBehavior: clipBehavior,
+        ),
       ),
     );
     if (style != null) {
       grid = ContainerLayout(style: ScrollFrame.boxStyle(style), child: grid);
     }
-    return grid;
+    return ScrollFocus(
+      focusable:
+          focusable ??
+          defaultScrollFocusable(
+            isWeb: kIsWeb,
+            platform: defaultTargetPlatform,
+          ),
+      axis: scrollDirection,
+      controller: controller,
+      primary: primary,
+      semanticsLabel: semanticsLabel,
+      borderRadius: style?.borderRadius,
+      child: grid,
+    );
   }
 }

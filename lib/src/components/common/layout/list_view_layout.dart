@@ -7,7 +7,8 @@ import 'package:stratum_ui/src/src.dart';
 /// The box (fill, border, radius, and shadow) stays in place while the
 /// items scroll. `style.padding` becomes the list padding, so it scrolls
 /// with the items. Scroll behavior and physics come from
-/// [resolveScrollBehavior]; [physics] applies on top of them.
+/// [resolveScrollBehavior]; [physics] applies on top of them. A [focusable]
+/// list is a Tab stop that scrolls by keyboard; see [ScrollFocus].
 class ListViewLayout extends StatelessWidget {
   const new builder({
     super.key,
@@ -34,6 +35,8 @@ class ListViewLayout extends StatelessWidget {
     this.keyboardDismissBehavior,
     this.restorationId,
     this.clipBehavior = Clip.hardEdge,
+    this.focusable,
+    this.semanticsLabel,
   }) : assert(
          gap == null ||
              (itemCount != null &&
@@ -74,20 +77,43 @@ class ListViewLayout extends StatelessWidget {
   final String? restorationId;
   final Clip clipBehavior;
 
+  /// Whether the list is a Tab stop that scrolls by keyboard; null means
+  /// on web and desktop ([defaultScrollFocusable]).
+  final bool? focusable;
+
+  /// Names the focusable list for a screen reader.
+  final String? semanticsLabel;
+
   @override
   Widget build(BuildContext context) {
     final style = this.style;
     Widget list = ScrollFrame(
       showScrollbar: showScrollbar,
-      child: _buildList(style?.padding),
+      child: Builder(
+        builder: (context) =>
+            _buildList(ScrollFocus.controllerOf(context), style?.padding),
+      ),
     );
     if (style != null) {
       list = ContainerLayout(style: ScrollFrame.boxStyle(style), child: list);
     }
-    return list;
+    return ScrollFocus(
+      focusable:
+          focusable ??
+          defaultScrollFocusable(
+            isWeb: kIsWeb,
+            platform: defaultTargetPlatform,
+          ),
+      axis: scrollDirection,
+      controller: controller,
+      primary: primary,
+      semanticsLabel: semanticsLabel,
+      borderRadius: style?.borderRadius,
+      child: list,
+    );
   }
 
-  Widget _buildList(EdgeInsetsGeometry? padding) {
+  Widget _buildList(ScrollController? controller, EdgeInsetsGeometry? padding) {
     final gap = this.gap;
     if (gap != null) {
       return ListView.separated(
