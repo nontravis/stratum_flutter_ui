@@ -8,7 +8,10 @@ import 'package:stratum_ui/src/src.dart';
 /// * a flat overlay over [child]: the theme's `overlayHover` while hovered
 ///   and `overlayActive` while pressed;
 /// * a [FocusSpread] ring, shown per [focusType];
-/// * a semantics node with a button role and a disabled flag.
+/// * a semantics node with a button role and a disabled flag;
+/// * the context-menu key and Shift+F10 for [onSecondaryTap], and a custom
+///   semantics action for it, so keyboard and screen-reader users reach
+///   the secondary tap (K1).
 ///
 /// Primitives name callbacks after the gesture ([onTap]); components built
 /// on this widget name theirs after the intent (`onPressed`).
@@ -36,12 +39,20 @@ class StratumInkWell extends StatefulWidget {
     this.semantics,
     this.excludeFromSemantics = false,
     this.enableFeedback = true,
+    this.secondaryTapSemanticsLabel,
   });
 
   final Widget child;
   final GestureTapCallback? onTap;
+
+  /// Has no keyboard or screen-reader path; never make a function
+  /// reachable only by double tap (WCAG 2.1.1).
   final GestureTapCallback? onDoubleTap;
   final GestureLongPressCallback? onLongPress;
+
+  /// Also called by the context-menu key and Shift+F10 while this widget
+  /// has focus, and by a custom semantics action labeled
+  /// [secondaryTapSemanticsLabel].
   final GestureTapCallback? onSecondaryTap;
 
   /// Called with true when a pointer enters and false when it leaves, also
@@ -87,11 +98,22 @@ class StratumInkWell extends StatefulWidget {
   /// Plays the platform click and long-press feedback.
   final bool enableFeedback;
 
+  /// Label of the semantics action for [onSecondaryTap]; null uses
+  /// `MaterialLocalizations.showMenuTooltip` when material localizations
+  /// are present, else `'Show menu'`.
+  final String? secondaryTapSemanticsLabel;
+
   @override
   State<StratumInkWell> createState() => _StratumInkWellState();
 }
 
 class _StratumInkWellState extends State<StratumInkWell> {
+  /// The keys that open a context menu (K1).
+  static const _contextMenuKeys = [
+    SingleActivator(LogicalKeyboardKey.contextMenu),
+    SingleActivator(LogicalKeyboardKey.f10, shift: true),
+  ];
+
   // Created on first use and kept until dispose, as TextField does, so a
   // node that InkWell's Focus still holds is never disposed mid-update.
   FocusNode? _internalFocusNode;
@@ -184,6 +206,23 @@ class _StratumInkWellState extends State<StratumInkWell> {
     widget.onTap?.call();
   }
 
+  /// The key bindings while this widget or a descendant has focus; none
+  /// while disabled.
+  Map<ShortcutActivator, VoidCallback> get _bindings {
+    final secondary = widget.onSecondaryTap;
+    if (widget.disabled || secondary == null) return const {};
+    return {for (final key in _contextMenuKeys) key: secondary};
+  }
+
+  String _secondaryTapLabel(BuildContext context) {
+    return widget.secondaryTapSemanticsLabel ??
+        Localizations.of<MaterialLocalizations>(
+          context,
+          MaterialLocalizations,
+        )?.showMenuTooltip ??
+        'Show menu';
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.theme.color;
@@ -219,6 +258,11 @@ class _StratumInkWellState extends State<StratumInkWell> {
       ),
     );
     result = Material(type: MaterialType.transparency, child: result);
+    // Built from onSecondaryTap alone, not from disabled, so toggling
+    // disabled never changes the structure below.
+    if (widget.onSecondaryTap != null) {
+      result = CallbackShortcuts(bindings: _bindings, child: result);
+    }
     // Always built, with null handlers when unused, so toggling onHover or
     // disabled never changes the structure below.
     final reportsHover = onHover != null && !disabled;
@@ -242,10 +286,17 @@ class _StratumInkWellState extends State<StratumInkWell> {
     }
     if (!widget.excludeFromSemantics) {
       final hasActivation = _hasActivation;
+      final secondary = widget.onSecondaryTap;
       result = Semantics(
         container: true,
         enabled: hasActivation ? !disabled : null,
         button: hasActivation && properties == null ? true : null,
+        customSemanticsActions: secondary == null || disabled
+            ? null
+            : {
+                CustomSemanticsAction(label: _secondaryTapLabel(context)):
+                    secondary,
+              },
         child: result,
       );
     }

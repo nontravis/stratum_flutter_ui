@@ -55,6 +55,35 @@ FocusNode _node() {
   return node;
 }
 
+/// Material localizations whose menu tooltip differs from the default.
+class _MenuLocalizations extends DefaultMaterialLocalizations {
+  const new();
+
+  @override
+  String get showMenuTooltip => 'Open menu';
+}
+
+class _MenuLocalizationsDelegate
+    extends LocalizationsDelegate<MaterialLocalizations> {
+  const new();
+
+  @override
+  bool isSupported(Locale locale) => true;
+
+  @override
+  Future<MaterialLocalizations> load(Locale locale) =>
+      SynchronousFuture(const _MenuLocalizations());
+
+  @override
+  bool shouldReload(_MenuLocalizationsDelegate old) => false;
+}
+
+Future<void> _shiftF10(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.f10);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+}
+
 Future<TestGesture> _mouse(WidgetTester tester) async {
   final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
   await gesture.addPointer(location: Offset.zero);
@@ -750,6 +779,152 @@ void main() {
       await tester.pump();
 
       expect(hovers, [true, false]);
+    });
+  });
+
+  group('StratumInkWell context-menu key', () {
+    testWidgets('the context-menu key and Shift+F10 call onSecondaryTap', (
+      tester,
+    ) async {
+      var calls = 0;
+      final node = _node();
+      await tester.pumpWidget(
+        themedHost(
+          StratumInkWell(
+            onSecondaryTap: () => calls++,
+            focusNode: node,
+            child: _box,
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.contextMenu);
+      await _shiftF10(tester);
+
+      expect(calls, 2);
+    });
+
+    testWidgets('neither key fires while disabled', (tester) async {
+      var calls = 0;
+      final inner = _node();
+      await tester.pumpWidget(
+        themedHost(
+          StratumInkWell(
+            onSecondaryTap: () => calls++,
+            disabled: true,
+            child: Focus(focusNode: inner, child: _box),
+          ),
+        ),
+      );
+      inner.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.contextMenu);
+      await _shiftF10(tester);
+
+      expect(calls, 0);
+    });
+
+    testWidgets('the semantics action takes secondaryTapSemanticsLabel', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onSecondaryTap: _noop,
+            secondaryTapSemanticsLabel: 'Row options',
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          customActions: [const CustomSemanticsAction(label: 'Row options')],
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('the semantics action falls back to showMenuTooltip', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        Localizations(
+          locale: const Locale('en'),
+          delegates: const [
+            _MenuLocalizationsDelegate(),
+            DefaultWidgetsLocalizations.delegate,
+          ],
+          child: themedHost(
+            const StratumInkWell(onSecondaryTap: _noop, child: _box),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          customActions: [const CustomSemanticsAction(label: 'Open menu')],
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets("without localizations the semantics action reads 'Show "
+        "menu'", (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(const StratumInkWell(onSecondaryTap: _noop, child: _box)),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          customActions: [const CustomSemanticsAction(label: 'Show menu')],
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('toggling disabled keeps the child State', (tester) async {
+      Widget build({required bool disabled}) => themedHost(
+        StratumInkWell(
+          onSecondaryTap: _noop,
+          disabled: disabled,
+          child: const _Probe(),
+        ),
+      );
+
+      await tester.pumpWidget(build(disabled: false));
+      final before = tester.state(find.byType(_Probe));
+      await tester.pumpWidget(build(disabled: true));
+
+      expect(tester.state(find.byType(_Probe)), same(before));
+    });
+
+    testWidgets('a disabled surface has no semantics action', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onSecondaryTap: _noop,
+            disabled: true,
+            child: _box,
+          ),
+        ),
+      );
+
+      final data = tester
+          .getSemantics(find.byType(StratumInkWell))
+          .getSemanticsData();
+      expect(data.customSemanticsActionIds ?? const <int>[], isEmpty);
+      handle.dispose();
     });
   });
 }
