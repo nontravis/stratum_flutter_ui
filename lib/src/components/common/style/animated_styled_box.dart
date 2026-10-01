@@ -37,6 +37,10 @@ class AnimatedStyledBox extends StatefulWidget {
   });
 
   final WidgetStyle? style;
+
+  /// Width divided by height. Shapes the child, or, with a
+  /// [scrollBuilder], the viewport: the visible frame takes the ratio and
+  /// the content scrolls inside it.
   final double? ratio;
   final Matrix4? transform;
   final AlignmentGeometry? transformAlignment;
@@ -178,7 +182,10 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
     );
 
     final ratio = widget.ratio;
-    if (ratio != null) {
+    final scrollBuilder = widget.scrollBuilder;
+    // Without a scroll view the ratio shapes the content; with one it
+    // shapes the viewport, below.
+    if (ratio != null && scrollBuilder == null) {
       current = AspectRatio(aspectRatio: ratio, child: current);
     }
     final alignment = style.alignment;
@@ -189,7 +196,6 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
     if (padding != null) {
       current = Padding(padding: padding, child: current);
     }
-    final scrollBuilder = widget.scrollBuilder;
     if (scrollBuilder != null) {
       current = KeyedSubtree(key: _scrollKey, child: scrollBuilder(current));
     }
@@ -251,6 +257,9 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
         ),
         child: current,
       );
+    }
+    if (ratio != null && scrollBuilder != null) {
+      current = AspectRatio(aspectRatio: ratio, child: current);
     }
     final constraints = _constraints(style);
     if (constraints != null) {

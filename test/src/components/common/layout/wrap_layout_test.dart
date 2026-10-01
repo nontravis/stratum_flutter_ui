@@ -82,7 +82,7 @@ void main() {
     });
   });
 
-  group('WrapLayout scrollable', () {
+  group('WrapLayout scroll', () {
     testWidgets('a horizontal wrap scrolls vertically and still wraps (D1)', (
       tester,
     ) async {
@@ -91,7 +91,10 @@ void main() {
           SizedBox(
             width: 100,
             height: 60,
-            child: WrapLayout(scrollable: true, children: _tiles()),
+            child: WrapLayout(
+              scroll: const StratumScroll(),
+              children: _tiles(),
+            ),
           ),
         ),
       );
@@ -117,7 +120,7 @@ void main() {
             height: 100,
             child: WrapLayout(
               direction: Axis.vertical,
-              scrollable: true,
+              scroll: const StratumScroll(),
               children: _tiles(),
             ),
           ),

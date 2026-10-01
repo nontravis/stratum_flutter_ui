@@ -19,7 +19,7 @@ class ColumnLayout extends BoxLayout {
     super.semantics,
     super.onEndAnimate,
     super.interaction,
-    super.scrollable,
+    super.scroll,
     this.mainAxisAlignment = MainAxisAlignment.start,
     this.mainAxisSize = MainAxisSize.max,
     this.crossAxisAlignment = CrossAxisAlignment.center,
@@ -51,9 +51,6 @@ class ColumnLayout extends BoxLayout {
     final fills = style?.height != null || style?.maxHeight != null;
     return fills ? MainAxisSize.max : mainAxisSize;
   }
-
-  @override
-  bool get stretchesToViewport => _mainAxisSize == MainAxisSize.max;
 
   @override
   Widget buildContent(BuildContext context) {

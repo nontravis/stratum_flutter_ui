@@ -4,8 +4,8 @@ import 'package:stratum_ui/src/src.dart';
 /// come from the base class.
 ///
 /// A width or max width in [style] forces [MainAxisSize.max], so the row
-/// fills the width it is given. [gap] becomes [Row.spacing], and
-/// `scrollable` scrolls horizontally.
+/// fills the width it is given. [gap] becomes [Row.spacing], and `scroll`
+/// scrolls horizontally unless its `direction` says otherwise.
 class RowLayout extends BoxLayout {
   const new({
     super.key,
@@ -20,7 +20,7 @@ class RowLayout extends BoxLayout {
     super.semantics,
     super.onEndAnimate,
     super.interaction,
-    super.scrollable,
+    super.scroll,
     this.mainAxisAlignment = MainAxisAlignment.start,
     this.mainAxisSize = MainAxisSize.max,
     this.crossAxisAlignment = CrossAxisAlignment.center,
@@ -55,9 +55,6 @@ class RowLayout extends BoxLayout {
     final fills = style?.width != null || style?.maxWidth != null;
     return fills ? MainAxisSize.max : mainAxisSize;
   }
-
-  @override
-  bool get stretchesToViewport => _mainAxisSize == MainAxisSize.max;
 
   @override
   Widget buildContent(BuildContext context) {

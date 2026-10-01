@@ -137,14 +137,14 @@ void main() {
     });
   });
 
-  group('ColumnLayout scrollable', () {
-    testWidgets('a scrollable column with a style height lays out', (
+  group('ColumnLayout scroll', () {
+    testWidgets('a scrolling column with a style height lays out', (
       tester,
     ) async {
       await tester.pumpWidget(
         _host(
           const ColumnLayout(
-            scrollable: true,
+            scroll: StratumScroll(),
             style: WidgetStyle(height: 200),
             children: [SizedBox(height: 100)],
           ),
@@ -155,32 +155,34 @@ void main() {
       expect(find.byType(SingleChildScrollView), findsOneWidget);
     });
 
-    testWidgets('toggling scrollable keeps the children State', (tester) async {
-      Widget build({required bool scrollable}) => _sized(
+    testWidgets('toggling scroll keeps the children State', (tester) async {
+      Widget build({required bool scrolls}) => _sized(
         const Size(100, 100),
         ColumnLayout(
           style: const WidgetStyle(),
-          scrollable: scrollable,
+          scroll: scrolls ? const StratumScroll() : null,
           children: const [_Probe()],
         ),
       );
 
-      await tester.pumpWidget(build(scrollable: false));
+      await tester.pumpWidget(build(scrolls: false));
       final before = tester.state(find.byType(_Probe));
-      await tester.pumpWidget(build(scrollable: true));
+      await tester.pumpWidget(build(scrolls: true));
       expect(tester.state(find.byType(_Probe)), same(before));
 
-      await tester.pumpWidget(build(scrollable: false));
+      await tester.pumpWidget(build(scrolls: false));
       expect(tester.takeException(), isNull);
       expect(tester.state(find.byType(_Probe)), same(before));
     });
 
-    testWidgets('(pin) short content fills a bounded viewport', (tester) async {
+    testWidgets('fillViewport stretches short content to the viewport', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _sized(
           const Size(100, 300),
           const ColumnLayout(
-            scrollable: true,
+            scroll: StratumScroll(fillViewport: true),
             style: WidgetStyle(padding: EdgeInsets.all(10)),
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -196,22 +198,23 @@ void main() {
       expect(tester.getBottomLeft(find.byKey(_b)).dy - top, 290);
     });
 
-    testWidgets(
-      'a min-size scrollable column keeps its content height (ruling A)',
-      (tester) async {
-        await tester.pumpWidget(
-          _host(
-            const ColumnLayout(
-              scrollable: true,
-              mainAxisSize: MainAxisSize.min,
+    testWidgets('without fillViewport a max-size column keeps its content '
+        'height', (tester) async {
+      await tester.pumpWidget(
+        _sized(
+          const Size(100, 300),
+          const Align(
+            alignment: Alignment.topCenter,
+            child: ColumnLayout(
+              scroll: StratumScroll(),
               children: [SizedBox(height: 50)],
             ),
           ),
-        );
+        ),
+      );
 
-        expect(tester.getSize(find.byType(ColumnLayout)).height, 50);
-      },
-    );
+      expect(tester.getSize(find.byType(ColumnLayout)).height, 50);
+    });
 
     testWidgets('an unbounded parent sizes it to the content (D17)', (
       tester,
@@ -221,7 +224,10 @@ void main() {
           textDirection: TextDirection.ltr,
           child: Column(
             children: [
-              ColumnLayout(scrollable: true, children: [SizedBox(height: 50)]),
+              ColumnLayout(
+                scroll: StratumScroll(fillViewport: true),
+                children: [SizedBox(height: 50)],
+              ),
             ],
           ),
         ),
@@ -238,7 +244,7 @@ void main() {
         _sized(
           const Size(100, 200),
           const ColumnLayout(
-            scrollable: true,
+            scroll: StratumScroll(),
             style: WidgetStyle(
               backgroundColor: Color(0xFFFFFFFF),
               padding: EdgeInsets.all(10),
@@ -268,7 +274,7 @@ void main() {
           SizedBox.fromSize(
             size: const Size(100, 200),
             child: ColumnLayout(
-              scrollable: true,
+              scroll: const StratumScroll(),
               style: WidgetStyle(border: border),
               interaction: interaction,
               children: const [SizedBox(height: 500)],
@@ -302,14 +308,14 @@ void main() {
       );
     });
 
-    testWidgets('a rounded scrollable box builds exactly one clip', (
+    testWidgets('a rounded scrolling box builds exactly one clip', (
       tester,
     ) async {
       await tester.pumpWidget(
         _sized(
           const Size(100, 200),
           const ColumnLayout(
-            scrollable: true,
+            scroll: StratumScroll(),
             style: WidgetStyle(
               backgroundColor: Color(0xFFFFFFFF),
               borderRadius: _radius,

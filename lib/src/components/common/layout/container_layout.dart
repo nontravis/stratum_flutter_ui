@@ -21,7 +21,7 @@ class ContainerLayout extends BoxLayout {
     super.semantics,
     super.onEndAnimate,
     super.interaction,
-    super.scrollable,
+    super.scroll,
     this.child,
   });
 
