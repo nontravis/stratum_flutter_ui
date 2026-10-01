@@ -1,7 +1,7 @@
 # Layout primitives design
 
 - **Date:** 2026-10-01
-- **Status:** Approved by the owner on 2026-10-01; revised the same day after the quality review (section 13); phase 3 done; section 9 amended to in-process ABBA comparison on 2026-10-01; phase 4 next.
+- **Status:** Approved by the owner on 2026-10-01; revised the same day after the quality review (section 13); phase 3 done; section 9 amended to in-process ABBA comparison on 2026-10-01; phase 4 design amended the same day (`StratumScroll`, section 13); phase 4 next.
 - **Location:** `lib/src/components/common/layout/` (all files), new `lib/src/components/common/model/interaction.dart`, and changes in `lib/src/components/common/ink_well.dart`, `lib/src/components/common/style/animated_styled_box.dart`, `lib/src/themes/behavior/`, and `lib/src/themes/theme_application.dart`.
 
 ## 1. Goal
@@ -25,12 +25,15 @@ Success criteria:
 | Naming | A primitive takes the Flutter widget name plus `Layout`, with no prefix: `ContainerLayout`, `ColumnLayout`, `RowLayout`, `StackLayout`, `WrapLayout`, `ListViewLayout`, `GridViewLayout`, `CustomScrollViewLayout`; base `BoxLayout`. Value classes and components keep the `Stratum` prefix: `StratumInteraction`, `StratumFocusGroup`, `StratumInkWell`. | Owner ruling 2026-10-01. The five box layouts keep their current names, so only the scroll views and the removed gesture twins change for callers. `App*` theme-token classes in `lib/src/themes/styles/` stay out of scope. |
 | Family structure | Five layouts extend one abstract `BoxLayout`; interaction parameters live in one `StratumInteraction` object passed as `interaction:`; the five `Gesture*Layout` classes are removed | Owner chose option A over flat parameters (about 30 per constructor) and over keeping gesture twins (ten classes, and a caller that swaps types remounts the subtree). Callers of primitives are mostly components, so the extra object at the call site costs little. |
 | Bundle name | `interaction: StratumInteraction` | The bundle carries pointer, focus, keyboard, semantics, and cursor settings. In Flutter "gesture" means pointer input only (`GestureDetector`), so `gesture:` would mislabel shortcuts and focus. |
-| Build tiers | `bare` when `style`, `ratio`, `rotate`, `transform`, and `interaction` are null and `scrollable` is false; `box` otherwise. The tier depends on whether a parameter is null, never on its content. | Matches what `StackLayout` and `WrapLayout` already do (`_hasContainerFeatures`) and removes the animation controller from plain column and row structure. Switching a parameter between null and a value remounts the children; dartdoc tells callers to pass `const WidgetStyle()` or `const StratumInteraction()` up front when a value can appear later. |
+| Build tiers | `bare` when `style`, `ratio`, `rotate`, `transform`, and `interaction` are null and `scroll` is null; `box` otherwise. The tier depends on whether a parameter is null, never on its content. | Matches what `StackLayout` and `WrapLayout` already do (`_hasContainerFeatures`) and removes the animation controller from plain column and row structure. Switching a parameter between null and a value remounts the children; dartdoc tells callers to pass `const WidgetStyle()` or `const StratumInteraction()` up front when a value can appear later. |
 | Lazy animation controller | Decided by measurement in phase 3: if scene S2 has an average frame build time more than 10% above scene S2-plain (section 9), the `AnimatedStyledBox` rewrite in phase 3 also creates its controller only on the first animated change | S2-plain draws the same decoration without `AnimatedStyledBox`, so the gap measures the widget's own overhead. The threshold is fixed before measuring. |
-| Scrolling | `scrollable: true` scrolls inside the box, as Figma overflow scrolling does: fill, border, radius, and shadow stay fixed; padding and children scroll | Owner ruling 2026-10-01. The current wrapper sits outside the box, so the background scrolls away with the content. |
+| Scrolling | `scroll: StratumScroll(...)` scrolls inside the box, as Figma overflow scrolling does: fill, border, radius, and shadow stay fixed; padding and children scroll. A null `scroll` does not scroll. | Owner rulings 2026-10-01. The current wrapper sits outside the box, so the background scrolls away with the content. Phase 4 replaced `scrollable: bool` with `StratumScroll` so that `controller`, `primary`, and the other scroll settings travel in one value. |
+| Scroll stretch | `StratumScroll.fillViewport` (default false) stretches short content to the viewport, for every box layout | Owner ruling 2026-10-01 (phase 4). Plain Flutter `Stack`, `SingleChildScrollView(Wrap)`, and a non-scrolling `WrapLayout` lay out inside `AlertDialog`; the phase 3 stretch made a scrollable `StackLayout` or `WrapLayout` throw there (section 12). |
+| Scroll direction | `StratumScroll.direction` overrides the layout's axis; one axis only | Owner ruling 2026-10-01 (phase 4). `ContainerLayout` and `StackLayout` had no way to scroll horizontally. Free two-axis scrolling belongs to separate components (section 11). |
+| Scroll views | `ListViewLayout`, `GridViewLayout`, and `CustomScrollViewLayout` keep flat Flutter-style parameters | Owner ruling 2026-10-01 (phase 4): they always scroll and mirror `ListView`, so a nullable `StratumScroll` and `fillViewport` mean nothing there. |
 | Scroll physics and behavior | One resolver: the widget's `physics` parameter applies on top of the theme's `physics` and `scrollBehavior`, read through a new `StratumThemeApplication.maybeOf`; without a theme, the inherited `ScrollConfiguration` | `StratumThemeApplication` is an `InheritedWidget`, so it cannot insert a `ScrollConfiguration` above its child. Without a theme the primitives fall back to Flutter defaults instead of throwing. |
 | Semantics placement | Inside the margin for every layout, through `AnimatedStyledBox.boxBuilder` | The semantic rect then equals the visible box, which focus highlights and target-size checks measure. |
-| Reduced motion | `AnimatedStyledBox` sets `AnimationBehavior.preserve` and applies one rule whenever `disableAnimations` or `reduceMotion` is set: geometry fields jump to their target and paint fields fade over the normal duration | Owner default accepted 2026-10-01. Without `preserve`, `AnimationController` cuts every fade to 5% of its duration on Android, web, and Linux, so the platforms would disagree. Outcome per platform in section 6. |
+| Reduced motion | `AnimatedStyledBox` sets `AnimationBehavior.preserve` and applies one rule whenever animations are disabled (the app's `MediaQuery`, else the platform) or the platform's `reduceMotion` is set: geometry fields jump to their target and paint fields fade over the normal duration | Owner default accepted 2026-10-01; phase 4 adds the `MediaQuery` read (owner ruling 2026-10-01), so an app's own setting and tests reach the box. Without `preserve`, `AnimationController` cuts every fade to 5% of its duration on Android, web, and Linux, so the platforms would disagree. Outcome per platform in section 6. |
 | Desktop keyboard | K1 context-menu key and Shift+F10; K2 focus-scoped `shortcuts`; K3 roving focus group; K4 focusable scroll views with Home and End | Owner chose all four on 2026-10-01; the owner targets desktop as well as mobile. |
 | Text-entry guard | K3 and K4 keys, and K2 bindings without a control, meta, or alt modifier, are skipped while primary focus is inside an `EditableText` | Text-editing shortcuts sit at the app root (`WidgetsApp` wraps `DefaultTextEditingShortcuts`), so any binding between a text field and the root would take Home, End, arrows, and letters from it. |
 | Shortcut shape | `Map<ShortcutActivator, VoidCallback>`, focus-scoped only | Owner chose the callback map. Components that need menu labels can wrap Flutter's `Shortcuts` and `Actions` themselves. |
@@ -79,7 +82,7 @@ abstract class BoxLayout extends StatelessWidget {
     this.semantics,
     this.onEndAnimate,
     this.interaction,
-    this.scrollable = false,
+    this.scroll,
   });
 
   @nonVirtual
@@ -90,13 +93,9 @@ abstract class BoxLayout extends StatelessWidget {
   @protected
   Widget buildContent(BuildContext context);
 
-  /// The axis that `scrollable` scrolls along.
+  /// The axis that `scroll` scrolls along when `scroll.direction` is null.
   @protected
   Axis get scrollDirection => Axis.vertical;
-
-  /// Whether `scrollable` stretches short content to fill the viewport.
-  @protected
-  bool get stretchesToViewport => true;
 }
 ```
 
@@ -113,6 +112,27 @@ abstract class BoxLayout extends StatelessWidget {
 | `WrapLayout` | `direction` (`horizontal`), `alignment` (`start`), `gap`, `runGap`, `runAlignment` (`start`), `crossAxisAlignment` (`start`), `textDirection`, `verticalDirection` (`down`), `clipBehavior` (`Clip.none`), `children`; phase 4: `focusGroup` |
 
 Defaults follow Flutter's own widgets. `gap` and `runGap` follow Figma auto layout names; `WrapLayout` drops `spacing` and `runSpacing`, and a null `runGap` falls back to `gap`, as a null `runSpacing` does today. Column and row keep the current rule that a set `height` or `maxHeight` (width for row) forces `MainAxisSize.max`. `ContainerLayout` drops its public `boxBuilder`, which only `GestureContainerLayout` used.
+
+### `StratumScroll` (phase 4)
+
+```dart
+@immutable
+class StratumScroll {
+  const new({
+    this.direction,
+    this.fillViewport = false,
+    this.reverse = false,
+    this.controller,
+    this.primary,
+    this.physics,
+    this.showScrollbar,
+    this.keyboardDismissBehavior,
+    this.restorationId,
+  }) : assert(!(controller != null && (primary ?? false)));
+}
+```
+
+`common/model/scroll.dart` holds it, and `model/model.dart` exports it. It replaces `scrollable: bool` on the five box layouts as `scroll:`; null does not scroll. `direction` null keeps the layout's `scrollDirection`. `physics` null keeps the resolver's physics (section 2), and `showScrollbar` null keeps the resolved behavior's default. `controller`, `primary`, `reverse`, `keyboardDismissBehavior`, and `restorationId` reach the `SingleChildScrollView` unchanged; the assertion matches its own. `dragStartBehavior` and `hitTestBehavior` stay out until a component needs them. Like `StratumInteraction`, it does not override `==`.
 
 ### `StratumInteraction`
 
@@ -193,8 +213,9 @@ class StratumFocusGroup {
 | `layout/gesture_*_layout.dart` (5 files) | deleted (phase 3) |
 | `layout/layout.dart` | exports every public layout class above |
 | `common/model/interaction.dart`, `common/model/model.dart` | new `StratumInteraction` and its export (phase 3) |
+| `common/model/scroll.dart` | new `StratumScroll` (phase 4) |
 | `common/ink_well.dart` | phase 4: K1, K2, shortcut-only focus, focus keep-alive |
-| `style/animated_styled_box.dart` | phase 3: `scrollBuilder` hook, `AnimationBehavior.preserve`, reduced motion, and the lazy controller if section 9 calls for it |
+| `style/animated_styled_box.dart` | phase 3: `scrollBuilder` hook, `AnimationBehavior.preserve`, reduced motion, and the lazy controller if section 9 calls for it; phase 4: the `MediaQuery` read and the viewport `AspectRatio` |
 | `themes/behavior/scroll_behavior.dart`, `behavior.dart`, `no_glow_scroll_behavior.dart` | fix, update export, delete (phase 1) |
 | `themes/theme_application.dart` | `maybeOf` (phase 1) |
 
@@ -221,21 +242,22 @@ RepaintBoundary          repaintBoundary
 Transform.rotate         rotate
 AnimatedStyledBox
   Opacity, Transform, Padding(margin)
-  boxBuilder:  ScrollFocus                   phase 4, when scrollable and focusable
+  boxBuilder:  ScrollFocus                   phase 4, when scroll is set and focusable
                StratumInkWell(semantics)     when the interaction needs a tap surface
                Semantics.fromProperties      otherwise, when semantics is set
   ConstrainedBox(size)
+  AspectRatio                                phase 4, when scroll is set: shapes the viewport
   DecoratedBox(foreground: border)           fixed
   DecoratedBox(background) / BackdropFilter  fixed
   clip                                       one clip, see section 6
   ImageFiltered(foregroundBlur)              blurs the viewport, not the whole content
-  scrollBuilder: ScrollFrame(SingleChildScrollView)   new hook, when scrollable
+  scrollBuilder: ScrollFrame(SingleChildScrollView)   new hook, when scroll is set
   Padding(padding)                           scrolls with the content
-  Align, AspectRatio
+  Align, AspectRatio                          AspectRatio only when scroll is null
   buildContent()
 ```
 
-`boxBuilder` keeps its `GlobalKey`, and the child keeps its own through `_childKey`. Adding the first callback to a non-null `interaction` or removing the last one changes the `boxBuilder` wrapper type, so the wrappers between the box key and the child (constraints and decorations) rebuild, while the child keeps its `State`. That is the guarantee of commit 7e86baf. The scroll subtree keeps its own `GlobalKey` the same way, so a `scrollable` layout's `ScrollableState` and its position survive a style, interaction, or semantics change; only a tier change resets it.
+`boxBuilder` keeps its `GlobalKey`, and the child keeps its own through `_childKey`. Adding the first callback to a non-null `interaction` or removing the last one changes the `boxBuilder` wrapper type, so the wrappers between the box key and the child (constraints and decorations) rebuild, while the child keeps its `State`. That is the guarantee of commit 7e86baf. The scroll subtree keeps its own `GlobalKey` the same way, so a scrolling layout's `ScrollableState` and its position survive a style, interaction, semantics, or `StratumScroll` field change; only a tier change or a new `controller` resets it.
 
 When `interaction` is non-null and the style has no `animationStyle`, the style animates over 100 ms with `easeInOutSine`, keeping the default that `GestureContainerLayout` has today.
 
@@ -253,8 +275,9 @@ When `interaction` is non-null and the style has no `animationStyle`, the style 
 
 ### Scrolling inside the box
 
-- Scrollable box layouts pass `scrollBuilder: (content) => ScrollFrame(child: SingleChildScrollView(...))` along `scrollDirection`, with physics and behavior from the resolver.
-- Content shorter than the viewport stretches to the viewport size minus the padding through `LayoutBuilder` and a minimum constraint, so `spaceBetween` and `end` alignments still work. `ColumnLayout` and `RowLayout` stretch only when their effective `mainAxisSize` is `MainAxisSize.max`; `StackLayout` and `WrapLayout` always stretch (owner ruling 2026-10-01). A layout whose `stretchesToViewport` is false skips the `LayoutBuilder` entirely, so it works under `IntrinsicWidth`, `IntrinsicHeight`, or a parent's `crossAxisIntrinsic`, where a stretching layout's `LayoutBuilder` is not supported. The stretch applies only when the viewport extent is finite. In a parent that is unbounded along the scroll axis, the layout sizes to its content, as `SingleChildScrollView` does, and never sets an infinite minimum (fixes D17).
+- A box layout with `scroll` set passes `scrollBuilder: (content) => ScrollFrame(showScrollbar: scroll.showScrollbar, child: SingleChildScrollView(...))` along `scroll.direction ?? scrollDirection`, with `scroll.physics` on top of the resolver and the other `StratumScroll` fields forwarded.
+- **Stretch (phase 4).** With `fillViewport: false`, the default, the content keeps its own size, as plain Flutter does, so the layout lays out under `AlertDialog` content, `IntrinsicWidth`, `IntrinsicHeight`, and a parent's `crossAxisIntrinsic`. With `fillViewport: true`, content shorter than the viewport stretches to the viewport size minus the padding through `LayoutBuilder` and a minimum constraint, so `spaceBetween` and `end` alignments work; that `LayoutBuilder` is not supported under intrinsic parents, which dartdoc states. The stretch applies only when the viewport extent is finite; in a parent that is unbounded along the scroll axis, the layout sizes to its content and never sets an infinite minimum (fixes D17). The phase 3 rule that `ColumnLayout` and `RowLayout` stretch at `MainAxisSize.max` and `StackLayout` and `WrapLayout` always stretch is replaced (owner ruling 2026-10-01).
+- **Ratio (phase 4).** With `scroll` set, `ratio` wraps the viewport in `AspectRatio` between the size constraints and the decorations, so the visible frame takes the ratio and the content scrolls inside it. With `scroll` null, `ratio` keeps its phase 3 place inside the padding.
 - **One clip.** `AnimatedStyledBox._clip` owns the clip. It clips when a blur is set, when `style.clipBehavior` is set, or when a `scrollBuilder` is present and the style has a `borderRadius`; the last case uses `Clip.antiAlias`, which adds no save layer. Scroll views reach the same clip through `ScrollFrame.boxStyle`. No viewport is clipped twice: `SingleChildScrollView` and the Flutter scroll views keep their own `Clip.hardEdge` rectangle inside the rounded clip.
 - `ImageFiltered` for `foregroundBlur` sits outside `scrollBuilder`, so it filters the viewport rather than the full scroll content.
 - Scroll views apply the same model: `style.padding` becomes the list's sliver padding, which scrolls and builds lazily. `CustomScrollViewLayout` in children mode uses a `SliverPadding`; in slivers mode it asserts in `build` that `style.padding` is null, because wrapping several slivers in one group changes how pinned headers behave.
@@ -262,7 +285,7 @@ When `interaction` is non-null and the style has no `animationStyle`, the style 
 
 ### Reduced motion
 
-`AnimatedStyledBox` replaces its `ImplicitlyAnimatedWidget` base with its own `State`, so its controller can use `AnimationBehavior.preserve`. On every style change it reads `View.of(context).platformDispatcher.accessibilityFeatures` (`MediaQueryData` has no `reduceMotion` field). When `disableAnimations` or `reduceMotion` is set, the begin style takes the target's geometry fields (`width`, `height`, minimum and maximum sizes, `padding`, `margin`, `alignment`) before the tween starts, so geometry jumps while colors, gradients, images, borders, radius, shadows, blur, and opacity fade over the normal duration.
+`AnimatedStyledBox` replaces its `ImplicitlyAnimatedWidget` base with its own `State`, so its controller can use `AnimationBehavior.preserve`. On every style change it decides whether motion is reduced: `MediaQuery.maybeDisableAnimationsOf(context)`, falling back to the platform's `disableAnimations` when no `MediaQuery` is above, or the platform's `reduceMotion` from `View.of(context).platformDispatcher.accessibilityFeatures` (`MediaQueryData` has no `reduceMotion` field). Phase 3 read only the platform; phase 4 adds the `MediaQuery` read (owner ruling 2026-10-01), so an app that sets `disableAnimations` itself, or a test, reaches the box. When motion is reduced, the begin style takes the target's geometry fields (`width`, `height`, minimum and maximum sizes, `padding`, `margin`, `alignment`) before the tween starts, so geometry jumps while colors, gradients, images, borders, radius, shadows, blur, and opacity fade over the normal duration.
 
 | Platform | Flag the engine sets | Result |
 |---|---|---|
@@ -302,14 +325,14 @@ A key binding from K3 or K4, and a K2 binding whose activator has no control, me
 
 ### K4: keyboard scrolling (phase 4)
 
-- **Where the node sits.** `ScrollFocus` owns the focus node, the keys, and the ring, and sits outside the clip so the 4 px `FocusSpread` ring, which paints outside the box, stays visible: around the box for scroll views, and through `boxBuilder` for scrollable box layouts. When the layout also has an interaction with a tap surface, `ScrollFocus` wraps `StratumInkWell` and creates no node of its own; its keys then act on events that bubble up from the tap surface's node.
-- **Default.** `focusable: null` resolves through a function `defaultScrollFocusable({required bool isWeb, required TargetPlatform platform})`, which returns `isWeb || {macOS, windows, linux}.contains(platform)`; mobile web is therefore focusable. Scrollable box layouts use the default and take no `focusable` parameter.
+- **Where the node sits.** `ScrollFocus` owns the focus node, the keys, and the ring, and sits outside the clip so the 4 px `FocusSpread` ring, which paints outside the box, stays visible: around the box for scroll views, and through `boxBuilder` for box layouts with `scroll` set. When the layout also has an interaction with a tap surface, `ScrollFocus` wraps `StratumInkWell` and creates no node of its own; its keys then act on events that bubble up from the tap surface's node.
+- **Default.** `focusable: null` resolves through a function `defaultScrollFocusable({required bool isWeb, required TargetPlatform platform})`, which returns `isWeb || {macOS, windows, linux}.contains(platform)`; mobile web is therefore focusable. Box layouts with `scroll` set use the default and take no `focusable` parameter.
 - **Name.** A focusable scroll view takes `semanticsLabel`, which names the node a screen reader announces on focus.
 - **Ring.** The ring shows while the node holds primary focus in traditional highlight mode (WCAG 2.4.7).
-- **Keys while the viewport node itself holds focus.** Up and Down (Left and Right when horizontal) scroll 50 px, Page Up and Page Down scroll 0.8 of the viewport (the values of Flutter's `ScrollAction`), and Home and End jump to the first and last item; with `reverse: true`, Home still goes to the first item.
+- **Keys while the viewport node itself holds focus.** Up and Down (Left and Right when the effective direction is horizontal, including a `StratumScroll.direction` override) scroll 50 px, Page Up and Page Down scroll 0.8 of the viewport (the values of Flutter's `ScrollAction`), and Home and End jump to the first and last item; with `reverse: true`, Home still goes to the first item.
 - **Keys while an item inside holds focus.** Arrows keep Flutter's default (directional focus; scrolling on web), and Page Up, Page Down, Home, and End still scroll the viewport, subject to the text-entry guard.
 - **Jumps.** Home and End use `jumpTo`, so no motion plays. A lazy list only estimates `maxScrollExtent`, so End jumps again after each frame until the extent stops changing, at most three times.
-- **Controller.** The node sits above the `Scrollable`, where `ScrollAction` cannot find it through `Scrollable.maybeOf`, so `ScrollFocus` scrolls through a controller. It uses the caller's `controller` when set. Otherwise, when the scroll view would attach to the `PrimaryScrollController` (`primary: true`, or `primary: null` on a platform and axis that inherits it), it uses `PrimaryScrollController.of` and passes no controller down. Otherwise, and only when `focusable` resolves to true, it creates an internal controller and passes it to the scroll view. A list on iOS or Android therefore keeps its automatic primary controller and status-bar tap to top.
+- **Controller.** The node sits above the `Scrollable`, where `ScrollAction` cannot find it through `Scrollable.maybeOf`, so `ScrollFocus` scrolls through a controller. It uses the caller's `controller` when set (`StratumScroll.controller` for box layouts). Otherwise, when the scroll view would attach to the `PrimaryScrollController` (`primary: true`, or `StratumScroll.primary: true`, or `primary: null` on a platform and axis that inherits it), it uses `PrimaryScrollController.of` and passes no controller down. Otherwise, and only when `focusable` resolves to true, it creates an internal controller and passes it to the scroll view. A list on iOS or Android therefore keeps its automatic primary controller and status-bar tap to top.
 
 ### Focus keep-alive (phase 4)
 
@@ -317,12 +340,13 @@ A key binding from K3 or K4, and a K2 binding whose activator has no control, me
 
 ## 7. Edge cases
 
-- Content remounts when the tier changes (toggling `scrollable` on an otherwise bare layout counts), when `rotate` switches between null and a value, when `repaintBoundary`, `debug`, or `keepAlive` changes, or, on a bare layout, when `semantics` switches between null and a value. Callers that toggle style or interaction pass a constant empty value instead of null.
+- Content remounts when the tier changes (switching `scroll` between null and a value on an otherwise bare layout counts), when `rotate` switches between null and a value, when `repaintBoundary`, `debug`, or `keepAlive` changes, or, on a bare layout, when `semantics` switches between null and a value. Callers that toggle style or interaction pass a constant empty value instead of null.
 - A `focusGroup` whose children contain no focusable node builds the group and does nothing on Tab. Under `role: SemanticsRole.menu`, `menuBar`, or `tabBar`, an empty group fails Flutter's debug role check, so a caller sets those roles only when items exist.
 - `ListViewLayout.builder` with `gap` and a null `itemCount`, an `itemExtent`, a `prototypeItem`, or a `semanticChildCount` fails its assertion in debug mode.
 - `CustomScrollViewLayout` with both or neither of `slivers` and `children` fails its constructor assertion; slivers mode with `style.padding` fails its build assertion.
-- A scrollable layout in a parent that is unbounded along its scroll axis sizes to its content and does not stretch (section 6).
-- A scrollable `ColumnLayout` or `RowLayout` with an effective `mainAxisSize` of `MainAxisSize.min` has `stretchesToViewport` false, so it builds with no `LayoutBuilder` and lays out under `IntrinsicWidth`, `IntrinsicHeight`, or a parent's `crossAxisIntrinsic`; the same layout at `MainAxisSize.max`, or a scrollable `StackLayout` or `WrapLayout`, still fails to build in that position.
+- A scrolling layout in a parent that is unbounded along its scroll axis sizes to its content and does not stretch (section 6).
+- A box layout with `fillViewport: false` lays out under `IntrinsicWidth`, `IntrinsicHeight`, `AlertDialog` content, or a parent's `crossAxisIntrinsic`; with `fillViewport: true` it builds a `LayoutBuilder` and fails there (section 6).
+- `StratumScroll` with a `controller` and `primary: true` fails its constructor assertion.
 - Without `StratumThemeApplication` above it, a scroll view uses `ScrollConfiguration` and Flutter defaults; `StratumInkWell` still requires the theme, as it does today.
 
 ## 8. Testing
@@ -341,12 +365,15 @@ Widget tests with `flutter_test`; no golden images. "(pin)" marks a case that gu
 | 3 | `column_layout_test.dart`, `row_layout_test.dart`, `stack_layout_test.dart`, `wrap_layout_test.dart`, `container_layout_test.dart` | Existing cases ported, except `container_layout_test.dart` "hands boxBuilder to AnimatedStyledBox", which is dropped with the public `boxBuilder` (`animated_styled_box_test.dart` still covers the hook); Wrap scrolls along the cross axis; a null `runGap` falls back to `gap`; short content fills a bounded viewport for `spaceBetween`; an unbounded parent sizes to content without an assertion (D17); the decoration stays in place while the scroll offset changes; a rounded scrollable box builds exactly one clip; Column and Row use `spacing` |
 | 3 | `interaction_test.dart` | The nine cases of `gesture_layout_test.dart` ported to `interaction:`; a child keeps its `State` when the first callback is added and when the last is removed; the 100 ms default animation |
 | 3 | `animated_styled_box_test.dart` | The controller uses `AnimationBehavior.preserve`; with `FakeAccessibilityFeatures(reduceMotion: true)` and again with `disableAnimations: true`, geometry reaches its target in one frame while color is mid-fade |
+| 4 | `layout/box_layout_test.dart` | A null `scroll` builds no scroll view; every `StratumScroll` field reaches the `SingleChildScrollView` or `ScrollFrame`; `scroll.physics` applies on top of the theme; `direction: Axis.horizontal` on `ContainerLayout` and `StackLayout` scrolls horizontally; scrolling `StackLayout`, `WrapLayout`, and `ColumnLayout` lay out inside `AlertDialog` content with `fillViewport: false`; `fillViewport: true` stretches short content for `spaceBetween`; `ratio: 16 / 9` with `scroll` gives a 16:9 frame whose longer content scrolls; changing `reverse` or `showScrollbar` keeps the scroll offset; the phase 3 stretch cases move to `fillViewport: true` |
+| 4 | `model/scroll_test.dart` | `StratumScroll(controller: c, primary: true)` fails its assertion |
+| 4 | `animated_styled_box_test.dart` | `MediaQuery(data: MediaQueryData(disableAnimations: true))` with no platform flag makes geometry reach its target in one frame while color is mid-fade; the platform `reduceMotion` path still does |
 | 4 | `ink_well_test.dart` | `sendKeyEvent(LogicalKeyboardKey.contextMenu)` and Shift+F10 call `onSecondaryTap`; neither fires while disabled; the custom semantics action uses `secondaryTapSemanticsLabel`, then `showMenuTooltip`, then `'Show menu'`; shortcuts fire only with focus and never while disabled; an empty map builds no `CallbackShortcuts`; an unmodified binding is skipped inside a `TextField`; a shortcut-only interaction takes focus on the caller's `focusNode` and has no button flag; in `FocusHighlightMode.touch`, a programmatically focused item and a shortcut-only item survive scrolling past the cache extent |
 | 4 | `focus_group_test.dart` | Tab enters once; Tab returns to the item that last held focus; axis arrows move by screen direction in a row, a row under RTL, and a column under `VerticalDirection.up`; cross-axis arrows are not handled; wrap Up and Down move by screen position; Home and End; `loop`; Tab and Shift+Tab leave the group; group arrows are skipped inside a `TextField`; `role: SemanticsRole.tabBar` over items with role `tab` passes the debug check |
-| 4 | `scroll_frame_test.dart` | `defaultScrollFocusable` for web, desktop, and mobile inputs; under `TargetPlatformVariant.desktop()` the viewport takes focus, carries `semanticsLabel`, and shows a ring that a rounded box does not clip; arrows, Page Down, Home, and End scroll; End reaches the true end of a lazy list; with a button item focused, Page Down still scrolls; Home and End inside a `TextField` item leave the list where it is; a list with `primary: null` on iOS uses `PrimaryScrollController` |
+| 4 | `scroll_frame_test.dart` | `defaultScrollFocusable` for web, desktop, and mobile inputs; under `TargetPlatformVariant.desktop()` the viewport takes focus, carries `semanticsLabel`, and shows a ring that a rounded box does not clip; arrows, Page Down, Home, and End scroll; End reaches the true end of a lazy list; with a button item focused, Page Down still scrolls; Home and End inside a `TextField` item leave the list where it is; a list with `primary: null` on iOS uses `PrimaryScrollController`; a box layout's keys scroll through `StratumScroll.controller`; Left and Right scroll a horizontal box layout |
 | 4 | `a11y_guidelines_test.dart` | `meetsGuideline(labeledTapTargetGuideline)` and `meetsGuideline(androidTapTargetGuideline)` on a tappable row; (pin) a tappable row with `minHeight: 48` and two lines of text grows at `TextScaler.linear(2)` without overflow |
 
-The benchmark tools (section 9) have unit tests in `example/test/tool/`: `perf_freeze_test.dart` (a public name is renamed in every copied file, private names and imports stay, the header names the commit) and `perf_abba_test.dart` (pairing by run, group, scene, and pair; the rank k for 6, 12, 24, and 36 pairs and no interval below 6; each verdict, the budget override, and the overall order INVALID, FAIL, INCONCLUSIVE, PASS; the interval check; the cap). Run them with `flutter test --no-pub test/tool/` from `example/`.
+The benchmark tools (section 9) have unit tests in `example/test/tool/`: `perf_freeze_test.dart` (a public name is renamed in every copied file, private names and imports stay, the header names the commit) and `perf_abba_test.dart` (blocks by run, group, and scene, and the per-block change; the rank k for 6, 12, 24, 36, and 72 blocks and no interval below 6; the display check on the 10th-percentile frame gap and the separate lost-frame check; each verdict, the budget override, and the overall order INVALID, FAIL, INCONCLUSIVE, PASS; the interval check; the cap). Run them with `flutter test --no-pub test/tool/` from `example/`.
 
 Run with `flutter test --no-pub test/src/components/common/ test/src/themes/`. Layout test paths are under `test/src/components/common/`.
 
@@ -397,33 +424,36 @@ Scenes reach layouts only through the kit, except S2-plain. Moving to a new API 
 - Trace: two seconds of constant-speed scrolling (S5 scrolls a fixed 2000 px; S4 animates continuously) with semantics off, recording only the `Dart`, `Embedder`, and `GC` timeline streams, under `--endless-trace-buffer`. The driver fails any trace whose summary covers less than the two-second window minus two frames. Semantics stay off through phase 4, so the metric measures layout work, not accessibility changes.
 - Invocation: one `flutter drive --profile --endless-trace-buffer -d macos --driver=test_driver/perf_driver.dart --target=integration_test/layout_perf_test.dart --use-application-binary=build/perf-apps/g<group>.app`, with `PERF_RUN=<run>` and `PERF_GROUP=<group>` in the driver's environment. Before the first run of a call, `perf_abba` builds each group's profile app once (`flutter build macos --profile --dart-define=PERF_GROUP=<group>`), so every invocation of a group runs the same binary and none pays for a build (about 54 s instead of 100 s per invocation on 2026-10-01). One invocation holds at most 16 traces, because the binding sends every trace's timeline to the driver in one message after the last test (section 12).
 - Groups: g1 is S2-plain, S1, S1-fast, and S2; g2 is S2-plain, S2-box, and S3; g3 is S2-plain, S4, and S5. Every group carries the null control, so each invocation measures its own noise. A run is one invocation per group.
-- Order within an invocation: first a warm-up pass that builds and drives each scene of the group once per side without tracing, then one block per scene in the order baseline, current, current, baseline. Each block yields two pairs, one led by each side, so a linear drift cancels within the block.
-- Each step pumps its scene, runs `check`, pumps 250 ms without tracing, and then traces `drive`. The report key is `<scene>.<side>.<pair>`, with side `base` or `cand`; the driver writes to `build/perf/abba/r<run>g<group>/`.
-- Lost frames: when an invocation leaves its run invalid (9.5), `perf_abba` skips that run's remaining groups. Keep the test window visible: macOS slows a hidden window's frames.
+- Order within an invocation: first a warm-up pass that builds and drives each scene of the group once per side without tracing, then one block per scene in the order baseline, current, current, baseline. Each side takes one odd and one even slot, so a linear drift and an alternating slot effect cancel within the block (section 9.5).
+- Each step pumps its scene, runs `check`, pumps 250 ms without tracing, and then traces `drive`. S2-plain's `check` draws S2-box with the current kit on both sides, so the null control's two sides do identical work before every trace. The report key is `<scene>.<side>.<pair>`, with side `base` or `cand`; the driver writes to `build/perf/abba/r<run>g<group>/`.
+- Lost frames: when an invocation leaves its run invalid (9.5), `perf_abba` skips that run's remaining groups.
+- Code state: each run folder records `git rev-parse HEAD` and a hash of `git diff HEAD -- lib example` in `code.txt`. `run --from` refuses to add runs whose code state differs from the stored runs, and `report` lists a mismatch. Keep the test window visible: macOS slows a hidden window's frames.
 - Load: `perf_abba` records the `uptime` load averages of each invocation in the report. It never waits for a quiet machine and never discards data for load (owner ruling 2026-10-01).
 
 ### 9.5 Analysis and verdict
 
 - Metrics from `TimelineSummary`: `average_frame_build_time_millis`, `99th_percentile_frame_build_time_millis`, and `99th_percentile_frame_rasterizer_time_millis`.
-- A pair is the `base` and `cand` traces with the same run, group, scene, and pair number. Its change in average build time is (cand / base − 1) × 100%.
-- Interval check: a run (every group of one run number) with any trace whose frame interval differs by more than 10% from the run's median interval, or from the median interval of the whole comparison, is invalid; the report lists it and the analysis leaves it out. The second test catches a run whose windows all opened on another display. No other data is discarded.
-- An expected scene with no valid pairs keeps its row, with 0 pairs and INCONCLUSIVE (S2-plain: null INVALID).
-- Confidence interval: the distribution-free 95% interval for the median of the paired changes is [x(k), x(n−k+1)] of the sorted changes, where k is the largest rank with P(Bin(n, ½) ≤ k − 1) ≤ 0.025. Fewer than 6 pairs give no interval. 12 pairs give k = 3 (coverage 96.1%), 24 pairs k = 7 (97.7%), and 36 pairs k = 12 (97.1%).
+- A block is the four traces of one scene in one invocation. Its change in average build time is ((cand.1 + cand.2) / (base.1 + base.2) − 1) × 100%. The phase 3 comparison showed S4 traces alternating by slot (slots 1 and 3 slower than 2 and 4 on both sides), which made per-pair changes bimodal; the block total cancels that effect (owner ruling A, 2026-10-01). A block missing any of its four traces is left out.
+- Display check: a trace's display period is the 10th percentile of its frame-start gaps, which skipped frames do not move. A run (every group of one run number) with any trace whose display period differs by more than 10% from the run's median, or from the whole comparison's median, is invalid. The second test catches a run whose windows all opened on another display.
+- Lost-frame check: a trace with fewer than 90% of the frames its window holds at its display period lost frames (a hidden window or a starved machine). Its run is invalid, and the report names the side that lost frames, because frames lost on the current side only can signal a regression.
+- The report lists each invalid run with its reason, and the analysis leaves it out. No other data is discarded.
+- An expected scene with no valid blocks keeps its row, with 0 blocks and INCONCLUSIVE (S2-plain: null INVALID).
+- Confidence interval: the distribution-free 95% interval for the median of the block changes is [x(k), x(n−k+1)] of the sorted changes, where k is the largest rank with P(Bin(n, ½) ≤ k − 1) ≤ 0.025. Fewer than 6 blocks give no interval. 12 blocks give k = 3 (coverage 96.1%), 24 blocks k = 7 (97.7%), 36 blocks k = 12 (97.1%), and 72 blocks k = 28 (95.6%).
 - Null gate: the S2-plain interval must contain 0. Otherwise the comparison is INVALID and is run again. Half the width of the S2-plain interval is reported as the comparison's resolution.
-- Average build, per scene except S2-plain, which only the null gate judges: PASS when the interval's upper bound is at most +5%; FAIL when its lower bound is above +5%; INCONCLUSIVE otherwise, including a scene with fewer than 6 pairs.
-- Budget, per scene except S2-plain: the current side's median p99 build and median p99 raster stay below 8.3 ms, or, where the baseline median is already 8.3 ms or more, the median paired difference is at most 0. A scene that misses the budget FAILs, whatever its average-build result.
+- Average build, per scene except S2-plain, which only the null gate judges: PASS when the interval's upper bound is at most +5%; FAIL when its lower bound is above +5%; INCONCLUSIVE otherwise, including a scene with fewer than 6 blocks.
+- Budget, per scene except S2-plain: the current side's median p99 build and median p99 raster stay below 8.3 ms, or, where the baseline median is already 8.3 ms or more, the median per-block difference of the two sides' mean p99 is at most 0. A scene that misses the budget FAILs, whatever its average-build result.
 - Overall: INVALID when the null gate fails; otherwise FAIL when any scene fails; otherwise INCONCLUSIVE when any scene is inconclusive; otherwise PASS. `perf_abba` exits with 0 for PASS, 1 for FAIL or INVALID, and 2 for INCONCLUSIVE.
-- Escalation: a comparison starts with 6 runs, which give 12 pairs per scene and 36 for S2-plain. On INCONCLUSIVE, add 6 runs once, to a cap of 24 pairs per scene; `perf_abba` refuses runs beyond the cap. A scene still inconclusive at the cap goes to the owner with its median and interval. The milestone or phase closes on the owner's ruling.
+- Escalation: a comparison starts with 12 runs, which give 12 blocks per scene and 36 for S2-plain (about 32 minutes with prebuilt apps). On INCONCLUSIVE, add 12 runs once, to a cap of 24 runs (24 blocks per scene); `perf_abba` refuses runs beyond the cap. A scene still inconclusive at the cap goes to the owner with its median and interval. The milestone or phase closes on the owner's ruling.
 - Pass after phases 3 and 4: an overall PASS, or an owner ruling on the inconclusive scenes at the cap.
-- Report: `perf_abba` prints one row per scene (pairs, base and current average build, median change, interval, p99 build, p99 raster, verdict) under a header with the run count, load range, frame interval, and resolution, and writes the same table to `build/perf/abba/report.md`. Measured numbers go to the project memory entry, not into this spec.
+- Report: `perf_abba` prints one row per scene (blocks, base and current average build, median change, interval, p99 build, p99 raster, verdict) under a header with the run count, load range, frame interval, and resolution, and writes the same table to `build/perf/abba/report.md`. Measured numbers go to the project memory entry, not into this spec.
 
 Commands, from `example/`:
 
 ```bash
 dart run tool/perf_freeze.dart <baseline commit> <path>...
 rm -rf build/perf/abba
-dart run tool/perf_abba.dart run --runs 6
-dart run tool/perf_abba.dart run --from 7 --runs 6   # escalation, once
+dart run tool/perf_abba.dart run --runs 12
+dart run tool/perf_abba.dart run --from 13 --runs 12  # escalation, once
 dart run tool/perf_abba.dart report                  # judge stored runs again
 ```
 
@@ -434,7 +464,7 @@ dart run tool/perf_abba.dart report                  # judge stored runs again
 | 1. Scroll views | `StratumThemeApplication.maybeOf`, the `StratumScrollBehavior` fix, `resolveScrollBehavior` and `ScrollFrame`, the three scroll views (section 4 without phase 4 parameters, section 6 scroll-view items), deletion of `NoGlowScrollBehavior` | `flutter analyze lib` reports 0 errors and the phase 1 tests pass |
 | 2. Benchmark baseline | Section 9 harness and scenes S1 to S5 on the current layouts | Baseline medians recorded in the project memory entry |
 | 3. Layout family | `BoxLayout`, the five layouts, `StratumInteraction` without phase 4 fields, `scrollBuilder` with `ScrollFrame` and no keys, gesture twins deleted, the `AnimatedStyledBox` state rewrite with `preserve` and reduced motion, the S2 versus S2-plain decision | Phase 3 tests pass and the benchmark passes |
-| 4. Keyboard and accessibility | K1 to K4 with the text-entry guard, `StratumFocusGroup`, `ScrollFocus`, shortcut-only focus, focus keep-alive, guideline tests | Phase 4 tests pass and the benchmark still passes |
+| 4. Keyboard and accessibility | The per-block benchmark estimate and the display, lost-frame, S2-plain, and code-state fixes of section 9 (first); `StratumScroll` with `fillViewport`, `direction`, and the viewport `ratio`; the `MediaQuery` reduced-motion read; K1 to K4 with the text-entry guard, `StratumFocusGroup`, `ScrollFocus`, shortcut-only focus, focus keep-alive, guideline tests | Phase 4 tests pass and the benchmark still passes |
 
 Each phase gets its own implementation plan. Phase 1 met the done-when of the roadmap phase `stratum-green-build`, which the owner closed on 2026-10-01. Phase 2 absorbs the benchmark of the former `stratum-style-benchmark` phase, whose gesture-layout tests become phase 3's ported tests; its deferred `WidgetStyle` minors stay separate work in the roadmap phase `stratum-style-minors`, after phase 3.
 
@@ -448,6 +478,8 @@ Each phase gets its own implementation plan. Phase 1 met the done-when of the ro
 - A custom `RenderObject` for the box.
 - `StratumThemeApplication.updateShouldNotify`, which compares only `lightTheme`.
 - Space and Shift+Space paging in scroll views.
+- Free two-axis scrolling in box layouts. It belongs to separate components: a canvas on `InteractiveViewer(constrained: false)`, which is not a `Scrollable` (no scrollbar, no screen-reader scroll actions), or a table on `TableView` from the Flutter team's `two_dimensional_scrollables` package (`DiagonalDragBehavior.free`).
+- `StratumScroll.dragStartBehavior` and `hitTestBehavior`, until a component needs them.
 - Focus hidden under pinned sliver headers (WCAG 2.4.11): the caller supplies those slivers; verify it when a component adds pinned headers.
 
 ## 12. Evidence
@@ -470,6 +502,8 @@ Checked in the local Flutter SDK 3.47.3 and the repository on 2026-10-01. SDK pa
 - `lib/src/components/common/focus_spread.dart:31,40`: the ring uses `BorderSide.strokeAlignOutside`.
 - No file in `lib/` or `example/lib/` outside `layout/` constructs a layout, so the API changes have no callers to migrate.
 - Dart 3.13.3: a named constructor in the `new` form is written `new name(...)`; `new.name(...)` fails with `new_constructor_dot_name`.
+- A widget-test probe on 2026-10-01 (phase 3 code) laid out plain `Stack`, `SingleChildScrollView(Wrap)`, and a non-scrolling `WrapLayout` inside `AlertDialog` content, while scrolling `StackLayout` and `WrapLayout` threw "LayoutBuilder does not support returning intrinsic dimensions."
+- `widgets/single_child_scroll_view.dart:163-167`: `SingleChildScrollView` asserts that `controller` and `primary: true` are not both set. `widgets/media_query.dart:2026`: `MediaQuery.maybeDisableAnimationsOf`. `widgets/scrollable.dart:1795`: `DiagonalDragBehavior` (`none`, `weightedEvent`, `weightedContinuous`, `free`) for `TwoDimensionalScrollView` (`widgets/two_dimensional_scroll_view.dart`). `widgets/interactive_viewer.dart`: `constrained` and `panAxis: PanAxis.free`.
 - `flutter-sdk/packages/integration_test/lib/integration_test.dart:361-362`: `traceAction` stores the whole timeline under its report key. `flutter-sdk/packages/integration_test/lib/src/_callback_io.dart:36-45`: the binding answers the driver's `request_data` only after every test has ended, with all report data in one message. One stored two-second scene timeline from phase 3 is about 6 MB (pretty-printed).
 
 External sources, checked 2026-10-01:
@@ -491,3 +525,4 @@ External sources, checked 2026-10-01:
 - 2026-10-01: design sections 1 to 5 approved in brainstorming; written spec approved.
 - 2026-10-01: quality review returned the spec for fixes (4 blockers, 21 important, 13 minor). The owner accepted three defaults: reduced motion through `AnimationBehavior.preserve` with one rule on every platform; macOS profile mode decides the benchmark pass, with a no-worse-than-baseline fallback; the lazy-controller threshold compares S2 with S2-plain on average build time. The revision also adds the text-entry guard, `ScrollFocus` outside the clip, the controller rule that keeps the primary controller, the semantics role constraints, `semanticsLabel` on focusable scroll views, D17, and the narrowed D16, and moves pinned-header focus out of scope.
 - 2026-10-01: section 9 compares in one process. Owner rulings: the baseline enters the profile app as frozen copies that `perf_freeze` writes and the repository commits; a scene is judged on a distribution-free 95% interval of the median paired change, with a three-way verdict and the S2-plain null gate; an inconclusive comparison gets one escalation to 24 pairs per scene, and then the owner rules; the declarative ABBA harness replaces the per-scene tests in `layout_perf_test.dart`, `tool/perf_pairs.dart`, and `tool/perf_median.dart`, with scene widgets in `integration_test/widgets/`.
+- 2026-10-01: phase 4 design amended. Owner rulings: review items 1 to 3 enter phase 4; `scroll: StratumScroll` replaces `scrollable: bool` on box layouts and holds `direction`, `fillViewport`, `reverse`, `controller`, `primary`, `physics`, `showScrollbar`, `keyboardDismissBehavior`, and `restorationId`; `fillViewport` (default false) is the one stretch switch, replacing the phase 3 stretch ruling; scroll views keep flat parameters; one scroll axis, with free two-axis scrolling left to future canvas and table components; reduced motion reads the app's `MediaQuery` as well as the platform; with `scroll`, `ratio` shapes the viewport. The benchmark judges per block, starts at 12 runs with a cap of 24, and gains the display, lost-frame, S2-plain, and code-state fixes.
