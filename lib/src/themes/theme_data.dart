@@ -34,7 +34,7 @@ class StratumThemeData {
   final SystemUiOverlayStyle systemOverlayStyle;
   final SystemUiOverlayStyle systemOverlayInverseStyle;
   final InteractiveInkFeatureFactory splashFactory;
-  final List<AppFont> fonts;
+  final List<StratumFontData> fonts;
   final ScrollBehavior scrollBehavior;
   final ScrollPhysics physics;
   final StratumThemeAnimation animation;
@@ -71,11 +71,11 @@ class StratumThemeData {
       canvasColor: color.bg,
       cardColor: color.bgPopover,
       scaffoldBackgroundColor: color.bg,
-      fontFamily: FontFamily.primaryEnglish,
-      fontFamilyFallback: const [
-        FontFamily.primaryEnglish,
-        FontFamily.primaryThai,
-      ],
+      // fontFamily: FontFamily.primaryEnglish,
+      // fontFamilyFallback: const [
+      //   FontFamily.primaryEnglish,
+      //   FontFamily.primaryThai,
+      // ],
       textSelectionTheme: TextSelectionThemeData(
         cursorColor: color.textPrimary,
         selectionHandleColor: color.brandPrimary,
@@ -103,7 +103,7 @@ class StratumThemeData {
     SystemUiOverlayStyle? systemOverlayStyle,
     SystemUiOverlayStyle? systemOverlayInverseStyle,
     InteractiveInkFeatureFactory? splashFactory,
-    List<AppFont>? fonts,
+    List<StratumFontData>? fonts,
     ScrollBehavior? scrollBehavior,
     StratumThemeAnimation? animation,
     Curve? themeAnimationCurve,
