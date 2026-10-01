@@ -1,1 +1,1 @@
-enum FontType { header, paragraph, number, numberMono, code, ui, table }
+enum FontType { header, paragraph, number, numberMono, code, body, table }
