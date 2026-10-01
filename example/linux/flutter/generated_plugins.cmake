@@ -3,6 +3,10 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  flutter_secure_storage_linux
+  flutter_udid
+  gtk
+  url_launcher_linux
   webview_all_linux
 )
 
