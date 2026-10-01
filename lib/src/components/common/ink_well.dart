@@ -11,7 +11,10 @@ import 'package:stratum_ui/src/src.dart';
 /// * a semantics node with a button role and a disabled flag;
 /// * the context-menu key and Shift+F10 for [onSecondaryTap], and a custom
 ///   semantics action for it, so keyboard and screen-reader users reach
-///   the secondary tap (K1).
+///   the secondary tap (K1);
+/// * focus-scoped [shortcuts] (K2);
+/// * a keep-alive while it has focus, so a lazy list never disposes the
+///   focused item.
 ///
 /// Primitives name callbacks after the gesture ([onTap]); components built
 /// on this widget name theirs after the intent (`onPressed`).
@@ -40,13 +43,15 @@ class StratumInkWell extends StatefulWidget {
     this.excludeFromSemantics = false,
     this.enableFeedback = true,
     this.secondaryTapSemanticsLabel,
+    this.shortcuts = const {},
   });
 
   final Widget child;
   final GestureTapCallback? onTap;
 
   /// Has no keyboard or screen-reader path; never make a function
-  /// reachable only by double tap (WCAG 2.1.1).
+  /// reachable only by double tap (WCAG 2.1.1). Bind a key in [shortcuts]
+  /// as its keyboard alternative.
   final GestureTapCallback? onDoubleTap;
   final GestureLongPressCallback? onLongPress;
 
@@ -103,11 +108,21 @@ class StratumInkWell extends StatefulWidget {
   /// are present, else `'Show menu'`.
   final String? secondaryTapSemanticsLabel;
 
+  /// Key bindings that fire while this widget or a descendant has focus,
+  /// never while [disabled]. A binding without a control, meta, or alt
+  /// modifier is skipped while focus is inside a text field, so typing
+  /// still reaches the field (WCAG 2.1.4). With no activation callback the
+  /// focus node moves to an outer [Focus], because [InkWell] grants focus
+  /// only to an enabled surface; the node then reports focusable and no
+  /// button role. An empty map builds nothing.
+  final Map<ShortcutActivator, VoidCallback> shortcuts;
+
   @override
   State<StratumInkWell> createState() => _StratumInkWellState();
 }
 
-class _StratumInkWellState extends State<StratumInkWell> {
+class _StratumInkWellState extends State<StratumInkWell>
+    with AutomaticKeepAliveClientMixin<StratumInkWell> {
   /// The keys that open a context menu (K1).
   static const _contextMenuKeys = [
     SingleActivator(LogicalKeyboardKey.contextMenu),
@@ -131,6 +146,16 @@ class _StratumInkWellState extends State<StratumInkWell> {
       widget.onDoubleTap != null ||
       widget.onLongPress != null ||
       widget.onSecondaryTap != null;
+
+  /// Whether the focus node sits on an outer [Focus] instead of [InkWell]:
+  /// shortcuts with no activation callback (K2).
+  bool get _shortcutOnly => !_hasActivation && widget.shortcuts.isNotEmpty;
+
+  /// Keeps a focused item alive in a lazy list, also in touch highlight
+  /// mode and for a shortcut-only node, where [InkWell] builds no focus
+  /// highlight that would keep it alive (D16).
+  @override
+  bool get wantKeepAlive => _focusNode.hasFocus;
 
   bool get _canFocus =>
       !widget.disabled &&
@@ -172,6 +197,7 @@ class _StratumInkWellState extends State<StratumInkWell> {
         _handleFocusChange,
       );
       _focusNode.addListener(_handleFocusChange);
+      updateKeepAlive();
     }
     if (oldWidget.statesController != null &&
         widget.statesController == null) {
@@ -191,6 +217,7 @@ class _StratumInkWellState extends State<StratumInkWell> {
   }
 
   void _handleFocusChange() {
+    updateKeepAlive();
     if (_hasRing) setState(() {});
   }
 
@@ -209,9 +236,45 @@ class _StratumInkWellState extends State<StratumInkWell> {
   /// The key bindings while this widget or a descendant has focus; none
   /// while disabled.
   Map<ShortcutActivator, VoidCallback> get _bindings {
+    if (widget.disabled) return const {};
     final secondary = widget.onSecondaryTap;
-    if (widget.disabled || secondary == null) return const {};
-    return {for (final key in _contextMenuKeys) key: secondary};
+    return {
+      if (secondary != null)
+        for (final key in _contextMenuKeys) key: secondary,
+      for (final MapEntry(key: activator, value: callback)
+          in widget.shortcuts.entries)
+        _guarded(activator): callback,
+    };
+  }
+
+  /// [activator], skipped inside a text field unless it holds a control,
+  /// meta, or alt modifier (text-entry guard).
+  static ShortcutActivator _guarded(ShortcutActivator activator) {
+    if (_hasCommandModifier(activator)) return activator;
+    return _TextEntryGuard(activator);
+  }
+
+  static final _commandKeys = <LogicalKeyboardKey>{
+    LogicalKeyboardKey.control,
+    LogicalKeyboardKey.controlLeft,
+    LogicalKeyboardKey.controlRight,
+    LogicalKeyboardKey.meta,
+    LogicalKeyboardKey.metaLeft,
+    LogicalKeyboardKey.metaRight,
+    LogicalKeyboardKey.alt,
+    LogicalKeyboardKey.altLeft,
+    LogicalKeyboardKey.altRight,
+  };
+
+  static bool _hasCommandModifier(ShortcutActivator activator) {
+    return switch (activator) {
+      SingleActivator(:final control, :final meta, :final alt) =>
+        control || meta || alt,
+      CharacterActivator(:final control, :final meta, :final alt) =>
+        control || meta || alt,
+      LogicalKeySet(:final keys) => keys.any(_commandKeys.contains),
+      _ => false,
+    };
   }
 
   String _secondaryTapLabel(BuildContext context) {
@@ -225,10 +288,12 @@ class _StratumInkWellState extends State<StratumInkWell> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final colors = context.theme.color;
     final disabled = widget.disabled;
     final canFocus = _canFocus;
     final onHover = widget.onHover;
+    final shortcutOnly = _shortcutOnly;
 
     Widget result = InkWell(
       onTap: disabled || widget.onTap == null ? null : _handleTap,
@@ -236,13 +301,13 @@ class _StratumInkWellState extends State<StratumInkWell> {
       onLongPress: disabled ? null : widget.onLongPress,
       onSecondaryTap: disabled ? null : widget.onSecondaryTap,
       onHighlightChanged: disabled ? null : widget.onHighlightChanged,
-      onFocusChange: widget.onFocusChange,
+      onFocusChange: shortcutOnly ? null : widget.onFocusChange,
       mouseCursor:
           widget.mouseCursor ??
           (disabled ? SystemMouseCursors.forbidden : null),
-      focusNode: _focusNode,
-      canRequestFocus: canFocus,
-      autofocus: widget.autofocus && canFocus,
+      focusNode: shortcutOnly ? null : _focusNode,
+      canRequestFocus: !shortcutOnly && canFocus,
+      autofocus: !shortcutOnly && widget.autofocus && canFocus,
       statesController: _statesController,
       enableFeedback: widget.enableFeedback,
       excludeFromSemantics: widget.excludeFromSemantics,
@@ -258,9 +323,20 @@ class _StratumInkWellState extends State<StratumInkWell> {
       ),
     );
     result = Material(type: MaterialType.transparency, child: result);
-    // Built from onSecondaryTap alone, not from disabled, so toggling
-    // disabled never changes the structure below.
-    if (widget.onSecondaryTap != null) {
+    if (shortcutOnly) {
+      // InkWell grants focus only when enabled and forces canRequestFocus
+      // off on a node it receives otherwise, so the node lives here.
+      result = Focus(
+        focusNode: _focusNode,
+        canRequestFocus: canFocus,
+        autofocus: widget.autofocus && canFocus,
+        onFocusChange: widget.onFocusChange,
+        child: result,
+      );
+    }
+    // Built from onSecondaryTap and shortcuts, not from disabled, so
+    // toggling disabled never changes the structure below.
+    if (widget.onSecondaryTap != null || widget.shortcuts.isNotEmpty) {
       result = CallbackShortcuts(bindings: _bindings, child: result);
     }
     // Always built, with null handlers when unused, so toggling onHover or
@@ -302,6 +378,25 @@ class _StratumInkWellState extends State<StratumInkWell> {
     }
     return result;
   }
+}
+
+/// [activator], skipped while primary focus is inside an [EditableText],
+/// so the key reaches the text field's own shortcuts.
+class _TextEntryGuard extends ShortcutActivator {
+  const new(this.activator);
+
+  final ShortcutActivator activator;
+
+  @override
+  Iterable<LogicalKeyboardKey>? get triggers => activator.triggers;
+
+  @override
+  bool accepts(KeyEvent event, HardwareKeyboard state) {
+    return !primaryFocusInEditableText() && activator.accepts(event, state);
+  }
+
+  @override
+  String debugDescribeKeys() => activator.debugDescribeKeys();
 }
 
 /// Paints the hover and press overlay over [child] from [states].

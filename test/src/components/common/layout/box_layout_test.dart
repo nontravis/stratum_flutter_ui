@@ -192,6 +192,9 @@ void main() {
       'onHover': StratumInteraction(onHover: (_) {}),
       'onHighlightChanged': StratumInteraction(onHighlightChanged: (_) {}),
       'onFocusChange': StratumInteraction(onFocusChange: (_) {}),
+      'shortcuts': const StratumInteraction(
+        shortcuts: {SingleActivator(LogicalKeyboardKey.keyA): _noop},
+      ),
     };
     for (final MapEntry(key: name, value: interaction) in surfaces.entries) {
       testWidgets('$name builds the tap surface', (tester) async {
@@ -215,6 +218,7 @@ void main() {
       void longPress() {}
       void secondaryTap() {}
       const label = SemanticsProperties(label: 'box');
+      const shortcuts = {SingleActivator(LogicalKeyboardKey.keyA): _noop};
       await tester.pumpWidget(
         themedHost(
           _Layout(
@@ -242,6 +246,7 @@ void main() {
               statesController: states,
               excludeFromSemantics: true,
               secondaryTapSemanticsLabel: 'Options',
+              shortcuts: shortcuts,
             ),
           ),
         ),
@@ -267,6 +272,7 @@ void main() {
       expect(ink.statesController, same(states));
       expect(ink.excludeFromSemantics, isTrue);
       expect(ink.secondaryTapSemanticsLabel, 'Options');
+      expect(ink.shortcuts, same(shortcuts));
       expect(ink.semantics, same(label));
       expect(ink.borderRadius, const BorderRadius.all(Radius.circular(6)));
     });

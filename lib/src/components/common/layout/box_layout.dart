@@ -170,7 +170,8 @@ abstract class BoxLayout extends StatelessWidget {
       interaction.onSecondaryTap != null ||
       interaction.onHover != null ||
       interaction.onHighlightChanged != null ||
-      interaction.onFocusChange != null;
+      interaction.onFocusChange != null ||
+      interaction.shortcuts.isNotEmpty;
 
   Widget _buildSemantics(WidgetStyle style, Widget box) {
     return Semantics.fromProperties(properties: semantics!, child: box);
@@ -202,6 +203,7 @@ abstract class BoxLayout extends StatelessWidget {
       statesController: interaction.statesController,
       excludeFromSemantics: interaction.excludeFromSemantics,
       secondaryTapSemanticsLabel: interaction.secondaryTapSemanticsLabel,
+      shortcuts: interaction.shortcuts,
       semantics: semantics,
       child: box,
     );

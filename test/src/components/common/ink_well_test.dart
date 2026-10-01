@@ -78,6 +78,20 @@ class _MenuLocalizationsDelegate
   bool shouldReload(_MenuLocalizationsDelegate old) => false;
 }
 
+/// [child] under a [MaterialApp], which a [TextField] needs.
+Widget _appHost(Widget child) {
+  return MaterialApp(home: Material(child: themedHost(child)));
+}
+
+Future<void> _controlK(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+}
+
+const _keyA = SingleActivator(LogicalKeyboardKey.keyA);
+const _controlKey = SingleActivator(LogicalKeyboardKey.keyK, control: true);
+
 Future<void> _shiftF10(WidgetTester tester) async {
   await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
   await tester.sendKeyEvent(LogicalKeyboardKey.f10);
@@ -926,5 +940,179 @@ void main() {
       expect(data.customSemanticsActionIds ?? const <int>[], isEmpty);
       handle.dispose();
     });
+  });
+
+  group('StratumInkWell shortcuts', () {
+    testWidgets('a binding fires only while the surface has focus', (
+      tester,
+    ) async {
+      var calls = 0;
+      final node = _node();
+      await tester.pumpWidget(
+        themedHost(
+          StratumInkWell(
+            onTap: _noop,
+            shortcuts: {_controlKey: () => calls++},
+            focusNode: node,
+            child: _box,
+          ),
+        ),
+      );
+
+      await _controlK(tester);
+      expect(calls, 0);
+
+      node.requestFocus();
+      await tester.pump();
+      await _controlK(tester);
+      expect(calls, 1);
+    });
+
+    testWidgets('a binding never fires while disabled', (tester) async {
+      var calls = 0;
+      final inner = _node();
+      await tester.pumpWidget(
+        themedHost(
+          StratumInkWell(
+            onTap: _noop,
+            disabled: true,
+            shortcuts: {_controlKey: () => calls++},
+            child: Focus(focusNode: inner, child: _box),
+          ),
+        ),
+      );
+      inner.requestFocus();
+      await tester.pump();
+
+      await _controlK(tester);
+
+      expect(calls, 0);
+    });
+
+    testWidgets('an empty map builds no CallbackShortcuts', (tester) async {
+      await tester.pumpWidget(
+        themedHost(const StratumInkWell(onTap: _noop, child: _box)),
+      );
+      expect(find.byType(CallbackShortcuts), findsNothing);
+
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            shortcuts: {_keyA: _noop},
+            child: _box,
+          ),
+        ),
+      );
+      expect(find.byType(CallbackShortcuts), findsOneWidget);
+    });
+
+    testWidgets('an unmodified binding is skipped inside a TextField', (
+      tester,
+    ) async {
+      var letters = 0;
+      var commands = 0;
+      final field = _node();
+      await tester.pumpWidget(
+        _appHost(
+          StratumInkWell(
+            onTap: _noop,
+            shortcuts: {
+              _keyA: () => letters++,
+              _controlKey: () => commands++,
+            },
+            child: SizedBox(width: 200, child: TextField(focusNode: field)),
+          ),
+        ),
+      );
+      field.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+      await _controlK(tester);
+
+      expect(letters, 0);
+      expect(commands, 1);
+    });
+
+    testWidgets('a shortcut-only surface takes focus on the caller node', (
+      tester,
+    ) async {
+      _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+      final handle = tester.ensureSemantics();
+      var calls = 0;
+      final node = _node();
+      await tester.pumpWidget(
+        themedHost(
+          StratumInkWell(
+            shortcuts: {_keyA: () => calls++},
+            focusNode: node,
+            child: _box,
+          ),
+        ),
+      );
+
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(calls, 1);
+      expect(_ring(tester), isTrue);
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(isButton: false, isFocusable: true, isFocused: true),
+      );
+      handle.dispose();
+    });
+  });
+
+  group('StratumInkWell focus keep-alive', () {
+    final surfaces = <String, Widget Function(FocusNode node)>{
+      'a focused tap surface': (node) => StratumInkWell(
+        onTap: _noop,
+        focusNode: node,
+        child: const SizedBox(height: 100),
+      ),
+      'a shortcut-only surface': (node) => StratumInkWell(
+        shortcuts: const {_keyA: _noop},
+        focusNode: node,
+        child: const SizedBox(height: 100),
+      ),
+    };
+    for (final MapEntry(key: name, value: surface) in surfaces.entries) {
+      testWidgets('$name survives scrolling past the cache extent in touch '
+          'mode', (tester) async {
+        _useHighlightStrategy(FocusHighlightStrategy.alwaysTouch);
+        final node = _node();
+        final controller = ScrollController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              height: 300,
+              child: ListView.builder(
+                controller: controller,
+                itemCount: 100,
+                itemBuilder: (context, index) => index == 0
+                    ? surface(node)
+                    : const SizedBox(height: 100),
+              ),
+            ),
+          ),
+        );
+        node.requestFocus();
+        await tester.pump();
+
+        controller.jumpTo(5000);
+        await tester.pump();
+
+        expect(node.hasFocus, isTrue);
+        expect(
+          find.byType(StratumInkWell, skipOffstage: false),
+          findsOneWidget,
+        );
+      });
+    }
   });
 }
