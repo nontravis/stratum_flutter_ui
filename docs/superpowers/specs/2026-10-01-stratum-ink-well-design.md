@@ -105,7 +105,7 @@ class StratumInkWell extends StatefulWidget {
 }
 ```
 
-`statesController` doubles as a preview input: a caller that sets `{WidgetState.hovered}` sees the hover overlay without a pointer, for golden tests and Figma parity. `StratumInkWell` is exported from `common.dart`.
+`statesController` doubles as a preview input: a caller that sets `{WidgetState.hovered}` sees the hover overlay without a pointer, for golden tests and Figma parity. This holds only when an activation callback is set and `disabled` is false; otherwise `InkWell` marks the controller disabled and the overlay stays idle. `StratumInkWell` is exported from `common.dart`.
 
 ### `AnimatedStyledBox` and `ContainerLayout`
 
@@ -125,7 +125,8 @@ final Widget Function(WidgetStyle style, Widget box)? boxBuilder;
 - `GestureColumnLayout`, `GestureRowLayout`, `GestureStackLayout`, and `GestureWrapLayout` rename `onSecondaryPress` to `onSecondaryTap`. `GestureWrapLayout` also renames `onPress` to `onTap`.
 - No caller exists outside `lib/src/components/common/layout/`, so the renames ship without deprecated aliases.
 - A gesture layout builds the interaction wrapper when any of `onTap`, `onDoubleTap`, `onLongPress`, `onSecondaryTap`, `onHover`, `onHighlightChanged`, or `onFocusChange` is non-null, whatever the value of `disabled` (D9).
-- `semantics` goes to `StratumInkWell` when the wrapper is built, and to `ContainerLayout.semantics` otherwise.
+- `semantics` goes to `StratumInkWell` when the wrapper is built. Otherwise it enters through `boxBuilder` as `Semantics.fromProperties` around the box, so adding or removing a callback never changes the root and the child keeps its State.
+- `GestureStackLayout` and `GestureWrapLayout` always build `GestureContainerLayout`, which falls back to a plain `ContainerLayout` without callbacks. They gain its 100 ms default style animation.
 
 ## 5. Widget tree and data flow
 
@@ -135,7 +136,7 @@ final Widget Function(WidgetStyle style, Widget box)? boxBuilder;
 Semantics(container: true, enabled: …, button: …)   skipped when excludeFromSemantics
  └ Semantics.fromProperties(semantics)               only when semantics != null
    └ FocusSpread(focus: ring, borderRadius)          only when focusType is focused or focusedVisible
-     └ MouseRegion(onEnter, onExit)                  only when onHover != null; null handlers while disabled (D10)
+     └ MouseRegion(onEnter, onExit)                  always built; null handlers without onHover or while disabled (D10)
        └ Material(type: MaterialType.transparency)   satisfies InkWell's Material ancestor check
          └ InkWell(splashFactory: NoSplash.splashFactory, overlayColor: transparent,
                    statesController, focusNode, callbacks …)
@@ -169,11 +170,11 @@ Data flow:
 | `WidgetState.hovered` | `theme.color.overlayHover` |
 | any other state, including `focused` | none (focus shows the ring) |
 
-The overlay animates to its target color over 100 ms with `Curves.easeInOutSine` and takes the shape of `borderRadius`.
+The overlay animates to its target color over 100 ms with `Curves.easeInOutSine` and takes the shape of `borderRadius`. An idle overlay passes no color to its decoration, so it paints nothing.
 
 ### Focus
 
-- **Ownership.** With `focusNode == null`, the state creates a node on first use and keeps it until `dispose`, the pattern `TextField` uses. A caller node is never disposed. A change of the parameter moves the listener from the old node to the new one; the internal node is not disposed mid-update, because `InkWell`'s `Focus` still holds it until its own update runs. The internal states controller follows the same pattern.
+- **Ownership.** With `focusNode == null`, the state creates a node on first use and keeps it until `dispose`, the pattern `TextField` uses. A caller node is never disposed. A change of the parameter moves the listener from the old node to the new one; the internal node is not disposed mid-update, because `InkWell`'s `Focus` still holds it until its own update runs. The internal states controller follows the same pattern, and is reset to an empty set when the caller's controller is removed, because `InkWell` rewrites only `disabled` on a swap.
 - **Focusable.** `canRequestFocus` passed to `InkWell` is `!disabled && focusType != FocusType.none && canRequestFocus`.
 - **Ring.** `none` and `invisible` never show it. `focusedVisible` shows it while focused and `highlightMode == FocusHighlightMode.traditional`. `focused` shows it while focused. "Focused" means `hasPrimaryFocus` when `showFocusOnPrimary` is true, else `hasFocus`.
 - **Tap.** With `focusType == FocusType.focused`, a tap requests focus before it calls `onTap`. Other values leave focus where it is.
@@ -188,7 +189,7 @@ The overlay animates to its target color over 100 ms with `Curves.easeInOutSine`
 
 ### Disabled
 
-- Every callback passed to `InkWell` is `null`, and the `MouseRegion` for `onHover` keeps its place with null handlers, so toggling `disabled` never changes the widget structure.
+- Every callback passed to `InkWell` is `null`, and the `MouseRegion` keeps its place with null handlers, so toggling `disabled` or `onHover` never changes the widget structure.
 - No overlay, no ring, and no focus. When the node holds focus as `disabled` turns true, Flutter moves focus away because the node can no longer request it.
 - The cursor is `mouseCursor ?? (disabled ? SystemMouseCursors.forbidden : null)`; `null` keeps `InkWell`'s default, as today.
 
@@ -262,3 +263,4 @@ Gesture layout tests:
 - 2026-10-01, owner approval: overlay timing stays 100 ms with `easeInOutSine`; the unused theme token `animation.normal` is not adopted.
 - 2026-10-01, planning amendments: internal focus node and states controller live until `dispose`; the overlay listens through a `ListenableBuilder` below `InkWell`; the `onHover` `MouseRegion` stays in place while disabled; the theme-change test swaps `lightTheme`.
 - 2026-10-01, final review: a caller `semantics` applies even with `excludeFromSemantics` (fixes a regression against the old `GestureContainerLayout`).
+- 2026-10-01, deferred minors fixed on owner request: the idle overlay paints nothing (M1); the `MouseRegion` is always built, non-interactive `semantics` enter through `boxBuilder`, and stack and wrap always route through `GestureContainerLayout` (M2); the internal states controller resets when the caller's controller is removed (M3); the preview contract names its conditions (M4); a real pointer test covers hover and press (M5).
