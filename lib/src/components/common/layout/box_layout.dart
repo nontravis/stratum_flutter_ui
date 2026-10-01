@@ -16,10 +16,12 @@ import 'package:stratum_ui/src/src.dart';
 /// The tier depends on whether a parameter is null or on [scrollable], never
 /// on their content. Content remounts when the tier changes (toggling
 /// [scrollable] on an otherwise bare layout counts), when [rotate] switches
-/// between null and a value, or when [repaintBoundary], [debug], or
-/// [keepAlive] changes. Pass `const WidgetStyle()` or
-/// `const StratumInteraction()` up front when a value can appear later, and
-/// start [scrollable] at `true` for the same reason.
+/// between null and a value, when [repaintBoundary], [debug], or
+/// [keepAlive] changes, or, on a bare layout, when [semantics] switches
+/// between null and a value. Pass `const WidgetStyle()` or
+/// `const StratumInteraction()` up front when a value can appear later; a
+/// layout that toggles [scrollable] passes `const WidgetStyle()` so the
+/// toggle stays inside the box tier.
 abstract class BoxLayout extends StatelessWidget {
   const new({
     super.key,
