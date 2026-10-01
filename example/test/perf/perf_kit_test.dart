@@ -19,8 +19,11 @@ void main() {
         row,
         isA<RowLayout>()
             .having((r) => r.interaction?.onTap, 'interaction.onTap', onTap)
-            .having((r) => r.mainAxisAlignment, 'mainAxisAlignment',
-                MainAxisAlignment.end),
+            .having(
+              (r) => r.mainAxisAlignment,
+              'mainAxisAlignment',
+              MainAxisAlignment.end,
+            ),
       );
     });
 
@@ -29,13 +32,16 @@ void main() {
         mainAxisAlignment: MainAxisAlignment.start,
         children: const [],
       );
-      expect(row, isA<RowLayout>().having((r) => r.interaction, 'interaction',
-          isNull));
+      expect(
+        row,
+        isA<RowLayout>().having((r) => r.interaction, 'interaction', isNull),
+      );
     });
   });
 
   group('BaselineKit', () {
-    test('builds BaselineRowLayout when there is no tap', () {
+    test('builds BaselineRowLayout without interaction when there is no '
+        'tap', () {
       final row = const BaselineKit().row(
         style: const WidgetStyle(),
         mainAxisAlignment: MainAxisAlignment.end,
@@ -43,15 +49,17 @@ void main() {
       );
       expect(
         row,
-        isA<BaselineRowLayout>().having(
-          (r) => r.mainAxisAlignment,
-          'mainAxisAlignment',
-          MainAxisAlignment.end,
-        ),
+        isA<BaselineRowLayout>()
+            .having(
+              (r) => r.mainAxisAlignment,
+              'mainAxisAlignment',
+              MainAxisAlignment.end,
+            )
+            .having((r) => r.interaction, 'interaction', isNull),
       );
     });
 
-    test('builds BaselineGestureRowLayout with the tap', () {
+    test('passes the tap to BaselineRowLayout through its interaction', () {
       final row = const BaselineKit().row(
         onTap: onTap,
         mainAxisAlignment: MainAxisAlignment.start,
@@ -59,7 +67,15 @@ void main() {
       );
       expect(
         row,
-        isA<BaselineGestureRowLayout>().having((r) => r.onTap, 'onTap', onTap),
+        isA<BaselineRowLayout>().having(
+          (r) => r.interaction,
+          'interaction',
+          isA<BaselineStratumInteraction>().having(
+            (i) => i.onTap,
+            'onTap',
+            onTap,
+          ),
+        ),
       );
     });
 
@@ -73,8 +89,11 @@ void main() {
         ),
         isA<BaselineColumnLayout>()
             .having((c) => c.mainAxisSize, 'mainAxisSize', MainAxisSize.min)
-            .having((c) => c.crossAxisAlignment, 'crossAxisAlignment',
-                CrossAxisAlignment.end),
+            .having(
+              (c) => c.crossAxisAlignment,
+              'crossAxisAlignment',
+              CrossAxisAlignment.end,
+            ),
       );
       expect(
         kit.container(style: const WidgetStyle(width: 4)),

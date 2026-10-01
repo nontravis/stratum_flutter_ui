@@ -68,8 +68,8 @@ class CurrentKit implements PerfKit {
 
 /// The layouts of the frozen baseline (spec section 9.3).
 ///
-/// Phase 3's baseline is fd59ffa, where a tappable row is a separate
-/// `GestureRowLayout`.
+/// Phase 4's baseline is fe31fdc, the phase 3 tip: a tappable row is a
+/// `BaselineRowLayout` with a `BaselineStratumInteraction`.
 class BaselineKit implements PerfKit {
   const new();
 
@@ -80,16 +80,11 @@ class BaselineKit implements PerfKit {
     required MainAxisAlignment mainAxisAlignment,
     required List<Widget> children,
   }) {
-    if (onTap == null) {
-      return BaselineRowLayout(
-        style: style,
-        mainAxisAlignment: mainAxisAlignment,
-        children: children,
-      );
-    }
-    return BaselineGestureRowLayout(
+    return BaselineRowLayout(
       style: style,
-      onTap: onTap,
+      interaction: onTap == null
+          ? null
+          : BaselineStratumInteraction(onTap: onTap),
       mainAxisAlignment: mainAxisAlignment,
       children: children,
     );
