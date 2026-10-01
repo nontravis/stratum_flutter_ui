@@ -358,10 +358,11 @@ Phase 2 builds the harness that the container-layout spec (2026-09-30, section 1
 
 - Each scene has one builder function, so moving from the old API (`GestureRowLayout`) to the new one (`RowLayout(interaction:)`) changes only that function.
 - Device: macOS desktop in profile mode decides the pass. A physical iOS or Android device adds data when the owner runs it. Profile mode is disabled on emulators and simulators.
-- Each scene traces two seconds of constant-speed scrolling (S4: two seconds of animation) and records only the `Dart`, `Embedder`, and `GC` timeline streams. The default `all` streams and longer traces overflow the timeline recorder's buffer at 144 Hz and drop frames from the summary; a two-second trace keeps about 288 frames per scene.
+- Each scene traces two seconds of constant-speed scrolling (S5 scrolls a fixed 2000 px; S4 animates continuously) with semantics off, records only the `Dart`, `Embedder`, and `GC` timeline streams, and runs under `flutter drive --profile --endless-trace-buffer`. The driver fails any run whose summary covers less than the two-second window minus two frames, and the median tool reports frame count and frame interval; a different interval (another display or refresh rate) makes a comparison invalid. Semantics stay off through phase 4, so the metric measures layout work, not accessibility changes.
 - Each scene runs three times; the median counts. Measured numbers go to the project memory entry, not into this spec.
 - Metrics: `average_frame_build_time_millis`, `99th_percentile_frame_build_time_millis`, and `99th_percentile_frame_rasterizer_time_millis` from `TimelineSummary`.
 - Pass after phases 3 and 4, per scene: p99 build and p99 raster below 8.3 ms, or no worse than the baseline when the baseline already exceeds 8.3 ms; and average build time no more than 5% above the baseline.
+- Compare by interleaved runs, not against stored medians: the machine is shared, so run-to-run spread exceeds 5%. In the same session, build the baseline commit in a separate worktree and alternate baseline and candidate runs (five or more each); judge on the median of the paired differences. The stored baseline in the project memory entry is a sanity reference only.
 
 ## 10. Phases
 
