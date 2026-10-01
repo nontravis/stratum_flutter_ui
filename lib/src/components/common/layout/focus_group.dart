@@ -12,9 +12,12 @@ import 'package:stratum_ui/src/src.dart';
 ///   nearest item of the adjacent run.
 /// * Arrows across the axis keep Flutter's default.
 /// * Home and End move to the first and last item in reading order.
-/// * With [loop], moving past either end wraps around. Without it, an
-///   arrow past either end keeps Flutter's default: directional focus on
-///   desktop, scrolling on web.
+/// * With [loop], moving past either end wraps around, including a wrap's
+///   Up and Down past its first or last run. Without it, an arrow past
+///   either end is swallowed when another item in the group still lies in
+///   that direction on screen, so focus does not bounce to it; otherwise
+///   it keeps Flutter's default: directional focus on desktop, scrolling
+///   on web.
 ///
 /// The group binds its own keys, so they work the same on web, and skips
 /// them while focus is inside a text field. It covers built children only;
@@ -127,6 +130,8 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
     if (target != current) {
       final forward = reading.indexOf(target) > reading.indexOf(current);
       target.requestFocus();
+      final scope = node.nearestScope;
+      if (scope != null) _policy.invalidateScopeData(scope);
       Scrollable.ensureVisible(
         target.context!,
         alignmentPolicy: forward
@@ -167,7 +172,11 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
           back: LogicalKeyboardKey.arrowUp,
         );
         if (step == 0) return null;
-        return _move(_onScreen(items, Axis.vertical), current, step, loop);
+        final direction = step > 0
+            ? TraversalDirection.down
+            : TraversalDirection.up;
+        return _move(_onScreen(items, Axis.vertical), current, step, loop) ??
+            _edge(items, current, direction);
       case FocusGroupAxis.horizontal:
         final step = _step(
           key,
@@ -175,7 +184,11 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
           back: LogicalKeyboardKey.arrowLeft,
         );
         if (step == 0) return null;
-        return _move(_onScreen(items, Axis.horizontal), current, step, loop);
+        final direction = step > 0
+            ? TraversalDirection.right
+            : TraversalDirection.left;
+        return _move(_onScreen(items, Axis.horizontal), current, step, loop) ??
+            _edge(items, current, direction);
       case FocusGroupAxis.wrap:
         final across = _step(
           key,
@@ -183,7 +196,11 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
           back: LogicalKeyboardKey.arrowLeft,
         );
         if (across != 0) {
-          return _move(reading, current, _rtl ? -across : across, loop);
+          final direction = across > 0
+              ? TraversalDirection.right
+              : TraversalDirection.left;
+          return _move(reading, current, _rtl ? -across : across, loop) ??
+              _edge(items, current, direction);
         }
         final down = _step(
           key,
@@ -191,8 +208,37 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
           back: LogicalKeyboardKey.arrowUp,
         );
         if (down == 0) return null;
-        return _adjacentRun(items, current, down);
+        final direction = down > 0
+            ? TraversalDirection.down
+            : TraversalDirection.up;
+        return _adjacentRun(items, current, down, loop) ??
+            _edge(items, current, direction);
     }
+  }
+
+  /// [current] again when another item in [items] lies in [direction] on
+  /// screen, by the same filter Flutter's own directional traversal applies
+  /// before it picks an out-of-band target
+  /// (`widgets/focus_traversal.dart:1062-1116`); otherwise null, leaving
+  /// [direction]'s key to Flutter.
+  static FocusNode? _edge(
+    List<FocusNode> items,
+    FocusNode current,
+    TraversalDirection direction,
+  ) {
+    final target = current.rect;
+    bool inDirection(FocusNode node) {
+      if (node == current) return false;
+      final center = node.rect.center;
+      return switch (direction) {
+        TraversalDirection.left => center.dx <= target.left,
+        TraversalDirection.right => center.dx >= target.right,
+        TraversalDirection.up => center.dy <= target.top,
+        TraversalDirection.down => center.dy >= target.bottom,
+      };
+    }
+
+    return items.any(inDirection) ? current : null;
   }
 
   static int _step(
@@ -259,16 +305,23 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
   }
 
   /// The item of the run below ([down] 1) or above ([down] -1) the run of
-  /// [current] whose center is nearest to [current]'s, or null at the edge.
+  /// [current] whose center is nearest to [current]'s; past either end it
+  /// wraps to the nearest item of the opposite run with [loop] and is
+  /// otherwise null, leaving the key to Flutter.
   static FocusNode? _adjacentRun(
     List<FocusNode> items,
     FocusNode current,
     int down,
+    bool loop,
   ) {
     final runs = _runs(items);
     final index = runs.indexWhere((run) => run.contains(current));
-    final next = index + down;
-    if (index < 0 || next < 0 || next >= runs.length) return null;
+    if (index < 0) return null;
+    var next = index + down;
+    if (next < 0 || next >= runs.length) {
+      if (!loop) return null;
+      next = next < 0 ? runs.length - 1 : 0;
+    }
     final x = current.rect.center.dx;
     return runs[next].reduce(
       (a, b) =>
