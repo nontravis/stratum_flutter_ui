@@ -44,24 +44,6 @@ void main() {
       expect(box.transform, transform);
     });
 
-    testWidgets('hands boxBuilder to AnimatedStyledBox', (tester) async {
-      Widget builder(WidgetStyle style, Widget box) => box;
-
-      await tester.pumpWidget(
-        _host(
-          ContainerLayout(
-            boxBuilder: builder,
-            child: const SizedBox(width: 40, height: 20),
-          ),
-        ),
-      );
-
-      final box = tester.widget<AnimatedStyledBox>(
-        find.byType(AnimatedStyledBox),
-      );
-      expect(box.boxBuilder, builder);
-    });
-
     testWidgets('adds no outer wrappers by default', (tester) async {
       await tester.pumpWidget(_host(const ContainerLayout(style: _style)));
 
@@ -196,6 +178,33 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byType(AspectRatio), findsNothing);
+    });
+
+    testWidgets('semantics sit inside the margin (D10)', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _host(
+          const ContainerLayout(
+            style: WidgetStyle(
+              width: 40,
+              height: 20,
+              margin: EdgeInsets.all(8),
+            ),
+            semantics: SemanticsProperties(label: 'card'),
+            child: SizedBox.expand(),
+          ),
+        ),
+      );
+
+      final node = tester.getSemantics(find.bySemanticsLabel('card'));
+      expect(node.rect.size, const Size(40, 20));
+      handle.dispose();
+    });
+
+    testWidgets('(pin) a null child builds an empty box', (tester) async {
+      await tester.pumpWidget(_host(const ContainerLayout()));
+
+      expect(tester.getSize(find.byType(ContainerLayout)), Size.zero);
     });
 
     testWidgets('semantics, repaintBoundary, and debug add their wrappers',

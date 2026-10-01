@@ -1,9 +1,8 @@
-// The harness measures the layouts through their src paths, because the
-// gesture layouts are not exported by the layout barrel.
+// The harness imports the src barrel, which also exports the theme types
+// the fake theme implements.
 // ignore_for_file: implementation_imports
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:stratum_ui/src/components/common/layout/gesture_row_layout.dart';
 import 'package:stratum_ui/src/src.dart';
 
 class _PerfTransparent extends Fake implements TransparentColors {
@@ -196,9 +195,9 @@ double _scrollExtent(WidgetTester tester) {
 
 /// S3: S2 with a tap callback and the 100 ms default style animation.
 Widget sceneTappableRow(int index) {
-  return GestureRowLayout(
+  return RowLayout(
     style: _cardStyle,
-    onTap: () {},
+    interaction: StratumInteraction(onTap: () {}),
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: _rowChildren(index),
   );

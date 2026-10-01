@@ -1,11 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stratum_ui/src/components/common/layout/gesture_column_layout.dart';
-import 'package:stratum_ui/src/components/common/layout/gesture_row_layout.dart';
-import 'package:stratum_ui/src/components/common/layout/gesture_stack_layout.dart';
-import 'package:stratum_ui/src/components/common/layout/gesture_wrap_layout.dart';
 import 'package:stratum_ui/src/src.dart';
 
-import '../fakes/fake_stratum_theme.dart';
+import 'fakes/fake_stratum_theme.dart';
 
 const _child = SizedBox(width: 40, height: 20);
 
@@ -23,78 +19,51 @@ class _ProbeState extends State<_Probe> {
   Widget build(BuildContext context) => _child;
 }
 
-typedef _Root =
-    Widget Function({GestureTapCallback? onTap, WidgetStyle? style});
+typedef _Build = Widget Function({
+  required StratumInteraction interaction,
+  WidgetStyle? style,
+  Widget child,
+});
 
-final _roots = <String, _Root>{
-  'GestureStackLayout': ({onTap, style}) => GestureStackLayout(
-    onTap: onTap,
-    style: style,
-    children: const [_Probe()],
-  ),
-  'GestureWrapLayout': ({onTap, style}) => GestureWrapLayout(
-    onTap: onTap,
-    style: style,
-    children: const [_Probe()],
-  ),
-};
-
-typedef _Build =
-    Widget Function({
-      GestureTapCallback? onTap,
-      GestureTapCallback? onSecondaryTap,
-      bool disabled,
-    });
-
+/// Every box layout with `interaction`, `style`, and one `child`.
 final _layouts = <String, _Build>{
-  'GestureContainerLayout': ({onTap, onSecondaryTap, disabled = false}) =>
-      GestureContainerLayout(
-        onTap: onTap,
-        onSecondaryTap: onSecondaryTap,
-        disabled: disabled,
-        child: _child,
-      ),
-  'GestureColumnLayout': ({onTap, onSecondaryTap, disabled = false}) =>
-      GestureColumnLayout(
-        onTap: onTap,
-        onSecondaryTap: onSecondaryTap,
-        disabled: disabled,
+  'ContainerLayout': ({required interaction, style, child = _child}) =>
+      ContainerLayout(interaction: interaction, style: style, child: child),
+  'ColumnLayout': ({required interaction, style, child = _child}) =>
+      ColumnLayout(
+        interaction: interaction,
+        style: style,
         mainAxisSize: MainAxisSize.min,
-        children: const [_child],
+        children: [child],
       ),
-  'GestureRowLayout': ({onTap, onSecondaryTap, disabled = false}) =>
-      GestureRowLayout(
-        onTap: onTap,
-        onSecondaryTap: onSecondaryTap,
-        disabled: disabled,
-        mainAxisSize: MainAxisSize.min,
-        children: const [_child],
-      ),
-  'GestureStackLayout': ({onTap, onSecondaryTap, disabled = false}) =>
-      GestureStackLayout(
-        onTap: onTap,
-        onSecondaryTap: onSecondaryTap,
-        disabled: disabled,
-        children: const [_child],
-      ),
-  'GestureWrapLayout': ({onTap, onSecondaryTap, disabled = false}) =>
-      GestureWrapLayout(
-        onTap: onTap,
-        onSecondaryTap: onSecondaryTap,
-        disabled: disabled,
-        children: const [_child],
-      ),
+  'RowLayout': ({required interaction, style, child = _child}) => RowLayout(
+    interaction: interaction,
+    style: style,
+    mainAxisSize: MainAxisSize.min,
+    children: [child],
+  ),
+  'StackLayout': ({required interaction, style, child = _child}) =>
+      StackLayout(interaction: interaction, style: style, children: [child]),
+  'WrapLayout': ({required interaction, style, child = _child}) =>
+      WrapLayout(interaction: interaction, style: style, children: [child]),
 };
+
+Finder _semantics(String label) {
+  return find.byWidgetPredicate(
+    (widget) => widget is Semantics && widget.properties.label == label,
+  );
+}
 
 void main() {
-  group('GestureContainerLayout', () {
+  group('ContainerLayout interaction', () {
     testWidgets('keeps semantics inside the box without callbacks', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         themedHost(
-          const GestureContainerLayout(
+          const ContainerLayout(
+            interaction: StratumInteraction(),
             semantics: SemanticsProperties(label: 'card'),
             child: _child,
           ),
@@ -102,8 +71,13 @@ void main() {
       );
 
       expect(find.byType(StratumInkWell), findsNothing);
-      final box = tester.widget<ContainerLayout>(find.byType(ContainerLayout));
-      expect(box.semantics, isNull);
+      expect(
+        find.descendant(
+          of: find.byType(AnimatedStyledBox),
+          matching: _semantics('card'),
+        ),
+        findsOneWidget,
+      );
       expect(find.bySemanticsLabel('card'), findsOneWidget);
       handle.dispose();
     });
@@ -112,9 +86,9 @@ void main() {
       tester,
     ) async {
       Widget build(GestureTapCallback? onTap) => themedHost(
-        GestureContainerLayout(
+        ContainerLayout(
           semantics: const SemanticsProperties(label: 'card'),
-          onTap: onTap,
+          interaction: StratumInteraction(onTap: onTap),
           child: const _Probe(),
         ),
       );
@@ -129,31 +103,28 @@ void main() {
     testWidgets('keeps the margin outside the ink well', (tester) async {
       await tester.pumpWidget(
         themedHost(
-          const GestureContainerLayout(
+          const ContainerLayout(
             style: WidgetStyle(
               width: 40,
               height: 20,
               margin: EdgeInsets.all(8),
             ),
-            onTap: _noop,
+            interaction: StratumInteraction(onTap: _noop),
             child: SizedBox.expand(),
           ),
         ),
       );
 
       expect(tester.getSize(find.byType(StratumInkWell)), const Size(40, 20));
-      expect(
-        tester.getSize(find.byType(GestureContainerLayout)),
-        const Size(56, 36),
-      );
+      expect(tester.getSize(find.byType(ContainerLayout)), const Size(56, 36));
     });
 
     testWidgets('puts the ink well under the rotation', (tester) async {
       await tester.pumpWidget(
         themedHost(
-          const GestureContainerLayout(
+          const ContainerLayout(
             rotate: 45,
-            onTap: _noop,
+            interaction: StratumInteraction(onTap: _noop),
             child: _child,
           ),
         ),
@@ -174,10 +145,10 @@ void main() {
       const radius = BorderRadius.all(Radius.circular(8));
       await tester.pumpWidget(
         themedHost(
-          const GestureContainerLayout(
+          const ContainerLayout(
             style: WidgetStyle(borderRadius: radius),
             semantics: SemanticsProperties(label: 'card'),
-            onTap: _noop,
+            interaction: StratumInteraction(onTap: _noop),
             child: _child,
           ),
         ),
@@ -188,17 +159,26 @@ void main() {
       );
       expect(inkWell.borderRadius, radius);
       expect(inkWell.semantics?.label, 'card');
-      final box = tester.widget<ContainerLayout>(find.byType(ContainerLayout));
-      expect(box.semantics, isNull);
+      expect(
+        find.ancestor(
+          of: find.byType(StratumInkWell),
+          matching: _semantics('card'),
+        ),
+        findsNothing,
+      );
     });
   });
 
-  group('gesture layouts', () {
+  group('layout interaction', () {
     for (final MapEntry(key: name, value: build) in _layouts.entries) {
       testWidgets('$name forwards onSecondaryTap', (tester) async {
         var count = 0;
         await tester.pumpWidget(
-          themedHost(build(onSecondaryTap: () => count++)),
+          themedHost(
+            build(
+              interaction: StratumInteraction(onSecondaryTap: () => count++),
+            ),
+          ),
         );
 
         await tester.tap(
@@ -216,7 +196,14 @@ void main() {
       ) async {
         final handle = tester.ensureSemantics();
         await tester.pumpWidget(
-          themedHost(build(onTap: _noop, disabled: true)),
+          themedHost(
+            build(
+              interaction: const StratumInteraction(
+                onTap: _noop,
+                disabled: true,
+              ),
+            ),
+          ),
         );
 
         expect(
@@ -230,18 +217,25 @@ void main() {
         );
         handle.dispose();
       });
-    }
-  });
 
-  group('stack and wrap', () {
-    for (final MapEntry(key: name, value: build) in _roots.entries) {
-      testWidgets('$name keeps the children State when onTap toggles', (
+      testWidgets('$name keeps the child State as callbacks come and go', (
         tester,
       ) async {
-        await tester.pumpWidget(themedHost(build()));
-        final before = tester.state(find.byType(_Probe));
-        await tester.pumpWidget(themedHost(build(onTap: _noop)));
+        Widget host(GestureTapCallback? onTap) => themedHost(
+          build(
+            interaction: StratumInteraction(onTap: onTap),
+            child: const _Probe(),
+          ),
+        );
 
+        await tester.pumpWidget(host(null));
+        final before = tester.state(find.byType(_Probe));
+        await tester.pumpWidget(host(_noop));
+        expect(find.byType(StratumInkWell), findsOneWidget);
+        expect(tester.state(find.byType(_Probe)), same(before));
+
+        await tester.pumpWidget(host(null));
+        expect(find.byType(StratumInkWell), findsNothing);
         expect(tester.state(find.byType(_Probe)), same(before));
       });
 
@@ -249,11 +243,16 @@ void main() {
         tester,
       ) async {
         await tester.pumpWidget(
-          themedHost(build(style: const WidgetStyle(width: 40, height: 20))),
+          themedHost(
+            build(
+              interaction: const StratumInteraction(),
+              style: const WidgetStyle(width: 40, height: 20),
+            ),
+          ),
         );
 
-        final box = tester.widget<ContainerLayout>(
-          find.byType(ContainerLayout),
+        final box = tester.widget<AnimatedStyledBox>(
+          find.byType(AnimatedStyledBox),
         );
         expect(
           box.style?.animationStyle?.duration,
