@@ -14,27 +14,37 @@ class StratumThemeApplication extends InheritedWidget {
   final StratumThemeData? darkTheme;
 
   static StratumThemeData of(BuildContext context, {ThemeMode? themeMode}) {
-    final theme = context
-        .dependOnInheritedWidgetOfExactType<StratumThemeApplication>();
+    final theme = maybeOf(context, themeMode: themeMode);
     if (theme == null) {
       throw FlutterError(
         'StratumThemeApplication.of() called with a context that does not contain a '
         'StratumThemeApplication.',
       );
     }
+    return theme;
+  }
 
-    final tmpThemeMode = themeMode ?? theme.themeMode;
-    if (tmpThemeMode == ThemeMode.system) {
-      final brightness = MediaQuery.of(context).platformBrightness;
-      final isDarkMode = brightness == Brightness.dark;
-      return isDarkMode
-          ? (theme.darkTheme ?? theme.lightTheme)
-          : theme.lightTheme;
-    } else {
-      return tmpThemeMode == ThemeMode.dark
-          ? (theme.darkTheme ?? theme.lightTheme)
-          : theme.lightTheme;
-    }
+  /// The theme for [context], or null when no [StratumThemeApplication] is
+  /// above it.
+  ///
+  /// In [ThemeMode.system], a missing [MediaQuery] counts as light, so this
+  /// never throws.
+  static StratumThemeData? maybeOf(
+    BuildContext context, {
+    ThemeMode? themeMode,
+  }) {
+    final application = context
+        .dependOnInheritedWidgetOfExactType<StratumThemeApplication>();
+    if (application == null) return null;
+    final isDark = switch (themeMode ?? application.themeMode) {
+      ThemeMode.dark => true,
+      ThemeMode.light => false,
+      ThemeMode.system =>
+        MediaQuery.maybePlatformBrightnessOf(context) == Brightness.dark,
+    };
+    return isDark
+        ? application.darkTheme ?? application.lightTheme
+        : application.lightTheme;
   }
 
   // Helper method to wrap widgets that need theme access
