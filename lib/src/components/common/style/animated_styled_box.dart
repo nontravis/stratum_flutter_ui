@@ -12,26 +12,32 @@ typedef StyledBoxBuilder = Widget Function(WidgetStyle style, Widget box);
 /// [WidgetStyle.animationStyle]; a null value applies the new style in the
 /// same frame. A null curve uses [Curves.easeInOutSine], because a linear
 /// change looks stiff. `AnimationStyle.reverseDuration` and `reverseCurve`
-/// are not used, because [ImplicitlyAnimatedWidget] has no reverse settings.
-class AnimatedStyledBox extends ImplicitlyAnimatedWidget {
-  new({
+/// are not used.
+///
+/// When the platform asks for less motion (`disableAnimations` or
+/// `reduceMotion`), size, spacing, and alignment jump to the new style while
+/// colors, borders, radius, shadows, blur, and opacity still fade over the
+/// full duration. The fade keeps its duration on every platform, because the
+/// controller uses [AnimationBehavior.preserve].
+class AnimatedStyledBox extends StatefulWidget {
+  const new({
     super.key,
     this.style,
     this.ratio,
     this.transform,
     this.transformAlignment,
-    super.onEnd,
+    this.onEnd,
     this.boxBuilder,
     this.child,
-  }) : super(
-         duration: style?.animationStyle?.duration ?? Duration.zero,
-         curve: style?.animationStyle?.curve ?? Curves.easeInOutSine,
-       );
+  });
 
   final WidgetStyle? style;
   final double? ratio;
   final Matrix4? transform;
   final AlignmentGeometry? transformAlignment;
+
+  /// Called when a style animation completes.
+  final VoidCallback? onEnd;
 
   /// Wraps the box after its size constraints and before its margin,
   /// transform, and opacity.
@@ -42,27 +48,105 @@ class AnimatedStyledBox extends ImplicitlyAnimatedWidget {
   final Widget? child;
 
   @override
-  AnimatedWidgetBaseState<AnimatedStyledBox> createState() =>
-      _AnimatedStyledBoxState();
+  State<AnimatedStyledBox> createState() => _AnimatedStyledBoxState();
 }
 
-class _AnimatedStyledBoxState
-    extends AnimatedWidgetBaseState<AnimatedStyledBox> {
+class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
+    with SingleTickerProviderStateMixin {
   final GlobalKey _childKey = GlobalKey(debugLabel: 'AnimatedStyledBox.child');
   final GlobalKey _boxKey = GlobalKey(debugLabel: 'AnimatedStyledBox.box');
-  _WidgetStyleTween? _style;
+
+  late final AnimationController _controller = AnimationController(
+    duration: _duration,
+    animationBehavior: AnimationBehavior.preserve,
+    vsync: this,
+  );
+  late CurvedAnimation _animation = CurvedAnimation(
+    parent: _controller,
+    curve: _curve,
+  );
+  late final _WidgetStyleTween _style = _WidgetStyleTween(
+    begin: _target,
+    end: _target,
+  );
+
+  WidgetStyle get _target => widget.style ?? const WidgetStyle();
+
+  Duration get _duration =>
+      widget.style?.animationStyle?.duration ?? Duration.zero;
+
+  Curve get _curve => widget.style?.animationStyle?.curve ?? _defaultCurve;
+
+  static const Curve _defaultCurve = Curves.easeInOutSine;
 
   @override
-  void forEachTween(TweenVisitor<dynamic> visitor) {
-    _style = visitor(
-      _style,
-      widget.style ?? const WidgetStyle(),
-      (dynamic value) => _WidgetStyleTween(begin: value as WidgetStyle),
-    ) as _WidgetStyleTween?;
+  void initState() {
+    super.initState();
+    _controller
+      ..addListener(_handleTick)
+      ..addStatusListener(_handleStatus);
   }
 
   @override
-  Widget build(BuildContext context) => _buildBox(_style!.evaluate(animation));
+  void didUpdateWidget(AnimatedStyledBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldCurve = oldWidget.style?.animationStyle?.curve ?? _defaultCurve;
+    if (_curve != oldCurve) {
+      _animation.dispose();
+      _animation = CurvedAnimation(parent: _controller, curve: _curve);
+    }
+    _controller.duration = _duration;
+    final target = _target;
+    if (target == _style.end) return;
+    var begin = _style.evaluate(_animation);
+    if (_reducesMotion) begin = _jumpGeometry(begin, to: target);
+    _style
+      ..begin = begin
+      ..end = target;
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _animation.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleTick() => setState(() {});
+
+  void _handleStatus(AnimationStatus status) {
+    if (status.isCompleted) widget.onEnd?.call();
+  }
+
+  /// Whether the platform asks for less motion. `MediaQueryData` has no
+  /// `reduceMotion` field, so the flags come from the view's dispatcher.
+  bool get _reducesMotion {
+    final features = View.of(context).platformDispatcher.accessibilityFeatures;
+    return features.disableAnimations || features.reduceMotion;
+  }
+
+  /// [from] with the size, spacing, and alignment of [to], so those fields
+  /// stay at their target while the rest of the style fades.
+  static WidgetStyle _jumpGeometry(
+    WidgetStyle from, {
+    required WidgetStyle to,
+  }) {
+    return from.copyWith(
+      width: to.width,
+      height: to.height,
+      minWidth: to.minWidth,
+      maxWidth: to.maxWidth,
+      minHeight: to.minHeight,
+      maxHeight: to.maxHeight,
+      padding: to.padding,
+      margin: to.margin,
+      alignment: to.alignment,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => _buildBox(_style.evaluate(_animation));
 
   Widget _buildBox(WidgetStyle style) {
     final child = widget.child;
@@ -238,7 +322,7 @@ class _AnimatedStyledBoxState
 }
 
 class _WidgetStyleTween extends Tween<WidgetStyle> {
-  new({super.begin});
+  new({super.begin, super.end});
 
   @override
   WidgetStyle lerp(double t) => WidgetStyle.lerp(begin, end, t)!;
