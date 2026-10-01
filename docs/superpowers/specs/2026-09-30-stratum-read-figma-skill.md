@@ -184,3 +184,5 @@ const StratumButton({
 - 2026-09-30: skip `Doc` and `Examples` frames.
 - 2026-09-30: the sibling skill is renamed `stratum-create-flutter-widget`; all four Stratum skills use kebab-case names.
 - 2026-09-30: no hardcoded Figma file key or URL; the user names the file on every run, and the Dart folder comes from the section separator only when it matches an existing folder.
+- 2026-10-01: `LOADING` in any variant maps to `loading: true`, and a feedback value (`🔵 INFO`, `🔴 NEGATIVE`, `🟡 WARNING`, `🟢 POSITIVE`) in any variant maps to `FeedbackState`, not only inside `state` (owner ruling on Figma cleanup group 2). The widget may still expose a component-specific enum when the variant mixes these with other values (Spinner `type`, ModalContent `type`).
+- 2026-10-01: a `state` value with a `_LEFT` or `_RIGHT` suffix is the state of that half of a split control (SplitButton); `FILL_WIDTH` means full available width; `CUSTOM` color means the caller passes the color; `EXTRA_TINY`, `BLACK`, and `GHOST` are design-only and are resolved when the widget is built.

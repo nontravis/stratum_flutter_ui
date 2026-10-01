@@ -150,12 +150,12 @@ class AnimatedStyledBox extends ImplicitlyAnimatedWidget {
     this.child,
   }) : super(
          duration: style?.animationStyle?.duration ?? Duration.zero,
-         curve: style?.animationStyle?.curve ?? Curves.linear,
+         curve: style?.animationStyle?.curve ?? Curves.easeInOutSine,
        );
 }
 ```
 
-The constructor is not `const`, because it reads `style.animationStyle` in the initializer list. Its state extends `AnimatedWidgetBaseState` with one `_WidgetStyleTween` whose `lerp` calls `WidgetStyle.lerp`. `reverseDuration` and `reverseCurve` of `AnimationStyle` are not used, because `ImplicitlyAnimatedWidget` has no reverse settings; the doc comment says so.
+The constructor is not `const`, because it reads `style.animationStyle` in the initializer list. Its state extends `AnimatedWidgetBaseState` with one `_WidgetStyleTween` whose `lerp` calls `WidgetStyle.lerp`. A null curve falls back to `Curves.easeInOutSine`, because the owner found a linear change too stiff (ruling 2026-09-30). `reverseDuration` and `reverseCurve` of `AnimationStyle` are not used, because `ImplicitlyAnimatedWidget` has no reverse settings; the doc comment says so.
 
 ## 6. Painting: `StyleDecoration`
 
@@ -242,10 +242,10 @@ Replace the 23–24 flat style parameters in each constructor with `WidgetStyle?
 
 - `column_layout.dart`, `row_layout.dart`, `stack_layout.dart`, `wrap_layout.dart`
 - `gesture_column_layout.dart`, `gesture_row_layout.dart`, `gesture_stack_layout.dart`, `gesture_wrap_layout.dart`
-- `gesture_container_layout.dart` (already fails to compile; migrate the parameters and check that no new error kind appears)
+- `gesture_container_layout.dart` (compiles since `FalconState` comes from `flutter_falconx` and the owner added `FocusSpread`)
 - `custom_scroll_view.dart` (one parameter)
 
-No code in `example/lib` or `test/` constructs these widgets today.
+No code in `example/lib` or `test/` constructs these widgets today. Until the green build (section 11) lands, callers are verified with `flutter analyze` only: no new error in any migrated file, and the package error count does not grow. Their files import the `src.dart` barrel, so widget tests cannot load them yet.
 
 ## 10. Testing
 
@@ -263,20 +263,18 @@ No code in `example/lib` or `test/` constructs these widgets today.
 
 - `example/integration_test/container_layout_perf_test.dart` runs each scene inside `binding.traceAction` and reports a `TimelineSummary` through `example/test_driver/perf_driver.dart`.
 - Scenes: (1) a list of 500 items with fill, radius, drop shadow, and inner shadow, flung for five seconds; (2) 50 boxes animating their style in a loop; (3) 20 glass cards inside one `BackdropGroup` scrolling over an image.
-- Each scene builds its boxes through one scene helper, so the baseline run uses the old flat parameters and the later run uses `style` with the same visual values.
 - Run with `flutter drive --profile` on a physical iOS or Android device, or on macOS desktop. Profile mode does not run on simulators or emulators.
-- Pass: p99 frame build time and p99 raster time below 8.3 ms, and no worse than the baseline. Both runs use the same physical device, chosen by the owner.
+- Pass: p99 frame build time and p99 raster time below 8.3 ms on a physical device the owner chooses. No baseline run: the old `ContainerLayout` is replaced before the example app can build (owner ruling 2026-09-30).
 
 ## 11. Phases and prerequisites
 
-1. **Style units (can start now).** `WidgetStyle` fields and `lerp`, `ImageBlurFilter.lerp`, `StyleDecoration`, `AnimatedStyledBox`, each test-first, with narrow imports.
-2. **Green build (prerequisite, separate work, owner decisions).** Clear the 193 pre-existing errors: missing `FalconState` (95 cascading errors in `gesture_container_layout.dart`), missing flutter_gen output (`FontFamily`, `AssetGenImage`, `SvgGenImage`, `AppIcon`), `font_data.dart`, `ThemeApplication` and `ResponsiveBreakpoints` in `stateless_widget.dart`, and the `BaseResponse` ambiguous export in `src.dart`. Not designed in this spec.
-3. **Baseline benchmark** on the current `ContainerLayout`.
-4. **`ContainerLayout` refactor** with its structural tests.
-5. **Caller migration** (section 9).
-6. **Benchmark after**, compared with the baseline.
+1. **Style units (done).** `WidgetStyle` fields and `lerp`, `ImageBlurFilter.lerp`, `StyleDecoration`, `AnimatedStyledBox`, each test-first, with narrow imports.
+2. **`ContainerLayout` refactor** with its structural tests; `container_layout.dart` and `widget_performance_monitor.dart` move to narrow imports so the tests load.
+3. **Caller migration** (section 9), verified by `flutter analyze`.
+4. **Green build (separate work, owner decisions).** Clear the pre-existing errors: `font_data.dart` (owner's rewrite), flutter_gen references with no assets behind them (`FontFamily`, `AssetGenImage`, `SvgGenImage`, `AppIcon`), renamed classes still referenced by the base widgets (`ThemeApplication`, `ResponsiveBreakpoints`, `Breakpoint`), `LocaleSettings` from the absent slang package, and the `BaseResponse` ambiguous export. Not designed in this spec.
+5. **Benchmark**, against the 8.3 ms budget only.
 
-Phases 3 to 6 wait for phase 2.
+Owner ruling 2026-09-30: phases 2 and 3 run before the green build, because the owner has other work in progress in the files the green build touches. The cost is the before/after frame-time comparison, which the baseline run would have given.
 
 ## 12. Out of scope
 
