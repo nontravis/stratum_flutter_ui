@@ -33,6 +33,15 @@ const nullScene = 'S2-plain';
 /// Root of the run folders, relative to `example/`.
 const abbaRoot = 'build/perf/abba';
 
+/// Folder of the prebuilt profile apps, one per group, relative to
+/// `example/`.
+const appsRoot = 'build/perf-apps';
+
+/// Where `flutter build macos --profile` writes the app.
+const _builtApp = 'build/macos/Build/Products/Profile/stratum_ui_example.app';
+
+const _target = '--target=integration_test/layout_perf_test.dart';
+
 const _usage =
     'usage: dart run tool/perf_abba.dart report\n'
     '       dart run tool/perf_abba.dart run --runs <n> [--from <first>]';
@@ -107,6 +116,37 @@ String? runRangeError({required int from, required int runs}) {
   return null;
 }
 
+/// Arguments that build [group]'s profile app with its `PERF_GROUP`.
+List<String> buildArgs(int group) {
+  return [
+    'build',
+    'macos',
+    '--profile',
+    _target,
+    '--dart-define=PERF_GROUP=$group',
+  ];
+}
+
+/// Arguments that run [group] on its prebuilt app, so no invocation builds.
+List<String> driveArgs(int group) {
+  return [
+    'drive',
+    '--profile',
+    '--endless-trace-buffer',
+    '-d',
+    'macos',
+    '--driver=test_driver/perf_driver.dart',
+    _target,
+    '--use-application-binary=$appsRoot/g$group.app',
+  ];
+}
+
+/// Whether run [run] already holds a trace off the frame interval, which
+/// leaves out the whole run (spec section 9.5).
+bool runLostFrames(List<Trace> traces, int run) {
+  return invalidRuns(traces).contains('r$run');
+}
+
 /// Run folders under [root] that runs [from] to `from + runs - 1` would
 /// write into but that exist already.
 List<String> clashingRuns(
@@ -136,6 +176,29 @@ Future<int> _run({required int from, required int runs}) async {
     );
     return 64;
   }
+  // One build per group for the whole call: every invocation of a group
+  // then runs the same binary, and no invocation pays for a build.
+  for (final group in groups) {
+    final build = await Process.start(
+      'flutter',
+      buildArgs(group),
+      mode: ProcessStartMode.inheritStdio,
+    );
+    if (await build.exitCode != 0) {
+      stderr.writeln('flutter build failed for group $group');
+      return 1;
+    }
+    final app = '$appsRoot/g$group.app';
+    final copy = await Process.run('sh', [
+      '-c',
+      'rm -rf "$app" && mkdir -p $appsRoot && cp -R "$_builtApp" "$app"',
+    ]);
+    if (copy.exitCode != 0) {
+      stderr.writeln('could not copy the group $group app: ${copy.stderr}');
+      return 1;
+    }
+  }
+  stdout.writeln('Keep the test window visible until the run ends.');
   for (var run = from; run < from + runs; run++) {
     for (final group in groups) {
       final directory = Directory('$abbaRoot/r${run}g$group')
@@ -146,16 +209,7 @@ Future<int> _run({required int from, required int runs}) async {
       stdout.writeln('run $run group $group: $load');
       final drive = await Process.start(
         'flutter',
-        [
-          'drive',
-          '--profile',
-          '--endless-trace-buffer',
-          '-d',
-          'macos',
-          '--driver=test_driver/perf_driver.dart',
-          '--target=integration_test/layout_perf_test.dart',
-          '--dart-define=PERF_GROUP=$group',
-        ],
+        driveArgs(group),
         environment: {'PERF_RUN': '$run', 'PERF_GROUP': '$group'},
         mode: ProcessStartMode.inheritStdio,
       );
@@ -166,6 +220,13 @@ Future<int> _run({required int from, required int runs}) async {
           'rm -rf $abbaRoot/r${run}g* and pass --from $run to continue',
         );
         return 1;
+      }
+      if (runLostFrames(readRuns(Directory(abbaRoot)).traces, run)) {
+        stderr.writeln(
+          'run $run lost frames in group $group (window hidden or machine '
+          'starved); the run is left out, so its other groups are skipped',
+        );
+        break;
       }
     }
   }
@@ -235,9 +296,10 @@ Set<String> invalidRuns(List<Trace> traces) {
   }
   return {
     for (final MapEntry(key: run, value: runTraces) in byRun.entries)
-      if (_drifts(runTraces, median([
-            for (final t in runTraces) t.metrics.interval,
-          ])) ||
+      if (_drifts(
+            runTraces,
+            median([for (final t in runTraces) t.metrics.interval]),
+          ) ||
           _drifts(runTraces, overall))
         run,
   };
@@ -245,7 +307,8 @@ Set<String> invalidRuns(List<Trace> traces) {
 
 bool _drifts(List<Trace> traces, double reference) {
   return traces.any(
-    (t) => (t.metrics.interval - reference).abs() > reference * maxIntervalDrift,
+    (t) =>
+        (t.metrics.interval - reference).abs() > reference * maxIntervalDrift,
   );
 }
 
@@ -471,9 +534,7 @@ String _row(
       '${_ms(median([for (final p in pairs) metric(p.cand)]))}';
   final name = scene == nullScene ? '$scene (null)' : scene;
   final change = median([for (final p in pairs) averageChange(p)]);
-  final interval = ci == null
-      ? '-'
-      : '[${_pct(ci.lower)}, ${_pct(ci.upper)}]';
+  final interval = ci == null ? '-' : '[${_pct(ci.lower)}, ${_pct(ci.upper)}]';
   return '| $name | ${pairs.length} | ${sides((m) => m.average)} '
       '| ${_pct(change)} | $interval | ${sides((m) => m.p99Build)} '
       '| ${sides((m) => m.p99Raster)} | $verdict |';
