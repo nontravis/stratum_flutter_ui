@@ -6,6 +6,10 @@ import 'package:stratum_ui/src/components/common/style/style_decoration.dart';
 /// current animation frame; see [AnimatedStyledBox.boxBuilder].
 typedef StyledBoxBuilder = Widget Function(WidgetStyle style, Widget box);
 
+/// Puts the padded content of an [AnimatedStyledBox] into a scroll view;
+/// see [AnimatedStyledBox.scrollBuilder].
+typedef StyledScrollBuilder = Widget Function(Widget content);
+
 /// Paints a [WidgetStyle] around [child] and animates between styles.
 ///
 /// Duration and curve come from the target style's
@@ -28,6 +32,7 @@ class AnimatedStyledBox extends StatefulWidget {
     this.transformAlignment,
     this.onEnd,
     this.boxBuilder,
+    this.scrollBuilder,
     this.child,
   });
 
@@ -45,6 +50,14 @@ class AnimatedStyledBox extends StatefulWidget {
   /// Receives the style of the current animation frame. The result keeps
   /// its State when wrappers above it come and go.
   final StyledBoxBuilder? boxBuilder;
+
+  /// Wraps the padded content in a scroll view inside the box.
+  ///
+  /// Fill, border, radius, shadow, and blur stay in place while the padding
+  /// and the child scroll. With a border radius and no `clipBehavior` in the
+  /// style, the box clips the viewport to its corners with
+  /// [Clip.antiAlias].
+  final StyledScrollBuilder? scrollBuilder;
   final Widget? child;
 
   @override
@@ -171,6 +184,8 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
     if (padding != null) {
       current = Padding(padding: padding, child: current);
     }
+    final scrollBuilder = widget.scrollBuilder;
+    if (scrollBuilder != null) current = scrollBuilder(current);
     final foregroundBlur = style.foregroundBlur;
     if (foregroundBlur != null && child != null) {
       current = ImageFiltered(imageFilter: foregroundBlur.blur, child: current);
@@ -188,7 +203,12 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
       );
       current = BackdropFilter.grouped(filter: blur.blur, child: current);
     }
-    current = _clip(style, hasBlur: blur != null, child: current);
+    current = _clip(
+      style,
+      hasBlur: blur != null,
+      scrolls: scrollBuilder != null,
+      child: current,
+    );
     if (blur != null) {
       if (style.dropShadow != null) {
         current = DecoratedBox(
@@ -268,18 +288,24 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
       style.foregroundImage != null ||
       style.border != null;
 
-  /// Clips when a blur is set or [WidgetStyle.clipBehavior] asks for it.
+  /// The one clip of the box: when a blur is set, when
+  /// [WidgetStyle.clipBehavior] asks for it, or when a rounded box scrolls.
   ///
   /// A blur is always clipped, because an unclipped `BackdropFilter` blurs
-  /// everything up to the nearest ancestor clip.
+  /// everything up to the nearest ancestor clip. A rounded scrolling box
+  /// clips with [Clip.antiAlias], which adds no save layer; the scroll view
+  /// keeps its own rectangular clip inside it.
   static Widget _clip(
     WidgetStyle style, {
     required bool hasBlur,
+    required bool scrolls,
     required Widget child,
   }) {
-    final requested = style.clipBehavior ?? Clip.none;
-    if (!hasBlur && requested == Clip.none) return child;
     final radius = style.borderRadius;
+    final requested =
+        style.clipBehavior ??
+        (scrolls && radius != null ? Clip.antiAlias : Clip.none);
+    if (!hasBlur && requested == Clip.none) return child;
     final behavior = requested != Clip.none
         ? requested
         : (radius == null ? Clip.hardEdge : Clip.antiAlias);

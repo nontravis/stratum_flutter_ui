@@ -16,6 +16,7 @@ Widget _host(
   Widget? child = const SizedBox(width: 40, height: 20),
   double? ratio,
   StyledBoxBuilder? boxBuilder,
+  StyledScrollBuilder? scrollBuilder,
 }) {
   return Directionality(
     textDirection: TextDirection.ltr,
@@ -24,6 +25,7 @@ Widget _host(
         style: style,
         ratio: ratio,
         boxBuilder: boxBuilder,
+        scrollBuilder: scrollBuilder,
         child: child,
       ),
     ),
@@ -59,6 +61,17 @@ class _BoxProbeState extends State<_BoxProbe> {
 }
 
 Widget _probe(WidgetStyle style, Widget box) => _BoxProbe(child: box);
+
+class _ScrollProbe extends StatelessWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
+Widget _scroll(Widget content) => _ScrollProbe(child: content);
 
 void main() {
   _robustnessTests();
@@ -443,6 +456,119 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(tester.getSize(_decorated()), const Size(60, 30));
+    });
+  });
+
+  group('AnimatedStyledBox scrollBuilder', () {
+    testWidgets('wraps the padding inside the background', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            backgroundColor: Color(0xFFFFFFFF),
+            padding: EdgeInsets.all(8),
+          ),
+          scrollBuilder: _scroll,
+        ),
+      );
+
+      final scroll = find.byType(_ScrollProbe);
+      expect(find.ancestor(of: scroll, matching: _decorated()), findsOneWidget);
+      expect(
+        find.descendant(of: scroll, matching: find.byType(Padding)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a radius clips the scroll content once with antiAlias', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            backgroundColor: Color(0xFFFFFFFF),
+            borderRadius: _radius,
+          ),
+          scrollBuilder: _scroll,
+        ),
+      );
+
+      final clip = tester.widget<ClipRRect>(find.byType(ClipRRect));
+      expect(clip.clipBehavior, Clip.antiAlias);
+      expect(
+        find.ancestor(
+          of: find.byType(_ScrollProbe),
+          matching: find.byType(ClipRRect),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a rounded, blurred box that scrolls clips once', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            backgroundColor: Color(0x80FFFFFF),
+            borderRadius: _radius,
+            backgroundBlur: _blur,
+          ),
+          scrollBuilder: _scroll,
+        ),
+      );
+
+      expect(find.byType(ClipRRect), findsOneWidget);
+      expect(find.byType(ClipRect), findsNothing);
+    });
+
+    testWidgets('an explicit Clip.none wins over the scroll clip', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(borderRadius: _radius, clipBehavior: Clip.none),
+          scrollBuilder: _scroll,
+        ),
+      );
+
+      expect(find.byType(ClipRRect), findsNothing);
+    });
+
+    testWidgets('(pin) a radius without scrollBuilder adds no clip', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_host(const WidgetStyle(borderRadius: _radius)));
+
+      expect(find.byType(ClipRRect), findsNothing);
+    });
+
+    testWidgets('foregroundBlur filters outside the scroll content', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(const WidgetStyle(foregroundBlur: _blur), scrollBuilder: _scroll),
+      );
+
+      expect(
+        find.ancestor(
+          of: find.byType(_ScrollProbe),
+          matching: find.byType(ImageFiltered),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the child keeps its State when scrollBuilder comes', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_host(null, child: const _Probe()));
+      final before = tester.state(find.byType(_Probe));
+
+      await tester.pumpWidget(
+        _host(null, child: const _Probe(), scrollBuilder: _scroll),
+      );
+
+      expect(tester.state(find.byType(_Probe)), same(before));
     });
   });
 
