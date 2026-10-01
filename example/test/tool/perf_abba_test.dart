@@ -410,4 +410,37 @@ void main() {
       expect(clashingRuns(root, from: 3, runs: 4), isEmpty);
     });
   });
+
+  group('prebuilt apps', () {
+    test('builds one profile app per group with its PERF_GROUP', () {
+      expect(buildArgs(2), [
+        'build',
+        'macos',
+        '--profile',
+        '--target=integration_test/layout_perf_test.dart',
+        '--dart-define=PERF_GROUP=2',
+      ]);
+    });
+
+    test('drives a group on its prebuilt app', () {
+      final args = driveArgs(3);
+      expect(args, contains('--use-application-binary=build/perf-apps/g3.app'));
+      expect(args, contains('--endless-trace-buffer'));
+      expect(args, contains('--driver=test_driver/perf_driver.dart'));
+      expect(args, contains('--target=integration_test/layout_perf_test.dart'));
+    });
+  });
+
+  group('runLostFrames', () {
+    test('is true once a trace of the run drifts off the frame interval', () {
+      final traces = [
+        _trace('r6g1', 'S1', 'base', 1),
+        _trace('r6g1', 'S1', 'cand', 1),
+        _trace('r7g1', 'S1', 'base', 1),
+        _trace('r7g1', 'S1', 'cand', 1, interval: 55.5),
+      ];
+      expect(runLostFrames(traces, 7), isTrue);
+      expect(runLostFrames(traces, 6), isFalse);
+    });
+  });
 }
