@@ -16,6 +16,14 @@ const maxIntervalDrift = 0.1;
 /// `integration_test/perf/perf_scenes.dart`.
 const groups = [1, 2, 3];
 
+/// Scenes per group: `perfGroups` in
+/// `integration_test/perf/perf_scenes.dart`.
+const groupScenes = <int, List<String>>{
+  1: ['S2-plain', 'S1', 'S1-fast', 'S2'],
+  2: ['S2-plain', 'S2-box', 'S3'],
+  3: ['S2-plain', 'S4', 'S5'],
+};
+
 /// Most runs one comparison holds: 24 pairs per scene (spec section 9.5).
 const maxRuns = 12;
 
@@ -171,7 +179,11 @@ int _report() {
     return 64;
   }
   final (:traces, :loads) = readRuns(root);
-  final result = judge(traces, loads: loads);
+  final result = judge(
+    traces,
+    loads: loads,
+    scenes: [for (final keys in groupScenes.values) ...keys],
+  );
   stdout.write(result.text);
   File('$abbaRoot/report.md').writeAsStringSync(result.text);
   return exitCodeOf(result.verdict);
@@ -207,23 +219,33 @@ Trace? traceOf(String run, String fileName, TraceMetrics metrics) {
   return (run: run, scene: scene, side: side, pair: pair, metrics: metrics);
 }
 
-/// Runs with a trace whose frame interval differs by more than
-/// [maxIntervalDrift] from the run's median interval.
+/// The run `r<run>` that a run folder `r<run>g<group>` belongs to.
+String runOf(String folder) => folder.split('g').first;
+
+/// Runs (`r<run>`, every group of the run) with a trace whose frame
+/// interval differs by more than [maxIntervalDrift] from the run's median
+/// interval, or from the comparison's median interval, which catches a run
+/// whose windows all opened on another display (spec section 9.5).
 Set<String> invalidRuns(List<Trace> traces) {
+  if (traces.isEmpty) return {};
+  final overall = median([for (final t in traces) t.metrics.interval]);
   final byRun = <String, List<Trace>>{};
   for (final trace in traces) {
-    (byRun[trace.run] ??= []).add(trace);
+    (byRun[runOf(trace.run)] ??= []).add(trace);
   }
   return {
     for (final MapEntry(key: run, value: runTraces) in byRun.entries)
-      if (_drifts(runTraces)) run,
+      if (_drifts(runTraces, median([
+            for (final t in runTraces) t.metrics.interval,
+          ])) ||
+          _drifts(runTraces, overall))
+        run,
   };
 }
 
-bool _drifts(List<Trace> traces) {
-  final middle = median([for (final t in traces) t.metrics.interval]);
+bool _drifts(List<Trace> traces, double reference) {
   return traces.any(
-    (t) => (t.metrics.interval - middle).abs() > middle * maxIntervalDrift,
+    (t) => (t.metrics.interval - reference).abs() > reference * maxIntervalDrift,
   );
 }
 
@@ -372,11 +394,12 @@ double? loadOf(String uptime) {
 ({String text, Verdict verdict}) judge(
   List<Trace> traces, {
   required List<double> loads,
+  required List<String> scenes,
 }) {
   final invalid = invalidRuns(traces);
   final valid = [
     for (final trace in traces)
-      if (!invalid.contains(trace.run)) trace,
+      if (!invalid.contains(runOf(trace.run))) trace,
   ];
   final pairs = pairTraces(valid);
   final nullCi = medianInterval([
@@ -386,8 +409,17 @@ double? loadOf(String uptime) {
   final gate = nullGatePasses(nullCi);
   final rows = <String>[];
   final verdicts = <Verdict>[];
-  for (final scene in pairs.keys.toList()..sort()) {
-    final scenePairs = pairs[scene]!;
+  for (final scene in {...scenes, ...pairs.keys}.toList()..sort()) {
+    final scenePairs = pairs[scene] ?? const <TracePair>[];
+    if (scenePairs.isEmpty) {
+      // An expected scene without valid pairs stays in the report: spec
+      // section 9.5 makes fewer than 6 pairs INCONCLUSIVE.
+      if (scene != nullScene) verdicts.add(Verdict.inconclusive);
+      final name = scene == nullScene ? '$scene (null)' : scene;
+      final verdict = scene == nullScene ? 'null INVALID' : 'INCONCLUSIVE';
+      rows.add('| $name | 0 | - | - | - | - | - | $verdict |');
+      continue;
+    }
     final ci = medianInterval([for (final p in scenePairs) averageChange(p)]);
     final String verdictText;
     if (scene == nullScene) {
@@ -403,7 +435,7 @@ double? loadOf(String uptime) {
     rows.add(_row(scene, scenePairs, ci, verdictText));
   }
   final verdict = overallVerdict(nullGate: gate, scenes: verdicts);
-  final runs = {for (final trace in valid) trace.run.split('g').first};
+  final runs = {for (final trace in valid) runOf(trace.run)};
   final invocations = {for (final trace in valid) trace.run};
   final intervals = [for (final trace in valid) trace.metrics.interval];
   final text = StringBuffer()

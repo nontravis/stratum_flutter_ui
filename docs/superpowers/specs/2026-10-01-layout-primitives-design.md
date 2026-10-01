@@ -405,7 +405,8 @@ Scenes reach layouts only through the kit, except S2-plain. Moving to a new API 
 
 - Metrics from `TimelineSummary`: `average_frame_build_time_millis`, `99th_percentile_frame_build_time_millis`, and `99th_percentile_frame_rasterizer_time_millis`.
 - A pair is the `base` and `cand` traces with the same run, group, scene, and pair number. Its change in average build time is (cand / base − 1) × 100%.
-- Interval check: a run with any trace whose frame interval differs by more than 10% from the run's median interval is invalid; the report lists it and the analysis leaves it out. No other data is discarded.
+- Interval check: a run (every group of one run number) with any trace whose frame interval differs by more than 10% from the run's median interval, or from the median interval of the whole comparison, is invalid; the report lists it and the analysis leaves it out. The second test catches a run whose windows all opened on another display. No other data is discarded.
+- An expected scene with no valid pairs keeps its row, with 0 pairs and INCONCLUSIVE (S2-plain: null INVALID).
 - Confidence interval: the distribution-free 95% interval for the median of the paired changes is [x(k), x(n−k+1)] of the sorted changes, where k is the largest rank with P(Bin(n, ½) ≤ k − 1) ≤ 0.025. Fewer than 6 pairs give no interval. 12 pairs give k = 3 (coverage 96.1%), 24 pairs k = 7 (97.7%), and 36 pairs k = 12 (97.1%).
 - Null gate: the S2-plain interval must contain 0. Otherwise the comparison is INVALID and is run again. Half the width of the S2-plain interval is reported as the comparison's resolution.
 - Average build, per scene except S2-plain, which only the null gate judges: PASS when the interval's upper bound is at most +5%; FAIL when its lower bound is above +5%; INCONCLUSIVE otherwise, including a scene with fewer than 6 pairs.

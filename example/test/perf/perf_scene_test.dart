@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/perf/perf_scene.dart';
 import '../../integration_test/perf/perf_scenes.dart';
-import '../../tool/perf_abba.dart' show groups;
+import '../../tool/perf_abba.dart' show groupScenes, groups;
 
 void main() {
   group('abbaSteps', () {
@@ -59,8 +59,9 @@ void main() {
       expect(() => perfGroup(4), throwsArgumentError);
     });
 
-    test('matches the groups perf_abba runs', () {
+    test('matches the groups and scenes perf_abba runs and expects', () {
       expect(perfGroups.keys, groups);
+      expect(perfGroups, groupScenes);
     });
   });
 }
