@@ -62,6 +62,14 @@ FocusNode _node() {
   return node;
 }
 
+Future<TestGesture> _mouse(WidgetTester tester) async {
+  final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+  await gesture.addPointer(location: Offset.zero);
+  addTearDown(gesture.removePointer);
+  await tester.pump();
+  return gesture;
+}
+
 void main() {
   group('StratumInkWell overlay', () {
     testWidgets('an idle overlay has no color to paint', (tester) async {
@@ -231,6 +239,27 @@ void main() {
       expect(_overlayColor(tester), isNull);
 
       second.update(WidgetState.hovered, true);
+      await tester.pumpAndSettle();
+      expect(_overlayColor(tester), fakeHover);
+    });
+
+    testWidgets('a real hover and press drive the overlay', (tester) async {
+      await tester.pumpWidget(
+        themedHost(const StratumInkWell(onTap: _noop, child: _box)),
+      );
+      final center = tester.getCenter(find.byType(StratumInkWell));
+      final mouse = await _mouse(tester);
+
+      await mouse.moveTo(center);
+      await tester.pumpAndSettle();
+      expect(_overlayColor(tester), fakeHover);
+
+      await mouse.down(center);
+      await tester.pump(kPressTimeout);
+      await tester.pumpAndSettle();
+      expect(_overlayColor(tester), fakeActive);
+
+      await mouse.up();
       await tester.pumpAndSettle();
       expect(_overlayColor(tester), fakeHover);
     });
