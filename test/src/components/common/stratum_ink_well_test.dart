@@ -329,6 +329,18 @@ void main() {
 
       expect(tester.state(find.byType(_Probe)), same(before));
     });
+
+    testWidgets('toggling onHover keeps the child State', (tester) async {
+      Widget build(ValueChanged<bool>? onHover) => themedHost(
+        StratumInkWell(onTap: _noop, onHover: onHover, child: const _Probe()),
+      );
+
+      await tester.pumpWidget(build(null));
+      final before = tester.state(find.byType(_Probe));
+      await tester.pumpWidget(build((_) {}));
+
+      expect(tester.state(find.byType(_Probe)), same(before));
+    });
   });
 
   group('StratumInkWell focus', () {

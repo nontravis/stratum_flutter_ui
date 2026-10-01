@@ -17,6 +17,34 @@ const _child = SizedBox(width: 40, height: 20);
 
 void _noop() {}
 
+class _Probe extends StatefulWidget {
+  const new();
+
+  @override
+  State<_Probe> createState() => _ProbeState();
+}
+
+class _ProbeState extends State<_Probe> {
+  @override
+  Widget build(BuildContext context) => _child;
+}
+
+typedef _Root =
+    Widget Function({GestureTapCallback? onTap, WidgetStyle? style});
+
+final _roots = <String, _Root>{
+  'GestureStackLayout': ({onTap, style}) => GestureStackLayout(
+    onTap: onTap,
+    style: style,
+    children: const [_Probe()],
+  ),
+  'GestureWrapLayout': ({onTap, style}) => GestureWrapLayout(
+    onTap: onTap,
+    style: style,
+    children: const [_Probe()],
+  ),
+};
+
 typedef _Build =
     Widget Function({
       GestureTapCallback? onTap,
@@ -66,9 +94,10 @@ final _layouts = <String, _Build>{
 
 void main() {
   group('GestureContainerLayout', () {
-    testWidgets('builds a plain ContainerLayout without callbacks', (
+    testWidgets('keeps semantics inside the box without callbacks', (
       tester,
     ) async {
+      final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         themedHost(
           const GestureContainerLayout(
@@ -80,8 +109,27 @@ void main() {
 
       expect(find.byType(StratumInkWell), findsNothing);
       final box = tester.widget<ContainerLayout>(find.byType(ContainerLayout));
-      expect(box.boxBuilder, isNull);
-      expect(box.semantics?.label, 'card');
+      expect(box.semantics, isNull);
+      expect(find.bySemanticsLabel('card'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('toggling onTap with semantics keeps the child State', (
+      tester,
+    ) async {
+      Widget build(GestureTapCallback? onTap) => themedHost(
+        GestureContainerLayout(
+          semantics: const SemanticsProperties(label: 'card'),
+          onTap: onTap,
+          child: const _Probe(),
+        ),
+      );
+
+      await tester.pumpWidget(build(null));
+      final before = tester.state(find.byType(_Probe));
+      await tester.pumpWidget(build(_noop));
+
+      expect(tester.state(find.byType(_Probe)), same(before));
     });
 
     testWidgets('keeps the margin outside the ink well', (tester) async {
@@ -187,6 +235,36 @@ void main() {
           ),
         );
         handle.dispose();
+      });
+    }
+  });
+
+  group('stack and wrap', () {
+    for (final MapEntry(key: name, value: build) in _roots.entries) {
+      testWidgets('$name keeps the children State when onTap toggles', (
+        tester,
+      ) async {
+        await tester.pumpWidget(themedHost(build()));
+        final before = tester.state(find.byType(_Probe));
+        await tester.pumpWidget(themedHost(build(onTap: _noop)));
+
+        expect(tester.state(find.byType(_Probe)), same(before));
+      });
+
+      testWidgets('$name animates a style over 100 ms without callbacks', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          themedHost(build(style: const WidgetStyle(width: 40, height: 20))),
+        );
+
+        final box = tester.widget<ContainerLayout>(
+          find.byType(ContainerLayout),
+        );
+        expect(
+          box.style?.animationStyle?.duration,
+          const Duration(milliseconds: 100),
+        );
       });
     }
   });

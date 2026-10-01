@@ -37,14 +37,7 @@ class GestureStackLayout extends StatelessWidget {
     this.semantics,
     //===============//
     required this.children,
-  }) : _hasGestures =
-           onTap != null ||
-           onSecondaryTap != null ||
-           onDoubleTap != null ||
-           onLongPress != null ||
-           onHighlightChanged != null ||
-           onHover != null ||
-           onFocusChange != null;
+  });
 
   ///========== Frame ==========///
   final double? rotate; // 0-360 degree
@@ -96,9 +89,6 @@ class GestureStackLayout extends StatelessWidget {
   ///===== Child Widget ======///
   final List<Widget> children;
 
-  // Pre-computed values
-  final bool _hasGestures;
-
   @override
   Widget build(BuildContext context) {
     // Build the core Stack widget
@@ -110,51 +100,37 @@ class GestureStackLayout extends StatelessWidget {
       children: children,
     );
 
-    // Apply gesture container only if gestures are needed
-    if (_hasGestures) {
-      stackWidget = GestureContainerLayout(
-        style: style,
-        ratio: ratio,
-        rotate: rotate,
-        keepAlive: keepAlive,
-        repaintBoundary: repaintBoundary,
-        transform: transform,
-        focusType: focusType,
-        disabled: disabled,
-        disabledPressAnimation: disabledPressAnimation,
-        onTap: onTap,
-        onSecondaryTap: onSecondaryTap,
-        onDoubleTap: onDoubleTap,
-        onLongPress: onLongPress,
-        onHighlightChanged: onHighlightChanged,
-        onHover: onHover,
-        mouseCursor: mouseCursor,
-        enableFeedback: enableFeedback,
-        excludeFromSemantics: excludeFromSemantics,
-        focusNode: focusNode,
-        canRequestFocus: canRequestFocus,
-        onFocusChange: onFocusChange,
-        autofocus: autofocus,
-        showFocusOnPrimary: showFocusOnPrimary,
-        statesController: statesController,
-        onEndAnimate: onEndAnimate,
-        semantics: semantics,
-        child: stackWidget,
-      );
-    } else {
-      // Apply only container styling without gestures
-      stackWidget = ContainerLayout(
-        style: style,
-        ratio: ratio,
-        rotate: rotate,
-        keepAlive: keepAlive,
-        repaintBoundary: repaintBoundary,
-        transform: transform,
-        onEndAnimate: onEndAnimate,
-        semantics: semantics,
-        child: stackWidget,
-      );
-    }
+    // GestureContainerLayout falls back to a plain ContainerLayout without
+    // callbacks, so the root stays the same when a callback comes or goes.
+    stackWidget = GestureContainerLayout(
+      style: style,
+      ratio: ratio,
+      rotate: rotate,
+      keepAlive: keepAlive,
+      repaintBoundary: repaintBoundary,
+      transform: transform,
+      focusType: focusType,
+      disabled: disabled,
+      disabledPressAnimation: disabledPressAnimation,
+      onTap: onTap,
+      onSecondaryTap: onSecondaryTap,
+      onDoubleTap: onDoubleTap,
+      onLongPress: onLongPress,
+      onHighlightChanged: onHighlightChanged,
+      onHover: onHover,
+      mouseCursor: mouseCursor,
+      enableFeedback: enableFeedback,
+      excludeFromSemantics: excludeFromSemantics,
+      focusNode: focusNode,
+      canRequestFocus: canRequestFocus,
+      onFocusChange: onFocusChange,
+      autofocus: autofocus,
+      showFocusOnPrimary: showFocusOnPrimary,
+      statesController: statesController,
+      onEndAnimate: onEndAnimate,
+      semantics: semantics,
+      child: stackWidget,
+    );
 
     // Apply scrollable wrapper only if needed
     if (scrollable) {
