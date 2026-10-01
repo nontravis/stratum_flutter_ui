@@ -1,4 +1,4 @@
-// Pure lint: rules L01-L20 over describeComponent() output. Returns findings shaped
+// Pure lint: rules L01-L20 (L17 retired) over describeComponent() output. Returns findings shaped
 // { rule, severity, page, component, property, value, message, suggestion }; `message` holds only the detail the
 // rule message in CONVENTIONS.rules cannot say, '' otherwise. Reads rule ids and severities, never rule messages.
 
@@ -8,6 +8,9 @@ const LINT_SHARED = typeof utf8Length === 'function' ? { utf8Length, normalizeNa
 function stripVs(text) {
   return String(text).replace(/[︎️]/g, '');
 }
+
+// No-break, thin, ideographic, and other non-ASCII spaces: they look like a space but change the name or value.
+const WIDE_SPACE = /[\u00a0\u2000-\u200a\u202f\u205f\u3000]/;
 
 function capitalize(word) {
   return word.charAt(0).toUpperCase() + word.slice(1);
@@ -92,8 +95,10 @@ function isBenignPair(a, b) {
   return [la + 's', la + 'es'].indexOf(lb) >= 0 || [lb + 's', lb + 'es'].indexOf(la) >= 0;
 }
 
+// The enum mirror plus the design-only values, each also with a split control's part suffix (HOVERED_LEFT).
 function vocabularyValues(vocab) {
-  return vocab.values.map((row) => row.value);
+  const values = vocab.values.map((row) => row.value).concat(vocab.designOnly || []);
+  return values.concat.apply(values, (vocab.partSuffixes || []).map((suffix) => values.map((v) => v + suffix)));
 }
 
 function feedbackValues(conv) {
@@ -110,12 +115,11 @@ function hasFeedbackDot(value, conv) {
   return feedbackValues(conv).some((v) => plain.indexOf(Array.from(stripVs(v))[0]) === 0);
 }
 
-// Feedback word (canonical or legacy, without dot) -> canonical feedback value; the no-feedback row is excluded.
+// Feedback word (canonical or legacy, without dot) -> canonical feedback value; the design-only ⚫️ NORMAL is no row.
 function feedbackCanonical(value, conv) {
   const vocab = conv.vocabularies.feedback;
   const word = wordCore(value).toUpperCase();
-  const row = vocab.values.find((r) => (vocab.designOnly || []).indexOf(r.value) < 0 &&
-    (wordCore(r.value) === word || (r.legacy || []).indexOf(word) >= 0));
+  const row = vocab.values.find((r) => wordCore(r.value) === word || (r.legacy || []).indexOf(word) >= 0);
   return row ? row.value : null;
 }
 
@@ -207,11 +211,12 @@ function knownList(groups) {
 // Known spellings. values/names: file-wide typo references (knownWords, canonical and legacy names).
 // valueSet/nameSet: never typos; they add vocabulary and boolean values, which are typo references only
 // inside their own role. Legacy values are never known: they are reported and mapped to their canonical value.
-// parts: the word stems of every known name and value, for compounds such as LEFT_RIGHT.
+// parts: the word stems of every known name and value, for compounds such as LEFT_RIGHT. A vocabulary no role uses
+// (fontSize, digits only) mirrors its enum for the drift test only, so it adds nothing here and the sandbox omits it.
 function knownSpellings(conv) {
   const values = knownList(conv.knownWords.values);
   let valid = values.concat(conv.booleanValues.canonical, conv.freeSize);
-  Object.keys(conv.vocabularies).forEach((key) => { valid = valid.concat(vocabularyValues(conv.vocabularies[key])); });
+  Object.values(conv.vocabularies).filter((v) => v.roles.length).forEach((v) => { valid = valid.concat(vocabularyValues(v)); });
   let names = knownList(conv.knownWords.names);
   conv.canonicalNames.forEach((row) => { names = names.concat(row.name, row.legacy); });
   const parts = new Set();
@@ -367,11 +372,17 @@ function checkEmojiTemplate(comp, ctx) {
     makeFinding(ctx, 'L05', comp, p.base, '', '', expectedName(p)));
 }
 
-// L06: leading or trailing space or colon, missing or double space, not camelCase.
+// L06: leading or trailing space or colon, missing or double space, not camelCase, or a non-ASCII space in a name or
+// value. A value's L06 suggestion is its plain-space form; valueRuleOrder ranks L06 below L01 only.
 function checkNameFormat(comp, ctx) {
   const out = [];
+  const wide = 'non-ASCII space';
   comp.properties.forEach((p) => {
     const issues = [];
+    p.options.forEach((v) => {
+      if (WIDE_SPACE.test(v)) out.push(makeFinding(ctx, 'L06', comp, p.base, v, wide, v.split(WIDE_SPACE).join(' ')));
+    });
+    if (WIDE_SPACE.test(p.base)) issues.push(wide);
     if (p.leading) issues.push('leading space');
     if (p.emoji && !p.separator) issues.push('no space after emoji');
     if (p.separator.length > 1 || /\s\s/.test(p.label)) issues.push('double space');
@@ -486,21 +497,21 @@ function slotEmoji(conv) {
 
 function isStateLike(value, conv) {
   const word = wordCore(value).toUpperCase();
-  return conv.stateLike.exact.indexOf(word) >= 0 || conv.stateLike.prefixes.some((pre) => word.indexOf(pre) === 0) ||
-    Boolean(feedbackCanonical(value, conv));
+  return conv.stateLike.exact.indexOf(word) >= 0 || conv.stateLike.prefixes.some((pre) => word.indexOf(pre) === 0);
 }
 
-// L15: state-like value outside state/status, or slot value inside position/type.
+// L15: interaction value outside state/status, or slot value inside position/type with no slot of its name. A slot
+// value selects the layout that shows the ❖ slot of the same name (CONTENT with ❖ content), so that pair is one concept.
 function checkMixedAxis(comp, ctx) {
   const conv = ctx.conv;
   const out = [];
   wordVariants(comp, conv).forEach((p) => {
     const axis = p.role.axis;
     p.options.forEach((v) => {
-      const feedbackInColor = axis === 'color' && Boolean(feedbackCanonical(v, conv));
-      if (axis !== 'state' && axis !== 'status' && !feedbackInColor && isStateLike(v, conv)) {
+      if (axis !== 'state' && axis !== 'status' && isStateLike(v, conv)) {
         out.push(makeFinding(ctx, 'L15', comp, p.base, v, '', 'move it to 🚦 state or a flag'));
-      } else if (conv.slotAxes.indexOf(axis) >= 0 && conv.slotValues.indexOf(v.toUpperCase()) >= 0) {
+      } else if (conv.slotAxes.indexOf(axis) >= 0 && conv.slotValues.indexOf(v.toUpperCase()) >= 0 &&
+        !comp.properties.some((q) => q.role && q.role.key === 'slot' && q.name === v.toLowerCase())) {
         out.push(makeFinding(ctx, 'L15', comp, p.base, v, '', 'use a ' + slotEmoji(conv) + ' slot INSTANCE_SWAP'));
       }
     });
@@ -520,17 +531,6 @@ function checkConceptNames(comp, ctx) {
     const target = canonicalName(p, ctx.conv);
     if (target) out.push(makeFinding(ctx, 'L16', comp, p.base, '', '', target));
   });
-  return out;
-}
-
-// L17: LOADING or PROGRESS inside state.
-function checkLoadingState(comp, ctx) {
-  const out = [];
-  variantProps(comp).filter((p) => p.role.axis === 'state').forEach((p) => p.options.forEach((v) => {
-    if (ctx.conv.loadingStateValues.indexOf(v) >= 0) {
-      out.push(makeFinding(ctx, 'L17', comp, p.base, v, '', 'a ⏳ loading BOOLEAN'));
-    }
-  }));
   return out;
 }
 
@@ -597,8 +597,7 @@ function checkListToggles(comp, ctx) {
 
 const LINT_RULES = [checkTypos, checkCollisions, checkEmptyNames, checkReservedNames, checkEmojiTemplate, checkNameFormat,
   checkValueCase, checkBooleanValues, checkFeedbackValues, checkVocabulary, checkStyleNamedType, checkUnboundColors,
-  checkActiveValues, checkSingleValue, checkMixedAxis, checkConceptNames, checkLoadingState, checkVariantMatrix, checkDescription,
-  checkListToggles];
+  checkActiveValues, checkSingleValue, checkMixedAxis, checkConceptNames, checkVariantMatrix, checkDescription, checkListToggles];
 
 function findingKey(page, component, property, value) {
   return [page, component, property, value].join('\u0001');

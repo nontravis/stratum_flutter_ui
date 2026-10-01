@@ -40,8 +40,9 @@ function skipScopes(row) {
 function vocabularySection(key, vocab) {
   const notes = [];
   if (vocab.roles.length) notes.push('Roles: ' + code(vocab.roles) + '.');
-  if (vocab.designOnly) notes.push('Figma only: ' + code(vocab.designOnly) + '.');
+  if (vocab.designOnly) notes.push('Figma only (allowed, not in the enum): ' + code(vocab.designOnly) + '.');
   if (vocab.codeOnly) notes.push('Dart only: ' + code(vocab.codeOnly) + '.');
+  if (vocab.partSuffixes) notes.push('Any value may end in a part suffix: ' + code(vocab.partSuffixes) + '.');
   const rows = vocab.values.map((row) => [code([row.value]), code(row.legacy || [])]);
   return ['#### `' + key + '` (`' + vocab.dartEnum + '`)', notes.join(' '), table(['Value', 'Replaces'], rows)]
     .filter(Boolean).join('\n\n');

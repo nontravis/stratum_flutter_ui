@@ -8,7 +8,7 @@ const CONVENTIONS = {
     { id: 'L03', severity: 'blocking', message: 'name has no letters after normalization' },
     { id: 'L04', severity: 'blocking', message: 'Dart reserved word or built-in identifier' },
     { id: 'L05', severity: 'convention', message: 'emoji missing or not matching the role template' },
-    { id: 'L06', severity: 'convention', message: 'name format' },
+    { id: 'L06', severity: 'convention', message: 'name or value format' },
     { id: 'L07', severity: 'convention',
       message: 'value not UPPER_SNAKE, or emoji outside feedback and direction values' },
     { id: 'L08', severity: 'convention', message: 'boolean variant values are False/True' },
@@ -19,17 +19,18 @@ const CONVENTIONS = {
     { id: 'L12', severity: 'convention', message: 'hard-coded color, not bound to a variable' },
     { id: 'L13', severity: 'advisory', message: '`ACTIVE` is ambiguous' },
     { id: 'L14', severity: 'advisory', message: 'variant has a single value' },
-    { id: 'L15', severity: 'advisory',
-      message: 'mixed axis: state-like value outside `state`, or slot value in `position` or `type`' },
+    { id: 'L15', severity: 'advisory', message: 'mixed axis: interaction value outside `state` or `status`, or slot ' +
+      'value in `position` or `type` without a ❖ slot of the same name' },
     { id: 'L16', severity: 'advisory', message: 'legacy name for a canonical name' },
-    { id: 'L17', severity: 'advisory', message: 'loading inside `state`' },
+    { id: 'L17', severity: '—', message: 'retired 2026-10-01: `LOADING` and `PROGRESS` inside `state` are allowed' },
     { id: 'L18', severity: 'info', message: 'variant matrix incomplete (existing/product)' },
     { id: 'L19', severity: 'info', message: 'no description (Figma can read it empty; re-publish the library)' },
     { id: 'L20', severity: 'convention', message: 'numbered list toggles not named `👁️ show<Item><N>`' },
   ],
+  // A rule whose severity is not in severityOrder is retired: its row keeps the id, and the sandbox never gets it.
   severityOrder: ['blocking', 'convention', 'advisory', 'info'],
-  // One problem per value: the first rule in this list wins.
-  valueRuleOrder: ['L01', 'L09', 'L08', 'L10', 'L07', 'L13'],
+  // One problem per value: the first rule in this list wins (a value's non-ASCII space, L06, yields only to a typo).
+  valueRuleOrder: ['L01', 'L06', 'L09', 'L08', 'L10', 'L07', 'L13'],
   // Name rules silenced on a property whose name normalizes to empty (L03).
   emptyNameSilences: ['L01', 'L04', 'L05', 'L06'],
 
@@ -67,6 +68,7 @@ const CONVENTIONS = {
   // swapName matches the INSTANCE_SWAP default component's name. A layout-region name is a slot whatever its default
   // (CardLayout `top` defaults to TopNavigation). An old slot emoji gets L05 like any other mismatch.
   // rename: L05 also fires when the emoji fits and suggests `<rename><Name>` (a logo toggle follows the icon toggle).
+  // theme sits above the VARIANT flag, so `darkMode` keeps 🌗 with False/True options.
   emojiRoles: [
     { key: 'show', emoji: '👁️', types: ['BOOLEAN'], prefix: 'show' },
     { key: 'graphicToggle', emoji: '👁️', types: ['BOOLEAN'], names: ['icon', 'logo'], rename: 'show' },
@@ -74,6 +76,7 @@ const CONVENTIONS = {
     { key: 'checked', emoji: '✅', types: ['BOOLEAN', 'VARIANT'], names: ['checked', 'selected'] },
     { key: 'expanded', emoji: '↕️', types: ['VARIANT'], names: ['expanded'] },
     { key: 'filled', emoji: '✍️', types: ['VARIANT'], names: ['filled'] },
+    { key: 'theme', emoji: '🌗', types: ['VARIANT'], names: ['theme', 'darkMode'] },
     { key: 'flag', emoji: '🔘', types: ['BOOLEAN'] },
     { key: 'flag', emoji: '🔘', types: ['VARIANT'], booleanOptions: true },
     { key: 'text', emoji: '💬', types: ['TEXT'] },
@@ -92,8 +95,8 @@ const CONVENTIONS = {
     { key: 'direction', emoji: '➡️', types: ['VARIANT'], names: ['direction', 'arrow'] },
     { key: 'layout', emoji: '⬒', types: ['VARIANT'], names: ['layout'] },
     { key: 'platform', emoji: '🖥️', types: ['VARIANT'], names: ['platform', 'os', 'browser'] },
-    { key: 'count', emoji: '🔢', types: ['VARIANT'], names: ['items', 'tabs', 'steps', 'section', 'page'] },
-    { key: 'theme', emoji: '🌗', types: ['VARIANT'], names: ['theme', 'darkMode'] },
+    { key: 'count', emoji: '🔢', types: ['VARIANT'],
+      names: ['items', 'tabs', 'steps', 'section', 'page', 'attachments', 'rating', 'avatars', 'frame'] },
     { key: 'graphic', emoji: '🏞️', types: ['VARIANT'], names: ['graphic', 'image', 'emotion'] },
     { key: 'variant', emoji: '🔖', types: ['VARIANT'] },
   ],
@@ -119,14 +122,18 @@ const CONVENTIONS = {
 
   booleanValues: { canonical: ['False', 'True'], falsy: ['false', 'off', 'no'], truthy: ['true', 'on', 'yes'] },
 
-  // Each vocabulary mirrors a Dart enum. roles: the property roles that use it (L01 reference; L10 for
-  // vocabularyRoles). designOnly/codeOnly: deliberate gaps the drift test allows. legacy: values a row replaces.
+  // Each vocabulary mirrors a Dart enum in `values`. roles: the property roles that use it (L01 reference; L10 for
+  // vocabularyRoles). designOnly: values Figma may use that the enum lacks; codeOnly: enum members Figma never uses;
+  // the drift test allows both gaps. legacy: values a row replaces. partSuffixes: a part suffix any value of the
+  // vocabulary may carry (SplitButton HOVERED_LEFT).
+  // A property named `status` (ChatStatus, UploadedFile, Steps) has no vocabulary: no role lists it.
   vocabularies: {
     state: {
       dartEnum: 'FullWidgetState',
       roles: ['state'],
       designOnly: ['PROGRESS'],
-      codeOnly: ['INITIAL', 'EMPTY', 'SCROLLED_UNDER', 'SUCCESS', 'CANCEL', 'WARNING', 'FAIL'],
+      codeOnly: ['INITIAL', 'SCROLLED_UNDER', 'SUCCESS', 'CANCEL', 'WARNING', 'FAIL'],
+      partSuffixes: ['_LEFT', '_RIGHT'],
       values: [
         { value: 'NORMAL' },
         { value: 'HOVERED', legacy: ['HOVER'] },
@@ -136,7 +143,7 @@ const CONVENTIONS = {
         { value: 'SELECTED' },
         { value: 'DISABLED' },
         { value: 'LOADING' },
-        { value: 'PROGRESS' },
+        { value: 'EMPTY' },
       ],
     },
     feedback: {
@@ -148,24 +155,23 @@ const CONVENTIONS = {
         { value: '🔴 NEGATIVE', legacy: ['NEGATIVE', 'ERROR'] },
         { value: '🟡 WARNING', legacy: ['WARNING'] },
         { value: '🟢 POSITIVE', legacy: ['POSITIVE', 'SUCCESS'] },
-        { value: '⚫️ NORMAL' },
       ],
     },
     size: {
       dartEnum: 'WidgetSize',
       roles: ['size'],
+      designOnly: ['FILL_WIDTH', 'EXTRA_TINY'],
       values: [{ value: 'TINY' }, { value: 'EXTRA_SMALL' }, { value: 'SMALL' }, { value: 'MEDIUM' }, { value: 'LARGE' },
         { value: 'EXTRA_LARGE' }, { value: 'HUGE' }],
     },
     color: {
       dartEnum: 'ColorEnum',
       roles: ['color'],
-      designOnly: ['NONE'],
+      designOnly: ['NONE', 'BLACK', 'GHOST', 'CUSTOM', 'LOADING'],
       values: [{ value: 'BRAND' }, { value: 'RED' }, { value: 'PINK' }, { value: 'ROSE' }, { value: 'VIOLET' },
         { value: 'PURPLE' }, { value: 'INDIGO' }, { value: 'BLUE' }, { value: 'CYAN' }, { value: 'TEAL' },
         { value: 'EMERALD' }, { value: 'GREEN' }, { value: 'MOSS' }, { value: 'LIME' }, { value: 'YELLOW' },
-        { value: 'AMBER' }, { value: 'ORANGE' }, { value: 'BROWN' }, { value: 'BLUE_GRAY' }, { value: 'GRAY' },
-        { value: 'NONE' }],
+        { value: 'AMBER' }, { value: 'ORANGE' }, { value: 'BROWN' }, { value: 'BLUE_GRAY' }, { value: 'GRAY' }],
     },
     fontSize: {
       dartEnum: 'FontSize',
@@ -200,9 +206,10 @@ const CONVENTIONS = {
   ],
   activeDefault: 'a precise value: FOCUSED, SELECTED, PRESSED, or ↕️ expanded: True',
 
-  loadingStateValues: ['LOADING', 'PROGRESS'],
   visualStyles: ['GHOST', 'OUTLINE', 'FILLED', 'SHADED', 'SUBTLE'],
-  stateLike: { exact: ['LOADING', 'DISABLED', 'PRESSED'], prefixes: ['HOVER'] },
+  // L15: interaction values outside `state` or `status`. LOADING and feedback values may sit in any variant.
+  stateLike: { exact: ['DISABLED', 'PRESSED'], prefixes: ['HOVER'] },
+  // L15: a slot value in a slotAxes variant, unless the set has a ❖ slot of the same name (CONTENT with ❖ content).
   slotValues: ['CONTENT', 'SLOT'],
   slotAxes: ['position', 'type'],
   // Role keys whose values name pictures (🏞️ image: SUCCESS), so L09 and L15 skip them.
@@ -219,7 +226,7 @@ const CONVENTIONS = {
     names: [
       'accent|action|addon|align|arrow|artist|attachments|avatars',
       'badge|bank|body|body2|body3|bottom|brandName|browser',
-      'captionBottom|captionRight|center|char|checked|code|color|condition|content|contentText|count|counter',
+      'captionBottom|captionRight|center|char|checked|code|color|colored|condition|content|contentText|count|counter',
       'country',
       'dark|darkMode|date|description|detail|direction|domain|dotPosition|dropdown',
       'emoji|emotion|errorIcon|errorMessage|esc|example|expand|expandable|expanded',
@@ -270,11 +277,11 @@ const CONVENTIONS = {
       'DARK|DAY_OF_THE_WEEK|DEFAULT|DELETE|DELETE_CONFIRMATION|DELIVERY|DESCENDING|DESKTOP|DESTRUCTIVE|DIVIDER',
       'DOCS|DOCX|DOING|DONE|DOT|DOTS|DOWNLOADING|DRAGGED|DROPDOWN',
       'EMOJI|EMPTY|EPS|ERROR|EXPANDED|EXTRA_LARGE|EXTRA_SMALL|EXTRA_TINY',
-      'FACEBOOK|FADED|FALLING|FATAL_ERROR|FEATURE|FILL|FILL_WIDTH|FILLED|FILLED_BRAND|FIRST|FLOAT|FLOATING',
-      'FOCUSED|FROWNING|FULL',
+      'FACEBOOK|FADED|FAILED|FALLING|FATAL_ERROR|FEATURE|FILL|FILL_WIDTH|FILLED|FILLED_BRAND|FIRST|FLOAT|FLOATING',
+      'FOCUSED|FOUR_FIFTHS|FROWNING|FULL',
       'GALAXY_STORE|GESTURE|GET|GHOST|GITHUB|GOLDEN|GOOGLE|GOOGLE_PLAY|GRAY|GREEN|GRINNING|GROUP_HEADER',
       'GROUP_HEADING',
-      'HEART|HEIC|HORIZONTAL|HOVERED|HTML|HUGE',
+      'HALF|HEART|HEIC|HORIZONTAL|HOVERED|HTML|HUGE',
       'ICON|ICONS|ILLUSTRATION|IMAGE|IMAGE_VIDEO|IN_REVIEW|INACTIVE|INCOMPLETE|INDETERMINATE|INFO',
       'INPUT|INPUT_BUTTON_HORIZONTAL|INPUT_BUTTON_VERTICAL|INSIDE|IOS',
       'JPG|JS|JSON',
@@ -284,15 +291,16 @@ const CONVENTIONS = {
       'MP4|MUSIC',
       'NEGATIVE|NEUTRAL|NEW_UPDATED|NO_COMMENTS|NO_CONNECT|NO_CONTROL|NO_MESSAGE|NODE|NONE|NORMAL|NUMBER',
       'NUMBERS',
-      'OFF|ON|ORDER_COMPLETED|OTHER|OUTLINE|OUTSIDE|OVERFLOW',
+      'OFF|ON|ONE_FIFTH|ORDER_COMPLETED|OTHER|OUTLINE|OUTSIDE|OVERFLOW',
       'PAGE|PAGE_NOT_FOUND|PAGE_UNDER_CONSTRUCTION|PATCH|PAYMENT_PROCESSED|PDF|PNG|POSITIVE|POST|PPTX|PREFIX',
       'PRESSED|PROFILE|PROGRESS|PROGRESS_FILLED|PURPLE|PUT',
       'RADIO|RANGE_END|RANGE_MIDDLE|RANGE_START|RAR|RECTANGLE|RED|REGULAR|RESPONSIVE|RETRY|RIGHT|RIGHT_BOTTOM',
       'RIGHT_DRAWER|RIGHT_SIDE|RIGHT_TOP|RISING|ROUND',
-      'SAFARI|SEARCH|SEARCHING|SECOND|SECTION|SELECTED|SHADED|SHIFT|SIGN_IN|SIGN_UP|SIMPLE|SLASH|SMALL|SMILING',
+      'SAFARI|SEARCH|SEARCHING|SECOND|SECTION|SELECTED|SENDING|SENT|SHADED|SHIFT|SIGN_IN|SIGN_UP|SIMPLE|SLASH|SMALL',
+      'SMILING',
       'SPREAD_SHEET|SQUARE|STAR|START|STRONG|SUBTLE|SUCCESS|SUFFIX|SVG|SWATCHES',
-      'TABLET|TEAL|TEXT|TEXT_BOTTOM|TEXT_CENTER|TEXT_FIELD|TEXT_LEFT|TEXT_RIGHT|TEXT_TOP|THIRD|TIFF|TINY|TITLE',
-      'TODAY|TOGGLE|TOP|TOP_CENTER|TOP_LEFT|TOP_RIGHT|TOP_STATUS_BAR|TRIANGLE|TWITTER|TXT|TYPING',
+      'TABLET|TEAL|TEXT|TEXT_BOTTOM|TEXT_CENTER|TEXT_FIELD|TEXT_LEFT|TEXT_RIGHT|TEXT_TOP|THIRD|THREE_FIFTHS|TIFF|TINY',
+      'TITLE|TODAY|TOGGLE|TOP|TOP_CENTER|TOP_LEFT|TOP_RIGHT|TOP_STATUS_BAR|TRIANGLE|TWITTER|TWO_FIFTHS|TXT|TYPING',
       'UNDERLINE|UNSUBSCRIBED|UPGRADE|UPLOADING|URGENT',
       'VECTOR|VERTICAL|VIDEO|VIOLET',
       'WAITING|WALLETCONNECT|WARNING|WAV|WEBP|WELCOME|WINDOWS',

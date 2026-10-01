@@ -20,7 +20,7 @@ The report takes each message from this table (results carry rule ids only) and 
 | L03 | blocking | name has no letters after normalization |
 | L04 | blocking | Dart reserved word or built-in identifier |
 | L05 | convention | emoji missing or not matching the role template |
-| L06 | convention | name format |
+| L06 | convention | name or value format |
 | L07 | convention | value not UPPER_SNAKE, or emoji outside feedback and direction values |
 | L08 | convention | boolean variant values are False/True |
 | L09 | convention | feedback values are 🔵 INFO, 🔴 NEGATIVE, 🟡 WARNING, 🟢 POSITIVE |
@@ -29,9 +29,9 @@ The report takes each message from this table (results carry rule ids only) and 
 | L12 | convention | hard-coded color, not bound to a variable |
 | L13 | advisory | `ACTIVE` is ambiguous |
 | L14 | advisory | variant has a single value |
-| L15 | advisory | mixed axis: state-like value outside `state`, or slot value in `position` or `type` |
+| L15 | advisory | mixed axis: interaction value outside `state` or `status`, or slot value in `position` or `type` without a ❖ slot of the same name |
 | L16 | advisory | legacy name for a canonical name |
-| L17 | advisory | loading inside `state` |
+| L17 | — | retired 2026-10-01: `LOADING` and `PROGRESS` inside `state` are allowed |
 | L18 | info | variant matrix incomplete (existing/product) |
 | L19 | info | no description (Figma can read it empty; re-publish the library) |
 | L20 | convention | numbered list toggles not named `👁️ show<Item><N>` |
@@ -48,6 +48,7 @@ First matching row wins.
 | checked | ✅ | BOOLEAN, VARIANT | `checked`, `selected` |
 | expanded | ↕️ | VARIANT | `expanded` |
 | filled | ✍️ | VARIANT | `filled` |
+| theme | 🌗 | VARIANT | `theme`, `darkMode` |
 | flag | 🔘 | BOOLEAN | any name |
 | flag | 🔘 | VARIANT | options `False`/`True` |
 | text | 💬 | TEXT | any name |
@@ -65,8 +66,7 @@ First matching row wins.
 | direction | ➡️ | VARIANT | `direction`, `arrow` |
 | layout | ⬒ | VARIANT | `layout` |
 | platform | 🖥️ | VARIANT | `platform`, `os`, `browser` |
-| count | 🔢 | VARIANT | `items`, `tabs`, `steps`, `section`, `page` |
-| theme | 🌗 | VARIANT | `theme`, `darkMode` |
+| count | 🔢 | VARIANT | `items`, `tabs`, `steps`, `section`, `page`, `attachments`, `rating`, `avatars`, `frame` |
 | graphic | 🏞️ | VARIANT | `graphic`, `image`, `emotion` |
 | variant | 🔖 | VARIANT | any name |
 
@@ -105,7 +105,7 @@ One BOOLEAN per list item, named `👁️ show<Item><N>`. L20 reports these form
 
 #### `state` (`FullWidgetState`)
 
-Roles: `state`. Figma only: `PROGRESS`. Dart only: `INITIAL`, `EMPTY`, `SCROLLED_UNDER`, `SUCCESS`, `CANCEL`, `WARNING`, `FAIL`.
+Roles: `state`. Figma only (allowed, not in the enum): `PROGRESS`. Dart only: `INITIAL`, `SCROLLED_UNDER`, `SUCCESS`, `CANCEL`, `WARNING`, `FAIL`. Any value may end in a part suffix: `_LEFT`, `_RIGHT`.
 
 | Value | Replaces |
 | --- | --- |
@@ -117,11 +117,11 @@ Roles: `state`. Figma only: `PROGRESS`. Dart only: `INITIAL`, `EMPTY`, `SCROLLED
 | `SELECTED` |  |
 | `DISABLED` |  |
 | `LOADING` |  |
-| `PROGRESS` |  |
+| `EMPTY` |  |
 
 #### `feedback` (`FeedbackState`)
 
-Roles: `state`, `color`. Figma only: `⚫️ NORMAL`.
+Roles: `state`, `color`. Figma only (allowed, not in the enum): `⚫️ NORMAL`.
 
 | Value | Replaces |
 | --- | --- |
@@ -129,11 +129,10 @@ Roles: `state`, `color`. Figma only: `⚫️ NORMAL`.
 | `🔴 NEGATIVE` | `NEGATIVE`, `ERROR` |
 | `🟡 WARNING` | `WARNING` |
 | `🟢 POSITIVE` | `POSITIVE`, `SUCCESS` |
-| `⚫️ NORMAL` |  |
 
 #### `size` (`WidgetSize`)
 
-Roles: `size`.
+Roles: `size`. Figma only (allowed, not in the enum): `FILL_WIDTH`, `EXTRA_TINY`.
 
 | Value | Replaces |
 | --- | --- |
@@ -147,7 +146,7 @@ Roles: `size`.
 
 #### `color` (`ColorEnum`)
 
-Roles: `color`. Figma only: `NONE`.
+Roles: `color`. Figma only (allowed, not in the enum): `NONE`, `BLACK`, `GHOST`, `CUSTOM`, `LOADING`.
 
 | Value | Replaces |
 | --- | --- |
@@ -171,7 +170,6 @@ Roles: `color`. Figma only: `NONE`.
 | `BROWN` |  |
 | `BLUE_GRAY` |  |
 | `GRAY` |  |
-| `NONE` |  |
 
 #### `fontSize` (`FontSize`)
 
@@ -219,7 +217,7 @@ Roles: `platform`.
 | --- | --- |
 | name | `accent`, `action`, `addon`, `align`, `arrow`, `artist`, `attachments`, `avatars` |
 | name | `badge`, `bank`, `body`, `body2`, `body3`, `bottom`, `brandName`, `browser` |
-| name | `captionBottom`, `captionRight`, `center`, `char`, `checked`, `code`, `color`, `condition`, `content`, `contentText`, `count`, `counter` |
+| name | `captionBottom`, `captionRight`, `center`, `char`, `checked`, `code`, `color`, `colored`, `condition`, `content`, `contentText`, `count`, `counter` |
 | name | `country` |
 | name | `dark`, `darkMode`, `date`, `description`, `detail`, `direction`, `domain`, `dotPosition`, `dropdown` |
 | name | `emoji`, `emotion`, `errorIcon`, `errorMessage`, `esc`, `example`, `expand`, `expandable`, `expanded` |
@@ -268,11 +266,11 @@ Roles: `platform`.
 | value | `DARK`, `DAY_OF_THE_WEEK`, `DEFAULT`, `DELETE`, `DELETE_CONFIRMATION`, `DELIVERY`, `DESCENDING`, `DESKTOP`, `DESTRUCTIVE`, `DIVIDER` |
 | value | `DOCS`, `DOCX`, `DOING`, `DONE`, `DOT`, `DOTS`, `DOWNLOADING`, `DRAGGED`, `DROPDOWN` |
 | value | `EMOJI`, `EMPTY`, `EPS`, `ERROR`, `EXPANDED`, `EXTRA_LARGE`, `EXTRA_SMALL`, `EXTRA_TINY` |
-| value | `FACEBOOK`, `FADED`, `FALLING`, `FATAL_ERROR`, `FEATURE`, `FILL`, `FILL_WIDTH`, `FILLED`, `FILLED_BRAND`, `FIRST`, `FLOAT`, `FLOATING` |
-| value | `FOCUSED`, `FROWNING`, `FULL` |
+| value | `FACEBOOK`, `FADED`, `FAILED`, `FALLING`, `FATAL_ERROR`, `FEATURE`, `FILL`, `FILL_WIDTH`, `FILLED`, `FILLED_BRAND`, `FIRST`, `FLOAT`, `FLOATING` |
+| value | `FOCUSED`, `FOUR_FIFTHS`, `FROWNING`, `FULL` |
 | value | `GALAXY_STORE`, `GESTURE`, `GET`, `GHOST`, `GITHUB`, `GOLDEN`, `GOOGLE`, `GOOGLE_PLAY`, `GRAY`, `GREEN`, `GRINNING`, `GROUP_HEADER` |
 | value | `GROUP_HEADING` |
-| value | `HEART`, `HEIC`, `HORIZONTAL`, `HOVERED`, `HTML`, `HUGE` |
+| value | `HALF`, `HEART`, `HEIC`, `HORIZONTAL`, `HOVERED`, `HTML`, `HUGE` |
 | value | `ICON`, `ICONS`, `ILLUSTRATION`, `IMAGE`, `IMAGE_VIDEO`, `IN_REVIEW`, `INACTIVE`, `INCOMPLETE`, `INDETERMINATE`, `INFO` |
 | value | `INPUT`, `INPUT_BUTTON_HORIZONTAL`, `INPUT_BUTTON_VERTICAL`, `INSIDE`, `IOS` |
 | value | `JPG`, `JS`, `JSON` |
@@ -282,15 +280,16 @@ Roles: `platform`.
 | value | `MP4`, `MUSIC` |
 | value | `NEGATIVE`, `NEUTRAL`, `NEW_UPDATED`, `NO_COMMENTS`, `NO_CONNECT`, `NO_CONTROL`, `NO_MESSAGE`, `NODE`, `NONE`, `NORMAL`, `NUMBER` |
 | value | `NUMBERS` |
-| value | `OFF`, `ON`, `ORDER_COMPLETED`, `OTHER`, `OUTLINE`, `OUTSIDE`, `OVERFLOW` |
+| value | `OFF`, `ON`, `ONE_FIFTH`, `ORDER_COMPLETED`, `OTHER`, `OUTLINE`, `OUTSIDE`, `OVERFLOW` |
 | value | `PAGE`, `PAGE_NOT_FOUND`, `PAGE_UNDER_CONSTRUCTION`, `PATCH`, `PAYMENT_PROCESSED`, `PDF`, `PNG`, `POSITIVE`, `POST`, `PPTX`, `PREFIX` |
 | value | `PRESSED`, `PROFILE`, `PROGRESS`, `PROGRESS_FILLED`, `PURPLE`, `PUT` |
 | value | `RADIO`, `RANGE_END`, `RANGE_MIDDLE`, `RANGE_START`, `RAR`, `RECTANGLE`, `RED`, `REGULAR`, `RESPONSIVE`, `RETRY`, `RIGHT`, `RIGHT_BOTTOM` |
 | value | `RIGHT_DRAWER`, `RIGHT_SIDE`, `RIGHT_TOP`, `RISING`, `ROUND` |
-| value | `SAFARI`, `SEARCH`, `SEARCHING`, `SECOND`, `SECTION`, `SELECTED`, `SHADED`, `SHIFT`, `SIGN_IN`, `SIGN_UP`, `SIMPLE`, `SLASH`, `SMALL`, `SMILING` |
+| value | `SAFARI`, `SEARCH`, `SEARCHING`, `SECOND`, `SECTION`, `SELECTED`, `SENDING`, `SENT`, `SHADED`, `SHIFT`, `SIGN_IN`, `SIGN_UP`, `SIMPLE`, `SLASH`, `SMALL` |
+| value | `SMILING` |
 | value | `SPREAD_SHEET`, `SQUARE`, `STAR`, `START`, `STRONG`, `SUBTLE`, `SUCCESS`, `SUFFIX`, `SVG`, `SWATCHES` |
-| value | `TABLET`, `TEAL`, `TEXT`, `TEXT_BOTTOM`, `TEXT_CENTER`, `TEXT_FIELD`, `TEXT_LEFT`, `TEXT_RIGHT`, `TEXT_TOP`, `THIRD`, `TIFF`, `TINY`, `TITLE` |
-| value | `TODAY`, `TOGGLE`, `TOP`, `TOP_CENTER`, `TOP_LEFT`, `TOP_RIGHT`, `TOP_STATUS_BAR`, `TRIANGLE`, `TWITTER`, `TXT`, `TYPING` |
+| value | `TABLET`, `TEAL`, `TEXT`, `TEXT_BOTTOM`, `TEXT_CENTER`, `TEXT_FIELD`, `TEXT_LEFT`, `TEXT_RIGHT`, `TEXT_TOP`, `THIRD`, `THREE_FIFTHS`, `TIFF`, `TINY` |
+| value | `TITLE`, `TODAY`, `TOGGLE`, `TOP`, `TOP_CENTER`, `TOP_LEFT`, `TOP_RIGHT`, `TOP_STATUS_BAR`, `TRIANGLE`, `TWITTER`, `TWO_FIFTHS`, `TXT`, `TYPING` |
 | value | `UNDERLINE`, `UNSUBSCRIBED`, `UPGRADE`, `UPLOADING`, `URGENT` |
 | value | `VECTOR`, `VERTICAL`, `VIDEO`, `VIOLET` |
 | value | `WAITING`, `WALLETCONNECT`, `WARNING`, `WAV`, `WEBP`, `WELCOME`, `WINDOWS` |
@@ -329,7 +328,8 @@ property type plus its name, so a new `show*` toggle or a new `iconSize` variant
 matches a role key when it equals the key or ends with it in camelCase (`iconSize` takes the `size` role). The first
 matching row of `emojiRoles` wins, so the named flag roles (`show*`, `loading`, `checked`, `expanded`, `filled`) come
 before the generic flag, and a VARIANT with `False/True` options is a flag even when its name says otherwise
-(`🌈 color` with `False/True` becomes `🔘`). A BOOLEAN that shows or hides a graphic (`icon`, `logo`, or a name ending
+(`🌈 color` with `False/True` becomes `🔘`). The `theme` row is the exception: it sits above the VARIANT flag, so
+`🌗 darkMode: False|True` keeps its theme emoji. A BOOLEAN that shows or hides a graphic (`icon`, `logo`, or a name ending
 in `Icon` or `Logo`) is a `show*` toggle under another name, so its row renames it: `💼 logo` → `👁️ showLogo`,
 `🔍 Icon` → `👁️ showIcon`. A logo follows the icon rule; an INSTANCE_SWAP `logo` stays `✏️`.
 
@@ -348,10 +348,11 @@ component for an instance, the set for a variant) and stores the name as `defaul
 Dart. 🟡 advisory is a design smell. ℹ️ info is a fact to confirm.
 
 Each problem is reported once. For one value, the first rule in `valueRuleOrder` wins: `HOVERD` is L01, never also
-L10 or L07. `ACTIVE` (and `INACTIVE` next to it) belongs to L13 only. A name that normalizes to empty (L03) silences
-the other name rules on that property, and L20 silences L01, L03, L05, and L06 on the properties of a numbered
-list-toggle series. Rules about a different problem on the same value still fire: `🔴 ERROR` in a `type` variant is
-both L09 (wrong word) and L15 (wrong axis).
+L10 or L07, and a value whose only fault is a non-ASCII space is L06, never also L09 or L07. `ACTIVE` (and `INACTIVE`
+next to it) belongs to L13 only. A name that normalizes to empty (L03) silences the other name rules on that
+property, and L20 silences L01, L03, L05, and L06 on the properties of a numbered list-toggle series. Rules about a
+different problem on the same value still fire: `HOVER` in a `size` variant (CalendarItem) is both L10 (outside
+`WidgetSize`) and L15 (wrong axis).
 
 ## Rules
 
@@ -400,7 +401,10 @@ fits, because its row renames it. Before `💨 showClearButton`, after `👁️ 
 ### L06 name format 🟠
 
 Leading or trailing spaces and colons, a missing or doubled space, and non-camelCase words each make the Figma name
-drift from the Dart name. Before `✏️ Label text:`, after `💬 labelText`.
+drift from the Dart name. A non-ASCII space (no-break U+00A0, U+2000 to U+200A, U+202F, U+205F, ideographic U+3000)
+looks like a space, so the name or value reads right in Figma while another tool sees a different string. L06 reports
+it in a name or a value; for a value, the suggestion is the same value with plain spaces, and only a typo (L01)
+outranks it. Before `✏️ Label text:`, after `💬 labelText`; before `🚦<U+00A0>status`, after `🚦 status`.
 
 ### L07 value case 🟠
 
@@ -429,6 +433,12 @@ outside them has no member to map to. A legacy value gets its canonical value as
 end in "ED" to match `FullWidgetState` and Flutter `WidgetState`. Numeric sizes and `Free` map to `FontSize` or
 pixels, so they are info. Before `🚦 state: HOVER`, after `HOVERED`.
 
+The owner allowed some values outside the enums on 2026-10-01; each vocabulary's "Figma only" note lists them
+(`size` `FILL_WIDTH` and `EXTRA_TINY`; `color` `BLACK`, `GHOST`, and `CUSTOM`, where the caller sets the color). A
+split control names each part's state with a part suffix (SplitButton `HOVERED_LEFT`, `PRESSED_RIGHT`), so a `state`
+value may end in `_LEFT` or `_RIGHT`. A property named `status` (ChatStatus `SENDING/SENT/FAILED`, UploadedFile
+`UPLOADING`, Steps) shares the 🚦 emoji with `state` but names progress or delivery, so no vocabulary checks it.
+
 ### L11 style named type 🟠
 
 `type` names what a component is; `style` names how it looks. Visual variants in `type` split one concept across two
@@ -455,10 +465,13 @@ removed or its other states added.
 
 ### L15 mixed axis 🟡
 
-A state-like value in another property, or a slot value in `position` or `type`, puts two concepts on one axis, so
-the Dart API cannot express both at once. Feedback values in `color` are allowed, and `pictureRoles` variants are
-skipped, as in L09. Before `✅ checked: LOADING`, after
-`⏳ loading` BOOLEAN plus `✅ checked: False|True`.
+An interaction value (`HOVER*`, `PRESSED`, `DISABLED`) in a property other than `state` or `status`, or a slot value
+in `position` or `type`, puts two concepts on one axis, so the Dart API cannot express both at once. `LOADING` and
+feedback values may sit in any variant (Toggle `checked`, Spinner `type`, BarCell `color`): each is one drawn look,
+and `stratum-read-figma` maps them to `loading: true` and `FeedbackState`. A slot value stays when the set has a `❖`
+slot property of the same name, because the value selects the layout that shows that slot (BottomActions `CONTENT`
+with `❖ content`, StateActions `SLOT` with `❖ slot`). `pictureRoles` variants are skipped, as in L09. Before
+`📐 size: DISABLED`, after `🚦 state: DISABLED`.
 
 ### L16 one concept, two names 🟡
 
@@ -468,11 +481,11 @@ toggle, and `label` stays `label`. A row with a type pairs only properties of th
 a BOOLEAN, so a TEXT `💬 line` (MultiLineCodeSnippet line numbers) is not reported. Before `💬 helper`, after
 `💬 helperText`.
 
-### L17 loading in state 🟡
+### L17 retired
 
-Loading can overlap with any interaction state, so a `LOADING` state value hides the hover or pressed look while
-loading. `PROGRESS` (a determinate bar) is allowed but gets the same advice. Before `🚦 state: LOADING`, after
-`⏳ loading` BOOLEAN.
+Retired on 2026-10-01; the id stays reserved. `LOADING` and `PROGRESS` stay inside `state`: `stratum-read-figma` maps
+them to `loading: true`, and `loading: true` plus `progress: double?`, and splitting a `⏳ loading` axis would
+restructure about 25 sets for combinations nobody draws.
 
 ### L18 incomplete matrix ℹ️
 

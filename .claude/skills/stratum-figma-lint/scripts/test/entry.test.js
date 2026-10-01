@@ -61,17 +61,19 @@ test('every mode bundle strips comment lines', () => {
   });
 });
 
-// Tripwire: real page ids run to 11 characters (`55552:29918`) and a batch holds up to 10 pages. Each bundle keeps
-// HEADROOM under the tool limit, so a growing rule set fails here before use_figma rejects the code.
-const REAL_BATCH = Array.from({ length: 10 }, (_, i) => (55510 + i) + ':' + (29900 + i)).join(',');
+// Tripwire: a batch holds up to 10 pages, and each bundle keeps HEADROOM under the tool limit, so a growing rule set
+// fails here before use_figma rejects the code. REAL_BATCH is the larger 10-page batch of the reference file
+// (2026-10-01 post-rename run); LONG_BATCH gives every page an 11-character id (`55552:29918`).
+const REAL_BATCH = '924:17802,955:17323,55552:29918,915:13155,927:27102,55533:32137,1093:30620,915:12623,914:2613,55506:29831';
+const LONG_BATCH = Array.from({ length: 10 }, (_, i) => (55510 + i) + ':' + (29900 + i)).join(',');
 const HEADROOM = 0.05;
 
-test('a 10-page batch of real-shaped ids keeps every mode bundle at least 5% under MAX_CODE_CHARS', () => {
+test('the larger real 10-page batch and a long-id batch keep every mode bundle at least 5% under MAX_CODE_CHARS', () => {
   const cap = Math.floor(MAX_CODE_CHARS * (1 - HEADROOM));
-  Object.keys(BUNDLES).forEach((mode) => {
-    const code = assemble(parseArgs(['--pages', REAL_BATCH, '--mode', mode]));
+  [REAL_BATCH, LONG_BATCH].forEach((batch) => Object.keys(BUNDLES).forEach((mode) => {
+    const code = assemble(parseArgs(['--pages', batch, '--mode', mode]));
     assert.ok(code.length <= cap, mode + ': ' + code.length + ' characters, cap ' + cap);
-  });
+  }));
 });
 
 test('the sandbox gets no doc-only data and lints the fixtures exactly as the full conventions do', () => {
@@ -79,7 +81,10 @@ test('the sandbox gets no doc-only data and lints the fixtures exactly as the fu
   assert.ok(assemble(parseArgs(['--node', '1:1'])).startsWith('const CONVENTIONS = ' + JSON.stringify(shipped) + ';\n'));
   assert.deepEqual([shipped.listToggles.canonical, shipped.listToggles.legacy], [undefined, undefined]);
   Object.keys(shipped.vocabularies).forEach((key) => assert.equal(shipped.vocabularies[key].codeOnly, undefined, key));
-  assert.deepEqual(shipped.rules, CONVENTIONS.rules.map((r) => ({ id: r.id, severity: r.severity })), 'no rule messages');
+  assert.deepEqual(Object.keys(CONVENTIONS.vocabularies).filter((key) => !shipped.vocabularies[key]), ['fontSize'],
+    'a vocabulary no role uses stays out');
+  const active = CONVENTIONS.rules.filter((r) => CONVENTIONS.severityOrder.includes(r.severity));
+  assert.deepEqual(shipped.rules, active.map((r) => ({ id: r.id, severity: r.severity })), 'no rule messages, no retired rule');
   assert.ok(CONVENTIONS.rules[0].message && CONVENTIONS.listToggles.legacy.length, 'conventions.js keeps the doc-only data');
   const described = fixtureRecords('button', 'alert', 'text_input', 'rule_table').map(describeComponent);
   assert.deepEqual(lintComponents(described, shipped), lintComponents(described, CONVENTIONS));

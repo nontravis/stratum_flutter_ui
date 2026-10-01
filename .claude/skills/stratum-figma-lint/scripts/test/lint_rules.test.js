@@ -141,10 +141,10 @@ test('L09 feedback vocabulary: aliases and missing dots', () => {
 });
 
 test('L10 vocabulary: state, size, color; numeric sizes are info', () => {
-  expectOne('L10', 'Spinner', { value: 'EXTRA_TINY' });
-  expectOne('L10', 'Badge', { value: 'BLACK' });
-  expectOne('L10', 'Badge', { value: 'GHOST' });
-  assert.deepEqual(find(all, 'L10', 'Badge', { value: 'PURPLE' }), [], 'PURPLE is a ColorEnum value');
+  expectOne('L10', 'TextInput', { value: 'HOVER', suggestion: 'HOVERED' });
+  expectOne('L10', 'CalendarItem', { value: 'DISABLED', suggestion: 'a value from WidgetSize' });
+  assert.deepEqual(find(all, 'L10', 'Badge'), [], 'PURPLE is a ColorEnum value; BLACK and GHOST are design-only colors');
+  assert.deepEqual(find(all, 'L10', 'Spinner'), [], 'EXTRA_TINY is a design-only size');
   assert.deepEqual(find(all, 'L10', 'SocialButton'), [], 'L01 owns HOVERD');
   const legacy = lintRecords([record('Chip', { '🚦 state': variant(['NORMAL', 'DRAG']) })]);
   assert.deepEqual(find(legacy, 'L10', 'Chip').map((f) => [f.value, f.suggestion]), [['DRAG', 'DRAGGED']], 'legacy table suggests');
@@ -189,9 +189,11 @@ test('L14 single-value variant', () => {
   expectOne('L14', 'FilterButton', { value: 'NORMAL' });
 });
 
-test('L15 mixed axis: state-like or slot value in the wrong property', () => {
-  expectOne('L15', 'Toggle', { value: 'LOADING' });
-  expectOne('L15', 'Spinner', { value: '🔴 ERROR' });
+test('L15 mixed axis: interaction or slot value in the wrong property', () => {
+  expectOne('L15', 'CalendarItem', { value: 'DISABLED' });
+  expectOne('L15', 'CalendarItem', { value: 'HOVER' });
+  assert.deepEqual(find(all, 'L15', 'Toggle'), [], 'LOADING may sit in any variant');
+  assert.deepEqual(find(all, 'L15', 'Spinner'), [], 'feedback values may sit in any variant');
   assert.deepEqual(find(all, 'L15', 'Alert'), [], 'feedback values belong in color');
   const slot = lintRecords([record('Card', { '📍 position': variant(['TOP', 'CONTENT']) })]);
   assert.deepEqual(find(slot, 'L15', 'Card', { value: 'CONTENT' }).map((f) => f.suggestion), ['use a ❖ slot INSTANCE_SWAP']);
@@ -205,9 +207,9 @@ test('L16 legacy name for a canonical name', () => {
   assert.deepEqual(find(all, 'L16', 'StepIndicator'), [], 'the more frequent name wins');
 });
 
-test('L17 loading inside state', () => {
-  expectOne('L17', 'Button', { value: 'LOADING' });
-  expectOne('L17', 'Button', { value: 'PROGRESS' });
+test('L17 is retired: LOADING and PROGRESS inside state raise no finding', () => {
+  assert.deepEqual(all.filter((f) => f.rule === 'L17'), []);
+  assert.deepEqual(find(all, 'L10', 'Button').concat(find(all, 'L15', 'Button')), []);
 });
 
 test('L18 incomplete variant matrix', () => {
@@ -224,11 +226,11 @@ test('L20 numbered list toggles', () => {
   expectOne('L20', 'ToggleGroup', { suggestion: '👁️ showToggle1..3' });
 });
 
-test('every rule id in conventions has a severity the summary counts', () => {
-  const rules = CONVENTIONS.rules.map((row) => row.id);
-  assert.equal(rules.length, 20);
-  CONVENTIONS.rules.forEach((row) => assert.ok(CONVENTIONS.severityOrder.includes(row.severity), row.id));
-  assert.deepEqual([...new Set(all.map((f) => f.rule))].sort(), rules);
+test('every active rule id has a severity the summary counts; a retired id keeps its row with severity —', () => {
+  assert.equal(CONVENTIONS.rules.length, 20);
+  const active = CONVENTIONS.rules.filter((row) => CONVENTIONS.severityOrder.includes(row.severity)).map((row) => row.id);
+  assert.deepEqual(CONVENTIONS.rules.filter((row) => !active.includes(row.id)).map((row) => [row.id, row.severity]), [['L17', '—']]);
+  assert.deepEqual([...new Set(all.map((f) => f.rule))].sort(), active);
 });
 
 test('summary line has the exact shape stratum-read-figma parses', () => {

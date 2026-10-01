@@ -819,6 +819,28 @@
       "variantCount": 1,
       "unboundPaints": [],
       "note": "real-file run 2026-09-30 had 1. Toggle to 8. Toggle; exercises L20"
+    },
+    {
+      "id": "10:36",
+      "name": "CalendarItem",
+      "type": "COMPONENT_SET",
+      "page": "❖ Date",
+      "description": "",
+      "descriptionMarkdown": "Documented.",
+      "properties": {
+        "📐 size": {
+          "type": "VARIANT",
+          "defaultValue": "MEDIUM",
+          "variantOptions": [
+            "MEDIUM",
+            "DISABLED",
+            "HOVER"
+          ]
+        }
+      },
+      "variantCount": 3,
+      "unboundPaints": [],
+      "note": "post-rename run 2026-10-01: interaction values in size; exercises L15"
     }
   ]
 }

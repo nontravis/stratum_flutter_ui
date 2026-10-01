@@ -52,11 +52,13 @@ function upperSnake(camel) {
   return camel.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase();
 }
 
-// Enum members == vocabulary minus designOnly, plus codeOnly; feedback dots are dropped before comparing.
+// Enum members == vocabulary values plus codeOnly; designOnly values are extras outside the enum, never a values row.
+// Feedback dots are dropped before comparing.
 function assertMirrors(vocab, dartValues, label) {
   assert.ok(dartValues && dartValues.length, label + ': enum not found');
-  const expected = vocab.values.map((row) => row.value).filter((v) => !(vocab.designOnly || []).includes(v))
-    .map((v) => v.replace(/^[^A-Z0-9]+/, '')).concat(vocab.codeOnly || []);
+  const rows = vocab.values.map((row) => row.value);
+  assert.deepEqual((vocab.designOnly || []).filter((v) => rows.includes(v)), [], label + ': designOnly repeats a values row');
+  const expected = rows.map((v) => v.replace(/^[^A-Z0-9]+/, '')).concat(vocab.codeOnly || []);
   const actual = dartValues.map((v) => upperSnake(v.replace(/^s(\d+)$/, '$1')));
   assert.deepEqual(actual.sort(), expected.sort(), label + ' drifted from conventions.js');
 }

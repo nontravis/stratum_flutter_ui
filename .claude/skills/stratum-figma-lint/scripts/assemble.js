@@ -33,16 +33,19 @@ function parseArgs(argv) {
   return args;
 }
 
-// The CONVENTIONS keys a bundle ships (null = all), without doc-only data. Rule messages, the list-toggle canonical
-// and legacy forms, and each vocabulary's codeOnly gaps reach the report through the generated reference tables
-// (gen_conventions_md.js) and the drift test, never through the sandbox.
+// The CONVENTIONS keys a bundle ships (null = all), without doc-only data. Rule messages, retired rules, the
+// list-toggle canonical and legacy forms, each vocabulary's codeOnly gaps, and vocabularies no role uses reach the
+// report through the generated reference tables (gen_conventions_md.js) and the drift test, never through the sandbox.
 function sandboxConventions(keys) {
   const data = JSON.parse(JSON.stringify(CONVENTIONS));
   const out = {};
   (keys || Object.keys(data)).forEach((key) => { out[key] = data[key]; });
+  if (out.rules) out.rules = out.rules.filter((rule) => data.severityOrder.indexOf(rule.severity) >= 0);
   (out.rules || []).forEach((rule) => { delete rule.message; });
   if (out.listToggles) { delete out.listToggles.canonical; delete out.listToggles.legacy; }
-  Object.keys(out.vocabularies || {}).forEach((key) => { delete out.vocabularies[key].codeOnly; });
+  Object.keys(out.vocabularies || {}).forEach((key) => {
+    if (out.vocabularies[key].roles.length) delete out.vocabularies[key].codeOnly; else delete out.vocabularies[key];
+  });
   return out;
 }
 

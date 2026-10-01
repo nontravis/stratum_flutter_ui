@@ -49,12 +49,12 @@ test('L16 pairs a legacy name with its canonical name only for the same property
 
 test('graphic-role variant values name pictures, so they skip L09 and L15', () => {
   const findings = lintRecords([
-    record('Illustration', { '🏞️ image': variant(['SUCCESS', 'ERROR', 'LOADING', 'EMPTY']) }),
-    record('Spinner', { '🔖 kind': variant(['SUCCESS', 'LOADING']) }),
+    record('Illustration', { '🏞️ image': variant(['SUCCESS', 'ERROR', 'LOADING', 'EMPTY', 'DISABLED']) }),
+    record('Spinner', { '🔖 kind': variant(['SUCCESS', 'LOADING', 'DISABLED']) }),
   ]);
   assert.deepEqual(findings.filter((f) => f.component === 'Illustration' && ['L09', 'L15'].includes(f.rule)), []);
   assert.deepEqual(cells(findings, 'L09', 'Spinner', ['value']), [['SUCCESS']], 'other variants still get L09');
-  assert.deepEqual(cells(findings, 'L15', 'Spinner', ['value']), [['SUCCESS'], ['LOADING']], 'other variants still get L15');
+  assert.deepEqual(cells(findings, 'L15', 'Spinner', ['value']), [['DISABLED']], 'other variants still get L15');
 });
 
 test('L07 never suggests a value that starts with a digit; counts keep their digits', () => {
