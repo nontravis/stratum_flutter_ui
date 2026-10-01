@@ -22,6 +22,10 @@ import 'package:stratum_ui/src/src.dart';
 /// `const StratumInteraction()` up front when a value can appear later; a
 /// layout that toggles [scrollable] passes `const WidgetStyle()` so the
 /// toggle stays inside the box tier.
+///
+/// Inside the box tier, a [scrollable] layout's scroll position survives a
+/// [style], [interaction], or [semantics] change; only a tier change resets
+/// it.
 abstract class BoxLayout extends StatelessWidget {
   const new({
     super.key,
@@ -105,7 +109,10 @@ abstract class BoxLayout extends StatelessWidget {
   /// supported under [IntrinsicWidth], [IntrinsicHeight], or a parent's
   /// `crossAxisIntrinsic`. [ColumnLayout] and [RowLayout] override this to
   /// stretch only when their effective `mainAxisSize` is
-  /// [MainAxisSize.max]; [StackLayout] and [WrapLayout] always stretch.
+  /// [MainAxisSize.max]; [StackLayout] and [WrapLayout] always stretch. A
+  /// flip of this value between builds resets the scroll offset, because
+  /// the scroll view switches between a bare [SingleChildScrollView] and
+  /// one wrapped in a [LayoutBuilder].
   @protected
   bool get stretchesToViewport => true;
 

@@ -8,7 +8,8 @@ import 'package:stratum_ui/src/src.dart';
 /// [onHighlightChanged], or [onFocusChange] is set. A value with none of
 /// them still animates the layout's style over 100 ms and adds no tap
 /// surface, so pass `const StratumInteraction()` when callbacks come and go:
-/// switching `interaction` between null and a value remounts the content.
+/// switching `interaction` between null and a value remounts the content on
+/// an otherwise bare layout; see `BoxLayout`'s tier rule for the full case.
 ///
 /// The class does not override `==`: callbacks compare by identity.
 @immutable

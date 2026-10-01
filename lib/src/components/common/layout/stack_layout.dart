@@ -27,9 +27,15 @@ class StackLayout extends BoxLayout {
     required this.children,
   });
 
+  /// Aligns each non-positioned child within the stack's own bounds;
+  /// [WidgetStyle.alignment] places the whole stack inside the box's padded
+  /// content instead.
   final AlignmentGeometry alignment;
   final StackFit fit;
   final TextDirection? textDirection;
+
+  /// Clips the stack's children that overflow its bounds;
+  /// [WidgetStyle.clipBehavior] cuts at the box edge instead.
   final Clip clipBehavior;
   final List<Widget> children;
 
