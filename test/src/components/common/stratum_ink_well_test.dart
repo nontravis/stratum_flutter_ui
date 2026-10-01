@@ -64,6 +64,15 @@ FocusNode _node() {
 
 void main() {
   group('StratumInkWell overlay', () {
+    testWidgets('an idle overlay has no color to paint', (tester) async {
+      await tester.pumpWidget(
+        themedHost(const StratumInkWell(onTap: _noop, child: _box)),
+      );
+
+      final box = tester.widget<DecoratedBox>(_overlay);
+      expect((box.decoration as BoxDecoration).color, isNull);
+    });
+
     testWidgets('a hovered state paints overlayHover', (tester) async {
       await tester.pumpWidget(
         themedHost(
