@@ -18,11 +18,12 @@ typedef StyledScrollBuilder = Widget Function(Widget content);
 /// change looks stiff. `AnimationStyle.reverseDuration` and `reverseCurve`
 /// are not used.
 ///
-/// When the platform asks for less motion (`disableAnimations` or
-/// `reduceMotion`), size, spacing, and alignment jump to the new style while
-/// colors, gradients, images, borders, radius, shadows, blur, and opacity
-/// still fade over the full duration. The fade keeps its duration on every
-/// platform, because the controller uses [AnimationBehavior.preserve].
+/// When the app's [MediaQuery] or the platform asks for less motion
+/// (`disableAnimations`, or the platform's `reduceMotion`), size, spacing,
+/// and alignment jump to the new style while colors, gradients, images,
+/// borders, radius, shadows, blur, and opacity still fade over the full
+/// duration. The fade keeps its duration on every platform, because the
+/// controller uses [AnimationBehavior.preserve].
 class AnimatedStyledBox extends StatefulWidget {
   const new({
     super.key,
@@ -141,11 +142,18 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
     if (status.isCompleted) widget.onEnd?.call();
   }
 
-  /// Whether the platform asks for less motion. `MediaQueryData` has no
-  /// `reduceMotion` field, so the flags come from the view's dispatcher.
+  /// Whether the app or the platform asks for less motion.
+  ///
+  /// `disableAnimations` comes from the nearest [MediaQuery], so an app or
+  /// a test that sets it reaches the box, else from the platform.
+  /// `MediaQueryData` has no `reduceMotion` field, so that flag always
+  /// comes from the view's dispatcher.
   bool get _reducesMotion {
     final features = View.of(context).platformDispatcher.accessibilityFeatures;
-    return features.disableAnimations || features.reduceMotion;
+    final disable =
+        MediaQuery.maybeDisableAnimationsOf(context) ??
+        features.disableAnimations;
+    return disable || features.reduceMotion;
   }
 
   /// [from] with the size, spacing, and alignment of [to], so those fields
