@@ -362,6 +362,90 @@ void main() {
     });
   });
 
+  group('AnimatedStyledBox reduced motion', () {
+    const linear = AnimationStyle(
+      duration: Duration(milliseconds: 100),
+      curve: Curves.linear,
+    );
+    const small = WidgetStyle(
+      width: 40,
+      height: 20,
+      backgroundColor: _red,
+      animationStyle: linear,
+    );
+    const large = WidgetStyle(
+      width: 80,
+      height: 40,
+      backgroundColor: _blue,
+      animationStyle: linear,
+    );
+
+    void useFeatures(WidgetTester tester, FakeAccessibilityFeatures features) {
+      tester.platformDispatcher.accessibilityFeaturesTestValue = features;
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+    }
+
+    testWidgets('a fade keeps its duration under disableAnimations', (
+      tester,
+    ) async {
+      useFeatures(
+        tester,
+        const FakeAccessibilityFeatures(disableAnimations: true),
+      );
+      await tester.pumpWidget(
+        _host(const WidgetStyle(backgroundColor: _red, animationStyle: linear)),
+      );
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(backgroundColor: _blue, animationStyle: linear),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // AnimationBehavior.normal would have cut the fade to 5 ms.
+      expect(_fillColor(tester), Color.lerp(_red, _blue, 0.5));
+    });
+
+    for (final (name, features) in const [
+      ('reduceMotion', FakeAccessibilityFeatures(reduceMotion: true)),
+      ('disableAnimations', FakeAccessibilityFeatures(disableAnimations: true)),
+    ]) {
+      testWidgets('$name: geometry jumps while the color fades', (
+        tester,
+      ) async {
+        useFeatures(tester, features);
+        await tester.pumpWidget(_host(small, child: null));
+        await tester.pumpWidget(_host(large, child: null));
+
+        expect(tester.getSize(_decorated()), const Size(80, 40));
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(tester.getSize(_decorated()), const Size(80, 40));
+        expect(_fillColor(tester), Color.lerp(_red, _blue, 0.5));
+      });
+    }
+
+    testWidgets('reads the flag again on every style change', (tester) async {
+      await tester.pumpWidget(_host(small, child: null));
+      await tester.pumpWidget(_host(large, child: null));
+      await tester.pumpAndSettle();
+      useFeatures(tester, const FakeAccessibilityFeatures(reduceMotion: true));
+
+      await tester.pumpWidget(_host(small, child: null));
+
+      expect(tester.getSize(_decorated()), const Size(40, 20));
+    });
+
+    testWidgets('(pin) without a flag the geometry animates', (tester) async {
+      await tester.pumpWidget(_host(small, child: null));
+      await tester.pumpWidget(_host(large, child: null));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(tester.getSize(_decorated()), const Size(60, 30));
+    });
+  });
+
   group('AnimatedStyledBox boxBuilder', () {
     testWidgets('wraps the box inside the margin and outside the size', (
       tester,
