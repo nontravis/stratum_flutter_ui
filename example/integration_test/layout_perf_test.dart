@@ -63,9 +63,9 @@ Future<void> scrollFor(
   final position = tester
       .state<ScrollableState>(find.byType(Scrollable).first)
       .position;
-  final target = distance.clamp(0, position.maxScrollExtent).toDouble();
+  expect(position.maxScrollExtent, greaterThanOrEqualTo(distance));
   final half = duration ~/ 2;
-  await position.animateTo(target, duration: half, curve: Curves.linear);
+  await position.animateTo(distance, duration: half, curve: Curves.linear);
   await position.animateTo(0, duration: half, curve: Curves.linear);
 }
 
@@ -136,7 +136,8 @@ Widget _list(Widget Function(int index) row) {
   );
 }
 
-/// S4: 50 boxes that toggle their style every 300 ms.
+/// S4: 50 boxes that toggle their style every 250 ms, as long as their
+/// animation, so every traced frame animates.
 class AnimatingBoxes extends StatefulWidget {
   const AnimatingBoxes({super.key});
 
@@ -168,7 +169,7 @@ class _AnimatingBoxesState extends State<AnimatingBoxes> {
   void initState() {
     super.initState();
     _timer = Timer.periodic(
-      const Duration(milliseconds: 300),
+      const Duration(milliseconds: 250),
       (_) => setState(() => _flip = !_flip),
     );
   }
@@ -263,7 +264,7 @@ void main() {
       reportKey: 'S1',
     );
     expect(tester.takeException(), isNull);
-  });
+  }, semanticsEnabled: false);
 
   testWidgets('S2 styled rows', (tester) async {
     await tester.pumpWidget(perfHost(_list(sceneStyledRow)));
@@ -273,7 +274,7 @@ void main() {
       reportKey: 'S2',
     );
     expect(tester.takeException(), isNull);
-  });
+  }, semanticsEnabled: false);
 
   testWidgets('S3 tappable rows', (tester) async {
     await tester.pumpWidget(perfHost(_list(sceneTappableRow)));
@@ -283,7 +284,7 @@ void main() {
       reportKey: 'S3',
     );
     expect(tester.takeException(), isNull);
-  });
+  }, semanticsEnabled: false);
 
   testWidgets('S4 animating boxes', (tester) async {
     await tester.pumpWidget(perfHost(const AnimatingBoxes()));
@@ -293,15 +294,15 @@ void main() {
       reportKey: 'S4',
     );
     expect(tester.takeException(), isNull);
-  });
+  }, semanticsEnabled: false);
 
   testWidgets('S5 glass cards', (tester) async {
     await tester.pumpWidget(perfHost(const GlassCards()));
     await binding.traceAction(
-      () => scrollFor(tester, traceTime),
+      () => scrollFor(tester, traceTime, distance: 2000),
       streams: _streams,
       reportKey: 'S5',
     );
     expect(tester.takeException(), isNull);
-  });
+  }, semanticsEnabled: false);
 }
