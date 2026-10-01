@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/perf_abba.dart' hide main;
@@ -332,6 +334,35 @@ void main() {
       ], loads: const []);
       expect(result.text, contains('| S4 | 12 |'));
       expect(result.text, contains('invalid runs: r99g1'));
+    });
+  });
+
+  group('runRangeError', () {
+    test('accepts runs within the cap of 24 pairs', () {
+      expect(runRangeError(from: 1, runs: 6), isNull);
+      expect(runRangeError(from: 7, runs: 6), isNull);
+    });
+
+    test('refuses runs beyond the cap or outside 1', () {
+      expect(runRangeError(from: 7, runs: 7), contains('1 to 12'));
+      expect(runRangeError(from: 0, runs: 1), isNotNull);
+      expect(runRangeError(from: 1, runs: 0), isNotNull);
+    });
+  });
+
+  group('clashingRuns', () {
+    late Directory root;
+
+    setUp(() => root = Directory.systemTemp.createTempSync('abba'));
+    tearDown(() => root.deleteSync(recursive: true));
+
+    test('refuses run folders that exist', () {
+      Directory('${root.path}/r2g3').createSync();
+      expect(
+        clashingRuns(root, from: 1, runs: 6),
+        ['${root.path}/r2g3'],
+      );
+      expect(clashingRuns(root, from: 3, runs: 4), isEmpty);
     });
   });
 }
