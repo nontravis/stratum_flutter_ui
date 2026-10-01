@@ -1,9 +1,5 @@
-import 'package:flutter/semantics.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stratum_ui/src/components/common/layout/container_layout.dart';
-import 'package:stratum_ui/src/components/common/layout/stack_layout.dart';
-import 'package:stratum_ui/src/components/common/model/widget_style.dart';
+import 'package:stratum_ui/src/src.dart';
 
 const _style = WidgetStyle(backgroundColor: Color(0xFFFFFFFF));
 

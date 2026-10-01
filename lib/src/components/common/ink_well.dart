@@ -1,8 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
-import 'package:stratum_ui/src/components/common/focus_spread.dart';
-import 'package:stratum_ui/src/extensions/context_extension.dart';
-import 'package:stratum_ui/src/themes/constant/focus_type.dart';
+import 'package:stratum_ui/src/src.dart';
 
 /// The tap surface of the design system.
 ///
