@@ -385,6 +385,181 @@ void main() {
     });
   });
 
+  group('StratumFocusGroup fix round 1', () {
+    testWidgets(
+      'Right at the wrap end stays when another item lies right on screen',
+      (tester) async {
+        final before = _node();
+        final items = _nodes(5);
+        await tester.pumpWidget(
+          _host(
+            SizedBox(
+              width: 100,
+              child: WrapLayout(
+                gap: 4,
+                focusGroup: const StratumFocusGroup(),
+                children: [for (final node in items) _item(node)],
+              ),
+            ),
+            before: before,
+          ),
+        );
+        // Runs: items 0 and 1, items 2 and 3, item 4.
+        await _focus(tester, items[4]);
+
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        expect(items[4].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        expect(items[4].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        expect(items[4].hasPrimaryFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      'Down in a column reaches the last item then after, without '
+      'bouncing on stale directional history',
+      (tester) async {
+        final before = _node();
+        final after = _node();
+        final items = _nodes();
+        await tester.pumpWidget(
+          _host(
+            ColumnLayout(
+              mainAxisSize: MainAxisSize.min,
+              focusGroup: const StratumFocusGroup(),
+              children: [for (final node in items) _item(node)],
+            ),
+            before: before,
+            after: after,
+          ),
+        );
+        await _focus(tester, items[0]);
+
+        await _key(tester, LogicalKeyboardKey.arrowUp);
+        expect(before.hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(items[0].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(items[1].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(items[2].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(after.hasPrimaryFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      'Up then Right then Down in a row reaches after, without bouncing '
+      'on stale directional history',
+      (tester) async {
+        final before = _node();
+        final after = _node();
+        final items = _nodes();
+        await tester.pumpWidget(
+          _host(
+            RowLayout(
+              mainAxisSize: MainAxisSize.min,
+              focusGroup: const StratumFocusGroup(),
+              children: [for (final node in items) _item(node)],
+            ),
+            before: before,
+            after: after,
+          ),
+        );
+        await _focus(tester, items[1]);
+
+        await _key(tester, LogicalKeyboardKey.arrowUp);
+        expect(before.hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(items[1].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        expect(items[2].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(after.hasPrimaryFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      'loop contains wrap Up and Down past the first and last run',
+      (tester) async {
+        final before = _node();
+        final items = _nodes(5);
+        await tester.pumpWidget(
+          _host(
+            SizedBox(
+              width: 100,
+              child: WrapLayout(
+                gap: 4,
+                focusGroup: const StratumFocusGroup(loop: true),
+                children: [for (final node in items) _item(node)],
+              ),
+            ),
+            before: before,
+          ),
+        );
+        // Runs: items 0 and 1, items 2 and 3, item 4.
+        await _focus(tester, items[1]);
+        await _key(tester, LogicalKeyboardKey.arrowUp);
+        expect(items[4].hasPrimaryFocus, isTrue);
+
+        await _focus(tester, items[4]);
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(items[0].hasPrimaryFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      'Down from the last item in a column without loop reaches after',
+      (tester) async {
+        final before = _node();
+        final after = _node();
+        final items = _nodes();
+        await tester.pumpWidget(
+          _host(
+            ColumnLayout(
+              mainAxisSize: MainAxisSize.min,
+              focusGroup: const StratumFocusGroup(),
+              children: [for (final node in items) _item(node)],
+            ),
+            before: before,
+            after: after,
+          ),
+        );
+        await _focus(tester, items[2]);
+
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(after.hasPrimaryFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      'Home and End in a row under RTL move to the rightmost and '
+      'leftmost item',
+      (tester) async {
+        final before = _node();
+        final items = _nodes();
+        await tester.pumpWidget(
+          _host(
+            RowLayout(
+              mainAxisSize: MainAxisSize.min,
+              textDirection: TextDirection.rtl,
+              focusGroup: const StratumFocusGroup(),
+              children: [for (final node in items) _item(node)],
+            ),
+            before: before,
+          ),
+        );
+        await _focus(tester, items[1]);
+
+        await _key(tester, LogicalKeyboardKey.home);
+        expect(items[0].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.end);
+        expect(items[2].hasPrimaryFocus, isTrue);
+      },
+    );
+  });
+
   group('StratumFocusGroup role', () {
     testWidgets('tabBar over items with role tab passes the debug check', (
       tester,
