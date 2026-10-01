@@ -16,6 +16,17 @@ benchmarks/
 .svn/
 migrate_working_dir/
 
+
+### AI ###
+.serena/
+.superpowers/
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+.claude.local.md
+.claude/settings.local.json
+.mcp.local.json
+.playwright-mcp
+
 ### IntelliJ ###
 *.iml
 *.ipr
@@ -71,15 +82,6 @@ hosting.*
 
 # Files for the ART/Dalvik VM
 *.dex
-
-
-# AI
-.serena/
-.claude/worktrees/
-.claude.local.md
-.claude/settings.local.json
-.mcp.local.json
-.playwright-mcp
 
 # Worktrees
 .worktrees/
