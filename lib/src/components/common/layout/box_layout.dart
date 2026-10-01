@@ -13,10 +13,13 @@ import 'package:stratum_ui/src/src.dart';
 /// wrappers, and no [AnimatedStyledBox]. Otherwise it builds the box tier
 /// around an [AnimatedStyledBox].
 ///
-/// The tier depends on whether a parameter is null, never on its content.
-/// Switching a parameter between null and a value remounts the content, so
-/// pass `const WidgetStyle()` or `const StratumInteraction()` up front when a
-/// value can appear later.
+/// The tier depends on whether a parameter is null or on [scrollable], never
+/// on their content. Content remounts when the tier changes (toggling
+/// [scrollable] on an otherwise bare layout counts), when [rotate] switches
+/// between null and a value, or when [repaintBoundary], [debug], or
+/// [keepAlive] changes. Pass `const WidgetStyle()` or
+/// `const StratumInteraction()` up front when a value can appear later, and
+/// start [scrollable] at `true` for the same reason.
 abstract class BoxLayout extends StatelessWidget {
   const new({
     super.key,
@@ -66,7 +69,10 @@ abstract class BoxLayout extends StatelessWidget {
 
   /// Scrolls the padding and content inside the box along
   /// [scrollDirection], while fill, border, radius, and shadow stay in
-  /// place.
+  /// place. A stretching scrollable layout (see [stretchesToViewport])
+  /// builds a [LayoutBuilder], so it is not supported under
+  /// [IntrinsicWidth], [IntrinsicHeight], or a parent's
+  /// `crossAxisIntrinsic`.
   final bool scrollable;
 
   static const _interactionAnimation = AnimationStyle(
@@ -90,6 +96,16 @@ abstract class BoxLayout extends StatelessWidget {
   /// The axis that [scrollable] scrolls along.
   @protected
   Axis get scrollDirection => Axis.vertical;
+
+  /// Whether `scrollable` stretches short content to fill the viewport.
+  ///
+  /// A stretching scrollable layout builds a [LayoutBuilder], so it is not
+  /// supported under [IntrinsicWidth], [IntrinsicHeight], or a parent's
+  /// `crossAxisIntrinsic`. [ColumnLayout] and [RowLayout] override this to
+  /// stretch only when their effective `mainAxisSize` is
+  /// [MainAxisSize.max]; [StackLayout] and [WrapLayout] always stretch.
+  @protected
+  bool get stretchesToViewport => true;
 
   bool get _isBare =>
       style == null &&
@@ -191,13 +207,35 @@ abstract class BoxLayout extends StatelessWidget {
     );
   }
 
-  /// Scrolls [content], the padding and the layout's content, inside the
-  /// box along [scrollDirection].
+  /// Scrolls [content] (the padding and the layout's content) inside the
+  /// box. When [stretchesToViewport] is true, short content stretches to
+  /// the viewport, so `spaceBetween` and `end` alignments still work; in a
+  /// parent that is unbounded along the axis the layout sizes to its
+  /// content instead. When it is false, [content] keeps its own size.
   Widget _buildScroll(Widget content) {
+    final axis = scrollDirection;
+    if (!stretchesToViewport) {
+      return ScrollFrame(
+        child: SingleChildScrollView(scrollDirection: axis, child: content),
+      );
+    }
     return ScrollFrame(
-      child: SingleChildScrollView(
-        scrollDirection: scrollDirection,
-        child: content,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final extent = axis == Axis.vertical
+              ? constraints.maxHeight
+              : constraints.maxWidth;
+          final min = extent.isFinite ? extent : 0.0;
+          return SingleChildScrollView(
+            scrollDirection: axis,
+            child: ConstrainedBox(
+              constraints: axis == Axis.vertical
+                  ? BoxConstraints(minHeight: min)
+                  : BoxConstraints(minWidth: min),
+              child: content,
+            ),
+          );
+        },
       ),
     );
   }
