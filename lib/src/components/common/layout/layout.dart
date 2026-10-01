@@ -3,6 +3,7 @@ export 'box_layout.dart';
 export 'column_layout.dart';
 export 'container_layout.dart';
 export 'custom_scroll_view_layout.dart';
+export 'focus_group.dart' show StratumFocusGroup;
 export 'grid_view_layout.dart';
 export 'list_view_layout.dart';
 export 'row_layout.dart';
