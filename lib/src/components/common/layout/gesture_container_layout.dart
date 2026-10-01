@@ -109,7 +109,9 @@ class GestureContainerLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final interactive = _hasInteraction;
+    // Interaction and semantics both enter through boxBuilder, inside the
+    // margin, so adding or removing a callback never changes the root and
+    // the child keeps its State.
     return ContainerLayout(
       style: _effectiveStyle,
       ratio: ratio,
@@ -119,11 +121,20 @@ class GestureContainerLayout extends StatelessWidget {
       keepAlive: keepAlive,
       repaintBoundary: repaintBoundary,
       debug: debug,
-      semantics: interactive ? null : semantics,
       onEndAnimate: onEndAnimate,
-      boxBuilder: interactive ? _buildInkWell : null,
+      boxBuilder: _hasInteraction
+          ? _buildInkWell
+          : semantics == null
+          ? null
+          : _buildSemantics,
       child: child,
     );
+  }
+
+  Widget _buildSemantics(WidgetStyle style, Widget box) {
+    final properties = semantics;
+    if (properties == null) return box;
+    return Semantics.fromProperties(properties: properties, child: box);
   }
 
   Widget _buildInkWell(WidgetStyle style, Widget box) {

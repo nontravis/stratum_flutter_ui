@@ -221,15 +221,14 @@ class _StratumInkWellState extends State<StratumInkWell> {
       ),
     );
     result = Material(type: MaterialType.transparency, child: result);
-    if (onHover != null) {
-      // Kept in place while disabled so toggling disabled never changes
-      // the structure below.
-      result = MouseRegion(
-        onEnter: disabled ? null : (_) => onHover(true),
-        onExit: disabled ? null : (_) => onHover(false),
-        child: result,
-      );
-    }
+    // Always built, with null handlers when unused, so toggling onHover or
+    // disabled never changes the structure below.
+    final reportsHover = onHover != null && !disabled;
+    result = MouseRegion(
+      onEnter: reportsHover ? (_) => onHover(true) : null,
+      onExit: reportsHover ? (_) => onHover(false) : null,
+      child: result,
+    );
     if (_hasRing) {
       result = FocusSpread(
         focus: _ringVisible,

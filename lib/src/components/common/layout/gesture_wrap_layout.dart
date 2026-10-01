@@ -44,15 +44,7 @@ class GestureWrapLayout extends StatelessWidget {
     //===============//
     required this.children,
   }) : _effectiveSpacing = spacing ?? gap ?? 0.0,
-       _effectiveRunSpacing = runSpacing ?? gap ?? 0.0,
-       _hasGestures =
-           onTap != null ||
-           onSecondaryTap != null ||
-           onDoubleTap != null ||
-           onLongPress != null ||
-           onHighlightChanged != null ||
-           onHover != null ||
-           onFocusChange != null;
+       _effectiveRunSpacing = runSpacing ?? gap ?? 0.0;
 
   ///========== Frame ==========///
   final double? rotate; // 0-360 degree
@@ -111,7 +103,6 @@ class GestureWrapLayout extends StatelessWidget {
   // Pre-computed values
   final double _effectiveSpacing;
   final double _effectiveRunSpacing;
-  final bool _hasGestures;
 
   @override
   Widget build(BuildContext context) {
@@ -129,51 +120,37 @@ class GestureWrapLayout extends StatelessWidget {
       children: children,
     );
 
-    // Apply gesture container only if gestures are needed
-    if (_hasGestures) {
-      wrapWidget = GestureContainerLayout(
-        style: style,
-        ratio: ratio,
-        rotate: rotate,
-        keepAlive: keepAlive,
-        repaintBoundary: repaintBoundary,
-        transform: transform,
-        focusType: focusType,
-        disabled: disabled,
-        disabledPressAnimation: disabledPressAnimation,
-        onTap: onTap,
-        onSecondaryTap: onSecondaryTap,
-        onDoubleTap: onDoubleTap,
-        onLongPress: onLongPress,
-        onHighlightChanged: onHighlightChanged,
-        onHover: onHover,
-        mouseCursor: mouseCursor,
-        enableFeedback: enableFeedback,
-        excludeFromSemantics: excludeFromSemantics,
-        focusNode: focusNode,
-        canRequestFocus: canRequestFocus,
-        onFocusChange: onFocusChange,
-        autofocus: autofocus,
-        showFocusOnPrimary: showFocusOnPrimary,
-        statesController: statesController,
-        onEndAnimate: onEndAnimate,
-        semantics: semantics,
-        child: wrapWidget,
-      );
-    } else {
-      // Apply only container styling without gestures
-      wrapWidget = ContainerLayout(
-        style: style,
-        ratio: ratio,
-        rotate: rotate,
-        keepAlive: keepAlive,
-        repaintBoundary: repaintBoundary,
-        transform: transform,
-        onEndAnimate: onEndAnimate,
-        semantics: semantics,
-        child: wrapWidget,
-      );
-    }
+    // GestureContainerLayout falls back to a plain ContainerLayout without
+    // callbacks, so the root stays the same when a callback comes or goes.
+    wrapWidget = GestureContainerLayout(
+      style: style,
+      ratio: ratio,
+      rotate: rotate,
+      keepAlive: keepAlive,
+      repaintBoundary: repaintBoundary,
+      transform: transform,
+      focusType: focusType,
+      disabled: disabled,
+      disabledPressAnimation: disabledPressAnimation,
+      onTap: onTap,
+      onSecondaryTap: onSecondaryTap,
+      onDoubleTap: onDoubleTap,
+      onLongPress: onLongPress,
+      onHighlightChanged: onHighlightChanged,
+      onHover: onHover,
+      mouseCursor: mouseCursor,
+      enableFeedback: enableFeedback,
+      excludeFromSemantics: excludeFromSemantics,
+      focusNode: focusNode,
+      canRequestFocus: canRequestFocus,
+      onFocusChange: onFocusChange,
+      autofocus: autofocus,
+      showFocusOnPrimary: showFocusOnPrimary,
+      statesController: statesController,
+      onEndAnimate: onEndAnimate,
+      semantics: semantics,
+      child: wrapWidget,
+    );
 
     // Apply scrollable wrapper only if needed
     if (scrollable) {
