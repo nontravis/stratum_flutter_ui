@@ -1,8 +1,8 @@
 # Layout primitives design
 
 - **Date:** 2026-10-01
-- **Status:** Approved by the owner on 2026-10-01; revised the same day after the quality review (section 13); phase 1 plan in progress.
-- **Location:** `lib/src/components/common/layout/` (all files), new `lib/src/components/common/model/interaction.dart`, and changes in `lib/src/components/common/ink_well.dart`, `lib/src/components/common/common.dart`, `lib/src/components/common/style/animated_styled_box.dart`, `lib/src/themes/behavior/`, and `lib/src/themes/theme_application.dart`.
+- **Status:** Approved by the owner on 2026-10-01; revised the same day after the quality review (section 13); phase 3 done, phase 4 next.
+- **Location:** `lib/src/components/common/layout/` (all files), new `lib/src/components/common/model/interaction.dart`, and changes in `lib/src/components/common/ink_well.dart`, `lib/src/components/common/style/animated_styled_box.dart`, `lib/src/themes/behavior/`, and `lib/src/themes/theme_application.dart`.
 
 ## 1. Goal
 
@@ -93,6 +93,10 @@ abstract class BoxLayout extends StatelessWidget {
   /// The axis that `scrollable` scrolls along.
   @protected
   Axis get scrollDirection => Axis.vertical;
+
+  /// Whether `scrollable` stretches short content to fill the viewport.
+  @protected
+  bool get stretchesToViewport => true;
 }
 ```
 
@@ -231,7 +235,7 @@ AnimatedStyledBox
   buildContent()
 ```
 
-`boxBuilder` keeps its `GlobalKey`, and the child keeps its own through `_childKey`. Adding the first callback to a non-null `interaction` or removing the last one changes the `boxBuilder` wrapper type, so the wrappers between the box key and the child (constraints and decorations) rebuild, while the child keeps its `State`. That is the guarantee of commit 7e86baf.
+`boxBuilder` keeps its `GlobalKey`, and the child keeps its own through `_childKey`. Adding the first callback to a non-null `interaction` or removing the last one changes the `boxBuilder` wrapper type, so the wrappers between the box key and the child (constraints and decorations) rebuild, while the child keeps its `State`. That is the guarantee of commit 7e86baf. The scroll subtree keeps its own `GlobalKey` the same way, so a `scrollable` layout's `ScrollableState` and its position survive a style, interaction, or semantics change; only a tier change resets it.
 
 When `interaction` is non-null and the style has no `animationStyle`, the style animates over 100 ms with `easeInOutSine`, keeping the default that `GestureContainerLayout` has today.
 
@@ -313,7 +317,7 @@ A key binding from K3 or K4, and a K2 binding whose activator has no control, me
 
 ## 7. Edge cases
 
-- A tier change (a parameter going between null and a value) remounts `buildContent()`. Callers that toggle style or interaction pass a constant empty value instead of null.
+- Content remounts when the tier changes (toggling `scrollable` on an otherwise bare layout counts), when `rotate` switches between null and a value, when `repaintBoundary`, `debug`, or `keepAlive` changes, or, on a bare layout, when `semantics` switches between null and a value. Callers that toggle style or interaction pass a constant empty value instead of null.
 - A `focusGroup` whose children contain no focusable node builds the group and does nothing on Tab. Under `role: SemanticsRole.menu`, `menuBar`, or `tabBar`, an empty group fails Flutter's debug role check, so a caller sets those roles only when items exist.
 - `ListViewLayout.builder` with `gap` and a null `itemCount`, an `itemExtent`, a `prototypeItem`, or a `semanticChildCount` fails its assertion in debug mode.
 - `CustomScrollViewLayout` with both or neither of `slivers` and `children` fails its constructor assertion; slivers mode with `style.padding` fails its build assertion.
