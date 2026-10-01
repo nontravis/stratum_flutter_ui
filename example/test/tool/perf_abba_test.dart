@@ -152,7 +152,40 @@ void main() {
           _trace('r2g1', 'S1', 'base', 1),
           _trace('r2g1', 'S1', 'cand', 1, interval: 7.3),
         ]),
-        {'r1g1'},
+        {'r1'},
+      );
+    });
+  });
+
+  group('invalidRuns across invocations', () {
+    test('marks a run invalid when one whole invocation ran on another '
+        'display', () {
+      expect(
+        invalidRuns([
+          _trace('r1g1', 'S1', 'base', 1),
+          _trace('r1g1', 'S1', 'cand', 1),
+          _trace('r1g2', 'S3', 'base', 1),
+          _trace('r1g2', 'S3', 'cand', 1),
+          _trace('r1g3', 'S4', 'base', 1, interval: 16.67),
+          _trace('r1g3', 'S4', 'cand', 1, interval: 16.67),
+          _trace('r2g1', 'S1', 'base', 1),
+          _trace('r2g1', 'S1', 'cand', 1),
+        ]),
+        {'r1'},
+      );
+    });
+
+    test('marks a run invalid when all of it ran on another display', () {
+      expect(
+        invalidRuns([
+          for (final run in ['r1g1', 'r2g1', 'r3g1']) ...[
+            _trace(run, 'S1', 'base', 1),
+            _trace(run, 'S1', 'cand', 1),
+          ],
+          _trace('r4g1', 'S1', 'base', 1, interval: 16.67),
+          _trace('r4g1', 'S1', 'cand', 1, interval: 16.67),
+        ]),
+        {'r4'},
       );
     });
   });
@@ -305,7 +338,7 @@ void main() {
       final result = judge([
         ..._pairs('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
         ..._pairs('S4', _rcaS4),
-      ], loads: [9.1, 16.4]);
+      ], loads: [9.1, 16.4], scenes: const ['S2-plain', 'S4']);
       expect(result.verdict, Verdict.pass);
       expect(result.text, contains('| S4 | 12 |'));
       expect(result.text, contains('[-21.6, -4.9]'));
@@ -318,7 +351,7 @@ void main() {
       final result = judge([
         ..._pairs('S2-plain', [3, 2, 1, 4, 5, 2]),
         ..._pairs('S4', _rcaS4),
-      ], loads: const []);
+      ], loads: const [], scenes: const ['S2-plain', 'S4']);
       expect(result.verdict, Verdict.invalid);
       expect(result.text, contains('overall: INVALID'));
     });
@@ -331,9 +364,21 @@ void main() {
         _trace('r99g1', 'S4', 'cand', 1, interval: 16.67),
         _trace('r99g1', 'S4', 'base', 2),
         _trace('r99g1', 'S4', 'cand', 2),
-      ], loads: const []);
+      ], loads: const [], scenes: const ['S2-plain', 'S4']);
       expect(result.text, contains('| S4 | 12 |'));
-      expect(result.text, contains('invalid runs: r99g1'));
+      expect(result.text, contains('invalid runs: r99'));
+    });
+
+    test('keeps an expected scene without pairs as INCONCLUSIVE', () {
+      final result = judge([
+        ..._pairs('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
+        ..._pairs('S4', _rcaS4),
+      ], loads: const [], scenes: const ['S2-plain', 'S4', 'S5']);
+      expect(
+        result.text,
+        contains('| S5 | 0 | - | - | - | - | - | INCONCLUSIVE |'),
+      );
+      expect(result.verdict, Verdict.inconclusive);
     });
   });
 
