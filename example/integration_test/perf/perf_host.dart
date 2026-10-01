@@ -13,6 +13,10 @@ const traceWindow = Duration(seconds: 2);
 /// fill the recorder's buffer and push the traced frames out of it.
 const perfStreams = ['Dart', 'Embedder', 'GC'];
 
+/// Untraced time between pumping a scene and tracing it, so the first
+/// build and the previous scene's teardown stay out of the window.
+const settleTime = Duration(milliseconds: 250);
+
 class _PerfTransparent extends Fake implements TransparentColors {
   @override
   Color get t0 => const Color(0x00000000);

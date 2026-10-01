@@ -1,6 +1,8 @@
 // ignore_for_file: implementation_imports
 import 'package:stratum_ui/src/src.dart';
 
+import '../baseline/baseline.dart';
+
 /// The layouts one side of the comparison draws with (spec section 9.2).
 ///
 /// Scenes reach layouts only through a kit, so moving to a new layout API
@@ -61,5 +63,53 @@ class CurrentKit implements PerfKit {
   @override
   Widget container({WidgetStyle? style, Widget? child}) {
     return ContainerLayout(style: style, child: child);
+  }
+}
+
+/// The layouts of the frozen baseline (spec section 9.3).
+///
+/// Phase 3's baseline is fd59ffa, where a tappable row is a separate
+/// `GestureRowLayout`.
+class BaselineKit implements PerfKit {
+  const new();
+
+  @override
+  Widget row({
+    WidgetStyle? style,
+    VoidCallback? onTap,
+    required MainAxisAlignment mainAxisAlignment,
+    required List<Widget> children,
+  }) {
+    if (onTap == null) {
+      return BaselineRowLayout(
+        style: style,
+        mainAxisAlignment: mainAxisAlignment,
+        children: children,
+      );
+    }
+    return BaselineGestureRowLayout(
+      style: style,
+      onTap: onTap,
+      mainAxisAlignment: mainAxisAlignment,
+      children: children,
+    );
+  }
+
+  @override
+  Widget column({
+    required MainAxisSize mainAxisSize,
+    required CrossAxisAlignment crossAxisAlignment,
+    required List<Widget> children,
+  }) {
+    return BaselineColumnLayout(
+      mainAxisSize: mainAxisSize,
+      crossAxisAlignment: crossAxisAlignment,
+      children: children,
+    );
+  }
+
+  @override
+  Widget container({WidgetStyle? style, Widget? child}) {
+    return BaselineContainerLayout(style: style, child: child);
   }
 }
