@@ -39,16 +39,17 @@ void main() {
       );
     });
 
-    for (final scene in perfScenes) {
-      testWidgets('${scene.key} builds and passes its check with '
-          'CurrentKit', (tester) async {
-        const kit = CurrentKit();
-        await tester.pumpWidget(perfHost(scene.build(kit)));
-        await scene.check?.call(tester, kit);
-        expect(tester.takeException(), isNull);
-        // Unmounts S4, whose periodic timer must not outlive the test.
-        await tester.pumpWidget(const SizedBox());
-      });
+    for (final kit in const <PerfKit>[CurrentKit(), BaselineKit()]) {
+      for (final scene in perfScenes) {
+        testWidgets('${scene.key} builds and passes its check with '
+            '${kit.runtimeType}', (tester) async {
+          await tester.pumpWidget(perfHost(scene.build(kit)));
+          await scene.check?.call(tester, kit);
+          expect(tester.takeException(), isNull);
+          // Unmounts S4, whose periodic timer must not outlive the test.
+          await tester.pumpWidget(const SizedBox());
+        });
+      }
     }
 
     testWidgets('S2-plain never calls the kit', (tester) async {

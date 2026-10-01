@@ -212,3 +212,23 @@ final perfScenes = <PerfScene>[
 PerfScene perfScene(String key) {
   return perfScenes.singleWhere((scene) => scene.key == key);
 }
+
+/// Scene groups, one per invocation (spec section 9.4). Each group starts
+/// with the S2-plain null control and stays within 16 traces, because the
+/// binding sends every timeline to the driver in one message.
+///
+/// `tool/perf_abba.dart` lists the same keys in its `groups`.
+const perfGroups = <int, List<String>>{
+  1: ['S2-plain', 'S1', 'S1-fast', 'S2'],
+  2: ['S2-plain', 'S2-box', 'S3'],
+  3: ['S2-plain', 'S4', 'S5'],
+};
+
+/// The scenes of [group], in run order.
+List<PerfScene> perfGroup(int group) {
+  final keys = perfGroups[group];
+  if (keys == null) {
+    throw ArgumentError.value(group, 'group', 'no such scene group');
+  }
+  return [for (final key in keys) perfScene(key)];
+}
