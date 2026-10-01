@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
+import '../fakes/fake_stratum_theme.dart';
+
 const _radius = BorderRadius.all(Radius.circular(8));
 const _a = ValueKey<String>('a');
 const _b = ValueKey<String>('b');
@@ -256,6 +258,48 @@ void main() {
 
       expect(tester.getRect(_decoration()), box);
       expect(tester.getTopLeft(find.byKey(_a)).dy, content - 100);
+    });
+
+    testWidgets('the scroll position survives a style or interaction change', (
+      tester,
+    ) async {
+      Widget build({Border? border, StratumInteraction? interaction}) {
+        return themedHost(
+          SizedBox.fromSize(
+            size: const Size(100, 200),
+            child: ColumnLayout(
+              scrollable: true,
+              style: WidgetStyle(border: border),
+              interaction: interaction,
+              children: const [SizedBox(height: 500)],
+            ),
+          ),
+        );
+      }
+
+      await tester.pumpWidget(build());
+      tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .jumpTo(100);
+      await tester.pump();
+
+      await tester.pumpWidget(build(border: Border.all()));
+      expect(
+        tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels,
+        100,
+      );
+
+      await tester.pumpWidget(
+        build(
+          border: Border.all(),
+          interaction: StratumInteraction(onTap: () {}),
+        ),
+      );
+      expect(
+        tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels,
+        100,
+      );
     });
 
     testWidgets('a rounded scrollable box builds exactly one clip', (

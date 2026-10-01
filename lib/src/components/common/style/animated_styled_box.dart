@@ -20,9 +20,9 @@ typedef StyledScrollBuilder = Widget Function(Widget content);
 ///
 /// When the platform asks for less motion (`disableAnimations` or
 /// `reduceMotion`), size, spacing, and alignment jump to the new style while
-/// colors, borders, radius, shadows, blur, and opacity still fade over the
-/// full duration. The fade keeps its duration on every platform, because the
-/// controller uses [AnimationBehavior.preserve].
+/// colors, gradients, images, borders, radius, shadows, blur, and opacity
+/// still fade over the full duration. The fade keeps its duration on every
+/// platform, because the controller uses [AnimationBehavior.preserve].
 class AnimatedStyledBox extends StatefulWidget {
   const new({
     super.key,
@@ -41,7 +41,9 @@ class AnimatedStyledBox extends StatefulWidget {
   final Matrix4? transform;
   final AlignmentGeometry? transformAlignment;
 
-  /// Called when a style animation completes.
+  /// Called when a style animation completes. A zero-duration change
+  /// completes synchronously inside `didUpdateWidget`, so a `setState`
+  /// inside [onEnd] during an instant change throws.
   final VoidCallback? onEnd;
 
   /// Wraps the box after its size constraints and before its margin,
@@ -68,6 +70,9 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
     with SingleTickerProviderStateMixin {
   final GlobalKey _childKey = GlobalKey(debugLabel: 'AnimatedStyledBox.child');
   final GlobalKey _boxKey = GlobalKey(debugLabel: 'AnimatedStyledBox.box');
+  late final GlobalKey _scrollKey = GlobalKey(
+    debugLabel: 'AnimatedStyledBox.scroll',
+  );
 
   late final AnimationController _controller = AnimationController(
     duration: _duration,
@@ -185,7 +190,9 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
       current = Padding(padding: padding, child: current);
     }
     final scrollBuilder = widget.scrollBuilder;
-    if (scrollBuilder != null) current = scrollBuilder(current);
+    if (scrollBuilder != null) {
+      current = KeyedSubtree(key: _scrollKey, child: scrollBuilder(current));
+    }
     final foregroundBlur = style.foregroundBlur;
     if (foregroundBlur != null && child != null) {
       current = ImageFiltered(imageFilter: foregroundBlur.blur, child: current);
@@ -251,10 +258,7 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
     }
     final boxBuilder = widget.boxBuilder;
     if (boxBuilder != null) {
-      current = KeyedSubtree(
-        key: _boxKey,
-        child: boxBuilder(style, current),
-      );
+      current = KeyedSubtree(key: _boxKey, child: boxBuilder(style, current));
     }
     final margin = style.margin;
     if (margin != null) {
@@ -324,7 +328,8 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
   /// The range is normalized first, because min and max animate on their
   /// own and can cross mid-animation.
   static BoxConstraints? _constraints(WidgetStyle style) {
-    final hasRange = style.minWidth != null ||
+    final hasRange =
+        style.minWidth != null ||
         style.maxWidth != null ||
         style.minHeight != null ||
         style.maxHeight != null;
@@ -337,10 +342,8 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
           ).normalize()
         : null;
     if (style.width != null || style.height != null) {
-      constraints = constraints?.tighten(
-            width: style.width,
-            height: style.height,
-          ) ??
+      constraints =
+          constraints?.tighten(width: style.width, height: style.height) ??
           BoxConstraints.tightFor(width: style.width, height: style.height);
     }
     return constraints;

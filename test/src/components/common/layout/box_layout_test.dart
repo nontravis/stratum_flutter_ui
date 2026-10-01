@@ -14,6 +14,7 @@ class _Layout extends BoxLayout {
     super.ratio,
     super.rotate,
     super.transform,
+    super.transformAlignment,
     super.keepAlive,
     super.repaintBoundary,
     super.debug,
@@ -89,6 +90,40 @@ void main() {
         expect(find.byType(AnimatedStyledBox), findsOneWidget);
       });
     }
+
+    testWidgets('ratio, transform, and transformAlignment reach the box', (
+      tester,
+    ) async {
+      final matrix = Matrix4.identity()..scale(2.0);
+      await tester.pumpWidget(
+        themedHost(
+          _Layout(
+            style: const WidgetStyle(),
+            ratio: 2,
+            transform: matrix,
+            transformAlignment: Alignment.topLeft,
+          ),
+        ),
+      );
+
+      final box = tester.widget<AnimatedStyledBox>(
+        find.byType(AnimatedStyledBox),
+      );
+      expect(box.ratio, 2);
+      expect(box.transform, matrix);
+      expect(box.transformAlignment, Alignment.topLeft);
+    });
+
+    testWidgets('a ratio of 0 reaches the box as null', (tester) async {
+      await tester.pumpWidget(
+        themedHost(const _Layout(style: WidgetStyle(), ratio: 0)),
+      );
+
+      expect(
+        tester.widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox)).ratio,
+        isNull,
+      );
+    });
 
     testWidgets('wraps from outside in: keepAlive, debug, repaint, rotate', (
       tester,

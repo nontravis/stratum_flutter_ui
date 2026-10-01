@@ -33,6 +33,10 @@ class WrapLayout extends BoxLayout {
   });
 
   final Axis direction;
+
+  /// Aligns children along [direction] inside each run;
+  /// [WidgetStyle.alignment] places the whole wrap inside the box's padded
+  /// content instead.
   final WrapAlignment alignment;
 
   /// Space between children in a run.
@@ -44,6 +48,9 @@ class WrapLayout extends BoxLayout {
   final WrapCrossAlignment crossAxisAlignment;
   final TextDirection? textDirection;
   final VerticalDirection verticalDirection;
+
+  /// Clips the wrap's children that overflow its bounds;
+  /// [WidgetStyle.clipBehavior] cuts at the box edge instead.
   final Clip clipBehavior;
   final List<Widget> children;
 

@@ -81,6 +81,19 @@ void main() {
       expect(box.style?.clipBehavior, isNull);
     });
 
+    testWidgets('keeps fit on the Stack', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const StackLayout(
+            fit: StackFit.expand,
+            children: [SizedBox(width: 20, height: 20)],
+          ),
+        ),
+      );
+
+      expect(tester.widget<Stack>(find.byType(Stack)).fit, StackFit.expand);
+    });
+
     testWidgets('(pin) clips the Stack with Clip.hardEdge by default', (
       tester,
     ) async {
