@@ -503,6 +503,38 @@ void main() {
       expect(tester.getSize(_decorated()), const Size(40, 20));
     });
 
+    testWidgets("the app's MediaQuery disableAnimations makes geometry jump", (
+      tester,
+    ) async {
+      Widget build(WidgetStyle style) => MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: _host(style, child: null),
+      );
+
+      await tester.pumpWidget(build(small));
+      await tester.pumpWidget(build(large));
+
+      expect(tester.getSize(_decorated()), const Size(80, 40));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(tester.getSize(_decorated()), const Size(80, 40));
+      expect(_fillColor(tester), Color.lerp(_red, _blue, 0.5));
+    });
+
+    testWidgets('(pin) the platform reduceMotion still applies under a '
+        'MediaQuery without disableAnimations', (tester) async {
+      useFeatures(tester, const FakeAccessibilityFeatures(reduceMotion: true));
+      Widget build(WidgetStyle style) => MediaQuery(
+        data: const MediaQueryData(),
+        child: _host(style, child: null),
+      );
+
+      await tester.pumpWidget(build(small));
+      await tester.pumpWidget(build(large));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(tester.getSize(_decorated()), const Size(80, 40));
+    });
+
     testWidgets('(pin) without a flag the geometry animates', (tester) async {
       await tester.pumpWidget(_host(small, child: null));
       await tester.pumpWidget(_host(large, child: null));
