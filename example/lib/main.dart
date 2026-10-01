@@ -7,17 +7,35 @@ import 'package:stratum_ui/src/components/common/web_view/web_view.dart';
 
 void main() => runApp(const StratumWebViewExampleApp());
 
-class StratumWebViewExampleApp extends StatelessWidget {
+class StratumWebViewExampleApp extends StatefulWidget {
   const StratumWebViewExampleApp({super.key});
+
+  @override
+  State<StratumWebViewExampleApp> createState() =>
+      _StratumWebViewExampleAppState();
+}
+
+class _StratumWebViewExampleAppState extends State<StratumWebViewExampleApp> {
+  /// Shows Flutter's UI and raster thread graphs over the app.
+  var _showOverlay = false;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      showPerformanceOverlay: _showOverlay,
       home: DefaultTabController(
         length: 3,
         child: Scaffold(
           appBar: AppBar(
             title: const Text('StratumWebView'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.speed),
+                tooltip: 'Performance overlay',
+                isSelected: _showOverlay,
+                onPressed: () => setState(() => _showOverlay = !_showOverlay),
+              ),
+            ],
             bottom: const TabBar(
               tabs: [
                 Tab(text: 'URL'),
