@@ -8,9 +8,17 @@ const budget = 8.3;
 /// Largest accepted rise of the average build time, in percent.
 const maxAverageRise = 5.0;
 
-/// Largest distance of a trace's frame interval from its run's median
-/// interval, as a fraction of the median.
-const maxIntervalDrift = 0.1;
+/// Largest distance of a trace's display period from its run's median
+/// period, or from the comparison's, as a fraction of that median.
+const maxPeriodDrift = 0.1;
+
+/// Smallest share of the frames a traced window holds at its display
+/// period; a trace with fewer lost frames (spec section 9.5).
+const minFrameShare = 0.9;
+
+/// Length of every traced window, in milliseconds: `traceWindow` in
+/// `integration_test/perf/perf_host.dart`.
+const traceWindowMs = 2000.0;
 
 /// Scene groups per run: the keys of `perfGroups` in
 /// `integration_test/perf/perf_scenes.dart`.
@@ -24,8 +32,8 @@ const groupScenes = <int, List<String>>{
   3: ['S2-plain', 'S4', 'S5'],
 };
 
-/// Most runs one comparison holds: 24 pairs per scene (spec section 9.5).
-const maxRuns = 12;
+/// Most runs one comparison holds: 24 blocks per scene (spec section 9.5).
+const maxRuns = 24;
 
 /// The null-control scene, judged only by the null gate.
 const nullScene = 'S2-plain';
@@ -49,13 +57,15 @@ const _usage =
 /// The verdict of a scene or a comparison (spec section 9.5).
 enum Verdict { pass, fail, inconclusive, invalid }
 
-/// The metrics read from one `TimelineSummary`; the interval is the median
-/// gap between frame starts, in milliseconds.
+/// The metrics read from one `TimelineSummary`. The display period is the
+/// 10th percentile of the gaps between frame starts, in milliseconds;
+/// [frames] counts the frames the trace holds.
 typedef TraceMetrics = ({
   double average,
   double p99Build,
   double p99Raster,
-  double interval,
+  double period,
+  int frames,
 });
 
 /// One trace: its run folder (`r<run>g<group>`) and its report key.
@@ -67,19 +77,26 @@ typedef Trace = ({
   TraceMetrics metrics,
 });
 
-/// A baseline trace and the current trace it pairs with.
-typedef TracePair = ({TraceMetrics base, TraceMetrics cand});
+/// The four traces of one scene in one invocation, in the order baseline,
+/// current, current, baseline (spec section 9.4).
+typedef Block = ({
+  TraceMetrics base1,
+  TraceMetrics cand1,
+  TraceMetrics cand2,
+  TraceMetrics base2,
+});
 
-/// A 95% interval for the median paired change, in percent.
+/// A 95% interval for the median block change, in percent.
 typedef ConfidenceInterval = ({double lower, double upper});
 
 /// Runs and judges the in-process ABBA benchmark (spec section 9.5).
 ///
 /// Usage, from `example/`:
-/// - `dart run tool/perf_abba.dart run --runs 6` runs `flutter drive` once
-///   per run and group, recording `uptime` before each, then reports.
-/// - `dart run tool/perf_abba.dart run --from 7 --runs 6` adds the one
-///   escalation, up to 12 runs (24 pairs per scene).
+/// - `dart run tool/perf_abba.dart run --runs 12` runs `flutter drive` once
+///   per run and group, recording `uptime` and the code state before each,
+///   then reports.
+/// - `dart run tool/perf_abba.dart run --from 13 --runs 12` adds the one
+///   escalation, up to 24 runs (24 blocks per scene).
 /// - `dart run tool/perf_abba.dart report` judges the stored runs again.
 ///
 /// Prints the report, writes it to `build/perf/abba/report.md`, and exits
@@ -111,9 +128,22 @@ String? runRangeError({required int from, required int runs}) {
   final last = from + runs - 1;
   if (from < 1 || runs < 1 || last > maxRuns) {
     return 'runs $from to $last fall outside 1 to $maxRuns '
-        '(24 pairs per scene)';
+        '(24 blocks per scene)';
   }
   return null;
+}
+
+/// Why new runs on [current] cannot join the runs stored with [stored]
+/// (run folder to code state), or null when every stored run folder
+/// recorded [current] (spec section 9.4).
+String? codeStateError(Map<String, String> stored, String current) {
+  final others = [
+    for (final MapEntry(key: folder, value: state) in stored.entries)
+      if (state != current) folder,
+  ]..sort();
+  if (others.isEmpty) return null;
+  return '${others.join(', ')} ran on another code state than $current: '
+      'rm -rf $abbaRoot for a new comparison';
 }
 
 /// Arguments that build [group]'s profile app with its `PERF_GROUP`.
@@ -141,10 +171,10 @@ List<String> driveArgs(int group) {
   ];
 }
 
-/// Whether run [run] already holds a trace off the frame interval, which
-/// leaves out the whole run (spec section 9.5).
-bool runLostFrames(List<Trace> traces, int run) {
-  return invalidRuns(traces).contains('r$run');
+/// Whether run [run] already holds a trace that leaves the whole run out
+/// (spec section 9.5).
+bool runInvalid(List<Trace> traces, int run) {
+  return invalidRuns(traces).containsKey('r$run');
 }
 
 /// Run folders under [root] that runs [from] to `from + runs - 1` would
@@ -162,6 +192,22 @@ List<String> clashingRuns(
   ];
 }
 
+/// The code under test, as `code.txt` records it (spec section 9.4):
+/// `git rev-parse HEAD` and a hash of `git diff HEAD -- lib example`, both
+/// run from the repository root.
+Future<String> codeState() async {
+  final head = await Process.run('git', [
+    'rev-parse',
+    'HEAD',
+  ], workingDirectory: '..');
+  final diff = await Process.run('sh', [
+    '-c',
+    'git diff HEAD -- lib example | shasum',
+  ], workingDirectory: '..');
+  final hash = (diff.stdout as String).split(' ').first;
+  return '${(head.stdout as String).trim()} $hash';
+}
+
 Future<int> _run({required int from, required int runs}) async {
   final rangeError = runRangeError(from: from, runs: runs);
   if (rangeError != null) {
@@ -175,6 +221,15 @@ Future<int> _run({required int from, required int runs}) async {
       'or pass --from after the last stored run',
     );
     return 64;
+  }
+  final code = await codeState();
+  final root = Directory(abbaRoot);
+  if (root.existsSync()) {
+    final stateError = codeStateError(readRuns(root).codeStates, code);
+    if (stateError != null) {
+      stderr.writeln(stateError);
+      return 64;
+    }
   }
   // One build per group for the whole call: every invocation of a group
   // then runs the same binary, and no invocation pays for a build.
@@ -203,6 +258,7 @@ Future<int> _run({required int from, required int runs}) async {
     for (final group in groups) {
       final directory = Directory('$abbaRoot/r${run}g$group')
         ..createSync(recursive: true);
+      File('${directory.path}/code.txt').writeAsStringSync(code);
       final uptime = await Process.run('uptime', const []);
       final load = (uptime.stdout as String).trim();
       File('${directory.path}/load.txt').writeAsStringSync(load);
@@ -213,18 +269,19 @@ Future<int> _run({required int from, required int runs}) async {
         environment: {'PERF_RUN': '$run', 'PERF_GROUP': '$group'},
         mode: ProcessStartMode.inheritStdio,
       );
-      final code = await drive.exitCode;
-      if (code != 0) {
+      final exit = await drive.exitCode;
+      if (exit != 0) {
         stderr.writeln(
-          'flutter drive exited $code on run $run group $group; '
+          'flutter drive exited $exit on run $run group $group; '
           'rm -rf $abbaRoot/r${run}g* and pass --from $run to continue',
         );
         return 1;
       }
-      if (runLostFrames(readRuns(Directory(abbaRoot)).traces, run)) {
+      if (runInvalid(readRuns(root).traces, run)) {
         stderr.writeln(
-          'run $run lost frames in group $group (window hidden or machine '
-          'starved); the run is left out, so its other groups are skipped',
+          'run $run is invalid after group $group '
+          '(${invalidRuns(readRuns(root).traces)['r$run']}); '
+          'its other groups are skipped',
         );
         break;
       }
@@ -239,11 +296,12 @@ int _report() {
     stderr.writeln('no runs in $abbaRoot');
     return 64;
   }
-  final (:traces, :loads) = readRuns(root);
+  final (:traces, :loads, :codeStates) = readRuns(root);
   final result = judge(
     traces,
     loads: loads,
     scenes: [for (final keys in groupScenes.values) ...keys],
+    codeStates: codeStates,
   );
   stdout.write(result.text);
   File('$abbaRoot/report.md').writeAsStringSync(result.text);
@@ -254,14 +312,16 @@ int _report() {
 TraceMetrics metricsOf(Map<String, dynamic> summary) {
   final begins = (summary['frame_begin_times'] as List).cast<num>();
   double read(String key) => (summary[key] as num).toDouble();
+  final gaps = [
+    for (var i = 1; i < begins.length; i++) (begins[i] - begins[i - 1]) / 1000,
+  ]..sort();
   return (
     average: read('average_frame_build_time_millis'),
     p99Build: read('99th_percentile_frame_build_time_millis'),
     p99Raster: read('99th_percentile_frame_rasterizer_time_millis'),
-    interval: median([
-      for (var i = 1; i < begins.length; i++)
-        (begins[i] - begins[i - 1]) / 1000,
-    ]),
+    // Nearest-rank 10th percentile.
+    period: gaps[math.max(0, (gaps.length * 0.1).ceil() - 1)],
+    frames: begins.length,
   );
 }
 
@@ -283,57 +343,84 @@ Trace? traceOf(String run, String fileName, TraceMetrics metrics) {
 /// The run `r<run>` that a run folder `r<run>g<group>` belongs to.
 String runOf(String folder) => folder.split('g').first;
 
-/// Runs (`r<run>`, every group of the run) with a trace whose frame
-/// interval differs by more than [maxIntervalDrift] from the run's median
-/// interval, or from the comparison's median interval, which catches a run
-/// whose windows all opened on another display (spec section 9.5).
-Set<String> invalidRuns(List<Trace> traces) {
+/// Whether [metrics] holds fewer than [minFrameShare] of the frames its
+/// traced window holds at its display period (spec section 9.5).
+bool lostFrames(TraceMetrics metrics) {
+  return metrics.frames < minFrameShare * traceWindowMs / metrics.period;
+}
+
+/// Runs (`r<run>`, every group of the run) left out of the analysis, each
+/// with its reason (spec section 9.5): a trace whose display period differs
+/// by more than [maxPeriodDrift] from the run's median period or from the
+/// comparison's, which also catches a run whose windows all opened on
+/// another display; or a trace that lost frames, named by side, because
+/// frames lost on the current side only can signal a regression.
+Map<String, String> invalidRuns(List<Trace> traces) {
   if (traces.isEmpty) return {};
-  final overall = median([for (final t in traces) t.metrics.interval]);
+  final overall = median([for (final t in traces) t.metrics.period]);
   final byRun = <String, List<Trace>>{};
   for (final trace in traces) {
     (byRun[runOf(trace.run)] ??= []).add(trace);
   }
-  return {
-    for (final MapEntry(key: run, value: runTraces) in byRun.entries)
-      if (_drifts(
-            runTraces,
-            median([for (final t in runTraces) t.metrics.interval]),
-          ) ||
-          _drifts(runTraces, overall))
-        run,
-  };
+  final reasons = <String, String>{};
+  for (final MapEntry(key: run, value: runTraces) in byRun.entries) {
+    final runMedian = median([for (final t in runTraces) t.metrics.period]);
+    final drifts = runTraces.any(
+      (t) =>
+          _drifts(t.metrics.period, runMedian) ||
+          _drifts(t.metrics.period, overall),
+    );
+    final lostSides = {
+      for (final t in runTraces)
+        if (lostFrames(t.metrics)) t.side == 'base' ? 'baseline' : 'current',
+    }.toList()..sort();
+    final parts = [
+      if (drifts) 'display period',
+      if (lostSides.isNotEmpty) 'lost frames on ${lostSides.join(' and ')}',
+    ];
+    if (parts.isNotEmpty) reasons[run] = parts.join('; ');
+  }
+  return reasons;
 }
 
-bool _drifts(List<Trace> traces, double reference) {
-  return traces.any(
-    (t) =>
-        (t.metrics.interval - reference).abs() > reference * maxIntervalDrift,
-  );
+bool _drifts(double period, double reference) {
+  return (period - reference).abs() > reference * maxPeriodDrift;
 }
 
-/// Scene to its pairs: the `base` and `cand` traces with the same run,
-/// scene, and pair number. A trace without its partner is left out.
-Map<String, List<TracePair>> pairTraces(List<Trace> traces) {
-  final sides = <(String, String, int), Map<String, TraceMetrics>>{};
+/// Scene to its blocks: the four traces of the scene in one run folder.
+/// A block that misses any of its four traces is left out.
+Map<String, List<Block>> blockTraces(List<Trace> traces) {
+  final slots = <(String, String), Map<String, TraceMetrics>>{};
   for (final trace in traces) {
-    (sides[(trace.run, trace.scene, trace.pair)] ??= {})[trace.side] =
+    (slots[(trace.run, trace.scene)] ??= {})['${trace.side}${trace.pair}'] =
         trace.metrics;
   }
-  final pairs = <String, List<TracePair>>{};
-  for (final MapEntry(key: (_, scene, _), value: bySide) in sides.entries) {
-    final base = bySide['base'];
-    final cand = bySide['cand'];
-    if (base != null && cand != null) {
-      (pairs[scene] ??= []).add((base: base, cand: cand));
+  final blocks = <String, List<Block>>{};
+  for (final MapEntry(key: (_, scene), value: slot) in slots.entries) {
+    if (slot case {
+      'base1': final base1,
+      'cand1': final cand1,
+      'cand2': final cand2,
+      'base2': final base2,
+    }) {
+      (blocks[scene] ??= []).add((
+        base1: base1,
+        cand1: cand1,
+        cand2: cand2,
+        base2: base2,
+      ));
     }
   }
-  return pairs;
+  return blocks;
 }
 
-/// The pair's change in average build time, in percent.
-double averageChange(TracePair pair) {
-  return (pair.cand.average / pair.base.average - 1) * 100;
+/// The block's change in average build time, in percent: both current
+/// traces against both baseline traces, which cancels an effect of the
+/// slot position (spec section 9.5).
+double blockChange(Block block) {
+  final base = block.base1.average + block.base2.average;
+  final cand = block.cand1.average + block.cand2.average;
+  return (cand / base - 1) * 100;
 }
 
 /// The median of [values], which must not be empty.
@@ -369,14 +456,20 @@ ConfidenceInterval? medianInterval(List<double> changes) {
   return (lower: sorted[k - 1], upper: sorted[sorted.length - k]);
 }
 
+List<TraceMetrics> _baseOf(Block b) => [b.base1, b.base2];
+
+List<TraceMetrics> _candOf(Block b) => [b.cand1, b.cand2];
+
 /// Whether the current side keeps the p99 budget for build and for raster
 /// (spec section 9.5).
-bool withinBudget(List<TracePair> pairs) {
+bool withinBudget(List<Block> blocks) {
   bool keeps(double Function(TraceMetrics metrics) metric) {
-    final base = median([for (final p in pairs) metric(p.base)]);
-    final cand = median([for (final p in pairs) metric(p.cand)]);
+    double mean(List<TraceMetrics> side) =>
+        (metric(side.first) + metric(side.last)) / 2;
+    final base = median([for (final b in blocks) ..._baseOf(b).map(metric)]);
+    final cand = median([for (final b in blocks) ..._candOf(b).map(metric)]);
     final delta = median([
-      for (final p in pairs) metric(p.cand) - metric(p.base),
+      for (final b in blocks) mean(_candOf(b)) - mean(_baseOf(b)),
     ]);
     return cand < budget || (base >= budget && delta <= 0);
   }
@@ -391,7 +484,7 @@ bool nullGatePasses(ConfidenceInterval? ci) {
 
 /// The verdict of one scene other than S2-plain (spec section 9.5).
 ///
-/// [ci] is null when the scene has fewer than 6 pairs.
+/// [ci] is null when the scene has fewer than 6 blocks.
 Verdict sceneVerdict({
   required ConfidenceInterval? ci,
   required bool p99WithinBudget,
@@ -430,10 +523,13 @@ double? loadOf(String uptime) {
   return match == null ? null : double.tryParse(match[1]!);
 }
 
-/// Every trace and recorded load under [root].
-({List<Trace> traces, List<double> loads}) readRuns(Directory root) {
+/// Every trace, recorded load, and recorded code state (run folder to
+/// state) under [root].
+({List<Trace> traces, List<double> loads, Map<String, String> codeStates})
+readRuns(Directory root) {
   final traces = <Trace>[];
   final loads = <double>[];
+  final codeStates = <String, String>{};
   for (final directory in root.listSync().whereType<Directory>()) {
     final run = directory.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
     final loadFile = File('${directory.path}/load.txt');
@@ -441,6 +537,10 @@ double? loadOf(String uptime) {
         ? loadOf(loadFile.readAsStringSync())
         : null;
     if (load != null) loads.add(load);
+    final codeFile = File('${directory.path}/code.txt');
+    if (codeFile.existsSync()) {
+      codeStates[run] = codeFile.readAsStringSync().trim();
+    }
     for (final file in directory.listSync().whereType<File>()) {
       final name = file.uri.pathSegments.last;
       if (!name.endsWith('.timeline_summary.json')) continue;
@@ -450,7 +550,19 @@ double? loadOf(String uptime) {
       if (trace != null) traces.add(trace);
     }
   }
-  return (traces: traces, loads: loads);
+  return (traces: traces, loads: loads, codeStates: codeStates);
+}
+
+/// A report line naming each recorded code state with its run folders, or
+/// null when every run folder recorded the same state.
+String? codeMismatch(Map<String, String> codeStates) {
+  final byState = <String, List<String>>{};
+  for (final MapEntry(key: folder, value: state) in codeStates.entries) {
+    (byState[state] ??= []).add(folder);
+  }
+  if (byState.length < 2) return null;
+  final states = byState.keys.toList()..sort();
+  return 'code states differ: ${[for (final state in states) '$state in ${(byState[state]!..sort()).join(', ')}'].join('; ')}';
 }
 
 /// Judges [traces] and returns the report text and the overall verdict.
@@ -458,63 +570,70 @@ double? loadOf(String uptime) {
   List<Trace> traces, {
   required List<double> loads,
   required List<String> scenes,
+  Map<String, String> codeStates = const {},
 }) {
   final invalid = invalidRuns(traces);
   final valid = [
     for (final trace in traces)
-      if (!invalid.contains(runOf(trace.run))) trace,
+      if (!invalid.containsKey(runOf(trace.run))) trace,
   ];
-  final pairs = pairTraces(valid);
+  final blocks = blockTraces(valid);
   final nullCi = medianInterval([
-    for (final pair in pairs[nullScene] ?? const <TracePair>[])
-      averageChange(pair),
+    for (final block in blocks[nullScene] ?? const <Block>[])
+      blockChange(block),
   ]);
   final gate = nullGatePasses(nullCi);
   final rows = <String>[];
   final verdicts = <Verdict>[];
-  for (final scene in {...scenes, ...pairs.keys}.toList()..sort()) {
-    final scenePairs = pairs[scene] ?? const <TracePair>[];
-    if (scenePairs.isEmpty) {
-      // An expected scene without valid pairs stays in the report: spec
-      // section 9.5 makes fewer than 6 pairs INCONCLUSIVE.
+  for (final scene in {...scenes, ...blocks.keys}.toList()..sort()) {
+    final sceneBlocks = blocks[scene] ?? const <Block>[];
+    if (sceneBlocks.isEmpty) {
+      // An expected scene without valid blocks stays in the report: spec
+      // section 9.5 makes fewer than 6 blocks INCONCLUSIVE.
       if (scene != nullScene) verdicts.add(Verdict.inconclusive);
       final name = scene == nullScene ? '$scene (null)' : scene;
       final verdict = scene == nullScene ? 'null INVALID' : 'INCONCLUSIVE';
       rows.add('| $name | 0 | - | - | - | - | - | $verdict |');
       continue;
     }
-    final ci = medianInterval([for (final p in scenePairs) averageChange(p)]);
+    final ci = medianInterval([for (final b in sceneBlocks) blockChange(b)]);
     final String verdictText;
     if (scene == nullScene) {
       verdictText = gate ? 'null ok' : 'null INVALID';
     } else {
       final verdict = sceneVerdict(
         ci: ci,
-        p99WithinBudget: withinBudget(scenePairs),
+        p99WithinBudget: withinBudget(sceneBlocks),
       );
       verdicts.add(verdict);
       verdictText = verdict.name.toUpperCase();
     }
-    rows.add(_row(scene, scenePairs, ci, verdictText));
+    rows.add(_row(scene, sceneBlocks, ci, verdictText));
   }
   final verdict = overallVerdict(nullGate: gate, scenes: verdicts);
   final runs = {for (final trace in valid) runOf(trace.run)};
   final invocations = {for (final trace in valid) trace.run};
-  final intervals = [for (final trace in valid) trace.metrics.interval];
+  final periods = [for (final trace in valid) trace.metrics.period];
   final text = StringBuffer()
     ..writeln(
       'runs ${runs.length} (${invocations.length} invocations), '
       'load ${_range(loads)}, '
-      'interval ${intervals.isEmpty ? '-' : _ms(median(intervals))} ms, '
+      'interval ${periods.isEmpty ? '-' : _ms(median(periods))} ms, '
       'null resolution '
       '${nullCi == null ? '-' : '±${_pct((nullCi.upper - nullCi.lower) / 2)}%'}',
     );
   if (invalid.isNotEmpty) {
-    text.writeln('invalid runs: ${(invalid.toList()..sort()).join(', ')}');
+    final names = invalid.keys.toList()..sort();
+    text.writeln(
+      'invalid runs: '
+      '${[for (final run in names) '$run (${invalid[run]})'].join(', ')}',
+    );
   }
+  final mismatch = codeMismatch(codeStates);
+  if (mismatch != null) text.writeln(mismatch);
   text
     ..writeln(
-      '| scene | pairs | avg build ms base → cand | median Δ% | 95% CI '
+      '| scene | blocks | avg build ms base → cand | median Δ% | 95% CI '
       '| p99 build ms | p99 raster ms | verdict |',
     )
     ..writeln('|---|---|---|---|---|---|---|---|')
@@ -525,17 +644,17 @@ double? loadOf(String uptime) {
 
 String _row(
   String scene,
-  List<TracePair> pairs,
+  List<Block> blocks,
   ConfidenceInterval? ci,
   String verdict,
 ) {
   String sides(double Function(TraceMetrics m) metric) =>
-      '${_ms(median([for (final p in pairs) metric(p.base)]))} → '
-      '${_ms(median([for (final p in pairs) metric(p.cand)]))}';
+      '${_ms(median([for (final b in blocks) ..._baseOf(b).map(metric)]))} → '
+      '${_ms(median([for (final b in blocks) ..._candOf(b).map(metric)]))}';
   final name = scene == nullScene ? '$scene (null)' : scene;
-  final change = median([for (final p in pairs) averageChange(p)]);
+  final change = median([for (final b in blocks) blockChange(b)]);
   final interval = ci == null ? '-' : '[${_pct(ci.lower)}, ${_pct(ci.upper)}]';
-  return '| $name | ${pairs.length} | ${sides((m) => m.average)} '
+  return '| $name | ${blocks.length} | ${sides((m) => m.average)} '
       '| ${_pct(change)} | $interval | ${sides((m) => m.p99Build)} '
       '| ${sides((m) => m.p99Raster)} | $verdict |';
 }
