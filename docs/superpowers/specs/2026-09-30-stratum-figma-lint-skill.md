@@ -72,7 +72,7 @@ One of three scopes:
 
 | Role                                                                  | Property type                   | Emoji |
 |-----------------------------------------------------------------------|---------------------------------|-------|
-| any name starting with `show`                                         | BOOLEAN                         | 👁️    |
+| any name starting with `show`                                         | BOOLEAN, or VARIANT `False/True` (owner 2026-10-01: PersonCell `👁️ showName`) | 👁️    |
 | a graphic toggle: `icon`, `logo`, or a name ending in `Icon` or `Logo` (logo follows icon) | BOOLEAN | 👁️, renamed `show<Name>` (`💼 logo` → `👁️ showLogo`, `🔍 Icon` → `👁️ showIcon`) |
 | `loading`                                                             | BOOLEAN                         | ⏳     |
 | `checked`, `selected`                                                 | BOOLEAN or VARIANT              | ✅     |
@@ -124,6 +124,7 @@ One of three scopes:
 | RatingElement, RatingEmoji (`ACTIVE/INACTIVE`)                                                                                   | `✅ selected: False/True`; keep `NORMAL/HOVERED` (`filled` already means "the input holds a value") |
 
 - Values allowed outside the Dart enums (owner ruling 2026-10-01, group 2 category 3): `state` gains `EMPTY` (a real `FullWidgetState` member) and accepts a `_LEFT` or `_RIGHT` part suffix on its values for split controls (SplitButton `HOVERED_LEFT`); design-only `size` values `FILL_WIDTH` and `EXTRA_TINY`; design-only `color` values `BLACK`, `GHOST`, `CUSTOM` (the caller sets the color), and `LOADING` (it may sit in any variant). A property named `status` (ChatStatus, UploadedFile, Steps) is not checked against the `state` vocabulary.
+- `--` is an allowed placeholder value in any variant (owner 2026-10-01: PieChart and LineChart `🔖 example`, BarCell `🌈 color`); L07 and L10 skip it.
 - `size` values come from `WidgetSize`: `TINY`, `EXTRA_SMALL`, `SMALL`, `MEDIUM`, `LARGE`, `EXTRA_LARGE`, `HUGE`. Font-size numbers (`10`, `12`, `14`, `16`, `18`, `20`, `24`, `36`, `48`, `56`) and pixel numbers with `Free` are allowed and reported as info. Anything else is flagged.
 - `color` values come from `ColorEnum` in `UPPER_SNAKE` (`BRAND`, `RED`, `PINK`, `ROSE`, `VIOLET`, `PURPLE`, `INDIGO`, `BLUE`, `CYAN`, `TEAL`, `EMERALD`, `GREEN`, `MOSS`, `LIME`, `YELLOW`, `AMBER`, `ORANGE`, `BROWN`, `BLUE_GRAY`, `GRAY`), plus the feedback values and `NONE`. `VIOLET` and `PURPLE` are distinct colors in `ColorEnum`.
 
@@ -248,3 +249,4 @@ scripts/
 - 2026-10-01 (group 2, categories 2b and 2c): feedback values and `LOADING` may sit in any variant (Spinner and ModalContent `type`, Toggle `checked`, FileGeneral `style`/`type`, BarCell `color`); each value is one drawn look, and `stratum-read-figma` maps `LOADING` to `loading: true` and feedback values to `FeedbackState` wherever they appear. L15 keeps reporting interaction values (`HOVER*`, `PRESSED`, `DISABLED`) outside `state`.
 - 2026-10-01 (group 2, category 3): renames in Figma: ChatStatus `🚦 state` → `🚦 status` with `SENDING/SENT/FAILED`; UploadedFile `🚦 state` → `🚦 status` with `UPLOADING`; ChartContainer `📐 size` → `⬒ layout`; SpinnerIndeterminate `🚦 state` → `🔢 frame`; StateIcon `🔄 CUSTOM` → `CUSTOM`; PinInput `TYPING` → `FOCUSED` and `FILLED` → a `✍️ filled` axis. Lint accepts the values listed under "Value rules"; `frame` joins the count names (🔢).
 - 2026-10-01 (group 2, categories 4 and 5): `ACTIVE` resolved in Figma per the ACTIVE table: RatingElement and RatingEmoji gained a `✅ selected` axis, TextDropdown and IconDropdown a `↕️ expanded` axis, and TagDropdown `ACTIVE` became `FOCUSED`. Single-value variants were dropped (FilterButton and SortButton `🚦 state`, ChartContainer `🚦 state`, BottomNavigation `🖥️ platform` and `🚦 state`, EmptyStateSection `🔖 type`); a property comes back when it has a second value.
+- 2026-10-01 (final cleanup pass): owner keeps PersonCell `👁️ showName` as a `False/True` variant and keeps `--` as a placeholder value; lint accepts both. Every non-ASCII space in a property name or variant value was swept to a plain space after lint round 9 surfaced 54 L06 rows.

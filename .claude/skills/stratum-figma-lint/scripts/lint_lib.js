@@ -399,7 +399,7 @@ function checkValueCase(comp, ctx) {
   const conv = ctx.conv;
   const out = [];
   variantProps(comp).forEach((p) => p.options.forEach((v) => {
-    if (isUpperSnake(v) || isCanonicalBoolean(v, conv) || isFeedbackValue(v, conv) || isDirectionValue(v, conv) || isFreeSize(v, p, conv)) return;
+    if (v === '--' || isUpperSnake(v) || isCanonicalBoolean(v, conv) || isFeedbackValue(v, conv) || isDirectionValue(v, conv) || isFreeSize(v, p, conv)) return;
     const arrow = directionRow(v, conv);
     const word = toUpperSnake(v) || (arrow ? arrow.word : '');
     // A Dart enum value cannot start with a digit: outside digitRoles, ask for a word instead of suggesting one.
@@ -446,7 +446,7 @@ function checkVocabulary(comp, ctx) {
     const numeric = [];
     p.options.forEach((v) => {
       if (isFreeSize(v, p, conv)) { numeric.push(v); return; }
-      if (isAmbiguous(v, p, conv) || allowedByVocabulary(v, p, conv)) return;
+      if (v === '--' || isAmbiguous(v, p, conv) || allowedByVocabulary(v, p, conv)) return;
       const snake = toUpperSnake(v);
       const match = legacyTarget(v, p.role.axis, conv) || roleVocabulary(p.role.axis, conv).find((x) => x === snake);
       const source = p.role.axis === 'state' ? 'the state vocabulary' : conv.vocabularies[p.role.axis].dartEnum;

@@ -90,3 +90,12 @@ test('LOADING is allowed in a color variant (owner ruling 2b/2c: LOADING may sit
   assert.deepEqual(ruleRows(findings, 'L10'), []);
   assert.deepEqual(ruleRows(findings, 'L15'), []);
 });
+
+test('show toggles may be False/True variants, and -- is an accepted placeholder value (owner 2026-10-01)', () => {
+  const findings = lintRecords([
+    record('PersonCell', { '👁️ showName': variant(['False', 'True']) }),
+    record('PieChart', { '🔖 example': variant(['--', '1']) }),
+    record('BarCell', { '🌈 color': variant(['GREEN', '--']) }),
+  ]);
+  assert.deepEqual(findings.filter((f) => ['L05', 'L07', 'L10'].includes(f.rule)).map((f) => [f.rule, f.component, f.value]), []);
+});

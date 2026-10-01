@@ -43,6 +43,7 @@ First matching row wins.
 | Role | Emoji | Property type | Match |
 | --- | --- | --- | --- |
 | show | 👁️ | BOOLEAN | name starts with `show` |
+| show | 👁️ | VARIANT | name starts with `show` |
 | graphicToggle | 👁️ | BOOLEAN | `icon`, `logo`, renamed `show<Name>` |
 | loading | ⏳ | BOOLEAN | `loading` |
 | checked | ✅ | BOOLEAN, VARIANT | `checked`, `selected` |

@@ -71,6 +71,7 @@ const CONVENTIONS = {
   // theme sits above the VARIANT flag, so `darkMode` keeps 🌗 with False/True options.
   emojiRoles: [
     { key: 'show', emoji: '👁️', types: ['BOOLEAN'], prefix: 'show' },
+    { key: 'show', emoji: '👁️', types: ['VARIANT'], prefix: 'show', booleanOptions: true },
     { key: 'graphicToggle', emoji: '👁️', types: ['BOOLEAN'], names: ['icon', 'logo'], rename: 'show' },
     { key: 'loading', emoji: '⏳', types: ['BOOLEAN'], names: ['loading'] },
     { key: 'checked', emoji: '✅', types: ['BOOLEAN', 'VARIANT'], names: ['checked', 'selected'] },
