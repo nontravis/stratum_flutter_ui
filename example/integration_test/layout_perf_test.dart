@@ -1,9 +1,6 @@
 // The harness measures the layouts through their src paths, because the
 // gesture layouts are not exported by the layout barrel.
 // ignore_for_file: implementation_imports
-import 'dart:async';
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/src/components/common/layout/gesture_row_layout.dart';
@@ -55,17 +52,27 @@ Widget perfHost(Widget child) {
   );
 }
 
-/// Flings the first [Scrollable] up and down until [duration] has passed.
-Future<void> flingFor(WidgetTester tester, Duration duration) async {
-  final scrollable = find.byType(Scrollable).first;
-  final watch = Stopwatch()..start();
-  var down = true;
-  while (watch.elapsed < duration) {
-    await tester.fling(scrollable, Offset(0, down ? -600 : 600), 3000);
-    await tester.pumpAndSettle();
-    down = !down;
-  }
+/// Scrolls the first [Scrollable] down for half of [duration] and back up
+/// for the other half at a constant speed, so every traced frame is a
+/// scroll frame and every run scrolls the same way.
+Future<void> scrollFor(
+  WidgetTester tester,
+  Duration duration, {
+  double distance = 4000,
+}) async {
+  final position = tester
+      .state<ScrollableState>(find.byType(Scrollable).first)
+      .position;
+  final target = distance.clamp(0, position.maxScrollExtent).toDouble();
+  final half = duration ~/ 2;
+  await position.animateTo(target, duration: half, curve: Curves.linear);
+  await position.animateTo(0, duration: half, curve: Curves.linear);
 }
+
+/// Timeline streams that carry the `Frame` (Dart) and `GPURasterizer::Draw`
+/// (Embedder) events. The default `all` adds the API stream, whose events
+/// fill the recorder's buffer and push the traced frames out of it.
+const _streams = ['Dart', 'Embedder', 'GC'];
 
 const _rowCount = 1000;
 
@@ -244,12 +251,15 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized()
     ..framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  const flingTime = Duration(seconds: 5);
+  // Two seconds fit the timeline recorder's buffer at 144 Hz; a longer
+  // trace loses its first frames.
+  const traceTime = Duration(seconds: 2);
 
   testWidgets('S1 plain rows', (tester) async {
     await tester.pumpWidget(perfHost(_list(sceneRow)));
     await binding.traceAction(
-      () => flingFor(tester, flingTime),
+      () => scrollFor(tester, traceTime),
+      streams: _streams,
       reportKey: 'S1',
     );
     expect(tester.takeException(), isNull);
@@ -258,7 +268,8 @@ void main() {
   testWidgets('S2 styled rows', (tester) async {
     await tester.pumpWidget(perfHost(_list(sceneStyledRow)));
     await binding.traceAction(
-      () => flingFor(tester, flingTime),
+      () => scrollFor(tester, traceTime),
+      streams: _streams,
       reportKey: 'S2',
     );
     expect(tester.takeException(), isNull);
@@ -267,7 +278,8 @@ void main() {
   testWidgets('S3 tappable rows', (tester) async {
     await tester.pumpWidget(perfHost(_list(sceneTappableRow)));
     await binding.traceAction(
-      () => flingFor(tester, flingTime),
+      () => scrollFor(tester, traceTime),
+      streams: _streams,
       reportKey: 'S3',
     );
     expect(tester.takeException(), isNull);
@@ -276,7 +288,8 @@ void main() {
   testWidgets('S4 animating boxes', (tester) async {
     await tester.pumpWidget(perfHost(const AnimatingBoxes()));
     await binding.traceAction(
-      () => tester.pump(flingTime),
+      () => tester.pump(traceTime),
+      streams: _streams,
       reportKey: 'S4',
     );
     expect(tester.takeException(), isNull);
@@ -285,7 +298,8 @@ void main() {
   testWidgets('S5 glass cards', (tester) async {
     await tester.pumpWidget(perfHost(const GlassCards()));
     await binding.traceAction(
-      () => flingFor(tester, flingTime),
+      () => scrollFor(tester, traceTime),
+      streams: _streams,
       reportKey: 'S5',
     );
     expect(tester.takeException(), isNull);
