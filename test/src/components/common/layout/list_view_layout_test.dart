@@ -333,5 +333,37 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+
+    testWidgets(
+      'keeps the scrollbar of a nested list without a theme',
+      (tester) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(
+              child: _sized(
+                ListViewLayout.builder(
+                  showScrollbar: false,
+                  itemCount: 1,
+                  itemBuilder: (context, index) => SizedBox(
+                    height: 200,
+                    child: ListViewLayout.builder(
+                      itemCount: 50,
+                      itemBuilder: _item,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byWidgetPredicate((widget) => widget is RawScrollbar),
+          findsOneWidget,
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 }
