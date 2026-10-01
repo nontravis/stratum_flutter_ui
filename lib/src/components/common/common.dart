@@ -1,4 +1,6 @@
 export 'base/base.dart';
+export 'focus_spread.dart';
+export 'ink_well.dart';
 export 'layout/layout.dart';
 export 'model/model.dart';
 export 'responsive/responsive.dart';
@@ -6,3 +8,4 @@ export 'space.dart';
 export 'space_directional.dart';
 export 'style/style.dart';
 export 'web_view/web_view.dart';
+export 'widget_performance_monitor.dart';

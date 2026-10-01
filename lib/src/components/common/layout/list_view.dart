@@ -1,6 +1,6 @@
 import 'package:stratum_ui/src/src.dart';
 
-class AppListView extends AppStatelessWidget {
+class AppListView extends StatelessWidget {
   const AppListView.builder({
     super.key,
     this.scrollDirection = Axis.vertical,

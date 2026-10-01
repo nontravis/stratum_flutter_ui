@@ -1,6 +1,6 @@
 import 'package:stratum_ui/src/src.dart';
 
-class AppGridView extends AppStatelessWidget {
+class AppGridView extends StatelessWidget {
   const AppGridView.builder({
     super.key,
     required this.gridDelegate,

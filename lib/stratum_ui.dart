@@ -4,10 +4,15 @@ library;
 export 'package:act_thumbhash/act_thumbhash.dart';
 export 'package:badges/badges.dart';
 export 'package:extended_image/extended_image.dart'
-    hide BaseRequest, MultipartFile, SlideType;
+    hide
+        BaseRequest,
+        BaseResponse,
+        MultipartFile,
+        SlideType,
+        debugFlushLastFrameImageSizeInfo;
 export 'package:flutter/foundation.dart' hide IterableFilter;
 export 'package:flutter/gestures.dart';
-export 'package:flutter/material.dart';
+export 'package:flutter/material.dart' hide Badge;
 export 'package:flutter/semantics.dart';
 export 'package:flutter/services.dart';
 export 'package:flutter/widget_previews.dart';
