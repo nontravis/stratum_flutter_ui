@@ -241,6 +241,7 @@ void main() {
               disabled: true,
               statesController: states,
               excludeFromSemantics: true,
+              secondaryTapSemanticsLabel: 'Options',
             ),
           ),
         ),
@@ -265,6 +266,7 @@ void main() {
       expect(ink.disabled, isTrue);
       expect(ink.statesController, same(states));
       expect(ink.excludeFromSemantics, isTrue);
+      expect(ink.secondaryTapSemanticsLabel, 'Options');
       expect(ink.semantics, same(label));
       expect(ink.borderRadius, const BorderRadius.all(Radius.circular(6)));
     });

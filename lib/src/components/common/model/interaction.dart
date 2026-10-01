@@ -33,6 +33,7 @@ class StratumInteraction {
     this.disabled = false,
     this.statesController,
     this.excludeFromSemantics = false,
+    this.secondaryTapSemanticsLabel,
   });
 
   final GestureTapCallback? onTap;
@@ -41,6 +42,9 @@ class StratumInteraction {
   /// reachable only by double tap (WCAG 2.1.1).
   final GestureTapCallback? onDoubleTap;
   final GestureLongPressCallback? onLongPress;
+
+  /// Also reached by the context-menu key, Shift+F10, and a semantics
+  /// action labeled [secondaryTapSemanticsLabel].
   final GestureTapCallback? onSecondaryTap;
   final ValueChanged<bool>? onHover;
   final ValueChanged<bool>? onHighlightChanged;
@@ -58,4 +62,8 @@ class StratumInteraction {
   final bool disabled;
   final WidgetStatesController? statesController;
   final bool excludeFromSemantics;
+
+  /// Label of the semantics action for [onSecondaryTap]; null uses the
+  /// material "Show menu" tooltip.
+  final String? secondaryTapSemanticsLabel;
 }

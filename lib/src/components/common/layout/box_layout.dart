@@ -201,6 +201,7 @@ abstract class BoxLayout extends StatelessWidget {
       disabled: interaction.disabled,
       statesController: interaction.statesController,
       excludeFromSemantics: interaction.excludeFromSemantics,
+      secondaryTapSemanticsLabel: interaction.secondaryTapSemanticsLabel,
       semantics: semantics,
       child: box,
     );
