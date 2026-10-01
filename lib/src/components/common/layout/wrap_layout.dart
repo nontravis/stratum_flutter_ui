@@ -1,3 +1,4 @@
+import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// A [Wrap] on [BoxLayout]: style, interaction, semantics, and scrolling
@@ -29,6 +30,7 @@ class WrapLayout extends BoxLayout {
     this.textDirection,
     this.verticalDirection = VerticalDirection.down,
     this.clipBehavior = Clip.none,
+    this.focusGroup,
     required this.children,
   });
 
@@ -52,6 +54,11 @@ class WrapLayout extends BoxLayout {
   /// Clips the wrap's children that overflow its bounds;
   /// [WidgetStyle.clipBehavior] cuts at the box edge instead.
   final Clip clipBehavior;
+
+  /// Makes the focusable children one roving Tab stop with arrow, Home,
+  /// and End keys; see [StratumFocusGroup]. Switching between null and a
+  /// value remounts the children.
+  final StratumFocusGroup? focusGroup;
   final List<Widget> children;
 
   @override
@@ -60,7 +67,7 @@ class WrapLayout extends BoxLayout {
   @override
   Widget buildContent(BuildContext context) {
     final gap = this.gap ?? 0;
-    return Wrap(
+    final Widget wrap = Wrap(
       direction: direction,
       alignment: alignment,
       spacing: gap,
@@ -71,6 +78,14 @@ class WrapLayout extends BoxLayout {
       verticalDirection: verticalDirection,
       clipBehavior: clipBehavior,
       children: children,
+    );
+    final group = focusGroup;
+    if (group == null) return wrap;
+    return FocusGroupFrame(
+      group: group,
+      axis: FocusGroupAxis.wrap,
+      textDirection: textDirection,
+      child: wrap,
     );
   }
 }

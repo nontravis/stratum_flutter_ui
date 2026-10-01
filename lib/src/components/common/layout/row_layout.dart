@@ -1,3 +1,4 @@
+import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// A [Row] on [BoxLayout]: style, interaction, semantics, and scrolling
@@ -29,6 +30,7 @@ class RowLayout extends BoxLayout {
     this.textBaseline,
     this.crossAxisIntrinsic = false,
     this.gap,
+    this.focusGroup,
     required this.children,
   });
 
@@ -45,6 +47,11 @@ class RowLayout extends BoxLayout {
 
   /// Space between children.
   final double? gap;
+
+  /// Makes the focusable children one roving Tab stop with arrow, Home,
+  /// and End keys; see [StratumFocusGroup]. Switching between null and a
+  /// value remounts the children.
+  final StratumFocusGroup? focusGroup;
   final List<Widget> children;
 
   @override
@@ -69,7 +76,16 @@ class RowLayout extends BoxLayout {
       spacing: gap ?? 0,
       children: children,
     );
-    if (!crossAxisIntrinsic || style?.height != null) return row;
-    return IntrinsicHeight(child: row);
+    final content = crossAxisIntrinsic && style?.height == null
+        ? IntrinsicHeight(child: row)
+        : row;
+    final group = focusGroup;
+    if (group == null) return content;
+    return FocusGroupFrame(
+      group: group,
+      axis: FocusGroupAxis.horizontal,
+      textDirection: textDirection,
+      child: content,
+    );
   }
 }
