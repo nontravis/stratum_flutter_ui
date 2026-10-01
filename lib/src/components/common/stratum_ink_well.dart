@@ -153,6 +153,12 @@ class _StratumInkWellState extends State<StratumInkWell> {
       );
       _focusNode.addListener(_handleFocusChange);
     }
+    if (oldWidget.statesController != null &&
+        widget.statesController == null) {
+      // InkWell rewrites only `disabled` on a swap, so a hover or press the
+      // internal controller held before the caller's took over is stale.
+      _internalStatesController?.value = <WidgetState>{};
+    }
   }
 
   @override
