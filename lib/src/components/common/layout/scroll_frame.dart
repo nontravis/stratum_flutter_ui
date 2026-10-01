@@ -3,23 +3,29 @@ import 'package:stratum_ui/src/src.dart';
 /// The scroll behavior for a layout scroll view at [context].
 ///
 /// Starts from the theme's `scrollBehavior` with the theme's `physics` when
-/// a [StratumThemeApplication] is above [context], else from the inherited
-/// [ScrollConfiguration]. A null [scrollbars] keeps the behavior's own
-/// choice, which shows a scrollbar on desktop. A scroll view's own
-/// `physics` parameter applies on top of the result.
+/// a [StratumThemeApplication] is above [context]. Without a theme it
+/// starts from the [ScrollConfiguration] above the outermost [ScrollFrame],
+/// so an outer frame's choices never reach an inner one. A null
+/// [scrollbars] keeps the behavior's own choice, which shows a scrollbar on
+/// desktop. A scroll view's own `physics` parameter applies on top of the
+/// result.
 ScrollBehavior resolveScrollBehavior(
   BuildContext context, {
   bool? scrollbars,
 }) {
   final theme = StratumThemeApplication.maybeOf(context);
-  final behavior = theme?.scrollBehavior ?? ScrollConfiguration.of(context);
+  final behavior =
+      theme?.scrollBehavior ??
+      _ScrollFrameScope.maybeBaseOf(context) ??
+      ScrollConfiguration.of(context);
   return behavior.copyWith(physics: theme?.physics, scrollbars: scrollbars);
 }
 
 /// Applies [resolveScrollBehavior] to the scroll view in [child].
 ///
 /// The behavior also reaches Flutter scroll views inside the items. Layout
-/// scroll views among them resolve their own behavior from the theme.
+/// scroll views among them resolve their own behavior, from the theme or
+/// from the configuration above the outermost frame.
 class ScrollFrame extends StatelessWidget {
   const new({super.key, this.showScrollbar, required this.child});
 
@@ -43,9 +49,32 @@ class ScrollFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ScrollConfiguration(
-      behavior: resolveScrollBehavior(context, scrollbars: showScrollbar),
-      child: child,
+    return _ScrollFrameScope(
+      base:
+          _ScrollFrameScope.maybeBaseOf(context) ??
+          ScrollConfiguration.of(context),
+      child: ScrollConfiguration(
+        behavior: resolveScrollBehavior(context, scrollbars: showScrollbar),
+        child: child,
+      ),
     );
   }
+}
+
+/// Carries the [ScrollConfiguration] that was above the outermost
+/// [ScrollFrame] down to the frames nested inside it.
+class _ScrollFrameScope extends InheritedWidget {
+  const new({required this.base, required super.child});
+
+  final ScrollBehavior base;
+
+  static ScrollBehavior? maybeBaseOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_ScrollFrameScope>()
+        ?.base;
+  }
+
+  @override
+  bool updateShouldNotify(_ScrollFrameScope oldWidget) =>
+      base != oldWidget.base;
 }
