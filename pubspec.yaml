@@ -10,13 +10,23 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_falmodel:
+    git:
+      url: https://github.com/Nextzy/flutter-falconx
+      ref: 4.1.0
+      path: flutter_falmodel
+  flutter_falconx:
+    git:
+      url: https://github.com/Nextzy/flutter-falconx
+      ref: 4.1.0
+      path: flutter_falconx
   country_flags: ^4.1.2
   measure_size: ^5.0.2
   freezed_annotation: ^3.1.0
   json_annotation: ^4.12.0
   badges: ^4.0.1
   yaml: ^3.1.4
-  extended_image: ^10.0.1
+  extended_image: ^10.1.0
   flutter_animate: ^4.5.2
   flutter_svg: ^2.3.0
   gap: ^3.0.1
