@@ -564,3 +564,42 @@ Expected: rows S1 to S5, each with `runs` = 3.
 - [ ] **Step 4: Record**
 
 Add a dated section to `profile/memory/project_stratum_ui_layout_primitives.md` with the table, the macOS version (`sw_vers -productVersion`), the machine model (`sysctl -n hw.model`), the display refresh rate, and the commit the scenes ran on. Then delete the roadmap milestone `p2-benchmark-baseline`.
+
+---
+
+### Task 5: Performance overlay toggle in the example app
+
+Added 2026-10-01 at the owner's request: live monitoring uses Flutter's built-in `showPerformanceOverlay` instead of a pub.dev package (owner chose this over `flutter_perf_monitor`, `fluttrace`, and `statsfl`).
+
+**Files:**
+- Modify: `example/lib/main.dart` (`StratumWebViewExampleApp`)
+
+**Interfaces:**
+- Produces: an app-bar action (`Icons.speed`, tooltip `Performance overlay`) that toggles `MaterialApp.showPerformanceOverlay`. The benchmark host builds its own `MaterialApp` and never shows the overlay.
+
+- [ ] **Step 1: Make the app stateful and add the toggle**
+
+Turn `StratumWebViewExampleApp` into a `StatefulWidget` whose state holds `var _showOverlay = false;`, pass `showPerformanceOverlay: _showOverlay` to `MaterialApp`, and add to the `AppBar`:
+
+```dart
+actions: [
+  IconButton(
+    icon: const Icon(Icons.speed),
+    tooltip: 'Performance overlay',
+    isSelected: _showOverlay,
+    onPressed: () => setState(() => _showOverlay = !_showOverlay),
+  ),
+],
+```
+
+- [ ] **Step 2: Verify**
+
+Run: `cd example && flutter analyze --no-pub lib/main.dart`
+Expected: no errors. The example has no widget-test harness (its web view needs a platform implementation), so the toggle is checked by the analyzer and by eye on the macOS build.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add -- example/lib/main.dart
+git commit -m "feat(example): add a performance overlay toggle" -- example/lib/main.dart
+```
