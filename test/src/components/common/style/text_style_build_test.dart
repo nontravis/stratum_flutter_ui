@@ -19,6 +19,7 @@ typography:
       number: inter
       code: inter
       body: $body
+      table: inter
     th: { body: font-a }
   scaleByWindowSize: { tablet: 1, desktop: 2 }
   types:
@@ -27,7 +28,6 @@ typography:
     number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
     code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
     body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
-    table: { extends: body, tabular: true }
 ''') as YamlMap;
   return FakeStratumTheme(
     typography: StratumTypography.fromYaml(document['typography'] as YamlMap),

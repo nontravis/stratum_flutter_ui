@@ -23,6 +23,7 @@ typography:
       header: inter
       paragraph: inter
       body: inter
+      table: inter
       number: { font: geist, mono: geist-mono }
       code: roboto-mono
       mono: roboto-mono
@@ -43,7 +44,6 @@ typography:
         s12: { spaceHeight: 4 }
         s16: $bodyS16
         s20: { spaceHeight: 8 }
-    table: { extends: body, tabular: true, scaleByWindowSize: { desktop: 3 } }
 ''';
 
 StratumThemeData _theme([String? yaml]) {
@@ -241,17 +241,45 @@ void main() {
       );
     });
 
-    test("a type's own window scale wins over the theme-wide one", () {
+    test("a type's own window scale wins over the theme-wide one, and table "
+        "takes body's own override", () {
+      theme = _theme('''
+typography:
+  fonts: { inter: { family: Inter } }
+  families:
+    default:
+      header: inter
+      paragraph: inter
+      number: inter
+      code: inter
+      body: inter
+      table: inter
+  scaleByWindowSize: { tablet: "50%", desktop: 1 }
+  types:
+    header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body:
+      weight: 400
+      scaleByWindowSize: { desktop: 3 }
+      sizes: { s16: { spaceHeight: 8 } }
+''');
+
+      expect(
+        resolve(StratumTextStyle.body, windowSize: WindowSize.desktop).fontSize,
+        19,
+      );
+      expect(
+        resolve(StratumTextStyle.body, windowSize: WindowSize.tablet).fontSize,
+        24,
+      );
       expect(
         resolve(
           StratumTextStyle.table,
           windowSize: WindowSize.desktop,
         ).fontSize,
         19,
-      );
-      expect(
-        resolve(StratumTextStyle.table, windowSize: WindowSize.tablet).fontSize,
-        24,
       );
     });
   });
@@ -286,10 +314,11 @@ void main() {
       );
     });
 
-    test('the lookup walks extends inside each tag', () {
+    test("table's family comes from families.<tag>.table; th without table "
+        'gets default.table', () {
       expect(
         resolve(StratumTextStyle.table, locale: _thTH).fontFamily,
-        'Font A',
+        'Inter',
       );
     });
 
@@ -329,14 +358,13 @@ void main() {
 typography:
   fonts: { inter: { family: Inter } }
   families:
-    default: { header: inter, paragraph: inter, number: inter, code: inter, body: inter }
+    default: { header: inter, paragraph: inter, number: inter, code: inter, body: inter, table: inter }
   types:
     header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
     paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
     number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
     code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
     body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
-    table: { extends: body, tabular: true }
 ''');
       final warnings = <String>[];
       final saved = debugPrint;
@@ -351,14 +379,31 @@ typography:
       expect(resolve(StratumTextStyle.body).fontFamilyFallback, ['Font A']);
       expect(resolve(StratumTextStyle.header.s24).fontFamilyFallback, [
         'packages/thai_fonts/Inter TH',
+        'Font A',
       ]);
       expect(resolve(StratumTextStyle.body.mono).fontFamilyFallback, [
         'Inter',
         'Font A',
         'Font B Mono',
       ]);
-      expect(resolve(StratumTextStyle.code).fontFamilyFallback, isNull);
     });
+
+    test(
+      "the fallback adds each tag's body font after the type's own fonts",
+      () {
+        expect(resolve(StratumTextStyle.code).fontFamilyFallback, [
+          'Inter',
+          'Font A',
+        ]);
+        expect(
+          resolve(
+            StratumTextStyle.table,
+            locale: const Locale('th'),
+          ).fontFamilyFallback,
+          ['Font A'],
+        );
+      },
+    );
 
     test('the fallback drops a font key that shares the primary family', () {
       theme = _theme('''
@@ -373,6 +418,7 @@ typography:
       number: inter
       code: inter
       body: inter
+      table: inter
     th:
       body: inter-alt
   types:
@@ -381,7 +427,6 @@ typography:
     number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
     code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
     body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
-    table: { extends: body, tabular: true }
 ''');
 
       expect(resolve(StratumTextStyle.body).fontFamilyFallback, isNull);
@@ -395,11 +440,16 @@ typography:
       expect(resolve(StratumTextStyle.body.bold).fontWeight, FontWeight.w700);
     });
 
-    test('a tabular type draws tabular figures', () {
-      expect(resolve(StratumTextStyle.table).fontFeatures, [
-        const FontFeature.tabularFigures(),
-      ]);
-      expect(resolve(StratumTextStyle.body).fontFeatures, isNull);
+    test("table resolves body's sizes and weight, with tabular figures", () {
+      final body = resolve(StratumTextStyle.body.s20);
+      final table = resolve(StratumTextStyle.table.s20);
+
+      expect(table.fontSize, body.fontSize);
+      expect(table.height, body.height);
+      expect(table.letterSpacing, body.letterSpacing);
+      expect(table.fontWeight, body.fontWeight);
+      expect(table.fontFeatures, [const FontFeature.tabularFigures()]);
+      expect(body.fontFeatures, isNull);
     });
 
     test('each FontColor maps to its theme text color', () {

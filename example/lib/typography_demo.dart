@@ -189,7 +189,12 @@ class _TypographyDemoPageState extends State<_TypographyDemoPage> {
                         ),
                       ),
                       for (final size
-                          in typography.types[type]!.sizes.keys
+                          in typography
+                              .types[type == FontType.table
+                                  ? FontType.body
+                                  : type]!
+                              .sizes
+                              .keys
                               .toList()
                               .reversed)
                         _sampleRow(context, type, size),

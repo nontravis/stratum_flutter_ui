@@ -1,19 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
-/// A valid style for each type; a test replaces or removes entries.
+/// A valid style for each type except `table`, which takes no `types` entry;
+/// a test replaces or removes entries.
 const _validTypes = <String, String?>{
   'header': '{ weight: 600, sizes: { s16: { spaceHeight: 8 } } }',
   'paragraph': '{ weight: 400, sizes: { s16: { spaceHeight: 10 } } }',
   'number': '{ weight: 600, sizes: { s16: { spaceHeight: 8 } } }',
   'code': '{ weight: 400, sizes: { s16: { spaceHeight: 8 } } }',
   'body': '{ weight: 400, sizes: { s16: { spaceHeight: 8 } } }',
-  'table': '{ extends: body, tabular: true }',
 };
 
 const _validFamilies =
     '{ default: { header: inter, paragraph: inter, number: inter, '
-    'code: inter, body: inter } }';
+    'code: inter, body: inter, table: inter } }';
 
 /// The `typography:` node of a small valid theme, with the sections a test
 /// passes swapped in. A `null` entry in [types] removes that type.
@@ -77,6 +77,7 @@ void main() {
         FontType.header: const StratumFontRef(font: 'inter'),
         FontType.paragraph: const StratumFontRef(font: 'inter'),
         FontType.body: const StratumFontRef(font: 'inter'),
+        FontType.table: const StratumFontRef(font: 'inter'),
         FontType.number: const StratumFontRef(
           font: 'geist',
           mono: 'geist-mono',
@@ -116,14 +117,12 @@ void main() {
       );
     });
 
-    test('gives table the body weight and sizes with tabular figures', () {
-      final body = typography.types[FontType.body]!;
-      final table = typography.types[FontType.table]!;
-      expect(table.weight, body.weight);
-      expect(table.sizes, body.sizes);
-      expect(table.tabular, isTrue);
-      expect(table.extendsType, FontType.body);
-      expect(body.tabular, isFalse);
+    test('names table in families.default with no table entry in types', () {
+      expect(
+        typography.families['default']!.types[FontType.table],
+        const StratumFontRef(font: 'inter'),
+      );
+      expect(typography.types.containsKey(FontType.table), isFalse);
     });
   });
 
@@ -132,12 +131,12 @@ void main() {
       final node = _typography(
         families:
             '{ default: { header: inter, paragraph: inter, number: inter, '
-            'body: inter }, th: { body: kanit } }',
+            'body: inter, table: inter }, th: { body: kanit } }',
         types: {
           'body':
-              '{ extends: table, weight: 400, '
-              'sizes: { s16: { spaceHeight: 8px } } }',
-          'table': '{ extends: body, tabular: true }',
+              '{ weight: 400, sizes: { s16: { spaceHeight: 8 }, '
+              's14: { spaceHeight: 8px } } }',
+          'table': '{ weight: 400, sizes: { s16: { spaceHeight: 8 } } }',
         },
       );
 
@@ -152,13 +151,15 @@ void main() {
         ),
       );
       const spaceHeight =
-          'typography.types.body.sizes.s16.spaceHeight: '
+          'typography.types.body.sizes.s14.spaceHeight: '
           'expected a number or "N%", got "8px"';
+      const tableBlock =
+          "typography.types.table: table takes body's metrics; remove this "
+          'block';
       expect(_errors(node), [
         'typography.families.th.body: unknown font key "kanit"',
         spaceHeight,
-        'typography.types.body.extends: cycle body -> table -> body',
-        'typography.types.table.extends: cycle table -> body -> table',
+        tableBlock,
         'typography.families.default.code: no font for type "code"',
       ]);
     });
@@ -195,7 +196,8 @@ void main() {
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, number: inter, '
-              'code: inter, body: inter }, TH: { body: inter } }',
+              'code: inter, body: inter, table: inter }, '
+              'TH: { body: inter } }',
         ),
         'typography.families.TH: expected "default", a language such as '
             '"th", or a language and country such as "th_TH"',
@@ -206,7 +208,7 @@ void main() {
           families:
               '{ default: { header: inter, paragraph: inter, '
               'number: { font: inter, mono: geist-mono }, code: inter, '
-              'body: inter } }',
+              'body: inter, table: inter } }',
         ),
         'typography.families.default.number.mono: '
             'unknown font key "geist-mono"',
@@ -245,29 +247,14 @@ void main() {
         'typography.types.header.sizes.s14.spaceHeight: required',
       ),
       (
-        'a tabular flag that is not a bool',
-        _typography(types: {'table': '{ extends: body, tabular: yes please }'}),
-        'typography.types.table.tabular: '
-            'expected true or false, got "yes please"',
-      ),
-      (
         'a family entry with a mono but no font',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, '
-              'number: { mono: inter }, code: inter, body: inter } }',
+              'number: { mono: inter }, code: inter, body: inter, '
+              'table: inter } }',
         ),
         'typography.families.default.number.font: required',
-      ),
-      (
-        'a type that extends itself',
-        _typography(types: {'table': '{ extends: table }'}),
-        'typography.types.table.extends: cycle table -> table',
-      ),
-      (
-        'an extends that names no type',
-        _typography(types: {'table': '{ extends: tabel }'}),
-        'typography.types.table.extends: unknown type "tabel"',
       ),
       (
         'a missing type',
@@ -275,12 +262,31 @@ void main() {
         'typography.types.code: required',
       ),
       (
+        'a types.table block',
+        _typography(
+          types: {
+            'table': '{ weight: 400, sizes: { s16: { spaceHeight: 8 } } }',
+          },
+        ),
+        "typography.types.table: table takes body's metrics; remove this "
+            'block',
+      ),
+      (
+        'a default family set without table',
+        _typography(
+          families:
+              '{ default: { header: inter, paragraph: inter, number: inter, '
+              'code: inter, body: inter } }',
+        ),
+        'typography.families.default.table: no font for type "table"',
+      ),
+      (
         'two family tags that normalize to the same tag',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, number: inter, '
-              'code: inter, body: inter }, th-TH: { body: inter }, '
-              'th_TH: { body: inter } }',
+              'code: inter, body: inter, table: inter }, '
+              'th-TH: { body: inter }, th_TH: { body: inter } }',
         ),
         'typography.families.th_TH: duplicate tag "th_TH"',
       ),
@@ -297,62 +303,36 @@ void main() {
     }
   });
 
-  group('StratumTypography.fromYaml extends', () {
-    test('merges sizes down a chain and keeps the direct parent', () {
+  group('StratumTypography.fromYaml table', () {
+    test('parses with table named only in families.default, not types', () {
+      expect(_errors(_typography()), isEmpty);
+      final typography = StratumTypography.fromYaml(_typography());
+
+      expect(typography.types.containsKey(FontType.table), isFalse);
+      expect(
+        typography.families['default']!.types[FontType.table],
+        const StratumFontRef(font: 'inter'),
+      );
+    });
+
+    test('a tag without table falls through the chain to default.table', () {
       final typography = StratumTypography.fromYaml(
         _typography(
-          types: {
-            'body':
-                '{ extends: paragraph, sizes: { s14: { spaceHeight: 6 } } }',
-            'table':
-                '{ extends: body, tabular: true, '
-                'sizes: { s14: { spaceHeight: 2 } } }',
-          },
+          families:
+              '{ default: { header: inter, paragraph: inter, number: inter, '
+              'code: inter, body: inter, table: inter }, '
+              'th: { body: inter } }',
         ),
       );
 
-      final table = typography.types[FontType.table]!;
-      expect(table.extendsType, FontType.body);
-      expect(table.weight, FontWeight.w400);
-      expect(table.tabular, isTrue);
-      expect(table.sizes, {
-        FontSize.s14: const StratumSizeMetrics(
-          spaceHeight: StratumDimension.fixed(2),
-        ),
-        FontSize.s16: const StratumSizeMetrics(
-          spaceHeight: StratumDimension.fixed(10),
-        ),
-      });
-    });
-
-    test('lets the default family cover a type through its parent', () {
-      expect(_errors(_typography()), isEmpty);
       expect(
-        StratumTypography.fromYaml(_typography()).families['default']!.types
-            .containsKey(FontType.table),
+        typography.families['th']!.types.containsKey(FontType.table),
         isFalse,
       );
-    });
-
-    test('lets a type override the window scale of its parent', () {
-      final typography = StratumTypography.fromYaml(
-        _typography(
-          types: {
-            'body':
-                '{ weight: 400, scaleByWindowSize: { desktop: "10%" }, '
-                'sizes: { s16: { spaceHeight: 8 } } }',
-          },
-        ),
-      );
-
-      expect(typography.types[FontType.body]!.scaleByWindowSize, {
-        WindowSize.desktop: const StratumDimension.percent(0.1),
-      });
       expect(
-        typography.types[FontType.table]!.scaleByWindowSize,
-        typography.types[FontType.body]!.scaleByWindowSize,
+        typography.families['default']!.types[FontType.table],
+        const StratumFontRef(font: 'inter'),
       );
-      expect(typography.types[FontType.header]!.scaleByWindowSize, isNull);
     });
   });
 
@@ -362,8 +342,8 @@ void main() {
         _typography(
           families:
               '{ th-TH: { body: inter }, default: { header: inter, '
-              'paragraph: inter, number: inter, code: inter, body: inter }, '
-              'th: { body: inter } }',
+              'paragraph: inter, number: inter, code: inter, body: inter, '
+              'table: inter }, th: { body: inter } }',
         ),
       );
 

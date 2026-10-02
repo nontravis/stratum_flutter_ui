@@ -43,9 +43,10 @@ abstract final class TypographyResolver {
   ) {
     final typography = theme.typography;
     final type = recipe.fontType;
-    final style = typography.types[type];
+    final metricsType = type == FontType.table ? FontType.body : type;
+    final style = typography.types[metricsType];
     if (style == null) {
-      throw StateError('No style for type "${type.name}".');
+      throw StateError('No style for type "${metricsType.name}".');
     }
     final base = recipe.customSize ?? recipe.fontSize.value;
     final metrics = _metrics(style, recipe);
@@ -79,7 +80,9 @@ abstract final class TypographyResolver {
       leadingDistribution: TextLeadingDistribution.even,
       fontFamily: font.qualifiedFamily,
       fontFamilyFallback: fallback.isEmpty ? null : fallback,
-      fontFeatures: style.tabular ? const [FontFeature.tabularFigures()] : null,
+      fontFeatures: type == FontType.table
+          ? const [FontFeature.tabularFigures()]
+          : null,
       decoration: recipe.textDecoration,
       shadows: recipe.textShadows,
     );
@@ -137,42 +140,11 @@ abstract final class TypographyResolver {
     ].map((tag) => typography.families[tag]).nonNulls.toList();
   }
 
-  /// [type], then each type it extends.
-  static Iterable<FontType> _lineage(
-    StratumTypography typography,
-    FontType type,
-  ) sync* {
-    final seen = <FontType>{};
-    for (FontType? link = type; link != null && seen.add(link);) {
-      yield link;
-      link = typography.types[link]?.extendsType;
-    }
-  }
-
-  /// The font of [type] in [family], walking `extends`, or null.
-  static StratumFontRef? _ref(
-    StratumTypography typography,
-    StratumFamilySet family,
-    FontType type,
-  ) {
-    for (final link in _lineage(typography, type)) {
-      if (family.types[link] case final ref?) return ref;
-    }
-    return null;
-  }
-
   /// The mono font of [type] in [family]: the type's own mono, else the
-  /// tag's theme-wide mono, or null.
-  static String? _monoOf(
-    StratumTypography typography,
-    StratumFamilySet family,
-    FontType type,
-  ) {
-    for (final link in _lineage(typography, type)) {
-      if (family.types[link]?.mono case final mono?) return mono;
-    }
-    return family.mono;
-  }
+  /// tag's theme-wide mono, or null. No cross-type rule: a type looks only
+  /// at its own entry.
+  static String? _monoOf(StratumFamilySet family, FontType type) =>
+      family.types[type]?.mono ?? family.mono;
 
   static String _fontKey(
     StratumTypography typography,
@@ -180,7 +152,7 @@ abstract final class TypographyResolver {
     List<StratumFamilySet> tags,
   ) {
     for (final family in tags) {
-      if (_ref(typography, family, type) case final ref?) return ref.font;
+      if (family.types[type] case final ref?) return ref.font;
     }
     throw StateError('No font for type "${type.name}".');
   }
@@ -193,9 +165,7 @@ abstract final class TypographyResolver {
     List<StratumFamilySet> tags,
   ) {
     for (final family in tags) {
-      for (final link in _lineage(typography, type)) {
-        if (family.types[link]?.mono case final mono?) return mono;
-      }
+      if (family.types[type]?.mono case final mono?) return mono;
     }
     for (final family in tags) {
       if (family.mono case final mono?) return mono;
@@ -209,8 +179,9 @@ abstract final class TypographyResolver {
   }
 
   /// The qualified families of [type] in every tag, `default` first, then
-  /// yaml order; the mono font before the font when [mono] is set; without
-  /// duplicates or [primaryFamily].
+  /// yaml order; the mono font before the font when [mono] is set; then
+  /// every tag's `body` font. Without duplicates by family or
+  /// [primaryFamily].
   static List<String> _fallback(
     StratumTypography typography,
     FontType type,
@@ -224,9 +195,10 @@ abstract final class TypographyResolver {
     ];
     final keys = <String>{
       for (final family in families) ...[
-        if (mono) ?_monoOf(typography, family, type),
-        ?_ref(typography, family, type)?.font,
+        if (mono) ?_monoOf(family, type),
+        ?family.types[type]?.font,
       ],
+      for (final family in families) ?family.types[FontType.body]?.font,
     };
     final qualifieds = <String>{
       for (final key in keys) typography.fonts[key]!.qualifiedFamily,

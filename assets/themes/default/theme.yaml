@@ -151,6 +151,7 @@ typography:
       header: inter
       paragraph: inter
       body: inter
+      table: inter                # table reads body's metrics; the family is its own
       number: { font: geist, mono: geist-mono }
       code: roboto-mono
       mono: roboto-mono          # theme-wide mono for types without their own
@@ -200,9 +201,6 @@ typography:
         s16: { spaceHeight: 8 }
         s14: { spaceHeight: 10 }
         s12: { spaceHeight: 4 }
-    table:
-      extends: body
-      tabular: true
 
 # ─── PALETTE ──────────────────
 palette:
