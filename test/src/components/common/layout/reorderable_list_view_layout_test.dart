@@ -392,22 +392,70 @@ void main() {
       expect(_harness(tester).ids, [0, 1, 2]);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets('a move past either end, an arrow across the axis, and a '
-        'list of one item are not handled', (tester) async {
-      await tester.pumpWidget(_app(const _Harness(count: 3)));
-      await _focusItem(tester, 0);
+    testWidgets(
+      'an arrow across the axis, and a list of one item, are not handled',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 3)));
+        await _focusItem(tester, 0);
 
-      expect(await _alt(tester, LogicalKeyboardKey.arrowUp), isFalse);
-      expect(await _alt(tester, LogicalKeyboardKey.home), isFalse);
-      expect(await _alt(tester, LogicalKeyboardKey.arrowLeft), isFalse);
-      await _focusItem(tester, 2);
-      expect(await _alt(tester, LogicalKeyboardKey.arrowDown), isFalse);
-      expect(_harness(tester).moves, isEmpty);
+        expect(await _alt(tester, LogicalKeyboardKey.arrowLeft), isFalse);
+        expect(_harness(tester).moves, isEmpty);
 
-      await tester.pumpWidget(_app(const _Harness(key: Key('one'), count: 1)));
-      await _focusItem(tester, 0);
-      expect(await _alt(tester, LogicalKeyboardKey.arrowDown), isFalse);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+        await tester.pumpWidget(
+          _app(const _Harness(key: Key('one'), count: 1)),
+        );
+        await _focusItem(tester, 0);
+        expect(await _alt(tester, LogicalKeyboardKey.arrowDown), isFalse);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'Alt+Left on the first item and Alt+Right on the last item of a '
+      'horizontal list are handled and move nothing',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(const _Harness(count: 3, axis: Axis.horizontal)),
+        );
+        await _focusItem(tester, 0);
+        expect(await _alt(tester, LogicalKeyboardKey.arrowLeft), isTrue);
+        await _focusItem(tester, 2);
+        expect(await _alt(tester, LogicalKeyboardKey.arrowRight), isTrue);
+
+        expect(_harness(tester).moves, isEmpty);
+      },
+      variant: TargetPlatformVariant.all(),
+    );
+
+    testWidgets(
+      'Alt+Up on the first item and Alt+Down on the last item of a '
+      'vertical list are handled and move nothing',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 3)));
+        await _focusItem(tester, 0);
+        expect(await _alt(tester, LogicalKeyboardKey.arrowUp), isTrue);
+        await _focusItem(tester, 2);
+        expect(await _alt(tester, LogicalKeyboardKey.arrowDown), isTrue);
+
+        expect(_harness(tester).moves, isEmpty);
+      },
+      variant: TargetPlatformVariant.all(),
+    );
+
+    testWidgets(
+      'Alt+Home on the first item and Alt+End on the last item are '
+      'handled and move nothing',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 3)));
+        await _focusItem(tester, 0);
+        expect(await _alt(tester, LogicalKeyboardKey.home), isTrue);
+        await _focusItem(tester, 2);
+        expect(await _alt(tester, LogicalKeyboardKey.end), isTrue);
+
+        expect(_harness(tester).moves, isEmpty);
+      },
+      variant: TargetPlatformVariant.all(),
+    );
 
     testWidgets('Alt+Left in a horizontal list is handled, so a browser '
         'does not go back', (tester) async {

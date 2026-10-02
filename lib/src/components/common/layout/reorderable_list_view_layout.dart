@@ -16,9 +16,10 @@ import 'package:stratum_ui/src/src.dart';
 /// While a node inside item `i` holds focus, Alt+Up and Alt+Down (Alt+Left
 /// and Alt+Right in a horizontal list, by screen direction) call
 /// [onReorderItem] with `i - 1` or `i + 1`, and Alt+Home and Alt+End move
-/// it to the start and the end; a move past either end is not handled. On
-/// macOS Alt is the Option key. The keys do nothing while focus is inside a
-/// text field. A moved item keeps its State and focus, after a key move, a
+/// it to the start and the end; a move past either end does nothing but is
+/// still handled, so the key never reaches the browser. On macOS Alt is
+/// the Option key. The keys do nothing while focus is inside a text
+/// field. A moved item keeps its State and focus, after a key move, a
 /// screen reader's move action, or a drop, and is revealed after the move.
 /// A pointer path without dragging, such as "Move up" and "Move down" menu
 /// entries, is the job of the components built on this layout.
@@ -187,8 +188,10 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
       // The slot on that side of the screen.
       target = direction == position.axisDirection ? index + 1 : index - 1;
     }
+    // A move past either end does nothing, but is handled: the browser
+    // never sees the key.
     if (target < 0 || target >= count || target == index) {
-      return KeyEventResult.ignored;
+      return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.home || key == LogicalKeyboardKey.end) {
       _jumpTowards(target, item, position);
