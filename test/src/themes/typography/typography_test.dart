@@ -87,13 +87,16 @@ void main() {
     });
 
     test('reads the window scale', () {
-      expect(typography.scaleByWindowSize, {
-        WindowSize.watch: const StratumDimension.fixed(0),
-        WindowSize.mobile: const StratumDimension.fixed(0),
-        WindowSize.tablet: const StratumDimension.fixed(0.5),
-        WindowSize.desktop: const StratumDimension.fixed(1),
-        WindowSize.bigDesktop: const StratumDimension.fixed(2),
-      });
+      expect(
+        typography.scaleByWindowSize,
+        StratumByWindowSize(const {
+          WindowSize.watch: StratumDimension.fixed(0),
+          WindowSize.mobile: StratumDimension.fixed(0),
+          WindowSize.tablet: StratumDimension.fixed(0.5),
+          WindowSize.desktop: StratumDimension.fixed(1),
+          WindowSize.bigDesktop: StratumDimension.fixed(2),
+        }),
+      );
     });
 
     test('reads the header weight and the Figma metrics of header s56', () {
@@ -162,6 +165,40 @@ void main() {
         tableBlock,
         'typography.families.default.code: no font for type "code"',
       ]);
+    });
+
+    test('an error carries its code, its source, and the position of its '
+        'value, or of its key for an unknown key', () {
+      expect(
+        () => StratumTypography.fromYaml(
+          _typography(fonts: '{ inter: { family: 12, weight: 400 } }'),
+          source: 'ocean',
+        ),
+        throwsA(
+          isA<StratumThemeFormatException>().having(
+            (exception) => exception.errors,
+            'errors',
+            const [
+              StratumThemeFormatError(
+                code: StratumThemeErrorCode.expectedString,
+                source: 'ocean',
+                path: 'typography.fonts.inter.family',
+                message: 'expected a string, got 12',
+                line: 2,
+                column: 29,
+              ),
+              StratumThemeFormatError(
+                code: StratumThemeErrorCode.unknownKey,
+                source: 'ocean',
+                path: 'typography.fonts.inter.weight',
+                message: 'unknown key "weight"',
+                line: 2,
+                column: 33,
+              ),
+            ],
+          ),
+        ),
+      );
     });
 
     final cases = <(String, YamlMap, String)>[
@@ -390,29 +427,21 @@ void main() {
       expect(typography.families.keys, ['th_TH', 'default', 'th']);
     });
 
-    test('warns once per unknown key and skips it', () {
-      final warnings = <String>[];
-      final saved = debugPrint;
-      debugPrint = (message, {wrapWidth}) => warnings.add(message!);
-      addTearDown(() => debugPrint = saved);
-
-      final typography = StratumTypography.fromYaml(
-        _typography(
-          fonts: '{ inter: { family: Inter, weight: 400 } }',
-          types: {
-            'header':
-                '{ weight: 600, sizes: { s16: { spaceHeight: 8 }, '
-                's15: { spaceHeight: 8 } } }',
-          },
-          extra: '  colors: {}',
-        ),
+    test('reports each unknown key as unknown_key, by position', () {
+      final node = _typography(
+        fonts: '{ inter: { family: Inter, weight: 400 } }',
+        types: {
+          'header':
+              '{ weight: 600, sizes: { s16: { spaceHeight: 8 }, '
+              's15: { spaceHeight: 8 } } }',
+        },
+        extra: '  colors: {}',
       );
 
-      expect(typography.types[FontType.header]!.sizes.keys, [FontSize.s16]);
-      expect(warnings, [
-        'Stratum theme: skipped unknown key typography.colors',
-        'Stratum theme: skipped unknown key typography.fonts.inter.weight',
-        'Stratum theme: skipped unknown key typography.types.header.sizes.s15',
+      expect(_errors(node), [
+        'typography.fonts.inter.weight: unknown key "weight"',
+        'typography.types.header.sizes.s15: unknown key "s15"',
+        'typography.colors: unknown key "colors"',
       ]);
     });
 

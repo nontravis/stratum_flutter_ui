@@ -21,7 +21,7 @@ typography:
       body: $body
       table: inter
     th: { body: font-a }
-  scaleByWindowSize: { tablet: 1, desktop: 2 }
+  scaleByWindowSize: { watch: 0, mobile: 0, tablet: 1, desktop: 2 }
   types:
     header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
     paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }

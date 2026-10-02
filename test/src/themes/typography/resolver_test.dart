@@ -33,7 +33,7 @@ typography:
     th_TH:
       header: inter-th
       mono: font-b-mono
-  scaleByWindowSize: { tablet: "50%", desktop: 1 }
+  scaleByWindowSize: { watch: 0, mobile: 0, tablet: "50%", desktop: 1 }
   types:
     header: { weight: 600, sizes: { s24: { spaceHeight: 10 } } }
     paragraph: { weight: 400, sizes: { s16: { spaceHeight: 10 } } }
@@ -281,6 +281,52 @@ typography:
           windowSize: WindowSize.desktop,
         ).fontSize,
         19,
+      );
+    });
+
+    test('a window size the scale omits takes the nearest smaller one, else '
+        "the smallest one; a type's own map overrides it per window size", () {
+      theme = _theme('''
+typography:
+  fonts: { inter: { family: Inter } }
+  families:
+    default:
+      header: inter
+      paragraph: inter
+      number: inter
+      code: inter
+      body: inter
+      table: inter
+  scaleByWindowSize: { tablet: "50%", desktop: 1 }
+  types:
+    header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body:
+      weight: 400
+      scaleByWindowSize: { desktop: 3 }
+      sizes: { s16: { spaceHeight: 8 } }
+''');
+
+      expect(resolve(StratumTextStyle.header).fontSize, 24);
+      expect(
+        resolve(StratumTextStyle.header, windowSize: WindowSize.watch).fontSize,
+        24,
+      );
+      expect(
+        resolve(
+          StratumTextStyle.header,
+          windowSize: WindowSize.bigDesktop,
+        ).fontSize,
+        17,
+      );
+      expect(
+        resolve(
+          StratumTextStyle.body,
+          windowSize: WindowSize.bigDesktop,
+        ).fontSize,
+        17,
       );
     });
   });
