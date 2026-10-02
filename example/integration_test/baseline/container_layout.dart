@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from fe31fdc:lib/src/components/common/layout/container_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 7271c1b:lib/src/components/common/layout/container_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
@@ -27,7 +27,7 @@ class BaselineContainerLayout extends BaselineBoxLayout {
     super.semantics,
     super.onEndAnimate,
     super.interaction,
-    super.scrollable,
+    super.scroll,
     this.child,
   });
 

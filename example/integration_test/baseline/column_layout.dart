@@ -1,9 +1,10 @@
-// Frozen by tool/perf_freeze.dart from fe31fdc:lib/src/components/common/layout/column_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 7271c1b:lib/src/components/common/layout/column_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
 import 'baseline.dart';
 
+import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// A [Column] on [BaselineBoxLayout]: style, interaction, semantics, and scrolling
@@ -25,7 +26,7 @@ class BaselineColumnLayout extends BaselineBoxLayout {
     super.semantics,
     super.onEndAnimate,
     super.interaction,
-    super.scrollable,
+    super.scroll,
     this.mainAxisAlignment = MainAxisAlignment.start,
     this.mainAxisSize = MainAxisSize.max,
     this.crossAxisAlignment = CrossAxisAlignment.center,
@@ -34,6 +35,7 @@ class BaselineColumnLayout extends BaselineBoxLayout {
     this.textBaseline,
     this.crossAxisIntrinsic = false,
     this.gap,
+    this.focusGroup,
     required this.children,
   });
 
@@ -50,6 +52,11 @@ class BaselineColumnLayout extends BaselineBoxLayout {
 
   /// Space between children.
   final double? gap;
+
+  /// Makes the focusable children one roving Tab stop with arrow, Home,
+  /// and End keys; see [StratumFocusGroup]. Switching between null and a
+  /// value remounts the children.
+  final StratumFocusGroup? focusGroup;
   final List<Widget> children;
 
   MainAxisSize get _mainAxisSize {
@@ -57,9 +64,6 @@ class BaselineColumnLayout extends BaselineBoxLayout {
     final fills = style?.height != null || style?.maxHeight != null;
     return fills ? MainAxisSize.max : mainAxisSize;
   }
-
-  @override
-  bool get stretchesToViewport => _mainAxisSize == MainAxisSize.max;
 
   @override
   Widget buildContent(BuildContext context) {
@@ -74,7 +78,16 @@ class BaselineColumnLayout extends BaselineBoxLayout {
       spacing: gap ?? 0,
       children: children,
     );
-    if (!crossAxisIntrinsic || style?.width != null) return column;
-    return IntrinsicWidth(child: column);
+    final content = crossAxisIntrinsic && style?.width == null
+        ? IntrinsicWidth(child: column)
+        : column;
+    final group = focusGroup;
+    if (group == null) return content;
+    return FocusGroupFrame(
+      group: group,
+      axis: FocusGroupAxis.vertical,
+      textDirection: textDirection,
+      child: content,
+    );
   }
 }

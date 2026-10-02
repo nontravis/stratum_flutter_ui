@@ -70,7 +70,7 @@ void main() {
         isA<BaselineRowLayout>().having(
           (r) => r.interaction,
           'interaction',
-          isA<BaselineStratumInteraction>().having(
+          isA<StratumInteraction>().having(
             (i) => i.onTap,
             'onTap',
             onTap,

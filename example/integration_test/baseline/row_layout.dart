@@ -1,17 +1,18 @@
-// Frozen by tool/perf_freeze.dart from fe31fdc:lib/src/components/common/layout/row_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 7271c1b:lib/src/components/common/layout/row_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
 import 'baseline.dart';
 
+import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// A [Row] on [BaselineBoxLayout]: style, interaction, semantics, and scrolling
 /// come from the base class.
 ///
 /// A width or max width in [style] forces [MainAxisSize.max], so the row
-/// fills the width it is given. [gap] becomes [Row.spacing], and
-/// `scrollable` scrolls horizontally.
+/// fills the width it is given. [gap] becomes [Row.spacing], and `scroll`
+/// scrolls horizontally unless its `direction` says otherwise.
 class BaselineRowLayout extends BaselineBoxLayout {
   const new({
     super.key,
@@ -26,7 +27,7 @@ class BaselineRowLayout extends BaselineBoxLayout {
     super.semantics,
     super.onEndAnimate,
     super.interaction,
-    super.scrollable,
+    super.scroll,
     this.mainAxisAlignment = MainAxisAlignment.start,
     this.mainAxisSize = MainAxisSize.max,
     this.crossAxisAlignment = CrossAxisAlignment.center,
@@ -35,6 +36,7 @@ class BaselineRowLayout extends BaselineBoxLayout {
     this.textBaseline,
     this.crossAxisIntrinsic = false,
     this.gap,
+    this.focusGroup,
     required this.children,
   });
 
@@ -51,6 +53,11 @@ class BaselineRowLayout extends BaselineBoxLayout {
 
   /// Space between children.
   final double? gap;
+
+  /// Makes the focusable children one roving Tab stop with arrow, Home,
+  /// and End keys; see [StratumFocusGroup]. Switching between null and a
+  /// value remounts the children.
+  final StratumFocusGroup? focusGroup;
   final List<Widget> children;
 
   @override
@@ -61,9 +68,6 @@ class BaselineRowLayout extends BaselineBoxLayout {
     final fills = style?.width != null || style?.maxWidth != null;
     return fills ? MainAxisSize.max : mainAxisSize;
   }
-
-  @override
-  bool get stretchesToViewport => _mainAxisSize == MainAxisSize.max;
 
   @override
   Widget buildContent(BuildContext context) {
@@ -78,7 +82,16 @@ class BaselineRowLayout extends BaselineBoxLayout {
       spacing: gap ?? 0,
       children: children,
     );
-    if (!crossAxisIntrinsic || style?.height != null) return row;
-    return IntrinsicHeight(child: row);
+    final content = crossAxisIntrinsic && style?.height == null
+        ? IntrinsicHeight(child: row)
+        : row;
+    final group = focusGroup;
+    if (group == null) return content;
+    return FocusGroupFrame(
+      group: group,
+      axis: FocusGroupAxis.horizontal,
+      textDirection: textDirection,
+      child: content,
+    );
   }
 }

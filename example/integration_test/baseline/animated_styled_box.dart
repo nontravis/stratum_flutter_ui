@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from fe31fdc:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 7271c1b:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
@@ -24,11 +24,12 @@ typedef BaselineStyledScrollBuilder = Widget Function(Widget content);
 /// change looks stiff. `AnimationStyle.reverseDuration` and `reverseCurve`
 /// are not used.
 ///
-/// When the platform asks for less motion (`disableAnimations` or
-/// `reduceMotion`), size, spacing, and alignment jump to the new style while
-/// colors, gradients, images, borders, radius, shadows, blur, and opacity
-/// still fade over the full duration. The fade keeps its duration on every
-/// platform, because the controller uses [AnimationBehavior.preserve].
+/// When the app's [MediaQuery] or the platform asks for less motion
+/// (`disableAnimations`, or the platform's `reduceMotion`), size, spacing,
+/// and alignment jump to the new style while colors, gradients, images,
+/// borders, radius, shadows, blur, and opacity still fade over the full
+/// duration. The fade keeps its duration on every platform, because the
+/// controller uses [AnimationBehavior.preserve].
 class BaselineAnimatedStyledBox extends StatefulWidget {
   const new({
     super.key,
@@ -43,6 +44,10 @@ class BaselineAnimatedStyledBox extends StatefulWidget {
   });
 
   final WidgetStyle? style;
+
+  /// Width divided by height. Shapes the child, or, with a
+  /// [scrollBuilder], the viewport: the visible frame takes the ratio and
+  /// the content scrolls inside it.
   final double? ratio;
   final Matrix4? transform;
   final AlignmentGeometry? transformAlignment;
@@ -143,11 +148,18 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
     if (status.isCompleted) widget.onEnd?.call();
   }
 
-  /// Whether the platform asks for less motion. `MediaQueryData` has no
-  /// `reduceMotion` field, so the flags come from the view's dispatcher.
+  /// Whether the app or the platform asks for less motion.
+  ///
+  /// `disableAnimations` comes from the nearest [MediaQuery], so an app or
+  /// a test that sets it reaches the box, else from the platform.
+  /// `MediaQueryData` has no `reduceMotion` field, so that flag always
+  /// comes from the view's dispatcher.
   bool get _reducesMotion {
     final features = View.of(context).platformDispatcher.accessibilityFeatures;
-    return features.disableAnimations || features.reduceMotion;
+    final disable =
+        MediaQuery.maybeDisableAnimationsOf(context) ??
+        features.disableAnimations;
+    return disable || features.reduceMotion;
   }
 
   /// [from] with the size, spacing, and alignment of [to], so those fields
@@ -184,7 +196,10 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
     );
 
     final ratio = widget.ratio;
-    if (ratio != null) {
+    final scrollBuilder = widget.scrollBuilder;
+    // Without a scroll view the ratio shapes the content; with one it
+    // shapes the viewport, below.
+    if (ratio != null && scrollBuilder == null) {
       current = AspectRatio(aspectRatio: ratio, child: current);
     }
     final alignment = style.alignment;
@@ -195,7 +210,6 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
     if (padding != null) {
       current = Padding(padding: padding, child: current);
     }
-    final scrollBuilder = widget.scrollBuilder;
     if (scrollBuilder != null) {
       current = KeyedSubtree(key: _scrollKey, child: scrollBuilder(current));
     }
@@ -257,6 +271,9 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
         ),
         child: current,
       );
+    }
+    if (ratio != null && scrollBuilder != null) {
+      current = AspectRatio(aspectRatio: ratio, child: current);
     }
     final constraints = _constraints(style);
     if (constraints != null) {
