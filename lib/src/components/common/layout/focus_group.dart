@@ -423,3 +423,35 @@ class _FocusGroupPolicy extends ReadingOrderTraversalPolicy {
     return [entry];
   }
 }
+
+/// The first node inside [container] in Tab order, as the traversal policy
+/// around [container] sorts its traversal descendants; null when no node
+/// inside can take focus.
+///
+/// Layouts that switch their content (`IndexedStackLayout`, the pages of a
+/// `PageViewLayout`, the items of a `ReorderableListViewLayout`) hand focus
+/// to it after the switch.
+FocusNode? firstTabStopIn(FocusNode container) {
+  final nodes = [
+    for (final node in container.traversalDescendants)
+      if (node.context != null) node,
+  ];
+  if (nodes.isEmpty) return null;
+  final policy = FocusTraversalGroup.maybeOfNode(container) ?? _tabOrder;
+  return _tabOrder.first(policy, nodes, container);
+}
+
+final _tabOrder = _TabOrder();
+
+/// Reading order, and the one place that asks another policy to sort:
+/// [FocusTraversalPolicy.sortDescendants] is protected.
+class _TabOrder extends ReadingOrderTraversalPolicy {
+  /// The first of [nodes] in [policy]'s order inside [container].
+  FocusNode first(
+    FocusTraversalPolicy policy,
+    List<FocusNode> nodes,
+    FocusNode container,
+  ) {
+    return policy.sortDescendants(nodes, container).first;
+  }
+}
