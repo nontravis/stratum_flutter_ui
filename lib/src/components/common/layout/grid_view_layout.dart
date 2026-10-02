@@ -8,7 +8,8 @@ import 'package:stratum_ui/src/src.dart';
 /// items scroll. `style.padding` becomes the grid padding, so it scrolls
 /// with the items. Scroll behavior and physics come from
 /// [resolveScrollBehavior]; [physics] applies on top of them. A [focusable]
-/// grid is a Tab stop that scrolls by keyboard; see [ScrollFocus].
+/// grid, by default one on web or on macOS, Windows, or Linux, is a Tab
+/// stop whose arrows, Page Up, Page Down, Home, and End scroll it.
 class GridViewLayout extends StatelessWidget {
   const new builder({
     super.key,
@@ -62,7 +63,7 @@ class GridViewLayout extends StatelessWidget {
   final Clip clipBehavior;
 
   /// Whether the grid is a Tab stop that scrolls by keyboard; null means
-  /// on web and desktop ([defaultScrollFocusable]).
+  /// on web, mobile web included, and on macOS, Windows, and Linux.
   final bool? focusable;
 
   /// Names the focusable grid for a screen reader.

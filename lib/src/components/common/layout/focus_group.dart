@@ -128,18 +128,31 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
     final target = _target(event.logicalKey, current, items, reading);
     if (target == null) return KeyEventResult.ignored;
     if (target != current) {
-      final forward = reading.indexOf(target) > reading.indexOf(current);
+      final policy = _revealPolicy(current, target);
       target.requestFocus();
       final scope = node.nearestScope;
       if (scope != null) _policy.invalidateScopeData(scope);
-      Scrollable.ensureVisible(
-        target.context!,
-        alignmentPolicy: forward
-            ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
-            : ScrollPositionAlignmentPolicy.keepVisibleAtStart,
-      );
+      Scrollable.ensureVisible(target.context!, alignmentPolicy: policy);
     }
     return KeyEventResult.handled;
+  }
+
+  /// The policy that scrolls [target] into view, by screen position as
+  /// Flutter's directional traversal picks it: at the end when [target]'s
+  /// center lies right of or below [current]'s along the enclosing scroll
+  /// axis, else at the start. [ScrollPosition.ensureVisible] flips both
+  /// for a reversed axis, so reading order never decides it.
+  static ScrollPositionAlignmentPolicy _revealPolicy(
+    FocusNode current,
+    FocusNode target,
+  ) {
+    final axis = Scrollable.maybeOf(target.context!)?.position.axis;
+    final from = current.rect.center;
+    final to = target.rect.center;
+    final after = axis == Axis.horizontal ? to.dx > from.dx : to.dy > from.dy;
+    return after
+        ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
+        : ScrollPositionAlignmentPolicy.keepVisibleAtStart;
   }
 
   /// The item that holds primary focus or contains it.

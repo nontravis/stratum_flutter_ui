@@ -529,6 +529,120 @@ void main() {
       );
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
+    testWidgets('an onHover-only scrolling box is a Tab stop that scrolls', (
+      tester,
+    ) async {
+      final before = _node();
+      await tester.pumpWidget(
+        themedHost(
+          _keyboardHost(
+            ColumnLayout(
+              style: const WidgetStyle(),
+              interaction: StratumInteraction(onHover: (_) {}),
+              scroll: const StratumScroll(),
+              children: const [SizedBox(height: 2000)],
+            ),
+            before: before,
+          ),
+        ),
+      );
+      await _tabIn(tester, before);
+
+      expect(_viewportFocused(), isTrue);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(_pixels(tester), 50);
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('a disabled tappable scrolling box is a Tab stop and scrolls', (
+      tester,
+    ) async {
+      final before = _node();
+      await tester.pumpWidget(
+        themedHost(
+          _keyboardHost(
+            ColumnLayout(
+              style: const WidgetStyle(),
+              interaction: StratumInteraction(onTap: () {}, disabled: true),
+              scroll: const StratumScroll(),
+              children: const [SizedBox(height: 2000)],
+            ),
+            before: before,
+          ),
+        ),
+      );
+      await _tabIn(tester, before);
+
+      expect(_viewportFocused(), isTrue);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(_pixels(tester), 50);
+      await _key(tester, LogicalKeyboardKey.pageDown);
+      expect(_pixels(tester), 50 + 0.8 * 300);
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets(
+      'toggling disabled on a scrolling box keeps the surface, the content '
+      'State, and the scroll offset',
+      (tester) async {
+        final controller = _controller();
+        Widget box({required bool disabled}) {
+          return themedHost(
+            SizedBox(
+              width: 200,
+              height: 300,
+              child: ColumnLayout(
+                style: const WidgetStyle(),
+                interaction: StratumInteraction(
+                  onTap: () {},
+                  disabled: disabled,
+                ),
+                scroll: StratumScroll(controller: controller),
+                children: const [_Probe()],
+              ),
+            ),
+          );
+        }
+
+        await tester.pumpWidget(box(disabled: false));
+        controller.jumpTo(120);
+        await tester.pump();
+        final surface = tester.state(find.byType(StratumInkWell));
+        final content = tester.state(find.byType(_Probe));
+
+        await tester.pumpWidget(box(disabled: true));
+        expect(tester.state(find.byType(StratumInkWell)), same(surface));
+        expect(tester.state(find.byType(_Probe)), same(content));
+        expect(controller.offset, 120);
+
+        await tester.pumpWidget(box(disabled: false));
+        expect(tester.state(find.byType(StratumInkWell)), same(surface));
+        expect(tester.state(find.byType(_Probe)), same(content));
+        expect(controller.offset, 120);
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
+
+    testWidgets('Page Down scrolls a horizontal box layout right by 0.8 of the '
+        'viewport; Page Up scrolls back', (tester) async {
+      final before = _node();
+      await tester.pumpWidget(
+        themedHost(
+          _keyboardHost(
+            const RowLayout(
+              scroll: StratumScroll(),
+              children: [SizedBox(width: 2000, height: 20)],
+            ),
+            before: before,
+          ),
+        ),
+      );
+      await _tabIn(tester, before);
+
+      await _key(tester, LogicalKeyboardKey.pageDown);
+      expect(_pixels(tester), 0.8 * 200);
+      await _key(tester, LogicalKeyboardKey.pageUp);
+      expect(_pixels(tester), 0);
+    }, variant: TargetPlatformVariant.desktop());
+
     testWidgets(
       'a desktop list without a theme takes focus and builds no ring',
       (tester) async {
@@ -578,4 +692,17 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.android),
     );
   });
+}
+
+/// A stateful leaf, so a test can tell a kept State from a new one.
+class _Probe extends StatefulWidget {
+  const new();
+
+  @override
+  State<_Probe> createState() => _ProbeState();
+}
+
+class _ProbeState extends State<_Probe> {
+  @override
+  Widget build(BuildContext context) => const SizedBox(height: 2000);
 }

@@ -8,7 +8,8 @@ import 'package:stratum_ui/src/src.dart';
 /// items scroll. `style.padding` becomes the list padding, so it scrolls
 /// with the items. Scroll behavior and physics come from
 /// [resolveScrollBehavior]; [physics] applies on top of them. A [focusable]
-/// list is a Tab stop that scrolls by keyboard; see [ScrollFocus].
+/// list, by default one on web or on macOS, Windows, or Linux, is a Tab
+/// stop whose arrows, Page Up, Page Down, Home, and End scroll it.
 class ListViewLayout extends StatelessWidget {
   const new builder({
     super.key,
@@ -78,7 +79,7 @@ class ListViewLayout extends StatelessWidget {
   final Clip clipBehavior;
 
   /// Whether the list is a Tab stop that scrolls by keyboard; null means
-  /// on web and desktop ([defaultScrollFocusable]).
+  /// on web, mobile web included, and on macOS, Windows, and Linux.
   final bool? focusable;
 
   /// Names the focusable list for a screen reader.

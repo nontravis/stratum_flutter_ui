@@ -8,8 +8,9 @@ import 'package:stratum_ui/src/src.dart';
 /// while the content scrolls. In children mode `style.padding` becomes a
 /// [SliverPadding], so it scrolls with the content; with [slivers], wrap
 /// them in a [SliverPadding] yourself, because grouping several slivers
-/// changes how pinned headers behave. A [focusable] view is a Tab stop
-/// that scrolls by keyboard; see [ScrollFocus].
+/// changes how pinned headers behave. A [focusable] view, by default one
+/// on web or on macOS, Windows, or Linux, is a Tab stop whose arrows, Page
+/// Up, Page Down, Home, and End scroll it.
 class CustomScrollViewLayout extends StatelessWidget {
   const new({
     super.key,
@@ -42,7 +43,7 @@ class CustomScrollViewLayout extends StatelessWidget {
   final bool? showScrollbar;
 
   /// Whether the view is a Tab stop that scrolls by keyboard; null means
-  /// on web and desktop ([defaultScrollFocusable]).
+  /// on web, mobile web included, and on macOS, Windows, and Linux.
   final bool? focusable;
 
   /// Names the focusable view for a screen reader.
