@@ -184,8 +184,12 @@ final class _Read {
         continue;
       }
       if (_theme.failed.contains(entryPath)) continue;
+      // A map at an entry is always wrong (spec section 7.3), whatever
+      // state the chain's target copy is in: `_fits` cannot judge it.
       final entryReader = identical(reader, _quiet)
           ? _quiet
+          : entry is Map<String, Object?>
+          ? _reader
           : _readerFor(entryPath, entry);
       final dimension = entryReader.dimension(entry, entryPath, required: true);
       if (dimension != null) entries[size] = dimension;

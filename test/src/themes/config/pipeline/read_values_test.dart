@@ -238,6 +238,39 @@ color:
         [expected],
       );
     });
+
+    test('an entry that aliases its own window-size token reports '
+        'expected_dimension at the entry, and the token drops', () {
+      const expected =
+          'layer1 space.md.mobile: expected a number or "N%", got '
+          '{mobile: {space.md}} [expected_dimension]';
+      final (config, errors) = _read([
+        layer('space:\n  md: { mobile: "{space.md}" }'),
+      ]);
+
+      expect(problems(errors), [expected]);
+      expect(config.space.containsKey('md'), isFalse);
+    });
+
+    test('an entry that aliases a sibling still holding alias text '
+        'reports expected_dimension; the sibling itself still reads', () {
+      final (config, errors) = _read([
+        layer(
+          'space:\n  md: { mobile: "{space.lg}" }\n'
+          '  lg: { mobile: "{radius.sm}" }',
+        ),
+      ]);
+      const expected =
+          'layer1 space.md.mobile: expected a number or "N%", got '
+          '{mobile: {radius.sm}} [expected_dimension]';
+
+      expect(problems(errors), [expected]);
+      expect(config.space.containsKey('md'), isFalse);
+      expect(
+        config.space['lg']!.valueFor(WindowSize.mobile),
+        const StratumDimension.fixed(8),
+      );
+    });
   });
 
   group('readThemeValues assets', () {
