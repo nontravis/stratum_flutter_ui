@@ -35,12 +35,16 @@ class ScrollFrame extends StatelessWidget {
 
   /// The style of the box around a viewport.
   ///
-  /// The padding moves into the scroll view so it scrolls with the
-  /// content, and a rounded box clips the viewport to its corners unless
-  /// the style sets its own `clipBehavior`.
-  static WidgetStyle boxStyle(WidgetStyle style) {
+  /// With [scrollsPadding], the default, the padding moves into the scroll
+  /// view so it scrolls with the content; without it the padding stays on
+  /// the box and insets the viewport. A rounded box clips the viewport to
+  /// its corners unless the style sets its own `clipBehavior`.
+  static WidgetStyle boxStyle(
+    WidgetStyle style, {
+    bool scrollsPadding = true,
+  }) {
     return style.copyWith(
-      padding: null,
+      padding: scrollsPadding ? null : style.padding,
       clipBehavior:
           style.clipBehavior ??
           (style.borderRadius == null ? null : Clip.antiAlias),
@@ -537,4 +541,87 @@ class _ScrollFocusScope extends InheritedWidget {
   @override
   bool updateShouldNotify(_ScrollFocusScope oldWidget) =>
       controller != oldWidget.controller;
+}
+
+/// Builds the scroll view of a layout scroll view: [controller] comes from
+/// [ScrollFocus.controllerOf], and [padding] is `style.padding` when the
+/// padding scrolls, else null.
+typedef ScrollViewBuilder =
+    Widget Function(
+      BuildContext context,
+      ScrollController? controller,
+      EdgeInsetsGeometry? padding,
+    );
+
+/// The box, keyboard focus, and frame of a layout scroll view.
+///
+/// Builds [ScrollFocus] around the [ContainerLayout] of [style], when set,
+/// then [ScrollFocus.contentGroup] when [focusable], then [ScrollFrame],
+/// then the view that [builder] makes. Not exported: `ListViewLayout`,
+/// `GridViewLayout`, and `CustomScrollViewLayout` build through it.
+class ScrollViewBox extends StatelessWidget {
+  const new({
+    super.key,
+    this.style,
+    required this.focusable,
+    required this.axis,
+    this.controller,
+    this.primary,
+    this.semanticsLabel,
+    this.showScrollbar,
+    this.scrollsPadding = true,
+    required this.builder,
+  });
+
+  final WidgetStyle? style;
+
+  /// Whether the view is a Tab stop that scrolls by keyboard; null resolves
+  /// through [defaultScrollFocusable].
+  final bool? focusable;
+  final Axis axis;
+  final ScrollController? controller;
+  final bool? primary;
+  final String? semanticsLabel;
+
+  /// Null keeps the scroll behavior's choice: a scrollbar on desktop.
+  final bool? showScrollbar;
+
+  /// Whether `style.padding` scrolls with the content, handed to [builder];
+  /// false keeps it on the box, where it insets the viewport.
+  final bool scrollsPadding;
+  final ScrollViewBuilder builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = this.style;
+    final focusable =
+        this.focusable ??
+        defaultScrollFocusable(isWeb: kIsWeb, platform: defaultTargetPlatform);
+    Widget view = ScrollFrame(
+      showScrollbar: showScrollbar,
+      child: Builder(
+        builder: (context) => builder(
+          context,
+          ScrollFocus.controllerOf(context),
+          scrollsPadding ? style?.padding : null,
+        ),
+      ),
+    );
+    if (focusable) view = ScrollFocus.contentGroup(view);
+    if (style != null) {
+      view = ContainerLayout(
+        style: ScrollFrame.boxStyle(style, scrollsPadding: scrollsPadding),
+        child: view,
+      );
+    }
+    return ScrollFocus(
+      focusable: focusable,
+      axis: axis,
+      controller: controller,
+      primary: primary,
+      semanticsLabel: semanticsLabel,
+      borderRadius: style?.borderRadius,
+      child: view,
+    );
+  }
 }

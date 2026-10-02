@@ -389,6 +389,160 @@ void main() {
 
       expect(box.clipBehavior, Clip.none);
     });
+
+    test('keeps the padding on the box with scrollsPadding: false', () {
+      final box = ScrollFrame.boxStyle(
+        const WidgetStyle(
+          padding: EdgeInsets.all(8),
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
+        scrollsPadding: false,
+      );
+
+      expect(box.padding, const EdgeInsets.all(8));
+      expect(box.clipBehavior, Clip.antiAlias);
+    });
+  });
+
+  group('ScrollViewBox', () {
+    const style = WidgetStyle(
+      padding: EdgeInsets.all(8),
+      borderRadius: BorderRadius.all(Radius.circular(12)),
+    );
+
+    /// A [ScrollViewBox] around a [ListView] that records what the builder
+    /// receives in [received].
+    Widget box({
+      WidgetStyle? style,
+      bool? focusable = true,
+      ScrollController? controller,
+      bool scrollsPadding = true,
+      List<Object?>? received,
+    }) {
+      return SizedBox(
+        width: 200,
+        height: 300,
+        child: ScrollViewBox(
+          style: style,
+          focusable: focusable,
+          axis: Axis.vertical,
+          controller: controller,
+          scrollsPadding: scrollsPadding,
+          builder: (context, controller, padding) {
+            received
+              ?..clear()
+              ..addAll([controller, padding]);
+            return ListView(
+              controller: controller,
+              padding: padding,
+              children: const [SizedBox(height: 2000)],
+            );
+          },
+        ),
+      );
+    }
+
+    testWidgets('builds the phase 4 tree: focus, box, content group, frame, '
+        'and the view with the padding', (tester) async {
+      final received = <Object?>[];
+      await tester.pumpWidget(
+        themedHost(box(style: style, received: received)),
+      );
+
+      final scrollFocus = find.byType(ScrollFocus);
+      final container = find.descendant(
+        of: scrollFocus,
+        matching: find.byType(ContainerLayout),
+      );
+      final group = find.descendant(
+        of: container,
+        matching: find.byType(FocusTraversalGroup),
+      );
+      final frame = find.descendant(
+        of: group.first,
+        matching: find.byType(ScrollFrame),
+      );
+      expect(scrollFocus, findsOneWidget);
+      expect(tester.widget<ScrollFocus>(scrollFocus).focusable, isTrue);
+      expect(
+        tester.widget<ScrollFocus>(scrollFocus).borderRadius,
+        style.borderRadius,
+      );
+      expect(container, findsOneWidget);
+      expect(tester.widget<ContainerLayout>(container).style!.padding, isNull);
+      expect(frame, findsOneWidget);
+      expect(
+        find.descendant(of: frame, matching: find.byType(ListView)),
+        findsOneWidget,
+      );
+      expect(received, [isA<ScrollController>(), style.padding]);
+    });
+
+    testWidgets('builds no box without a style and no content group when '
+        'not focusable', (tester) async {
+      await tester.pumpWidget(themedHost(box(focusable: false)));
+
+      expect(find.byType(ContainerLayout), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(ScrollFocus),
+          matching: find.byType(FocusTraversalGroup),
+        ),
+        findsNothing,
+      );
+      expect(
+        tester.widget<ScrollFocus>(find.byType(ScrollFocus)).focusable,
+        isFalse,
+      );
+    });
+
+    testWidgets("hands the builder the caller's controller", (tester) async {
+      final controller = _controller();
+      final received = <Object?>[];
+      await tester.pumpWidget(
+        themedHost(box(controller: controller, received: received)),
+      );
+
+      expect(received.first, same(controller));
+    });
+
+    testWidgets('scrollsPadding: false keeps the padding on the box', (
+      tester,
+    ) async {
+      final received = <Object?>[];
+      await tester.pumpWidget(
+        themedHost(
+          box(style: style, scrollsPadding: false, received: received),
+        ),
+      );
+
+      expect(
+        tester.widget<ContainerLayout>(find.byType(ContainerLayout)).style!
+            .padding,
+        style.padding,
+      );
+      expect(received.last, isNull);
+    });
+
+    testWidgets('resolves a null focusable to true on macOS', (tester) async {
+      await tester.pumpWidget(themedHost(box(focusable: null)));
+
+      expect(
+        tester.widget<ScrollFocus>(find.byType(ScrollFocus)).focusable,
+        isTrue,
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('resolves a null focusable to false on Android', (
+      tester,
+    ) async {
+      await tester.pumpWidget(themedHost(box(focusable: null)));
+
+      expect(
+        tester.widget<ScrollFocus>(find.byType(ScrollFocus)).focusable,
+        isFalse,
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
   });
 
   group('defaultScrollFocusable', () {

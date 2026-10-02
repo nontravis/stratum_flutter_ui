@@ -71,49 +71,36 @@ class GridViewLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = this.style;
-    final focusable =
-        this.focusable ??
-        defaultScrollFocusable(isWeb: kIsWeb, platform: defaultTargetPlatform);
-    Widget grid = ScrollFrame(
-      showScrollbar: showScrollbar,
-      child: Builder(
-        builder: (context) => GridView.builder(
-          gridDelegate: gridDelegate,
-          scrollDirection: scrollDirection,
-          reverse: reverse,
-          controller: ScrollFocus.controllerOf(context),
-          primary: primary,
-          physics: physics,
-          shrinkWrap: shrinkWrap,
-          padding: style?.padding,
-          itemBuilder: itemBuilder,
-          findChildIndexCallback: findChildIndexCallback,
-          itemCount: itemCount,
-          addAutomaticKeepAlives: addAutomaticKeepAlives,
-          addRepaintBoundaries: addRepaintBoundaries,
-          addSemanticIndexes: addSemanticIndexes,
-          scrollCacheExtent: scrollCacheExtent,
-          semanticChildCount: semanticChildCount,
-          dragStartBehavior: dragStartBehavior,
-          keyboardDismissBehavior: keyboardDismissBehavior,
-          restorationId: restorationId,
-          clipBehavior: clipBehavior,
-        ),
-      ),
-    );
-    if (focusable) grid = ScrollFocus.contentGroup(grid);
-    if (style != null) {
-      grid = ContainerLayout(style: ScrollFrame.boxStyle(style), child: grid);
-    }
-    return ScrollFocus(
+    return ScrollViewBox(
+      style: style,
       focusable: focusable,
       axis: scrollDirection,
       controller: controller,
       primary: primary,
       semanticsLabel: semanticsLabel,
-      borderRadius: style?.borderRadius,
-      child: grid,
+      showScrollbar: showScrollbar,
+      builder: (context, controller, padding) => GridView.builder(
+        gridDelegate: gridDelegate,
+        scrollDirection: scrollDirection,
+        reverse: reverse,
+        controller: controller,
+        primary: primary,
+        physics: physics,
+        shrinkWrap: shrinkWrap,
+        padding: padding,
+        itemBuilder: itemBuilder,
+        findChildIndexCallback: findChildIndexCallback,
+        itemCount: itemCount,
+        addAutomaticKeepAlives: addAutomaticKeepAlives,
+        addRepaintBoundaries: addRepaintBoundaries,
+        addSemanticIndexes: addSemanticIndexes,
+        scrollCacheExtent: scrollCacheExtent,
+        semanticChildCount: semanticChildCount,
+        dragStartBehavior: dragStartBehavior,
+        keyboardDismissBehavior: keyboardDismissBehavior,
+        restorationId: restorationId,
+        clipBehavior: clipBehavior,
+      ),
     );
   }
 }

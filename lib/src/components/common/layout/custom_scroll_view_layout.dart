@@ -58,34 +58,22 @@ class CustomScrollViewLayout extends StatelessWidget {
       'style.padding applies to children only; wrap slivers in a '
       'SliverPadding instead',
     );
-    final focusable =
-        this.focusable ??
-        defaultScrollFocusable(isWeb: kIsWeb, platform: defaultTargetPlatform);
-    Widget view = ScrollFrame(
-      showScrollbar: showScrollbar,
-      child: Builder(
-        builder: (context) => CustomScrollView(
-          controller: ScrollFocus.controllerOf(context),
-          scrollDirection: scrollDirection,
-          reverse: reverse,
-          shrinkWrap: shrinkWrap,
-          physics: physics,
-          semanticChildCount: slivers == null ? children!.length : null,
-          slivers: slivers ?? [_buildChildrenSliver(style?.padding)],
-        ),
-      ),
-    );
-    if (focusable) view = ScrollFocus.contentGroup(view);
-    if (style != null) {
-      view = ContainerLayout(style: ScrollFrame.boxStyle(style), child: view);
-    }
-    return ScrollFocus(
+    return ScrollViewBox(
+      style: style,
       focusable: focusable,
       axis: scrollDirection,
       controller: controller,
       semanticsLabel: semanticsLabel,
-      borderRadius: style?.borderRadius,
-      child: view,
+      showScrollbar: showScrollbar,
+      builder: (context, controller, padding) => CustomScrollView(
+        controller: controller,
+        scrollDirection: scrollDirection,
+        reverse: reverse,
+        shrinkWrap: shrinkWrap,
+        physics: physics,
+        semanticChildCount: slivers == null ? children!.length : null,
+        slivers: slivers ?? [_buildChildrenSliver(padding)],
+      ),
     );
   }
 

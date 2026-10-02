@@ -87,29 +87,16 @@ class ListViewLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = this.style;
-    final focusable =
-        this.focusable ??
-        defaultScrollFocusable(isWeb: kIsWeb, platform: defaultTargetPlatform);
-    Widget list = ScrollFrame(
-      showScrollbar: showScrollbar,
-      child: Builder(
-        builder: (context) =>
-            _buildList(ScrollFocus.controllerOf(context), style?.padding),
-      ),
-    );
-    if (focusable) list = ScrollFocus.contentGroup(list);
-    if (style != null) {
-      list = ContainerLayout(style: ScrollFrame.boxStyle(style), child: list);
-    }
-    return ScrollFocus(
+    return ScrollViewBox(
+      style: style,
       focusable: focusable,
       axis: scrollDirection,
       controller: controller,
       primary: primary,
       semanticsLabel: semanticsLabel,
-      borderRadius: style?.borderRadius,
-      child: list,
+      showScrollbar: showScrollbar,
+      builder: (context, controller, padding) =>
+          _buildList(controller, padding),
     );
   }
 
