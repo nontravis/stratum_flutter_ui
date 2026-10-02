@@ -2,142 +2,618 @@ $schema: stratum-theme/v1.0.0
 name: stratum-default
 
 assets:
-  splash-screen:
+  splash-screen:                 # empty: no asset; the app decides
   loading:
 
 space:
-  mobile-space: 16
-  mobile-space-half: 8
-  desktop-space: 32
-  desktop-space-half: 16
-  zero: 0
-  5xs: 2
-  4xs: 4
-  3xs: 6
-  2xs: 8
-  xs: 10
-  sm: 12
-  md: 16
-  lg: 20
-  xl: 24
-  2xl: 28
-  3xl: 32
-  4xl: 40
-  5xl: 48
-  6xl: 56
-  7xl: 64
-  8xl: 80
-  9xl: 96
   10xl: 128
   11xl: 160
   12xl: 192
   13xl: 224
   14xl: 256
+  2xl: 28
+  2xs: 8
+  3xl: 32
+  3xs: 6
+  4xl: 40
+  4xs: 4
+  5xl: 48
+  5xs: 2
+  6xl: 56
+  7xl: 64
+  8xl: 80
+  9xl: 96
+  desktop-space: 32
+  desktop-space-half: 16
+  lg: 20
+  md: 16
+  mobile-space: 16
+  mobile-space-half: 8
+  sm: 12
+  xl: 24
+  xs: 10
+  zero: 0
 
 radius:
-  full: 999
-  card-large: 24
-  card-medium: 20
-  card-small: 16
-  zero: 0
-  2xs: 4
-  xs: 6
-  sm: 8
-  md: 10
-  lg: 12
-  xl: 14
   2xl: 16
+  2xs: 4
   3xl: 20
   4xl: 24
   5xl: 32
+  card-large: 24
+  card-medium: 20
+  card-small: 16
+  full: 999
   ios: 42
+  lg: 12
+  md: 10
+  samsung: 8
+  sm: 8
+  xl: 14
+  xs: 6
+  zero: 0
 
 layouts:
   max-width-content: 1000
+  max-width-mobile: 480
   max-width-read: 720
+  max-width-tablet: 1280
+  min-width-desktop: 1280
+  min-width-mobile: 320
+  min-width-tablet: 480
+
+# Colors are quoted "#RRGGBB" or "#RRGGBBAA". Alpha comes LAST, as in Figma,
+# CSS, and the W3C design tokens format: "#FF000014" is red at alpha 0x14.
+# This is the reverse of Flutter's Color(0xAARRGGBB). Without quotes, yaml
+# reads everything after "#" as a comment and the color becomes null.
+palette:
+  amber:
+    50: "#FFFBEB"
+    100: "#FEF3C7"
+    200: "#FDE68A"
+    300: "#FCD34D"
+    400: "#FBBF24"
+    500: "#F59E0B"
+    600: "#D97706"
+    700: "#B45309"
+    800: "#92400E"
+    900: "#78350F"
+    950: "#451A03"
+  blue:
+    50: "#EFF6FF"
+    100: "#DBEAFE"
+    200: "#BFDBFE"
+    300: "#93C5FD"
+    400: "#60A5FA"
+    500: "#3B82F6"
+    600: "#2563EB"
+    700: "#1D4ED8"
+    800: "#1E40AF"
+    900: "#1E3A8A"
+    950: "#172554"
+  brand:
+    50: "#EFF6FF"
+    100: "#DBEAFE"
+    200: "#BFDBFE"
+    300: "#93C5FD"
+    400: "#60A5FA"
+    500: "#3B82F6"
+    600: "#2563EB"
+    700: "#1D4ED8"
+    800: "#1E40AF"
+    900: "#1E3A8A"
+    950: "#172554"
+  gray:
+    50: "#F9FAFB"
+    100: "#F3F4F6"
+    200: "#E5E7EB"
+    300: "#D1D5DB"
+    400: "#9CA3AF"
+    500: "#6B7280"
+    600: "#4B5563"
+    700: "#374151"
+    800: "#1F2937"
+    900: "#111827"
+    950: "#030712"
+  green:
+    50: "#F0FDF4"
+    100: "#DCFCE7"
+    200: "#BBF7D0"
+    300: "#86EFAC"
+    400: "#4ADE80"
+    500: "#22C55E"
+    600: "#16A34A"
+    700: "#15803D"
+    800: "#166534"
+    900: "#14532D"
+    950: "#052E16"
+  red:
+    50: "#FEF2F2"
+    100: "#FEE2E2"
+    200: "#FECACA"
+    300: "#FCA5A5"
+    400: "#F87171"
+    500: "#EF4444"
+    600: "#DC2626"
+    700: "#B91C1C"
+    800: "#991B1B"
+    900: "#7F1D1D"
+    950: "#450A0A"
+  teal:
+    50: "#F0FDFA"
+    100: "#CCFBF1"
+    200: "#99F6E4"
+    300: "#5EEAD4"
+    400: "#2DD4BF"
+    500: "#14B8A6"
+    600: "#0D9488"
+    700: "#0F766E"
+    800: "#115E59"
+    900: "#134E4A"
+    950: "#042F2E"
+  violet:
+    50: "#F5F3FF"
+    100: "#EDE9FE"
+    200: "#DDD6FE"
+    300: "#C4B5FD"
+    400: "#A78BFA"
+    500: "#8B5CF6"
+    600: "#7C3AED"
+    700: "#6D28D9"
+    800: "#5B21B6"
+    900: "#4C1D95"
+    950: "#2E1065"
+  app: {}                        # the app's own ramps (open map)
 
 color:
   light:
-    brand:
-      primary:
-        normal: #FFFFFF
-        hover: #FFFFFF
-        active: #FFFFFF
-        text: #FFFFFF
-        icon: #FFFFFF
-      secondary:
-        normal: #FFFFFF
-        hover: #FFFFFF
-        active: #FFFFFF
-        text: #FFFFFF
-        icon: #FFFFFF
-      tertiary:
-        normal: #FFFFFF
-        hover: #FFFFFF
-        active: #FFFFFF
-        text: #FFFFFF
-        icon: #FFFFFF
-      accent:
-        normal: #FFFFFF
-        hover: #FFFFFF
-        active: #FFFFFF
-        text: #FFFFFF
-        icon: #FFFFFF
-    text:
-      default:
-        primary: #FFFFFF
-        primary-on-color: #FFFFFF
-        primary-inverse: #FFFFFF
-        secondary: #FFFFFF
-        secondary-inverse: #FFFFFF
-        tertiary: #FFFFFF
-        tertiary-inverse: #FFFFFF
-      color:
-        brand:
-        red:
-        pink:
-        rose:
-        violet:
-        purple:
-        indigo:
-        blue:
-        cyan:
-        teal:
-        emerald:
-        green:
-        moss:
-        lime:
-        yellow:
-        amber:
-        orange:
-        brown:
-        blueGray:
-        gray:
-    icon:
-      default:
-      color:
-    border:
-      default:
-      control:
-      color:
-      subtle:
-    button:
-      primary:
-      secondary:
-      shaded:
-      destructive:
-      filled:
     background:
-      default:
       color:
-      muted:
-      subtle:
-      surface:
+        blue: "{palette.blue.500}"
+        brand: "{color.light.brand.normal}"
+        gray: "{palette.gray.400}"
+        negative: "{palette.red.500}"
+        positive: "{palette.green.500}"
+        teal: "{palette.teal.500}"
+        violet: "{palette.violet.500}"
+        warning: "{palette.amber.400}"
       control:
-    state:
+        input: "{color.light.border.color.white}"
+        input-disabled: "{transparent.black.3}"
+        input-outlined: "{transparent.white.100}"
+        input-shaded: "{transparent.black.4}"
+        loading-1: "{transparent.black.3}"
+        loading-2: "{transparent.black.8}"
+        popover: "{transparent.white.100}"
+        popover-inverse: "{palette.gray.900}"
+        tab: "{transparent.white.100}"
+        tooltip: "{palette.gray.800}"
+      default:
+        normal: "{transparent.white.100}"
+        normal-inverse: "{palette.gray.800}"
+        surface: "#F5F6F7"
+        surface-inverse: "{palette.gray.950}"
+      muted:
+        blue: "{palette.blue.200}"
+        brand: "{palette.brand.200}"
+        gray: "{palette.gray.200}"
+        negative: "{palette.red.200}"
+        positive: "{palette.green.200}"
+        teal: "{palette.teal.200}"
+        violet: "{palette.violet.200}"
+        warning: "{palette.amber.200}"
+      subtle:
+        blue: "{palette.blue.50}"
+        brand: "{palette.brand.50}"
+        gray: "{palette.gray.100}"
+        negative: "{palette.red.50}"
+        positive: "{palette.green.50}"
+        teal: "{palette.teal.50}"
+        violet: "{palette.violet.50}"
+        warning: "{palette.amber.50}"
+      surface:
+        light: "{transparent.black.2}"
+        medium: "{transparent.black.3}"
+        progress: "{transparent.black.4}"
+        strong: "{transparent.black.4}"
+    border:
+      color:
+        black: "{palette.gray.900}"
+        blue: "{palette.blue.500}"
+        brand: "{palette.brand.500}"
+        gray: "{palette.gray.300}"
+        negative: "{palette.red.500}"
+        positive: "{palette.green.500}"
+        teal: "{palette.teal.500}"
+        violet: "{palette.violet.500}"
+        warning: "{palette.amber.500}"
+        white: "{transparent.white.100}"
+      control:
+        destructive: "#FF000005"
+        shaded: "{transparent.black.2}"
+        solid: "{transparent.black.4}"
+      default:
+        active: "{transparent.black.40}"
+        contrast: "{transparent.black.20}"
+        hover: "{transparent.black.20}"
+        inverse: "{transparent.white.15}"
+        normal: "{transparent.black.10}"
+        on-color: "{transparent.white.15}"
+      subtle:
+        blue: "{palette.blue.300}"
+        brand: "{palette.brand.300}"
+        gray: "{palette.gray.100}"
+        negative: "{palette.red.300}"
+        positive: "{palette.green.300}"
+        teal: "{palette.teal.300}"
+        violet: "{palette.violet.300}"
+        warning: "{palette.amber.300}"
+    brand:
+      active: "{palette.brand.700}"
+      hover: "{palette.brand.600}"
+      icon: "{palette.brand.500}"
+      normal: "{palette.brand.500}"
+      text: "{palette.brand.600}"
+    button:
+      destructive:
+        active: "{palette.red.200}"
+        hover: "{palette.red.100}"
+        normal: "{palette.red.50}"
+      filled:
+        active: "{palette.gray.800}"
+        hover: "{palette.gray.900}"
+        normal: "{palette.gray.950}"
+      primary:
+        active: "{color.light.brand.active}"
+        hover: "{color.light.brand.hover}"
+        normal: "{color.light.brand.normal}"
+      secondary:
+        active: "{transparent.black.4}"
+        hover: "{transparent.black.2}"
+      shaded:
+        active: "{transparent.black.8}"
+        hover: "{transparent.black.6}"
+        normal: "{transparent.black.4}"
+    icon:
+      color:
+        blue: "{palette.blue.500}"
+        brand: "{color.light.brand.icon}"
+        negative: "{palette.red.500}"
+        negative-on-color: "{palette.red.500}"
+        positive: "{palette.green.500}"
+        teal: "{palette.teal.500}"
+        violet: "{palette.violet.500}"
+        warning: "{palette.amber.500}"
+      default:
+        primary: "{transparent.black.80}"
+        primary-inverse: "{transparent.white.100}"
+        primary-on-color: "{transparent.white.100}"
+        secondary: "{transparent.black.50}"
+        tertiary: "{transparent.black.25}"
+        tertiary-hover: "{transparent.black.35}"
+        tertiary-pressed: "{transparent.black.50}"
+    misc:
+      highlight: "{palette.blue.200}"
+      rating-emoji-parts: "{palette.gray.900}"
+      scrollbar: "{transparent.black.20}"
+      slider-disabled: "{palette.gray.400}"
     shadow:
-
+      primary: "{transparent.black.15}"
+      secondary: "{transparent.black.12}"
+    state:
+      hover: "{transparent.black.4}"
+      hover-destructive: "#FF000014"
+      hover-light: "{transparent.black.2}"
+      hover-reverse: "{transparent.white.6}"
+      hover-reverse-light: "{transparent.white.4}"
+      hover-reverse-strong: "{transparent.white.8}"
+      hover-strong: "{transparent.black.6}"
+      press: "{transparent.black.8}"
+      press-destructive: "#FF00001F"
+      press-light: "{transparent.black.4}"
+      press-reverse: "{transparent.white.10}"
+      press-reverse-light: "{transparent.white.8}"
+      press-reverse-strong: "{transparent.white.12}"
+      press-strong: "{transparent.black.10}"
+    text:
+      color:
+        blue: "{palette.blue.600}"
+        brand: "{color.light.brand.text}"
+        negative: "{palette.red.600}"
+        negative-on-color: "{palette.red.600}"
+        positive: "{palette.green.600}"
+        teal: "{palette.teal.600}"
+        violet: "{palette.violet.600}"
+        warning: "{palette.amber.600}"
+      default:
+        primary: "{transparent.black.80}"
+        primary-inverse: "{transparent.white.100}"
+        primary-on-color: "{transparent.white.100}"
+        secondary: "{transparent.black.50}"
+        secondary-inverse: "{transparent.white.40}"
+        tertiary: "{transparent.black.25}"
+        tertiary-inverse: "{transparent.white.25}"
+    transparent:
+      0: "{transparent.white.0}"
+      0-inverse: "{transparent.black.0}"
+      1: "{transparent.white.1}"
+      1-inverse: "{transparent.black.1}"
+      10: "{transparent.white.10}"
+      10-inverse: "{transparent.black.10}"
+      100: "{transparent.white.100}"
+      100-inverse: "{transparent.black.100}"
+      12: "{transparent.white.12}"
+      12-inverse: "{transparent.black.12}"
+      15: "{transparent.white.15}"
+      15-inverse: "{transparent.black.15}"
+      16: "{transparent.white.16}"
+      16-inverse: "{transparent.black.16}"
+      17: "{transparent.white.17}"
+      17-inverse: "{transparent.black.17}"
+      18: "{transparent.white.18}"
+      18-inverse: "{transparent.black.18}"
+      19: "{transparent.white.19}"
+      19-inverse: "{transparent.black.19}"
+      2: "{transparent.white.2}"
+      2-inverse: "{transparent.black.2}"
+      20: "{transparent.white.20}"
+      20-inverse: "{transparent.black.20}"
+      25: "{transparent.white.25}"
+      25-inverse: "{transparent.black.25}"
+      3: "{transparent.white.3}"
+      3-inverse: "{transparent.black.3}"
+      30: "{transparent.white.30}"
+      30-inverse: "{transparent.black.30}"
+      35: "{transparent.white.35}"
+      35-inverse: "{transparent.black.35}"
+      4: "{transparent.white.4}"
+      4-inverse: "{transparent.black.4}"
+      40: "{transparent.white.40}"
+      40-inverse: "{transparent.black.40}"
+      45: "{transparent.white.45}"
+      45-inverse: "{transparent.black.45}"
+      5: "{transparent.white.5}"
+      5-inverse: "{transparent.black.6}"
+      50: "{transparent.white.50}"
+      50-inverse: "{transparent.black.50}"
+      6: "{transparent.white.6}"
+      6-inverse: "{transparent.black.6}"
+      60: "{transparent.white.60}"
+      60-inverse: "{transparent.black.60}"
+      70: "{transparent.white.70}"
+      70-inverse: "{transparent.black.70}"
+      8: "{transparent.white.8}"
+      8-inverse: "{transparent.black.8}"
+      80: "{transparent.white.80}"
+      80-inverse: "{transparent.black.80}"
+      90: "{transparent.white.90}"
+      90-inverse: "{transparent.black.90}"
+    app: {}                      # app colors; every name needs a dark value
   dark:
+    background:
+      color:
+        blue: "{palette.blue.600}"
+        brand: "{color.dark.brand.normal}"
+        gray: "{palette.gray.500}"
+        negative: "{palette.red.600}"
+        positive: "{palette.green.600}"
+        teal: "{palette.teal.600}"
+        violet: "{palette.violet.600}"
+        warning: "{palette.amber.500}"
+      control:
+        input: "{palette.gray.950}"
+        input-disabled: "{transparent.white.3}"
+        input-outlined: "{transparent.black.5}"
+        input-shaded: "{transparent.white.5}"
+        loading-1: "{transparent.white.7}"
+        loading-2: "{transparent.white.12}"
+        popover: "{palette.gray.800}"
+        popover-inverse: "{transparent.white.100}"
+        tab: "{transparent.white.8}"
+        tooltip: "{palette.gray.700}"
+      default:
+        normal: "{palette.gray.900}"
+        normal-inverse: "{palette.gray.100}"
+        surface: "{palette.gray.950}"
+        surface-inverse: "{color.dark.background.surface.light}"
+      muted:
+        blue: "{palette.blue.900}"
+        brand: "{palette.brand.900}"
+        gray: "{palette.gray.700}"
+        negative: "{palette.red.900}"
+        positive: "{palette.green.900}"
+        teal: "{palette.teal.900}"
+        violet: "{palette.violet.900}"
+        warning: "{palette.amber.900}"
+      subtle:
+        blue: "{palette.blue.950}"
+        brand: "{palette.blue.950}"
+        gray: "{palette.gray.800}"
+        negative: "{palette.red.950}"
+        positive: "{palette.green.950}"
+        teal: "{palette.teal.950}"
+        violet: "{palette.violet.950}"
+        warning: "{palette.amber.950}"
+      surface:
+        light: "{transparent.white.6}"
+        medium: "{transparent.white.4}"
+        progress: "{transparent.white.10}"
+        strong: "{transparent.white.2}"
+    border:
+      color:
+        black: "{palette.gray.100}"
+        blue: "{palette.blue.600}"
+        brand: "{palette.brand.600}"
+        gray: "{palette.gray.700}"
+        negative: "{palette.red.500}"
+        positive: "{palette.green.500}"
+        teal: "{palette.teal.500}"
+        violet: "{palette.violet.500}"
+        warning: "{palette.amber.500}"
+        white: "{palette.gray.900}"
+      control:
+        destructive: "{transparent.white.4}"
+        shaded: "{transparent.white.4}"
+        solid: "{transparent.white.8}"
+      default:
+        active: "{transparent.white.40}"
+        contrast: "{transparent.white.25}"
+        hover: "{transparent.white.20}"
+        inverse: "{transparent.black.10}"
+        normal: "{transparent.white.15}"
+        on-color: "{transparent.white.15}"
+      subtle:
+        blue: "{palette.blue.800}"
+        brand: "{palette.brand.800}"
+        gray: "{palette.gray.900}"
+        negative: "{palette.red.800}"
+        positive: "{palette.green.800}"
+        teal: "{palette.teal.800}"
+        violet: "{palette.violet.800}"
+        warning: "{palette.amber.800}"
+    brand:
+      active: "{palette.brand.800}"
+      hover: "{palette.brand.700}"
+      icon: "{palette.brand.500}"
+      normal: "{palette.brand.600}"
+      text: "{palette.brand.500}"
+    button:
+      destructive:
+        active: "{palette.red.900}"
+        hover: "{palette.red.800}"
+        normal: "{palette.red.700}"
+      filled:
+        active: "{palette.blue.200}"
+        hover: "{palette.blue.100}"
+        normal: "{palette.blue.50}"
+      primary:
+        active: "{color.dark.brand.active}"
+        hover: "{color.dark.brand.hover}"
+        normal: "{color.dark.brand.normal}"
+      secondary:
+        active: "{transparent.white.8}"
+        hover: "{transparent.white.4}"
+      shaded:
+        active: "{transparent.white.14}"
+        hover: "{transparent.white.12}"
+        normal: "{transparent.white.10}"
+    icon:
+      color:
+        blue: "{palette.blue.400}"
+        brand: "{color.dark.brand.icon}"
+        negative: "{palette.red.400}"
+        negative-on-color: "{color.dark.icon.default.primary-on-color}"
+        positive: "{palette.green.400}"
+        teal: "{palette.teal.400}"
+        violet: "{palette.violet.400}"
+        warning: "{palette.amber.400}"
+      default:
+        primary: "{transparent.white.100}"
+        primary-inverse: "{palette.gray.800}"
+        primary-on-color: "{transparent.white.90}"
+        secondary: "{transparent.white.60}"
+        tertiary: "{transparent.white.25}"
+        tertiary-hover: "{transparent.white.35}"
+        tertiary-pressed: "{transparent.white.50}"
+    misc:
+      highlight: "{palette.blue.900}"
+      rating-emoji-parts: "{transparent.white.40}"
+      scrollbar: "{transparent.white.20}"
+      slider-disabled: "{palette.gray.500}"
+    shadow:
+      primary: "{transparent.black.45}"
+      secondary: "{transparent.black.35}"
+    state:
+      hover: "{transparent.white.6}"
+      hover-destructive: "{transparent.white.6}"
+      hover-light: "{transparent.white.4}"
+      hover-reverse: "{transparent.black.4}"
+      hover-reverse-light: "{transparent.black.2}"
+      hover-reverse-strong: "{transparent.black.6}"
+      hover-strong: "{transparent.white.8}"
+      press: "{transparent.white.10}"
+      press-destructive: "{transparent.white.10}"
+      press-light: "{transparent.white.8}"
+      press-reverse: "{transparent.black.8}"
+      press-reverse-light: "{transparent.black.4}"
+      press-reverse-strong: "{transparent.black.10}"
+      press-strong: "{transparent.white.12}"
+    text:
+      color:
+        blue: "{palette.blue.400}"
+        brand: "{color.dark.brand.text}"
+        negative: "{palette.red.400}"
+        negative-on-color: "{color.dark.text.default.primary-on-color}"
+        positive: "{palette.green.400}"
+        teal: "{palette.teal.400}"
+        violet: "{palette.violet.400}"
+        warning: "{palette.amber.400}"
+      default:
+        primary: "{transparent.white.100}"
+        primary-inverse: "{transparent.black.80}"
+        primary-on-color: "{transparent.white.100}"
+        secondary: "{transparent.white.60}"
+        secondary-inverse: "{transparent.black.50}"
+        tertiary: "{transparent.white.25}"
+        tertiary-inverse: "{transparent.black.25}"
+    transparent:
+      0: "{transparent.black.0}"
+      0-inverse: "{transparent.white.0}"
+      1: "{transparent.black.1}"
+      1-inverse: "{transparent.white.1}"
+      10: "{transparent.black.10}"
+      10-inverse: "{transparent.white.10}"
+      100: "{transparent.black.100}"
+      100-inverse: "{transparent.white.100}"
+      12: "{transparent.black.12}"
+      12-inverse: "{transparent.white.12}"
+      15: "{transparent.black.15}"
+      15-inverse: "{transparent.white.15}"
+      16: "{transparent.black.16}"
+      16-inverse: "{transparent.white.16}"
+      17: "{transparent.black.17}"
+      17-inverse: "{transparent.white.17}"
+      18: "{transparent.black.18}"
+      18-inverse: "{transparent.white.18}"
+      19: "{transparent.black.19}"
+      19-inverse: "{transparent.white.19}"
+      2: "{transparent.black.2}"
+      2-inverse: "{transparent.white.2}"
+      20: "{transparent.black.20}"
+      20-inverse: "{transparent.white.20}"
+      25: "{transparent.black.25}"
+      25-inverse: "{transparent.white.25}"
+      3: "{transparent.black.3}"
+      3-inverse: "{transparent.white.3}"
+      30: "{transparent.black.30}"
+      30-inverse: "{transparent.white.30}"
+      35: "{transparent.black.35}"
+      35-inverse: "{transparent.white.35}"
+      4: "{transparent.black.4}"
+      4-inverse: "{transparent.white.4}"
+      40: "{transparent.black.40}"
+      40-inverse: "{transparent.white.40}"
+      45: "{transparent.black.45}"
+      45-inverse: "{transparent.white.45}"
+      5: "{transparent.black.5}"
+      5-inverse: "{transparent.white.5}"
+      50: "{transparent.black.50}"
+      50-inverse: "{transparent.white.50}"
+      6: "{transparent.black.6}"
+      6-inverse: "{transparent.white.6}"
+      60: "{transparent.black.60}"
+      60-inverse: "{transparent.white.60}"
+      70: "{transparent.black.70}"
+      70-inverse: "{transparent.white.70}"
+      8: "{transparent.black.8}"
+      8-inverse: "{transparent.white.8}"
+      80: "{transparent.black.80}"
+      80-inverse: "{transparent.white.80}"
+      90: "{transparent.black.90}"
+      90-inverse: "{transparent.white.90}"
+    app: {}
+  highContrastLight: {}          # overlay on light; {} declares the key
+  highContrastDark: {}           # overlay on dark
 
 typography:
   fonts:                         # font key: physical family plus its own tuning
@@ -202,285 +678,4 @@ typography:
         s14: { spaceHeight: 10 }
         s12: { spaceHeight: 4 }
 
-# ─── PALETTE ──────────────────
-palette:
-  brand:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  red:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  pink:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  rose:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  violet:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  purple:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  indigo:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  blue:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  cyan:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  teal:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  emerald:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  green:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  moss:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  lime:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  yellow:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  amber:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  orange:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  brown:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  blueGray:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
-  gray:
-    c25: #F5F8FF
-    c50: #EEF4FF
-    c100: #E0EAFF
-    c200: #C7D7FE
-    c300: #A4BCFD
-    c400: #8098F9
-    c500: #6172F3
-    c600: #444CE7
-    c700: #3538CD
-    c800: #2D31A6
-    c900: #2D3282
-    c950: #1F235B
-    c975: #14173A
+extensions: {}
