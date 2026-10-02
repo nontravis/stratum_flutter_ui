@@ -2,66 +2,83 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/perf/perf_scene.dart';
 import '../../integration_test/perf/perf_scenes.dart';
-import '../../tool/perf_abba.dart' show groupScenes, groups;
 
 void main() {
-  group('abbaSteps', () {
-    final steps = abbaSteps([perfScene('S1'), perfScene('S4')]);
+  group('runSteps', () {
+    final steps = runSteps(
+      [perfScene('S1'), perfScene('S5')],
+      first: 3,
+      count: 2,
+    );
 
-    test('warms every scene up on both sides before the first trace', () {
-      expect([for (final step in steps.take(4)) step.name], [
-        'warm-up S1.base',
-        'warm-up S1.cand',
-        'warm-up S4.base',
-        'warm-up S4.cand',
-      ]);
-      expect(steps.take(4).any((step) => step.traced), isFalse);
-    });
-
-    test('traces one block per scene: baseline, current, current, '
-        'baseline', () {
-      expect([for (final step in steps.skip(4)) step.reportKey], [
-        'S1.base.1',
-        'S1.cand.1',
-        'S1.cand.2',
-        'S1.base.2',
-        'S4.base.1',
-        'S4.cand.1',
-        'S4.cand.2',
-        'S4.base.2',
-      ]);
-      expect(steps.skip(4).every((step) => step.traced), isTrue);
-      expect(steps.skip(4).first.name, 'S1.base.1');
-    });
-  });
-
-  group('perfGroups', () {
-    test('covers every catalog scene, with S2-plain first in each group',
-        () {
-      expect(perfGroups.keys, [1, 2, 3]);
+    test('warms every scene up once per side before the first trace', () {
       expect(
-        {for (final keys in perfGroups.values) ...keys},
-        {for (final scene in perfScenes) scene.key},
+        [for (final step in steps.take(4)) step.name],
+        [
+          'warm-up S1.base',
+          'warm-up S1.cand',
+          'warm-up S5.base',
+          'warm-up S5.cand',
+        ],
       );
-      for (final keys in perfGroups.values) {
-        expect(keys.first, 'S2-plain');
-      }
+      expect(steps.where((step) => !step.traced), hasLength(4));
     });
 
-    test('keeps every invocation within 16 traces', () {
-      for (final group in perfGroups.keys) {
-        final traced = abbaSteps(perfGroup(group)).where((s) => s.traced);
-        expect(traced.length, lessThanOrEqualTo(16), reason: 'group $group');
-      }
+    test('traces one block per scene per run in list order, numbering runs '
+        'from first', () {
+      expect(
+        [for (final step in steps.skip(4)) step.reportKey],
+        [
+          'r3.S1.base.1',
+          'r3.S1.cand.1',
+          'r3.S1.cand.2',
+          'r3.S1.base.2',
+          'r3.S5.base.1',
+          'r3.S5.cand.1',
+          'r3.S5.cand.2',
+          'r3.S5.base.2',
+          'r4.S1.base.1',
+          'r4.S1.cand.1',
+          'r4.S1.cand.2',
+          'r4.S1.base.2',
+          'r4.S5.base.1',
+          'r4.S5.cand.1',
+          'r4.S5.cand.2',
+          'r4.S5.base.2',
+        ],
+      );
+      expect(steps.skip(4).every((step) => step.traced), isTrue);
+      expect(steps.skip(4).first.name, 'r3.S1.base.1');
     });
 
-    test('rejects an unknown group', () {
-      expect(() => perfGroup(4), throwsArgumentError);
+    test('opens each run with its first trace', () {
+      expect(
+        [
+          for (final step in steps)
+            if (step.startsRun) step.name,
+        ],
+        ['r3.S1.base.1', 'r4.S1.base.1'],
+      );
     });
 
-    test('matches the groups and scenes perf_abba runs and expects', () {
-      expect(perfGroups.keys, groups);
-      expect(perfGroups, groupScenes);
+    test('cools down after S5 only, and not after the last run', () {
+      expect(
+        [
+          for (final step in steps)
+            if (step.coolDown) step.name,
+        ],
+        ['r3.S5.base.2'],
+      );
+    });
+
+    test('never cools down when the list leaves S5 out', () {
+      final steps = runSteps(
+        [perfScene('S2-plain'), perfScene('S4')],
+        first: 1,
+        count: 3,
+      );
+      expect(steps.where((step) => step.coolDown), isEmpty);
+      expect(steps.where((step) => step.traced), hasLength(24));
     });
   });
 }

@@ -32,10 +32,11 @@ class _RefusingKit implements PerfKit {
 
 void main() {
   group('perfScenes', () {
-    test('lists the scenes of spec section 9.1 in table order', () {
+    test('lists the scenes of spec section 9.1 in run order, the S2-plain '
+        'null control first', () {
       expect(
         [for (final scene in perfScenes) scene.key],
-        ['S1', 'S1-fast', 'S2', 'S2-box', 'S2-plain', 'S3', 'S4', 'S5'],
+        ['S2-plain', 'S1', 'S1-fast', 'S2', 'S2-box', 'S3', 'S4', 'S5'],
       );
     });
 
@@ -69,6 +70,24 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byType(AnimatedStyledBox), findsNothing);
+    });
+  });
+
+  group('perfScenesNamed', () {
+    List<String> keys(String names) => [
+      for (final scene in perfScenesNamed(names)) scene.key,
+    ];
+
+    test('gives every scene for an empty list', () {
+      expect(keys(''), [for (final scene in perfScenes) scene.key]);
+    });
+
+    test('keeps the named scenes in catalog order', () {
+      expect(keys('S5,S2-plain,S1'), ['S2-plain', 'S1', 'S5']);
+    });
+
+    test('rejects an unknown scene', () {
+      expect(() => perfScenesNamed('S2-plain,S9'), throwsArgumentError);
     });
   });
 }

@@ -147,8 +147,28 @@ Future<void> Function(WidgetTester tester) _scroll({
   return (tester) => scrollFor(tester, traceWindow, distance: distance);
 }
 
-/// Every scene of spec section 9.1, in table order.
+/// Every scene of spec section 9.1, in run order: the S2-plain null control
+/// first, so each run measures its own noise before the scenes it judges.
+/// `tool/perf_abba.dart` lists the same keys in its `catalog`.
 final perfScenes = <PerfScene>[
+  PerfScene(
+    'S2-plain',
+    build: (_) => _list(_plainRow),
+    drive: _scroll(),
+    check: (tester, _) async {
+      // Equal row heights give equal list extents, so S2-plain scrolls the
+      // same rows as S2-box. The current kit draws S2-box on both sides, so
+      // the null control's two sides do identical work before every trace
+      // (spec section 9.4).
+      final plainExtent = _position(tester).maxScrollExtent;
+      await tester.pumpWidget(
+        perfHost(_list((index) => _boxRow(const CurrentKit(), index))),
+      );
+      final boxExtent = _position(tester).maxScrollExtent;
+      await tester.pumpWidget(perfHost(_list(_plainRow)));
+      expect(plainExtent, closeTo(boxExtent, 0.5));
+    },
+  ),
   PerfScene(
     'S1',
     build: (kit) => _list((index) => _row(kit, index)),
@@ -178,24 +198,6 @@ final perfScenes = <PerfScene>[
     drive: _scroll(),
   ),
   PerfScene(
-    'S2-plain',
-    build: (_) => _list(_plainRow),
-    drive: _scroll(),
-    check: (tester, _) async {
-      // Equal row heights give equal list extents, so S2-plain scrolls the
-      // same rows as S2-box. The current kit draws S2-box on both sides, so
-      // the null control's two sides do identical work before every trace
-      // (spec section 9.4).
-      final plainExtent = _position(tester).maxScrollExtent;
-      await tester.pumpWidget(
-        perfHost(_list((index) => _boxRow(const CurrentKit(), index))),
-      );
-      final boxExtent = _position(tester).maxScrollExtent;
-      await tester.pumpWidget(perfHost(_list(_plainRow)));
-      expect(plainExtent, closeTo(boxExtent, 0.5));
-    },
-  ),
-  PerfScene(
     'S3',
     build: (kit) => _list((index) => _tappableRow(kit, index)),
     drive: _scroll(),
@@ -217,22 +219,19 @@ PerfScene perfScene(String key) {
   return perfScenes.singleWhere((scene) => scene.key == key);
 }
 
-/// Scene groups, one per invocation (spec section 9.4). Each group starts
-/// with the S2-plain null control and stays within 16 traces, because the
-/// binding sends every timeline to the driver in one message.
-///
-/// `tool/perf_abba.dart` lists the same keys in its `groups`.
-const perfGroups = <int, List<String>>{
-  1: ['S2-plain', 'S1', 'S1-fast', 'S2'],
-  2: ['S2-plain', 'S2-box', 'S3'],
-  3: ['S2-plain', 'S4', 'S5'],
-};
-
-/// The scenes of [group], in run order.
-List<PerfScene> perfGroup(int group) {
-  final keys = perfGroups[group];
-  if (keys == null) {
-    throw ArgumentError.value(group, 'group', 'no such scene group');
+/// The catalog scenes named in [names], a comma-separated list such as
+/// `PERF_SCENES` holds, in catalog order; every scene when [names] is empty.
+/// Throws an [ArgumentError] for a name that is not in the catalog.
+List<PerfScene> perfScenesNamed(String names) {
+  if (names.isEmpty) return perfScenes;
+  final keys = names.split(',');
+  for (final key in keys) {
+    if (!perfScenes.any((scene) => scene.key == key)) {
+      throw ArgumentError.value(key, 'names', 'no such scene');
+    }
   }
-  return [for (final key in keys) perfScene(key)];
+  return [
+    for (final scene in perfScenes)
+      if (keys.contains(scene.key)) scene,
+  ];
 }
