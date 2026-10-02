@@ -100,6 +100,38 @@ bool defaultScrollFocusable({
       }.contains(platform);
 }
 
+/// The screen direction of the arrow [key] when it points along [axis];
+/// null for any other key, an arrow across [axis] included.
+AxisDirection? arrowAlong(LogicalKeyboardKey key, Axis axis) {
+  final direction = switch (key) {
+    LogicalKeyboardKey.arrowUp => AxisDirection.up,
+    LogicalKeyboardKey.arrowDown => AxisDirection.down,
+    LogicalKeyboardKey.arrowLeft => AxisDirection.left,
+    LogicalKeyboardKey.arrowRight => AxisDirection.right,
+    _ => null,
+  };
+  if (direction == null || axisDirectionToAxis(direction) != axis) {
+    return null;
+  }
+  return direction;
+}
+
+/// Jumps [position] to its end. A lazy list only estimates its extent, so
+/// it jumps again after each frame until the extent stops changing, at
+/// most three more times, while [attached] holds.
+void jumpToEnd(ScrollPosition position, {required ValueGetter<bool> attached}) {
+  void jump(int retries) {
+    final extent = position.maxScrollExtent;
+    position.jumpTo(extent);
+    if (retries == 0) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (attached() && position.maxScrollExtent != extent) jump(retries - 1);
+    });
+  }
+
+  jump(3);
+}
+
 /// How the keys of a [ScrollFocus] move its view.
 enum ScrollFocusMode {
   /// Arrows scroll 50 px, Page Up and Page Down 0.8 of the viewport, and
@@ -480,7 +512,10 @@ class _ScrollFocusState extends State<ScrollFocus>
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.end) {
-      _jumpToEnd(controller, position, 3);
+      jumpToEnd(
+        position,
+        attached: () => mounted && controller.positions.contains(position),
+      );
       return KeyEventResult.handled;
     }
     final vertical = position.axis == Axis.vertical;
@@ -494,17 +529,9 @@ class _ScrollFocusState extends State<ScrollFocus>
     } else if (!_viewportFocused(handler, owns: widget.ownsFocus)) {
       direction = null;
     } else {
-      direction = switch (key) {
-        LogicalKeyboardKey.arrowUp => AxisDirection.up,
-        LogicalKeyboardKey.arrowDown => AxisDirection.down,
-        LogicalKeyboardKey.arrowLeft => AxisDirection.left,
-        LogicalKeyboardKey.arrowRight => AxisDirection.right,
-        _ => null,
-      };
+      direction = arrowAlong(key, position.axis);
     }
-    if (direction == null || axisDirectionToAxis(direction) != position.axis) {
-      return KeyEventResult.ignored;
-    }
+    if (direction == null) return KeyEventResult.ignored;
     // The amounts of Flutter's ScrollAction: a line is 50 px and a page is
     // 0.8 of the viewport.
     final amount = page ? 0.8 * position.viewportDimension : 50.0;
@@ -600,18 +627,9 @@ class _ScrollFocusState extends State<ScrollFocus>
       target = current - 1;
     } else {
       if (!viewportFocused) return KeyEventResult.ignored;
-      final direction = switch (key) {
-        LogicalKeyboardKey.arrowUp => AxisDirection.up,
-        LogicalKeyboardKey.arrowDown => AxisDirection.down,
-        LogicalKeyboardKey.arrowLeft => AxisDirection.left,
-        LogicalKeyboardKey.arrowRight => AxisDirection.right,
-        _ => null,
-      };
       final position = controller.position;
-      if (direction == null ||
-          axisDirectionToAxis(direction) != position.axis) {
-        return KeyEventResult.ignored;
-      }
+      final direction = arrowAlong(key, position.axis);
+      if (direction == null) return KeyEventResult.ignored;
       // The page on that side of the screen.
       target = direction == position.axisDirection ? current + 1 : current - 1;
     }
@@ -686,25 +704,6 @@ class _ScrollFocusState extends State<ScrollFocus>
 
   void _unregisterPage(int index, FocusNode node) {
     if (_pageNodes[index] == node) _pageNodes.remove(index);
-  }
-
-  /// Jumps to the end. A lazy list only estimates its extent, so it jumps
-  /// again after each frame until the extent stops changing, at most
-  /// [retries] more times.
-  void _jumpToEnd(
-    ScrollController controller,
-    ScrollPosition position,
-    int retries,
-  ) {
-    final extent = position.maxScrollExtent;
-    position.jumpTo(extent);
-    if (retries == 0) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !controller.positions.contains(position)) return;
-      if (position.maxScrollExtent != extent) {
-        _jumpToEnd(controller, position, retries - 1);
-      }
-    });
   }
 
   @override

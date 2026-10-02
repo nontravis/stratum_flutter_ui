@@ -182,17 +182,8 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
     } else if (key == LogicalKeyboardKey.end) {
       target = count - 1;
     } else {
-      final direction = switch (key) {
-        LogicalKeyboardKey.arrowUp => AxisDirection.up,
-        LogicalKeyboardKey.arrowDown => AxisDirection.down,
-        LogicalKeyboardKey.arrowLeft => AxisDirection.left,
-        LogicalKeyboardKey.arrowRight => AxisDirection.right,
-        _ => null,
-      };
-      if (direction == null ||
-          axisDirectionToAxis(direction) != position.axis) {
-        return KeyEventResult.ignored;
-      }
+      final direction = arrowAlong(key, position.axis);
+      if (direction == null) return KeyEventResult.ignored;
       // The slot on that side of the screen.
       target = direction == position.axisDirection ? index + 1 : index - 1;
     }
@@ -235,24 +226,14 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
     if (target == 0) {
       position.jumpTo(position.minScrollExtent);
     } else {
-      _jumpToEnd(item, position, 3);
+      jumpToEnd(
+        position,
+        attached: () =>
+            mounted &&
+            item.mounted &&
+            Scrollable.maybeOf(item)?.position == position,
+      );
     }
-  }
-
-  /// Jumps to the end. A lazy list only estimates its extent, so it jumps
-  /// again after each frame until the extent stops changing, at most
-  /// [retries] more times, as long as [item] stays in the list.
-  void _jumpToEnd(BuildContext item, ScrollPosition position, int retries) {
-    final extent = position.maxScrollExtent;
-    position.jumpTo(extent);
-    if (retries == 0) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !item.mounted) return;
-      if (Scrollable.maybeOf(item)?.position != position) return;
-      if (position.maxScrollExtent != extent) {
-        _jumpToEnd(item, position, retries - 1);
-      }
-    });
   }
 
   /// Reveals the item at [target] after a move. After a key move, when
