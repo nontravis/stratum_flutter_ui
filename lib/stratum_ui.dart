@@ -3,6 +3,7 @@ library;
 
 export 'package:act_thumbhash/act_thumbhash.dart';
 export 'package:badges/badges.dart';
+export 'package:dotted_border/dotted_border.dart';
 export 'package:extended_image/extended_image.dart'
     hide
         BaseRequest,
