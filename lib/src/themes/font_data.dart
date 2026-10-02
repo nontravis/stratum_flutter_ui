@@ -40,9 +40,9 @@ class StratumFontData {
   /// `packages/<package>/<family>` when [package] is set, else [family].
   ///
   /// Meaningful only when [source] is [StratumFontSource.app]: the
-  /// resolver asks [GoogleFontsLookup] for a [StratumFontSource.google]
-  /// font's family instead of reading this getter, since that family
-  /// depends on the requested weight and style.
+  /// resolver asks the `GoogleFontsLookup` seam for a
+  /// [StratumFontSource.google] font's family instead of reading this
+  /// getter, since that family depends on the requested weight and style.
   String get qualifiedFamily =>
       package == null ? family : 'packages/$package/$family';
 
@@ -61,54 +61,4 @@ class StratumFontData {
   String toString() =>
       'StratumFontData(family: $family, package: $package, '
       'adjustSize: $adjustSize, source: $source)';
-}
-
-/// Test seam for the two `GoogleFonts` calls a [StratumFontSource.google]
-/// font needs.
-///
-/// Replace [exists] or [family] in a test and restore both in `tearDown`;
-/// no test calls `GoogleFonts.getFont` for real, since it starts an HTTP
-/// fetch. A parse test may keep the real [exists] default: it reads
-/// `GoogleFonts.asMap()`, a const map with no network. Production code may
-/// only read [exists] and [family]; only a test may replace them.
-abstract final class GoogleFontsLookup {
-  static bool Function(String name) _exists = (name) =>
-      GoogleFonts.asMap().containsKey(name);
-
-  static String Function(
-    String name, {
-    required FontWeight weight,
-    required FontStyle? style,
-  })
-  _family = (name, {required weight, required style}) => GoogleFonts.getFont(
-    name,
-    fontWeight: weight,
-    fontStyle: style,
-  ).fontFamily!;
-
-  /// Whether `GoogleFonts.asMap()` has an entry for the given Google Fonts
-  /// family name; case-sensitive.
-  static bool Function(String name) get exists => _exists;
-
-  @visibleForTesting
-  static set exists(bool Function(String name) value) => _exists = value;
-
-  /// The family `GoogleFonts.getFont(name, fontWeight: weight, fontStyle:
-  /// style).fontFamily` resolves.
-  static String Function(
-    String name, {
-    required FontWeight weight,
-    required FontStyle? style,
-  })
-  get family => _family;
-
-  @visibleForTesting
-  static set family(
-    String Function(
-      String name, {
-      required FontWeight weight,
-      required FontStyle? style,
-    })
-    value,
-  ) => _family = value;
 }

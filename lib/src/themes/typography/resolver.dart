@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
 typedef _CacheKey = (StratumTextStyle, Locale, WindowSize?, TextScaler);
 
