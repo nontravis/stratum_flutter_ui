@@ -5,6 +5,8 @@ import 'package:stratum_ui/src/src.dart';
 ///
 /// * Tab enters the group once and lands on the item that last held focus,
 ///   or on the first item; Tab and Shift+Tab then leave it (WCAG 2.1.2).
+///   From a node inside an item, such as an item of a focusable scroller,
+///   they first move among that item and the nodes inside it.
 /// * Arrows along the layout axis move to the next item on screen in the
 ///   pressed direction: Left and Right in a row, Up and Down in a column,
 ///   also under right-to-left text and [VerticalDirection.up]. In a wrap,
@@ -381,6 +383,10 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
 /// Sorts a group's members down to one: the member that holds the current
 /// node, else the one that last held focus, else the first in reading
 /// order. Tab then enters the group once and leaves it from any item.
+///
+/// When the current node lies inside a member, such as an item in a
+/// focusable scroller, the member keeps the members inside it, after it
+/// in reading order, so Tab moves among them before it leaves the group.
 class _FocusGroupPolicy extends ReadingOrderTraversalPolicy {
   new(this.lastFocused);
 
@@ -402,8 +408,16 @@ class _FocusGroupPolicy extends ReadingOrderTraversalPolicy {
       return null;
     }
 
+    final holder = holding(currentNode);
+    if (holder != null && holder != currentNode) {
+      final inside = [
+        for (final member in members)
+          if (member.ancestors.contains(holder)) member,
+      ];
+      return [holder, ...super.sortDescendants(inside, currentNode)];
+    }
     final entry =
-        holding(currentNode) ??
+        holder ??
         holding(lastFocused()) ??
         super.sortDescendants(members, currentNode).first;
     return [entry];

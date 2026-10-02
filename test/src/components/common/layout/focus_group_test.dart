@@ -59,11 +59,78 @@ Future<bool> _key(WidgetTester tester, LogicalKeyboardKey key) async {
   return handled;
 }
 
+Future<void> _tab(WidgetTester tester) async {
+  await _key(tester, LogicalKeyboardKey.tab);
+}
+
 Future<void> _shiftTab(WidgetTester tester) async {
   await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
   await tester.sendKeyEvent(LogicalKeyboardKey.tab);
   await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
   await tester.pump();
+}
+
+/// A toolbar row group, `[bold] [italic] [scroller: a, b] [color]`,
+/// between a focusable box before it and one after it.
+class _Toolbar {
+  final FocusNode before = _node('before');
+  final FocusNode bold = _node('bold');
+  final FocusNode italic = _node('italic');
+  final FocusNode a = _node('a');
+  final FocusNode b = _node('b');
+  final FocusNode color = _node('color');
+  final FocusNode after = _node('after');
+
+  /// The label of the node that holds primary focus; the scroller's own
+  /// stop is `box`.
+  String get focused {
+    final primary = FocusManager.instance.primaryFocus;
+    if (primary?.debugLabel == 'ScrollFocus') return 'box';
+    return primary?.debugLabel ?? '-';
+  }
+
+  /// Pumps the toolbar, whose third member is the scroller that
+  /// [scroller] builds from the items a and b.
+  Future<void> pump(
+    WidgetTester tester,
+    Widget Function(List<Widget> items) scroller,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        RowLayout(
+          mainAxisSize: MainAxisSize.min,
+          focusGroup: const StratumFocusGroup(),
+          children: [
+            _item(bold),
+            _item(italic),
+            SizedBox(
+              width: 40,
+              height: 100,
+              child: scroller([_item(a), _item(b)]),
+            ),
+            _item(color),
+          ],
+        ),
+        before: before,
+        after: after,
+      ),
+    );
+  }
+
+  /// Presses each of [keys] in turn, expecting no error, and returns the
+  /// focused node after each.
+  Future<List<String>> press(
+    WidgetTester tester,
+    List<Future<void> Function(WidgetTester tester)> keys,
+  ) async {
+    final path = <String>[];
+    for (final key in keys) {
+      await key(tester);
+      expect(tester.takeException(), isNull);
+      path.add(focused);
+    }
+    return path;
+  }
 }
 
 /// Ten 100 px items in a group inside a 200 px wide scrolling row under
@@ -784,6 +851,62 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+  });
+
+  group('StratumFocusGroup with a focusable scroller member', () {
+    final scrollers = <String, Widget Function(List<Widget> items)>{
+      'ColumnLayout': (items) =>
+          ColumnLayout(scroll: const StratumScroll(), children: items),
+      'ListViewLayout': (items) => ListViewLayout.builder(
+        itemCount: items.length,
+        itemBuilder: (context, index) => items[index],
+      ),
+    };
+    for (final MapEntry(key: name, value: scroller) in scrollers.entries) {
+      testWidgets(
+        'Tab from an item inside a $name member moves to the next item, '
+        'then leaves the group',
+        (tester) async {
+          final toolbar = _Toolbar();
+          await toolbar.pump(tester, scroller);
+          await _focus(tester, toolbar.a);
+
+          final path = await toolbar.press(tester, [_tab, _tab]);
+
+          expect(path, ['b', 'after']);
+        },
+        variant: TargetPlatformVariant.desktop(),
+      );
+
+      testWidgets(
+        'Shift+Tab from an item inside a $name member moves to its stop, '
+        'then leaves the group backwards',
+        (tester) async {
+          final toolbar = _Toolbar();
+          await toolbar.pump(tester, scroller);
+          await _focus(tester, toolbar.a);
+
+          final path = await toolbar.press(tester, [_shiftTab, _shiftTab]);
+
+          expect(path, ['box', 'before']);
+        },
+        variant: TargetPlatformVariant.desktop(),
+      );
+
+      testWidgets(
+        'Tab from a member beside a $name member leaves the group',
+        (tester) async {
+          final toolbar = _Toolbar();
+          await toolbar.pump(tester, scroller);
+          await _focus(tester, toolbar.bold);
+
+          final path = await toolbar.press(tester, [_tab]);
+
+          expect(path, ['after']);
+        },
+        variant: TargetPlatformVariant.desktop(),
+      );
+    }
   });
 
   group('StratumFocusGroup role', () {
