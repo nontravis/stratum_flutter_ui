@@ -1,3 +1,4 @@
+import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -159,6 +160,14 @@ enum ScrollFocusMode {
 /// last page is not handled. The page view never inherits the
 /// [PrimaryScrollController]: [controller] must be a [PageController], and
 /// without one a focusable view gets an internal one.
+///
+/// Each page sits in [page]. While a node inside a page holds focus, the
+/// arrows keep Flutter's default, and when Page Up, Page Down, Home, or End
+/// changes the page, focus moves after the change to the first node of the
+/// new page in Tab order, else to the view's own node. When focus moves
+/// into another page, as Tab does into a neighbor page that
+/// `allowImplicitScrolling` built, the view shows that page whole by the
+/// same slide or jump.
 class ScrollFocus extends StatefulWidget {
   const new({
     super.key,
@@ -219,6 +228,15 @@ class ScrollFocus extends StatefulWidget {
     return FocusTraversalGroup(policy: _contentPolicy, child: child);
   }
 
+  /// Wraps [child], the page at [index] of the page view below a
+  /// [ScrollFocus] in [ScrollFocusMode.pages], in its own traversal group,
+  /// so Tab finishes one page before the next, and in a node that marks
+  /// the page's index. Without the group, reading order would interleave
+  /// pages whose rows share one band.
+  static Widget page({Key? key, required int index, required Widget child}) {
+    return _PageMarker(key: key, index: index, child: child);
+  }
+
   /// Shared by every content group; it keeps no state of its own.
   static final _contentPolicy = _ScrollContentPolicy();
 
@@ -251,6 +269,9 @@ class _ScrollFocusState extends State<ScrollFocus>
   /// Counts page changes, so a slide that a later change interrupts leaves
   /// [_slideTarget] alone.
   var _pageChanges = 0;
+
+  /// The node of each built page, by index.
+  final _pageNodes = <int, FocusNode>{};
 
   bool get _pages => widget.mode == ScrollFocusMode.pages;
 
@@ -484,6 +505,7 @@ class _ScrollFocusState extends State<ScrollFocus>
   ) {
     final count = widget.pageCount;
     final current = _slideTarget ?? (controller.page ?? 0).round();
+    final viewportFocused = _viewportFocused(handler, owns: widget.ownsFocus);
     final int target;
     var jump = false;
     if (key == LogicalKeyboardKey.home) {
@@ -498,9 +520,7 @@ class _ScrollFocusState extends State<ScrollFocus>
     } else if (key == LogicalKeyboardKey.pageUp) {
       target = current - 1;
     } else {
-      if (!_viewportFocused(handler, owns: widget.ownsFocus)) {
-        return KeyEventResult.ignored;
-      }
+      if (!viewportFocused) return KeyEventResult.ignored;
       final direction = switch (key) {
         LogicalKeyboardKey.arrowUp => AxisDirection.up,
         LogicalKeyboardKey.arrowDown => AxisDirection.down,
@@ -519,17 +539,36 @@ class _ScrollFocusState extends State<ScrollFocus>
     if (target < 0 || (count != null && target >= count)) {
       return KeyEventResult.ignored;
     }
-    _goToPage(controller, target, jump: jump);
+    _goToPage(controller, target, jump: jump, focusPage: !viewportFocused);
     return KeyEventResult.handled;
   }
 
   /// Slides to [page] over [_pageDuration], or jumps there for [jump] or
-  /// when the app or the platform asks for less motion.
-  void _goToPage(PageController controller, int page, {required bool jump}) {
+  /// when the app or the platform asks for less motion. With [focusPage],
+  /// focus then moves into the page, by [_focusPage].
+  void _goToPage(
+    PageController controller,
+    int page, {
+    required bool jump,
+    bool focusPage = false,
+  }) {
     final change = ++_pageChanges;
+    void settle() {
+      if (!mounted || change != _pageChanges) return;
+      _slideTarget = null;
+      // A drag that interrupted the slide leaves focus where it is.
+      final shown = controller.positions.length == 1
+          ? controller.page?.round()
+          : null;
+      if (focusPage && shown == page) _focusPage(page);
+    }
+
     if (jump || reducesMotion(context)) {
       _slideTarget = null;
       controller.jumpToPage(page);
+      if (focusPage) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => settle());
+      }
       return;
     }
     _slideTarget = page;
@@ -540,10 +579,34 @@ class _ScrollFocusState extends State<ScrollFocus>
             duration: _pageDuration,
             curve: Curves.easeInOutSine,
           )
-          .whenComplete(() {
-            if (mounted && change == _pageChanges) _slideTarget = null;
-          }),
+          .whenComplete(settle),
     );
+  }
+
+  /// Focuses the first node of [page] in Tab order, else the view's own
+  /// node.
+  void _focusPage(int page) {
+    final node = _pageNodes[page];
+    final first = node == null ? null : firstTabStopIn(node);
+    (first ?? _focusNode).requestFocus();
+  }
+
+  /// Shows [page] whole after focus moved into it, unless the view already
+  /// shows it or slides to it.
+  void _showPage(int page) {
+    final controller = _keyController;
+    if (controller is! PageController || controller.positions.length != 1) {
+      return;
+    }
+    if (_slideTarget == page) return;
+    if (_slideTarget == null && controller.page == page.toDouble()) return;
+    _goToPage(controller, page, jump: false);
+  }
+
+  void _registerPage(int index, FocusNode node) => _pageNodes[index] = node;
+
+  void _unregisterPage(int index, FocusNode node) {
+    if (_pageNodes[index] == node) _pageNodes.remove(index);
   }
 
   /// Jumps to the end. A lazy list only estimates its extent, so it jumps
@@ -569,6 +632,7 @@ class _ScrollFocusState extends State<ScrollFocus>
   Widget build(BuildContext context) {
     Widget result = _ScrollFocusScope(
       controller: _viewController,
+      pages: _pages ? this : null,
       child: widget.child,
     );
     if (!widget.focusable) return result;
@@ -657,15 +721,87 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   }
 }
 
-/// Hands [ScrollFocus]'s controller to the scroll view below it.
+/// Hands [ScrollFocus]'s controller to the scroll view below it, and, in
+/// [ScrollFocusMode.pages], its state to the page markers.
 class _ScrollFocusScope extends InheritedWidget {
-  const new({required this.controller, required super.child});
+  const new({
+    required this.controller,
+    required this.pages,
+    required super.child,
+  });
 
   final ScrollController? controller;
+  final _ScrollFocusState? pages;
 
   @override
   bool updateShouldNotify(_ScrollFocusScope oldWidget) =>
-      controller != oldWidget.controller;
+      controller != oldWidget.controller || pages != oldWidget.pages;
+}
+
+/// The page at [index] of a page view: its own traversal group on the
+/// content group's policy, and a node that marks it for the [ScrollFocus]
+/// above.
+class _PageMarker extends StatefulWidget {
+  const new({super.key, required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<_PageMarker> createState() => _PageMarkerState();
+}
+
+class _PageMarkerState extends State<_PageMarker> {
+  final _node = FocusNode(
+    debugLabel: 'ScrollFocus page',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+  _ScrollFocusState? _pages;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final pages = context
+        .dependOnInheritedWidgetOfExactType<_ScrollFocusScope>()
+        ?.pages;
+    if (pages == _pages) return;
+    _pages?._unregisterPage(widget.index, _node);
+    _pages = pages?.._registerPage(widget.index, _node);
+  }
+
+  @override
+  void didUpdateWidget(_PageMarker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index == widget.index) return;
+    _pages
+      ?.._unregisterPage(oldWidget.index, _node)
+      .._registerPage(widget.index, _node);
+  }
+
+  @override
+  void dispose() {
+    _pages?._unregisterPage(widget.index, _node);
+    _node.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange(bool focused) {
+    if (focused) _pages?._showPage(widget.index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FocusTraversalGroup(
+      policy: ScrollFocus._contentPolicy,
+      child: Focus(
+        focusNode: _node,
+        includeSemantics: false,
+        onFocusChange: _handleFocusChange,
+        child: widget.child,
+      ),
+    );
+  }
 }
 
 /// Builds the scroll view of a layout scroll view: [controller] comes from
