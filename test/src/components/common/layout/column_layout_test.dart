@@ -49,7 +49,8 @@ void main() {
       );
 
       expect(find.byType(AnimatedStyledBox), findsNothing);
-      expect(find.byType(Column), findsOneWidget);
+      expect(find.byType(Flex), findsOneWidget);
+      expect(tester.widget<Flex>(find.byType(Flex)).direction, Axis.vertical);
     });
 
     testWidgets('a height in the style makes the column fill it', (
@@ -65,7 +66,8 @@ void main() {
         ),
       );
 
-      final column = tester.widget<Column>(find.byType(Column));
+      final column = tester.widget<Flex>(find.byType(Flex));
+      expect(column.direction, Axis.vertical);
       expect(column.mainAxisSize, MainAxisSize.max);
     });
 
@@ -107,7 +109,8 @@ void main() {
         ),
       );
 
-      final column = tester.widget<Column>(find.byType(Column));
+      final column = tester.widget<Flex>(find.byType(Flex));
+      expect(column.direction, Axis.vertical);
       expect(column.spacing, 8);
       expect(column.children, hasLength(2));
     });

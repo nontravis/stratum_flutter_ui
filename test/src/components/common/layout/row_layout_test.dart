@@ -33,7 +33,8 @@ void main() {
       );
 
       expect(find.byType(AnimatedStyledBox), findsNothing);
-      expect(find.byType(Row), findsOneWidget);
+      expect(find.byType(Flex), findsOneWidget);
+      expect(tester.widget<Flex>(find.byType(Flex)).direction, Axis.horizontal);
     });
 
     testWidgets('a width in the style makes the row fill it', (tester) async {
@@ -47,7 +48,8 @@ void main() {
         ),
       );
 
-      final row = tester.widget<Row>(find.byType(Row));
+      final row = tester.widget<Flex>(find.byType(Flex));
+      expect(row.direction, Axis.horizontal);
       expect(row.mainAxisSize, MainAxisSize.max);
     });
 
@@ -89,7 +91,8 @@ void main() {
         ),
       );
 
-      final row = tester.widget<Row>(find.byType(Row));
+      final row = tester.widget<Flex>(find.byType(Flex));
+      expect(row.direction, Axis.horizontal);
       expect(row.spacing, 8);
       expect(row.children, hasLength(2));
     });
