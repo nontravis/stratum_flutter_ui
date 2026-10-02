@@ -242,6 +242,37 @@ List<String> escalationScenes(Map<String, Verdict> verdicts) {
   ];
 }
 
+/// The scenes of a `run --from [from]` call against [stored] traces, or a
+/// refusal with its reason (spec section 9.5). `from` 1 to 12 measures the
+/// whole catalog, the first comparison's runs. Above 12, refuses while the
+/// stored S2-plain interval exists and excludes 0 (an INVALID comparison is
+/// not escalated; a missing interval still allows runs), refuses when no
+/// scene is INCONCLUSIVE, else gives the INCONCLUSIVE scenes plus S2-plain
+/// in catalog order.
+({List<String> scenes, String? error}) callScenes({
+  required int from,
+  required List<Trace> stored,
+}) {
+  if (from <= 12) return (scenes: catalog, error: null);
+  final judged = judge(stored, loads: const [], scenes: catalog);
+  if (judged.nullCi != null && !nullGatePasses(judged.nullCi)) {
+    return (
+      scenes: const [],
+      error:
+          'the stored runs are INVALID (the null interval excludes 0); '
+          'run --from above 12 refuses, and the comparison runs again',
+    );
+  }
+  final scenes = escalationScenes(judged.scenes);
+  if (scenes.length == 1) {
+    return (
+      scenes: const [],
+      error: 'the stored runs leave no scene INCONCLUSIVE; no run is added',
+    );
+  }
+  return (scenes: scenes, error: null);
+}
+
 /// The run number of a `PERF_RUN <run>` line, or null for any other line.
 int? runMark(String line) {
   final index = line.indexOf(runMarker);
@@ -375,20 +406,14 @@ Future<int> _run({required int from, required int runs}) async {
       return 64;
     }
   }
-  // The stored runs decide the scenes: every scene on a first call, the
-  // INCONCLUSIVE ones plus S2-plain on an escalation (spec section 9.5).
-  final judged = judge(
-    stored?.traces ?? const [],
-    loads: const [],
-    scenes: catalog,
-  );
-  final scenes = escalationScenes(judged.scenes);
-  if (scenes.length == 1) {
-    stderr.writeln(
-      'the stored runs leave no scene INCONCLUSIVE; no run is added',
-    );
+  // The call's scenes: the whole catalog through run 12, or an escalation
+  // chosen from the stored runs above it (spec section 9.5).
+  final call = callScenes(from: from, stored: stored?.traces ?? const []);
+  if (call.error != null) {
+    stderr.writeln(call.error);
     return 64;
   }
+  final scenes = call.scenes;
   // One build and one invocation for the whole call (spec section 9.4).
   if (!await _build(buildArgs(from: from, runs: runs, scenes: scenes))) {
     return 1;
@@ -416,7 +441,8 @@ Future<int> _run({required int from, required int runs}) async {
       '--from adds runs after the last stored run',
     );
   }
-  return _report();
+  final verdict = _writeReport();
+  return verdict == null ? 64 : callExit(driveExit: exit, verdict: verdict);
 }
 
 Future<int> _traceFull({required String scene, required int runs}) async {
@@ -436,11 +462,14 @@ Future<int> _traceFull({required String scene, required int runs}) async {
   return drive.exitCode;
 }
 
-int _report() {
+/// Judges the stored runs, prints the report, and writes it to
+/// `build/perf/abba/report.md`; returns the overall verdict, or null when
+/// [abbaRoot] holds no runs.
+Verdict? _writeReport() {
   final root = Directory(abbaRoot);
   if (!root.existsSync()) {
     stderr.writeln('no runs in $abbaRoot');
-    return 64;
+    return null;
   }
   final (:traces, :loads, :codeStates) = readRuns(root);
   final result = judge(
@@ -451,7 +480,12 @@ int _report() {
   );
   stdout.write(result.text);
   File('$abbaRoot/report.md').writeAsStringSync(result.text);
-  return exitCodeOf(result.verdict);
+  return result.verdict;
+}
+
+int _report() {
+  final verdict = _writeReport();
+  return verdict == null ? 64 : exitCodeOf(verdict);
 }
 
 /// Reads the metrics of one summary: the JSON of a `PERF_SUMMARY` line, as
@@ -669,6 +703,13 @@ int exitCodeOf(Verdict verdict) {
   };
 }
 
+/// The exit code of a `run` call (spec section 9.5): 1 whenever
+/// `flutter drive` exited non-zero, a cut call that never reached a
+/// complete comparison; otherwise [verdict]'s exit code.
+int callExit({required int driveExit, required Verdict verdict}) {
+  return driveExit != 0 ? 1 : exitCodeOf(verdict);
+}
+
 /// The one-minute load average in an `uptime` line, or null.
 double? loadOf(String uptime) {
   final match = RegExp(r'load averages?: ([\d.]+)').firstMatch(uptime);
@@ -717,9 +758,16 @@ String? codeMismatch(Map<String, String> codeStates) {
   return 'code states differ: ${[for (final state in states) '$state in ${(byState[state]!..sort()).join(', ')}'].join('; ')}';
 }
 
-/// Judges [traces] and returns the report text, the overall verdict, and
-/// the verdict of each scene other than S2-plain.
-({String text, Verdict verdict, Map<String, Verdict> scenes}) judge(
+/// Judges [traces] and returns the report text, the overall verdict, the
+/// verdict of each scene other than S2-plain, and the null control's
+/// confidence interval (null below 6 S2-plain blocks).
+({
+  String text,
+  Verdict verdict,
+  Map<String, Verdict> scenes,
+  ConfidenceInterval? nullCi,
+})
+judge(
   List<Trace> traces, {
   required List<double> loads,
   required List<String> scenes,
@@ -791,7 +839,12 @@ String? codeMismatch(Map<String, String> codeStates) {
     ..writeln('|---|---|---|---|---|---|---|---|')
     ..writeAll(rows.map((row) => '$row\n'))
     ..writeln('overall: ${verdict.name.toUpperCase()}');
-  return (text: text.toString(), verdict: verdict, scenes: verdicts);
+  return (
+    text: text.toString(),
+    verdict: verdict,
+    scenes: verdicts,
+    nullCi: nullCi,
+  );
 }
 
 String _row(
