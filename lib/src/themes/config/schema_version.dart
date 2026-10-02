@@ -1,0 +1,45 @@
+import 'package:flutter/foundation.dart';
+
+/// The `$schema` version of a `theme.yaml` file:
+/// `stratum-theme/v<major>.<minor>.<patch>`.
+@immutable
+class StratumSchemaVersion {
+  const new(this.major, this.minor, this.patch);
+
+  /// The newest version this package reads: `stratum-theme/v1.0.0`.
+  static const current = StratumSchemaVersion(1, 0, 0);
+
+  static final _pattern = RegExp(r'^stratum-theme/v(\d+)\.(\d+)\.(\d+)$');
+
+  /// Reads `stratum-theme/v<major>.<minor>.<patch>`; null when [value] does
+  /// not match.
+  static StratumSchemaVersion? tryParse(String value) {
+    final match = _pattern.firstMatch(value);
+    if (match == null) return null;
+    final major = int.tryParse(match[1]!);
+    final minor = int.tryParse(match[2]!);
+    final patch = int.tryParse(match[3]!);
+    if (major == null || minor == null || patch == null) return null;
+    return StratumSchemaVersion(major, minor, patch);
+  }
+
+  final int major;
+  final int minor;
+  final int patch;
+
+  /// The same major as [current] and a minor no newer than its; any patch.
+  bool get isSupported => major == current.major && minor <= current.minor;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StratumSchemaVersion &&
+      other.major == major &&
+      other.minor == minor &&
+      other.patch == patch;
+
+  @override
+  int get hashCode => Object.hash(major, minor, patch);
+
+  @override
+  String toString() => 'stratum-theme/v$major.$minor.$patch';
+}
