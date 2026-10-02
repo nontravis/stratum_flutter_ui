@@ -407,6 +407,21 @@ void main() {
     });
   });
 
+  group('callExit', () {
+    test('gives the verdict exit code when flutter drive exits 0', () {
+      expect(callExit(driveExit: 0, verdict: Verdict.pass), 0);
+      expect(callExit(driveExit: 0, verdict: Verdict.fail), 1);
+      expect(callExit(driveExit: 0, verdict: Verdict.inconclusive), 2);
+    });
+
+    test('gives 1 whenever flutter drive exits non-zero, whatever the '
+        'stored verdict', () {
+      expect(callExit(driveExit: 1, verdict: Verdict.pass), 1);
+      expect(callExit(driveExit: 2, verdict: Verdict.inconclusive), 1);
+      expect(callExit(driveExit: 70, verdict: Verdict.fail), 1);
+    });
+  });
+
   group('loadOf', () {
     test('reads the one-minute load average', () {
       expect(
@@ -770,6 +785,89 @@ void main() {
       expect(escalationScenes({'S1': Verdict.pass, 'S4': Verdict.fail}), [
         nullScene,
       ]);
+    });
+  });
+
+  group('callScenes', () {
+    test('measures the whole catalog on a first call', () {
+      expect(callScenes(from: 1, stored: const []), (
+        scenes: catalog,
+        error: null,
+      ));
+    });
+
+    test('measures the whole catalog on a continuation at or below run 12, '
+        'skipping the escalation rules', () {
+      final allPass = [
+        ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
+        for (final scene in catalog.where((s) => s != 'S2-plain'))
+          ..._blocks(scene, _rcaS4),
+      ];
+      expect(callScenes(from: 5, stored: allPass), (
+        scenes: catalog,
+        error: null,
+      ));
+      expect(callScenes(from: 12, stored: allPass), (
+        scenes: catalog,
+        error: null,
+      ));
+    });
+
+    test('above run 12, measures the INCONCLUSIVE scenes plus S2-plain, in '
+        'catalog order', () {
+      final stored = [
+        ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
+        ..._blocks('S1', _rcaS4),
+        ..._blocks('S1-fast', [-2, 8, 1, 9, 3, 7]),
+      ];
+      final call = callScenes(from: 13, stored: stored);
+      expect(call.error, isNull);
+      expect(call.scenes, [
+        'S2-plain',
+        'S1-fast',
+        'S2',
+        'S2-box',
+        'S3',
+        'S4',
+        'S5',
+      ]);
+    });
+
+    test('refuses above run 12 when the stored S2-plain interval excludes '
+        '0: an INVALID comparison is not escalated', () {
+      final stored = [
+        ..._blocks('S2-plain', [3, 2, 1, 4, 5, 2]),
+        ..._blocks('S4', _rcaS4),
+      ];
+      final call = callScenes(from: 13, stored: stored);
+      expect(call.error, isNotNull);
+      expect(call.scenes, isEmpty);
+    });
+
+    test('refuses above run 12 when no scene is INCONCLUSIVE', () {
+      final allPass = [
+        ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
+        for (final scene in catalog.where((s) => s != 'S2-plain'))
+          ..._blocks(scene, _rcaS4),
+      ];
+      final call = callScenes(from: 13, stored: allPass);
+      expect(
+        call.error,
+        'the stored runs leave no scene INCONCLUSIVE; no run is added',
+      );
+      expect(call.scenes, isEmpty);
+    });
+
+    test('a missing null interval still allows an escalation', () {
+      // Fewer than 6 S2-plain blocks: no interval, so the refusal above
+      // does not fire, and the escalation rule decides instead.
+      final stored = [
+        ..._blocks('S2-plain', [-3, 2, -1]),
+        ..._blocks('S1', _rcaS4),
+      ];
+      final call = callScenes(from: 13, stored: stored);
+      expect(call.error, isNull);
+      expect(call.scenes, contains(nullScene));
     });
   });
 
