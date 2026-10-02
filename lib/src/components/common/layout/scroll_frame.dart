@@ -168,6 +168,17 @@ enum ScrollFocusMode {
 /// into another page, as Tab does into a neighbor page that
 /// `allowImplicitScrolling` built, the view shows that page whole by the
 /// same slide or jump.
+///
+/// In the body of a [NestedScrollView], when the keys scroll through its
+/// inner controller, which a vertical scroll view in the body inherits as
+/// the [PrimaryScrollController], they move the header and the body as one
+/// range: the header's collapse extent, then the body's extent. An arrow
+/// or a page first collapses or expands the header and then scrolls the
+/// body, and a press that crosses the header's extent moves both; Home
+/// expands the header and returns the body to its start, and End scrolls
+/// the body to its end and collapses the header. When the inner controller
+/// holds several positions, as during a tab swipe, the keys move the one
+/// of the scroll view below this widget.
 class ScrollFocus extends StatefulWidget {
   const new({
     super.key,
@@ -251,6 +262,9 @@ class _ScrollFocusState extends State<ScrollFocus>
 
   /// How long a key page change slides.
   static const _pageDuration = Duration(milliseconds: 300);
+
+  /// How long an arrow or a page scroll in [ScrollFocusMode.lines] takes.
+  static const _lineDuration = Duration(milliseconds: 100);
 
   // Created on first use and kept until dispose, as StratumInkWell keeps
   // its node.
@@ -445,17 +459,24 @@ class _ScrollFocusState extends State<ScrollFocus>
       return KeyEventResult.ignored;
     }
     final controller = _keyController;
-    if (controller == null || controller.positions.length != 1) {
-      return KeyEventResult.ignored;
-    }
+    if (controller == null) return KeyEventResult.ignored;
     final key = event.logicalKey;
     if (_pages) {
-      if (controller is! PageController) return KeyEventResult.ignored;
+      if (controller is! PageController || controller.positions.length != 1) {
+        return KeyEventResult.ignored;
+      }
       return _handlePageKey(handler, controller, key);
     }
-    final position = controller.position;
+    final nested = _nestedScrollView(controller);
+    final position = nested == null
+        ? (controller.positions.length == 1 ? controller.position : null)
+        : _ownPosition(controller);
+    if (position == null) return KeyEventResult.ignored;
     if (key == LogicalKeyboardKey.home) {
-      position.jumpTo(position.minScrollExtent);
+      // In a nested scroll view the header expands, and the coordinator
+      // returns the body to its start.
+      final start = nested?.outerController.position ?? position;
+      start.jumpTo(start.minScrollExtent);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.end) {
@@ -488,12 +509,70 @@ class _ScrollFocusState extends State<ScrollFocus>
     // 0.8 of the viewport.
     final amount = page ? 0.8 * position.viewportDimension : 50.0;
     final delta = direction == position.axisDirection ? amount : -amount;
-    position.moveTo(
-      position.pixels + delta,
-      duration: const Duration(milliseconds: 100),
-      curve: Curves.easeInOut,
-    );
+    if (nested != null) {
+      _moveNested(nested.outerController.position, position, delta);
+    } else {
+      position.moveTo(
+        position.pixels + delta,
+        duration: _lineDuration,
+        curve: Curves.easeInOut,
+      );
+    }
     return KeyEventResult.handled;
+  }
+
+  /// The [NestedScrollView] whose body this widget's view scrolls with: the
+  /// one above, when [controller] is its inner controller; else null.
+  NestedScrollViewState? _nestedScrollView(ScrollController controller) {
+    final nested = context.findAncestorStateOfType<NestedScrollViewState>();
+    if (nested == null || nested.innerController != controller) return null;
+    return nested;
+  }
+
+  /// The position of the scroll view below this widget, among the several
+  /// that a nested scroll view's inner controller may hold.
+  ScrollPosition? _ownPosition(ScrollController controller) {
+    for (final position in controller.positions) {
+      final scrollable = position.context.storageContext;
+      if (scrollable.findAncestorStateOfType<_ScrollFocusState>() == this) {
+        return position;
+      }
+    }
+    return null;
+  }
+
+  /// Moves a nested scroll view by [delta] along one range: [outer]'s
+  /// extent, over which the header collapses, then [inner]'s, the body's.
+  ///
+  /// Moving [inner] by its own offset would collapse the header at once,
+  /// because the coordinator maps every inner offset to a collapsed header.
+  /// A target within the header's extent moves [outer], and the coordinator
+  /// returns the body to its start; a target past it moves [inner], and the
+  /// coordinator holds the header collapsed.
+  static void _moveNested(
+    ScrollPosition outer,
+    ScrollPosition inner,
+    double delta,
+  ) {
+    final header = outer.maxScrollExtent - outer.minScrollExtent;
+    final scrolled = inner.pixels - inner.minScrollExtent;
+    final offset =
+        outer.pixels - outer.minScrollExtent + (scrolled > 0 ? scrolled : 0);
+    final end = header + inner.maxScrollExtent - inner.minScrollExtent;
+    final target = clampDouble(offset + delta, 0, end);
+    if (target <= header) {
+      outer.moveTo(
+        outer.minScrollExtent + target,
+        duration: _lineDuration,
+        curve: Curves.easeInOut,
+      );
+    } else {
+      inner.moveTo(
+        inner.minScrollExtent + target - header,
+        duration: _lineDuration,
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   /// The keys of [ScrollFocusMode.pages]: each goes to one page, counted
