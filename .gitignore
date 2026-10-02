@@ -1,88 +1,66 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-.serena
-benchmarks/
-.atom/
+# ---------------------------------------------------------------------------
+# Secrets and credentials
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.jks
+*.keystore
+key.properties
+google-services.json
+GoogleService-Info.plist
+
+# ---------------------------------------------------------------------------
+# Dart / Flutter
+# ---------------------------------------------------------------------------
+# Packages do not commit pubspec.lock (https://dart.dev/guides/libraries/private-files#pubspeclock).
+# example/ is an app and keeps its own lockfile.
+/pubspec.lock
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+.flutter-plugins
+.flutter-plugins-dependencies
+.fvm/
+/build/
+/coverage/
+**/doc/api/
 .buildlog/
-.history
-.svn/
 migrate_working_dir/
 
-
-### AI ###
+# ---------------------------------------------------------------------------
+# AI agents and local tooling
+# ---------------------------------------------------------------------------
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+.claude.local.md
+.mcp.local.json
 .serena/
 .superpowers/
-.claude/worktrees/
-.claude/scheduled_tasks.lock
-.claude.local.md
-.claude/settings.local.json
-.mcp.local.json
-.playwright-mcp
+.playwright-mcp/
+.worktrees/
 
-### IntelliJ ###
+# ---------------------------------------------------------------------------
+# IDE
+# ---------------------------------------------------------------------------
+.idea/
 *.iml
 *.ipr
 *.iws
-.idea/
-/*/build/
-/*/local.properties
-/*/out
-/*/*/build
-/*/*/production
-.navigation/
-captures/
+.history/
 
-
-### Flutter ###
-# Libraries should not include pubspec.lock, per https://dart.dev/guides/libraries/private-files#pubspeclock.
-/pubspec.lock
-**/doc/api/
-.dart_tool/
-.flutter-plugins-dependencies
-/build/
-/coverage/
-.dart_tool
-.flutter-plugins
-.fvm/
-.packages
-.pub-cache/
-.pub/
-
-
-### Credential ###
-# Keystore files
-*.jks
-*.keystore
-.keystore/
-
-# Google Services (e.g. APIs or Firebase)
-google-services.json
-GoogleService-Info.plist
-hosting.*
-.firebaserc
-
-# Flutter/Dart/Pub related
-
-
-### Android ###
-# Built application files
-.apk/
-*.apk
-*.aar
-*.ap_
-*.aab
-
-# Files for the ART/Dalvik VM
-*.dex
-
-# Worktrees
-.worktrees/
-
+# ---------------------------------------------------------------------------
+# OS and editor noise
+# ---------------------------------------------------------------------------
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+*.swp
+*.log
+*.pyc
+*.class
