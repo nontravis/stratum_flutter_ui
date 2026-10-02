@@ -6,7 +6,8 @@ import 'package:stratum_ui/src/src.dart';
 /// the content scroll, as Figma overflow scrolling does; a layout with a
 /// null `scroll` does not scroll. [reverse], [controller], [primary],
 /// [keyboardDismissBehavior], and [restorationId] reach the
-/// [SingleChildScrollView] unchanged.
+/// [SingleChildScrollView] unchanged. On web and desktop the scrolling box
+/// is a Tab stop whose arrows, Page Up, Page Down, Home, and End scroll it.
 ///
 /// The class does not override `==`: a controller compares by identity.
 @immutable

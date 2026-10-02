@@ -66,6 +66,58 @@ Future<void> _shiftTab(WidgetTester tester) async {
   await tester.pump();
 }
 
+/// Ten 100 px items in a group inside a 200 px wide scrolling row under
+/// [direction], with focus on the first item.
+Future<List<FocusNode>> _scrollingRow(
+  WidgetTester tester,
+  TextDirection direction,
+) async {
+  final items = _nodes(10);
+  await tester.pumpWidget(
+    themedHost(
+      SizedBox(
+        width: 200,
+        height: 50,
+        child: RowLayout(
+          style: const WidgetStyle(),
+          scroll: const StratumScroll(),
+          focusGroup: const StratumFocusGroup(),
+          children: [
+            for (final node in items)
+              Focus(
+                focusNode: node,
+                child: const SizedBox(width: 100, height: 50),
+              ),
+          ],
+        ),
+      ),
+      textDirection: direction,
+    ),
+  );
+  await _focus(tester, items[0]);
+  return items;
+}
+
+/// Expects focus on [items] at [index], fully inside the viewport, which
+/// has scrolled to [pixels].
+void _expectRevealed(
+  WidgetTester tester,
+  List<FocusNode> items,
+  int index,
+  double pixels,
+) {
+  expect(items[index].hasPrimaryFocus, isTrue);
+  final scrollable = find.byType(Scrollable);
+  expect(tester.state<ScrollableState>(scrollable).position.pixels, pixels);
+  final viewport = tester.getRect(scrollable);
+  final rect = items[index].rect;
+  expect(
+    rect.left >= viewport.left - 0.5 && rect.right <= viewport.right + 0.5,
+    isTrue,
+    reason: 'item $index at $rect, viewport $viewport',
+  );
+}
+
 void main() {
   group('StratumFocusGroup Tab', () {
     testWidgets('Tab enters the group once, on the first item', (tester) async {
@@ -557,6 +609,46 @@ void main() {
         await _key(tester, LogicalKeyboardKey.end);
         expect(items[2].hasPrimaryFocus, isTrue);
       },
+    );
+  });
+
+  group('StratumFocusGroup in a horizontal scroll', () {
+    testWidgets(
+      'Right reveals each item under left-to-right text, then End and Home',
+      (tester) async {
+        final items = await _scrollingRow(tester, TextDirection.ltr);
+
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        _expectRevealed(tester, items, 1, 0);
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        _expectRevealed(tester, items, 2, 100);
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        _expectRevealed(tester, items, 3, 200);
+        await _key(tester, LogicalKeyboardKey.end);
+        _expectRevealed(tester, items, 9, 800);
+        await _key(tester, LogicalKeyboardKey.home);
+        _expectRevealed(tester, items, 0, 0);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'Left reveals each item under right-to-left text, then End and Home',
+      (tester) async {
+        final items = await _scrollingRow(tester, TextDirection.rtl);
+
+        await _key(tester, LogicalKeyboardKey.arrowLeft);
+        _expectRevealed(tester, items, 1, 0);
+        await _key(tester, LogicalKeyboardKey.arrowLeft);
+        _expectRevealed(tester, items, 2, 100);
+        await _key(tester, LogicalKeyboardKey.arrowLeft);
+        _expectRevealed(tester, items, 3, 200);
+        await _key(tester, LogicalKeyboardKey.end);
+        _expectRevealed(tester, items, 9, 800);
+        await _key(tester, LogicalKeyboardKey.home);
+        _expectRevealed(tester, items, 0, 0);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
   });
 

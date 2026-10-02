@@ -77,7 +77,9 @@ abstract class BoxLayout extends StatelessWidget {
 
   /// Scrolls the padding and content inside the box along
   /// [StratumScroll.direction], else [scrollDirection], while fill, border,
-  /// radius, and shadow stay in place. Null does not scroll.
+  /// radius, and shadow stay in place. Null does not scroll. On web and
+  /// desktop a scrolling box is a Tab stop whose arrows, Page Up, Page
+  /// Down, Home, and End scroll it.
   final StratumScroll? scroll;
 
   static const _interactionAnimation = AnimationStyle(
@@ -169,22 +171,38 @@ abstract class BoxLayout extends StatelessWidget {
   }
 
   /// [_boxBuilder] inside a [ScrollFocus], which sits outside the clip so
-  /// its ring stays visible. With a tap surface, the surface's node takes
-  /// focus and [ScrollFocus] creates none.
+  /// its ring stays visible. The box is exactly one Tab stop: the tap
+  /// surface's node when the surface can take focus, else [ScrollFocus]'s
+  /// own, also around a hover-only, focus-change-only, highlight-only, or
+  /// disabled surface. [ScrollFocus] builds the same widgets either way,
+  /// so toggling [StratumInteraction.disabled] or a callback keeps the
+  /// content's State and the scroll offset.
   StyledBoxBuilder _focusBuilder(StratumScroll scroll) {
     final inner = _boxBuilder;
     final interaction = this.interaction;
-    final hasSurface = interaction != null && _needsTapSurface(interaction);
+    final surfaceFocus = interaction != null && _surfaceTakesFocus(interaction);
     return (style, box) => ScrollFocus(
       focusable: true,
       axis: scroll.direction ?? scrollDirection,
       controller: scroll.controller,
       primary: scroll.primary,
       borderRadius: style.borderRadius,
-      ownsFocus: !hasSurface,
+      ownsFocus: !surfaceFocus,
       child: inner == null ? box : inner(style, box),
     );
   }
+
+  /// Whether the [StratumInkWell] built from [interaction] can take focus:
+  /// enabled, focusable, and with an activation callback or a shortcut.
+  static bool _surfaceTakesFocus(StratumInteraction interaction) =>
+      !interaction.disabled &&
+      interaction.canRequestFocus &&
+      interaction.focusType != FocusType.none &&
+      (interaction.onTap != null ||
+          interaction.onDoubleTap != null ||
+          interaction.onLongPress != null ||
+          interaction.onSecondaryTap != null ||
+          interaction.shortcuts.isNotEmpty);
 
   static bool _needsTapSurface(StratumInteraction interaction) =>
       interaction.onTap != null ||

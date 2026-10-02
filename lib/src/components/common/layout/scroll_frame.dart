@@ -100,8 +100,10 @@ bool defaultScrollFocusable({
 /// Sits outside the box's clip, so the ring, which paints outside the box,
 /// stays visible: around the box of a scroll view, and in `boxBuilder` for
 /// a box layout with `scroll`. With [ownsFocus] false it wraps a tap
-/// surface, creates no node, and acts on keys that bubble up from the
-/// surface's node.
+/// surface that takes focus, adds no Tab stop of its own, and acts on keys
+/// that bubble up from the surface's node. Both modes build the same
+/// widgets, so a flip of [ownsFocus] keeps [child]'s State and the scroll
+/// offset.
 ///
 /// While the viewport node holds focus, the arrows along [axis] scroll
 /// 50 px, Page Up and Page Down scroll 0.8 of the viewport, and Home and
@@ -141,8 +143,10 @@ class ScrollFocus extends StatefulWidget {
   /// Shape of the focus ring.
   final BorderRadiusGeometry? borderRadius;
 
-  /// Whether this widget owns the viewport node; false when it wraps a tap
-  /// surface whose node takes focus instead.
+  /// Whether this widget owns the viewport node, the Tab stop; false when
+  /// it wraps a tap surface whose node takes focus instead. A surface that
+  /// cannot take focus, such as a disabled or hover-only one, leaves it
+  /// true.
   final bool ownsFocus;
   final Widget child;
 
@@ -192,6 +196,7 @@ class _ScrollFocusState extends State<ScrollFocus> {
   }
 
   bool get _ringVisible =>
+      widget.ownsFocus &&
       _focusNode.hasPrimaryFocus &&
       FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
 
@@ -313,17 +318,19 @@ class _ScrollFocusState extends State<ScrollFocus> {
       child: widget.child,
     );
     if (!widget.focusable) return result;
-    if (!widget.ownsFocus) {
-      return Focus(
-        canRequestFocus: false,
-        skipTraversal: true,
-        includeSemantics: false,
-        onKeyEvent: _handleKey,
-        child: result,
-      );
-    }
+    // One structure for both modes, so a flip of ownsFocus never remounts
+    // the child. Without ownership the Focus keeps an internal node that
+    // takes no focus and only hears keys bubbling up from the surface.
+    final owns = widget.ownsFocus;
+    final node = owns ? _focusNode : null;
     result = Focus(
-      focusNode: _focusNode,
+      focusNode: node,
+      canRequestFocus: owns,
+      skipTraversal: !owns,
+      // The Semantics below reports focus for the own node only; Focus's
+      // own semantics would also mark the internal node as not focusable
+      // and so change the surface's semantics tree.
+      includeSemantics: false,
       onKeyEvent: _handleKey,
       child: result,
     );
@@ -335,9 +342,17 @@ class _ScrollFocusState extends State<ScrollFocus> {
         child: result,
       );
     }
+    // What Focus's semantics report for the own node; without ownership
+    // nothing, so the surface's node speaks alone.
+    final focusable = node?.canRequestFocus ?? false;
     return Semantics(
-      container: true,
-      label: widget.semanticsLabel,
+      container: owns,
+      label: owns ? widget.semanticsLabel : null,
+      focusable: owns ? focusable : null,
+      focused: focusable ? node!.hasPrimaryFocus : null,
+      onFocus: focusable && defaultTargetPlatform != TargetPlatform.iOS
+          ? node!.requestFocus
+          : null,
       child: result,
     );
   }
