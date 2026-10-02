@@ -1,3 +1,4 @@
+import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The scroll behavior for a layout scroll view at [context].
@@ -98,6 +99,18 @@ bool defaultScrollFocusable({
       }.contains(platform);
 }
 
+/// How the keys of a [ScrollFocus] move its view.
+enum ScrollFocusMode {
+  /// Arrows scroll 50 px, Page Up and Page Down 0.8 of the viewport, and
+  /// Home and End jump to the first and last item (K4).
+  lines,
+
+  /// The view is a [PageView]: arrows along the axis go to the page on that
+  /// side of the screen, Page Up and Page Down to the previous and next
+  /// page, and Home and End to the first and last page.
+  pages,
+}
+
 /// Keyboard scrolling for one scroll view (K4): the focus node, the keys,
 /// and the focus ring.
 ///
@@ -135,13 +148,26 @@ bool defaultScrollFocusable({
 /// caller's [controller]; else none when it inherits the
 /// [PrimaryScrollController], which the keys then use; else, when
 /// [focusable], an internal one.
+///
+/// In [ScrollFocusMode.pages] the view is a [PageView]. The arrows along
+/// [axis] go to the page on that side of the screen, Page Down and Page Up
+/// to the next and the previous page, and Home and End to the first and
+/// the last page; End needs [pageCount]. A page change slides over 300 ms
+/// with [Curves.easeInOutSine], or jumps when the app or the platform asks
+/// for less motion; Home and End always jump. A key during a slide counts
+/// from the slide's target page, and a key that would go past the first or
+/// last page is not handled. The page view never inherits the
+/// [PrimaryScrollController]: [controller] must be a [PageController], and
+/// without one a focusable view gets an internal one.
 class ScrollFocus extends StatefulWidget {
   const new({
     super.key,
     required this.focusable,
     required this.axis,
+    this.mode = ScrollFocusMode.lines,
     this.controller,
     this.primary,
+    this.pageCount,
     this.semanticsLabel,
     this.borderRadius,
     this.ownsFocus = true,
@@ -154,8 +180,15 @@ class ScrollFocus extends StatefulWidget {
 
   /// The scroll axis the arrows act along.
   final Axis axis;
+
+  /// How the keys move the view; it must not change between builds.
+  final ScrollFocusMode mode;
   final ScrollController? controller;
   final bool? primary;
+
+  /// The number of pages in [ScrollFocusMode.pages]; null when unknown,
+  /// which makes End do nothing.
+  final int? pageCount;
 
   /// Names the viewport node that a screen reader announces on focus.
   final String? semanticsLabel;
@@ -198,6 +231,9 @@ class _ScrollFocusState extends State<ScrollFocus>
   /// The width of [FocusSpread]'s ring.
   static const _ringWidth = 4.0;
 
+  /// How long a key page change slides.
+  static const _pageDuration = Duration(milliseconds: 300);
+
   // Created on first use and kept until dispose, as StratumInkWell keeps
   // its node.
   FocusNode? _node;
@@ -208,6 +244,15 @@ class _ScrollFocusState extends State<ScrollFocus>
   /// the box would not lie wholly inside the window.
   var _ringInside = false;
   var _ringCheckPending = false;
+
+  /// The page a running key slide goes to; null when no slide runs.
+  int? _slideTarget;
+
+  /// Counts page changes, so a slide that a later change interrupts leaves
+  /// [_slideTarget] alone.
+  var _pageChanges = 0;
+
+  bool get _pages => widget.mode == ScrollFocusMode.pages;
 
   FocusNode get _focusNode =>
       _node ??= FocusNode(debugLabel: 'ScrollFocus')
@@ -222,18 +267,22 @@ class _ScrollFocusState extends State<ScrollFocus>
   );
 
   /// Whether the scroll view attaches to the [PrimaryScrollController], by
-  /// the rule of `ScrollView` and `SingleChildScrollView`.
+  /// the rule of `ScrollView` and `SingleChildScrollView`; a [PageView]
+  /// never does.
   bool get _inheritsPrimary =>
-      widget.primary ??
-      (widget.controller == null &&
-          PrimaryScrollController.shouldInherit(context, widget.axis));
+      !_pages &&
+      (widget.primary ??
+          (widget.controller == null &&
+              PrimaryScrollController.shouldInherit(context, widget.axis)));
 
   /// The controller handed to the scroll view.
   ScrollController? get _viewController {
     final controller = widget.controller;
     if (controller != null) return controller;
     if (!widget.focusable || _inheritsPrimary) return null;
-    return _internalController ??= ScrollController();
+    return _internalController ??= _pages
+        ? PageController()
+        : ScrollController();
   }
 
   /// The controller the keys scroll through.
@@ -258,6 +307,7 @@ class _ScrollFocusState extends State<ScrollFocus>
   @override
   void didUpdateWidget(ScrollFocus oldWidget) {
     super.didUpdateWidget(oldWidget);
+    assert(oldWidget.mode == widget.mode, 'ScrollFocus.mode cannot change');
     final owned = oldWidget.ownsFocus;
     final owns = widget.ownsFocus;
     if (!oldWidget.focusable || !widget.focusable || owned == owns) return;
@@ -377,8 +427,12 @@ class _ScrollFocusState extends State<ScrollFocus>
     if (controller == null || controller.positions.length != 1) {
       return KeyEventResult.ignored;
     }
-    final position = controller.position;
     final key = event.logicalKey;
+    if (_pages) {
+      if (controller is! PageController) return KeyEventResult.ignored;
+      return _handlePageKey(handler, controller, key);
+    }
+    final position = controller.position;
     if (key == LogicalKeyboardKey.home) {
       position.jumpTo(position.minScrollExtent);
       return KeyEventResult.handled;
@@ -419,6 +473,77 @@ class _ScrollFocusState extends State<ScrollFocus>
       curve: Curves.easeInOut,
     );
     return KeyEventResult.handled;
+  }
+
+  /// The keys of [ScrollFocusMode.pages]: each goes to one page, counted
+  /// from a running slide's target.
+  KeyEventResult _handlePageKey(
+    FocusNode handler,
+    PageController controller,
+    LogicalKeyboardKey key,
+  ) {
+    final count = widget.pageCount;
+    final current = _slideTarget ?? (controller.page ?? 0).round();
+    final int target;
+    var jump = false;
+    if (key == LogicalKeyboardKey.home) {
+      target = 0;
+      jump = true;
+    } else if (key == LogicalKeyboardKey.end) {
+      if (count == null) return KeyEventResult.ignored;
+      target = count - 1;
+      jump = true;
+    } else if (key == LogicalKeyboardKey.pageDown) {
+      target = current + 1;
+    } else if (key == LogicalKeyboardKey.pageUp) {
+      target = current - 1;
+    } else {
+      if (!_viewportFocused(handler, owns: widget.ownsFocus)) {
+        return KeyEventResult.ignored;
+      }
+      final direction = switch (key) {
+        LogicalKeyboardKey.arrowUp => AxisDirection.up,
+        LogicalKeyboardKey.arrowDown => AxisDirection.down,
+        LogicalKeyboardKey.arrowLeft => AxisDirection.left,
+        LogicalKeyboardKey.arrowRight => AxisDirection.right,
+        _ => null,
+      };
+      final position = controller.position;
+      if (direction == null ||
+          axisDirectionToAxis(direction) != position.axis) {
+        return KeyEventResult.ignored;
+      }
+      // The page on that side of the screen.
+      target = direction == position.axisDirection ? current + 1 : current - 1;
+    }
+    if (target < 0 || (count != null && target >= count)) {
+      return KeyEventResult.ignored;
+    }
+    _goToPage(controller, target, jump: jump);
+    return KeyEventResult.handled;
+  }
+
+  /// Slides to [page] over [_pageDuration], or jumps there for [jump] or
+  /// when the app or the platform asks for less motion.
+  void _goToPage(PageController controller, int page, {required bool jump}) {
+    final change = ++_pageChanges;
+    if (jump || reducesMotion(context)) {
+      _slideTarget = null;
+      controller.jumpToPage(page);
+      return;
+    }
+    _slideTarget = page;
+    unawaited(
+      controller
+          .animateToPage(
+            page,
+            duration: _pageDuration,
+            curve: Curves.easeInOutSine,
+          )
+          .whenComplete(() {
+            if (mounted && change == _pageChanges) _slideTarget = null;
+          }),
+    );
   }
 
   /// Jumps to the end. A lazy list only estimates its extent, so it jumps
@@ -565,8 +690,10 @@ class ScrollViewBox extends StatelessWidget {
     this.style,
     required this.focusable,
     required this.axis,
+    this.mode = ScrollFocusMode.lines,
     this.controller,
     this.primary,
+    this.pageCount,
     this.semanticsLabel,
     this.showScrollbar,
     this.scrollsPadding = true,
@@ -579,8 +706,14 @@ class ScrollViewBox extends StatelessWidget {
   /// through [defaultScrollFocusable].
   final bool? focusable;
   final Axis axis;
+
+  /// How the keys move the view; see [ScrollFocus].
+  final ScrollFocusMode mode;
   final ScrollController? controller;
   final bool? primary;
+
+  /// The number of pages in [ScrollFocusMode.pages]; null when unknown.
+  final int? pageCount;
   final String? semanticsLabel;
 
   /// Null keeps the scroll behavior's choice: a scrollbar on desktop.
@@ -617,8 +750,10 @@ class ScrollViewBox extends StatelessWidget {
     return ScrollFocus(
       focusable: focusable,
       axis: axis,
+      mode: mode,
       controller: controller,
       primary: primary,
+      pageCount: pageCount,
       semanticsLabel: semanticsLabel,
       borderRadius: style?.borderRadius,
       child: view,

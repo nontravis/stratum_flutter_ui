@@ -1145,6 +1145,224 @@ void main() {
     );
   });
 
+  group('ScrollFocus pages mode', () {
+    /// A focusable page view of [count] pages, 200 by 300 each, through
+    /// [ScrollViewBox] in pages mode; [count] null builds pages without
+    /// end. The builder's controller lands in [received].
+    Widget pages({
+      Axis axis = Axis.horizontal,
+      bool reverse = false,
+      int? count = 5,
+      PageController? controller,
+      List<ScrollController?>? received,
+    }) {
+      return SizedBox(
+        width: 200,
+        height: 300,
+        child: ScrollViewBox(
+          mode: ScrollFocusMode.pages,
+          pageCount: count,
+          focusable: true,
+          axis: axis,
+          controller: controller,
+          builder: (context, controller, padding) {
+            received?.add(controller);
+            return PageView.builder(
+              controller: controller as PageController?,
+              scrollDirection: axis,
+              reverse: reverse,
+              itemCount: count,
+              itemBuilder: (context, index) => Text('page $index'),
+            );
+          },
+        ),
+      );
+    }
+
+    /// The page the view shows, from its offset.
+    double page(WidgetTester tester) {
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position;
+      return position.pixels / position.viewportDimension;
+    }
+
+    /// Pumps [view] and focuses its own node.
+    Future<void> focusView(WidgetTester tester, Widget view) async {
+      await tester.pumpWidget(view);
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pump();
+    }
+
+    for (final (axis, next, previous, across) in const [
+      (
+        Axis.horizontal,
+        LogicalKeyboardKey.arrowRight,
+        LogicalKeyboardKey.arrowLeft,
+        LogicalKeyboardKey.arrowDown,
+      ),
+      (
+        Axis.vertical,
+        LogicalKeyboardKey.arrowDown,
+        LogicalKeyboardKey.arrowUp,
+        LogicalKeyboardKey.arrowRight,
+      ),
+    ]) {
+      testWidgets('$axis: arrows, Page Up, Page Down, Home, and End move '
+          'whole pages', (tester) async {
+        await focusView(tester, themedHost(pages(axis: axis)));
+
+        await _key(tester, next);
+        expect(page(tester), 1);
+        await _key(tester, previous);
+        expect(page(tester), 0);
+        await _key(tester, LogicalKeyboardKey.pageDown);
+        await _key(tester, LogicalKeyboardKey.pageDown);
+        expect(page(tester), 2);
+        await _key(tester, LogicalKeyboardKey.pageUp);
+        expect(page(tester), 1);
+        await _key(tester, LogicalKeyboardKey.end);
+        expect(page(tester), 4);
+        await _key(tester, LogicalKeyboardKey.home);
+        expect(page(tester), 0);
+        expect(await tester.sendKeyEvent(across), isFalse);
+        await tester.pumpAndSettle();
+        expect(page(tester), 0);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+    }
+
+    testWidgets('Left goes to the next page under right-to-left text', (
+      tester,
+    ) async {
+      await focusView(
+        tester,
+        themedHost(pages(), textDirection: TextDirection.rtl),
+      );
+
+      await _key(tester, LogicalKeyboardKey.arrowLeft);
+      expect(page(tester), 1);
+      await _key(tester, LogicalKeyboardKey.arrowRight);
+      expect(page(tester), 0);
+      await _key(tester, LogicalKeyboardKey.pageDown);
+      expect(page(tester), 1);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('Left goes to the next page with reverse', (tester) async {
+      await focusView(tester, themedHost(pages(reverse: true)));
+
+      await _key(tester, LogicalKeyboardKey.arrowLeft);
+      expect(page(tester), 1);
+      await _key(tester, LogicalKeyboardKey.arrowRight);
+      expect(page(tester), 0);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a page change slides over 300 ms with easeInOutSine', (
+      tester,
+    ) async {
+      await focusView(tester, themedHost(pages()));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(page(tester), closeTo(Curves.easeInOutSine.transform(0.5), 0.01));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(page(tester), 1);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('reduced motion jumps to the page', (tester) async {
+      await focusView(
+        tester,
+        MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: themedHost(pages()),
+        ),
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+
+      expect(page(tester), 1);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a key during a slide counts from its target page', (
+      tester,
+    ) async {
+      await focusView(tester, themedHost(pages()));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+
+      expect(page(tester), 2);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a key past the first or last page is not handled', (
+      tester,
+    ) async {
+      await focusView(tester, themedHost(pages()));
+
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft), isFalse);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.pageUp), isFalse);
+      await _key(tester, LogicalKeyboardKey.end);
+      expect(page(tester), 4);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight), isFalse);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.pageDown), isFalse);
+      await tester.pumpAndSettle();
+      expect(page(tester), 4);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('End is ignored when the page count is unknown', (
+      tester,
+    ) async {
+      await focusView(tester, themedHost(pages(count: null)));
+
+      await _key(tester, LogicalKeyboardKey.pageDown);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.end), isFalse);
+      await tester.pumpAndSettle();
+
+      expect(page(tester), 1);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets("the caller's PageController drives the keys", (tester) async {
+      final controller = PageController();
+      addTearDown(controller.dispose);
+      final received = <ScrollController?>[];
+      await focusView(
+        tester,
+        themedHost(pages(controller: controller, received: received)),
+      );
+
+      await _key(tester, LogicalKeyboardKey.arrowRight);
+
+      expect(received.last, same(controller));
+      expect(controller.page, 1);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('pages mode creates a PageController and never inherits the '
+        'primary controller', (tester) async {
+      final primary = _controller();
+      final received = <ScrollController?>[];
+      await focusView(
+        tester,
+        themedHost(
+          PrimaryScrollController(
+            controller: primary,
+            automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+            child: pages(axis: Axis.vertical, received: received),
+          ),
+        ),
+      );
+
+      expect(received.last, isA<PageController>());
+      expect(received.last, isNot(same(primary)));
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(page(tester), 1);
+      expect(primary.hasClients, isFalse);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+  });
+
   group('Tab order inside a focusable scroller', () {
     testWidgets(
       'Tab from a row scrolled wholly above a scrolling page reaches the '
