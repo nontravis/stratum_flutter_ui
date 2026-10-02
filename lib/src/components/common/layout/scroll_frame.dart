@@ -99,7 +99,19 @@ bool defaultScrollFocusable({
 ///
 /// Sits outside the box's clip, so the ring, which paints outside the box,
 /// stays visible: around the box of a scroll view, and in `boxBuilder` for
-/// a box layout with `scroll`. With [ownsFocus] false it wraps a tap
+/// a box layout with `scroll`. When the ring around the box would not lie
+/// wholly inside the window, as around a box that fills it, the ring
+/// paints inside the box edge, over the content, instead. The box decides
+/// after layout, when its own node gains focus and when the window size
+/// changes.
+///
+/// A focusable scroll view makes its content, inside the box, one
+/// [FocusTraversalGroup], so Tab order puts the box's Tab stop before every
+/// item inside. Reading order sorts by unclipped rects; without the group
+/// an item scrolled above the viewport sorts before the Tab stop, and Tab
+/// from that item lands on the stop instead of the next item.
+///
+/// With [ownsFocus] false it wraps a tap
 /// surface that takes focus, adds no Tab stop of its own, and acts on keys
 /// that bubble up from the surface's node. Both modes build the same
 /// widgets, so a flip of [ownsFocus] keeps [child]'s State and the scroll
@@ -165,12 +177,21 @@ class ScrollFocus extends StatefulWidget {
   State<ScrollFocus> createState() => _ScrollFocusState();
 }
 
-class _ScrollFocusState extends State<ScrollFocus> {
+class _ScrollFocusState extends State<ScrollFocus>
+    with WidgetsBindingObserver {
+  /// The width of [FocusSpread]'s ring.
+  static const _ringWidth = 4.0;
+
   // Created on first use and kept until dispose, as StratumInkWell keeps
   // its node.
   FocusNode? _node;
   FocusNode? _surfaceKeys;
   ScrollController? _internalController;
+
+  /// Whether the ring paints inside the box edge, because the ring around
+  /// the box would not lie wholly inside the window.
+  var _ringInside = false;
+  var _ringCheckPending = false;
 
   FocusNode get _focusNode =>
       _node ??= FocusNode(debugLabel: 'ScrollFocus')
@@ -215,6 +236,7 @@ class _ScrollFocusState extends State<ScrollFocus> {
   void initState() {
     super.initState();
     FocusManager.instance.addHighlightModeListener(_handleHighlightMode);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
@@ -232,6 +254,7 @@ class _ScrollFocusState extends State<ScrollFocus> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     FocusManager.instance.removeHighlightModeListener(_handleHighlightMode);
     _node?.dispose();
     _surfaceKeys?.dispose();
@@ -239,10 +262,47 @@ class _ScrollFocusState extends State<ScrollFocus> {
     super.dispose();
   }
 
-  void _handleFocusChange() => setState(() {});
+  @override
+  void didChangeMetrics() {
+    if (_node?.hasPrimaryFocus ?? false) _placeRingAfterLayout();
+  }
+
+  void _handleFocusChange() {
+    if (_focusNode.hasPrimaryFocus) _placeRingAfterLayout();
+    setState(() {});
+  }
 
   void _handleHighlightMode(FocusHighlightMode mode) {
     if (_node?.hasPrimaryFocus ?? false) setState(() {});
+  }
+
+  /// Sets [_ringInside] after the next frame's layout.
+  void _placeRingAfterLayout() {
+    if (_ringCheckPending) return;
+    _ringCheckPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ringCheckPending = false;
+      if (!mounted) return;
+      final inside = !_outerRingFits();
+      if (inside != _ringInside) setState(() => _ringInside = inside);
+    });
+  }
+
+  /// Whether the ring around the box, [_ringWidth] wide, lies wholly inside
+  /// the window.
+  bool _outerRingFits() {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return true;
+    final ring = MatrixUtils.transformRect(
+      box.getTransformTo(null),
+      Offset.zero & box.size,
+    ).inflate(_ringWidth);
+    final view = View.of(context);
+    final window = view.physicalSize / view.devicePixelRatio;
+    return ring.left >= 0 &&
+        ring.top >= 0 &&
+        ring.right <= window.width &&
+        ring.bottom <= window.height;
   }
 
   /// Moves focus to the Tab stop of the box after [ScrollFocus.ownsFocus]
@@ -389,6 +449,7 @@ class _ScrollFocusState extends State<ScrollFocus> {
     if (StratumThemeApplication.maybeOf(context) != null) {
       result = FocusSpread(
         focus: _ringVisible,
+        inside: _ringInside,
         borderRadius: widget.borderRadius,
         child: result,
       );

@@ -88,6 +88,9 @@ class ListViewLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = this.style;
+    final focusable =
+        this.focusable ??
+        defaultScrollFocusable(isWeb: kIsWeb, platform: defaultTargetPlatform);
     Widget list = ScrollFrame(
       showScrollbar: showScrollbar,
       child: Builder(
@@ -95,16 +98,14 @@ class ListViewLayout extends StatelessWidget {
             _buildList(ScrollFocus.controllerOf(context), style?.padding),
       ),
     );
+    // One traversal group, so the items follow the Tab stop; see
+    // ScrollFocus.
+    if (focusable) list = FocusTraversalGroup(child: list);
     if (style != null) {
       list = ContainerLayout(style: ScrollFrame.boxStyle(style), child: list);
     }
     return ScrollFocus(
-      focusable:
-          focusable ??
-          defaultScrollFocusable(
-            isWeb: kIsWeb,
-            platform: defaultTargetPlatform,
-          ),
+      focusable: focusable,
       axis: scrollDirection,
       controller: controller,
       primary: primary,

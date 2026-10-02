@@ -252,13 +252,15 @@ abstract class BoxLayout extends StatelessWidget {
 
   /// Scrolls [content] (the padding and the layout's content) inside the
   /// box, as [scroll] says. A [linked] scroll view takes its controller
-  /// from the [ScrollFocus] that [_focusBuilder] builds.
+  /// from the [ScrollFocus] that [_focusBuilder] builds, and is one
+  /// traversal group, so its items follow the box's Tab stop (see
+  /// [ScrollFocus]).
   Widget _buildScroll(
     StratumScroll scroll,
     Widget content, {
     required bool linked,
   }) {
-    return ScrollFrame(
+    final view = ScrollFrame(
       showScrollbar: scroll.showScrollbar,
       child: _BoxScrollView(
         scroll: scroll,
@@ -267,6 +269,7 @@ abstract class BoxLayout extends StatelessWidget {
         child: content,
       ),
     );
+    return linked ? FocusTraversalGroup(child: view) : view;
   }
 }
 
