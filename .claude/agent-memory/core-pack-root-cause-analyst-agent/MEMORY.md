@@ -1,1 +1,2 @@
 - [Benchmark noise on the shared Mac](project_benchmark_noise.md) — sub-ms deltas are noise-dominated; split phases, then trust the spec section 9 in-process ABBA verdict
+- [VM vs Chrome geometry in focus RCA](project_vm_vs_chrome_geometry.md) — test font shifts layout; drive probes to the geometric trigger, not the reported key count
