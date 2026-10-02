@@ -13,9 +13,8 @@ class WindowSizeScope extends StatelessWidget {
   final Widget child;
 
   static WindowSize of(BuildContext context) {
-    final scope = context
-        .dependOnInheritedWidgetOfExactType<_WindowSizeInherited>();
-    if (scope == null) {
+    final windowSize = maybeOf(context);
+    if (windowSize == null) {
       throw FlutterError(
         'No WindowSizeScope found in context.\n'
         'Wrap the app with WindowSizeScope, e.g. '
@@ -23,8 +22,17 @@ class WindowSizeScope extends StatelessWidget {
         'WindowSizeScope(child: child!)).',
       );
     }
-    return scope.windowSize;
+    return windowSize;
   }
+
+  /// The [WindowSize] of the nearest [WindowSizeScope], or null when none is
+  /// above [context].
+  ///
+  /// Registers the same dependency as [of]: the caller rebuilds only when
+  /// the window crosses a breakpoint.
+  static WindowSize? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<_WindowSizeInherited>()
+      ?.windowSize;
 
   @override
   Widget build(BuildContext context) => _WindowSizeInherited(

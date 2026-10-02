@@ -119,4 +119,46 @@ void main() {
 
     expect(dependentBuilds, 0);
   });
+
+  testWidgets('maybeOf returns null without a WindowSizeScope ancestor', (
+    tester,
+  ) async {
+    final seen = <WindowSize?>[];
+
+    await tester.pumpWidget(
+      Builder(
+        builder: (context) {
+          seen.add(WindowSizeScope.maybeOf(context));
+          return const SizedBox();
+        },
+      ),
+    );
+
+    expect(seen, [null]);
+  });
+
+  testWidgets('maybeOf rebuilds its caller when a breakpoint is crossed', (
+    tester,
+  ) async {
+    setWindowSize(tester, const Size(400, 800));
+    addTearDown(tester.view.reset);
+    final seen = <WindowSize?>[];
+
+    await tester.pumpWidget(
+      WindowSizeScope(
+        child: Builder(
+          builder: (context) {
+            seen.add(WindowSizeScope.maybeOf(context));
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    setWindowSize(tester, const Size(500, 800));
+    await tester.pump();
+    setWindowSize(tester, const Size(1300, 800));
+    await tester.pump();
+
+    expect(seen, [WindowSize.mobile, WindowSize.desktop]);
+  });
 }
