@@ -4,9 +4,10 @@ import 'package:flutter_driver/flutter_driver.dart' as driver;
 import 'package:integration_test/integration_test_driver.dart';
 
 /// Longest wait for the app's tests to end. One invocation holds every run
-/// of a call: 12 runs take about 18 minutes and the cap of 24 about 35,
-/// past `integrationDriver`'s default of 20 minutes.
-const driverTimeout = Duration(hours: 1);
+/// of a call: with three S2-plain blocks per run, 12 runs take about 22
+/// minutes and the cap of 24 about 43, past `integrationDriver`'s default
+/// of 20 minutes.
+const driverTimeout = Duration(minutes: 90);
 
 /// Where `run --trace-full` timelines go, relative to `example/`.
 const fullRoot = 'build/perf/full';

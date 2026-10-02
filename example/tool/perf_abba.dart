@@ -80,8 +80,9 @@ typedef Trace = ({
   TraceMetrics metrics,
 });
 
-/// The four traces of one scene in one run, in the order baseline,
-/// current, current, baseline (spec section 9.4).
+/// The four traces of one block, in the order baseline, current, current,
+/// baseline (spec section 9.4): one per scene and run, and three per run
+/// for S2-plain.
 typedef Block = ({
   TraceMetrics base1,
   TraceMetrics cand1,
@@ -280,7 +281,7 @@ int? runMark(String line) {
   return int.tryParse(line.substring(index + runMarker.length).trim());
 }
 
-final _summaryKey = RegExp(r'^r\d+\.[^.]+\.(base|cand)\.[12]$');
+final _summaryKey = RegExp(r'^r\d+\.[^.]+\.(base|cand)\.[1-6]$');
 
 /// The summary a `PERF_SUMMARY` line carries, or null for a line without
 /// the marker. `flutter drive` prefixes the app's lines with `flutter: `,
@@ -573,16 +574,19 @@ bool _drifts(double period, double reference) {
   return (period - reference).abs() > reference * maxPeriodDrift;
 }
 
-/// Scene to its blocks: the four traces of the scene in one run.
+/// Scene to its blocks: the four traces of the scene in one run, pairs 1
+/// and 2, or, for S2-plain's later blocks, pairs 3 and 4 and pairs 5 and 6.
 /// A block that misses any of its four traces is left out.
 Map<String, List<Block>> blockTraces(List<Trace> traces) {
-  final slots = <(String, String), Map<String, TraceMetrics>>{};
+  final slots = <(String, String, int), Map<String, TraceMetrics>>{};
   for (final trace in traces) {
-    (slots[(trace.run, trace.scene)] ??= {})['${trace.side}${trace.pair}'] =
+    final block = (trace.pair + 1) ~/ 2;
+    final slot = trace.pair.isOdd ? 1 : 2;
+    (slots[(trace.run, trace.scene, block)] ??= {})['${trace.side}$slot'] =
         trace.metrics;
   }
   final blocks = <String, List<Block>>{};
-  for (final MapEntry(key: (_, scene), value: slot) in slots.entries) {
+  for (final MapEntry(key: (_, scene, _), value: slot) in slots.entries) {
     if (slot case {
       'base1': final base1,
       'cand1': final cand1,

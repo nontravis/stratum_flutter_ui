@@ -185,6 +185,21 @@ void main() {
       ]);
       expect(blocks['S1'], hasLength(1));
     });
+
+    test('pools the three S2-plain blocks of a run, pairs 1 to 6', () {
+      final blocks = blockTraces([
+        for (final (block, cand) in [(1, 0.2), (2, 0.3), (3, 0.4)]) ...[
+          _trace('r1', 'S2-plain', 'base', 2 * block - 1, average: 0.2),
+          _trace('r1', 'S2-plain', 'cand', 2 * block - 1, average: cand),
+          _trace('r1', 'S2-plain', 'cand', 2 * block, average: cand),
+          _trace('r1', 'S2-plain', 'base', 2 * block, average: 0.2),
+        ],
+      ]);
+      expect(blocks['S2-plain'], hasLength(3));
+      expect([
+        for (final block in blocks['S2-plain']!) block.cand2.average,
+      ], unorderedEquals([0.2, 0.3, 0.4]));
+    });
   });
 
   group('blockChange', () {
@@ -646,6 +661,11 @@ void main() {
 
     test('read the run of a run line', () {
       expect(runMark('flutter: ${runLine(13)}'), 13);
+    });
+
+    test('accept the pairs 1 to 6 of the three S2-plain blocks', () {
+      final line = summaryLine('r3.S2-plain.base.6', appSummary);
+      expect(summaryOf(line)!['key'], 'r3.S2-plain.base.6');
     });
 
     test('refuse a cut line, a bad key, and fewer than two frames', () {
