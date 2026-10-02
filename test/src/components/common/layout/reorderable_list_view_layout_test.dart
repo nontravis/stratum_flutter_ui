@@ -145,6 +145,25 @@ Future<FocusNode> _focusItem(WidgetTester tester, int id) async {
   return node;
 }
 
+/// Performs the move action labeled [label] on item [id], as a screen
+/// reader does.
+Future<void> _moveAction(WidgetTester tester, int id, String label) async {
+  final node = tester.getSemantics(find.byKey(ValueKey(id)));
+  node.owner!.performAction(
+    node.id,
+    SemanticsAction.customAction,
+    CustomSemanticsAction.getIdentifier(CustomSemanticsAction(label: label)),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// Whether item [id] lies wholly inside the list's viewport.
+bool _itemInView(WidgetTester tester, int id) {
+  final view = tester.getRect(find.byType(Scrollable));
+  final item = tester.getRect(find.byKey(ValueKey(id)));
+  return view.intersect(item) == item;
+}
+
 /// Presses [key] with Alt held and returns whether it was handled.
 Future<bool> _alt(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
@@ -411,6 +430,62 @@ void main() {
       expect(_harness(tester).ids, [0, 2, 1, 3]);
       expect(identical(_itemState(tester, 2), state), isTrue);
       expect(state.expanded, isTrue);
+      handle.dispose();
+    });
+
+    testWidgets(
+      'a "Move to the end" semantics action in a lazy list of 200 keeps '
+      "the moved item's State and shows it",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(_app(const _Harness(count: 200)));
+        final state = _itemState(tester, 0)..expanded = true;
+
+        await _moveAction(tester, 0, 'Move to the end');
+
+        expect(_harness(tester).ids.last, 0);
+        expect(identical(_itemState(tester, 0), state), isTrue);
+        expect(state.expanded, isTrue);
+        expect(_itemInView(tester, 0), isTrue);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'a "Move to the start" semantics action in a lazy list of 200 keeps '
+      "the moved item's State and shows it",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(_app(const _Harness(count: 200)));
+        final position = tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position;
+        position.jumpTo(position.maxScrollExtent);
+        await tester.pumpAndSettle();
+        final state = _itemState(tester, 199)..expanded = true;
+
+        await _moveAction(tester, 199, 'Move to the start');
+
+        expect(_harness(tester).ids.first, 199);
+        expect(identical(_itemState(tester, 199), state), isTrue);
+        expect(state.expanded, isTrue);
+        expect(_itemInView(tester, 199), isTrue);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('a "Move down" semantics action reveals the moved item', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(_app(const _Harness(count: 20)));
+      // Item 6 fills 240 to 280 of the 300 px viewport; slot 7 runs past it.
+      expect(_itemInView(tester, 6), isTrue);
+
+      await _moveAction(tester, 6, 'Move down');
+
+      expect(_harness(tester).ids.indexOf(6), 7);
+      expect(_itemInView(tester, 6), isTrue);
       handle.dispose();
     });
 

@@ -145,6 +145,13 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
 
   ReorderableListViewLayout get _layout => widget.layout;
 
+  /// Whether primary focus lies inside this list.
+  bool get _holdsFocus {
+    final primary = FocusManager.instance.primaryFocus;
+    return primary?.context?.findAncestorStateOfType<_ReorderableBodyState>() ==
+        this;
+  }
+
   void _registerItem(int index, FocusNode node) => _itemNodes[index] = node;
 
   void _unregisterItem(int index, FocusNode node) {
@@ -192,18 +199,44 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
     if (target < 0 || target >= count || target == index) {
       return KeyEventResult.ignored;
     }
-    // The target slot may not be built; the move needs it built in the
-    // frame that moves the item.
-    if (key == LogicalKeyboardKey.home) {
-      position.jumpTo(position.minScrollExtent);
-    } else if (key == LogicalKeyboardKey.end) {
-      _jumpToEnd(item, position, 3);
+    if (key == LogicalKeyboardKey.home || key == LogicalKeyboardKey.end) {
+      _jumpTowards(target, item, position);
     }
     _layout.onReorderItem(index, target);
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _afterMove(target, forward: target > index),
+      (_) => _afterMove(target, forward: target > index, byKey: true),
     );
     return KeyEventResult.handled;
+  }
+
+  /// The list's own moves: a drop and a screen reader's move actions. A
+  /// move to the first or last slot jumps there first when that slot is
+  /// not built, so the moved item keeps its State.
+  void _handleReorderItem(int from, int to) {
+    final item = _itemNodes[from]?.context;
+    final position = item == null ? null : Scrollable.maybeOf(item)?.position;
+    final edge = to == 0 || to == _layout.itemCount - 1;
+    if (item != null &&
+        position != null &&
+        edge &&
+        !_itemNodes.containsKey(to)) {
+      _jumpTowards(to, item, position);
+    }
+    _layout.onReorderItem(from, to);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _afterMove(to, forward: to > from, byKey: false),
+    );
+  }
+
+  /// Jumps to the start for a move to slot 0, else to the end. The target
+  /// slot may not be built; the move needs it built in the frame that
+  /// moves the item.
+  void _jumpTowards(int target, BuildContext item, ScrollPosition position) {
+    if (target == 0) {
+      position.jumpTo(position.minScrollExtent);
+    } else {
+      _jumpToEnd(item, position, 3);
+    }
   }
 
   /// Jumps to the end. A lazy list only estimates its extent, so it jumps
@@ -222,18 +255,15 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
     });
   }
 
-  /// Reveals the item at [target] after a key move. When focus has left
-  /// the list, it moves to that item's first node in Tab order.
-  void _afterMove(int target, {required bool forward}) {
+  /// Reveals the item at [target] after a move. After a key move, when
+  /// focus has left the list, it moves to that item's first node in Tab
+  /// order.
+  void _afterMove(int target, {required bool forward, required bool byKey}) {
     if (!mounted) return;
     final node = _itemNodes[target];
     final item = node?.context;
     if (node == null || item == null) return;
-    final primary = FocusManager.instance.primaryFocus;
-    final inList =
-        primary?.context?.findAncestorStateOfType<_ReorderableBodyState>() ==
-        this;
-    if (!inList) firstTabStopIn(node)?.requestFocus();
+    if (byKey && !_holdsFocus) firstTabStopIn(node)?.requestFocus();
     Scrollable.ensureVisible(
       item,
       alignmentPolicy: forward
@@ -272,7 +302,7 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
     return ReorderableList(
       itemBuilder: _buildItem,
       itemCount: layout.itemCount,
-      onReorderItem: layout.onReorderItem,
+      onReorderItem: _handleReorderItem,
       onReorderStart: layout.onReorderStart,
       onReorderEnd: layout.onReorderEnd,
       itemExtent: layout.itemExtent,
