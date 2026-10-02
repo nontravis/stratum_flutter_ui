@@ -2,7 +2,14 @@ import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
 import 'package:stratum_ui/src/themes/config/by_window_size.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/check_keys.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/load.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/merge.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/read_values.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
+import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
+import 'package:stratum_ui/src/themes/config/theme_source.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
 import 'package:stratum_ui/src/themes/typography/typography.dart';
 
@@ -21,6 +28,28 @@ class StratumThemeConfig {
     required this.typography,
     required this.extensions,
   });
+
+  /// Runs the five stages of spec section 7 on [base], the package default
+  /// theme, and [layers] in merge order: the app's own `default` when it
+  /// has one, then the app theme. An empty [layers] parses [base] alone.
+  ///
+  /// Synchronous; reads no file. Throws one `StratumThemeFormatException`
+  /// that lists every problem.
+  factory parse({
+    required StratumThemeSource base,
+    List<StratumThemeSource> layers = const [],
+  }) {
+    final sources = [base, ...layers];
+    final errors = ThemeErrors([for (final source in sources) source.id]);
+    final roots = loadThemes(sources, errors);
+    errors.throwIfAny();
+    final checked = checkThemeKeys(roots, errors);
+    final merged = mergeThemes(checked, errors);
+    final resolved = resolveThemeAliases(merged, checked.schema, errors);
+    final config = readThemeValues(resolved, checked.schema, sources, errors);
+    errors.throwIfAny();
+    return config;
+  }
 
   final String name;
 
