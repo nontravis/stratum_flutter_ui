@@ -897,8 +897,10 @@ typedef ScrollViewBuilder =
 ///
 /// Builds [ScrollFocus] around the [ContainerLayout] of [style], when set,
 /// then [ScrollFocus.contentGroup] when [focusable], then [ScrollFrame],
-/// then the view that [builder] makes. Not exported: `ListViewLayout`,
-/// `GridViewLayout`, and `CustomScrollViewLayout` build through it.
+/// then the view that [builder] makes. Not exported: the six layout scroll
+/// views build through it, [ListViewLayout], [GridViewLayout],
+/// [CustomScrollViewLayout], [PageViewLayout], [ReorderableListViewLayout],
+/// and [NestedScrollViewLayout].
 class ScrollViewBox extends StatelessWidget {
   const new({
     super.key,

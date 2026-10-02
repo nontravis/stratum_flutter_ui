@@ -48,8 +48,8 @@ enum FocusGroupAxis { vertical, horizontal, wrap }
 
 /// Builds a [StratumFocusGroup] around a layout's content.
 ///
-/// Not exported: [ColumnLayout], [RowLayout], and [WrapLayout] build it
-/// from their `focusGroup`.
+/// Not exported: [FlexLayout], and so [ColumnLayout] and [RowLayout], and
+/// [WrapLayout] build it from their `focusGroup`.
 class FocusGroupFrame extends StatefulWidget {
   const new({
     super.key,

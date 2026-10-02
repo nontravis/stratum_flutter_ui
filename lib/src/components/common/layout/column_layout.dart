@@ -1,4 +1,3 @@
-import 'package:stratum_ui/src/components/common/layout/flex_layout.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// A column on [FlexLayout]: style, interaction, semantics, and scrolling
