@@ -98,9 +98,7 @@ class ListViewLayout extends StatelessWidget {
             _buildList(ScrollFocus.controllerOf(context), style?.padding),
       ),
     );
-    // One traversal group, so the items follow the Tab stop; see
-    // ScrollFocus.
-    if (focusable) list = FocusTraversalGroup(child: list);
+    if (focusable) list = ScrollFocus.contentGroup(list);
     if (style != null) {
       list = ContainerLayout(style: ScrollFrame.boxStyle(style), child: list);
     }

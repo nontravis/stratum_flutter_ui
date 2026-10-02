@@ -106,10 +106,12 @@ bool defaultScrollFocusable({
 /// changes.
 ///
 /// A focusable scroll view makes its content, inside the box, one
-/// [FocusTraversalGroup], so Tab order puts the box's Tab stop before every
-/// item inside. Reading order sorts by unclipped rects; without the group
-/// an item scrolled above the viewport sorts before the Tab stop, and Tab
-/// from that item lands on the stop instead of the next item.
+/// traversal group through [contentGroup], so Tab order puts the box's Tab
+/// stop before every item inside. Reading order sorts by unclipped rects;
+/// without the group an item scrolled above the viewport sorts before the
+/// Tab stop, and Tab from that item lands on the stop instead of the next
+/// item. The group leaves arrow keys and their history to the group around
+/// the box, so desktop arrows move as if it were not there.
 ///
 /// With [ownsFocus] false it wraps a tap
 /// surface that takes focus, adds no Tab stop of its own, and acts on keys
@@ -172,6 +174,16 @@ class ScrollFocus extends StatefulWidget {
         .dependOnInheritedWidgetOfExactType<_ScrollFocusScope>()
         ?.controller;
   }
+
+  /// Wraps [child], the scroll view of a focusable scroller inside its box,
+  /// in the traversal group that keeps the box's Tab stop ahead of the
+  /// items inside.
+  static Widget contentGroup(Widget child) {
+    return FocusTraversalGroup(policy: _contentPolicy, child: child);
+  }
+
+  /// Shared by every content group; it keeps no state of its own.
+  static final _contentPolicy = _ScrollContentPolicy();
 
   @override
   State<ScrollFocus> createState() => _ScrollFocusState();
@@ -467,6 +479,52 @@ class _ScrollFocusState extends State<ScrollFocus>
           : null,
       child: result,
     );
+  }
+}
+
+/// The policy of [ScrollFocus.contentGroup]: reading order among the
+/// items, while the arrows and their history stay with the policy of the
+/// nearest group around the scroller.
+///
+/// Flutter keeps directional history per policy and clears it only in the
+/// policy that handles a Tab. A content group with its own history would
+/// replay stale entries across the scroller edge: an arrow press could
+/// refocus the node it leaves, or jump back over the box.
+class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
+  @override
+  bool inDirection(FocusNode currentNode, TraversalDirection direction) {
+    final enclosing = _enclosing(currentNode);
+    if (enclosing == null) return super.inDirection(currentNode, direction);
+    return enclosing.inDirection(currentNode, direction);
+  }
+
+  @override
+  bool next(FocusNode currentNode) {
+    _clearEnclosingHistory(currentNode);
+    return super.next(currentNode);
+  }
+
+  @override
+  bool previous(FocusNode currentNode) {
+    _clearEnclosingHistory(currentNode);
+    return super.previous(currentNode);
+  }
+
+  /// Clears the arrow history that a Tab from [node] clears without the
+  /// content group.
+  static void _clearEnclosingHistory(FocusNode node) {
+    final scope = node.nearestScope;
+    if (scope != null) _enclosing(node)?.invalidateScopeData(scope);
+  }
+
+  /// The policy of the nearest group above [node] that is no scroller's
+  /// content group.
+  static FocusTraversalPolicy? _enclosing(FocusNode node) {
+    for (final ancestor in node.ancestors) {
+      final policy = FocusTraversalGroup.maybeOfNode(ancestor);
+      if (policy is! _ScrollContentPolicy) return policy;
+    }
+    return null;
   }
 }
 

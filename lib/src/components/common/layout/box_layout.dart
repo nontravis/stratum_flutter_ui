@@ -269,7 +269,7 @@ abstract class BoxLayout extends StatelessWidget {
         child: content,
       ),
     );
-    return linked ? FocusTraversalGroup(child: view) : view;
+    return linked ? ScrollFocus.contentGroup(view) : view;
   }
 }
 

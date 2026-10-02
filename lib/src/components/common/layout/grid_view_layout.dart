@@ -102,9 +102,7 @@ class GridViewLayout extends StatelessWidget {
         ),
       ),
     );
-    // One traversal group, so the items follow the Tab stop; see
-    // ScrollFocus.
-    if (focusable) grid = FocusTraversalGroup(child: grid);
+    if (focusable) grid = ScrollFocus.contentGroup(grid);
     if (style != null) {
       grid = ContainerLayout(style: ScrollFrame.boxStyle(style), child: grid);
     }
