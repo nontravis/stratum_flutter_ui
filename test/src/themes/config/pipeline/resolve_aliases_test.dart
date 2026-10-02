@@ -269,5 +269,31 @@ color:
         ]),
       );
     });
+
+    test('reports a cycle made only of inherited leaves once, at the layer '
+        'value that led into it', () {
+      final (resolved, errors) = _resolve([
+        layer('''
+color:
+  light:
+    brand:
+      normal: "{color.highContrastLight.brand.normal}"'''),
+      ]);
+
+      const cycle =
+          'layer1 color.light.brand.normal: alias cycle: '
+          'color.highContrastLight.brand.normal -> '
+          'color.highContrastLight.brand.normal [alias_cycle]';
+      expect(problems(errors), [cycle]);
+      expect(
+        resolved.failed,
+        containsAll([
+          'color.light.brand.normal',
+          'color.light.button.primary.normal',
+          'color.highContrastLight.brand.normal',
+          'color.highContrastLight.button.primary.normal',
+        ]),
+      );
+    });
   });
 }

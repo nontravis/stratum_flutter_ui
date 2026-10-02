@@ -178,23 +178,40 @@ final class _Resolve {
   }
 
   /// Reports one cycle once, at the member that sorts first by the error
-  /// order among the members that are not inherited (spec G12).
+  /// order among the members that are not inherited (spec G12). When every
+  /// member is an inherited leaf, the cycle has no light or dark mirror of
+  /// its own to carry the report: it goes instead to the outermost
+  /// non-inherited holder still on [_visiting], the explicit value that led
+  /// into the cycle. A cycle reached with no such holder on the stack (a
+  /// mirror cycle the retarget copied whole, disconnected from the base
+  /// set's own traversal) stays silent: its base-set twin reports it.
   void _reportCycle(List<String> members) {
     final reporters = [
       for (final member in members)
         if (!_merged.inherited.contains(member)) member,
     ]..sort(_byPosition);
-    if (reporters.isEmpty) return;
-    final first = reporters.first;
-    final start = members.indexOf(first);
-    final cycle = [
-      ...members.sublist(start),
-      ...members.sublist(0, start),
-      first,
-    ];
+    final String path;
+    final List<String> cycle;
+    if (reporters.isEmpty) {
+      String? outer;
+      for (final holder in _visiting) {
+        if (!_merged.inherited.contains(holder)) {
+          outer = holder;
+          break;
+        }
+      }
+      if (outer == null) return;
+      path = outer;
+      cycle = [...members, members.first];
+    } else {
+      final first = reporters.first;
+      final start = members.indexOf(first);
+      path = first;
+      cycle = [...members.sublist(start), ...members.sublist(0, start), first];
+    }
     _reader.report(
       StratumThemeErrorCode.aliasCycle,
-      first,
+      path,
       'alias cycle: ${cycle.join(' -> ')}',
     );
   }
