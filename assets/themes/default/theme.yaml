@@ -140,106 +140,69 @@ color:
   dark:
 
 typography:
-  fonts:
+  fonts:                         # font key: physical family plus its own tuning
+    inter:       { family: Inter }
+    geist:       { family: Geist }
+    geist-mono:  { family: Geist Mono }
+    roboto-mono: { family: Roboto Mono }
+
+  families:                      # per locale tag: type to font key
+    default:
+      header: inter
+      paragraph: inter
+      body: inter
+      number: { font: geist, mono: geist-mono }
+      code: roboto-mono
+      mono: roboto-mono          # theme-wide mono for types without their own
+
+  scaleByWindowSize: { watch: 0, mobile: 0, tablet: 0.5, desktop: 1, bigDesktop: 2 }
+
+  types:
     header:
-      s56:
-        default:
-          fontFamily: Inter
-          letterSpace: 1.0%
-          adjustSize: 0.0
-        en_GB:
-          fontFamily: Inter
-          letterSpace: 1.0%
-          adjustSize: 0.0
-        th_TH:
-          fontFamily: Inter
-          letterSpace: 1.0%
-          adjustSize: 0.0
-      s48:
-        default:
-          fontFamily: Inter
-          letterSpace: 1.0%
-          adjustSize: 0.0
-        en_GB:
-          fontFamily: Inter
-          letterSpace: 1.0%
-          adjustSize: 0.0
-        th_TH:
-          fontFamily: Inter
-          letterSpace: 1.0%
-          adjustSize: 0.0
-      s36:
-        default:
-          fontFamily: Inter
-          letterSpace: 1.0%
-          adjustSize: 0.0
-        en_GB:
-          fontFamily: Inter
-          letterSpace: 1.0%
-          adjustSize: 0.0
-        th_TH:
-          fontFamily: Inter
-          letterSpace: 1.0%
-          adjustSize: 0.0
-    headerMono:
-      s56:
-      s48:
-      s36:
-      s24:
-      s18:
-      s16:
-      s14:
-      s12:
-    number:
-      s56:
-      s48:
-      s36:
-      s24:
-      s18:
-      s16:
-      s14:
-      s12:
-      s10:
-    numberMono:
-      s56:
-      s48:
-      s36:
-      s24:
-      s18:
-      s16:
-      s14:
-      s12:
-      s10:
+      weight: 600
+      sizes:
+        s56: { spaceHeight: 16, letterSpacing: "-2.4%" }
+        s36: { spaceHeight: 12, letterSpacing: "-2%" }
+        s24: { spaceHeight: 10, letterSpacing: "-1.4%" }
+        s20: { spaceHeight: 8,  letterSpacing: "-1.2%" }
+        s18: { spaceHeight: 6,  letterSpacing: "-1%" }
+        s14: { spaceHeight: 6,  letterSpacing: "0.6%" }
+        s12: { spaceHeight: 8,  letterSpacing: "1.8%" }
     paragraph:
-      s20:
-      s18:
-      s16:
-      s14:
-      s12:
-    paragraphMono:
-      s20:
-      s18:
-      s16:
-      s14:
-      s12:
-    code:
-      s20:
-      s18:
-      s16:
-      s14:
-      s12:
+      weight: 400
+      sizes:
+        s20: { spaceHeight: 12, letterSpacing: "-1%" }
+        s18: { spaceHeight: 12, letterSpacing: "-1%" }
+        s16: { spaceHeight: 10, letterSpacing: "0%" }
+        s14: { spaceHeight: 10, letterSpacing: "0.2%" }
     body:
-      s18:
-      s16:
-      s14:
-      s12:
-      s10:
-    bodyMono:
-      s18:
-      s16:
-      s14:
-      s12:
-      s10:
+      weight: 400
+      sizes:
+        s18: { spaceHeight: 10, letterSpacing: "-1%" }
+        s16: { spaceHeight: 8,  letterSpacing: "-1%" }
+        s14: { spaceHeight: 10, letterSpacing: "-0.6%" }
+        s12: { spaceHeight: 4,  letterSpacing: "0.5%" }
+        s10: { spaceHeight: 6,  letterSpacing: "0.8%" }
+    number:
+      weight: 600
+      sizes:
+        s36: { spaceHeight: 12 }
+        s24: { spaceHeight: 8 }
+        s18: { spaceHeight: 6 }
+        s16: { spaceHeight: 8 }
+        s14: { spaceHeight: 10 }
+        s12: { spaceHeight: 4 }
+        s10: { spaceHeight: 6 }
+    code:
+      weight: 400
+      sizes:
+        s18: { spaceHeight: 6 }
+        s16: { spaceHeight: 8 }
+        s14: { spaceHeight: 10 }
+        s12: { spaceHeight: 4 }
+    table:
+      extends: body
+      tabular: true
 
 # ─── PALETTE ──────────────────
 palette:
