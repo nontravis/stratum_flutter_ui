@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
 /// The fonts one type uses under one locale tag.
@@ -129,12 +130,22 @@ class StratumTypography {
     ),
   });
 
-  /// Parses the `typography:` node of `theme.yaml`.
+  /// Parses the `typography:` node of one `theme.yaml` file.
   ///
-  /// Collects every problem with its yaml path and throws one
-  /// [StratumThemeFormatException] that lists them all. An unknown key
-  /// prints one debug warning and is skipped.
-  factory fromYaml(YamlMap node) => _TypographyParser().parse(node);
+  /// Collects every problem, an unknown key included, and throws one
+  /// [StratumThemeFormatException] that lists them all; each error carries
+  /// [source] as its file id.
+  factory fromYaml(YamlMap node, {String source = 'theme'}) {
+    final origins = <String, ThemeOrigin>{};
+    final tree = plainOf(node, path: 'typography', source: 0, origins: origins);
+    final errors = ThemeErrors([source]);
+    final typography = readTypography(
+      tree! as Map<String, Object?>,
+      ThemeReader(errors, origins),
+    );
+    errors.throwIfAny();
+    return typography;
+  }
 
   /// Each font by its key.
   final Map<String, StratumFontData> fonts;
@@ -169,75 +180,49 @@ class StratumTypography {
   );
 }
 
-/// One problem in `theme.yaml`, at [path].
-@immutable
-class StratumThemeFormatError {
-  const new(this.path, this.message);
-
-  /// The yaml path, for example `typography.types.body.sizes.s16`.
-  final String path;
-
-  /// What is wrong at [path].
-  final String message;
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumThemeFormatError &&
-      other.path == path &&
-      other.message == message;
-
-  @override
-  int get hashCode => Object.hash(path, message);
-
-  @override
-  String toString() => '$path: $message';
-}
-
-/// Thrown when `theme.yaml` has one or more problems; [errors] lists them
-/// all.
-class StratumThemeFormatException implements Exception {
-  const new(this.errors);
-
-  /// Every problem found, in the order the parser met them.
-  final List<StratumThemeFormatError> errors;
-
-  @override
-  String toString() => [
-    'StratumThemeFormatException: ${errors.length} problem(s) in theme.yaml',
-    for (final error in errors) '  $error',
-  ].join('\n');
-}
+/// Reads the `typography` subtree [node], which sits at the path
+/// `typography`, and reports every problem through [reader].
+///
+/// Internal: `lib/src/themes/themes.dart` hides it from the public API.
+/// `StratumTypography.fromYaml` runs it on one file, and stage 5 of
+/// `StratumThemeConfig.parse` on the merged layers.
+StratumTypography readTypography(
+  Map<String, Object?> node,
+  ThemeReader reader,
+) => _TypographyParser(reader).parse(node);
 
 int _mapHash(Map<Object?, Object?> map) => Object.hashAllUnordered(
   map.entries.map((entry) => Object.hash(entry.key, entry.value)),
 );
 
 class _TypographyParser {
-  final _errors = <StratumThemeFormatError>[];
+  new(this._reader);
 
+  static const _path = 'typography';
   static const _googlePrefix = 'Google/';
   static final _tagPattern = RegExp(r'^([a-z]{2,3})(?:[-_]([A-Z]{2}))?$');
 
-  StratumTypography parse(YamlMap node) {
-    const path = 'typography';
-    _warnUnknown(node, path, const {
+  final ThemeReader _reader;
+
+  StratumTypography parse(Map<String, Object?> node) {
+    _checkKeys(node, _path, const {
       'fonts',
       'families',
       'scaleByWindowSize',
       'types',
     });
-    final fontsNode = _map(node['fonts'], '$path.fonts');
-    final fontKeys = {...?fontsNode?.keys.map((key) => '$key')};
-    final fonts = _fonts(fontsNode, '$path.fonts');
-    final familiesNode = _map(node['families'], '$path.families');
-    final families = _families(familiesNode, '$path.families', fontKeys);
-    final scale = _scale(node['scaleByWindowSize'], '$path.scaleByWindowSize');
-    final types = _types(_map(node['types'], '$path.types'), '$path.types');
+    final fontsNode = _reader.map(node['fonts'], '$_path.fonts');
+    final fontKeys = {...?fontsNode?.keys};
+    final fonts = _fonts(fontsNode, '$_path.fonts');
+    final familiesNode = _reader.map(node['families'], '$_path.families');
+    final families = _families(familiesNode, '$_path.families', fontKeys);
+    final scale = _scale(node['scaleByWindowSize'], '$_path.scaleByWindowSize');
+    final types = _types(
+      _reader.map(node['types'], '$_path.types'),
+      '$_path.types',
+    );
     if (familiesNode != null) {
-      _checkDefaultFamily(familiesNode, '$path.families.default');
-    }
-    if (_errors.isNotEmpty) {
-      throw StratumThemeFormatException(List.unmodifiable(_errors));
+      _checkDefaultFamily(familiesNode, '$_path.families.default');
     }
     return StratumTypography(
       fonts: fonts,
@@ -249,26 +234,35 @@ class _TypographyParser {
     );
   }
 
-  Map<String, StratumFontData> _fonts(YamlMap? node, String path) {
+  Map<String, StratumFontData> _fonts(Map<String, Object?>? node, String path) {
     if (node == null) return const {};
-    if (node.isEmpty) _error(path, 'expected at least one font');
+    if (node.isEmpty) {
+      _error(
+        StratumThemeErrorCode.emptyFonts,
+        path,
+        'expected at least one font',
+      );
+    }
     final fonts = <String, StratumFontData>{};
     for (final MapEntry(:key, :value) in node.entries) {
       final fontPath = '$path.$key';
-      final font = _map(value, fontPath);
+      final font = _reader.map(value, fontPath);
       if (font == null) continue;
-      _warnUnknown(font, fontPath, const {'family', 'package', 'adjustSize'});
-      final rawFamily = _string(font['family'], '$fontPath.family');
-      final package = _string(
+      _checkKeys(font, fontPath, const {'family', 'package', 'adjustSize'});
+      final rawFamily = _reader.string(font['family'], '$fontPath.family');
+      final package = _reader.string(
         font['package'],
         '$fontPath.package',
         required: false,
       );
-      final adjustSize = _dimension(font['adjustSize'], '$fontPath.adjustSize');
+      final adjustSize = _reader.dimension(
+        font['adjustSize'],
+        '$fontPath.adjustSize',
+      );
       if (rawFamily == null) continue;
       final resolved = _googleFamily(rawFamily, package, fontPath);
       if (resolved == null) continue;
-      fonts['$key'] = StratumFontData(
+      fonts[key] = StratumFontData(
         family: resolved.family,
         package: resolved.source == StratumFontSource.app ? package : null,
         adjustSize: adjustSize ?? const StratumDimension.fixed(0),
@@ -292,22 +286,34 @@ class _TypographyParser {
       return (family: rawFamily, source: StratumFontSource.app);
     }
     if (package != null) {
-      _error('$fontPath.package', 'package is not allowed with a Google font');
+      _error(
+        StratumThemeErrorCode.googleFontPackage,
+        '$fontPath.package',
+        'package is not allowed with a Google font',
+      );
     }
     final name = rawFamily.substring(_googlePrefix.length);
     if (name.isEmpty) {
-      _error('$fontPath.family', 'expected a font name after "Google/"');
+      _error(
+        StratumThemeErrorCode.emptyGoogleFont,
+        '$fontPath.family',
+        'expected a font name after "Google/"',
+      );
       return null;
     }
     if (!GoogleFontsLookup.exists(name)) {
-      _error('$fontPath.family', 'unknown Google Fonts family "$name"');
+      _error(
+        StratumThemeErrorCode.unknownGoogleFont,
+        '$fontPath.family',
+        'unknown Google Fonts family "$name"',
+      );
       return null;
     }
     return (family: name, source: StratumFontSource.google);
   }
 
   Map<String, StratumFamilySet> _families(
-    YamlMap? node,
+    Map<String, Object?>? node,
     String path,
     Set<String> fontKeys,
   ) {
@@ -315,11 +321,15 @@ class _TypographyParser {
     final families = <String, StratumFamilySet>{};
     for (final MapEntry(:key, :value) in node.entries) {
       final tagPath = '$path.$key';
-      final tag = _tag('$key', tagPath);
-      final entry = _map(value, tagPath);
+      final tag = _tag(key, tagPath);
+      final entry = _reader.map(value, tagPath);
       if (tag == null || entry == null) continue;
       if (families.containsKey(tag)) {
-        _error(tagPath, 'duplicate tag "$tag"');
+        _error(
+          StratumThemeErrorCode.duplicateTag,
+          tagPath,
+          'duplicate tag "$tag"',
+        );
         continue;
       }
       final types = <FontType, StratumFontRef>{};
@@ -330,9 +340,9 @@ class _TypographyParser {
           mono = _fontKey(ref, refPath, fontKeys);
           continue;
         }
-        final type = FontType.values.asNameMap()['$name'];
+        final type = FontType.values.asNameMap()[name];
         if (type == null) {
-          _warn(refPath);
+          _unknownKey(refPath, name);
           continue;
         }
         final fontRef = _fontRef(ref, refPath, fontKeys);
@@ -351,6 +361,7 @@ class _TypographyParser {
     final match = _tagPattern.firstMatch(key);
     if (match == null) {
       _error(
+        StratumThemeErrorCode.invalidTag,
         path,
         'expected "default", a language such as "th", or a language and '
         'country such as "th_TH"',
@@ -362,11 +373,11 @@ class _TypographyParser {
   }
 
   StratumFontRef? _fontRef(Object? value, String path, Set<String> keys) {
-    if (value is! YamlMap) {
+    if (value is! Map<String, Object?>) {
       final font = _fontKey(value, path, keys);
       return font == null ? null : StratumFontRef(font: font);
     }
-    _warnUnknown(value, path, const {'font', 'mono'});
+    _checkKeys(value, path, const {'font', 'mono'});
     final font = _fontKey(value['font'], '$path.font', keys);
     final mono = value['mono'] == null
         ? null
@@ -375,67 +386,89 @@ class _TypographyParser {
   }
 
   String? _fontKey(Object? value, String path, Set<String> keys) {
-    final key = _string(value, path);
+    final key = _reader.string(value, path);
     if (key == null) return null;
     if (keys.isEmpty || keys.contains(key)) return key;
-    _error(path, 'unknown font key "$key"');
+    _error(
+      StratumThemeErrorCode.unknownFontKey,
+      path,
+      'unknown font key "$key"',
+    );
     return null;
   }
 
   Map<WindowSize, StratumDimension>? _scale(Object? value, String path) {
-    final node = _map(value, path, required: false);
+    final node = _reader.map(value, path, required: false);
     if (node == null) return null;
     final scale = <WindowSize, StratumDimension>{};
     for (final MapEntry(:key, :value) in node.entries) {
       final sizePath = '$path.$key';
-      final windowSize = WindowSize.values.asNameMap()['$key'];
+      final windowSize = WindowSize.values.asNameMap()[key];
       if (windowSize == null) {
-        _warn(sizePath);
+        _reader.report(
+          StratumThemeErrorCode.unknownKey,
+          sizePath,
+          'unknown window size "$key"',
+          atKey: true,
+        );
         continue;
       }
-      final dimension = _dimension(value, sizePath, required: true);
+      final dimension = _reader.dimension(value, sizePath, required: true);
       if (dimension != null) scale[windowSize] = dimension;
     }
     return Map.unmodifiable(scale);
   }
 
-  Map<FontType, StratumTypeStyle> _types(YamlMap? node, String path) {
+  Map<FontType, StratumTypeStyle> _types(
+    Map<String, Object?>? node,
+    String path,
+  ) {
     if (node == null) return const {};
     final types = <FontType, StratumTypeStyle>{};
     final seen = <FontType>{};
     for (final MapEntry(:key, :value) in node.entries) {
       final typePath = '$path.$key';
-      final type = FontType.values.asNameMap()['$key'];
+      final type = FontType.values.asNameMap()[key];
       if (type == null) {
-        _warn(typePath);
+        _unknownKey(typePath, key);
         continue;
       }
       if (type == FontType.table) {
-        _error(typePath, "table takes body's metrics; remove this block");
+        _error(
+          StratumThemeErrorCode.tableBlock,
+          typePath,
+          "table takes body's metrics; remove this block",
+        );
         continue;
       }
       seen.add(type);
-      final typeNode = _map(value, typePath);
+      final typeNode = _reader.map(value, typePath);
       if (typeNode == null) continue;
       final style = _typeStyle(typeNode, typePath);
       if (style != null) types[type] = style;
     }
     for (final type in FontType.values) {
       if (type == FontType.table || seen.contains(type)) continue;
-      _error('$path.${type.name}', 'required');
+      _error(StratumThemeErrorCode.required, '$path.${type.name}', 'required');
     }
     return Map.unmodifiable(types);
   }
 
-  StratumTypeStyle? _typeStyle(YamlMap node, String path) {
-    _warnUnknown(node, path, const {'weight', 'sizes', 'scaleByWindowSize'});
+  StratumTypeStyle? _typeStyle(Map<String, Object?> node, String path) {
+    _checkKeys(node, path, const {'weight', 'sizes', 'scaleByWindowSize'});
     final weight = _weight(node['weight'], '$path.weight');
     if (weight == null && node['weight'] == null) {
-      _error('$path.weight', 'required');
+      _error(StratumThemeErrorCode.required, '$path.weight', 'required');
     }
     final scale = _scale(node['scaleByWindowSize'], '$path.scaleByWindowSize');
     final sizes = _sizes(node['sizes'], '$path.sizes');
-    if (sizes.isEmpty) _error('$path.sizes', 'expected at least one size');
+    if (sizes.isEmpty) {
+      _error(
+        StratumThemeErrorCode.emptySizes,
+        '$path.sizes',
+        'expected at least one size',
+      );
+    }
     if (weight == null || sizes.isEmpty) return null;
     return StratumTypeStyle(
       weight: weight,
@@ -447,25 +480,25 @@ class _TypographyParser {
   }
 
   Map<FontSize, StratumSizeMetrics> _sizes(Object? value, String path) {
-    final node = _map(value, path, required: false);
+    final node = _reader.map(value, path, required: false);
     if (node == null) return const {};
     final sizes = <FontSize, StratumSizeMetrics>{};
     for (final MapEntry(:key, :value) in node.entries) {
       final sizePath = '$path.$key';
-      final size = FontSize.values.asNameMap()['$key'];
+      final size = FontSize.values.asNameMap()[key];
       if (size == null) {
-        _warn(sizePath);
+        _unknownKey(sizePath, key);
         continue;
       }
-      final metrics = _map(value, sizePath);
+      final metrics = _reader.map(value, sizePath);
       if (metrics == null) continue;
-      _warnUnknown(metrics, sizePath, const {'spaceHeight', 'letterSpacing'});
-      final spaceHeight = _dimension(
+      _checkKeys(metrics, sizePath, const {'spaceHeight', 'letterSpacing'});
+      final spaceHeight = _reader.dimension(
         metrics['spaceHeight'],
         '$sizePath.spaceHeight',
         required: true,
       );
-      final letterSpacing = _dimension(
+      final letterSpacing = _reader.dimension(
         metrics['letterSpacing'],
         '$sizePath.letterSpacing',
       );
@@ -483,77 +516,49 @@ class _TypographyParser {
     if (value is int && value >= 100 && value <= 900 && value % 100 == 0) {
       return FontWeight.values[value ~/ 100 - 1];
     }
-    _error(path, 'expected 100 to 900 in steps of 100, got ${_show(value)}');
+    _error(
+      StratumThemeErrorCode.invalidWeight,
+      path,
+      'expected 100 to 900 in steps of 100, got ${ThemeReader.show(value)}',
+    );
     return null;
   }
 
   /// Reports each type the `default` family set does not name directly.
   ///
-  /// Reads the names from yaml, so a bad font reference, which has its own
-  /// error, still counts as naming the type.
-  void _checkDefaultFamily(YamlMap families, String path) {
+  /// Reads the names from the tree, so a bad font reference, which has its
+  /// own error, still counts as naming the type.
+  void _checkDefaultFamily(Map<String, Object?> families, String path) {
     if (!families.containsKey('default')) {
-      _error(path, 'required');
+      _error(StratumThemeErrorCode.required, path, 'required');
       return;
     }
     final defaults = families['default'];
-    if (defaults is! YamlMap) return;
-    final named = defaults.keys.map((key) => '$key').toSet();
+    if (defaults is! Map<String, Object?>) return;
     for (final type in FontType.values) {
-      if (named.contains(type.name)) continue;
-      _error('$path.${type.name}', 'no font for type "${type.name}"');
+      if (defaults.containsKey(type.name)) continue;
+      _error(
+        StratumThemeErrorCode.missingDefaultFont,
+        '$path.${type.name}',
+        'no font for type "${type.name}"',
+      );
     }
   }
 
-  YamlMap? _map(Object? value, String path, {bool required = true}) {
-    if (value is YamlMap) return value;
-    if (value == null) {
-      if (required) _error(path, 'required');
-      return null;
-    }
-    _error(path, 'expected a map, got ${_show(value)}');
-    return null;
-  }
-
-  String? _string(Object? value, String path, {bool required = true}) {
-    if (value is String) return value;
-    if (value == null) {
-      if (required) _error(path, 'required');
-      return null;
-    }
-    _error(path, 'expected a string, got ${_show(value)}');
-    return null;
-  }
-
-  StratumDimension? _dimension(
-    Object? value,
-    String path, {
-    bool required = false,
-  }) {
-    if (value == null) {
-      if (required) _error(path, 'required');
-      return null;
-    }
-    try {
-      return StratumDimension.parse(value);
-    } on FormatException catch (error) {
-      _error(path, error.message);
-      return null;
-    }
-  }
-
-  void _warnUnknown(YamlMap node, String path, Set<String> known) {
+  /// Reports `unknown_key` at each key of [node] outside [known].
+  void _checkKeys(Map<String, Object?> node, String path, Set<String> known) {
     for (final key in node.keys) {
-      if (!known.contains('$key')) _warn('$path.$key');
+      if (!known.contains(key)) _unknownKey('$path.$key', key);
     }
   }
 
-  void _warn(String path) {
-    if (kDebugMode) debugPrint('Stratum theme: skipped unknown key $path');
-  }
+  void _unknownKey(String path, String key) => _reader.report(
+    StratumThemeErrorCode.unknownKey,
+    path,
+    'unknown key "$key"',
+    atKey: true,
+  );
 
-  void _error(String path, String message) =>
-      _errors.add(StratumThemeFormatError(path, message));
-
-  static String _show(Object? value) => value is String ? '"$value"' : '$value';
+  void _error(StratumThemeErrorCode code, String path, String message) =>
+      _reader.report(code, path, message);
 }
