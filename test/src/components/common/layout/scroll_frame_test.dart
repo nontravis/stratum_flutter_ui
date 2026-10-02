@@ -208,6 +208,77 @@ bool _revealed(FocusNode node, FocusNode viewport) =>
     node.rect.top >= viewport.rect.top &&
     node.rect.bottom <= viewport.rect.bottom;
 
+/// Focus nodes on both sides of a 200 by 200 desktop scroller and inside
+/// it: [above], the scroller's items [first] and [second], and [below],
+/// each 200 by 40, under `WidgetsApp.defaultShortcuts`.
+class _Edge {
+  final FocusNode above = _node();
+  final FocusNode first = _node();
+  final FocusNode second = _node();
+  final FocusNode below = _node();
+  final _names = <FocusNode, String>{};
+
+  /// The name of the node that holds primary focus; the scroller's own
+  /// stop is `box`.
+  String get focused => _names[FocusManager.instance.primaryFocus] ?? '-';
+
+  /// Pumps the nodes around the scroller that [scroller] builds from the
+  /// items, and focuses [above].
+  Future<void> pump(
+    WidgetTester tester,
+    Widget Function(List<Widget> items) scroller,
+  ) async {
+    Widget item(FocusNode node) => Focus(
+      focusNode: node,
+      child: const SizedBox(width: 200, height: 40),
+    );
+    await tester.pumpWidget(
+      themedHost(
+        Shortcuts(
+          shortcuts: WidgetsApp.defaultShortcuts,
+          child: Actions(
+            actions: WidgetsApp.defaultActions,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                item(above),
+                SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: scroller([item(first), item(second)]),
+                ),
+                item(below),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    _names.addAll({
+      above: 'above',
+      first: 'first',
+      second: 'second',
+      below: 'below',
+      _scrollFocusNode(tester): 'box',
+    });
+    above.requestFocus();
+    await tester.pumpAndSettle();
+  }
+
+  /// Presses [keys] in turn and returns the focused node after each.
+  Future<List<String>> press(
+    WidgetTester tester,
+    List<LogicalKeyboardKey> keys,
+  ) async {
+    final path = <String>[];
+    for (final key in keys) {
+      await _key(tester, key);
+      path.add(focused);
+    }
+    return path;
+  }
+}
+
 /// A lazy cell, 300 px high, with [row] at its top.
 Widget _cell(Widget row) {
   return SizedBox(
@@ -1014,97 +1085,96 @@ void main() {
       );
     }
 
-    testWidgets(
-      '(pin) desktop arrows move focus across a scrolling box edge as '
-      'before',
-      (tester) async {
-        final above = _node();
-        final first = _node();
-        final second = _node();
-        final below = _node();
-        Widget item(FocusNode node) => Focus(
-          focusNode: node,
-          child: const SizedBox(width: 200, height: 40),
-        );
-        await tester.pumpWidget(
-          themedHost(
-            Shortcuts(
-              shortcuts: WidgetsApp.defaultShortcuts,
-              child: Actions(
-                actions: WidgetsApp.defaultActions,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    item(above),
-                    SizedBox(
-                      width: 200,
-                      height: 200,
-                      child: ColumnLayout(
-                        scroll: const StratumScroll(),
-                        children: [
-                          item(first),
-                          item(second),
-                          const SizedBox(height: 400),
-                        ],
-                      ),
-                    ),
-                    item(below),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-        final box = _scrollFocusNode(tester);
-        final names = {
-          above: 'above',
-          first: 'first',
-          second: 'second',
-          below: 'below',
-          box: 'box',
-        };
-        String focused() => names[FocusManager.instance.primaryFocus] ?? '-';
+    final scrollers = <String, Widget Function(List<Widget> items)>{
+      'ColumnLayout': (items) => ColumnLayout(
+        scroll: const StratumScroll(),
+        children: [...items, const SizedBox(height: 400)],
+      ),
+      'ListViewLayout': (items) => ListViewLayout.builder(
+        itemCount: items.length + 1,
+        itemBuilder: (context, index) =>
+            index < items.length ? items[index] : const SizedBox(height: 400),
+      ),
+    };
+    for (final MapEntry(key: name, value: scroller) in scrollers.entries) {
+      testWidgets(
+        '(pin) desktop arrows walk from above a $name through its items '
+        'onto its stop',
+        (tester) async {
+          final edge = _Edge();
+          await edge.pump(tester, scroller);
 
-        // One walk down from above, into the box and onto its stop.
-        above.requestFocus();
-        await tester.pumpAndSettle();
-        final walk = <String>[];
-        for (var i = 0; i < 3; i++) {
-          await _key(tester, LogicalKeyboardKey.arrowDown);
-          walk.add(focused());
-        }
-        expect(walk, ['first', 'second', 'box']);
+          final path = await edge.press(tester, [
+            LogicalKeyboardKey.arrowDown,
+            LogicalKeyboardKey.arrowDown,
+            LogicalKeyboardKey.arrowDown,
+          ]);
 
-        // Single presses without directional history: where the geometry
-        // alone moves focus.
-        final steps = <String>[];
-        Future<void> press(FocusNode from, LogicalKeyboardKey key) async {
-          from.requestFocus();
-          await tester.pumpAndSettle();
-          for (final node in names.keys) {
-            FocusTraversalGroup.maybeOfNode(node)
-                ?.invalidateScopeData(node.nearestScope!);
+          expect(path, ['first', 'second', 'box']);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      );
+
+      testWidgets(
+        'desktop arrows keep their history across the content of a $name: '
+        'Down, Up, Down, Down from above ends on the second item',
+        (tester) async {
+          final edge = _Edge();
+          await edge.pump(tester, scroller);
+
+          final path = await edge.press(tester, [
+            LogicalKeyboardKey.arrowDown,
+            LogicalKeyboardKey.arrowUp,
+            LogicalKeyboardKey.arrowDown,
+            LogicalKeyboardKey.arrowDown,
+          ]);
+
+          expect(path, ['first', 'above', 'first', 'second']);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      );
+
+      testWidgets(
+        'Tab inside a $name clears the arrow history around it: Down, '
+        'Tab, Tab, Up from above ends on the stop',
+        (tester) async {
+          final edge = _Edge();
+          await edge.pump(tester, scroller);
+
+          final path = await edge.press(tester, [
+            LogicalKeyboardKey.arrowDown,
+            LogicalKeyboardKey.tab,
+            LogicalKeyboardKey.tab,
+            LogicalKeyboardKey.arrowUp,
+          ]);
+
+          expect(path, ['first', 'second', 'below', 'box']);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      );
+
+      testWidgets(
+        'Tab walks above, the stop of a $name, its items, and below; '
+        'Shift+Tab walks back',
+        (tester) async {
+          final edge = _Edge();
+          await edge.pump(tester, scroller);
+
+          final forward = await edge.press(tester, [
+            for (var i = 0; i < 4; i++) LogicalKeyboardKey.tab,
+          ]);
+          final back = <String>[];
+          for (var i = 0; i < 4; i++) {
+            await _shiftTab(tester);
+            back.add(edge.focused);
           }
-          await _key(tester, key);
-          steps.add('${names[from]} ${key.keyLabel} -> ${focused()}');
-        }
 
-        await press(first, LogicalKeyboardKey.arrowUp);
-        await press(first, LogicalKeyboardKey.arrowDown);
-        await press(second, LogicalKeyboardKey.arrowUp);
-        await press(second, LogicalKeyboardKey.arrowDown);
-        await press(below, LogicalKeyboardKey.arrowUp);
-
-        expect(steps, [
-          'first Arrow Up -> above',
-          'first Arrow Down -> second',
-          'second Arrow Up -> first',
-          'second Arrow Down -> box',
-          'below Arrow Up -> box',
-        ]);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+          expect(forward, ['box', 'first', 'second', 'below']);
+          expect(back, ['second', 'first', 'box', 'above']);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      );
+    }
   });
 
   group('ScrollFocus ring placement', () {

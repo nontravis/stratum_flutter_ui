@@ -75,9 +75,7 @@ class CustomScrollViewLayout extends StatelessWidget {
         ),
       ),
     );
-    // One traversal group, so the content follows the Tab stop; see
-    // ScrollFocus.
-    if (focusable) view = FocusTraversalGroup(child: view);
+    if (focusable) view = ScrollFocus.contentGroup(view);
     if (style != null) {
       view = ContainerLayout(style: ScrollFrame.boxStyle(style), child: view);
     }
