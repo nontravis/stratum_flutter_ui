@@ -85,7 +85,12 @@ void main() {
 
   group('runSteps with S2-plain', () {
     final steps = runSteps(
-      [perfScene('S2-plain'), perfScene('S1'), perfScene('S3'), perfScene('S5')],
+      [
+        perfScene('S2-plain'),
+        perfScene('S1'),
+        perfScene('S3'),
+        perfScene('S5'),
+      ],
       first: 1,
       count: 2,
     );

@@ -263,6 +263,48 @@ void main() {
       await tester.pumpAndSettle();
     });
 
+    testWidgets("dragStyle's own animationStyle times the lift", (
+      tester,
+    ) async {
+      const dragStyle = WidgetStyle(
+        backgroundColor: _red,
+        animationStyle: AnimationStyle(duration: Duration(milliseconds: 300)),
+      );
+      await tester.pumpWidget(
+        _app(const _Harness(count: 5, dragStyle: dragStyle)),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('0')),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.moveBy(const Offset(0, 30));
+      await tester.pump();
+      await tester.pump();
+
+      final lifted = tester.widget<AnimatedStyledBox>(
+        find.byType(AnimatedStyledBox),
+      );
+      expect(
+        lifted.style!.animationStyle?.duration,
+        const Duration(milliseconds: 300),
+      );
+      // Past the 100 ms default, the 300 ms lift is still under way.
+      await tester.pump(const Duration(milliseconds: 150));
+      final fill = tester.widget<DecoratedBox>(
+        find.descendant(
+          of: find.byType(AnimatedStyledBox),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      final color = (fill.decoration as StyleDecoration).color!;
+      expect(color.a, greaterThan(0));
+      expect(color.a, lessThan(1));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('without dragStyle the lifted item is built as is', (
       tester,
     ) async {

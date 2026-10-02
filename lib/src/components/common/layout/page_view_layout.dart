@@ -105,8 +105,9 @@ class PageViewLayout extends StatelessWidget {
   final bool padEnds;
 
   /// Whether the page view shows a scrollbar; null keeps [PageView]'s
-  /// default, none. Scroll views inside the pages keep the scroll
-  /// behavior's choice either way.
+  /// default, none. A non-null value also applies to plain Flutter scroll
+  /// views inside the pages; layout scroll views there keep the scroll
+  /// behavior's choice.
   final bool? showScrollbar;
 
   /// Whether the page view is a Tab stop that pages by keyboard; null

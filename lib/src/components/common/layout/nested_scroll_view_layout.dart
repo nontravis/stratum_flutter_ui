@@ -48,8 +48,9 @@ class NestedScrollViewLayout extends StatelessWidget {
   final ScrollPhysics? physics;
 
   /// Whether the outer view shows a scrollbar; null keeps
-  /// [NestedScrollView]'s default, none. The scroll views in [body] keep the
-  /// scroll behavior's choice either way.
+  /// [NestedScrollView]'s default, none. A non-null value also applies to
+  /// plain Flutter scroll views in [body]; layout scroll views there keep
+  /// the scroll behavior's choice.
   final bool? showScrollbar;
   final NestedScrollViewHeaderSliversBuilder headerSliverBuilder;
   final Widget body;
