@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/reader.dart';
 
 void main() {
   const spcae = StratumThemeFormatError(
@@ -67,6 +68,24 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('two exceptions over equal, non-identical error lists are equal', () {
+    ThemeErrors buildErrors() => ThemeErrors(['ocean'])
+      ..add(
+        StratumThemeErrorCode.unknownKey,
+        'spcae',
+        'unknown key "spcae"',
+        source: 0,
+        at: (line: 3, column: 1),
+      );
+    final a = StratumThemeFormatException(buildErrors().sorted);
+    final b = StratumThemeFormatException(buildErrors().sorted);
+
+    expect(a, b);
+    expect(a.hashCode, b.hashCode);
+    expect(identical(a.errors, b.errors), isFalse);
+    expect(a, isNot(const StratumThemeFormatException([])));
   });
 
   test('each of the 23 codes has its snake_case catalog key', () {

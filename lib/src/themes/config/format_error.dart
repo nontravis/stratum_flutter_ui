@@ -88,6 +88,7 @@ class StratumThemeFormatError {
 
 /// Thrown when one or more `theme.yaml` files have problems; [errors] lists
 /// them all.
+@immutable
 class StratumThemeFormatException implements Exception {
   const new(this.errors);
 
@@ -95,6 +96,13 @@ class StratumThemeFormatException implements Exception {
   /// order; inside one file by line, then column, with the problems that
   /// have no position last.
   final List<StratumThemeFormatError> errors;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StratumThemeFormatException && listEquals(other.errors, errors);
+
+  @override
+  int get hashCode => Object.hashAll(errors);
 
   /// A header line, then one line per error:
   /// `  <source>:<line>:<column> <path>: <message> [<key>]`. The position

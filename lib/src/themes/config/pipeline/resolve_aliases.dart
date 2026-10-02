@@ -96,12 +96,17 @@ final class _Resolve {
       for (final MapEntry(:key, :value) in node.entries) {
         _collect(value, [...path, key]);
       }
-    } else if (node is String && isAlias(node)) {
+    } else if (node is String && isAlias(node) && !_isAppRamp(path)) {
       final dotted = path.join('.');
       _holders[dotted] = path;
       _aliases[dotted] = node;
     }
   }
+
+  /// Whether [path] is a `palette.app` ramp (a group, never an alias
+  /// source or target, spec G1): stage 5 reports it directly.
+  static bool _isAppRamp(List<String> path) =>
+      path.length == 3 && path[0] == 'palette' && path[1] == 'app';
 
   /// The chain of the holder at [path], or null when its alias fails.
   List<String>? _resolve(String path) {

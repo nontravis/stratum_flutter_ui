@@ -157,6 +157,16 @@ color:
       expect(_problems('palette:\n  app:\n    mango: "#FFAA00"'), [expected]);
     });
 
+    test('reports a palette.app ramp written as an alias string once', () {
+      const expected =
+          'layer1 palette.app.mango: expected a map, got '
+          '"{palette.brand.555}" [expected_map]';
+      expect(
+        _problems('palette:\n  app:\n    mango: "{palette.brand.555}"'),
+        [expected],
+      );
+    });
+
     test('reads app colors and app ramps', () {
       final (config, errors) = _read([
         layer('''

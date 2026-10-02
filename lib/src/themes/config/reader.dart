@@ -90,9 +90,6 @@ final class ThemeErrors {
 
   final _entries = <_Entry>[];
 
-  /// Whether no error was added.
-  bool get isEmpty => _entries.isEmpty;
-
   /// Adds one error of the file at index [source], at position [at].
   void add(
     StratumThemeErrorCode code,
