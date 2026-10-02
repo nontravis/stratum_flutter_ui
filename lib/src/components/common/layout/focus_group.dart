@@ -128,31 +128,48 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
     final target = _target(event.logicalKey, current, items, reading);
     if (target == null) return KeyEventResult.ignored;
     if (target != current) {
-      final policy = _revealPolicy(current, target);
+      final policy = _revealPolicy(target);
       target.requestFocus();
       final scope = node.nearestScope;
       if (scope != null) _policy.invalidateScopeData(scope);
-      Scrollable.ensureVisible(target.context!, alignmentPolicy: policy);
+      if (policy != null) {
+        Scrollable.ensureVisible(target.context!, alignmentPolicy: policy);
+      }
     }
     return KeyEventResult.handled;
   }
 
-  /// The policy that scrolls [target] into view, by screen position as
-  /// Flutter's directional traversal picks it: at the end when [target]'s
-  /// center lies right of or below [current]'s along the enclosing scroll
-  /// axis, else at the start. [ScrollPosition.ensureVisible] flips both
-  /// for a reversed axis, so reading order never decides it.
-  static ScrollPositionAlignmentPolicy _revealPolicy(
-    FocusNode current,
-    FocusNode target,
-  ) {
-    final axis = Scrollable.maybeOf(target.context!)?.position.axis;
-    final from = current.rect.center;
-    final to = target.rect.center;
-    final after = axis == Axis.horizontal ? to.dx > from.dx : to.dy > from.dy;
-    return after
-        ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
-        : ScrollPositionAlignmentPolicy.keepVisibleAtStart;
+  /// The policy that scrolls [target] into view, by where it lies on screen
+  /// against the viewports around it, from the nearest outwards: the first
+  /// viewport it extends past decides. Past the top or left edge it reveals
+  /// at the start; past the bottom or right edge, at the end. Null when
+  /// [target] lies inside every viewport, so nothing scrolls.
+  /// [ScrollPosition.ensureVisible] flips both for a reversed axis, so
+  /// right-to-left text and `reverse` never decide it.
+  static ScrollPositionAlignmentPolicy? _revealPolicy(FocusNode target) {
+    final rect = target.rect;
+    for (
+      var scrollable = Scrollable.maybeOf(target.context!);
+      scrollable != null;
+      scrollable = Scrollable.maybeOf(scrollable.context)
+    ) {
+      final box = scrollable.context.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) continue;
+      final viewport = MatrixUtils.transformRect(
+        box.getTransformTo(null),
+        Offset.zero & box.size,
+      );
+      final horizontal = scrollable.position.axis == Axis.horizontal;
+      final before = horizontal
+          ? rect.left < viewport.left
+          : rect.top < viewport.top;
+      if (before) return ScrollPositionAlignmentPolicy.keepVisibleAtStart;
+      final past = horizontal
+          ? rect.right > viewport.right
+          : rect.bottom > viewport.bottom;
+      if (past) return ScrollPositionAlignmentPolicy.keepVisibleAtEnd;
+    }
+    return null;
   }
 
   /// The item that holds primary focus or contains it.
