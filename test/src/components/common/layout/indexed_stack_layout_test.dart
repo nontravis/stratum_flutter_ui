@@ -48,6 +48,74 @@ Widget _focusable(FocusNode node) {
 /// The label of the node that holds primary focus.
 String? _focused() => FocusManager.instance.primaryFocus?.debugLabel;
 
+/// Whether the node that holds primary focus lies wholly inside the
+/// viewport of the one [Scrollable] on screen.
+bool _focusInView(WidgetTester tester) {
+  final view = tester.getRect(find.byType(Scrollable));
+  final rect = FocusManager.instance.primaryFocus!.rect;
+  return view.intersect(rect) == rect;
+}
+
+/// A stack of 200 by 300 that shows the focusable box on [outgoing] at
+/// index 0 and, at index 1, a list of 100 focusable rows of 40 px, `row
+/// <i>`, scrolled by [controller].
+Widget _stackOfList(
+  int index, {
+  required FocusNode outgoing,
+  required ScrollController controller,
+  bool? focusable,
+}) {
+  return _host(
+    SizedBox(
+      width: 200,
+      height: 300,
+      child: IndexedStackLayout(
+        index: index,
+        sizing: StackFit.expand,
+        children: [
+          _focusable(outgoing),
+          ListViewLayout.builder(
+            controller: controller,
+            focusable: focusable,
+            itemCount: 100,
+            itemBuilder: (context, i) => Focus(
+              debugLabel: 'row $i',
+              child: const SizedBox(height: 40),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Shows the list of [_stackOfList] scrolled to [offset], then switches
+/// to the box, focuses it, and switches back to the list.
+Future<void> _switchIntoList(
+  WidgetTester tester, {
+  required double offset,
+  bool? focusable,
+}) async {
+  final outgoing = _node('outgoing');
+  final controller = ScrollController();
+  addTearDown(controller.dispose);
+  Widget build(int index) => _stackOfList(
+    index,
+    outgoing: outgoing,
+    controller: controller,
+    focusable: focusable,
+  );
+  await tester.pumpWidget(build(1));
+  controller.jumpTo(offset);
+  await tester.pump();
+  await tester.pumpWidget(build(0));
+  outgoing.requestFocus();
+  await tester.pump();
+
+  await tester.pumpWidget(build(1));
+  await tester.pump();
+}
+
 void main() {
   group('IndexedStackLayout', () {
     testWidgets('shows the child at index', (tester) async {
@@ -196,6 +264,63 @@ void main() {
         await tester.pump();
 
         expect(_focused(), 'incoming first');
+      },
+    );
+
+    testWidgets(
+      "focus moves to the Tab stop of the incoming child's scrolled "
+      'focusable list, on screen',
+      (tester) async {
+        await _switchIntoList(tester, offset: 400);
+
+        expect(_focused(), 'ScrollFocus');
+        expect(_focusInView(tester), isTrue);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'focus moves to the first row of a scrolled list that is not a Tab '
+      'stop and reveals it',
+      (tester) async {
+        await _switchIntoList(tester, offset: 400, focusable: false);
+
+        // The list builds rows above its viewport; the first of them comes
+        // first in Tab order.
+        expect(_focused(), 'row 3');
+        expect(_focusInView(tester), isTrue);
+      },
+    );
+
+    testWidgets(
+      'focus moves to the entry of a focus group in the incoming child: '
+      'the item that last held focus',
+      (tester) async {
+        final outgoing = _node('outgoing');
+        final items = [for (final label in ['a', 'b', 'c']) _node(label)];
+        Widget build(int index) => _host(
+          IndexedStackLayout(
+            index: index,
+            children: [
+              _focusable(outgoing),
+              RowLayout(
+                focusGroup: const StratumFocusGroup(),
+                children: [for (final item in items) _focusable(item)],
+              ),
+            ],
+          ),
+        );
+        await tester.pumpWidget(build(1));
+        items[1].requestFocus();
+        await tester.pump();
+        await tester.pumpWidget(build(0));
+        await tester.pump();
+        expect(_focused(), 'outgoing');
+
+        await tester.pumpWidget(build(1));
+        await tester.pump();
+
+        expect(_focused(), 'b');
       },
     );
 

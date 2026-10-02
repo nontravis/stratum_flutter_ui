@@ -51,10 +51,11 @@ Widget _page(int page) {
 
 String? _focused() => FocusManager.instance.primaryFocus?.debugLabel;
 
-/// The page the view shows, from its offset.
+/// The page the view shows, from its offset; the page view's scrollable is
+/// the first, above any inside the pages.
 double _shown(WidgetTester tester) {
   final position = tester
-      .state<ScrollableState>(find.byType(Scrollable))
+      .state<ScrollableState>(find.byType(Scrollable).first)
       .position;
   return position.pixels / position.viewportDimension;
 }
@@ -169,6 +170,47 @@ void main() {
 
         expect(_shown(tester), 1);
         expect(_focused(), 'p1.0');
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'Page Down from an item moves focus to the Tab stop of a focusable '
+      'list that starts the new page',
+      (tester) async {
+        final before = _node('before');
+        await tester.pumpWidget(
+          _keyboardHost(
+            PageViewLayout(
+              children: [
+                _page(0),
+                ListViewLayout.builder(
+                  itemCount: 20,
+                  itemBuilder: (context, i) => Focus(
+                    debugLabel: 'row $i',
+                    child: const SizedBox(height: 40),
+                  ),
+                ),
+              ],
+            ),
+            before: before,
+          ),
+        );
+        before.requestFocus();
+        await tester.pump();
+        await _key(tester, LogicalKeyboardKey.tab);
+        await _key(tester, LogicalKeyboardKey.tab);
+        expect(_focused(), 'p0.0');
+
+        await _key(tester, LogicalKeyboardKey.pageDown);
+
+        expect(_shown(tester), 1);
+        final primary = FocusManager.instance.primaryFocus!;
+        expect(primary.debugLabel, 'ScrollFocus');
+        expect(
+          primary.context!.findAncestorWidgetOfExactType<ListViewLayout>(),
+          isNotNull,
+        );
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );

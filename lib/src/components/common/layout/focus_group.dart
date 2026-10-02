@@ -141,39 +141,6 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
     return KeyEventResult.handled;
   }
 
-  /// The policy that scrolls [target] into view, by where it lies on screen
-  /// against the viewports around it, from the nearest outwards: the first
-  /// viewport it extends past decides. Past the top or left edge it reveals
-  /// at the start; past the bottom or right edge, at the end. Null when
-  /// [target] lies inside every viewport, so nothing scrolls.
-  /// [ScrollPosition.ensureVisible] flips both for a reversed axis, so
-  /// right-to-left text and `reverse` never decide it.
-  static ScrollPositionAlignmentPolicy? _revealPolicy(FocusNode target) {
-    final rect = target.rect;
-    for (
-      var scrollable = Scrollable.maybeOf(target.context!);
-      scrollable != null;
-      scrollable = Scrollable.maybeOf(scrollable.context)
-    ) {
-      final box = scrollable.context.findRenderObject();
-      if (box is! RenderBox || !box.hasSize) continue;
-      final viewport = MatrixUtils.transformRect(
-        box.getTransformTo(null),
-        Offset.zero & box.size,
-      );
-      final horizontal = scrollable.position.axis == Axis.horizontal;
-      final before = horizontal
-          ? rect.left < viewport.left
-          : rect.top < viewport.top;
-      if (before) return ScrollPositionAlignmentPolicy.keepVisibleAtStart;
-      final past = horizontal
-          ? rect.right > viewport.right
-          : rect.bottom > viewport.bottom;
-      if (past) return ScrollPositionAlignmentPolicy.keepVisibleAtEnd;
-    }
-    return null;
-  }
-
   /// The item that holds primary focus or contains it.
   static FocusNode? _current(List<FocusNode> items) {
     final primary = FocusManager.instance.primaryFocus;
@@ -424,34 +391,111 @@ class _FocusGroupPolicy extends ReadingOrderTraversalPolicy {
   }
 }
 
-/// The first node inside [container] in Tab order, as the traversal policy
-/// around [container] sorts its traversal descendants; null when no node
-/// inside can take focus.
+/// The first node inside [container] in Tab order, scrolled into view;
+/// null when no node inside can take focus.
 ///
-/// Layouts that switch their content (`IndexedStackLayout`, the pages of a
-/// `PageViewLayout`, the items of a `ReorderableListViewLayout`) hand focus
-/// to it after the switch.
+/// Sorts each traversal group inside by its own policy, as Tab does, so a
+/// focusable scroll view's Tab stop precedes its items. Layouts that
+/// switch their content focus this node after the switch.
 FocusNode? firstTabStopIn(FocusNode container) {
-  final nodes = [
-    for (final node in container.traversalDescendants)
-      if (node.context != null) node,
-  ];
-  if (nodes.isEmpty) return null;
-  final policy = FocusTraversalGroup.maybeOfNode(container) ?? _tabOrder;
-  return _tabOrder.first(policy, nodes, container);
+  final first = _tabOrder.first(container);
+  if (first == null) return null;
+  final policy = _revealPolicy(first);
+  if (policy != null) {
+    Scrollable.ensureVisible(first.context!, alignmentPolicy: policy);
+  }
+  return first;
+}
+
+/// The policy that scrolls [target] into view, by where it lies on screen
+/// against the viewports around it, from the nearest outwards: the first
+/// viewport it extends past decides. Past the top or left edge it reveals
+/// at the start; past the bottom or right edge, at the end. Null when
+/// [target] lies inside every viewport, so nothing scrolls.
+/// [ScrollPosition.ensureVisible] flips both for a reversed axis, so
+/// right-to-left text and `reverse` never decide it.
+ScrollPositionAlignmentPolicy? _revealPolicy(FocusNode target) {
+  final rect = target.rect;
+  for (
+    var scrollable = Scrollable.maybeOf(target.context!);
+    scrollable != null;
+    scrollable = Scrollable.maybeOf(scrollable.context)
+  ) {
+    final box = scrollable.context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) continue;
+    final viewport = MatrixUtils.transformRect(
+      box.getTransformTo(null),
+      Offset.zero & box.size,
+    );
+    final horizontal = scrollable.position.axis == Axis.horizontal;
+    final before = horizontal
+        ? rect.left < viewport.left
+        : rect.top < viewport.top;
+    if (before) return ScrollPositionAlignmentPolicy.keepVisibleAtStart;
+    final past = horizontal
+        ? rect.right > viewport.right
+        : rect.bottom > viewport.bottom;
+    if (past) return ScrollPositionAlignmentPolicy.keepVisibleAtEnd;
+  }
+  return null;
+}
+
+/// Whether [node] is the node of a [FocusTraversalGroup], whose members are
+/// the traversable nodes below it. Flutter's type for that node is
+/// private, so this reads the widget that built the node's [Focus].
+bool _isTraversalGroup(FocusNode node) {
+  var group = false;
+  node.context?.visitAncestorElements((element) {
+    group = element.widget is FocusTraversalGroup;
+    return false;
+  });
+  return group;
 }
 
 final _tabOrder = _TabOrder();
 
-/// Reading order, and the one place that asks another policy to sort:
+/// Tab order inside one node, as Flutter's traversal sorts a scope, and
+/// the one place that asks other policies to sort:
 /// [FocusTraversalPolicy.sortDescendants] is protected.
 class _TabOrder extends ReadingOrderTraversalPolicy {
-  /// The first of [nodes] in [policy]'s order inside [container].
-  FocusNode first(
-    FocusTraversalPolicy policy,
-    List<FocusNode> nodes,
-    FocusNode container,
-  ) {
-    return policy.sortDescendants(nodes, container).first;
+  /// The first node inside [container] in Tab order; null when none can
+  /// take focus.
+  FocusNode? first(FocusNode container) {
+    // The members of each group by the group's node, in tree order, which
+    // breaks ties in reading order; the null key holds the group around
+    // [container]. A nested group is a member of the group around it.
+    final members = <FocusNode?, List<FocusNode>>{null: []};
+    void collect(FocusNode node, FocusNode? group) {
+      for (final child in node.children) {
+        final nested = _isTraversalGroup(child);
+        if (nested) {
+          members[group]!.add(child);
+          members[child] = [];
+        } else if (child.context != null &&
+            child.canRequestFocus &&
+            !child.skipTraversal) {
+          members[group]!.add(child);
+        }
+        // Flutter's traversal sorts a nested scope's nodes on its own.
+        if (child is! FocusScopeNode) collect(child, nested ? child : group);
+      }
+    }
+
+    FocusNode? firstOf(FocusNode? group) {
+      final candidates = members[group]!;
+      if (candidates.isEmpty) return null;
+      final policy = FocusTraversalGroup.maybeOfNode(group ?? container);
+      for (final node in (policy ?? this).sortDescendants(
+        candidates,
+        container,
+      )) {
+        final first = members.containsKey(node) ? firstOf(node) : node;
+        if (first != null) return first;
+      }
+      return null;
+    }
+
+    collect(container, null);
+    return firstOf(null);
   }
 }
