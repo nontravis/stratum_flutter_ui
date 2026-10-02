@@ -103,7 +103,9 @@ bool defaultScrollFocusable({
 /// surface that takes focus, adds no Tab stop of its own, and acts on keys
 /// that bubble up from the surface's node. Both modes build the same
 /// widgets, so a flip of [ownsFocus] keeps [child]'s State and the scroll
-/// offset.
+/// offset. When [ownsFocus] flips while the box's Tab stop holds focus,
+/// focus moves after the frame to the new Tab stop: the own node, or the
+/// surface's. Focus outside the box, or on an item inside it, stays put.
 ///
 /// While the viewport node holds focus, the arrows along [axis] scroll
 /// 50 px, Page Up and Page Down scroll 0.8 of the viewport, and Home and
@@ -167,11 +169,20 @@ class _ScrollFocusState extends State<ScrollFocus> {
   // Created on first use and kept until dispose, as StratumInkWell keeps
   // its node.
   FocusNode? _node;
+  FocusNode? _surfaceKeys;
   ScrollController? _internalController;
 
   FocusNode get _focusNode =>
       _node ??= FocusNode(debugLabel: 'ScrollFocus')
         ..addListener(_handleFocusChange);
+
+  /// The node the [Focus] holds without [ScrollFocus.ownsFocus]: it takes
+  /// no focus and only hears keys bubbling up from the tap surface.
+  FocusNode get _surfaceKeysNode => _surfaceKeys ??= FocusNode(
+    debugLabel: 'ScrollFocus surface keys',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
 
   /// Whether the scroll view attaches to the [PrimaryScrollController], by
   /// the rule of `ScrollView` and `SingleChildScrollView`.
@@ -207,9 +218,23 @@ class _ScrollFocusState extends State<ScrollFocus> {
   }
 
   @override
+  void didUpdateWidget(ScrollFocus oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final owned = oldWidget.ownsFocus;
+    final owns = widget.ownsFocus;
+    if (!oldWidget.focusable || !widget.focusable || owned == owns) return;
+    // The Focus below still holds the old node here, so this reads the Tab
+    // stop as it was before the flip.
+    final handler = owned ? _node : _surfaceKeys;
+    if (handler == null || !_viewportFocused(handler, owns: owned)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _handOver(owns));
+  }
+
+  @override
   void dispose() {
     FocusManager.instance.removeHighlightModeListener(_handleHighlightMode);
     _node?.dispose();
+    _surfaceKeys?.dispose();
     _internalController?.dispose();
     super.dispose();
   }
@@ -220,13 +245,41 @@ class _ScrollFocusState extends State<ScrollFocus> {
     if (_node?.hasPrimaryFocus ?? false) setState(() {});
   }
 
-  /// Whether the viewport itself holds focus: the own node, or the tap
-  /// surface's node, which no focusable node separates from [handler].
-  bool _viewportFocused(FocusNode handler) {
+  /// Moves focus to the Tab stop of the box after [ScrollFocus.ownsFocus]
+  /// flipped to [owns] while the old Tab stop held focus: the own node, or
+  /// the nearest focusable node below, the tap surface's. The flip leaves
+  /// focus on a surface that can no longer take it, or drops it from the
+  /// own node, which leaves the tree. Focus that has meanwhile settled
+  /// outside the box stays there.
+  void _handOver(bool owns) {
+    if (!mounted || !widget.focusable || widget.ownsFocus != owns) return;
+    final handler = owns ? _focusNode : _surfaceKeysNode;
+    final primary = FocusManager.instance.primaryFocus;
+    if (primary != null && !handler.hasFocus) return;
+    final target = owns ? handler : _nearestFocusable(handler);
+    target?.requestFocus();
+  }
+
+  /// The focusable, traversable node nearest below [node], breadth first.
+  static FocusNode? _nearestFocusable(FocusNode node) {
+    var level = node.children.toList();
+    while (level.isNotEmpty) {
+      for (final child in level) {
+        if (child.canRequestFocus && !child.skipTraversal) return child;
+      }
+      level = [for (final child in level) ...child.children];
+    }
+    return null;
+  }
+
+  /// Whether the viewport itself holds focus: [handler], or, when the box
+  /// does not [owns] its Tab stop, the tap surface's node, which no
+  /// focusable node separates from [handler].
+  static bool _viewportFocused(FocusNode handler, {required bool owns}) {
     final primary = FocusManager.instance.primaryFocus;
     if (primary == null) return false;
     if (primary == handler) return true;
-    if (widget.ownsFocus) return false;
+    if (owns) return false;
     for (final ancestor in primary.ancestors) {
       if (ancestor == handler) return true;
       if (ancestor.canRequestFocus && !ancestor.skipTraversal) return false;
@@ -266,7 +319,7 @@ class _ScrollFocusState extends State<ScrollFocus> {
       direction = vertical ? AxisDirection.up : AxisDirection.left;
     } else if (key == LogicalKeyboardKey.pageDown) {
       direction = vertical ? AxisDirection.down : AxisDirection.right;
-    } else if (!_viewportFocused(handler)) {
+    } else if (!_viewportFocused(handler, owns: widget.ownsFocus)) {
       direction = null;
     } else {
       direction = switch (key) {
@@ -319,12 +372,10 @@ class _ScrollFocusState extends State<ScrollFocus> {
     );
     if (!widget.focusable) return result;
     // One structure for both modes, so a flip of ownsFocus never remounts
-    // the child. Without ownership the Focus keeps an internal node that
-    // takes no focus and only hears keys bubbling up from the surface.
+    // the child. Without ownership the Focus holds the surface keys node.
     final owns = widget.ownsFocus;
-    final node = owns ? _focusNode : null;
     result = Focus(
-      focusNode: node,
+      focusNode: owns ? _focusNode : _surfaceKeysNode,
       canRequestFocus: owns,
       skipTraversal: !owns,
       // The Semantics below reports focus for the own node only; Focus's
@@ -344,14 +395,14 @@ class _ScrollFocusState extends State<ScrollFocus> {
     }
     // What Focus's semantics report for the own node; without ownership
     // nothing, so the surface's node speaks alone.
-    final focusable = node?.canRequestFocus ?? false;
+    final focusable = owns && _focusNode.canRequestFocus;
     return Semantics(
       container: owns,
       label: owns ? widget.semanticsLabel : null,
       focusable: owns ? focusable : null,
-      focused: focusable ? node!.hasPrimaryFocus : null,
+      focused: focusable ? _focusNode.hasPrimaryFocus : null,
       onFocus: focusable && defaultTargetPlatform != TargetPlatform.iOS
-          ? node!.requestFocus
+          ? _focusNode.requestFocus
           : null,
       child: result,
     );

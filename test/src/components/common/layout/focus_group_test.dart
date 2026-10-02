@@ -118,6 +118,52 @@ void _expectRevealed(
   );
 }
 
+/// [row] between two 300 px fillers in a 200 by 200 vertical scroll view
+/// on [controller].
+Widget _belowAndAbove(Widget row, ScrollController controller) {
+  return themedHost(
+    SizedBox(
+      width: 200,
+      height: 200,
+      child: SingleChildScrollView(
+        controller: controller,
+        child: Column(
+          children: [
+            const SizedBox(height: 300),
+            row,
+            const SizedBox(height: 300),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Expects focus on [node], fully inside the outer vertical scroll view,
+/// which has scrolled to [pixels].
+void _expectInPage(
+  WidgetTester tester,
+  FocusNode node,
+  ScrollController controller,
+  double pixels,
+) {
+  expect(node.hasPrimaryFocus, isTrue);
+  expect(controller.offset, pixels);
+  final page = tester.getRect(find.byType(SingleChildScrollView).first);
+  final rect = node.rect;
+  expect(
+    rect.top >= page.top - 0.5 && rect.bottom <= page.bottom + 0.5,
+    isTrue,
+    reason: '${node.debugLabel} at $rect, page $page',
+  );
+}
+
+ScrollController _controller() {
+  final controller = ScrollController();
+  addTearDown(controller.dispose);
+  return controller;
+}
+
 void main() {
   group('StratumFocusGroup Tab', () {
     testWidgets('Tab enters the group once, on the first item', (tester) async {
@@ -647,6 +693,94 @@ void main() {
         _expectRevealed(tester, items, 9, 800);
         await _key(tester, LogicalKeyboardKey.home);
         _expectRevealed(tester, items, 0, 0);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+  });
+
+  group('StratumFocusGroup past the viewport', () {
+    testWidgets('Right reveals a row group below a vertical viewport', (
+      tester,
+    ) async {
+      final controller = _controller();
+      final items = _nodes();
+      await tester.pumpWidget(
+        _belowAndAbove(
+          RowLayout(
+            mainAxisSize: MainAxisSize.min,
+            focusGroup: const StratumFocusGroup(),
+            children: [for (final node in items) _item(node)],
+          ),
+          controller,
+        ),
+      );
+      // The row spans 300 to 340, below the 200 px viewport.
+      await _focus(tester, items[0]);
+
+      await _key(tester, LogicalKeyboardKey.arrowRight);
+
+      _expectInPage(tester, items[1], controller, 340 - 200);
+    });
+
+    testWidgets('Left reveals a row group above a vertical viewport', (
+      tester,
+    ) async {
+      final controller = _controller();
+      final items = _nodes();
+      await tester.pumpWidget(
+        _belowAndAbove(
+          RowLayout(
+            mainAxisSize: MainAxisSize.min,
+            focusGroup: const StratumFocusGroup(),
+            children: [for (final node in items) _item(node)],
+          ),
+          controller,
+        ),
+      );
+      await _focus(tester, items[1]);
+      // Scrolled to the end, 440, the row lies above the viewport.
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+
+      await _key(tester, LogicalKeyboardKey.arrowLeft);
+
+      _expectInPage(tester, items[0], controller, 300);
+    });
+
+    testWidgets(
+      'Left in a scrolling row group below a vertical viewport reveals the '
+      'row in the outer view',
+      (tester) async {
+        final controller = _controller();
+        final items = _nodes(10);
+        await tester.pumpWidget(
+          _belowAndAbove(
+            SizedBox(
+              width: 200,
+              height: 50,
+              child: RowLayout(
+                style: const WidgetStyle(),
+                scroll: const StratumScroll(),
+                focusGroup: const StratumFocusGroup(),
+                children: [
+                  for (final node in items)
+                    Focus(
+                      focusNode: node,
+                      child: const SizedBox(width: 100, height: 50),
+                    ),
+                ],
+              ),
+            ),
+            controller,
+          ),
+        );
+        // Item 1 lies inside the row's own viewport; the row spans 300 to
+        // 350, below the outer one.
+        await _focus(tester, items[1]);
+
+        await _key(tester, LogicalKeyboardKey.arrowLeft);
+
+        _expectInPage(tester, items[0], controller, 350 - 200);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );

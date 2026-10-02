@@ -117,6 +117,16 @@ double _pixels(WidgetTester tester) => tester
     .position
     .pixels;
 
+/// Whether the ring of the box around a tap surface shows.
+bool _boxRing(WidgetTester tester) => tester
+    .widget<FocusSpread>(
+      find.ancestor(
+        of: find.byType(StratumInkWell).first,
+        matching: find.byType(FocusSpread),
+      ),
+    )
+    .focus;
+
 void main() {
   group('ScrollFrame', () {
     testWidgets('lets theme physics win over an outer ScrollConfiguration', (
@@ -617,6 +627,108 @@ void main() {
         expect(tester.state(find.byType(StratumInkWell)), same(surface));
         expect(tester.state(find.byType(_Probe)), same(content));
         expect(controller.offset, 120);
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
+
+    testWidgets(
+      'disabling a focused tappable scrolling box hands focus to the box, '
+      'and enabling it hands focus back to the surface',
+      (tester) async {
+        _useTraditionalHighlight();
+        final before = _node();
+        final surface = _node();
+        var taps = 0;
+        Widget box({required bool disabled}) {
+          return themedHost(
+            _keyboardHost(
+              ColumnLayout(
+                style: const WidgetStyle(),
+                interaction: StratumInteraction(
+                  onTap: () => taps++,
+                  focusNode: surface,
+                  disabled: disabled,
+                ),
+                scroll: const StratumScroll(),
+                children: const [SizedBox(height: 2000)],
+              ),
+              before: before,
+            ),
+          );
+        }
+
+        await tester.pumpWidget(box(disabled: false));
+        await _tabIn(tester, before);
+        expect(surface.hasPrimaryFocus, isTrue);
+
+        await tester.pumpWidget(box(disabled: true));
+        await tester.pump();
+        expect(_viewportFocused(), isTrue);
+        expect(_boxRing(tester), isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(_pixels(tester), 50);
+
+        await tester.pumpWidget(box(disabled: false));
+        await tester.pump();
+        expect(surface.hasPrimaryFocus, isTrue);
+        expect(_boxRing(tester), isFalse);
+        await _key(tester, LogicalKeyboardKey.enter);
+        expect(taps, 1);
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
+
+    testWidgets(
+      'a scrolling box that does not hold focus leaves it in place when '
+      'disabled flips',
+      (tester) async {
+        final before = _node();
+        final surface = _node();
+        final item = _node();
+        Widget box({required bool disabled}) {
+          return themedHost(
+            _keyboardHost(
+              ColumnLayout(
+                style: const WidgetStyle(),
+                interaction: StratumInteraction(
+                  onTap: () {},
+                  focusNode: surface,
+                  disabled: disabled,
+                ),
+                scroll: const StratumScroll(),
+                children: [
+                  StratumInkWell(
+                    onTap: () {},
+                    focusNode: item,
+                    child: const SizedBox(height: 40),
+                  ),
+                  const SizedBox(height: 2000),
+                ],
+              ),
+              before: before,
+            ),
+          );
+        }
+
+        await tester.pumpWidget(box(disabled: false));
+        before.requestFocus();
+        await tester.pump();
+        await tester.pumpWidget(box(disabled: true));
+        await tester.pump();
+        expect(before.hasPrimaryFocus, isTrue);
+        await tester.pumpWidget(box(disabled: false));
+        await tester.pump();
+        expect(before.hasPrimaryFocus, isTrue);
+
+        // An item inside the box holds focus of its own.
+        item.requestFocus();
+        await tester.pump();
+        await tester.pumpWidget(box(disabled: true));
+        await tester.pump();
+        expect(item.hasPrimaryFocus, isTrue);
+        await tester.pumpWidget(box(disabled: false));
+        await tester.pump();
+        expect(item.hasPrimaryFocus, isTrue);
       },
       variant: TargetPlatformVariant.desktop(),
     );
