@@ -11,6 +11,10 @@ import 'package:stratum_ui/src/src.dart';
 /// Text('a', style: caption.medium.build(context)); // medium
 /// Text('b', style: caption.build(context)); // regular; caption unchanged
 /// ```
+///
+/// [build] computes the line height and letter spacing for the text scaler
+/// of the nearest [MediaQuery]. A [Text] that sets its own `textScaler`
+/// must pass the same scaler through [textScaler].
 @immutable
 class StratumTextStyle {
   const new _({
@@ -199,6 +203,32 @@ class StratumTextStyle {
 
   StratumTextStyle textScaler(TextScaler textScaler) =>
       _copy(textScalerOverride: textScaler);
+
+  // Build
+
+  /// The [TextStyle] for this recipe under the environment of [context].
+  ///
+  /// Reads the theme from [StratumThemeApplication] for
+  /// [themeModeOverride]; the locale from [localeOverride], else
+  /// [Localizations], else the platform; the window size from
+  /// [windowSizeOverride], else [WindowSizeScope], where none adds no
+  /// window scale; and the text scaler from [textScalerOverride], else
+  /// [MediaQuery], else no scaling. The calling widget rebuilds only when
+  /// one of these changes, so a resize inside one breakpoint rebuilds no
+  /// text.
+  TextStyle build(BuildContext context) => TypographyResolver.resolve(
+    this,
+    theme: StratumThemeApplication.of(context, themeMode: themeModeOverride),
+    locale:
+        localeOverride ??
+        Localizations.maybeLocaleOf(context) ??
+        View.of(context).platformDispatcher.locale,
+    windowSize: windowSizeOverride ?? WindowSizeScope.maybeOf(context),
+    textScaler:
+        textScalerOverride ??
+        MediaQuery.maybeTextScalerOf(context) ??
+        TextScaler.noScaling,
+  );
 
   // Equality
 
