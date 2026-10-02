@@ -274,6 +274,21 @@ void main() {
         _typography(types: {'code': null}),
         'typography.types.code: required',
       ),
+      (
+        'two family tags that normalize to the same tag',
+        _typography(
+          families:
+              '{ default: { header: inter, paragraph: inter, number: inter, '
+              'code: inter, body: inter }, th-TH: { body: inter }, '
+              'th_TH: { body: inter } }',
+        ),
+        'typography.families.th_TH: duplicate tag "th_TH"',
+      ),
+      (
+        'a default family set with an empty value',
+        _typography(families: '{ default: null, th: { body: inter } }'),
+        'typography.families.default: required',
+      ),
     ];
     for (final (name, node, error) in cases) {
       test('reports $name', () {
@@ -387,6 +402,30 @@ void main() {
 
       expect(a, b);
       expect(a.hashCode, b.hashCode);
+    });
+
+    test('every map the parser builds rejects mutation', () {
+      final typography = StratumTypography.fromYaml(_typography());
+
+      expect(
+        () =>
+            typography.fonts['extra'] = const StratumFontData(family: 'Extra'),
+        throwsUnsupportedError,
+      );
+      expect(
+        () => typography.families['extra'] = const StratumFamilySet(types: {}),
+        throwsUnsupportedError,
+      );
+      expect(
+        () => typography.families['default']!.types[FontType.body] =
+            const StratumFontRef(font: 'inter'),
+        throwsUnsupportedError,
+      );
+      expect(
+        () => typography.types[FontType.body]!.sizes[FontSize.s10] =
+            const StratumSizeMetrics(spaceHeight: StratumDimension.fixed(1)),
+        throwsUnsupportedError,
+      );
     });
   });
 }

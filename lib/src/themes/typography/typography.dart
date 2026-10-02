@@ -56,7 +56,7 @@ class StratumSizeMetrics {
   });
 
   /// Added to the size to give the line box; a percent resolves against
-  /// the scaled size.
+  /// the scaled requested size, before the window scale.
   final StratumDimension spaceHeight;
 
   /// The tracking; a percent resolves against the scaled size.
@@ -301,7 +301,7 @@ class _TypographyParser {
         adjustSize: adjustSize ?? const StratumDimension.fixed(0),
       );
     }
-    return fonts;
+    return Map.unmodifiable(fonts);
   }
 
   Map<String, StratumFamilySet> _families(
@@ -316,6 +316,10 @@ class _TypographyParser {
       final tag = _tag('$key', tagPath);
       final entry = _map(value, tagPath);
       if (tag == null || entry == null) continue;
+      if (families.containsKey(tag)) {
+        _error(tagPath, 'duplicate tag "$tag"');
+        continue;
+      }
       final types = <FontType, StratumFontRef>{};
       String? mono;
       for (final MapEntry(key: name, value: ref) in entry.entries) {
@@ -332,9 +336,12 @@ class _TypographyParser {
         final fontRef = _fontRef(ref, refPath, fontKeys);
         if (fontRef != null) types[type] = fontRef;
       }
-      families[tag] = StratumFamilySet(types: types, mono: mono);
+      families[tag] = StratumFamilySet(
+        types: Map.unmodifiable(types),
+        mono: mono,
+      );
     }
-    return families;
+    return Map.unmodifiable(families);
   }
 
   String? _tag(String key, String path) {
@@ -387,7 +394,7 @@ class _TypographyParser {
       final dimension = _dimension(value, sizePath, required: true);
       if (dimension != null) scale[windowSize] = dimension;
     }
-    return scale;
+    return Map.unmodifiable(scale);
   }
 
   Map<FontType, StratumTypeStyle> _types(YamlMap? node, String path) {
@@ -415,7 +422,7 @@ class _TypographyParser {
       final style = _merge(chain.map((link) => raw[link]!).toList(), typePath);
       if (style != null) types[type] = style;
     }
-    return types;
+    return Map.unmodifiable(types);
   }
 
   _RawType _rawType(FontType type, YamlMap node, String path) {
@@ -488,7 +495,9 @@ class _TypographyParser {
       tabular: tabular ?? false,
       extendsType: chain.first.extendsType,
       scaleByWindowSize: scale,
-      sizes: {for (final size in FontSize.values) size: ?sizes[size]},
+      sizes: Map.unmodifiable({
+        for (final size in FontSize.values) size: ?sizes[size],
+      }),
     );
   }
 
@@ -521,7 +530,7 @@ class _TypographyParser {
         letterSpacing: letterSpacing ?? const StratumDimension.fixed(0),
       );
     }
-    return sizes;
+    return Map.unmodifiable(sizes);
   }
 
   FontType? _extendsType(Object? value, String path) {
@@ -547,11 +556,11 @@ class _TypographyParser {
   /// Reads the names from yaml, so a bad font reference, which has its own
   /// error, still counts as naming the type.
   void _checkDefaultFamily(YamlMap families, String path) {
-    final defaults = families['default'];
-    if (defaults == null) {
+    if (!families.containsKey('default')) {
       _error(path, 'required');
       return;
     }
+    final defaults = families['default'];
     if (defaults is! YamlMap) return;
     final named = defaults.keys.map((key) => '$key').toSet();
     for (final type in FontType.values) {

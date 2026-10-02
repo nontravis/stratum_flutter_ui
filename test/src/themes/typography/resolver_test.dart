@@ -223,6 +223,10 @@ void main() {
       expect(style.height, closeTo((13 + 4) / 13, 1e-9));
       expect(warnings, isEmpty);
     });
+
+    test('a percent spaceHeight resolves on the custom size', () {
+      expect(resolve(StratumTextStyle.body.size(15)).height, 1.5);
+    });
   });
 
   group('TypographyResolver window scale', () {
@@ -355,6 +359,33 @@ typography:
       ]);
       expect(resolve(StratumTextStyle.code).fontFamilyFallback, isNull);
     });
+
+    test('the fallback drops a font key that shares the primary family', () {
+      theme = _theme('''
+typography:
+  fonts:
+    inter: { family: Inter }
+    inter-alt: { family: Inter }
+  families:
+    default:
+      header: inter
+      paragraph: inter
+      number: inter
+      code: inter
+      body: inter
+    th:
+      body: inter-alt
+  types:
+    header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    table: { extends: body, tabular: true }
+''');
+
+      expect(resolve(StratumTextStyle.body).fontFamilyFallback, isNull);
+    });
   });
 
   group('TypographyResolver weight, features, color, and style', () {
@@ -398,6 +429,94 @@ typography:
       expect(style.fontStyle, FontStyle.italic);
       expect(style.decoration, TextDecoration.underline);
       expect(style.shadows, const [Shadow(blurRadius: 2)]);
+    });
+  });
+
+  group('TypographyResolver on a hand-built typography', () {
+    TextStyle resolveWith(StratumThemeData theme) => TypographyResolver.resolve(
+      StratumTextStyle.body,
+      theme: theme,
+      locale: _en,
+      windowSize: null,
+      textScaler: TextScaler.noScaling,
+    );
+
+    test('a missing type names itself in a StateError', () {
+      final badTheme = FakeStratumTheme(
+        typography: const StratumTypography(fonts: {}, families: {}, types: {}),
+      );
+
+      expect(
+        () => resolveWith(badTheme),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('body'),
+          ),
+        ),
+      );
+    });
+
+    test('a missing font key names itself in a StateError', () {
+      final badTheme = FakeStratumTheme(
+        typography: const StratumTypography(
+          fonts: {},
+          families: {
+            'default': StratumFamilySet(
+              types: {FontType.body: StratumFontRef(font: 'ghost')},
+            ),
+          },
+          types: {
+            FontType.body: StratumTypeStyle(
+              weight: FontWeight.w400,
+              sizes: {
+                FontSize.s16: StratumSizeMetrics(
+                  spaceHeight: StratumDimension.fixed(8),
+                ),
+              },
+            ),
+          },
+        ),
+      );
+
+      expect(
+        () => resolveWith(badTheme),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('ghost'),
+          ),
+        ),
+      );
+    });
+
+    test('a type with no sizes names itself in a StateError', () {
+      final badTheme = FakeStratumTheme(
+        typography: const StratumTypography(
+          fonts: {'inter': StratumFontData(family: 'Inter')},
+          families: {
+            'default': StratumFamilySet(
+              types: {FontType.body: StratumFontRef(font: 'inter')},
+            ),
+          },
+          types: {
+            FontType.body: StratumTypeStyle(weight: FontWeight.w400, sizes: {}),
+          },
+        ),
+      );
+
+      expect(
+        () => resolveWith(badTheme),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('body'),
+          ),
+        ),
+      );
     });
   });
 

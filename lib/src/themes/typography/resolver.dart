@@ -43,7 +43,10 @@ abstract final class TypographyResolver {
   ) {
     final typography = theme.typography;
     final type = recipe.fontType;
-    final style = typography.types[type]!;
+    final style = typography.types[type];
+    if (style == null) {
+      throw StateError('No style for type "${type.name}".');
+    }
     final base = recipe.customSize ?? recipe.fontSize.value;
     final metrics = _metrics(style, recipe);
     final mono = recipe.isMono && type != FontType.code;
@@ -51,7 +54,10 @@ abstract final class TypographyResolver {
     final primaryKey = mono
         ? _monoKey(typography, type, tags)
         : _fontKey(typography, type, tags);
-    final font = typography.fonts[primaryKey]!;
+    final font = typography.fonts[primaryKey];
+    if (font == null) {
+      throw StateError('No font for key "$primaryKey".');
+    }
 
     final scaleDimension = windowSize == null
         ? null
@@ -61,7 +67,7 @@ abstract final class TypographyResolver {
     final fontSize = size + font.adjustSize.resolve(of: base);
     final scaledBase = textScaler.scale(base);
     final lineBox = scaledBase + metrics.spaceHeight.resolve(of: scaledBase);
-    final fallback = _fallback(typography, type, mono, primaryKey);
+    final fallback = _fallback(typography, type, mono, font.qualifiedFamily);
 
     return TextStyle(
       color: recipe.customColor ?? _color(theme.color, recipe.colorRole),
@@ -85,9 +91,11 @@ abstract final class TypographyResolver {
     StratumTextStyle recipe,
   ) {
     final custom = recipe.customSize;
-    if (custom != null) return style.sizes[_nearest(style, custom)]!;
+    if (custom != null) {
+      return style.sizes[_nearest(style, custom, recipe.fontType)]!;
+    }
     if (style.sizes[recipe.fontSize] case final metrics?) return metrics;
-    final nearest = _nearest(style, recipe.fontSize.value);
+    final nearest = _nearest(style, recipe.fontSize.value, recipe.fontType);
     _warnOnce(
       '${recipe.fontType.name} has no size ${recipe.fontSize.name}; '
       'using ${nearest.name}',
@@ -96,7 +104,14 @@ abstract final class TypographyResolver {
   }
 
   /// The defined size closest to [target], the smaller one on a tie.
-  static FontSize _nearest(StratumTypeStyle style, double target) {
+  static FontSize _nearest(
+    StratumTypeStyle style,
+    double target,
+    FontType type,
+  ) {
+    if (style.sizes.isEmpty) {
+      throw StateError('No sizes for type "${type.name}".');
+    }
     return style.sizes.keys.reduce((best, size) {
       final distance = (size.value - target).abs();
       final bestDistance = (best.value - target).abs();
@@ -195,12 +210,12 @@ abstract final class TypographyResolver {
 
   /// The qualified families of [type] in every tag, `default` first, then
   /// yaml order; the mono font before the font when [mono] is set; without
-  /// duplicates or [primaryKey].
+  /// duplicates or [primaryFamily].
   static List<String> _fallback(
     StratumTypography typography,
     FontType type,
     bool mono,
-    String primaryKey,
+    String primaryFamily,
   ) {
     final families = [
       ?typography.families['default'],
@@ -212,8 +227,11 @@ abstract final class TypographyResolver {
         if (mono) ?_monoOf(typography, family, type),
         ?_ref(typography, family, type)?.font,
       ],
-    }..remove(primaryKey);
-    return [for (final key in keys) typography.fonts[key]!.qualifiedFamily];
+    };
+    final qualifieds = <String>{
+      for (final key in keys) typography.fonts[key]!.qualifiedFamily,
+    }..remove(primaryFamily);
+    return qualifieds.toList();
   }
 
   static Color _color(BaseThemeColor colors, FontColor role) => switch (role) {
