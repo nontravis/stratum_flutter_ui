@@ -570,6 +570,65 @@ typography:
     });
   });
 
+  group('TypographyResolver Google Fonts', () {
+    final defaultExists = GoogleFontsLookup.exists;
+    final defaultFamily = GoogleFontsLookup.family;
+
+    tearDown(() {
+      GoogleFontsLookup.exists = defaultExists;
+      GoogleFontsLookup.family = defaultFamily;
+    });
+
+    test('asks the seam for the primary and fallback family, with the '
+        "recipe's resolved weight and style", () {
+      final calls = <(String, FontWeight, FontStyle?)>[];
+      GoogleFontsLookup.exists = (name) => true;
+      GoogleFontsLookup.family = (name, {required weight, required style}) {
+        calls.add((name, weight, style));
+        return 'Resolved $name';
+      };
+      theme = _theme('''
+typography:
+  fonts:
+    inter: { family: Inter }
+    kanit: { family: "Google/Kanit" }
+    kanit2: { family: "Google/Kanit2" }
+  families:
+    default:
+      header: kanit
+      paragraph: inter
+      number: inter
+      code: inter
+      body: kanit2
+      table: inter
+  types:
+    header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+''');
+
+      final style = resolve(StratumTextStyle.header.bold.italic);
+
+      expect(style.fontFamily, 'Resolved Kanit');
+      expect(style.fontFamilyFallback, ['Resolved Kanit2']);
+      expect(calls, [
+        ('Kanit', FontWeight.w700, FontStyle.italic),
+        ('Kanit2', FontWeight.w700, FontStyle.italic),
+      ]);
+    });
+
+    test('a bundled font never calls the Google Fonts seam', () {
+      GoogleFontsLookup.family = (name, {required weight, required style}) =>
+          throw StateError('should not be called for $name');
+
+      final style = resolve(StratumTextStyle.body);
+
+      expect(style.fontFamily, 'Inter');
+    });
+  });
+
   group('TypographyResolver cache', () {
     test('a hit returns the identical instance', () {
       final recipe = StratumTextStyle.body.s20;

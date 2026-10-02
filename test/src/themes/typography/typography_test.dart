@@ -295,12 +295,52 @@ void main() {
         _typography(families: '{ default: null, th: { body: inter } }'),
         'typography.families.default: required',
       ),
+      (
+        'a Google font with an empty name',
+        _typography(fonts: '{ inter: { family: "Google/" } }'),
+        'typography.fonts.inter.family: expected a font name after "Google/"',
+      ),
+      (
+        'a Google font with a package',
+        _typography(
+          fonts: '{ inter: { family: "Google/Kanit", package: stratum_ui } }',
+        ),
+        'typography.fonts.inter.package: '
+            'package is not allowed with a Google font',
+      ),
+      (
+        'a Google font GoogleFonts.asMap() lacks',
+        _typography(
+          fonts: '{ inter: { family: "Google/Not A Real Font 12345" } }',
+        ),
+        'typography.fonts.inter.family: '
+            'unknown Google Fonts family "Not A Real Font 12345"',
+      ),
     ];
     for (final (name, node, error) in cases) {
       test('reports $name', () {
         expect(_errors(node), [error]);
       });
     }
+  });
+
+  group('StratumTypography.fromYaml Google Fonts', () {
+    test(
+      'a "Google/<Name>" family parses with source google and the bare name',
+      () {
+        final typography = StratumTypography.fromYaml(
+          _typography(fonts: '{ inter: { family: "Google/Kanit" } }'),
+        );
+
+        expect(
+          typography.fonts['inter'],
+          const StratumFontData(
+            family: 'Kanit',
+            source: StratumFontSource.google,
+          ),
+        );
+      },
+    );
   });
 
   group('StratumTypography.fromYaml table', () {

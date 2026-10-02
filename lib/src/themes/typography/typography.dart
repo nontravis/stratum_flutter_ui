@@ -210,6 +210,7 @@ int _mapHash(Map<Object?, Object?> map) => Object.hashAllUnordered(
 class _TypographyParser {
   final _errors = <StratumThemeFormatError>[];
 
+  static const _googlePrefix = 'Google/';
   static final _tagPattern = RegExp(r'^([a-z]{2,3})(?:[-_]([A-Z]{2}))?$');
 
   StratumTypography parse(YamlMap node) {
@@ -250,21 +251,52 @@ class _TypographyParser {
       final font = _map(value, fontPath);
       if (font == null) continue;
       _warnUnknown(font, fontPath, const {'family', 'package', 'adjustSize'});
-      final family = _string(font['family'], '$fontPath.family');
+      final rawFamily = _string(font['family'], '$fontPath.family');
       final package = _string(
         font['package'],
         '$fontPath.package',
         required: false,
       );
       final adjustSize = _dimension(font['adjustSize'], '$fontPath.adjustSize');
-      if (family == null) continue;
+      if (rawFamily == null) continue;
+      final resolved = _googleFamily(rawFamily, package, fontPath);
+      if (resolved == null) continue;
       fonts['$key'] = StratumFontData(
-        family: family,
-        package: package,
+        family: resolved.family,
+        package: resolved.source == StratumFontSource.app ? package : null,
         adjustSize: adjustSize ?? const StratumDimension.fixed(0),
+        source: resolved.source,
       );
     }
     return Map.unmodifiable(fonts);
+  }
+
+  /// `rawFamily` as-is for an app font; the bare Google Fonts name, with
+  /// [StratumFontSource.google], for the exact prefix `Google/`. Returns
+  /// null and reports an error when the name is empty after the prefix or
+  /// `GoogleFontsLookup.exists` does not know it; also reports an error
+  /// when [package] is set together with a Google family.
+  ({String family, StratumFontSource source})? _googleFamily(
+    String rawFamily,
+    String? package,
+    String fontPath,
+  ) {
+    if (!rawFamily.startsWith(_googlePrefix)) {
+      return (family: rawFamily, source: StratumFontSource.app);
+    }
+    if (package != null) {
+      _error('$fontPath.package', 'package is not allowed with a Google font');
+    }
+    final name = rawFamily.substring(_googlePrefix.length);
+    if (name.isEmpty) {
+      _error('$fontPath.family', 'expected a font name after "Google/"');
+      return null;
+    }
+    if (!GoogleFontsLookup.exists(name)) {
+      _error('$fontPath.family', 'unknown Google Fonts family "$name"');
+      return null;
+    }
+    return (family: name, source: StratumFontSource.google);
   }
 
   Map<String, StratumFamilySet> _families(

@@ -68,17 +68,27 @@ abstract final class TypographyResolver {
     final fontSize = size + font.adjustSize.resolve(of: base);
     final scaledBase = textScaler.scale(base);
     final lineBox = scaledBase + metrics.spaceHeight.resolve(of: scaledBase);
-    final fallback = _fallback(typography, type, mono, font.qualifiedFamily);
+    final weight = recipe.fontWeight ?? style.weight;
+    final primaryFamily = _familyOf(font, weight, recipe.fontStyle);
+    final fallback = _fallback(
+      typography,
+      type,
+      mono,
+      primaryKey,
+      primaryFamily,
+      weight,
+      recipe.fontStyle,
+    );
 
     return TextStyle(
       color: recipe.customColor ?? _color(theme.color, recipe.colorRole),
       fontSize: fontSize,
-      fontWeight: recipe.fontWeight ?? style.weight,
+      fontWeight: weight,
       fontStyle: recipe.fontStyle,
       letterSpacing: metrics.letterSpacing.resolve(of: textScaler.scale(size)),
       height: lineBox / textScaler.scale(fontSize),
       leadingDistribution: TextLeadingDistribution.even,
-      fontFamily: font.qualifiedFamily,
+      fontFamily: primaryFamily,
       fontFamilyFallback: fallback.isEmpty ? null : fallback,
       fontFeatures: type == FontType.table
           ? const [FontFeature.tabularFigures()]
@@ -87,6 +97,17 @@ abstract final class TypographyResolver {
       shadows: recipe.textShadows,
     );
   }
+
+  /// [font]'s family at [weight] and [style]: its `qualifiedFamily` for an
+  /// app font; `GoogleFontsLookup.family` for a Google font, since its
+  /// family depends on the requested weight and style.
+  static String _familyOf(
+    StratumFontData font,
+    FontWeight weight,
+    FontStyle? style,
+  ) => font.source == StratumFontSource.google
+      ? GoogleFontsLookup.family(font.family, weight: weight, style: style)
+      : font.qualifiedFamily;
 
   /// The metrics of the requested size, else of the nearest defined size.
   static StratumSizeMetrics _metrics(
@@ -178,15 +199,19 @@ abstract final class TypographyResolver {
     return key;
   }
 
-  /// The qualified families of [type] in every tag, `default` first, then
-  /// yaml order; the mono font before the font when [mono] is set; then
-  /// every tag's `body` font. Without duplicates by family or
-  /// [primaryFamily].
+  /// The families of [type] in every tag, `default` first, then yaml
+  /// order; the mono font before the font when [mono] is set; then every
+  /// tag's `body` font. Without [primaryKey] itself, and without
+  /// duplicates by family or [primaryFamily]. Each family resolves at
+  /// [weight] and [style] (see [_familyOf]).
   static List<String> _fallback(
     StratumTypography typography,
     FontType type,
     bool mono,
+    String primaryKey,
     String primaryFamily,
+    FontWeight weight,
+    FontStyle? style,
   ) {
     final families = [
       ?typography.families['default'],
@@ -199,9 +224,9 @@ abstract final class TypographyResolver {
         ?family.types[type]?.font,
       ],
       for (final family in families) ?family.types[FontType.body]?.font,
-    };
+    }..remove(primaryKey);
     final qualifieds = <String>{
-      for (final key in keys) typography.fonts[key]!.qualifiedFamily,
+      for (final key in keys) _familyOf(typography.fonts[key]!, weight, style),
     }..remove(primaryFamily);
     return qualifieds.toList();
   }
