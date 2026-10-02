@@ -1,7 +1,11 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../integration_test/perf/perf_scenes.dart' show perfScenes;
+import '../../integration_test/perf/perf_trace.dart' show runLine, summaryLine;
 import '../../tool/perf_abba.dart' hide main;
 
 TraceMetrics _metrics({
@@ -10,6 +14,7 @@ TraceMetrics _metrics({
   double p99Raster = 3.5,
   double period = 6.94,
   int frames = 288,
+  double span = 1993,
 }) {
   return (
     average: average,
@@ -17,6 +22,7 @@ TraceMetrics _metrics({
     p99Raster: p99Raster,
     period: period,
     frames: frames,
+    span: span,
   );
 }
 
@@ -28,13 +34,19 @@ Trace _trace(
   double average = 0.25,
   double period = 6.94,
   int frames = 288,
+  double span = 1993,
 }) {
   return (
     run: run,
     scene: scene,
     side: side,
     pair: pair,
-    metrics: _metrics(average: average, period: period, frames: frames),
+    metrics: _metrics(
+      average: average,
+      period: period,
+      frames: frames,
+      span: span,
+    ),
   );
 }
 
@@ -55,11 +67,11 @@ List<Trace> _block(
 }
 
 /// Blocks of [scene] over [changes], one block per entry, in run folders
-/// r1g1 on.
+/// r1 on.
 List<Trace> _blocks(String scene, List<double> changes) {
   return [
     for (var i = 0; i < changes.length; i++)
-      ..._block('r${i + 1}g1', scene, cand: 0.2 * (1 + changes[i] / 100)),
+      ..._block('r${i + 1}', scene, cand: 0.2 * (1 + changes[i] / 100)),
   ];
 }
 
@@ -106,30 +118,27 @@ void main() {
       'reads the three metrics, the frame count, and the display period',
       () {
         final metrics = metricsOf({
-          'average_frame_build_time_millis': 0.31,
-          '99th_percentile_frame_build_time_millis': 1.02,
-          '99th_percentile_frame_rasterizer_time_millis': 3.4,
-          'frame_begin_times': [for (var i = 0; i < 10; i++) i * 6940, 100000],
+          'average': 0.31,
+          'p99Build': 1.02,
+          'p99Raster': 3.4,
+          'begins': [for (var i = 0; i < 10; i++) i * 6940, 100000],
         });
         expect(metrics.average, 0.31);
         expect(metrics.p99Build, 1.02);
         expect(metrics.p99Raster, 3.4);
         expect(metrics.frames, 11);
         expect(metrics.period, closeTo(6.94, 1e-9));
+        expect(metrics.span, closeTo(100, 1e-9));
       },
     );
 
     test('takes the 10th-percentile gap, which skipped frames do not move', () {
       // Nine of ten gaps skip a frame: the median gap would read 13.88 ms.
       final metrics = metricsOf({
-        'average_frame_build_time_millis': 0.31,
-        '99th_percentile_frame_build_time_millis': 1.02,
-        '99th_percentile_frame_rasterizer_time_millis': 3.4,
-        'frame_begin_times': [
-          0,
-          6940,
-          for (var i = 1; i <= 9; i++) 6940 + i * 13880,
-        ],
+        'average': 0.31,
+        'p99Build': 1.02,
+        'p99Raster': 3.4,
+        'begins': [0, 6940, for (var i = 1; i <= 9; i++) 6940 + i * 13880],
       });
       expect(metrics.period, closeTo(6.94, 1e-9));
     });
@@ -137,34 +146,31 @@ void main() {
 
   group('traceOf', () {
     test('reads scene, side, and pair from the report key', () {
-      final trace = traceOf(
-        'r1g2',
-        'S2-plain.base.2.timeline_summary.json',
-        _metrics(),
-      );
-      expect(trace?.run, 'r1g2');
+      final trace = traceOf('r1', 'S2-plain.base.2.summary.json', _metrics());
+      expect(trace?.run, 'r1');
       expect(trace?.scene, 'S2-plain');
       expect(trace?.side, 'base');
       expect(trace?.pair, 2);
     });
 
     test('skips files that are not ABBA summaries', () {
-      expect(traceOf('r1g1', 'S1.timeline_summary.json', _metrics()), isNull);
+      expect(traceOf('r1', 'S1.summary.json', _metrics()), isNull);
+      expect(traceOf('r1', 'S1.left.1.summary.json', _metrics()), isNull);
+      expect(traceOf('r1', 'S1.base.1.timeline.json', _metrics()), isNull);
       expect(
-        traceOf('r1g1', 'S1.left.1.timeline_summary.json', _metrics()),
+        traceOf('r1', 'S1.base.1.timeline_summary.json', _metrics()),
         isNull,
       );
-      expect(traceOf('r1g1', 'S1.base.1.timeline.json', _metrics()), isNull);
     });
   });
 
   group('blockTraces', () {
     test('makes one block per run folder and scene', () {
       final blocks = blockTraces([
-        ..._block('r1g1', 'S1', base: 0.2, cand: 0.3),
-        ..._block('r1g2', 'S2-plain'),
-        ..._block('r2g1', 'S1', base: 0.4, cand: 0.4),
-        ..._block('r1g1', 'S2'),
+        ..._block('r1', 'S1', base: 0.2, cand: 0.3),
+        ..._block('r1', 'S2-plain'),
+        ..._block('r2', 'S1', base: 0.4, cand: 0.4),
+        ..._block('r1', 'S2'),
       ]);
       expect(blocks.keys, unorderedEquals(['S1', 'S2', 'S2-plain']));
       expect([
@@ -174,8 +180,8 @@ void main() {
 
     test('leaves out a block that misses any of its four traces', () {
       final blocks = blockTraces([
-        ..._block('r1g1', 'S1'),
-        ..._block('r2g1', 'S1').take(3),
+        ..._block('r1', 'S1'),
+        ..._block('r2', 'S1').take(3),
       ]);
       expect(blocks['S1'], hasLength(1));
     });
@@ -202,28 +208,37 @@ void main() {
     });
   });
 
+  group('shortTrace', () {
+    test('needs the window minus two frames at its display period', () {
+      // 2000 ms less two 6.94 ms frames is 1986.12 ms.
+      expect(shortTrace(_metrics(span: 1986)), isTrue);
+      expect(shortTrace(_metrics(span: 1986.2)), isFalse);
+      expect(shortTrace(_metrics(period: 16.67, span: 1967)), isFalse);
+    });
+  });
+
   group('invalidRuns', () {
     test("marks a run invalid when one trace's display period drifts", () {
       expect(
         invalidRuns([
-          ..._block('r1g1', 'S1'),
-          _trace('r1g1', 'S2', 'base', 1),
-          _trace('r1g1', 'S2', 'cand', 1, period: 16.67),
-          ..._block('r2g1', 'S1'),
+          ..._block('r1', 'S1'),
+          _trace('r1', 'S2', 'base', 1),
+          _trace('r1', 'S2', 'cand', 1, period: 16.67),
+          ..._block('r2', 'S1'),
         ]).keys,
         ['r1'],
       );
     });
 
-    test('marks a run invalid when one whole invocation ran on another '
+    test('marks a run invalid when one whole scene ran on another '
         'display', () {
       expect(
         invalidRuns([
-          ..._block('r1g1', 'S1'),
-          ..._block('r1g2', 'S3'),
-          _trace('r1g3', 'S4', 'base', 1, period: 16.67),
-          _trace('r1g3', 'S4', 'cand', 1, period: 16.67),
-          ..._block('r2g1', 'S1'),
+          ..._block('r1', 'S1'),
+          ..._block('r1', 'S3'),
+          _trace('r1', 'S4', 'base', 1, period: 16.67),
+          _trace('r1', 'S4', 'cand', 1, period: 16.67),
+          ..._block('r2', 'S1'),
         ]),
         {'r1': 'display period'},
       );
@@ -232,11 +247,11 @@ void main() {
     test('marks a run invalid when all of it ran on another display', () {
       expect(
         invalidRuns([
-          ..._block('r1g1', 'S1'),
-          ..._block('r2g1', 'S1'),
-          ..._block('r3g1', 'S1'),
-          _trace('r4g1', 'S1', 'base', 1, period: 16.67),
-          _trace('r4g1', 'S1', 'cand', 1, period: 16.67),
+          ..._block('r1', 'S1'),
+          ..._block('r2', 'S1'),
+          ..._block('r3', 'S1'),
+          _trace('r4', 'S1', 'base', 1, period: 16.67),
+          _trace('r4', 'S1', 'cand', 1, period: 16.67),
         ]).keys,
         ['r4'],
       );
@@ -245,11 +260,11 @@ void main() {
     test('marks a run invalid on lost frames and names the side', () {
       expect(
         invalidRuns([
-          ..._block('r1g1', 'S1'),
-          _trace('r2g1', 'S4', 'base', 1),
-          _trace('r2g1', 'S4', 'cand', 1, frames: 120),
-          _trace('r3g1', 'S4', 'base', 1, frames: 19),
-          _trace('r3g1', 'S4', 'cand', 1, frames: 130),
+          ..._block('r1', 'S1'),
+          _trace('r2', 'S4', 'base', 1),
+          _trace('r2', 'S4', 'cand', 1, frames: 120),
+          _trace('r3', 'S4', 'base', 1, frames: 19),
+          _trace('r3', 'S4', 'cand', 1, frames: 130),
         ]),
         {
           'r2': 'lost frames on current',
@@ -257,17 +272,16 @@ void main() {
         },
       );
     });
-  });
 
-  group('runInvalid', () {
-    test('is true once a trace of the run lost frames', () {
-      final traces = [
-        ..._block('r6g1', 'S1'),
-        _trace('r7g1', 'S1', 'base', 1),
-        _trace('r7g1', 'S1', 'cand', 1, frames: 40),
-      ];
-      expect(runInvalid(traces, 7), isTrue);
-      expect(runInvalid(traces, 6), isFalse);
+    test('marks a run invalid on a short trace', () {
+      expect(
+        invalidRuns([
+          ..._block('r1', 'S1'),
+          _trace('r2', 'S1', 'base', 1),
+          _trace('r2', 'S1', 'cand', 1, span: 1900),
+        ]),
+        {'r2': 'short trace'},
+      );
     });
   });
 
@@ -444,10 +458,10 @@ void main() {
         [
           ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
           ..._blocks('S4', _rcaS4),
-          _trace('r99g1', 'S4', 'base', 1),
-          _trace('r99g1', 'S4', 'cand', 1, frames: 30),
-          _trace('r99g1', 'S4', 'cand', 2),
-          _trace('r99g1', 'S4', 'base', 2),
+          _trace('r99', 'S4', 'base', 1),
+          _trace('r99', 'S4', 'cand', 1, frames: 30),
+          _trace('r99', 'S4', 'cand', 2),
+          _trace('r99', 'S4', 'base', 2),
         ],
         loads: const [],
         scenes: const ['S2-plain', 'S4'],
@@ -483,29 +497,42 @@ void main() {
         ],
         loads: const [],
         scenes: const ['S2-plain', 'S4'],
-        codeStates: const {
-          'r1g1': 'abc 111',
-          'r2g1': 'abc 111',
-          'r3g1': 'def 222',
-        },
+        codeStates: const {'r1': 'abc 111', 'r2': 'abc 111', 'r3': 'def 222'},
       );
       expect(
         result.text,
-        contains('code states differ: abc 111 in r1g1, r2g1; def 222 in r3g1'),
+        contains('code states differ: abc 111 in r1, r2; def 222 in r3'),
       );
+    });
+
+    test('gives each judged scene its verdict, S2-plain left out', () {
+      final result = judge(
+        [
+          ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
+          ..._blocks('S4', _rcaS4),
+          ..._blocks('S1', [-2, 8, 1, 9, 3, 7]),
+        ],
+        loads: const [],
+        scenes: const ['S2-plain', 'S1', 'S4', 'S5'],
+      );
+      expect(result.scenes, {
+        'S1': Verdict.inconclusive,
+        'S4': Verdict.pass,
+        'S5': Verdict.inconclusive,
+      });
     });
   });
 
   group('codeStateError', () {
     test('accepts runs on the stored code state', () {
       expect(codeStateError(const {}, 'abc 111'), isNull);
-      expect(codeStateError(const {'r1g1': 'abc 111'}, 'abc 111'), isNull);
+      expect(codeStateError(const {'r1': 'abc 111'}, 'abc 111'), isNull);
     });
 
     test('refuses runs on another code state', () {
       expect(
-        codeStateError(const {'r1g1': 'abc 111', 'r1g2': 'abc 222'}, 'abc 111'),
-        contains('r1g2'),
+        codeStateError(const {'r1': 'abc 111', 'r2': 'abc 222'}, 'abc 111'),
+        contains('r2'),
       );
     });
   });
@@ -530,29 +557,235 @@ void main() {
     tearDown(() => root.deleteSync(recursive: true));
 
     test('refuses run folders that exist', () {
-      Directory('${root.path}/r2g3').createSync();
-      expect(clashingRuns(root, from: 1, runs: 6), ['${root.path}/r2g3']);
+      Directory('${root.path}/r2').createSync();
+      expect(clashingRuns(root, from: 1, runs: 6), ['${root.path}/r2']);
       expect(clashingRuns(root, from: 3, runs: 4), isEmpty);
     });
   });
 
-  group('prebuilt apps', () {
-    test('builds one profile app per group with its PERF_GROUP', () {
-      expect(buildArgs(2), [
+  group('one app', () {
+    test('builds one profile app for the runs and scenes of a call', () {
+      expect(buildArgs(from: 13, runs: 12, scenes: const ['S2-plain', 'S4']), [
         'build',
         'macos',
         '--profile',
         '--target=integration_test/layout_perf_test.dart',
-        '--dart-define=PERF_GROUP=2',
+        '--dart-define=PERF_FROM=13',
+        '--dart-define=PERF_RUNS=12',
+        '--dart-define=PERF_SCENES=S2-plain,S4',
+        '--dart-define=PERF_FULL=false',
       ]);
+      expect(
+        buildArgs(from: 1, runs: 2, scenes: const ['S4'], full: true),
+        contains('--dart-define=PERF_FULL=true'),
+      );
     });
 
-    test('drives a group on its prebuilt app', () {
-      final args = driveArgs(3);
-      expect(args, contains('--use-application-binary=build/perf-apps/g3.app'));
-      expect(args, contains('--endless-trace-buffer'));
-      expect(args, contains('--driver=test_driver/perf_driver.dart'));
-      expect(args, contains('--target=integration_test/layout_perf_test.dart'));
+    test('drives the prebuilt app', () {
+      expect(
+        driveArgs,
+        contains(
+          '--use-application-binary='
+          'build/macos/Build/Products/Profile/stratum_ui_example.app',
+        ),
+      );
+      expect(driveArgs, contains('--endless-trace-buffer'));
+      expect(driveArgs, contains('--driver=test_driver/perf_driver.dart'));
+      expect(
+        driveArgs,
+        contains('--target=integration_test/layout_perf_test.dart'),
+      );
+    });
+
+    test('lists the scenes of perfScenes in run order', () {
+      expect(catalog, [for (final scene in perfScenes) scene.key]);
+    });
+  });
+
+  group('summary lines', () {
+    final appSummary = {
+      'average_frame_build_time_millis': 0.31,
+      '99th_percentile_frame_build_time_millis': 1.02,
+      '99th_percentile_frame_rasterizer_time_millis': 3.4,
+      'frame_begin_times': [for (var i = 0; i < 288; i++) 7000000 + i * 6940],
+    };
+
+    test('parse back the values the app encodes, behind the flutter: '
+        'prefix', () {
+      final line = 'flutter: ${summaryLine('r3.S2.cand.2', appSummary)}';
+      final summary = summaryOf(line)!;
+      expect(summary['key'], 'r3.S2.cand.2');
+      final metrics = metricsOf(summary);
+      expect(metrics.average, 0.31);
+      expect(metrics.p99Build, 1.02);
+      expect(metrics.p99Raster, 3.4);
+      expect(metrics.frames, 288);
+      expect(metrics.period, closeTo(6.94, 1e-9));
+      expect(metrics.span, closeTo(287 * 6.94, 1e-9));
+    });
+
+    test('ignore lines without a marker', () {
+      expect(summaryOf('flutter: 00:41 +16: r1.S1.base.1'), isNull);
+      expect(runMark('flutter: 00:41 +16: r1.S1.base.1'), isNull);
+    });
+
+    test('read the run of a run line', () {
+      expect(runMark('flutter: ${runLine(13)}'), 13);
+    });
+
+    test('refuse a cut line, a bad key, and fewer than two frames', () {
+      final line = summaryLine('r3.S2.cand.2', appSummary);
+      expect(
+        () => summaryOf(line.substring(0, line.length - 40)),
+        throwsFormatException,
+      );
+      expect(
+        () => summaryOf(summaryLine('S2.cand.2', appSummary)),
+        throwsFormatException,
+      );
+      expect(
+        () => summaryOf(
+          summaryLine('r3.S2.cand.2', {
+            ...appSummary,
+            'frame_begin_times': [7000000],
+          }),
+        ),
+        throwsFormatException,
+      );
+    });
+  });
+
+  group('recordDrive', () {
+    late Directory root;
+
+    setUp(() => root = Directory.systemTemp.createTempSync('abba'));
+    tearDown(() => root.deleteSync(recursive: true));
+
+    Map<String, dynamic> summary(int frames) => {
+      'average_frame_build_time_millis': 0.31,
+      '99th_percentile_frame_build_time_millis': 1.02,
+      '99th_percentile_frame_rasterizer_time_millis': 3.4,
+      'frame_begin_times': [for (var i = 0; i < frames; i++) i * 6940],
+    };
+
+    Future<String> load() async => ' 18:27  up 9 days, load averages: 9.10 ';
+
+    test('writes each summary to its run folder, records load and code per '
+        'run, and reports a cut line', () async {
+      final cut = summaryLine('r1.S1.cand.1', summary(288));
+      final echoed = <String>[];
+      final problems = await recordDrive(
+        Stream.fromIterable([
+          'Resolving dependencies...',
+          'flutter: ${runLine(1)}',
+          'flutter: ${summaryLine('r1.S1.base.1', summary(288))}',
+          'flutter: ${cut.substring(0, 900)}',
+          'flutter: ${summaryLine('r1.S1.cand.2', summary(287))}',
+        ]),
+        root: root,
+        code: 'abc 111',
+        load: load,
+        echo: echoed.add,
+      );
+
+      expect(problems, hasLength(1));
+      expect(problems.single, startsWith('skipped a summary line'));
+      final run = '${root.path}/r1';
+      expect(File('$run/code.txt').readAsStringSync(), 'abc 111');
+      expect(
+        File('$run/load.txt').readAsStringSync(),
+        '18:27  up 9 days, load averages: 9.10',
+      );
+      expect(
+        [
+          for (final file in Directory(run).listSync())
+            file.uri.pathSegments.last,
+        ]..sort(),
+        [
+          'S1.base.1.summary.json',
+          'S1.cand.2.summary.json',
+          'code.txt',
+          'load.txt',
+        ],
+      );
+      final stored = readRuns(root);
+      expect([for (final t in stored.traces) t.metrics.frames]..sort(), [
+        287,
+        288,
+      ]);
+      expect(stored.loads, [9.1]);
+      expect(stored.codeStates, {'r1': 'abc 111'});
+      expect(echoed, contains('Resolving dependencies...'));
+    });
+
+    test('writes a summary before the next line arrives, so a crash loses '
+        'only the trace in progress', () async {
+      final lines = StreamController<String>();
+      final done = recordDrive(
+        lines.stream,
+        root: root,
+        code: 'abc 111',
+        load: load,
+        echo: (_) {},
+      );
+      lines.add(summaryLine('r2.S4.base.1', summary(288)));
+      await pumpEventQueue();
+
+      final file = File('${root.path}/r2/S4.base.1.summary.json');
+      expect(file.existsSync(), isTrue);
+      expect(
+        jsonDecode(file.readAsStringSync()),
+        containsPair('key', 'r2.S4.base.1'),
+      );
+      await lines.close();
+      expect(await done, isEmpty);
+    });
+  });
+
+  group('escalationScenes', () {
+    test('measures every scene when no run is stored', () {
+      final verdicts = judge(const [], loads: const [], scenes: catalog).scenes;
+      expect(escalationScenes(verdicts), catalog);
+    });
+
+    test(
+      'measures the INCONCLUSIVE scenes in catalog order, plus S2-plain',
+      () {
+        expect(
+          escalationScenes({
+            'S1': Verdict.pass,
+            'S1-fast': Verdict.inconclusive,
+            'S2': Verdict.fail,
+            'S2-box': Verdict.pass,
+            'S3': Verdict.pass,
+            'S4': Verdict.inconclusive,
+            'S5': Verdict.pass,
+          }),
+          ['S2-plain', 'S1-fast', 'S4'],
+        );
+      },
+    );
+
+    test('leaves S2-plain alone when no scene is INCONCLUSIVE', () {
+      expect(escalationScenes({'S1': Verdict.pass, 'S4': Verdict.fail}), [
+        nullScene,
+      ]);
+    });
+  });
+
+  group('traceFullError', () {
+    test('accepts one catalog scene for 1 to 4 runs', () {
+      expect(traceFullError(scene: 'S4', runs: 1), isNull);
+      expect(traceFullError(scene: 'S4', runs: 4), isNull);
+    });
+
+    test('refuses more than 4 runs, the 16 traces of one message', () {
+      expect(traceFullError(scene: 'S4', runs: 5), contains('1 to 4'));
+      expect(traceFullError(scene: 'S4', runs: 0), isNotNull);
+    });
+
+    test('refuses a scene outside the catalog', () {
+      expect(traceFullError(scene: 'S9', runs: 1), contains('S9'));
     });
   });
 }
