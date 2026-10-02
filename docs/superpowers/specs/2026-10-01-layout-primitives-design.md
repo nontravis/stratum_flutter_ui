@@ -323,7 +323,7 @@ A key binding from K3 or K4, and a K2 binding whose activator has no control, me
 - With `loop: true`, moving past either end wraps around; in a wrap, Up from the top run and Down from the bottom run go to the nearest item of the far run.
 - Without `loop`, an arrow past either end keeps Flutter's default (directional focus on desktop, scrolling on web) when no group item lies in that direction on screen. While one does, as in the partly filled last run of a wrap, the group keeps focus in place, so focus never bounces inside the group. The group clears Flutter's directional history after each move it makes.
 - When the group sits in a scroll view, the item it focuses is scrolled into view when it lies past a viewport edge on screen, so a row under RTL, or a row group that Page Up moved out of a vertical scroll's view, reveals it too.
-- Tab and Shift+Tab always leave the group (WCAG 2.1.2).
+- Tab and Shift+Tab always leave the group (WCAG 2.1.2). When focus sits inside a member that holds focusable content, such as a scrolling box, Tab first moves through that content, and Shift+Tab goes back to the member's own stop, before either leaves the group.
 - `role` sets `SemanticsRole` on the group node. Flutter's debug checks constrain the children: `tabBar` requires at least one child and every child with role `tab`; `menu` and `menuBar` require at least one child, and `menuItem` must sit under one of them; `radioGroup` allows at most one checked child; `list` has no check. Items take their role through their own `semantics:` (`SemanticsProperties(role: ...)`), which `StratumInkWell` honors in place of the button role. Flutter 3.47.3 has no `toolbar` role.
 - The group covers built children only; lazy lists use Tab and K4.
 
