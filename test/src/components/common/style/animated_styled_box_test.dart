@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/components/common/style/animated_styled_box.dart';
+import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/components/common/style/style_decoration.dart';
 
 const _radius = BorderRadius.all(Radius.circular(8));
@@ -17,6 +18,7 @@ Widget _host(
   double? ratio,
   StyledBoxBuilder? boxBuilder,
   StyledScrollBuilder? scrollBuilder,
+  bool alignContent = true,
 }) {
   return Directionality(
     textDirection: TextDirection.ltr,
@@ -26,6 +28,7 @@ Widget _host(
         ratio: ratio,
         boxBuilder: boxBuilder,
         scrollBuilder: scrollBuilder,
+        alignContent: alignContent,
         child: child,
       ),
     ),
@@ -262,6 +265,35 @@ void main() {
       await tester.pumpWidget(_host(null, ratio: 2));
 
       expect(find.byType(AspectRatio), findsOneWidget);
+    });
+
+    testWidgets('(pin) a style alignment builds an Align', (tester) async {
+      await tester.pumpWidget(
+        _host(const WidgetStyle(alignment: Alignment.topLeft)),
+      );
+
+      expect(find.byType(Align), findsOneWidget);
+    });
+
+    testWidgets('alignContent: false builds no Align', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            width: 100,
+            height: 100,
+            alignment: Alignment.topLeft,
+          ),
+          child: const SizedBox(key: ValueKey('child'), width: 40, height: 20),
+          alignContent: false,
+        ),
+      );
+
+      expect(find.byType(Align), findsNothing);
+      // Without the Align the box's tight size reaches the child.
+      expect(
+        tester.getSize(find.byKey(const ValueKey('child'))),
+        const Size(100, 100),
+      );
     });
   });
 
@@ -541,6 +573,62 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(tester.getSize(_decorated()), const Size(60, 30));
+    });
+  });
+
+  group('reducesMotion', () {
+    void useFeatures(WidgetTester tester, FakeAccessibilityFeatures features) {
+      tester.platformDispatcher.accessibilityFeaturesTestValue = features;
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+    }
+
+    /// The result of [reducesMotion] below [data], or below no
+    /// [MediaQuery] of the test's own when [data] is null.
+    Future<bool> read(WidgetTester tester, {MediaQueryData? data}) async {
+      late bool result;
+      Widget probe = Builder(
+        builder: (context) {
+          result = reducesMotion(context);
+          return const SizedBox();
+        },
+      );
+      if (data != null) probe = MediaQuery(data: data, child: probe);
+      await tester.pumpWidget(probe);
+      return result;
+    }
+
+    testWidgets('is false without a flag', (tester) async {
+      expect(await read(tester), isFalse);
+    });
+
+    testWidgets("is true for the app's MediaQuery disableAnimations", (
+      tester,
+    ) async {
+      expect(
+        await read(
+          tester,
+          data: const MediaQueryData(disableAnimations: true),
+        ),
+        isTrue,
+      );
+    });
+
+    testWidgets('is true for the platform reduceMotion', (tester) async {
+      useFeatures(tester, const FakeAccessibilityFeatures(reduceMotion: true));
+
+      expect(await read(tester, data: const MediaQueryData()), isTrue);
+    });
+
+    testWidgets("lets the app's MediaQuery override the platform "
+        'disableAnimations', (tester) async {
+      useFeatures(
+        tester,
+        const FakeAccessibilityFeatures(disableAnimations: true),
+      );
+
+      expect(await read(tester, data: const MediaQueryData()), isFalse);
     });
   });
 

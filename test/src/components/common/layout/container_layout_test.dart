@@ -207,6 +207,99 @@ void main() {
       expect(tester.getSize(find.byType(ContainerLayout)), Size.zero);
     });
 
+    testWidgets('(pin) fit: null builds no FittedBox', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const ContainerLayout(
+            style: WidgetStyle(alignment: Alignment.topLeft),
+            child: SizedBox(width: 40, height: 20),
+          ),
+        ),
+      );
+
+      expect(find.byType(FittedBox), findsNothing);
+      expect(_inside(Align), findsOneWidget);
+    });
+
+    testWidgets('BoxFit.cover with an alignment fills the padded area', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          const ContainerLayout(
+            style: WidgetStyle(
+              width: 200,
+              height: 100,
+              padding: EdgeInsets.all(10),
+              alignment: Alignment.topLeft,
+            ),
+            fit: BoxFit.cover,
+            child: SizedBox(key: ValueKey('child'), width: 50, height: 50),
+          ),
+        ),
+      );
+
+      final box = tester.getRect(find.byType(ContainerLayout));
+      final fitted = tester.getRect(find.byType(FittedBox));
+      expect(fitted, box.deflate(10));
+      // cover scales the 50 by 50 child to the padded width, from the
+      // top left corner.
+      final child = tester.getRect(find.byKey(const ValueKey('child')));
+      expect(child.topLeft, fitted.topLeft);
+      expect(child.size, const Size(180, 180));
+    });
+
+    testWidgets('style.alignment reaches FittedBox.alignment and builds no '
+        'Align', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const ContainerLayout(
+            style: WidgetStyle(
+              width: 200,
+              height: 100,
+              alignment: Alignment.bottomRight,
+            ),
+            fit: BoxFit.contain,
+            child: SizedBox(width: 50, height: 50),
+          ),
+        ),
+      );
+
+      expect(
+        tester.widget<FittedBox>(find.byType(FittedBox)).alignment,
+        Alignment.bottomRight,
+      );
+      expect(_inside(Align), findsNothing);
+    });
+
+    testWidgets('fit with scroll fails the assertion', (tester) async {
+      expect(
+        () => ContainerLayout(
+          fit: BoxFit.cover,
+          scroll: const StratumScroll(),
+          child: const SizedBox(),
+        ),
+        throwsAssertionError,
+      );
+    });
+
+    testWidgets('fit without a style stays in the bare tier', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const ContainerLayout(
+            fit: BoxFit.contain,
+            child: SizedBox(width: 50, height: 50),
+          ),
+        ),
+      );
+
+      expect(find.byType(AnimatedStyledBox), findsNothing);
+      expect(
+        tester.widget<FittedBox>(find.byType(FittedBox)).alignment,
+        Alignment.center,
+      );
+    });
+
     testWidgets('semantics, repaintBoundary, and debug add their wrappers',
         (tester) async {
       await tester.pumpWidget(

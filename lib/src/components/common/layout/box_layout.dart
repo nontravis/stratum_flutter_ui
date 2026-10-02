@@ -105,6 +105,13 @@ abstract class BoxLayout extends StatelessWidget {
   @protected
   Axis get scrollDirection => Axis.vertical;
 
+  /// Whether `style.alignment` places [buildContent] through an [Align].
+  ///
+  /// A subclass that applies the alignment itself returns false, so the
+  /// content receives the padded area's constraints unchanged.
+  @protected
+  bool get alignsContent => true;
+
   bool get _isBare =>
       style == null &&
       ratio == null &&
@@ -140,6 +147,7 @@ abstract class BoxLayout extends StatelessWidget {
       scrollBuilder: scroll == null
           ? null
           : (content) => _buildScroll(scroll, content, linked: focusable),
+      alignContent: alignsContent,
       child: buildContent(context),
     );
     final degrees = rotate;
