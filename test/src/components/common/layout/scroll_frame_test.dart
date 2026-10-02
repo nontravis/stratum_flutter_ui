@@ -127,6 +127,121 @@ bool _boxRing(WidgetTester tester) => tester
     )
     .focus;
 
+/// The own node of the only [ScrollFocus] on screen.
+FocusNode _scrollFocusNode(WidgetTester tester) => tester
+    .widget<Focus>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Focus && widget.focusNode?.debugLabel == 'ScrollFocus',
+      ),
+    )
+    .focusNode!;
+
+/// The keys of `WidgetsApp.defaultShortcuts` on web that the Tab order
+/// cases press: Tab and Shift+Tab move focus, and the arrows scroll
+/// ([ScrollIntent]) instead of moving it.
+const _webShortcuts = <ShortcutActivator, Intent>{
+  SingleActivator(LogicalKeyboardKey.tab): NextFocusIntent(),
+  SingleActivator(LogicalKeyboardKey.tab, shift: true): PreviousFocusIntent(),
+  SingleActivator(LogicalKeyboardKey.arrowUp): ScrollIntent(
+    direction: AxisDirection.up,
+  ),
+  SingleActivator(LogicalKeyboardKey.arrowDown): ScrollIntent(
+    direction: AxisDirection.down,
+  ),
+};
+
+/// [page], filling the 800 by 600 window, under [_webShortcuts].
+Widget _webHost(Widget page) {
+  return themedHost(
+    Shortcuts(
+      shortcuts: _webShortcuts,
+      child: Actions(
+        actions: WidgetsApp.defaultActions,
+        child: SizedBox.expand(child: page),
+      ),
+    ),
+  );
+}
+
+List<FocusNode> _nodes(int count) => [for (var i = 0; i < count; i++) _node()];
+
+/// A row of tappable items, 48 px high, that is one focus group (K3).
+Widget _groupRow(List<FocusNode> items) {
+  return RowLayout(
+    mainAxisSize: MainAxisSize.min,
+    gap: 8,
+    focusGroup: const StratumFocusGroup(),
+    children: [
+      for (final item in items)
+        ContainerLayout(
+          style: const WidgetStyle(width: 64, height: 48),
+          interaction: StratumInteraction(onTap: () {}, focusNode: item),
+        ),
+    ],
+  );
+}
+
+/// Presses the arrows, under [_webShortcuts], until [item] lies wholly
+/// above [viewport]'s top edge.
+Future<void> _scrollAbove(
+  WidgetTester tester,
+  FocusNode item,
+  FocusNode viewport,
+) async {
+  for (var i = 0; i < 10 && item.rect.bottom >= viewport.rect.top; i++) {
+    await _key(tester, LogicalKeyboardKey.arrowDown);
+  }
+  expect(item.rect.bottom, lessThan(viewport.rect.top));
+  expect(item.hasPrimaryFocus, isTrue);
+}
+
+Future<void> _shiftTab(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+  await tester.pumpAndSettle();
+}
+
+/// Whether [node] lies wholly inside [viewport] along the vertical axis.
+bool _revealed(FocusNode node, FocusNode viewport) =>
+    node.rect.top >= viewport.rect.top &&
+    node.rect.bottom <= viewport.rect.bottom;
+
+/// A lazy cell, 300 px high, with [row] at its top.
+Widget _cell(Widget row) {
+  return SizedBox(
+    height: 300,
+    child: Align(alignment: Alignment.topLeft, child: row),
+  );
+}
+
+/// Where the ring of the only [ScrollFocus] shows, and its side: the
+/// non-transparent border of the [FocusSpread]'s container; null when no
+/// ring shows.
+(DecorationPosition, BorderSide)? _visibleRing(WidgetTester tester) {
+  final container = tester.widget<AnimatedContainer>(
+    find
+        .descendant(
+          of: find.byType(FocusSpread),
+          matching: find.byType(AnimatedContainer),
+        )
+        .first,
+  );
+  final layers = {
+    DecorationPosition.foreground: container.foregroundDecoration,
+    DecorationPosition.background: container.decoration,
+  };
+  for (final MapEntry(key: position, value: decoration) in layers.entries) {
+    if (decoration is! BoxDecoration) continue;
+    final border = decoration.border;
+    if (border is Border && border.top.color.a > 0) {
+      return (position, border.top);
+    }
+  }
+  return null;
+}
+
 void main() {
   group('ScrollFrame', () {
     testWidgets('lets theme physics win over an outer ScrollConfiguration', (
@@ -802,6 +917,325 @@ void main() {
         );
       },
       variant: TargetPlatformVariant.only(TargetPlatform.android),
+    );
+  });
+
+  group('Tab order inside a focusable scroller', () {
+    testWidgets(
+      'Tab from a row scrolled wholly above a scrolling page reaches the '
+      'next row and reveals it; Shift+Tab walks back to the page stop',
+      (tester) async {
+        final row1 = _nodes(3);
+        final row2 = _nodes(3);
+        await tester.pumpWidget(
+          _webHost(
+            ColumnLayout(
+              style: const WidgetStyle(padding: EdgeInsets.all(24)),
+              scroll: const StratumScroll(),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              gap: 16,
+              children: [
+                _groupRow(row1),
+                const SizedBox(height: 1600),
+                _groupRow(row2),
+                const SizedBox(height: 600),
+              ],
+            ),
+          ),
+        );
+        final page = _scrollFocusNode(tester);
+        row1.first.requestFocus();
+        await tester.pump();
+        await _scrollAbove(tester, row1.first, page);
+
+        await _key(tester, LogicalKeyboardKey.tab);
+
+        expect(row2.first.hasPrimaryFocus, isTrue);
+        expect(_revealed(row2.first, page), isTrue);
+
+        await _shiftTab(tester);
+        expect(row1.first.hasPrimaryFocus, isTrue);
+        expect(_revealed(row1.first, page), isTrue);
+        await _shiftTab(tester);
+        expect(page.hasPrimaryFocus, isTrue);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    final lazyLayouts = <String, Widget Function(List<Widget> cells)>{
+      'ListViewLayout': (cells) => ListViewLayout.builder(
+        itemCount: cells.length,
+        itemBuilder: (context, index) => cells[index],
+      ),
+      'GridViewLayout': (cells) => GridViewLayout.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 1,
+          mainAxisExtent: 300,
+        ),
+        itemCount: cells.length,
+        itemBuilder: (context, index) => cells[index],
+      ),
+      'CustomScrollViewLayout': (cells) =>
+          CustomScrollViewLayout(children: cells),
+    };
+    for (final MapEntry(key: name, value: layout) in lazyLayouts.entries) {
+      testWidgets(
+        'Tab from a row scrolled wholly above a focusable $name reaches the '
+        'next row; Shift+Tab walks back to the list stop',
+        (tester) async {
+          final row1 = _nodes(3);
+          final row2 = _nodes(3);
+          await tester.pumpWidget(
+            _webHost(
+              layout([
+                _cell(_groupRow(row1)),
+                _cell(_groupRow(row2)),
+                _cell(const SizedBox.shrink()),
+              ]),
+            ),
+          );
+          final list = _scrollFocusNode(tester);
+          row1.first.requestFocus();
+          await tester.pump();
+          await _scrollAbove(tester, row1.first, list);
+
+          await _key(tester, LogicalKeyboardKey.tab);
+
+          expect(row2.first.hasPrimaryFocus, isTrue);
+          expect(_revealed(row2.first, list), isTrue);
+
+          await _shiftTab(tester);
+          expect(row1.first.hasPrimaryFocus, isTrue);
+          expect(_revealed(row1.first, list), isTrue);
+          await _shiftTab(tester);
+          expect(list.hasPrimaryFocus, isTrue);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      );
+    }
+
+    testWidgets(
+      '(pin) desktop arrows move focus across a scrolling box edge as '
+      'before',
+      (tester) async {
+        final above = _node();
+        final first = _node();
+        final second = _node();
+        final below = _node();
+        Widget item(FocusNode node) => Focus(
+          focusNode: node,
+          child: const SizedBox(width: 200, height: 40),
+        );
+        await tester.pumpWidget(
+          themedHost(
+            Shortcuts(
+              shortcuts: WidgetsApp.defaultShortcuts,
+              child: Actions(
+                actions: WidgetsApp.defaultActions,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    item(above),
+                    SizedBox(
+                      width: 200,
+                      height: 200,
+                      child: ColumnLayout(
+                        scroll: const StratumScroll(),
+                        children: [
+                          item(first),
+                          item(second),
+                          const SizedBox(height: 400),
+                        ],
+                      ),
+                    ),
+                    item(below),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        final box = _scrollFocusNode(tester);
+        final names = {
+          above: 'above',
+          first: 'first',
+          second: 'second',
+          below: 'below',
+          box: 'box',
+        };
+        String focused() => names[FocusManager.instance.primaryFocus] ?? '-';
+
+        // One walk down from above, into the box and onto its stop.
+        above.requestFocus();
+        await tester.pumpAndSettle();
+        final walk = <String>[];
+        for (var i = 0; i < 3; i++) {
+          await _key(tester, LogicalKeyboardKey.arrowDown);
+          walk.add(focused());
+        }
+        expect(walk, ['first', 'second', 'box']);
+
+        // Single presses without directional history: where the geometry
+        // alone moves focus.
+        final steps = <String>[];
+        Future<void> press(FocusNode from, LogicalKeyboardKey key) async {
+          from.requestFocus();
+          await tester.pumpAndSettle();
+          for (final node in names.keys) {
+            FocusTraversalGroup.maybeOfNode(node)
+                ?.invalidateScopeData(node.nearestScope!);
+          }
+          await _key(tester, key);
+          steps.add('${names[from]} ${key.keyLabel} -> ${focused()}');
+        }
+
+        await press(first, LogicalKeyboardKey.arrowUp);
+        await press(first, LogicalKeyboardKey.arrowDown);
+        await press(second, LogicalKeyboardKey.arrowUp);
+        await press(second, LogicalKeyboardKey.arrowDown);
+        await press(below, LogicalKeyboardKey.arrowUp);
+
+        expect(steps, [
+          'first Arrow Up -> above',
+          'first Arrow Down -> second',
+          'second Arrow Up -> first',
+          'second Arrow Down -> box',
+          'below Arrow Up -> box',
+        ]);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+  });
+
+  group('ScrollFocus ring placement', () {
+    const fullWindow = SizedBox.expand(
+      child: ColumnLayout(
+        scroll: StratumScroll(),
+        children: [SizedBox(height: 2000)],
+      ),
+    );
+    const smallBox = SizedBox(
+      width: 200,
+      height: 300,
+      child: ColumnLayout(
+        scroll: StratumScroll(),
+        children: [SizedBox(height: 2000)],
+      ),
+    );
+
+    testWidgets(
+      'a scrolling box that fills the window draws its ring inside its '
+      'edge, over the content and unclipped',
+      (tester) async {
+        _useTraditionalHighlight();
+        await tester.pumpWidget(themedHost(fullWindow));
+
+        _scrollFocusNode(tester).requestFocus();
+        await tester.pumpAndSettle();
+
+        final (position, side) = _visibleRing(tester)!;
+        expect(position, DecorationPosition.foreground);
+        expect(side.strokeAlign, BorderSide.strokeAlignInside);
+        expect(side.width, 4);
+        expect(
+          find.ancestor(
+            of: find.byType(FocusSpread),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is ClipRect || widget is ClipRRect,
+            ),
+          ),
+          findsNothing,
+        );
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
+
+    testWidgets(
+      'a small box in the middle of the window keeps its ring around it',
+      (tester) async {
+        _useTraditionalHighlight();
+        await tester.pumpWidget(themedHost(smallBox));
+
+        _scrollFocusNode(tester).requestFocus();
+        await tester.pumpAndSettle();
+
+        final (position, side) = _visibleRing(tester)!;
+        expect(position, DecorationPosition.background);
+        expect(side.strokeAlign, BorderSide.strokeAlignOutside);
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
+
+    testWidgets(
+      'the ring moves inside when the window shrinks to the box and back '
+      'around it when the window grows',
+      (tester) async {
+        _useTraditionalHighlight();
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(themedHost(smallBox));
+        _scrollFocusNode(tester).requestFocus();
+        await tester.pumpAndSettle();
+        expect(
+          _visibleRing(tester)!.$2.strokeAlign,
+          BorderSide.strokeAlignOutside,
+        );
+
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(200, 300);
+        await tester.pumpAndSettle();
+        expect(
+          _visibleRing(tester)!.$2.strokeAlign,
+          BorderSide.strokeAlignInside,
+        );
+
+        tester.view.reset();
+        await tester.pumpAndSettle();
+        expect(
+          _visibleRing(tester)!.$2.strokeAlign,
+          BorderSide.strokeAlignOutside,
+        );
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
+
+    testWidgets(
+      'flipping the ring inside keeps the content State and the scroll '
+      'offset',
+      (tester) async {
+        _useTraditionalHighlight();
+        addTearDown(tester.view.reset);
+        final controller = _controller();
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              width: 200,
+              height: 300,
+              child: ColumnLayout(
+                scroll: StratumScroll(controller: controller),
+                children: const [_Probe()],
+              ),
+            ),
+          ),
+        );
+        _scrollFocusNode(tester).requestFocus();
+        await tester.pumpAndSettle();
+        controller.jumpTo(120);
+        await tester.pump();
+        final content = tester.state(find.byType(_Probe));
+
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(200, 300);
+        await tester.pumpAndSettle();
+
+        expect(
+          _visibleRing(tester)!.$2.strokeAlign,
+          BorderSide.strokeAlignInside,
+        );
+        expect(tester.state(find.byType(_Probe)), same(content));
+        expect(controller.offset, 120);
+        expect(_scrollFocusNode(tester).hasPrimaryFocus, isTrue);
+      },
+      variant: TargetPlatformVariant.desktop(),
     );
   });
 }

@@ -72,6 +72,9 @@ class GridViewLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = this.style;
+    final focusable =
+        this.focusable ??
+        defaultScrollFocusable(isWeb: kIsWeb, platform: defaultTargetPlatform);
     Widget grid = ScrollFrame(
       showScrollbar: showScrollbar,
       child: Builder(
@@ -99,16 +102,14 @@ class GridViewLayout extends StatelessWidget {
         ),
       ),
     );
+    // One traversal group, so the items follow the Tab stop; see
+    // ScrollFocus.
+    if (focusable) grid = FocusTraversalGroup(child: grid);
     if (style != null) {
       grid = ContainerLayout(style: ScrollFrame.boxStyle(style), child: grid);
     }
     return ScrollFocus(
-      focusable:
-          focusable ??
-          defaultScrollFocusable(
-            isWeb: kIsWeb,
-            platform: defaultTargetPlatform,
-          ),
+      focusable: focusable,
       axis: scrollDirection,
       controller: controller,
       primary: primary,

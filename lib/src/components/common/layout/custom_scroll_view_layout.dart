@@ -58,6 +58,9 @@ class CustomScrollViewLayout extends StatelessWidget {
       'style.padding applies to children only; wrap slivers in a '
       'SliverPadding instead',
     );
+    final focusable =
+        this.focusable ??
+        defaultScrollFocusable(isWeb: kIsWeb, platform: defaultTargetPlatform);
     Widget view = ScrollFrame(
       showScrollbar: showScrollbar,
       child: Builder(
@@ -72,16 +75,14 @@ class CustomScrollViewLayout extends StatelessWidget {
         ),
       ),
     );
+    // One traversal group, so the content follows the Tab stop; see
+    // ScrollFocus.
+    if (focusable) view = FocusTraversalGroup(child: view);
     if (style != null) {
       view = ContainerLayout(style: ScrollFrame.boxStyle(style), child: view);
     }
     return ScrollFocus(
-      focusable:
-          focusable ??
-          defaultScrollFocusable(
-            isWeb: kIsWeb,
-            platform: defaultTargetPlatform,
-          ),
+      focusable: focusable,
       axis: scrollDirection,
       controller: controller,
       semanticsLabel: semanticsLabel,
