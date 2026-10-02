@@ -13,7 +13,7 @@ class StratumThemeData {
     required this.systemOverlayInverseStyle,
     required this.space,
     required this.splashFactory,
-    required this.fonts,
+    required this.typography,
     this.scrollBehavior = const StratumScrollBehavior(),
     this.physics = const ClampingScrollPhysics(),
     this.animation = const StratumThemeAnimation(),
@@ -34,7 +34,7 @@ class StratumThemeData {
   final SystemUiOverlayStyle systemOverlayStyle;
   final SystemUiOverlayStyle systemOverlayInverseStyle;
   final InteractiveInkFeatureFactory splashFactory;
-  final List<StratumFontData> fonts;
+  final StratumTypography typography;
   final ScrollBehavior scrollBehavior;
   final ScrollPhysics physics;
   final StratumThemeAnimation animation;
@@ -103,7 +103,7 @@ class StratumThemeData {
     SystemUiOverlayStyle? systemOverlayStyle,
     SystemUiOverlayStyle? systemOverlayInverseStyle,
     InteractiveInkFeatureFactory? splashFactory,
-    List<StratumFontData>? fonts,
+    StratumTypography? typography,
     ScrollBehavior? scrollBehavior,
     StratumThemeAnimation? animation,
     Curve? themeAnimationCurve,
@@ -125,7 +125,7 @@ class StratumThemeData {
       systemOverlayInverseStyle:
           systemOverlayInverseStyle ?? this.systemOverlayInverseStyle,
       splashFactory: splashFactory ?? this.splashFactory,
-      fonts: fonts ?? this.fonts,
+      typography: typography ?? this.typography,
       scrollBehavior: scrollBehavior ?? this.scrollBehavior,
       animation: animation ?? this.animation,
       highContrastTheme: highContrastTheme ?? this.highContrastTheme,

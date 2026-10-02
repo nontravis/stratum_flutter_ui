@@ -7,4 +7,5 @@ export 'theme_application.dart';
 export 'theme_color.dart';
 export 'theme_data.dart';
 export 'typography/dimension.dart';
+export 'typography/resolver.dart';
 export 'typography/typography.dart';
