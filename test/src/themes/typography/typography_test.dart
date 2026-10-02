@@ -87,13 +87,16 @@ void main() {
     });
 
     test('reads the window scale', () {
-      expect(typography.scaleByWindowSize, {
-        WindowSize.watch: const StratumDimension.fixed(0),
-        WindowSize.mobile: const StratumDimension.fixed(0),
-        WindowSize.tablet: const StratumDimension.fixed(0.5),
-        WindowSize.desktop: const StratumDimension.fixed(1),
-        WindowSize.bigDesktop: const StratumDimension.fixed(2),
-      });
+      expect(
+        typography.scaleByWindowSize,
+        StratumByWindowSize(const {
+          WindowSize.watch: StratumDimension.fixed(0),
+          WindowSize.mobile: StratumDimension.fixed(0),
+          WindowSize.tablet: StratumDimension.fixed(0.5),
+          WindowSize.desktop: StratumDimension.fixed(1),
+          WindowSize.bigDesktop: StratumDimension.fixed(2),
+        }),
+      );
     });
 
     test('reads the header weight and the Figma metrics of header s56', () {

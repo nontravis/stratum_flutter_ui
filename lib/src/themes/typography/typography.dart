@@ -124,7 +124,9 @@ class StratumTypography {
     required this.fonts,
     required this.families,
     required this.types,
-    this.scaleByWindowSize = const {},
+    this.scaleByWindowSize = const StratumByWindowSize.all(
+      StratumDimension.fixed(0),
+    ),
   });
 
   /// Parses the `typography:` node of `theme.yaml`.
@@ -141,8 +143,10 @@ class StratumTypography {
   /// order.
   final Map<String, StratumFamilySet> families;
 
-  /// The size each window size adds; a missing window size adds 0.
-  final Map<WindowSize, StratumDimension> scaleByWindowSize;
+  /// The size each window size adds. A window size the yaml map omits takes
+  /// the value of the nearest smaller window size it names, else of the
+  /// smallest one it names; a theme without the map adds 0 everywhere.
+  final StratumByWindowSize<StratumDimension> scaleByWindowSize;
 
   /// The style of every type except `table`, which has no entry here: its
   /// style is `body`'s, read in code.
@@ -153,14 +157,14 @@ class StratumTypography {
       other is StratumTypography &&
       mapEquals(other.fonts, fonts) &&
       mapEquals(other.families, families) &&
-      mapEquals(other.scaleByWindowSize, scaleByWindowSize) &&
+      other.scaleByWindowSize == scaleByWindowSize &&
       mapEquals(other.types, types);
 
   @override
   int get hashCode => Object.hash(
     _mapHash(fonts),
     _mapHash(families),
-    _mapHash(scaleByWindowSize),
+    scaleByWindowSize,
     _mapHash(types),
   );
 }
@@ -238,7 +242,9 @@ class _TypographyParser {
     return StratumTypography(
       fonts: fonts,
       families: families,
-      scaleByWindowSize: scale ?? const {},
+      scaleByWindowSize: scale == null || scale.isEmpty
+          ? const StratumByWindowSize.all(StratumDimension.fixed(0))
+          : StratumByWindowSize(scale),
       types: types,
     );
   }

@@ -64,7 +64,7 @@ abstract final class TypographyResolver {
     final scaleDimension = windowSize == null
         ? null
         : style.scaleByWindowSize?[windowSize] ??
-              typography.scaleByWindowSize[windowSize];
+              typography.scaleByWindowSize.valueFor(windowSize);
     final size = base + (scaleDimension?.resolve(of: base) ?? 0);
     final fontSize = size + font.adjustSize.resolve(of: base);
     final scaledBase = textScaler.scale(base);
