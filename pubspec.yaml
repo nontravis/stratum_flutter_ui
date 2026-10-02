@@ -21,6 +21,7 @@ dependencies:
       ref: 4.1.0
       path: flutter_falconx
   country_flags: ^4.1.2
+  dotted_border: ^3.1.0
   measure_size: ^5.0.2
   freezed_annotation: ^3.1.0
   json_annotation: ^4.12.0
