@@ -1,3 +1,4 @@
+export 'animation.dart';
 export 'behavior/behavior.dart';
 export 'color/color.dart';
 export 'config/config.dart';
