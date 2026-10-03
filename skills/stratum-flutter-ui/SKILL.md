@@ -54,11 +54,15 @@ scroll it, guarded so a text field inside keeps its own keys.
   Buttons: the layout draws no previous or next buttons, and on desktop a mouse without a trackpad cannot swipe, so
   the app adds previous and next buttons around the view (WCAG 2.5.1) until a component in the package provides
   them. Like the keys, the buttons jump when motion is reduced: `jumpToPage` when
-  `MediaQuery.disableAnimationsOf(context)` is true, else `previousPage` or `nextPage` over 300 ms.
+  `MediaQuery.disableAnimationsOf(context)` or the platform's `reduceMotion` is true, else `previousPage` or
+  `nextPage` over 300 ms.
 
   ```dart
   void turn(BuildContext context, {required bool forward}) {
-    if (MediaQuery.disableAnimationsOf(context)) {
+    final reduced =
+        MediaQuery.disableAnimationsOf(context) ||
+        View.of(context).platformDispatcher.accessibilityFeatures.reduceMotion;
+    if (reduced) {
       final page = (pages.page ?? 0).round() + (forward ? 1 : -1);
       pages.jumpToPage(page.clamp(0, slides.length - 1));
     } else if (forward) {
