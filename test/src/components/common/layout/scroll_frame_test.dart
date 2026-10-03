@@ -1906,6 +1906,70 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+
+    testWidgets(
+      "Flutter's Down arrow keeps the animated, centered reveal of an "
+      "enclosing policy's own requestFocusCallback",
+      (tester) async {
+        final view = _controller();
+        final items = _nodes(10);
+        void centered(
+          FocusNode node, {
+          ScrollPositionAlignmentPolicy? alignmentPolicy,
+          double? alignment,
+          Duration? duration,
+          Curve? curve,
+        }) {
+          node.requestFocus();
+          Scrollable.ensureVisible(
+            node.context!,
+            alignment: 0.5,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOutSine,
+          );
+        }
+
+        await tester.pumpWidget(
+          themedHost(
+            Shortcuts(
+              shortcuts: WidgetsApp.defaultShortcuts,
+              child: Actions(
+                actions: WidgetsApp.defaultActions,
+                child: FocusTraversalGroup(
+                  policy: ReadingOrderTraversalPolicy(
+                    requestFocusCallback: centered,
+                  ),
+                  child: SizedBox(
+                    width: 200,
+                    height: 200,
+                    child: ColumnLayout(
+                      scroll: StratumScroll(controller: view),
+                      children: [
+                        for (final item in items)
+                          Focus(
+                            focusNode: item,
+                            child: const SizedBox(width: 200, height: 40),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        // Item 4 ends the view at 200; item 5, at 200 to 240, lies past it.
+        items[4].requestFocus();
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+
+        expect(items[5].hasPrimaryFocus, isTrue);
+        expect(view.offset, 220 - 100);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 
   group('ScrollFocus content group policy', () {

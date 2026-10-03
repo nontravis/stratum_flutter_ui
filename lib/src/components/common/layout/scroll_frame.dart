@@ -773,7 +773,8 @@ class _ScrollFocusState extends State<ScrollFocus>
 /// newly focused node in each viewport around it by that viewport's own
 /// edge ([revealInViewports]). Flutter's default reveal applies one
 /// alignment policy to every viewport, so a page that a scrolled row
-/// extends past would not scroll back to it.
+/// extends past would not scroll back to it. An arrow that an enclosing
+/// policy with its own `requestFocusCallback` handles keeps that reveal.
 class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   new() : super(requestFocusCallback: _requestFocus);
 
@@ -795,8 +796,14 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
     final enclosing = _enclosing(currentNode);
     if (enclosing == null) return super.inDirection(currentNode, direction);
     final moved = enclosing.inDirection(currentNode, direction);
-    // The enclosing policy revealed the new node by one alignment policy;
-    // the scope already names it, before focus moves in a microtask.
+    // Another callback may animate or center its reveal; a jump now would
+    // cancel it.
+    if (enclosing.requestFocusCallback !=
+        FocusTraversalPolicy.defaultTraversalRequestFocusCallback) {
+      return moved;
+    }
+    // Flutter's default revealed the new node by one alignment policy; the
+    // scope already names it, before focus moves in a microtask.
     final target = _focusedLeaf(currentNode.nearestScope);
     if (moved && target != null && target != currentNode) {
       revealInViewports(target);
