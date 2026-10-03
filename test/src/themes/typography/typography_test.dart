@@ -63,14 +63,24 @@ void main() {
       );
     });
 
-    test('reads the four fonts and the default family set', () {
+    test('reads the five fonts, the default family set, and Thai', () {
       expect(typography.fonts, {
         'inter': const StratumFontData(family: 'Inter'),
         'geist': const StratumFontData(family: 'Geist'),
         'geist-mono': const StratumFontData(family: 'Geist Mono'),
         'roboto-mono': const StratumFontData(family: 'Roboto Mono'),
+        'kanit': const StratumFontData(
+          family: 'Kanit',
+          source: StratumFontSource.google,
+        ),
       });
-      expect(typography.families.keys, ['default']);
+      expect(typography.families.keys, ['default', 'th']);
+      expect(typography.families['th']!.types, {
+        FontType.header: const StratumFontRef(font: 'kanit'),
+        FontType.paragraph: const StratumFontRef(font: 'kanit'),
+        FontType.body: const StratumFontRef(font: 'kanit'),
+        FontType.table: const StratumFontRef(font: 'kanit'),
+      });
       final defaults = typography.families['default']!;
       expect(defaults.mono, 'roboto-mono');
       expect(defaults.types, {

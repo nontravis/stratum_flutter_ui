@@ -91,6 +91,23 @@ void main() {
     );
   });
 
+  test('Thai text takes Kanit from Google Fonts for the prose types', () {
+    final kanit = config.typography.fonts['kanit'];
+    final thai = config.typography.families['th']!.types;
+
+    expect(kanit?.family, 'Kanit');
+    expect(kanit?.source, StratumFontSource.google);
+    expect(
+      {for (final MapEntry(:key, :value) in thai.entries) key: value.font},
+      {
+        FontType.header: 'kanit',
+        FontType.paragraph: 'kanit',
+        FontType.body: 'kanit',
+        FontType.table: 'kanit',
+      },
+    );
+  });
+
   test('the raw yaml holds the spec section 11 counts', () {
     final color = (loadYaml(text) as YamlMap)['color'] as YamlMap;
     final light = <String, int>{};

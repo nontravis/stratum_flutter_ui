@@ -621,6 +621,7 @@ typography:
     geist:       { family: Geist }
     geist-mono:  { family: Geist Mono }
     roboto-mono: { family: Roboto Mono }
+    kanit:       { family: "Google/Kanit" }
 
   families:                      # per locale tag: type to font key
     default:
@@ -631,6 +632,11 @@ typography:
       number: { font: geist, mono: geist-mono }
       code: roboto-mono
       mono: roboto-mono          # theme-wide mono for types without their own
+    th:                          # Thai prose; number and code keep their Latin fonts
+      header: kanit
+      paragraph: kanit
+      body: kanit
+      table: kanit
 
   scaleByWindowSize: { watch: 0, mobile: 0, tablet: 0.5, desktop: 1, bigDesktop: 2 }
 
