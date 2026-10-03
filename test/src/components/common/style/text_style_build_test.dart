@@ -126,12 +126,11 @@ void main() {
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     await tester.pump();
 
-    expect(styles.map((style) => style.height), [24 / 16, 40 / 32]);
+    expect(styles.map((style) => style.height), [24 / 17, 40 / 34]);
   });
 
-  testWidgets('no WindowSizeScope adds no window scale and does not throw', (
-    tester,
-  ) async {
+  testWidgets("the application's own WindowSizeScope adds the window "
+      'scale', (tester) async {
     setWindowSize(tester, const Size(1300, 800));
     addTearDown(tester.view.reset);
     final styles = <TextStyle>[];
@@ -139,7 +138,7 @@ void main() {
     await tester.pumpWidget(themedHost(_probe(styles), theme: theme));
 
     expect(tester.takeException(), isNull);
-    expect(styles.single.fontSize, 16);
+    expect(styles.single.fontSize, 18);
   });
 
   testWidgets('without a StratumThemeApplication it throws a FlutterError', (
@@ -213,6 +212,6 @@ void main() {
 
     expect(styles[0].fontFamily, 'Font A');
     expect(styles[1].fontSize, 18);
-    expect(styles[2].height, 40 / 32);
+    expect(styles[2].height, 40 / 34);
   });
 }

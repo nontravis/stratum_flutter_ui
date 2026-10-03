@@ -101,18 +101,18 @@ void main() {
       expect((content, read), (800, 720));
     });
 
-    testWidgets('fr01/e01: a varying token with no WindowSizeScope throws '
-        'its FlutterError', (tester) async {
-      await tester.pumpWidget(_host((theme) => theme.space.md, scope: false));
+    testWidgets('fr01/e01: with no scope of its own, the application '
+        "body's scope serves a varying token", (tester) async {
+      _setWidth(tester, 1300);
+      addTearDown(tester.view.reset);
+      double? md;
 
-      expect(
-        tester.takeException(),
-        isA<FlutterError>().having(
-          (error) => error.message,
-          'message',
-          contains('No WindowSizeScope found'),
-        ),
+      await tester.pumpWidget(
+        _host((theme) => md = theme.space.md, scope: false),
       );
+
+      expect(tester.takeException(), isNull);
+      expect(md, 32);
     });
 
     testWidgets('a token the data lacks throws an ArgumentError naming it', (

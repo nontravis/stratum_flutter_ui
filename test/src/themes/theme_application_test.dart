@@ -330,4 +330,40 @@ void main() {
 
     expect(found, same(_dark));
   });
+
+  group('the body', () {
+    Widget app(Widget child) => StratumThemeApplication(
+      themes: _set,
+      themeMode: ThemeMode.light,
+      child: child,
+    );
+
+    testWidgets('us09/fr01/e02: inserts a WindowSizeScope when none is '
+        'above', (tester) async {
+      WindowSize? found;
+      await tester.pumpWidget(
+        app(
+          Builder(
+            builder: (context) {
+              found = WindowSizeScope.maybeOf(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(found, isNotNull);
+      expect(find.byType(WindowSizeScope), findsOneWidget);
+    });
+
+    testWidgets('inserts none under a scope or a second application', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        WindowSizeScope(child: app(app(const SizedBox()))),
+      );
+
+      expect(find.byType(WindowSizeScope), findsOneWidget);
+    });
+  });
 }

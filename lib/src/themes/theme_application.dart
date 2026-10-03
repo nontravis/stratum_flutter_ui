@@ -3,13 +3,15 @@ import 'package:stratum_ui/src/src.dart';
 /// Publishes a theme set and picks the active data by theme mode and
 /// high-contrast mode (spec section 7.3).
 class StratumThemeApplication extends InheritedWidget {
-  const new({
+  /// Wraps [child] in a private body that inserts a [WindowSizeScope]
+  /// when none is above the application (spec section 7.3).
+  new({
     super.key,
     required this.themes,
     required this.themeMode,
     this.highContrast = HighContrastMode.system,
-    required super.child,
-  });
+    required Widget child,
+  }) : super(child: _StratumThemeBody(child: child));
 
   final StratumThemeSet themes;
   final ThemeMode themeMode;
@@ -82,4 +84,17 @@ extension AppStratumThemeApplicationExtensions on ThemeMode {
   /// `StratumTheme.of(context, themeMode: this)`.
   StratumTheme theme(BuildContext context) =>
       StratumTheme.of(context, themeMode: this);
+}
+
+/// What the application inserts below itself: a [WindowSizeScope] when
+/// none is above it, so a varying token always finds a window size
+/// (spec section 7.3, OQ11).
+class _StratumThemeBody extends StatelessWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      WindowSizeScope.hasScope(context) ? child : WindowSizeScope(child: child);
 }
