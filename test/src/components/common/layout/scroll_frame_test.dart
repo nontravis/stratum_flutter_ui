@@ -279,6 +279,17 @@ class _Edge {
   }
 }
 
+/// A reading-order policy that records each [changedScope] call.
+class _ScopeSpy extends ReadingOrderTraversalPolicy {
+  final calls = <(FocusNode?, FocusScopeNode?)>[];
+
+  @override
+  void changedScope({FocusNode? node, FocusScopeNode? oldScope}) {
+    super.changedScope(node: node, oldScope: oldScope);
+    calls.add((node, oldScope));
+  }
+}
+
 /// A lazy cell, 300 px high, with [row] at its top.
 Widget _cell(Widget row) {
   return SizedBox(
@@ -1760,6 +1771,62 @@ void main() {
         expect(page.offset, 300);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+  });
+
+  group('ScrollFocus content group policy', () {
+    testWidgets(
+      'forwards changedScope to the enclosing policy when a focused node '
+      'moves to another scope',
+      (tester) async {
+        final spy = _ScopeSpy();
+        final first = FocusScopeNode(debugLabel: 'first');
+        final second = FocusScopeNode(debugLabel: 'second');
+        addTearDown(first.dispose);
+        addTearDown(second.dispose);
+        final item = _node();
+        final key = GlobalKey();
+        // A focusable list in each scope; the item sits in the first list,
+        // or, with [moved], in the second.
+        Widget scopes({required bool moved}) {
+          Widget list({required bool holds}) => SizedBox(
+            width: 200,
+            height: 100,
+            child: ListViewLayout.builder(
+              focusable: true,
+              itemCount: holds ? 1 : 0,
+              itemBuilder: (context, index) => Focus(
+                key: key,
+                focusNode: item,
+                child: const SizedBox(height: 40),
+              ),
+            ),
+          );
+          return themedHost(
+            FocusTraversalGroup(
+              policy: spy,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FocusScope(node: first, child: list(holds: !moved)),
+                  FocusScope(node: second, child: list(holds: moved)),
+                ],
+              ),
+            ),
+          );
+        }
+
+        await tester.pumpWidget(scopes(moved: false));
+        item.requestFocus();
+        await tester.pump();
+        expect(item.hasPrimaryFocus, isTrue);
+        spy.calls.clear();
+
+        await tester.pumpWidget(scopes(moved: true));
+
+        expect(item.nearestScope, second);
+        expect(spy.calls, [(item, first)]);
+      },
     );
   });
 

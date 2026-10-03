@@ -816,6 +816,15 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
     return super.previous(currentNode);
   }
 
+  /// Flutter calls this on the policy of the group a node moved into; the
+  /// arrow history that names the node lives in the enclosing policy.
+  @override
+  void changedScope({FocusNode? node, FocusScopeNode? oldScope}) {
+    super.changedScope(node: node, oldScope: oldScope);
+    if (node == null) return;
+    _enclosing(node)?.changedScope(node: node, oldScope: oldScope);
+  }
+
   /// Clears the arrow history that a Tab from [node] clears without the
   /// content group.
   static void _clearEnclosingHistory(FocusNode node) {
