@@ -1,5 +1,34 @@
 import 'package:stratum_ui/src/src.dart';
 
+/// Whether a [StratumInkWell] with these settings takes focus: not
+/// [disabled], [canRequestFocus] true, a [focusType] other than
+/// [FocusType.none], and an activation callback ([onTap], [onDoubleTap],
+/// [onLongPress], [onSecondaryTap]) or a non-empty [shortcuts] map.
+///
+/// The one tap-surface focus rule: [StratumInkWell] follows it, and a
+/// scrolling `BoxLayout` gives up its own Tab stop exactly when it holds.
+/// Not exported: `common/common.dart` hides it, and `box_layout.dart`
+/// imports this file by path.
+bool tapSurfaceTakesFocus({
+  required bool disabled,
+  required bool canRequestFocus,
+  required FocusType focusType,
+  required GestureTapCallback? onTap,
+  required GestureTapCallback? onDoubleTap,
+  required GestureLongPressCallback? onLongPress,
+  required GestureTapCallback? onSecondaryTap,
+  required Map<ShortcutActivator, VoidCallback> shortcuts,
+}) {
+  return !disabled &&
+      canRequestFocus &&
+      focusType != FocusType.none &&
+      (onTap != null ||
+          onDoubleTap != null ||
+          onLongPress != null ||
+          onSecondaryTap != null ||
+          shortcuts.isNotEmpty);
+}
+
 /// The tap surface of the design system.
 ///
 /// Builds on [InkWell] for gestures, keyboard activation, focus, and hover,
@@ -157,10 +186,16 @@ class _StratumInkWellState extends State<StratumInkWell>
   @override
   bool get wantKeepAlive => _focusNode.hasFocus;
 
-  bool get _canFocus =>
-      !widget.disabled &&
-      widget.focusType != FocusType.none &&
-      widget.canRequestFocus;
+  bool get _canFocus => tapSurfaceTakesFocus(
+    disabled: widget.disabled,
+    canRequestFocus: widget.canRequestFocus,
+    focusType: widget.focusType,
+    onTap: widget.onTap,
+    onDoubleTap: widget.onDoubleTap,
+    onLongPress: widget.onLongPress,
+    onSecondaryTap: widget.onSecondaryTap,
+    shortcuts: widget.shortcuts,
+  );
 
   bool get _hasRing =>
       widget.focusType == FocusType.focused ||

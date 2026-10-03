@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:stratum_ui/src/components/common/ink_well.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -188,7 +189,18 @@ abstract class BoxLayout extends StatelessWidget {
   StyledBoxBuilder _focusBuilder(StratumScroll scroll) {
     final inner = _boxBuilder;
     final interaction = this.interaction;
-    final surfaceFocus = interaction != null && _surfaceTakesFocus(interaction);
+    final surfaceFocus =
+        interaction != null &&
+        tapSurfaceTakesFocus(
+          disabled: interaction.disabled,
+          canRequestFocus: interaction.canRequestFocus,
+          focusType: interaction.focusType,
+          onTap: interaction.onTap,
+          onDoubleTap: interaction.onDoubleTap,
+          onLongPress: interaction.onLongPress,
+          onSecondaryTap: interaction.onSecondaryTap,
+          shortcuts: interaction.shortcuts,
+        );
     return (style, box) => ScrollFocus(
       focusable: true,
       axis: scroll.direction ?? scrollDirection,
@@ -199,18 +211,6 @@ abstract class BoxLayout extends StatelessWidget {
       child: inner == null ? box : inner(style, box),
     );
   }
-
-  /// Whether the [StratumInkWell] built from [interaction] can take focus:
-  /// enabled, focusable, and with an activation callback or a shortcut.
-  static bool _surfaceTakesFocus(StratumInteraction interaction) =>
-      !interaction.disabled &&
-      interaction.canRequestFocus &&
-      interaction.focusType != FocusType.none &&
-      (interaction.onTap != null ||
-          interaction.onDoubleTap != null ||
-          interaction.onLongPress != null ||
-          interaction.onSecondaryTap != null ||
-          interaction.shortcuts.isNotEmpty);
 
   static bool _needsTapSurface(StratumInteraction interaction) =>
       interaction.onTap != null ||

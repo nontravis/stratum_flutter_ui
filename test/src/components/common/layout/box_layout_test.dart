@@ -560,6 +560,110 @@ void main() {
       );
     });
 
+    // The tap-surface focus rule (us04/fr03): not disabled, canRequestFocus,
+    // a focus type other than none, and an activation callback or a
+    // shortcut. The box gives up its own Tab stop exactly when it holds.
+    const shortcut = {SingleActivator(LogicalKeyboardKey.keyA): _noop};
+    for (final (name, surfaceStop, interaction)
+        in <(String, bool, StratumInteraction Function(FocusNode))>[
+          (
+            'onTap',
+            true,
+            (n) => StratumInteraction(onTap: _noop, focusNode: n),
+          ),
+          (
+            'onDoubleTap',
+            true,
+            (n) => StratumInteraction(onDoubleTap: _noop, focusNode: n),
+          ),
+          (
+            'onLongPress',
+            true,
+            (n) => StratumInteraction(onLongPress: _noop, focusNode: n),
+          ),
+          (
+            'onSecondaryTap',
+            true,
+            (n) => StratumInteraction(onSecondaryTap: _noop, focusNode: n),
+          ),
+          (
+            'shortcuts only',
+            true,
+            (n) => StratumInteraction(shortcuts: shortcut, focusNode: n),
+          ),
+          (
+            'onHover only',
+            false,
+            (n) => StratumInteraction(onHover: (_) {}, focusNode: n),
+          ),
+          (
+            'disabled',
+            false,
+            (n) => StratumInteraction(
+              onTap: _noop,
+              disabled: true,
+              focusNode: n,
+            ),
+          ),
+          (
+            'disabled shortcuts',
+            false,
+            (n) => StratumInteraction(
+              shortcuts: shortcut,
+              disabled: true,
+              focusNode: n,
+            ),
+          ),
+          (
+            'canRequestFocus false',
+            false,
+            (n) => StratumInteraction(
+              onTap: _noop,
+              canRequestFocus: false,
+              focusNode: n,
+            ),
+          ),
+          (
+            'FocusType.none',
+            false,
+            (n) => StratumInteraction(
+              onTap: _noop,
+              focusType: FocusType.none,
+              focusNode: n,
+            ),
+          ),
+        ]) {
+      testWidgets(
+        '(pin) a scrolling box with $name has one Tab stop, the '
+        '${surfaceStop ? 'tap surface' : 'box itself'}',
+        (tester) async {
+          final surface = FocusNode(debugLabel: 'surface');
+          addTearDown(surface.dispose);
+          await tester.pumpWidget(
+            themedHost(
+              _Layout(
+                style: const WidgetStyle(),
+                scroll: const StratumScroll(),
+                interaction: interaction(surface),
+              ),
+            ),
+          );
+
+          final stops = [
+            for (final node
+                in FocusManager.instance.rootScope.traversalDescendants)
+              if (node is! FocusScopeNode) node,
+          ];
+          expect(stops, hasLength(1));
+          expect(
+            stops.single.debugLabel,
+            surfaceStop ? 'surface' : 'ScrollFocus',
+          );
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      );
+    }
+
     testWidgets('changing reverse or showScrollbar keeps the scroll offset', (
       tester,
     ) async {

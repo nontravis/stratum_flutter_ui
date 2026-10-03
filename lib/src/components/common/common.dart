@@ -1,5 +1,5 @@
 export 'base/base.dart';
-export 'ink_well.dart';
+export 'ink_well.dart' hide tapSurfaceTakesFocus;
 export 'layout/layout.dart';
 export 'model/model.dart';
 export 'page/page.dart';
