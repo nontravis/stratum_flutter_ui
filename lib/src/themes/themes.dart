@@ -7,6 +7,7 @@ export 'styles/styles.dart';
 export 'theme_application.dart';
 export 'theme_color.dart';
 export 'theme_data.dart';
+export 'tokens/theme_tokens.g.dart';
 export 'typography/dimension.dart';
 export 'typography/resolver.dart';
 export 'typography/typography.dart' hide readTypography;
