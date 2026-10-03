@@ -321,7 +321,7 @@ void main() {
         highContrast: HighContrastMode.off,
         child: Builder(
           builder: (context) {
-            found = ThemeMode.dark.theme(context);
+            found = ThemeMode.dark.theme(context).data;
             return const SizedBox();
           },
         ),

@@ -187,6 +187,12 @@ class StratumAnimation extends StratumMotionLevels {
     defaultLevel: StratumMotionLevel.fast,
   );
 
+  /// `StratumTheme.of(context).animation`: the yaml values, unchanged
+  /// under reduced motion too (spec C1). Throws the [FlutterError] of
+  /// [StratumThemeApplication.of] when no application is above [context].
+  static StratumAnimation of(BuildContext context) =>
+      StratumTheme.of(context).animation;
+
   /// For things that appear and leave, such as dialogs and popups.
   final StratumMotionLevels appear;
 

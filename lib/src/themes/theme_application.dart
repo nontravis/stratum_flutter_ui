@@ -79,7 +79,7 @@ class StratumThemeApplication extends InheritedWidget {
 }
 
 extension AppStratumThemeApplicationExtensions on ThemeMode {
-  /// `StratumThemeApplication.of(context, themeMode: this)`.
-  StratumThemeData theme(BuildContext context) =>
-      StratumThemeApplication.of(context, themeMode: this);
+  /// `StratumTheme.of(context, themeMode: this)`.
+  StratumTheme theme(BuildContext context) =>
+      StratumTheme.of(context, themeMode: this);
 }

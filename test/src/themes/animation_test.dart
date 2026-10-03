@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
+import '../components/common/fakes/fake_stratum_theme.dart';
+
 /// The package default theme, parsed from disk.
 StratumThemeConfig _defaultConfig() => StratumThemeConfig.parse(
   base: StratumThemeSource(
@@ -174,6 +176,71 @@ void main() {
       );
       expect(fast.defaultStyle.curve, Curves.easeInOutSine);
       expect(fast.slow.duration, const Duration(milliseconds: 300));
+    });
+  });
+
+  group('C1: reduced motion keeps the yaml durations', () {
+    Future<(StratumAnimation, StratumAnimation?)> read(
+      WidgetTester tester, {
+      required bool disableAnimations,
+    }) async {
+      late StratumAnimation view;
+      StratumAnimation? data;
+      await tester.pumpWidget(
+        MediaQuery(
+          data: MediaQueryData(disableAnimations: disableAnimations),
+          child: StratumThemeApplication(
+            themes: StratumThemeSet(light: motionTheme()),
+            themeMode: ThemeMode.light,
+            child: Builder(
+              builder: (context) {
+                view = StratumAnimation.of(context);
+                data = StratumThemeApplication.maybeOf(context)?.animation;
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+      return (view, data);
+    }
+
+    testWidgets('fr01: with disableAnimations both readers give 77 ms', (
+      tester,
+    ) async {
+      final (view, data) = await read(tester, disableAnimations: true);
+
+      expect(view.fast.duration, const Duration(milliseconds: 77));
+      expect(data, same(view));
+    });
+
+    testWidgets("fr01: with the platform's reduceMotion both readers give "
+        '77 ms', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(reduceMotion: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+
+      final (view, data) = await read(tester, disableAnimations: false);
+
+      expect(view.fast.duration, const Duration(milliseconds: 77));
+      expect(data?.fast.duration, const Duration(milliseconds: 77));
+    });
+
+    testWidgets('StratumAnimation.of throws with no application', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) {
+            StratumAnimation.of(context);
+            return const SizedBox();
+          },
+        ),
+      );
+
+      expect(tester.takeException(), isA<FlutterError>());
     });
   });
 }

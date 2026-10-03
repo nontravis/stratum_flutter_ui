@@ -37,6 +37,14 @@ class StratumByWindowSize<T> {
     return values[WindowSize.values.firstWhere(values.containsKey)] as T;
   }
 
+  /// True when every window size gives the same value: such a token reads
+  /// no `WindowSizeScope` (spec G11).
+  bool get isUniform {
+    if (_values == null) return true;
+    final first = valueFor(WindowSize.values.first);
+    return WindowSize.values.every((size) => valueFor(size) == first);
+  }
+
   @override
   bool operator ==(Object other) =>
       other is StratumByWindowSize<T> &&
