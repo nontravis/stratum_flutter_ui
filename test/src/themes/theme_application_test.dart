@@ -124,6 +124,64 @@ void main() {
 
       expect(found, isNull);
     });
+
+    testWidgets('e2: a live platform brightness flip rebuilds a '
+        'system-mode reader', (tester) async {
+      var builds = 0;
+      StratumThemeData? found;
+      Widget host(Brightness brightness) => MediaQuery(
+        data: MediaQueryData(platformBrightness: brightness),
+        child: StratumThemeApplication(
+          themes: _set,
+          themeMode: ThemeMode.system,
+          child: Builder(
+            builder: (context) {
+              builds++;
+              found = StratumThemeApplication.maybeOf(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(host(Brightness.light));
+      expect(found, same(_light));
+      final before = builds;
+
+      await tester.pumpWidget(host(Brightness.dark));
+
+      expect(builds, greaterThan(before));
+      expect(found, same(_dark));
+    });
+
+    testWidgets('e2: a live high-contrast flip rebuilds a system-mode '
+        'reader', (tester) async {
+      var builds = 0;
+      StratumThemeData? found;
+      Widget host(bool highContrast) => MediaQuery(
+        data: MediaQueryData(highContrast: highContrast),
+        child: StratumThemeApplication(
+          themes: _set,
+          themeMode: ThemeMode.light,
+          child: Builder(
+            builder: (context) {
+              builds++;
+              found = StratumThemeApplication.maybeOf(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(host(false));
+      expect(found, same(_light));
+      final before = builds;
+
+      await tester.pumpWidget(host(true));
+
+      expect(builds, greaterThan(before));
+      expect(found, same(_contrastLight));
+    });
   });
 
   testWidgets('fr01/e03: of throws a FlutterError naming the application', (
