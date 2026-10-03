@@ -350,7 +350,7 @@ final class _Read {
     if (node == null) return durations;
     for (final level in levels) {
       final value = node[level];
-      if (value is num && value >= 0) {
+      if (value is num && value.isFinite && value >= 0) {
         durations[level] = Duration(microseconds: (value * 1000).round());
         continue;
       }

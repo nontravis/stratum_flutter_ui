@@ -613,6 +613,12 @@ typography:
             'of 0 or more, got {mobile: 100} [expected_duration]',
       ),
       (
+        'an infinite level',
+        'animation:\n  duration:\n    fast: .inf',
+        'layer1 animation.duration.fast: expected a number of milliseconds '
+            'of 0 or more, got Infinity [expected_duration]',
+      ),
+      (
         'a default that names no level',
         'animation:\n  duration:\n    default: medium',
         'layer1 animation.duration.default: expected one of veryFast, fast, '
