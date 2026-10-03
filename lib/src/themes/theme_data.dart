@@ -95,6 +95,91 @@ class StratumThemeData {
     return StratumAppPalette(name, shades);
   }
 
+  /// The Material theme of spec section 10: the [ColorScheme] of section
+  /// 10.2, the fields of section 10.3, and the text theme of section 10.4
+  /// resolved for [locale], [windowSize], and [textScaler]. A null
+  /// [windowSize] adds no window scale to the text theme.
+  ThemeData toThemeData({
+    required Locale locale,
+    required WindowSize? windowSize,
+    required TextScaler textScaler,
+  }) {
+    final brightness = themeMode == ThemeMode.dark
+        ? Brightness.dark
+        : Brightness.light;
+    final brand = color.brand.normal;
+    final text = color.text;
+    final background = color.background;
+    TextStyle resolve(StratumTextStyle recipe) => TypographyResolver.resolve(
+      recipe,
+      theme: this,
+      locale: locale,
+      windowSize: windowSize,
+      textScaler: textScaler,
+    );
+    return ThemeData(
+      brightness: brightness,
+      colorScheme: ColorScheme(
+        brightness: brightness,
+        primary: brand,
+        onPrimary: text.defaults.primaryOnColor,
+        primaryContainer: background.muted.brand,
+        onPrimaryContainer: text.color.brand,
+        secondary: brand,
+        onSecondary: text.defaults.primaryOnColor,
+        error: background.color.negative,
+        onError: text.defaults.primaryOnColor,
+        errorContainer: background.muted.negative,
+        onErrorContainer: text.color.negative,
+        surface: background.defaults.normal,
+        onSurface: text.defaults.primary,
+        surfaceDim: background.defaults.surface,
+        onSurfaceVariant: text.defaults.secondary,
+        outline: color.border.color.gray,
+        outlineVariant: color.border.defaults.normal,
+        inverseSurface: background.defaults.normalInverse,
+        onInverseSurface: text.defaults.primaryInverse,
+      ),
+      splashFactory: splashFactory,
+      primaryColor: brand,
+      primaryColorLight: brand.lighten(10),
+      primaryColorDark: brand.darken(10),
+      hoverColor: color.state.hover,
+      focusColor: color.state.hover,
+      splashColor: color.state.press,
+      highlightColor: brand.withValues(alpha: 0.15),
+      canvasColor: background.defaults.normal,
+      scaffoldBackgroundColor: background.defaults.normal,
+      cardColor: background.control.popover,
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: text.defaults.primary,
+        selectionHandleColor: brand,
+      ),
+      dividerTheme: DividerThemeData(
+        thickness: border.md.maxWidth,
+        color: color.border.defaults.normal,
+      ),
+      appBarTheme: AppBarTheme(systemOverlayStyle: systemOverlayStyle),
+      textTheme: TextTheme(
+        displayLarge: resolve(StratumTextStyle.header.s56),
+        displayMedium: resolve(StratumTextStyle.header.s36),
+        displaySmall: resolve(StratumTextStyle.header.s24),
+        headlineLarge: resolve(StratumTextStyle.header.s24),
+        headlineMedium: resolve(StratumTextStyle.header.s20),
+        headlineSmall: resolve(StratumTextStyle.header.s18),
+        titleLarge: resolve(StratumTextStyle.body.s18.medium),
+        titleMedium: resolve(StratumTextStyle.body.s16.medium),
+        titleSmall: resolve(StratumTextStyle.body.s14.medium),
+        bodyLarge: resolve(StratumTextStyle.body.s16),
+        bodyMedium: resolve(StratumTextStyle.body.s14),
+        bodySmall: resolve(StratumTextStyle.body.s12),
+        labelLarge: resolve(StratumTextStyle.body.s14.medium),
+        labelMedium: resolve(StratumTextStyle.body.s12.medium),
+        labelSmall: resolve(StratumTextStyle.body.s10.medium),
+      ),
+    );
+  }
+
   /// Covers every field, `physics` included (FO-03 s03 invariant 8).
   StratumThemeData copyWith({
     ThemeMode? themeMode,

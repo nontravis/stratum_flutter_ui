@@ -3,8 +3,9 @@ import 'package:stratum_ui/src/src.dart';
 /// Publishes a theme set and picks the active data by theme mode and
 /// high-contrast mode (spec section 7.3).
 class StratumThemeApplication extends InheritedWidget {
-  /// Wraps [child] in a private body that inserts a [WindowSizeScope]
-  /// when none is above the application (spec section 7.3).
+  /// Wraps [child] in a private body that inserts, top to bottom, a
+  /// [WindowSizeScope] when none is above the application and a Material
+  /// [Theme] of the active data (spec sections 7.3 and 10.1).
   new({
     super.key,
     required this.themes,
@@ -86,15 +87,45 @@ extension AppStratumThemeApplicationExtensions on ThemeMode {
       StratumTheme.of(context, themeMode: this);
 }
 
-/// What the application inserts below itself: a [WindowSizeScope] when
-/// none is above it, so a varying token always finds a window size
-/// (spec section 7.3, OQ11).
+/// What the application inserts below itself, top to bottom: a
+/// [WindowSizeScope] when none is above it, so a varying token always
+/// finds a window size (spec section 7.3, OQ11), then the Material theme.
 class _StratumThemeBody extends StatelessWidget {
   const new({required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) =>
-      WindowSizeScope.hasScope(context) ? child : WindowSizeScope(child: child);
+  Widget build(BuildContext context) {
+    final themed = _StratumMaterialTheme(child: child);
+    return WindowSizeScope.hasScope(context)
+        ? themed
+        : WindowSizeScope(child: themed);
+  }
+}
+
+/// A Material [Theme] of the active data (spec section 10.1), rebuilt when
+/// the data, the locale, the window size, or the text scaler changes
+/// (spec G24). The application belongs in `MaterialApp.builder`, below
+/// `MaterialApp`'s own theme, so this theme reaches every route (G25).
+class _StratumMaterialTheme extends StatelessWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = StratumThemeApplication.of(context);
+    return Theme(
+      data: data.toThemeData(
+        locale:
+            Localizations.maybeLocaleOf(context) ??
+            View.of(context).platformDispatcher.locale,
+        windowSize: WindowSizeScope.maybeOf(context),
+        textScaler:
+            MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling,
+      ),
+      child: child,
+    );
+  }
 }
