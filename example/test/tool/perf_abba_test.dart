@@ -850,6 +850,7 @@ void main() {
         'S3',
         'S4',
         'S5',
+        'S6-intrinsic',
       ]);
     });
 

@@ -22,7 +22,17 @@ const traceWindowMs = 2000.0;
 
 /// Every scene in run order: the keys of `perfScenes` in
 /// `integration_test/perf/perf_scenes.dart`.
-const catalog = ['S2-plain', 'S1', 'S1-fast', 'S2', 'S2-box', 'S3', 'S4', 'S5'];
+const catalog = [
+  'S2-plain',
+  'S1',
+  'S1-fast',
+  'S2',
+  'S2-box',
+  'S3',
+  'S4',
+  'S5',
+  'S6-intrinsic',
+];
 
 /// Most runs one comparison holds: 24 blocks per scene (spec section 9.5).
 const maxRuns = 24;

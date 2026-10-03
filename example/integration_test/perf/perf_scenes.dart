@@ -185,8 +185,7 @@ Future<void> Function(WidgetTester tester) _scroll({
 /// The scenes of spec section 9.1, in run order, plus `S6-intrinsic` for
 /// the crossAxisIntrinsic ABBA follow-up: the S2-plain null control first,
 /// so each run measures its own noise before the scenes it judges.
-/// `tool/perf_abba.dart` lists the section 9.1 keys in its `catalog`;
-/// `S6-intrinsic` is not in it yet.
+/// `tool/perf_abba.dart` lists the same keys in its `catalog`.
 final perfScenes = <PerfScene>[
   PerfScene(
     'S2-plain',
