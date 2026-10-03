@@ -80,19 +80,23 @@ void main() {
     expect(assetName(), 'themes/b/loading.png');
   });
 
-  testWidgets('a file missing from the bundle shows the placeholder', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _view(_withLoading(StratumAssetKind.image, 'themes/app/missing.png')),
-    );
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pump();
+  final missingKinds = <(StratumAssetKind, String)>[
+    (StratumAssetKind.image, 'themes/app/missing.png'),
+    (StratumAssetKind.svg, 'themes/app/missing.svg'),
+    (StratumAssetKind.lottie, 'themes/app/missing.json'),
+  ];
+  for (final (kind, path) in missingKinds) {
+    testWidgets('a $kind file missing from the bundle shows the '
+        'placeholder', (tester) async {
+      await tester.pumpWidget(_view(_withLoading(kind, path)));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
 
-    expect(find.byKey(const ValueKey('placeholder')), findsOneWidget);
-  });
+      expect(find.byKey(const ValueKey('placeholder')), findsOneWidget);
+    });
+  }
 
   testWidgets('NFR-U03: a Lottie asset holds a still frame under reduced '
       'motion', (tester) async {
