@@ -797,11 +797,23 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
     final moved = enclosing.inDirection(currentNode, direction);
     // The enclosing policy revealed the new node by one alignment policy;
     // the scope already names it, before focus moves in a microtask.
-    final target = currentNode.nearestScope?.focusedChild;
+    final target = _focusedLeaf(currentNode.nearestScope);
     if (moved && target != null && target != currentNode) {
       revealInViewports(target);
     }
     return moved;
+  }
+
+  /// The node [scope] names as focused, through each nested scope it
+  /// names to that scope's own focused node.
+  static FocusNode? _focusedLeaf(FocusScopeNode? scope) {
+    var node = scope?.focusedChild;
+    while (node is FocusScopeNode) {
+      final child = node.focusedChild;
+      if (child == null) break;
+      node = child;
+    }
+    return node;
   }
 
   @override

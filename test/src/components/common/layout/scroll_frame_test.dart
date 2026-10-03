@@ -1833,6 +1833,79 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+
+    testWidgets(
+      "Flutter's Down arrow into a nested FocusScope reveals the focused "
+      "leaf, not the scope's start",
+      (tester) async {
+        final view = _controller();
+        final first = _node();
+        final leaf = _node();
+        await tester.pumpWidget(
+          themedHost(
+            Shortcuts(
+              shortcuts: WidgetsApp.defaultShortcuts,
+              child: Actions(
+                actions: WidgetsApp.defaultActions,
+                child: FocusTraversalGroup(
+                  child: SizedBox(
+                    width: 200,
+                    height: 200,
+                    child: ColumnLayout(
+                      scroll: StratumScroll(controller: view),
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Column(
+                              children: [
+                                const SizedBox(height: 300),
+                                Focus(
+                                  focusNode: first,
+                                  child: const SizedBox(width: 100, height: 40),
+                                ),
+                              ],
+                            ),
+                            FocusScope(
+                              child: Column(
+                                children: [
+                                  const SizedBox(height: 360),
+                                  Focus(
+                                    focusNode: leaf,
+                                    child: const SizedBox(
+                                      width: 100,
+                                      height: 40,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 200),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        first.requestFocus();
+        await tester.pump();
+        // The view shows 200 to 400: first at 300 to 340, and the leaf at
+        // 360 to 400 at the bottom of its scope, which starts at 0.
+        view.jumpTo(200);
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+
+        expect(leaf.hasPrimaryFocus, isTrue);
+        expect(view.offset, 200);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 
   group('ScrollFocus content group policy', () {
