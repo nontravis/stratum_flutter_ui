@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart' show ViewportOffset;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/src.dart';
@@ -1772,6 +1773,66 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+
+    testWidgets(
+      'Tab reveals the next cell of a two-dimensional view in its own '
+      'viewport, below its visible rows',
+      (tester) async {
+        final page = _controller();
+        final rows = _controller();
+        final cells = _nodes(12);
+        await tester.pumpWidget(
+          themedHost(
+            Shortcuts(
+              shortcuts: WidgetsApp.defaultShortcuts,
+              child: Actions(
+                actions: WidgetsApp.defaultActions,
+                child: SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: ColumnLayout(
+                    scroll: StratumScroll(controller: page),
+                    children: [
+                      const SizedBox(height: 50),
+                      SizedBox(
+                        width: 200,
+                        height: 100,
+                        child: _Grid(
+                          delegate: _cellsOf(cells),
+                          verticalDetails: ScrollableDetails.vertical(
+                            controller: rows,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 300),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        // The grid shows rows 0 and 1; cell 3 ends row 1, and cell 4
+        // starts row 2, below them.
+        cells[3].requestFocus();
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+
+        expect(cells[4].hasPrimaryFocus, isTrue);
+        expect(rows.offset, 50);
+        expect(page.offset, 0);
+        final rect = cells[4].rect;
+        final grid = tester.getRect(find.byType(_Grid));
+        expect(
+          rect.top >= grid.top - 0.5 && rect.bottom <= grid.bottom + 0.5,
+          isTrue,
+          reason: 'cell at $rect, grid $grid',
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 
   group('ScrollFocus content group policy', () {
@@ -1974,4 +2035,122 @@ class _Probe extends StatefulWidget {
 class _ProbeState extends State<_Probe> {
   @override
   Widget build(BuildContext context) => const SizedBox(height: 2000);
+}
+
+/// The size of each cell of a [_Grid].
+const _gridCell = Size(100, 50);
+
+/// Cells of a [_Grid], two to a row, each a Tab stop on one of [cells];
+/// disposed after the test.
+TwoDimensionalChildBuilderDelegate _cellsOf(List<FocusNode> cells) {
+  final delegate = TwoDimensionalChildBuilderDelegate(
+    maxXIndex: 1,
+    maxYIndex: cells.length ~/ 2 - 1,
+    builder: (context, vicinity) => Focus(
+      focusNode: cells[vicinity.yIndex * 2 + vicinity.xIndex],
+      child: SizedBox.fromSize(size: _gridCell),
+    ),
+  );
+  addTearDown(delegate.dispose);
+  return delegate;
+}
+
+/// The least [TwoDimensionalScrollView] a reveal needs: a grid of
+/// [_gridCell] cells that lays out every cell of its delegate.
+class _Grid extends TwoDimensionalScrollView {
+  const new({required super.delegate, super.verticalDetails});
+
+  @override
+  Widget buildViewport(
+    BuildContext context,
+    ViewportOffset verticalOffset,
+    ViewportOffset horizontalOffset,
+  ) {
+    return _GridViewport(
+      verticalOffset: verticalOffset,
+      verticalAxisDirection: verticalDetails.direction,
+      horizontalOffset: horizontalOffset,
+      horizontalAxisDirection: horizontalDetails.direction,
+      delegate: delegate,
+      mainAxis: mainAxis,
+    );
+  }
+}
+
+class _GridViewport extends TwoDimensionalViewport {
+  const new({
+    required super.verticalOffset,
+    required super.verticalAxisDirection,
+    required super.horizontalOffset,
+    required super.horizontalAxisDirection,
+    required super.delegate,
+    required super.mainAxis,
+  });
+
+  @override
+  RenderTwoDimensionalViewport createRenderObject(BuildContext context) {
+    return _RenderGrid(
+      horizontalOffset: horizontalOffset,
+      horizontalAxisDirection: horizontalAxisDirection,
+      verticalOffset: verticalOffset,
+      verticalAxisDirection: verticalAxisDirection,
+      delegate: delegate,
+      mainAxis: mainAxis,
+      childManager: context as TwoDimensionalChildManager,
+    );
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderTwoDimensionalViewport renderObject,
+  ) {
+    renderObject
+      ..horizontalOffset = horizontalOffset
+      ..horizontalAxisDirection = horizontalAxisDirection
+      ..verticalOffset = verticalOffset
+      ..verticalAxisDirection = verticalAxisDirection
+      ..delegate = delegate
+      ..mainAxis = mainAxis;
+  }
+}
+
+class _RenderGrid extends RenderTwoDimensionalViewport {
+  new({
+    required super.horizontalOffset,
+    required super.horizontalAxisDirection,
+    required super.verticalOffset,
+    required super.verticalAxisDirection,
+    required super.delegate,
+    required super.mainAxis,
+    required super.childManager,
+  });
+
+  @override
+  void layoutChildSequence() {
+    final cells = delegate as TwoDimensionalChildBuilderDelegate;
+    final columns = cells.maxXIndex! + 1;
+    final rows = cells.maxYIndex! + 1;
+    for (var x = 0; x < columns; x++) {
+      for (var y = 0; y < rows; y++) {
+        final vicinity = ChildVicinity(xIndex: x, yIndex: y);
+        final child = buildOrObtainChildFor(vicinity)!
+          ..layout(BoxConstraints.tight(_gridCell));
+        parentDataOf(child).layoutOffset = Offset(
+          x * _gridCell.width - horizontalOffset.pixels,
+          y * _gridCell.height - verticalOffset.pixels,
+        );
+      }
+    }
+    double overflow(double content, double viewport) =>
+        content > viewport ? content - viewport : 0;
+    verticalOffset.applyContentDimensions(
+      0,
+      overflow(rows * _gridCell.height, viewportDimension.height),
+    );
+    horizontalOffset.applyContentDimensions(
+      0,
+      overflow(columns * _gridCell.width, viewportDimension.width),
+    );
+  }
 }

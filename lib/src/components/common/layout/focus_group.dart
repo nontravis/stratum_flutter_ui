@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:stratum_ui/src/src.dart';
 
 /// Makes the focusable children of a [ColumnLayout], [RowLayout], or
@@ -428,14 +429,35 @@ void revealInViewports(FocusNode target) {
   ) {
     final policy = _edgePolicy(target.rect, scrollable);
     if (policy != null) {
+      // A two-dimensional view's vertical scrollable reveals the target
+      // itself, as Flutter's horizontal one does for both axes.
+      final reveal = _inViewportOf(shown, scrollable) ? shown : object;
       scrollable.position.ensureVisible(
-        shown,
+        reveal,
         alignmentPolicy: policy,
-        targetRenderObject: shown == object ? null : object,
+        targetRenderObject: reveal == object ? null : object,
       );
     }
     shown = scrollable.context.findRenderObject();
   }
+}
+
+/// Whether [object]'s nearest viewport lies below [scrollable].
+///
+/// False for the vertical scrollable of a two-dimensional view: its one
+/// viewport lies below the horizontal scrollable, which sits inside the
+/// vertical one, so the horizontal scrollable's render object is outside
+/// that viewport.
+bool _inViewportOf(RenderObject object, ScrollableState scrollable) {
+  final top = scrollable.context.findRenderObject();
+  for (
+    RenderObject? node = RenderAbstractViewport.maybeOf(object);
+    node != null;
+    node = node.parent
+  ) {
+    if (node == top) return true;
+  }
+  return false;
 }
 
 /// How [scrollable] reveals [rect], a rect on screen: at the start when
