@@ -129,26 +129,38 @@ void main() {
         'system-mode reader', (tester) async {
       var builds = 0;
       StratumThemeData? found;
-      Widget host(Brightness brightness) => MediaQuery(
-        data: MediaQueryData(platformBrightness: brightness),
-        child: StratumThemeApplication(
-          themes: _set,
-          themeMode: ThemeMode.system,
-          child: Builder(
-            builder: (context) {
-              builds++;
-              found = StratumThemeApplication.maybeOf(context);
-              return const SizedBox();
-            },
-          ),
+      var brightness = Brightness.light;
+      late StateSetter flip;
+      final reader = StratumThemeApplication(
+        themes: _set,
+        themeMode: ThemeMode.system,
+        child: Builder(
+          builder: (context) {
+            builds++;
+            found = StratumThemeApplication.maybeOf(context);
+            return const SizedBox();
+          },
         ),
       );
 
-      await tester.pumpWidget(host(Brightness.light));
+      // [reader] keeps the same identity across both pumps, so only a real
+      // MediaQuery dependency, not the setState rebuild, can grow [builds].
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            flip = setState;
+            return MediaQuery(
+              data: MediaQueryData(platformBrightness: brightness),
+              child: reader,
+            );
+          },
+        ),
+      );
       expect(found, same(_light));
       final before = builds;
 
-      await tester.pumpWidget(host(Brightness.dark));
+      flip(() => brightness = Brightness.dark);
+      await tester.pump();
 
       expect(builds, greaterThan(before));
       expect(found, same(_dark));
@@ -158,26 +170,38 @@ void main() {
         'reader', (tester) async {
       var builds = 0;
       StratumThemeData? found;
-      Widget host(bool highContrast) => MediaQuery(
-        data: MediaQueryData(highContrast: highContrast),
-        child: StratumThemeApplication(
-          themes: _set,
-          themeMode: ThemeMode.light,
-          child: Builder(
-            builder: (context) {
-              builds++;
-              found = StratumThemeApplication.maybeOf(context);
-              return const SizedBox();
-            },
-          ),
+      var highContrast = false;
+      late StateSetter flip;
+      final reader = StratumThemeApplication(
+        themes: _set,
+        themeMode: ThemeMode.light,
+        child: Builder(
+          builder: (context) {
+            builds++;
+            found = StratumThemeApplication.maybeOf(context);
+            return const SizedBox();
+          },
         ),
       );
 
-      await tester.pumpWidget(host(false));
+      // [reader] keeps the same identity across both pumps, so only a real
+      // MediaQuery dependency, not the setState rebuild, can grow [builds].
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            flip = setState;
+            return MediaQuery(
+              data: MediaQueryData(highContrast: highContrast),
+              child: reader,
+            );
+          },
+        ),
+      );
       expect(found, same(_light));
       final before = builds;
 
-      await tester.pumpWidget(host(true));
+      flip(() => highContrast = true);
+      await tester.pump();
 
       expect(builds, greaterThan(before));
       expect(found, same(_contrastLight));
