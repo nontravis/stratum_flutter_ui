@@ -1621,6 +1621,148 @@ void main() {
     }
   });
 
+  group('Reveal by the edge of each viewport', () {
+    /// Ten 100 px cards, each a Tab stop, in a 200 px wide scrolling row
+    /// without a focus group, at 300 to 350 between two 300 px fillers in a
+    /// 200 by 200 vertical page on [page], under the app's default keys.
+    Future<List<FocusNode>> pumpRow(
+      WidgetTester tester,
+      ScrollController page,
+    ) async {
+      final cards = _nodes(10);
+      await tester.pumpWidget(
+        themedHost(
+          Shortcuts(
+            shortcuts: WidgetsApp.defaultShortcuts,
+            child: Actions(
+              actions: WidgetsApp.defaultActions,
+              child: SizedBox(
+                width: 200,
+                height: 200,
+                child: SingleChildScrollView(
+                  controller: page,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 300),
+                      SizedBox(
+                        width: 200,
+                        height: 50,
+                        child: RowLayout(
+                          style: const WidgetStyle(),
+                          scroll: const StratumScroll(),
+                          children: [
+                            for (final card in cards)
+                              Focus(
+                                focusNode: card,
+                                child: const SizedBox(width: 100, height: 50),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 300),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return cards;
+    }
+
+    Finder rowScrollable() => find.descendant(
+      of: find.byType(RowLayout),
+      matching: find.byType(Scrollable),
+    );
+
+    ScrollPosition row(WidgetTester tester) =>
+        tester.state<ScrollableState>(rowScrollable()).position;
+
+    /// Focuses [card], then scrolls the row to [rowAt] and the page to
+    /// [pageAt].
+    Future<void> place(
+      WidgetTester tester,
+      FocusNode card,
+      ScrollController page, {
+      required double rowAt,
+      required double pageAt,
+    }) async {
+      card.requestFocus();
+      await tester.pump();
+      row(tester).jumpTo(rowAt);
+      page.jumpTo(pageAt);
+      await tester.pump();
+    }
+
+    /// Expects focus on [card], wholly inside the row and the page.
+    void expectShown(WidgetTester tester, FocusNode card) {
+      expect(card.hasPrimaryFocus, isTrue);
+      final rect = card.rect;
+      final inRow = tester.getRect(rowScrollable());
+      final inPage = tester.getRect(
+        find.byType(SingleChildScrollView).first,
+      );
+      expect(
+        rect.left >= inRow.left - 0.5 &&
+            rect.right <= inRow.right + 0.5 &&
+            rect.top >= inPage.top - 0.5 &&
+            rect.bottom <= inPage.bottom + 0.5,
+        isTrue,
+        reason: 'card at $rect, row $inRow, page $inPage',
+      );
+    }
+
+    testWidgets(
+      'Tab reveals the next card at the end of the row and at the start of '
+      'the page, then Shift+Tab at the start of the row and the end of the '
+      'page',
+      (tester) async {
+        final page = _controller();
+        final cards = await pumpRow(tester, page);
+        // Card 4 lies past the row's end; the row extends past the page's
+        // top.
+        await place(tester, cards[3], page, rowAt: 200, pageAt: 320);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+
+        expectShown(tester, cards[4]);
+        expect(row(tester).pixels, 300);
+        expect(page.offset, 300);
+
+        // Card 3 lies before the row's start; the row extends past the
+        // page's bottom.
+        await place(tester, cards[4], page, rowAt: 400, pageAt: 130);
+
+        await _shiftTab(tester);
+
+        expectShown(tester, cards[3]);
+        expect(row(tester).pixels, 300);
+        expect(page.offset, 350 - 200);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      "Flutter's Right arrow reveals the next card by the edge of each "
+      'viewport',
+      (tester) async {
+        final page = _controller();
+        final cards = await pumpRow(tester, page);
+        await place(tester, cards[3], page, rowAt: 200, pageAt: 320);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+
+        expectShown(tester, cards[4]);
+        expect(row(tester).pixels, 300);
+        expect(page.offset, 300);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+  });
+
   group('ScrollFocus ring placement', () {
     const fullWindow = SizedBox.expand(
       child: ColumnLayout(

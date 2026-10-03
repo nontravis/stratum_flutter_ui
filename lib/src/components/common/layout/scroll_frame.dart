@@ -768,12 +768,40 @@ class _ScrollFocusState extends State<ScrollFocus>
 /// policy that handles a Tab. A content group with its own history would
 /// replay stale entries across the scroller edge: an arrow press could
 /// refocus the node it leaves, or jump back over the box.
+///
+/// A Tab, Shift+Tab, or arrow from a node inside the group reveals the
+/// newly focused node in each viewport around it by that viewport's own
+/// edge ([revealInViewports]). Flutter's default reveal applies one
+/// alignment policy to every viewport, so a page that a scrolled row
+/// extends past would not scroll back to it.
 class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
+  new() : super(requestFocusCallback: _requestFocus);
+
+  /// Focuses [node] for a Tab or Shift+Tab and reveals it by
+  /// [revealInViewports], in place of Flutter's one-policy reveal.
+  static void _requestFocus(
+    FocusNode node, {
+    ScrollPositionAlignmentPolicy? alignmentPolicy,
+    double? alignment,
+    Duration? duration,
+    Curve? curve,
+  }) {
+    node.requestFocus();
+    revealInViewports(node);
+  }
+
   @override
   bool inDirection(FocusNode currentNode, TraversalDirection direction) {
     final enclosing = _enclosing(currentNode);
     if (enclosing == null) return super.inDirection(currentNode, direction);
-    return enclosing.inDirection(currentNode, direction);
+    final moved = enclosing.inDirection(currentNode, direction);
+    // The enclosing policy revealed the new node by one alignment policy;
+    // the scope already names it, before focus moves in a microtask.
+    final target = currentNode.nearestScope?.focusedChild;
+    if (moved && target != null && target != currentNode) {
+      revealInViewports(target);
+    }
+    return moved;
   }
 
   @override
