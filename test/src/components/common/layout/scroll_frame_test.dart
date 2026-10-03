@@ -1145,6 +1145,78 @@ void main() {
     );
   });
 
+  group('ScrollFocus lines mode motion', () {
+    /// Pumps a focusable list of 50 rows of 40 px in a 200 by 300 view,
+    /// under [data] when set, and Tabs onto its viewport.
+    Future<void> focusList(WidgetTester tester, {MediaQueryData? data}) async {
+      final before = _node();
+      var host = themedHost(
+        _keyboardHost(
+          const ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
+          before: before,
+        ),
+      );
+      if (data != null) host = MediaQuery(data: data, child: host);
+      await tester.pumpWidget(host);
+      await _tabIn(tester, before);
+      expect(_viewportFocused(), isTrue);
+    }
+
+    testWidgets(
+      "an arrow jumps 50 px under the app's reduced motion (us07/fr04)",
+      (tester) async {
+        await focusList(
+          tester,
+          data: const MediaQueryData(disableAnimations: true),
+        );
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+
+        expect(_pixels(tester), 50);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      "Page Down jumps under the platform's reduceMotion (us07/fr04)",
+      (tester) async {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        await focusList(tester);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        expect(_pixels(tester), 50);
+        await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+        await tester.pump();
+        expect(_pixels(tester), 50 + 0.8 * 300);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'an arrow moves over 100 ms with easeInOutSine (us07/fr04)',
+      (tester) async {
+        await focusList(tester);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 25));
+        expect(
+          _pixels(tester),
+          closeTo(50 * Curves.easeInOutSine.transform(0.25), 0.01),
+        );
+        await tester.pump(const Duration(milliseconds: 75));
+        expect(_pixels(tester), 50);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+  });
+
   group('ScrollFocus pages mode', () {
     /// A focusable page view of [count] pages, 200 by 300 each, through
     /// [ScrollViewBox] in pages mode; [count] null builds pages without

@@ -44,8 +44,8 @@ scroll it, guarded so a text field inside keeps its own keys.
 
 - **`ListViewLayout`**, **`GridViewLayout`**, **`CustomScrollViewLayout`** — lazy list, grid, and sliver view inside
   a `WidgetStyle` box; `style.padding` becomes the scroll padding, so it scrolls with the content.
-  Keyboard: K4 line-mode scrolling, 100 ms per key with `Curves.easeInOut` (reduced-motion jump for this mode is not
-  implemented yet).
+  Keyboard: K4 line-mode scrolling, 100 ms per key with `Curves.easeInOutSine`, or a jump when `MediaQuery` or the
+  platform asks for reduced motion.
 - **`PageViewLayout`** (children or `.builder`) — one page per viewport, with `scrollDirection`, `controller`,
   `pageSnapping`, `onPageChanged`; `style.padding` insets the viewport rather than scrolling. No previous/next
   buttons; a component that needs them builds its own on top.

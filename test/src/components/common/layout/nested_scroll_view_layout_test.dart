@@ -159,6 +159,24 @@ void main() {
       expect(_inner(tester).pixels, 50);
     }, variant: _desktop);
 
+    testWidgets('under reduced motion Down jumps along the range '
+        '(us07/fr04)', (tester) async {
+      final before = _node('before');
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: _nested(before: before),
+        ),
+      );
+      await _tabIn(tester, before);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+
+      expect(_outer(tester).pixels, 50);
+      expect(_inner(tester).pixels, 0);
+    }, variant: _desktop);
+
     testWidgets('a press across the header extent moves both positions', (
       tester,
     ) async {

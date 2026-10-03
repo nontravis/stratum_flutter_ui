@@ -173,7 +173,9 @@ enum ScrollFocusMode {
 ///
 /// While the viewport node holds focus, the arrows along [axis] scroll
 /// 50 px, Page Up and Page Down scroll 0.8 of the viewport, and Home and
-/// End jump to the first and last item. While an item inside holds focus,
+/// End jump to the first and last item. An arrow or a page moves over
+/// 100 ms with [Curves.easeInOutSine], or jumps when the app or the
+/// platform asks for less motion. While an item inside holds focus,
 /// the arrows keep Flutter's default, and Page Up, Page Down, Home, and
 /// End still scroll. No key acts while focus is inside a text field.
 ///
@@ -295,7 +297,8 @@ class _ScrollFocusState extends State<ScrollFocus>
   /// How long a key page change slides.
   static const _pageDuration = Duration(milliseconds: 300);
 
-  /// How long an arrow or a page scroll in [ScrollFocusMode.lines] takes.
+  /// How long an arrow or a page scroll in [ScrollFocusMode.lines] takes,
+  /// unless the app or the platform asks for less motion.
   static const _lineDuration = Duration(milliseconds: 100);
 
   // Created on first use and kept until dispose, as StratumInkWell keeps
@@ -536,13 +539,15 @@ class _ScrollFocusState extends State<ScrollFocus>
     // 0.8 of the viewport.
     final amount = page ? 0.8 * position.viewportDimension : 50.0;
     final delta = direction == position.axisDirection ? amount : -amount;
+    // A zero duration makes moveTo jump (NFR-U03).
+    final duration = reducesMotion(context) ? Duration.zero : _lineDuration;
     if (nested != null) {
-      _moveNested(nested.outerController.position, position, delta);
+      _moveNested(nested.outerController.position, position, delta, duration);
     } else {
       position.moveTo(
         position.pixels + delta,
-        duration: _lineDuration,
-        curve: Curves.easeInOut,
+        duration: duration,
+        curve: Curves.easeInOutSine,
       );
     }
     return KeyEventResult.handled;
@@ -575,11 +580,13 @@ class _ScrollFocusState extends State<ScrollFocus>
   /// because the coordinator maps every inner offset to a collapsed header.
   /// A target within the header's extent moves [outer], and the coordinator
   /// returns the body to its start; a target past it moves [inner], and the
-  /// coordinator holds the header collapsed.
+  /// coordinator holds the header collapsed. The move takes [duration];
+  /// zero jumps.
   static void _moveNested(
     ScrollPosition outer,
     ScrollPosition inner,
     double delta,
+    Duration duration,
   ) {
     final header = outer.maxScrollExtent - outer.minScrollExtent;
     final scrolled = inner.pixels - inner.minScrollExtent;
@@ -590,14 +597,14 @@ class _ScrollFocusState extends State<ScrollFocus>
     if (target <= header) {
       outer.moveTo(
         outer.minScrollExtent + target,
-        duration: _lineDuration,
-        curve: Curves.easeInOut,
+        duration: duration,
+        curve: Curves.easeInOutSine,
       );
     } else {
       inner.moveTo(
         inner.minScrollExtent + target - header,
-        duration: _lineDuration,
-        curve: Curves.easeInOut,
+        duration: duration,
+        curve: Curves.easeInOutSine,
       );
     }
   }
