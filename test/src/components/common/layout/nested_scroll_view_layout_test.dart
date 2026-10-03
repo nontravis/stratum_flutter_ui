@@ -520,8 +520,95 @@ void main() {
       },
       variant: _desktop,
     );
+
+    testWidgets(
+      "Flutter's Down to a row past a list body's end moves the body once",
+      (tester) async {
+        await tester.pumpWidget(
+          _keyboardHost(
+            FocusTraversalGroup(
+              child: NestedScrollViewLayout(
+                headerSliverBuilder: _headerSlivers,
+                body: _list(),
+              ),
+            ),
+            before: _node('before'),
+          ),
+        );
+        // The header has collapsed and the body shows 100 to 400, which
+        // row 9 ends; row 10 ends 40 px past it.
+        _inner(tester).jumpTo(100);
+        await tester.pump();
+        _focusNode('row 9').requestFocus();
+        await tester.pump();
+
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+
+        expect(_focused(), 'row 10');
+        expect(_outer(tester).pixels, _header);
+        expect(_inner(tester).pixels, 140);
+      },
+      variant: _desktop,
+    );
+
+    testWidgets(
+      'a reorder move that drops focus reveals the moved item once',
+      (tester) async {
+        final ids = [for (var i = 0; i < 12; i++) i];
+        // Each move rebuilds every item under a new key, so focus leaves
+        // the list and the move focuses the item's first Tab stop.
+        var moves = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Material(
+              child: themedHost(
+                SizedBox(
+                  width: 200,
+                  height: 300,
+                  child: NestedScrollViewLayout(
+                    headerSliverBuilder: _headerSlivers,
+                    body: StatefulBuilder(
+                      builder: (context, setState) =>
+                          ReorderableListViewLayout.builder(
+                            itemCount: ids.length,
+                            onReorderItem: (from, to) => setState(() {
+                              ids.insert(to, ids.removeAt(from));
+                              moves++;
+                            }),
+                            itemBuilder: (context, index) => Focus(
+                              key: ValueKey('${ids[index]} $moves'),
+                              debugLabel: 'item ${ids[index]}',
+                              child: const SizedBox(height: 40),
+                            ),
+                          ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        // Item 1 sits at 40 to 80 under the 200 px header; its next slot,
+        // at 80 to 120, ends 20 px below the window.
+        _focusNode('item 1').requestFocus();
+        await tester.pump();
+
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+
+        expect(ids.indexOf(1), 2);
+        expect(_focused(), 'item 1');
+        expect(_outer(tester).pixels, 20);
+        expect(_inner(tester).pixels, 0);
+      },
+      variant: _desktop,
+    );
   });
 }
+
+/// The node labeled [label].
+FocusNode _focusNode(String label) => FocusManager.instance.rootScope
+    .descendants
+    .firstWhere((node) => node.debugLabel == label);
 
 /// Presses [key] with Alt held.
 Future<void> _alt(WidgetTester tester, LogicalKeyboardKey key) async {

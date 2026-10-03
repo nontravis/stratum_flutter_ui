@@ -446,27 +446,23 @@ void revealInViewports(FocusNode target) {
     scrollable != null && shown != null;
     scrollable = Scrollable.maybeOf(scrollable.context)
   ) {
-    final position = scrollable.position;
-    final overhang = _overhang(target.rect, scrollable);
+    // A two-dimensional view's vertical scrollable reveals the target
+    // itself, as Flutter's horizontal one does for both axes.
+    final reveal = _inViewportOf(shown, scrollable) ? shown : object;
     final nested = _nestedBodyOf(scrollable);
     if (nested != null) {
-      // The body moves along the header's range first, as its keys do. The
-      // overhang is on screen; a reversed axis scrolls the other way.
-      final reversed = axisDirectionIsReversed(position.axisDirection);
-      final delta = reversed ? -overhang : overhang;
-      final header = nested.outerController.position;
-      if (delta != 0) moveNested(header, position, delta, Duration.zero);
-    } else if (overhang != 0) {
-      // A two-dimensional view's vertical scrollable reveals the target
-      // itself, as Flutter's horizontal one does for both axes.
-      final reveal = _inViewportOf(shown, scrollable) ? shown : object;
-      position.ensureVisible(
-        reveal,
-        alignmentPolicy: overhang < 0
-            ? ScrollPositionAlignmentPolicy.keepVisibleAtStart
-            : ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-        targetRenderObject: reveal == object ? null : object,
-      );
+      _revealInNestedBody(nested, scrollable, reveal, object);
+    } else {
+      final overhang = _overhang(target.rect, scrollable);
+      if (overhang != 0) {
+        scrollable.position.ensureVisible(
+          reveal,
+          alignmentPolicy: overhang < 0
+              ? ScrollPositionAlignmentPolicy.keepVisibleAtStart
+              : ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+          targetRenderObject: reveal == object ? null : object,
+        );
+      }
     }
     shown = scrollable.context.findRenderObject();
   }
@@ -482,6 +478,65 @@ NestedScrollViewState? _nestedBodyOf(ScrollableState scrollable) {
     return null;
   }
   return nested;
+}
+
+/// Moves [nested]'s header and its body, [body], along their one range
+/// ([moveNested]) so [object], or [target] inside it, shows whole in the
+/// body with the least scroll.
+///
+/// Reads scroll offsets and the last layout's extents only, never a rect
+/// on screen, which a sliver body paints from its last layout; a second
+/// reveal before the next layout then moves nothing.
+void _revealInNestedBody(
+  NestedScrollViewState nested,
+  ScrollableState body,
+  RenderObject object,
+  RenderObject target,
+) {
+  final box = body.context.findRenderObject();
+  final content = RenderAbstractViewport.maybeOf(object);
+  final window = box == null ? null : RenderAbstractViewport.maybeOf(box);
+  if (box is! RenderBox || !box.hasSize || content == null || window == null) {
+    return;
+  }
+  final inner = body.position;
+  final header = nested.outerController.position;
+  final axis = inner.axis;
+  final rect = target == object
+      ? null
+      : MatrixUtils.transformRect(
+          target.getTransformTo(object),
+          object.paintBounds.intersect(target.paintBounds),
+        );
+  double offset(
+    RenderAbstractViewport viewport,
+    RenderObject of,
+    double alignment, {
+    Rect? rect,
+  }) {
+    return viewport
+        .getOffsetToReveal(of, alignment, rect: rect, axis: axis)
+        .offset;
+  }
+
+  final extent = axis == Axis.vertical ? box.size.height : box.size.width;
+  // From the header offset [collapsed] on, the body shows [length] long;
+  // before it, the header still covers the rest of the way there.
+  final collapsed = offset(window, box, 0);
+  final length = collapsed - offset(window, box, 1) + extent;
+  final covered = collapsed - header.pixels;
+  final shown = length - (covered > 0 ? covered : 0);
+  final start = offset(content, object, 0, rect: rect);
+  final end = offset(content, object, 1, rect: rect) + extent - shown;
+  final pixels = inner.pixels;
+  var delta = 0.0;
+  if (pixels > start) {
+    delta = start - pixels;
+  } else if (pixels < end) {
+    delta = end - pixels;
+  }
+  if (delta == 0 || !delta.isFinite) return;
+  moveNested(header, inner, delta, Duration.zero);
 }
 
 /// Moves a nested scroll view by [delta] along one range: [outer]'s
