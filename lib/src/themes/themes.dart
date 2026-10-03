@@ -6,6 +6,7 @@ export 'font_data.dart';
 export 'styles/styles.dart';
 export 'theme.dart';
 export 'theme_application.dart';
+export 'theme_asset_view.dart';
 export 'theme_data.dart';
 export 'theme_set.dart';
 export 'tokens/theme_tokens.g.dart';
