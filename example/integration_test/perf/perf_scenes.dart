@@ -128,6 +128,41 @@ Widget _plainRow(int index) {
   );
 }
 
+/// A button-like box styled around [label], with no cross size of its own.
+Widget _button(PerfKit kit, String label) {
+  return kit.container(
+    style: const WidgetStyle(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      backgroundColor: Color(0xFFEFEFEF),
+      borderRadius: BorderRadius.all(Radius.circular(6)),
+    ),
+    child: Text(label),
+  );
+}
+
+/// S6-intrinsic: a product card whose "Buy" and "Add to cart" buttons sit
+/// in a `crossAxisIntrinsic` column, stretched to the widest button, with
+/// no style cross size, so the intrinsic wrapper runs on every row.
+Widget _intrinsicRow(PerfKit kit, int index) {
+  return kit.row(
+    style: _cardStyle,
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      kit.column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [Text('Item $index'), const Text('Subtitle')],
+      ),
+      kit.column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisIntrinsic: true,
+        children: [_button(kit, 'Buy'), _button(kit, 'Add to cart')],
+      ),
+    ],
+  );
+}
+
 Widget _list(Widget Function(int index) row) {
   return ListView.builder(
     itemCount: _rowCount,
@@ -147,9 +182,11 @@ Future<void> Function(WidgetTester tester) _scroll({
   return (tester) => scrollFor(tester, traceWindow, distance: distance);
 }
 
-/// Every scene of spec section 9.1, in run order: the S2-plain null control
-/// first, so each run measures its own noise before the scenes it judges.
-/// `tool/perf_abba.dart` lists the same keys in its `catalog`.
+/// The scenes of spec section 9.1, in run order, plus `S6-intrinsic` for
+/// the crossAxisIntrinsic ABBA follow-up: the S2-plain null control first,
+/// so each run measures its own noise before the scenes it judges.
+/// `tool/perf_abba.dart` lists the section 9.1 keys in its `catalog`;
+/// `S6-intrinsic` is not in it yet.
 final perfScenes = <PerfScene>[
   PerfScene(
     'S2-plain',
@@ -211,6 +248,11 @@ final perfScenes = <PerfScene>[
     'S5',
     build: (kit) => GlassCards(kit: kit),
     drive: _scroll(distance: 2000),
+  ),
+  PerfScene(
+    'S6-intrinsic',
+    build: (kit) => _list((index) => _intrinsicRow(kit, index)),
+    drive: _scroll(),
   ),
 ];
 

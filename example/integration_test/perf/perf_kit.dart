@@ -17,10 +17,12 @@ abstract interface class PerfKit {
     required List<Widget> children,
   });
 
-  /// A column without style.
+  /// A column without style. A true [crossAxisIntrinsic] sizes the column
+  /// to its widest child.
   Widget column({
     required MainAxisSize mainAxisSize,
     required CrossAxisAlignment crossAxisAlignment,
+    bool crossAxisIntrinsic = false,
     required List<Widget> children,
   });
 
@@ -51,11 +53,13 @@ class CurrentKit implements PerfKit {
   Widget column({
     required MainAxisSize mainAxisSize,
     required CrossAxisAlignment crossAxisAlignment,
+    bool crossAxisIntrinsic = false,
     required List<Widget> children,
   }) {
     return ColumnLayout(
       mainAxisSize: mainAxisSize,
       crossAxisAlignment: crossAxisAlignment,
+      crossAxisIntrinsic: crossAxisIntrinsic,
       children: children,
     );
   }
@@ -94,11 +98,13 @@ class BaselineKit implements PerfKit {
   Widget column({
     required MainAxisSize mainAxisSize,
     required CrossAxisAlignment crossAxisAlignment,
+    bool crossAxisIntrinsic = false,
     required List<Widget> children,
   }) {
     return BaselineColumnLayout(
       mainAxisSize: mainAxisSize,
       crossAxisAlignment: crossAxisAlignment,
+      crossAxisIntrinsic: crossAxisIntrinsic,
       children: children,
     );
   }

@@ -38,6 +38,23 @@ void main() {
         isA<RowLayout>().having((r) => r.interaction, 'interaction', isNull),
       );
     });
+
+    testWidgets('an intrinsic column never runs the frozen IntrinsicWidth', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        perfHost(
+          const CurrentKit().column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisIntrinsic: true,
+            children: const [SizedBox(width: 10, height: 10)],
+          ),
+        ),
+      );
+
+      expect(find.byType(IntrinsicWidth), findsNothing);
+    });
   });
 
   group('BaselineKit', () {
@@ -125,6 +142,23 @@ void main() {
       );
       expect(find.byType(BaselineStratumInkWell), findsOneWidget);
       expect(find.byType(StratumInkWell), findsNothing);
+    });
+
+    testWidgets('an intrinsic column runs the frozen IntrinsicWidth', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        perfHost(
+          const BaselineKit().column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisIntrinsic: true,
+            children: const [SizedBox(width: 10, height: 10)],
+          ),
+        ),
+      );
+
+      expect(find.byType(IntrinsicWidth), findsOneWidget);
     });
   });
 }

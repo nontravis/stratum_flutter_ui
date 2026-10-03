@@ -22,6 +22,7 @@ class _RefusingKit implements PerfKit {
   Widget column({
     required MainAxisSize mainAxisSize,
     required CrossAxisAlignment crossAxisAlignment,
+    bool crossAxisIntrinsic = false,
     required List<Widget> children,
   }) => throw StateError('column called');
 
@@ -36,7 +37,17 @@ void main() {
         'null control first', () {
       expect(
         [for (final scene in perfScenes) scene.key],
-        ['S2-plain', 'S1', 'S1-fast', 'S2', 'S2-box', 'S3', 'S4', 'S5'],
+        [
+          'S2-plain',
+          'S1',
+          'S1-fast',
+          'S2',
+          'S2-box',
+          'S3',
+          'S4',
+          'S5',
+          'S6-intrinsic',
+        ],
       );
     });
 
