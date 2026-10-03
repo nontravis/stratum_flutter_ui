@@ -411,8 +411,6 @@ class _StateOverlay extends StatelessWidget {
     required this.child,
   });
 
-  static const _duration = Duration(milliseconds: 100);
-
   final WidgetStatesController states;
   final Color hoverColor;
   final Color pressedColor;
@@ -433,12 +431,17 @@ class _StateOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The theme's fast level, else the package default's (spec G18).
+    final fast =
+        (StratumThemeApplication.maybeOf(context)?.animation ??
+                StratumAnimation.packageDefault)
+            .fast;
     return ListenableBuilder(
       listenable: states,
       builder: (context, child) => TweenAnimationBuilder<Color?>(
         tween: ColorTween(end: _target(states.value)),
-        duration: _duration,
-        curve: Curves.easeInOutSine,
+        duration: fast.duration!,
+        curve: fast.curve!,
         // Alpha 0 becomes no color, so an idle surface paints nothing.
         builder: (context, color, child) => DecoratedBox(
           position: DecorationPosition.foreground,

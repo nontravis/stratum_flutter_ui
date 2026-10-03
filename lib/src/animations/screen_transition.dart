@@ -49,17 +49,20 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
   ///  fade,rightToLeft,leftToRight, upToDown,downToUp,scale,rotate,size,rightToLeftWithFade,leftToRightWithFade
   final ScreenTransitionType type;
 
-  /// Curves for transitions
-  final Curve curve;
+  /// The curve; null takes the theme's `slow` level curve, `standard`
+  /// (spec G21).
+  final Curve? curve;
 
   /// Alignment for transitions
   final Alignment? alignment;
 
-  /// Duration for your transition default is 300 ms
-  final Duration duration;
+  /// The push duration; null takes the theme's `slow` level, 300 ms in the
+  /// package default.
+  final Duration? duration;
 
-  /// Duration for your pop transition default is 300 ms
-  final Duration reverseDuration;
+  /// The pop duration; null takes the theme's `slow` level reverse, 192 ms
+  /// in the package default.
+  final Duration? reverseDuration;
 
   /// Context for inherit theme
   final BuildContext? ctx;
@@ -74,10 +77,10 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
     this.childCurrent,
     this.ctx,
     this.inheritTheme = false,
-    this.curve = Curves.linear,
+    this.curve,
     this.alignment,
-    this.duration = const Duration(milliseconds: 300),
-    this.reverseDuration = const Duration(milliseconds: 300),
+    this.duration,
+    this.reverseDuration,
     super.fullscreenDialog = false,
     super.opaque = false,
     super.settings,
@@ -93,13 +96,12 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                   )
                 : child;
           },
-          transitionDuration: duration,
-          reverseTransitionDuration: reverseDuration,
           maintainState: true,
           transitionsBuilder: (BuildContext context,
               Animation<double> animation,
               Animation<double> secondaryAnimation,
               Widget child) {
+            final resolved = curve ?? _slowOf(context).curve!;
             switch (type) {
               case ScreenTransitionType.fade:
                 return FadeTransition(opacity: animation, child: child);
@@ -112,7 +114,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                     end: Offset.zero,
                   ).animate(CurvedAnimation(
                     parent: animation,
-                    curve: curve,
+                    curve: resolved,
                   )),
                   child: child,
                 );
@@ -125,7 +127,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                     end: Offset.zero,
                   ).animate(CurvedAnimation(
                     parent: animation,
-                    curve: curve,
+                    curve: resolved,
                   )),
                   child: child,
                 );
@@ -138,7 +140,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                     end: Offset.zero,
                   ).animate(CurvedAnimation(
                     parent: animation,
-                    curve: curve,
+                    curve: resolved,
                   )),
                   child: child,
                 );
@@ -151,7 +153,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                     end: Offset.zero,
                   ).animate(CurvedAnimation(
                     parent: animation,
-                    curve: curve,
+                    curve: resolved,
                   )),
                   child: child,
                 );
@@ -166,7 +168,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                     curve: Interval(
                       0.00,
                       0.50,
-                      curve: curve,
+                      curve: resolved,
                     ),
                   ),
                   child: child,
@@ -196,7 +198,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                   child: SizeTransition(
                     sizeFactor: CurvedAnimation(
                       parent: animation,
-                      curve: curve,
+                      curve: resolved,
                     ),
                     child: child,
                   ),
@@ -211,7 +213,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                     end: Offset.zero,
                   ).animate(CurvedAnimation(
                     parent: animation,
-                    curve: curve,
+                    curve: resolved,
                   )),
                   child: FadeTransition(
                     opacity: animation,
@@ -235,7 +237,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                   ).animate(
                     CurvedAnimation(
                       parent: animation,
-                      curve: curve,
+                      curve: resolved,
                     ),
                   ),
                   child: FadeTransition(
@@ -268,7 +270,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                       ).animate(
                         CurvedAnimation(
                           parent: animation,
-                          curve: curve,
+                          curve: resolved,
                         ),
                       ),
                       child: childCurrent,
@@ -280,7 +282,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                       ).animate(
                         CurvedAnimation(
                           parent: animation,
-                          curve: curve,
+                          curve: resolved,
                         ),
                       ),
                       child: child,
@@ -305,7 +307,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                       ).animate(
                         CurvedAnimation(
                           parent: animation,
-                          curve: curve,
+                          curve: resolved,
                         ),
                       ),
                       child: child,
@@ -317,7 +319,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
                       ).animate(
                         CurvedAnimation(
                           parent: animation,
-                          curve: curve,
+                          curve: resolved,
                         ),
                       ),
                       child: childCurrent,
@@ -327,4 +329,24 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
             }
           },
         );
+
+  /// [duration], else the `slow` level of the theme above the navigator,
+  /// else the package default's (spec G21).
+  @override
+  Duration get transitionDuration =>
+      duration ?? _slowOf(navigator?.context).duration!;
+
+  /// [reverseDuration], else the `slow` level's reverse duration.
+  @override
+  Duration get reverseTransitionDuration =>
+      reverseDuration ?? _slowOf(navigator?.context).reverseDuration!;
+
+  /// The `slow` level of the theme above [context], else the package
+  /// default's.
+  static AnimationStyle _slowOf(BuildContext? context) {
+    final theme = context == null
+        ? null
+        : StratumThemeApplication.maybeOf(context);
+    return (theme?.animation ?? StratumAnimation.packageDefault).slow;
+  }
 }

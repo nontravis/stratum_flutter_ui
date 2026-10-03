@@ -210,16 +210,52 @@ void main() {
       expect(_overlayColor(tester), next);
     });
 
-    testWidgets('animates for 100 ms with easeInOutSine', (tester) async {
+    testWidgets("us11/fr01: fades over the theme's fast level", (tester) async {
       await tester.pumpWidget(
         themedHost(const StratumInkWell(onTap: _noop, child: _box)),
       );
-
-      final tween = tester.widget<TweenAnimationBuilder<Color?>>(
+      final standard = tester.widget<TweenAnimationBuilder<Color?>>(
         find.byType(TweenAnimationBuilder<Color?>),
       );
-      expect(tween.duration, const Duration(milliseconds: 100));
-      expect(tween.curve, Curves.easeInOutSine);
+      expect(standard.duration, const Duration(milliseconds: 125));
+      expect(standard.curve, Curves.easeInOutSine);
+
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(onTap: _noop, child: _box),
+          theme: motionTheme(standard: const StratumNamedCurve('easeOut')),
+        ),
+      );
+      final themed = tester.widget<TweenAnimationBuilder<Color?>>(
+        find.byType(TweenAnimationBuilder<Color?>),
+      );
+      expect(themed.duration, const Duration(milliseconds: 77));
+      expect(themed.curve, Curves.easeOut);
+    });
+
+    testWidgets("C1: under reduced motion the fade keeps the theme's "
+        'duration', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(onTap: _noop, child: _box),
+          theme: motionTheme(),
+        ),
+      );
+
+      expect(
+        tester
+            .widget<TweenAnimationBuilder<Color?>>(
+              find.byType(TweenAnimationBuilder<Color?>),
+            )
+            .duration,
+        const Duration(milliseconds: 77),
+      );
     });
 
     testWidgets('paints over the child, inside InkWell', (tester) async {
@@ -685,9 +721,7 @@ void main() {
   });
 
   group('StratumInkWell gestures', () {
-    testWidgets('tap, long press, and secondary tap call back', (
-      tester,
-    ) async {
+    testWidgets('tap, long press, and secondary tap call back', (tester) async {
       final calls = <String>[];
       await tester.pumpWidget(
         themedHost(
@@ -780,9 +814,7 @@ void main() {
       await tester.pumpWidget(
         themedHost(StratumInkWell(onHover: hovers.add, child: _box)),
       );
-      final gesture = await tester.createGesture(
-        kind: PointerDeviceKind.mouse,
-      );
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer(location: Offset.zero);
       addTearDown(gesture.removePointer);
       await tester.pump();
@@ -1017,10 +1049,7 @@ void main() {
         _appHost(
           StratumInkWell(
             onTap: _noop,
-            shortcuts: {
-              _keyA: () => letters++,
-              _controlKey: () => commands++,
-            },
+            shortcuts: {_keyA: () => letters++, _controlKey: () => commands++},
             child: SizedBox(width: 200, child: TextField(focusNode: field)),
           ),
         ),
@@ -1094,9 +1123,8 @@ void main() {
               child: ListView.builder(
                 controller: controller,
                 itemCount: 100,
-                itemBuilder: (context, index) => index == 0
-                    ? surface(node)
-                    : const SizedBox(height: 100),
+                itemBuilder: (context, index) =>
+                    index == 0 ? surface(node) : const SizedBox(height: 100),
               ),
             ),
           ),

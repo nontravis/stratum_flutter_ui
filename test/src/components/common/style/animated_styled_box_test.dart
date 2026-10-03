@@ -5,6 +5,9 @@ import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/components/common/style/animated_styled_box.dart';
 import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/components/common/style/style_decoration.dart';
+import 'package:stratum_ui/src/themes/config/animation_config.dart';
+
+import '../fakes/fake_stratum_theme.dart';
 
 const _radius = BorderRadius.all(Radius.circular(8));
 const _blur = ImageBlurFilter(sigmaX: 10, sigmaY: 10);
@@ -93,8 +96,9 @@ void main() {
   _robustnessTests();
 
   group('AnimatedStyledBox structure', () {
-    testWidgets('a fill, radius, and padding add no effect layers',
-        (tester) async {
+    testWidgets('a fill, radius, and padding add no effect layers', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           const WidgetStyle(
@@ -132,8 +136,9 @@ void main() {
       );
     });
 
-    testWidgets('a style with only layout fields builds no background',
-        (tester) async {
+    testWidgets('a style with only layout fields builds no background', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           const WidgetStyle(padding: EdgeInsets.all(4), borderRadius: _radius),
@@ -143,8 +148,7 @@ void main() {
       expect(find.byType(DecoratedBox), findsNothing);
     });
 
-    testWidgets('opacity below 1 adds Opacity, and 1 does not',
-        (tester) async {
+    testWidgets('opacity below 1 adds Opacity, and 1 does not', (tester) async {
       await tester.pumpWidget(_host(const WidgetStyle(opacity: 1)));
       expect(find.byType(Opacity), findsNothing);
 
@@ -153,32 +157,34 @@ void main() {
     });
 
     testWidgets(
-        'backgroundBlur clips above the filter and keeps the shadow outside',
-        (tester) async {
-      await tester.pumpWidget(
-        _host(
-          const WidgetStyle(
-            borderRadius: _radius,
-            backgroundColor: Color(0x80FFFFFF),
-            dropShadow: [BoxShadow(blurRadius: 8)],
-            backgroundBlur: _blur,
+      'backgroundBlur clips above the filter and keeps the shadow outside',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            const WidgetStyle(
+              borderRadius: _radius,
+              backgroundColor: Color(0x80FFFFFF),
+              dropShadow: [BoxShadow(blurRadius: 8)],
+              backgroundBlur: _blur,
+            ),
           ),
-        ),
-      );
+        );
 
-      final clip = find.byType(ClipRRect);
-      final filter = find.byType(BackdropFilter);
-      final shadow = _decorated(where: (d) => d.dropShadow != null);
-      final fill = _decorated(
-        where: (d) => d.color == const Color(0x80FFFFFF),
-      );
-      expect(find.ancestor(of: filter, matching: clip), findsOneWidget);
-      expect(find.ancestor(of: clip, matching: shadow), findsOneWidget);
-      expect(find.ancestor(of: fill, matching: filter), findsOneWidget);
-    });
+        final clip = find.byType(ClipRRect);
+        final filter = find.byType(BackdropFilter);
+        final shadow = _decorated(where: (d) => d.dropShadow != null);
+        final fill = _decorated(
+          where: (d) => d.color == const Color(0x80FFFFFF),
+        );
+        expect(find.ancestor(of: filter, matching: clip), findsOneWidget);
+        expect(find.ancestor(of: clip, matching: shadow), findsOneWidget);
+        expect(find.ancestor(of: fill, matching: filter), findsOneWidget);
+      },
+    );
 
-    testWidgets('backgroundBlur without a radius clips with ClipRect',
-        (tester) async {
+    testWidgets('backgroundBlur without a radius clips with ClipRect', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host(const WidgetStyle(backgroundBlur: _blur)));
 
       expect(find.byType(ClipRRect), findsNothing);
@@ -186,8 +192,9 @@ void main() {
       expect(clip.clipBehavior, Clip.hardEdge);
     });
 
-    testWidgets('clipBehavior without blur clips inside the background',
-        (tester) async {
+    testWidgets('clipBehavior without blur clips inside the background', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           const WidgetStyle(
@@ -252,8 +259,9 @@ void main() {
       expect(tester.getSize(_decorated()), const Size(100, 50));
     });
 
-    testWidgets('a null child becomes an empty box sized by padding',
-        (tester) async {
+    testWidgets('a null child becomes an empty box sized by padding', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(const WidgetStyle(padding: EdgeInsets.all(4)), child: null),
       );
@@ -298,12 +306,11 @@ void main() {
   });
 
   group('AnimatedStyledBox animation', () {
-    testWidgets('a null animationStyle applies the new style at once',
-        (tester) async {
+    testWidgets('a null animationStyle applies the new style at once', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host(const WidgetStyle(backgroundColor: _red)));
-      await tester.pumpWidget(
-        _host(const WidgetStyle(backgroundColor: _blue)),
-      );
+      await tester.pumpWidget(_host(const WidgetStyle(backgroundColor: _blue)));
 
       expect(_fillColor(tester), _blue);
       expect(tester.hasRunningAnimations, isFalse);
@@ -332,9 +339,7 @@ void main() {
         _host(const WidgetStyle(backgroundColor: _red, animationStyle: _slow)),
       );
       await tester.pumpWidget(
-        _host(
-          const WidgetStyle(backgroundColor: _blue, animationStyle: _slow),
-        ),
+        _host(const WidgetStyle(backgroundColor: _blue, animationStyle: _slow)),
       );
       await tester.pump(const Duration(milliseconds: 50));
 
@@ -344,8 +349,42 @@ void main() {
       );
     });
 
-    testWidgets('an equal style does not restart the animation',
-        (tester) async {
+    testWidgets("us11/fr02: a missing curve takes the theme's standard "
+        'curve', (tester) async {
+      final theme = motionTheme(standard: const StratumNamedCurve('linear'));
+      Widget host(Color color) => themedHost(
+        AnimatedStyledBox(
+          style: WidgetStyle(backgroundColor: color, animationStyle: _slow),
+          child: const SizedBox(width: 40, height: 20),
+        ),
+        theme: theme,
+      );
+      await tester.pumpWidget(host(_red));
+      await tester.pumpWidget(host(_blue));
+      await tester.pump(const Duration(milliseconds: 25));
+
+      expect(_fillColor(tester), Color.lerp(_red, _blue, 0.25));
+    });
+
+    testWidgets('us11/fr02: with no theme a missing curve is easeInOutSine '
+        'at a quarter of the way', (tester) async {
+      await tester.pumpWidget(
+        _host(const WidgetStyle(backgroundColor: _red, animationStyle: _slow)),
+      );
+      await tester.pumpWidget(
+        _host(const WidgetStyle(backgroundColor: _blue, animationStyle: _slow)),
+      );
+      await tester.pump(const Duration(milliseconds: 25));
+
+      expect(
+        _fillColor(tester),
+        Color.lerp(_red, _blue, Curves.easeInOutSine.transform(0.25)),
+      );
+    });
+
+    testWidgets('an equal style does not restart the animation', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(const WidgetStyle(backgroundColor: _red, animationStyle: _slow)),
       );
@@ -358,8 +397,7 @@ void main() {
       expect(tester.hasRunningAnimations, isFalse);
     });
 
-    testWidgets('onEnd fires once when an animation completes',
-        (tester) async {
+    testWidgets('onEnd fires once when an animation completes', (tester) async {
       var ends = 0;
       Widget build(Color color) {
         return Directionality(
@@ -378,15 +416,14 @@ void main() {
       expect(ends, 1);
     });
 
-    testWidgets('a null target interrupts an animation without error',
-        (tester) async {
+    testWidgets('a null target interrupts an animation without error', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(const WidgetStyle(backgroundColor: _red, animationStyle: _slow)),
       );
       await tester.pumpWidget(
-        _host(
-          const WidgetStyle(backgroundColor: _blue, animationStyle: _slow),
-        ),
+        _host(const WidgetStyle(backgroundColor: _blue, animationStyle: _slow)),
       );
       await tester.pump(const Duration(milliseconds: 30));
       await tester.pumpWidget(_host(null));
@@ -396,8 +433,9 @@ void main() {
       expect(_decorated(), findsNothing);
     });
 
-    testWidgets('the child keeps its State when wrappers come and go',
-        (tester) async {
+    testWidgets('the child keeps its State when wrappers come and go', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(const WidgetStyle(), child: const _Probe()),
       );
@@ -420,44 +458,45 @@ void main() {
     });
 
     testWidgets(
-        '(pin) an animation frame rebuilds only the box, with one ticker',
-        (tester) async {
-      final builds = [0];
-      final child = _CountingChild(builds);
-      await tester.pumpWidget(
-        _host(
-          const WidgetStyle(backgroundColor: _red, animationStyle: _slow),
-          child: child,
-        ),
-      );
-      await tester.pumpWidget(
-        _host(
-          const WidgetStyle(backgroundColor: _blue, animationStyle: _slow),
-          child: child,
-        ),
-      );
-      final childBuildsBefore = builds[0];
-      final rebuilds = <Type, int>{};
-      debugOnRebuildDirtyWidget = (element, _) => rebuilds.update(
-            element.widget.runtimeType,
-            (count) => count + 1,
-            ifAbsent: () => 1,
-          );
-      addTearDown(() => debugOnRebuildDirtyWidget = null);
+      '(pin) an animation frame rebuilds only the box, with one ticker',
+      (tester) async {
+        final builds = [0];
+        final child = _CountingChild(builds);
+        await tester.pumpWidget(
+          _host(
+            const WidgetStyle(backgroundColor: _red, animationStyle: _slow),
+            child: child,
+          ),
+        );
+        await tester.pumpWidget(
+          _host(
+            const WidgetStyle(backgroundColor: _blue, animationStyle: _slow),
+            child: child,
+          ),
+        );
+        final childBuildsBefore = builds[0];
+        final rebuilds = <Type, int>{};
+        debugOnRebuildDirtyWidget = (element, _) => rebuilds.update(
+          element.widget.runtimeType,
+          (count) => count + 1,
+          ifAbsent: () => 1,
+        );
+        addTearDown(() => debugOnRebuildDirtyWidget = null);
 
-      // The ticker starts on the first frame (elapsed 0) and completes on
-      // the eleventh (elapsed 100 ms); the twelfth frame has nothing to do.
-      for (var frame = 0; frame < 12; frame++) {
-        await tester.pump(const Duration(milliseconds: 10));
-        expect(tester.binding.transientCallbackCount, frame < 10 ? 1 : 0);
-      }
+        // The ticker starts on the first frame (elapsed 0) and completes on
+        // the eleventh (elapsed 100 ms); the twelfth frame has nothing to do.
+        for (var frame = 0; frame < 12; frame++) {
+          await tester.pump(const Duration(milliseconds: 10));
+          expect(tester.binding.transientCallbackCount, frame < 10 ? 1 : 0);
+        }
 
-      // One build of the State and of the KeyedSubtree that holds the
-      // child per animation frame; nothing above the box and not the
-      // child.
-      expect(rebuilds, {AnimatedStyledBox: 11, KeyedSubtree: 11});
-      expect(builds[0], childBuildsBefore);
-    });
+        // One build of the State and of the KeyedSubtree that holds the
+        // child per animation frame; nothing above the box and not the
+        // child.
+        expect(rebuilds, {AnimatedStyledBox: 11, KeyedSubtree: 11});
+        expect(builds[0], childBuildsBefore);
+      },
+    );
   });
 
   group('AnimatedStyledBox reduced motion', () {
@@ -607,10 +646,7 @@ void main() {
       tester,
     ) async {
       expect(
-        await read(
-          tester,
-          data: const MediaQueryData(disableAnimations: true),
-        ),
+        await read(tester, data: const MediaQueryData(disableAnimations: true)),
         isTrue,
       );
     });
@@ -762,10 +798,7 @@ void main() {
       );
 
       expect(
-        find.ancestor(
-          of: find.byType(AspectRatio),
-          matching: _decorated(),
-        ),
+        find.ancestor(of: find.byType(AspectRatio), matching: _decorated()),
         findsOneWidget,
       );
     });
@@ -790,11 +823,7 @@ void main() {
     ) async {
       await tester.pumpWidget(
         _host(
-          const WidgetStyle(
-            width: 40,
-            height: 20,
-            margin: EdgeInsets.all(8),
-          ),
+          const WidgetStyle(width: 40, height: 20, margin: EdgeInsets.all(8)),
           boxBuilder: _probe,
         ),
       );
@@ -804,8 +833,7 @@ void main() {
           of: find.byType(_BoxProbe),
           matching: find.byWidgetPredicate(
             (widget) =>
-                widget is Padding &&
-                widget.padding == const EdgeInsets.all(8),
+                widget is Padding && widget.padding == const EdgeInsets.all(8),
           ),
         ),
         findsOneWidget,
@@ -884,8 +912,9 @@ void main() {
 
 void _robustnessTests() {
   group('AnimatedStyledBox robustness', () {
-    testWidgets('removing a shadow with an overshooting curve does not throw',
-        (tester) async {
+    testWidgets('removing a shadow with an overshooting curve does not throw', (
+      tester,
+    ) async {
       const bouncy = AnimationStyle(
         duration: Duration(milliseconds: 100),
         curve: Curves.easeOutBack,
@@ -900,17 +929,16 @@ void _robustnessTests() {
         ),
       );
       await tester.pumpWidget(
-        _host(
-          const WidgetStyle(backgroundColor: _red, animationStyle: bouncy),
-        ),
+        _host(const WidgetStyle(backgroundColor: _red, animationStyle: bouncy)),
       );
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('min and max that cross mid-animation do not throw',
-        (tester) async {
+    testWidgets('min and max that cross mid-animation do not throw', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           const WidgetStyle(
@@ -935,8 +963,9 @@ void _robustnessTests() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a focused child keeps focus when a foreground tint appears',
-        (tester) async {
+    testWidgets('a focused child keeps focus when a foreground tint appears', (
+      tester,
+    ) async {
       final node = FocusNode();
       addTearDown(node.dispose);
       Widget build(WidgetStyle style) {
