@@ -776,20 +776,7 @@ class _ScrollFocusState extends State<ScrollFocus>
 /// extends past would not scroll back to it. An arrow that an enclosing
 /// policy with its own `requestFocusCallback` handles keeps that reveal.
 class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
-  new() : super(requestFocusCallback: _requestFocus);
-
-  /// Focuses [node] for a Tab or Shift+Tab and reveals it by
-  /// [revealInViewports], in place of Flutter's one-policy reveal.
-  static void _requestFocus(
-    FocusNode node, {
-    ScrollPositionAlignmentPolicy? alignmentPolicy,
-    double? alignment,
-    Duration? duration,
-    Curve? curve,
-  }) {
-    node.requestFocus();
-    revealInViewports(node);
-  }
+  new() : super(requestFocusCallback: requestFocusInViewports);
 
   @override
   bool inDirection(FocusNode currentNode, TraversalDirection direction) {

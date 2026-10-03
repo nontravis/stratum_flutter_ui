@@ -915,6 +915,73 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+
+    testWidgets(
+      'Tab from a group item to the stop after the group reveals it by the '
+      'edge of each viewport: the end of the row and the start of the page',
+      (tester) async {
+        final controller = _controller();
+        final cards = _nodes();
+        final after = _node('after');
+        Widget box(FocusNode node) => Focus(
+          focusNode: node,
+          child: const SizedBox(width: 100, height: 50),
+        );
+        await tester.pumpWidget(
+          themedHost(
+            Shortcuts(
+              shortcuts: WidgetsApp.defaultShortcuts,
+              child: Actions(
+                actions: WidgetsApp.defaultActions,
+                child: SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: SingleChildScrollView(
+                    controller: controller,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 300),
+                        SizedBox(
+                          width: 200,
+                          height: 50,
+                          child: RowLayout(
+                            style: const WidgetStyle(),
+                            scroll: const StratumScroll(),
+                            children: [
+                              RowLayout(
+                                mainAxisSize: MainAxisSize.min,
+                                focusGroup: const StratumFocusGroup(),
+                                children: [for (final card in cards) box(card)],
+                              ),
+                              box(after),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 300),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await _focus(tester, cards[2]);
+        // The row shows cards 1 and 2, so the stop after the group lies
+        // past its end; the page shows 320 to 520, so the row, at 300 to
+        // 350, extends past the page's top.
+        _rowPosition(tester).jumpTo(100);
+        controller.jumpTo(320);
+        await tester.pump();
+
+        await _tab(tester);
+
+        expect(_rowPosition(tester).pixels, 200);
+        _expectInRow(tester, after);
+        _expectInPage(tester, after, controller, 300);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 
   group('StratumFocusGroup with a focusable scroller member', () {

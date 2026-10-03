@@ -352,8 +352,11 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
 /// When the current node lies inside a member, such as an item in a
 /// focusable scroller, the member keeps the members inside it, after it
 /// in reading order, so Tab moves among them before it leaves the group.
+///
+/// Tab, Shift+Tab, and Flutter's arrows from an item reveal the newly
+/// focused node by [requestFocusInViewports].
 class _FocusGroupPolicy extends ReadingOrderTraversalPolicy {
-  new(this.lastFocused);
+  new(this.lastFocused) : super(requestFocusCallback: requestFocusInViewports);
 
   /// The node inside the group that last held primary focus.
   final ValueGetter<FocusNode?> lastFocused;
@@ -402,6 +405,20 @@ FocusNode? firstTabStopIn(FocusNode container) {
   return first;
 }
 
+/// Focuses [node] and reveals it by [revealInViewports]: the
+/// `requestFocusCallback` of stratum's traversal policies, in place of
+/// Flutter's one-policy reveal.
+void requestFocusInViewports(
+  FocusNode node, {
+  ScrollPositionAlignmentPolicy? alignmentPolicy,
+  double? alignment,
+  Duration? duration,
+  Curve? curve,
+}) {
+  node.requestFocus();
+  revealInViewports(node);
+}
+
 /// Scrolls each viewport around [target], from the nearest outwards, by
 /// that viewport's own edge, so [target] shows whole with the least
 /// scroll: a viewport whose start [target] lies before reveals it at the
@@ -414,7 +431,7 @@ FocusNode? firstTabStopIn(FocusNode container) {
 /// `keepVisibleAtEnd` never scrolls a viewport back, so a row that
 /// scrolls to its end inside a page whose top the row extends past would
 /// stay cut off. The group arrows, [firstTabStopIn], and the traversal of
-/// a scroller's content group reveal through this.
+/// a focus group or a scroller's content group reveal through this.
 void revealInViewports(FocusNode target) {
   final context = target.context;
   final object = context?.findRenderObject();
