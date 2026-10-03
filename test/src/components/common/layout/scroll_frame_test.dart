@@ -1282,6 +1282,19 @@ void main() {
       expect(page(tester), 1);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
+    testWidgets("us11/fr01: a page change jumps when the theme's slow "
+        'level has no duration', (tester) async {
+      await focusView(
+        tester,
+        themedHost(pages(), theme: motionTheme(slow: Duration.zero)),
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+
+      expect(page(tester), 1);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
     testWidgets('reduced motion jumps to the page', (tester) async {
       await focusView(
         tester,

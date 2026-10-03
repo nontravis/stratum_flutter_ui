@@ -642,8 +642,9 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
   }
 
   /// Slides to [page] over the theme's `slow` level, or jumps there for
-  /// [jump] or when the app or the platform asks for less motion. With
-  /// [focusPage], focus then moves into the page, by [_focusPage].
+  /// [jump], when the app or the platform asks for less motion, or when
+  /// the `slow` level has no duration. With [focusPage], focus then moves
+  /// into the page, by [_focusPage].
   void _goToPage(
     PageController controller,
     int page, {
@@ -661,7 +662,9 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
       if (focusPage && shown == page) _focusPage(page);
     }
 
-    if (jump || reducesMotion(context)) {
+    if (jump ||
+        reducesMotion(context) ||
+        _motion.slow.duration == Duration.zero) {
       _slideTarget = null;
       controller.jumpToPage(page);
       if (focusPage) {
