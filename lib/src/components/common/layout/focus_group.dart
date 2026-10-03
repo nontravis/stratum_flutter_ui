@@ -441,14 +441,16 @@ void revealInViewports(FocusNode target) {
   // What each level scrolls into view: the target, then the viewport that
   // holds it, as Scrollable.ensureVisible walks the chain.
   RenderObject? shown = object;
+  // What the level before revealed. A two-dimensional view's vertical
+  // scrollable reveals it again, as Flutter's horizontal one does for both
+  // axes.
+  var revealed = object;
   for (
     var scrollable = Scrollable.maybeOf(context);
     scrollable != null && shown != null;
     scrollable = Scrollable.maybeOf(scrollable.context)
   ) {
-    // A two-dimensional view's vertical scrollable reveals the target
-    // itself, as Flutter's horizontal one does for both axes.
-    final reveal = _inViewportOf(shown, scrollable) ? shown : object;
+    final reveal = _inViewportOf(shown, scrollable) ? shown : revealed;
     final nested = _nestedBodyOf(scrollable);
     if (nested != null) {
       _revealInNestedBody(nested, scrollable, reveal, object);
@@ -464,6 +466,7 @@ void revealInViewports(FocusNode target) {
         );
       }
     }
+    revealed = reveal;
     shown = scrollable.context.findRenderObject();
   }
 }

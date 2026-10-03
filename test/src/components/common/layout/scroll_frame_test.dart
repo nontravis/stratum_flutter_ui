@@ -1835,6 +1835,83 @@ void main() {
     );
 
     testWidgets(
+      'Tab to a chip of a scroller in a cell below the visible rows of a '
+      'two-dimensional view reveals that cell',
+      (tester) async {
+        final page = _controller();
+        final rows = _controller();
+        final cells = _nodes(12);
+        final chips = _nodes(3);
+        // Cell 4, which starts row 2 below the visible rows, holds a
+        // scroller of three 60 px chips.
+        final scroller = RowLayout(
+          style: const WidgetStyle(),
+          scroll: const StratumScroll(),
+          children: [
+            for (final chip in chips)
+              Focus(
+                focusNode: chip,
+                child: const SizedBox(width: 60, height: 50),
+              ),
+          ],
+        );
+        await tester.pumpWidget(
+          themedHost(
+            Shortcuts(
+              shortcuts: WidgetsApp.defaultShortcuts,
+              child: Actions(
+                actions: WidgetsApp.defaultActions,
+                child: SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: ColumnLayout(
+                    scroll: StratumScroll(controller: page),
+                    children: [
+                      const SizedBox(height: 50),
+                      SizedBox(
+                        width: 200,
+                        height: 100,
+                        child: _Grid(
+                          delegate: _cellsOf(cells, replaced: {4: scroller}),
+                          verticalDetails: ScrollableDetails.vertical(
+                            controller: rows,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 300),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        tester
+            .widget<Focus>(
+              find.descendant(
+                of: find.byType(RowLayout),
+                matching: find.byWidgetPredicate(
+                  (widget) =>
+                      widget is Focus &&
+                      widget.focusNode?.debugLabel == 'ScrollFocus',
+                ),
+              ),
+            )
+            .focusNode!
+            .requestFocus();
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+
+        expect(chips[0].hasPrimaryFocus, isTrue);
+        expect(rows.offset, 50);
+        expect(page.offset, 0);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
       "Flutter's Down arrow into a nested FocusScope reveals the focused "
       "leaf, not the scope's start",
       (tester) async {
@@ -2177,16 +2254,23 @@ class _ProbeState extends State<_Probe> {
 /// The size of each cell of a [_Grid].
 const _gridCell = Size(100, 50);
 
-/// Cells of a [_Grid], two to a row, each a Tab stop on one of [cells];
-/// disposed after the test.
-TwoDimensionalChildBuilderDelegate _cellsOf(List<FocusNode> cells) {
+/// Cells of a [_Grid], two to a row, each a Tab stop on one of [cells],
+/// or the widget [replaced] holds for its index; disposed after the test.
+TwoDimensionalChildBuilderDelegate _cellsOf(
+  List<FocusNode> cells, {
+  Map<int, Widget> replaced = const {},
+}) {
   final delegate = TwoDimensionalChildBuilderDelegate(
     maxXIndex: 1,
     maxYIndex: cells.length ~/ 2 - 1,
-    builder: (context, vicinity) => Focus(
-      focusNode: cells[vicinity.yIndex * 2 + vicinity.xIndex],
-      child: SizedBox.fromSize(size: _gridCell),
-    ),
+    builder: (context, vicinity) {
+      final index = vicinity.yIndex * 2 + vicinity.xIndex;
+      return replaced[index] ??
+          Focus(
+            focusNode: cells[index],
+            child: SizedBox.fromSize(size: _gridCell),
+          );
+    },
   );
   addTearDown(delegate.dispose);
   return delegate;
