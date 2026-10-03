@@ -53,29 +53,72 @@ void main() {
       expect(row.mainAxisSize, MainAxisSize.max);
     });
 
-    testWidgets('crossAxisIntrinsic applies only without a style height', (
-      tester,
-    ) async {
+    testWidgets('crossAxisIntrinsic sizes the height to the tallest child '
+        'only without a style height', (tester) async {
       await tester.pumpWidget(
         _host(
           const RowLayout(
             crossAxisIntrinsic: true,
-            children: [SizedBox(width: 20)],
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(width: 20, height: 60),
+              SizedBox(key: _a, width: 20),
+            ],
           ),
         ),
       );
-      expect(find.byType(IntrinsicHeight), findsOneWidget);
+      expect(tester.getSize(find.byKey(_a)).height, 60);
 
       await tester.pumpWidget(
         _host(
           const RowLayout(
             crossAxisIntrinsic: true,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             style: WidgetStyle(height: 100),
-            children: [SizedBox(width: 20)],
+            children: [
+              SizedBox(width: 20, height: 60),
+              SizedBox(key: _a, width: 20),
+            ],
           ),
         ),
       );
-      expect(find.byType(IntrinsicHeight), findsNothing);
+      expect(tester.getSize(find.byKey(_a)).height, 100);
+    });
+
+    testWidgets('(pin) crossAxisIntrinsic keeps the baseline alignment that '
+        'IntrinsicHeight gives a Row', (tester) async {
+      const children = [
+        Text('a', key: _a, style: TextStyle(fontSize: 10)),
+        Text('b', key: _b, style: TextStyle(fontSize: 30)),
+      ];
+      Future<List<Offset>> places(Widget row) async {
+        await tester.pumpWidget(_host(row));
+        return [
+          for (final key in [_a, _b]) tester.getTopLeft(find.byKey(key)),
+        ];
+      }
+
+      final expected = await places(
+        const IntrinsicHeight(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: children,
+          ),
+        ),
+      );
+      final actual = await places(
+        const RowLayout(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisIntrinsic: true,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: children,
+        ),
+      );
+
+      expect(actual, expected);
     });
 
     testWidgets('gap becomes Row.spacing, also with an interaction', (

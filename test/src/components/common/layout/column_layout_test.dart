@@ -71,29 +71,36 @@ void main() {
       expect(column.mainAxisSize, MainAxisSize.max);
     });
 
-    testWidgets('crossAxisIntrinsic applies only without a style width', (
-      tester,
-    ) async {
+    testWidgets('crossAxisIntrinsic sizes the width to the widest child '
+        'only without a style width', (tester) async {
       await tester.pumpWidget(
         _host(
           const ColumnLayout(
             crossAxisIntrinsic: true,
-            children: [SizedBox(height: 20)],
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(width: 60, height: 20),
+              SizedBox(key: _a, height: 20),
+            ],
           ),
         ),
       );
-      expect(find.byType(IntrinsicWidth), findsOneWidget);
+      expect(tester.getSize(find.byKey(_a)).width, 60);
 
       await tester.pumpWidget(
         _host(
           const ColumnLayout(
             crossAxisIntrinsic: true,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             style: WidgetStyle(width: 100),
-            children: [SizedBox(height: 20)],
+            children: [
+              SizedBox(width: 60, height: 20),
+              SizedBox(key: _a, height: 20),
+            ],
           ),
         ),
       );
-      expect(find.byType(IntrinsicWidth), findsNothing);
+      expect(tester.getSize(find.byKey(_a)).width, 100);
     });
 
     testWidgets('gap becomes Column.spacing, also with an interaction', (

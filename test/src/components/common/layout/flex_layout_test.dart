@@ -80,34 +80,36 @@ void main() {
       });
     }
 
-    for (final (direction, intrinsic, crossStyle) in const [
-      (Axis.vertical, IntrinsicWidth, WidgetStyle(width: 100)),
-      (Axis.horizontal, IntrinsicHeight, WidgetStyle(height: 100)),
+    for (final (direction, crossStyle) in const [
+      (Axis.vertical, WidgetStyle(width: 100)),
+      (Axis.horizontal, WidgetStyle(height: 100)),
     ]) {
-      testWidgets('crossAxisIntrinsic builds $intrinsic unless the style '
-          'sets the cross size: $direction', (tester) async {
-        await tester.pumpWidget(
-          _host(
-            FlexLayout(
-              direction: direction,
-              crossAxisIntrinsic: true,
-              children: const [_child],
-            ),
+      testWidgets('crossAxisIntrinsic sizes the cross axis to the largest '
+          'child unless the style sets it: $direction', (tester) async {
+        const stretched = Key('stretched');
+        final vertical = direction == Axis.vertical;
+        double cross(Size size) => vertical ? size.width : size.height;
+        Widget flex({WidgetStyle? style}) => _host(
+          FlexLayout(
+            direction: direction,
+            crossAxisIntrinsic: true,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            style: style,
+            children: [
+              // The largest child, 60 px across the axis.
+              SizedBox(width: vertical ? 60 : 20, height: vertical ? 20 : 60),
+              const SizedBox(key: stretched, width: 20, height: 20),
+            ],
           ),
         );
-        expect(find.byType(intrinsic), findsOneWidget);
 
-        await tester.pumpWidget(
-          _host(
-            FlexLayout(
-              direction: direction,
-              crossAxisIntrinsic: true,
-              style: crossStyle,
-              children: const [_child],
-            ),
-          ),
-        );
-        expect(find.byType(intrinsic), findsNothing);
+        await tester.pumpWidget(flex());
+        expect(cross(tester.getSize(find.byType(FlexLayout))), 60);
+        expect(cross(tester.getSize(find.byKey(stretched))), 60);
+
+        await tester.pumpWidget(flex(style: crossStyle));
+        expect(cross(tester.getSize(find.byType(FlexLayout))), 100);
+        expect(cross(tester.getSize(find.byKey(stretched))), 100);
       });
     }
 
@@ -176,6 +178,46 @@ void main() {
         await tester.sendKeyEvent(previous);
         await tester.pump();
         expect(items[1].hasPrimaryFocus, isTrue);
+      });
+    }
+
+    for (final (name, style) in const [
+      ('no style', null),
+      ('a width-only style', WidgetStyle(width: 200)),
+      ('a height-only style', WidgetStyle(height: 200)),
+    ]) {
+      testWidgets('with crossAxisIntrinsic, a direction change keeps a '
+          "focused TextField's State, text, and focus: $name (us08/fr01/e01)", (
+        tester,
+      ) async {
+        Widget flex(Axis direction) => MaterialApp(
+          home: Material(
+            child: Center(
+              child: FlexLayout(
+                direction: direction,
+                crossAxisIntrinsic: true,
+                style: style,
+                children: const [SizedBox(width: 120, child: TextField())],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(flex(Axis.vertical));
+        await tester.enterText(find.byType(TextField), 'typed');
+        final state = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        expect(state.widget.focusNode.hasFocus, isTrue);
+
+        await tester.pumpWidget(flex(Axis.horizontal));
+        await tester.pumpWidget(flex(Axis.vertical));
+
+        final after = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        expect(identical(after, state), isTrue);
+        expect(after.textEditingValue.text, 'typed');
+        expect(after.widget.focusNode.hasFocus, isTrue);
       });
     }
 

@@ -20,8 +20,8 @@ Each entry: usage, key parameters, keyboard behavior.
   Keyboard: none of its own; a tap surface comes from `interaction`.
 - **`FlexLayout`** — the base of `ColumnLayout` and `RowLayout`: a `Flex` whose `direction` may change between
   builds without remounting children, with `mainAxisAlignment`, `crossAxisAlignment`, `gap` (maps to `Flex.spacing`),
-  and `crossAxisIntrinsic` (sizes to the largest child through `IntrinsicWidth`/`IntrinsicHeight`, unless `style`
-  sets that cross size; toggling it does remount the children, because the intrinsic wrapper changes type).
+  and `crossAxisIntrinsic` (sizes the cross axis to the largest child, unless `style` sets that cross size; a
+  `direction` change keeps the children's `State` with it set too, and only toggling it remounts them).
   Keyboard: `focusGroup` turns its children into one roving Tab stop (K3): arrows by screen direction, Home, End.
 - **`ColumnLayout`**, **`RowLayout`** — `FlexLayout` with `direction` fixed to vertical or horizontal; same
   parameters, defaults, and order as before `FlexLayout` existed, so no caller changes.
