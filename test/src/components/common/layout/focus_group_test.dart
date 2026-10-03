@@ -186,14 +186,20 @@ void _expectRevealed(
 }
 
 /// [row] between two 300 px fillers in a 200 by 200 vertical scroll view
-/// on [controller].
-Widget _belowAndAbove(Widget row, ScrollController controller) {
+/// on [controller], under [textDirection], reversed with [reverse].
+Widget _belowAndAbove(
+  Widget row,
+  ScrollController controller, {
+  TextDirection textDirection = TextDirection.ltr,
+  bool reverse = false,
+}) {
   return themedHost(
     SizedBox(
       width: 200,
       height: 200,
       child: SingleChildScrollView(
         controller: controller,
+        reverse: reverse,
         child: Column(
           children: [
             const SizedBox(height: 300),
@@ -202,6 +208,27 @@ Widget _belowAndAbove(Widget row, ScrollController controller) {
           ],
         ),
       ),
+    ),
+    textDirection: textDirection,
+  );
+}
+
+/// Ten 100 px cards in a group inside a 200 by 50 scrolling row.
+Widget _scrollingCards(List<FocusNode> cards) {
+  return SizedBox(
+    width: 200,
+    height: 50,
+    child: RowLayout(
+      style: const WidgetStyle(),
+      scroll: const StratumScroll(),
+      focusGroup: const StratumFocusGroup(),
+      children: [
+        for (final card in cards)
+          Focus(
+            focusNode: card,
+            child: const SizedBox(width: 100, height: 50),
+          ),
+      ],
     ),
   );
 }
@@ -912,6 +939,62 @@ void main() {
         expect(_rowPosition(tester).pixels, 300);
         _expectInRow(tester, items[4]);
         _expectInPage(tester, items[4], controller, 300);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'Left reveals the next card by the edge of each viewport under '
+      'right-to-left text: the end of the row and the start of the page',
+      (tester) async {
+        final controller = _controller();
+        final items = _nodes(10);
+        await tester.pumpWidget(
+          _belowAndAbove(
+            _scrollingCards(items),
+            controller,
+            textDirection: TextDirection.rtl,
+          ),
+        );
+        await _focus(tester, items[3]);
+        // The row shows cards 2 and 3 from its right edge, so card 4 lies
+        // past its end on the left; the page shows 320 to 520, so the row,
+        // at 300 to 350, extends past the page's top.
+        _rowPosition(tester).jumpTo(200);
+        controller.jumpTo(320);
+        await tester.pump();
+
+        await _key(tester, LogicalKeyboardKey.arrowLeft);
+
+        expect(_rowPosition(tester).pixels, 300);
+        _expectInRow(tester, items[4]);
+        _expectInPage(tester, items[4], controller, 300);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'Right reveals the next card by the edge of each viewport in a '
+      'reversed page: the end of the row and the top of the page',
+      (tester) async {
+        final controller = _controller();
+        final items = _nodes(10);
+        await tester.pumpWidget(
+          _belowAndAbove(_scrollingCards(items), controller, reverse: true),
+        );
+        await _focus(tester, items[3]);
+        // The reversed page counts from the bottom of its 650 px content:
+        // at 130 it shows 320 to 520, so the row, at 300 to 350, extends
+        // past the page's top.
+        _rowPosition(tester).jumpTo(200);
+        controller.jumpTo(130);
+        await tester.pump();
+
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+
+        expect(_rowPosition(tester).pixels, 300);
+        _expectInRow(tester, items[4]);
+        _expectInPage(tester, items[4], controller, 650 - 200 - 300);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );

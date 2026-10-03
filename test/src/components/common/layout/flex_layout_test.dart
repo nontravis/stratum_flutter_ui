@@ -114,6 +114,111 @@ void main() {
     }
 
     for (final direction in Axis.values) {
+      final reference = direction == Axis.vertical
+          ? 'IntrinsicWidth'
+          : 'IntrinsicHeight';
+      testWidgets('crossAxisIntrinsic answers intrinsic, dry layout, dry '
+          'baseline, and unbounded layout as $reference does: $direction', (
+        tester,
+      ) async {
+        final vertical = direction == Axis.vertical;
+        // The aspect ratio's size across the axis follows its size along
+        // it, and the turned text's least height is its longest word, so
+        // every answer depends on the size the layout gives its child.
+        // Neither has a baseline.
+        const children = [
+          IgnoreBaseline(
+            child: AspectRatio(aspectRatio: 1, child: SizedBox(width: 30)),
+          ),
+          Text('a'),
+          Text('a longer line that wraps'),
+          IgnoreBaseline(
+            child: RotatedBox(quarterTurns: 1, child: Text('turned text')),
+          ),
+        ];
+        Widget layout() => FlexLayout(
+          direction: direction,
+          crossAxisIntrinsic: true,
+          children: children,
+        );
+        final inner = find.descendant(
+          of: find.byType(FlexLayout),
+          matching: find.byType(Flex),
+        );
+        await tester.pumpWidget(_host(layout()));
+        final flex = tester.widget<Flex>(inner);
+
+        // Both lay out side by side under unbounded constraints.
+        await tester.pumpWidget(
+          _host(
+            UnconstrainedBox(
+              child: Flex(
+                direction: vertical ? Axis.horizontal : Axis.vertical,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  layout(),
+                  if (vertical)
+                    IntrinsicWidth(child: flex)
+                  else
+                    IntrinsicHeight(child: flex),
+                ],
+              ),
+            ),
+          ),
+        );
+        final cross =
+            tester.renderObject<RenderBox>(inner).parent! as RenderBox;
+        final expected = tester.renderObject<RenderBox>(
+          find.byType(vertical ? IntrinsicWidth : IntrinsicHeight),
+        );
+
+        expect(cross, isNot(same(expected)));
+        expect(cross.size, expected.size);
+        for (final extent in [0.0, 40.0, 120.0, 600.0, double.infinity]) {
+          expect(
+            cross.getMinIntrinsicWidth(extent),
+            expected.getMinIntrinsicWidth(extent),
+            reason: 'min width at height $extent',
+          );
+          expect(
+            cross.getMaxIntrinsicWidth(extent),
+            expected.getMaxIntrinsicWidth(extent),
+            reason: 'max width at height $extent',
+          );
+          expect(
+            cross.getMinIntrinsicHeight(extent),
+            expected.getMinIntrinsicHeight(extent),
+            reason: 'min height at width $extent',
+          );
+          expect(
+            cross.getMaxIntrinsicHeight(extent),
+            expected.getMaxIntrinsicHeight(extent),
+            reason: 'max height at width $extent',
+          );
+        }
+        for (final constraints in const [
+          BoxConstraints(),
+          BoxConstraints(maxWidth: 120),
+          BoxConstraints(maxHeight: 40),
+          BoxConstraints(maxWidth: 600, maxHeight: 600),
+          BoxConstraints.tightFor(width: 80),
+          BoxConstraints.tightFor(height: 80),
+        ]) {
+          expect(
+            cross.getDryLayout(constraints),
+            expected.getDryLayout(constraints),
+            reason: 'dry layout under $constraints',
+          );
+          expect(
+            cross.getDryBaseline(constraints, TextBaseline.alphabetic),
+            expected.getDryBaseline(constraints, TextBaseline.alphabetic),
+            reason: 'dry baseline under $constraints',
+          );
+        }
+      });
+    }
+
+    for (final direction in Axis.values) {
       testWidgets('scroll scrolls along $direction without a direction of '
           'its own', (tester) async {
         await tester.pumpWidget(
@@ -181,15 +286,28 @@ void main() {
       });
     }
 
-    for (final (name, style) in const [
-      ('no style', null),
-      ('a width-only style', WidgetStyle(width: 200)),
-      ('a height-only style', WidgetStyle(height: 200)),
+    // The width and height of each layout below in the 800 by 600 window,
+    // vertical and then horizontal: the main axis fills the window unless
+    // the style sizes it; null takes the field's own size, which sizes the
+    // cross axis unless the style does.
+    for (final (name, style, vertical, horizontal) in const [
+      ('no style', null, (null, 600.0), (800.0, null)),
+      (
+        'a width-only style',
+        WidgetStyle(width: 200),
+        (200.0, 600.0),
+        (200.0, null),
+      ),
+      (
+        'a height-only style',
+        WidgetStyle(height: 200),
+        (null, 200.0),
+        (800.0, 200.0),
+      ),
     ]) {
       testWidgets('with crossAxisIntrinsic, a direction change keeps a '
-          "focused TextField's State, text, and focus: $name (us08/fr01/e01)", (
-        tester,
-      ) async {
+          "focused TextField's State, text, focus, and size: $name "
+          '(us08/fr01/e01)', (tester) async {
         Widget flex(Axis direction) => MaterialApp(
           home: Material(
             child: Center(
@@ -202,15 +320,29 @@ void main() {
             ),
           ),
         );
+        void expectSize(Axis direction) {
+          final (width, height) = direction == Axis.vertical
+              ? vertical
+              : horizontal;
+          final field = tester.getSize(find.byType(TextField));
+          expect(
+            tester.getSize(find.byType(FlexLayout)),
+            Size(width ?? field.width, height ?? field.height),
+          );
+        }
+
         await tester.pumpWidget(flex(Axis.vertical));
         await tester.enterText(find.byType(TextField), 'typed');
         final state = tester.state<EditableTextState>(
           find.byType(EditableText),
         );
         expect(state.widget.focusNode.hasFocus, isTrue);
+        expectSize(Axis.vertical);
 
         await tester.pumpWidget(flex(Axis.horizontal));
+        expectSize(Axis.horizontal);
         await tester.pumpWidget(flex(Axis.vertical));
+        expectSize(Axis.vertical);
 
         final after = tester.state<EditableTextState>(
           find.byType(EditableText),
