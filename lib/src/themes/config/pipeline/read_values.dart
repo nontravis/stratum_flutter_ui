@@ -1,5 +1,6 @@
 import 'dart:ui' show Color;
 
+import 'package:stratum_ui/src/themes/config/animation_config.dart';
 import 'package:stratum_ui/src/themes/config/by_window_size.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/check_keys.dart';
@@ -57,6 +58,7 @@ final class _Read {
         highContrastDark: _colorSet('highContrastDark'),
       ),
       typography: _typography(tree['typography']),
+      animation: _animation(tree['animation']),
       extensions: _extensions(tree['extensions']),
     );
   }
@@ -311,6 +313,102 @@ final class _Read {
       value,
     ).color(value, dotted, alias: _theme.aliases[dotted]);
     if (color != null) out[path.skip(skip).join('.')] = color;
+  }
+
+  static final _percent = RegExp(r'^(\d+(?:\.\d+)?)%$');
+
+  /// The `animation` group (spec sections 8.1 and 8.2). Its levels are the
+  /// package default's, read from the schema; its values are never
+  /// alias-resolved.
+  StratumAnimationConfig _animation(Object? value) {
+    final node = _reader.map(value, 'animation');
+    final duration = node == null
+        ? null
+        : _reader.map(node['duration'], 'animation.duration');
+    final curve = node == null
+        ? null
+        : _reader.map(node['curve'], 'animation.curve');
+    final levels = [
+      for (final key
+          in _schema.keysAt(const ['animation', 'duration'])?.keys ??
+              const <String>[])
+        if (key != 'default') key,
+    ];
+    return StratumAnimationConfig(
+      durations: Map.unmodifiable(_durations(duration, levels)),
+      defaultLevel: _defaultLevel(duration, levels),
+      reverseRatio: node == null ? 0 : _reverseRatio(node['reverseDuration']),
+      curves: Map.unmodifiable(_curves(curve)),
+    );
+  }
+
+  Map<String, Duration> _durations(
+    Map<String, Object?>? node,
+    List<String> levels,
+  ) {
+    final durations = <String, Duration>{};
+    if (node == null) return durations;
+    for (final level in levels) {
+      final value = node[level];
+      if (value is num && value >= 0) {
+        durations[level] = Duration(microseconds: (value * 1000).round());
+        continue;
+      }
+      _reader.report(
+        StratumThemeErrorCode.expectedDuration,
+        'animation.duration.$level',
+        'expected a number of milliseconds of 0 or more, got '
+            '${ThemeReader.show(value)}',
+      );
+    }
+    return durations;
+  }
+
+  /// `duration.default` when it names a level; a level whose own value
+  /// failed reports nothing more here (schema v1's no-repeat rule).
+  String _defaultLevel(Map<String, Object?>? node, List<String> levels) {
+    final value = node?['default'];
+    if (value is String && levels.contains(value)) return value;
+    if (node != null) {
+      _reader.report(
+        StratumThemeErrorCode.expectedDuration,
+        'animation.duration.default',
+        'expected one of ${levels.join(', ')}, got ${ThemeReader.show(value)}',
+      );
+    }
+    return levels.isEmpty ? '' : levels.first;
+  }
+
+  double _reverseRatio(Object? value) {
+    final match = value is String ? _percent.firstMatch(value) : null;
+    if (match != null) return double.parse(match[1]!) / 100;
+    _reader.report(
+      StratumThemeErrorCode.expectedDuration,
+      'animation.reverseDuration',
+      'expected "N%" of 0% or more, got ${ThemeReader.show(value)}',
+    );
+    return 0;
+  }
+
+  Map<String, StratumCurve> _curves(Map<String, Object?>? node) {
+    final curves = <String, StratumCurve>{};
+    for (final MapEntry(:key, :value)
+        in (node ?? const <String, Object?>{}).entries) {
+      final curve = value is String ? StratumCurve.tryParse(value) : null;
+      if (curve != null) {
+        curves[key] = curve;
+        continue;
+      }
+      final shown = ThemeReader.show(value);
+      _reader.report(
+        StratumThemeErrorCode.expectedCurve,
+        'animation.curve.$key',
+        value is String && StratumCubicCurve.pattern.hasMatch(value)
+            ? 'expected cubic x values a and c within 0 and 1, got $shown'
+            : 'expected a Curves name or "cubic(a, b, c, d)", got $shown',
+      );
+    }
+    return curves;
   }
 
   StratumTypography _typography(Object? value) {

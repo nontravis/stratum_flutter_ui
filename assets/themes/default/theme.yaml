@@ -684,4 +684,18 @@ typography:
         s14: { spaceHeight: 10 }
         s12: { spaceHeight: 4 }
 
+animation:
+  duration:
+    default: fast            # the level animation.defaultStyle takes
+    veryFast: 50             # milliseconds
+    fast: 125
+    normal: 200
+    slow: 300
+    verySlow: 400
+  reverseDuration: 64%       # reverse = forward x 64%: fast 125 ms gives 80 ms
+  curve:                     # a Flutter Curves name, or "cubic(a, b, c, d)" as Figma and CSS write it
+    standard: easeInOutSine  # forward and reverse of every level
+    enter: easeOut           # forward of animation.appear
+    exit: easeIn             # reverse of animation.appear
+
 extensions: {}

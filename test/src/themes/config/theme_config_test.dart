@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -117,6 +119,60 @@ void main() {
           '  layer1:6:1 spcae: unknown key "spcae" [unknown_key]',
           badRadius,
         ],
+      );
+    });
+
+    test('the spec section 8.4 sample over the package default, text and '
+        'order exactly', () {
+      const ocean = r'''
+$schema: stratum-theme/v1.0.0
+name: Ocean
+space:
+  md: 5%
+animation:
+  duration:
+    default: medium
+    fast: -10
+  reverseDuration: 64
+  curve:
+    enter: easeInOutSin
+    exit: "cubic(1.2, 0, 0.6, 1)"
+''';
+      final base = StratumThemeSource(
+        id: 'stratum-default',
+        folder: 'packages/stratum_ui/assets/themes/default',
+        yaml: File('assets/themes/default/theme.yaml').readAsStringSync(),
+      );
+      const header = 'StratumThemeFormatException: 6 problem(s) in theme.yaml';
+      const space =
+          '  ocean:4:7 space.md: expected a number, got "5%"; a percent is '
+          'allowed only in layouts [expected_dimension]';
+      const level =
+          '  ocean:7:14 animation.duration.default: expected one of veryFast, '
+          'fast, normal, slow, verySlow, got "medium" [expected_duration]';
+      const fast =
+          '  ocean:8:11 animation.duration.fast: expected a number of '
+          'milliseconds of 0 or more, got -10 [expected_duration]';
+      const reverse =
+          '  ocean:9:20 animation.reverseDuration: expected "N%" of 0% or '
+          'more, got 64 [expected_duration]';
+      const enter =
+          '  ocean:11:12 animation.curve.enter: expected a Curves name or '
+          '"cubic(a, b, c, d)", got "easeInOutSin" [expected_curve]';
+      const exit =
+          '  ocean:12:11 animation.curve.exit: expected cubic x values a and '
+          'c within 0 and 1, got "cubic(1.2, 0, 0.6, 1)" [expected_curve]';
+
+      expect(
+        () =>
+            StratumThemeConfig.parse(base: base, layers: [_oceanSource(ocean)]),
+        throwsA(
+          isA<StratumThemeFormatException>().having(
+            (exception) => '$exception'.split('\n'),
+            'lines',
+            [header, space, level, fast, reverse, enter, exit],
+          ),
+        ),
       );
     });
   });

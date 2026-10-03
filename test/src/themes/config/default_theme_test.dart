@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -123,4 +125,45 @@ void main() {
     expect((light['transparent'] ?? 0) + (dark['transparent'] ?? 0), 219);
     expect((light['color'] ?? 0) + (dark['color'] ?? 0), 16);
   });
+
+  test('the animation group reads the spec section 8.1 values', () {
+    expect(
+      config.animation,
+      const StratumAnimationConfig(
+        durations: {
+          'veryFast': Duration(milliseconds: 50),
+          'fast': Duration(milliseconds: 125),
+          'normal': Duration(milliseconds: 200),
+          'slow': Duration(milliseconds: 300),
+          'verySlow': Duration(milliseconds: 400),
+        },
+        defaultLevel: 'fast',
+        reverseRatio: 0.64,
+        curves: {
+          'standard': StratumNamedCurve('easeInOutSine'),
+          'enter': StratumNamedCurve('easeOut'),
+          'exit': StratumNamedCurve('easeIn'),
+        },
+      ),
+    );
+  });
+
+  final flutterRoot = Platform.environment['FLUTTER_ROOT'];
+  test("the curve table equals the SDK's Curves constants", () {
+    final source = File(
+      '$flutterRoot/packages/flutter/lib/src/animation/curves.dart',
+    ).readAsStringSync();
+    final curves = source.substring(
+      source.indexOf('abstract final class Curves'),
+    );
+    final names = RegExp(r'static const \w+ (\w+) =')
+        .allMatches(curves)
+        .map((match) => match[1]!)
+        .toList();
+
+    expect(names, hasLength(43));
+    expect(StratumNamedCurve.byName.keys, names);
+    expect(StratumNamedCurve.byName['easeInOutSine'], Curves.easeInOutSine);
+    expect(StratumNamedCurve.byName['elasticInOut'], Curves.elasticInOut);
+  }, skip: flutterRoot == null ? 'FLUTTER_ROOT is not set' : null);
 }

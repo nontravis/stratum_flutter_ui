@@ -43,6 +43,12 @@ void main() {
         'transparent',
       ),
       ('an asset slot', 'assets:\n  mascot: mascot.png', 'assets.mascot'),
+      ('an animation key', 'animation:\n  speed: 1', 'animation.speed'),
+      (
+        'an animation curve role',
+        'animation:\n  curve:\n    bounce: bounceIn',
+        'animation.curve.bounce',
+      ),
       (
         'a high-contrast key that color.light lacks',
         'color:\n  highContrastLight:\n    brand:\n      pressed: "#000000"',

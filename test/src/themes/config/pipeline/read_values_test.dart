@@ -500,4 +500,182 @@ typography:
       expect(errors.sorted[1].column, 24);
     });
   });
+
+  group('readThemeValues animation', () {
+    test('reads the levels, the default, the reverse ratio, and the '
+        'curves', () {
+      final (config, errors) = _read([]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.animation.durations, {
+        'veryFast': const Duration(milliseconds: 50),
+        'fast': const Duration(milliseconds: 125),
+        'normal': const Duration(milliseconds: 200),
+        'slow': const Duration(milliseconds: 300),
+        'verySlow': const Duration(milliseconds: 400),
+      });
+      expect(config.animation.defaultLevel, 'fast');
+      expect(config.animation.reverseRatio, 0.64);
+      expect(config.animation.curves, {
+        'standard': const StratumNamedCurve('easeInOutSine'),
+        'enter': const StratumNamedCurve('easeOut'),
+        'exit': const StratumNamedCurve('easeIn'),
+      });
+      expect(config.animation.curves['standard']!.curve, Curves.easeInOutSine);
+    });
+
+    test('a layer that changes fast alone keeps the other levels', () {
+      final (config, errors) = _read([
+        layer('animation:\n  duration:\n    fast: 100'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(
+        config.animation.durations['fast'],
+        const Duration(milliseconds: 100),
+      );
+      expect(
+        config.animation.durations['slow'],
+        const Duration(milliseconds: 300),
+      );
+    });
+
+    test('0 ms, a fraction, 150%, and a new default read', () {
+      final (config, errors) = _read([
+        layer(
+          'animation:\n  duration:\n    default: normal\n    fast: 0\n'
+          '    slow: 12.5\n  reverseDuration: "150%"',
+        ),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.animation.durations['fast'], Duration.zero);
+      expect(
+        config.animation.durations['slow'],
+        const Duration(microseconds: 12500),
+      );
+      expect(config.animation.defaultLevel, 'normal');
+      expect(config.animation.reverseRatio, 1.5);
+    });
+
+    test('reads cubic with spaces, without spaces, and with .5', () {
+      final (config, errors) = _read([
+        layer(
+          'animation:\n  curve:\n    standard: "cubic(0.37, 0, 0.63, 1)"\n'
+          '    enter: "cubic(0.4,0,0.2,1)"\n'
+          '    exit: "cubic( .5 , -0.28 , .5 , 1.2 )"',
+        ),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.animation.curves, {
+        'standard': StratumCubicCurve(0.37, 0, 0.63, 1),
+        'enter': StratumCubicCurve(0.4, 0, 0.2, 1),
+        'exit': StratumCubicCurve(0.5, -0.28, 0.5, 1.2),
+      });
+      final standard = config.animation.curves['standard']!;
+      expect(standard.curve, isA<Cubic>());
+      expect(standard.curve, same(standard.curve));
+    });
+
+    test('every curve name of the table reads', () {
+      for (final name in StratumNamedCurve.byName.keys) {
+        final (config, errors) = _read([
+          layer('animation:\n  curve:\n    standard: $name'),
+        ]);
+
+        expect(problems(errors), isEmpty, reason: name);
+        expect(
+          config.animation.curves['standard']!.curve,
+          same(StratumNamedCurve.byName[name]),
+          reason: name,
+        );
+      }
+    });
+
+    final cases = <(String, String, String)>[
+      (
+        'a negative level',
+        'animation:\n  duration:\n    fast: -10',
+        'layer1 animation.duration.fast: expected a number of milliseconds '
+            'of 0 or more, got -10 [expected_duration]',
+      ),
+      (
+        'a level written as text',
+        'animation:\n  duration:\n    fast: "125ms"',
+        'layer1 animation.duration.fast: expected a number of milliseconds '
+            'of 0 or more, got "125ms" [expected_duration]',
+      ),
+      (
+        'a level written as a window-size map',
+        'animation:\n  duration:\n    fast: { mobile: 100 }',
+        'layer1 animation.duration.fast: expected a number of milliseconds '
+            'of 0 or more, got {mobile: 100} [expected_duration]',
+      ),
+      (
+        'a default that names no level',
+        'animation:\n  duration:\n    default: medium',
+        'layer1 animation.duration.default: expected one of veryFast, fast, '
+            'normal, slow, verySlow, got "medium" [expected_duration]',
+      ),
+      (
+        'a reverse duration without %',
+        'animation:\n  reverseDuration: 64',
+        'layer1 animation.reverseDuration: expected "N%" of 0% or more, got '
+            '64 [expected_duration]',
+      ),
+      (
+        'a negative reverse duration',
+        'animation:\n  reverseDuration: "-5%"',
+        'layer1 animation.reverseDuration: expected "N%" of 0% or more, got '
+            '"-5%" [expected_duration]',
+      ),
+      (
+        'a misspelled curve name',
+        'animation:\n  curve:\n    enter: easeInOutSin',
+        'layer1 animation.curve.enter: expected a Curves name or "cubic(a, '
+            'b, c, d)", got "easeInOutSin" [expected_curve]',
+      ),
+      (
+        'a curve name in the wrong case',
+        'animation:\n  curve:\n    enter: EaseIn',
+        'layer1 animation.curve.enter: expected a Curves name or "cubic(a, '
+            'b, c, d)", got "EaseIn" [expected_curve]',
+      ),
+      (
+        'a cubic x value outside 0 and 1',
+        'animation:\n  curve:\n    exit: "cubic(1.2, 0, 0.6, 1)"',
+        'layer1 animation.curve.exit: expected cubic x values a and c within '
+            '0 and 1, got "cubic(1.2, 0, 0.6, 1)" [expected_curve]',
+      ),
+      (
+        'a cubic with three values',
+        'animation:\n  curve:\n    exit: "cubic(0.4, 0, 0.2)"',
+        'layer1 animation.curve.exit: expected a Curves name or "cubic(a, '
+            'b, c, d)", got "cubic(0.4, 0, 0.2)" [expected_curve]',
+      ),
+      (
+        'a brace string, which is no alias here',
+        'animation:\n  curve:\n    standard: "{animation.curve.enter}"',
+        'layer1 animation.curve.standard: expected a Curves name or '
+            '"cubic(a, b, c, d)", got "{animation.curve.enter}" '
+            '[expected_curve]',
+      ),
+    ];
+    for (final (name, body, expected) in cases) {
+      test('reports $name', () {
+        expect(_problems(body), [expected]);
+      });
+    }
+
+    test('a token alias to an animation value is alias_not_token', () {
+      const expected =
+          'layer1 space.md: "{animation.duration.fast}" is outside the token '
+          'groups [alias_not_token]';
+
+      expect(_problems('space:\n  md: "{animation.duration.fast}"'), [
+        expected,
+      ]);
+    });
+  });
 }

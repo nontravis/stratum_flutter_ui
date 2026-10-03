@@ -79,6 +79,19 @@ typography:
     code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
     body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
 extensions: {}
+animation:
+  duration:
+    default: fast
+    veryFast: 50
+    fast: 125
+    normal: 200
+    slow: 300
+    verySlow: 400
+  reverseDuration: 64%
+  curve:
+    standard: easeInOutSine
+    enter: easeOut
+    exit: easeIn
 ''';
 
 /// The folder of the package default in [sources].
