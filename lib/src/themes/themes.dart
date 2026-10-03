@@ -1,5 +1,6 @@
 export 'animation.dart';
 export 'behavior/behavior.dart';
+export 'component_defaults.dart';
 export 'config/config.dart';
 export 'constant/constant.dart';
 export 'font_data.dart';

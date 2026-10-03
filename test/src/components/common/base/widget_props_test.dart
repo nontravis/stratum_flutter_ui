@@ -176,23 +176,40 @@ void main() {
       dropShadow: [BoxShadow(blurRadius: 4)],
     );
 
-    test('returns the defaults when customStyle is null', () {
-      expect(const _StatelessProbe().resolveStyle(defaults), same(defaults));
+    testWidgets('returns the defaults when customStyle is null', (
+      tester,
+    ) async {
+      final style = await _readInBuild(
+        tester,
+        (context) => const _StatelessProbe().resolveStyle(context, defaults),
+      );
+
+      expect(style, same(defaults));
     });
 
-    test('applies each non-null customStyle field over the defaults', () {
-      final style = const _StatelessProbe(customStyle: WidgetStyle(opacity: 1))
-          .resolveStyle(defaults);
+    testWidgets('applies each non-null customStyle field over the defaults', (
+      tester,
+    ) async {
+      final style = await _readInBuild(
+        tester,
+        (context) =>
+            const _StatelessProbe(customStyle: WidgetStyle(opacity: 1))
+                .resolveStyle(context, defaults),
+      );
 
       expect(style.opacity, 1);
       expect(style.padding, const EdgeInsets.all(8));
       expect(style.dropShadow, defaults.dropShadow);
     });
 
-    test('clears default shadows when customStyle passes an empty list', () {
-      final style = const _StatelessProbe(
-        customStyle: WidgetStyle(dropShadow: []),
-      ).resolveStyle(defaults);
+    testWidgets('clears default shadows when customStyle passes an empty '
+        'list', (tester) async {
+      final style = await _readInBuild(
+        tester,
+        (context) =>
+            const _StatelessProbe(customStyle: WidgetStyle(dropShadow: []))
+                .resolveStyle(context, defaults),
+      );
 
       expect(style.dropShadow, isEmpty);
     });

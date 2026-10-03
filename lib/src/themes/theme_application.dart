@@ -4,19 +4,27 @@ import 'package:stratum_ui/src/src.dart';
 /// high-contrast mode (spec section 7.3).
 class StratumThemeApplication extends InheritedWidget {
   /// Wraps [child] in a private body that inserts, top to bottom, a
-  /// [WindowSizeScope] when none is above the application and a Material
-  /// [Theme] of the active data (spec sections 7.3 and 10.1).
+  /// [WindowSizeScope] when none is above the application, a Material
+  /// [Theme] of the active data, and [StratumComponentDefaults] built by
+  /// [componentDefaults] from the active theme (spec sections 7.3, 7.9,
+  /// and 10.1).
   new({
     super.key,
     required this.themes,
     required this.themeMode,
     this.highContrast = HighContrastMode.system,
+    this.componentDefaults,
     required Widget child,
   }) : super(child: _StratumThemeBody(child: child));
 
   final StratumThemeSet themes;
   final ThemeMode themeMode;
   final HighContrastMode highContrast;
+
+  /// The app-wide component defaults (L2), built again whenever the
+  /// active theme changes. Never compared in [updateShouldNotify]: a
+  /// closure literal differs on every build (spec G10).
+  final StratumComponentDefaultsBuilder? componentDefaults;
 
   /// Throws a [FlutterError] that names [StratumThemeApplication] when
   /// none is above [context] (FO-03 US-04 FR-01 E03).
@@ -68,6 +76,7 @@ class StratumThemeApplication extends InheritedWidget {
       themes: application.themes,
       themeMode: application.themeMode,
       highContrast: application.highContrast,
+      componentDefaults: application.componentDefaults,
       child: child,
     );
   }
@@ -125,6 +134,27 @@ class _StratumMaterialTheme extends StatelessWidget {
         textScaler:
             MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling,
       ),
+      child: _StratumComponentDefaultsLayer(child: child),
+    );
+  }
+}
+
+/// Publishes the application's component defaults for the active theme
+/// (spec section 7.9, G14). Built again with the body, so a new
+/// `componentDefaults` closure takes effect, while an equal map notifies
+/// no component.
+class _StratumComponentDefaultsLayer extends StatelessWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final builder = context
+        .getInheritedWidgetOfExactType<StratumThemeApplication>()
+        ?.componentDefaults;
+    return StratumComponentDefaults(
+      styles: builder?.call(StratumTheme.of(context)) ?? const {},
       child: child,
     );
   }

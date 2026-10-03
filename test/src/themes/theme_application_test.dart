@@ -14,6 +14,8 @@ final StratumThemeSet _set = StratumThemeSet(
   highContrastDark: _contrastDark,
 );
 
+Map<Type, WidgetStyle> _defaults(StratumTheme theme) => const {};
+
 /// A dark platform with high contrast on, then the application, then a
 /// reader that stores what [StratumThemeApplication.maybeOf] gives.
 Widget _host(
@@ -264,7 +266,8 @@ void main() {
   });
 
   group('us10/fr05: StratumThemeApplication.wrap', () {
-    testWidgets('copies the theme set and both modes', (tester) async {
+    testWidgets('copies the theme set, both modes, and the component '
+        'defaults', (tester) async {
       late Widget wrapped;
       const child = SizedBox();
       await tester.pumpWidget(
@@ -272,6 +275,7 @@ void main() {
           themes: _set,
           themeMode: ThemeMode.dark,
           highContrast: HighContrastMode.on,
+          componentDefaults: _defaults,
           child: Builder(
             builder: (context) {
               wrapped = StratumThemeApplication.wrap(context, child: child);
@@ -290,6 +294,11 @@ void main() {
               (app) => app.highContrast,
               'highContrast',
               HighContrastMode.on,
+            )
+            .having(
+              (app) => app.componentDefaults,
+              'componentDefaults',
+              same(_defaults),
             ),
       );
     });
