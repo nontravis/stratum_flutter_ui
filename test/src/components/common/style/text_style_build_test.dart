@@ -29,7 +29,7 @@ typography:
     code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
     body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
 ''') as YamlMap;
-  return FakeStratumTheme(
+  return fakeStratumTheme(
     typography: StratumTypography.fromYaml(document['typography'] as YamlMap),
   );
 }
@@ -164,9 +164,11 @@ void main() {
 
     await tester.pumpWidget(
       StratumThemeApplication(
+        themes: StratumThemeSet(
+          light: theme,
+          dark: _theme(body: 'geist'),
+        ),
         themeMode: ThemeMode.light,
-        lightTheme: theme,
-        darkTheme: _theme(body: 'geist'),
         child: Directionality(
           textDirection: TextDirection.ltr,
           child: Column(

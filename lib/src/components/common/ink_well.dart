@@ -5,8 +5,8 @@ import 'package:stratum_ui/src/src.dart';
 /// Builds on [InkWell] for gestures, keyboard activation, focus, and hover,
 /// and adds what [InkWell] leaves out:
 ///
-/// * a flat overlay over [child]: the theme's `overlayHover` while hovered
-///   and `overlayActive` while pressed;
+/// * a flat overlay over [child]: the theme's `state.hover` color while
+///   hovered and `state.press` while pressed;
 /// * a [FocusSpread] ring, shown per [focusType];
 /// * a semantics node with a button role and a disabled flag;
 /// * the context-menu key and Shift+F10 for [onSecondaryTap], and a custom
@@ -176,8 +176,7 @@ class _StratumInkWellState extends State<StratumInkWell>
     return switch (widget.focusType) {
       FocusType.focused => true,
       FocusType.focusedVisible =>
-        FocusManager.instance.highlightMode ==
-            FocusHighlightMode.traditional,
+        FocusManager.instance.highlightMode == FocusHighlightMode.traditional,
       FocusType.none || FocusType.invisible => false,
     };
   }
@@ -199,8 +198,7 @@ class _StratumInkWellState extends State<StratumInkWell>
       _focusNode.addListener(_handleFocusChange);
       updateKeepAlive();
     }
-    if (oldWidget.statesController != null &&
-        widget.statesController == null) {
+    if (oldWidget.statesController != null && widget.statesController == null) {
       // InkWell rewrites only `disabled` on a swap, so a hover or press the
       // internal controller held before the caller's took over is stale.
       _internalStatesController?.value = <WidgetState>{};
@@ -222,8 +220,7 @@ class _StratumInkWellState extends State<StratumInkWell>
   }
 
   void _handleHighlightMode(FocusHighlightMode mode) {
-    if (widget.focusType == FocusType.focusedVisible &&
-        _focusNode.hasFocus) {
+    if (widget.focusType == FocusType.focusedVisible && _focusNode.hasFocus) {
       setState(() {});
     }
   }
@@ -315,8 +312,8 @@ class _StratumInkWellState extends State<StratumInkWell>
       overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       child: _StateOverlay(
         states: _statesController,
-        hoverColor: colors.overlayHover,
-        pressedColor: colors.overlayActive,
+        hoverColor: colors.state.hover,
+        pressedColor: colors.state.press,
         enabled: !disabled && !widget.disabledPressAnimation,
         borderRadius: widget.borderRadius,
         child: widget.child,

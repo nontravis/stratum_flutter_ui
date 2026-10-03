@@ -17,47 +17,31 @@ const perfStreams = ['Dart', 'Embedder', 'GC'];
 /// build and the previous scene's teardown stay out of the window.
 const settleTime = Duration(milliseconds: 250);
 
-class _PerfTransparent extends Fake implements TransparentColors {
-  @override
-  Color get t0 => const Color(0x00000000);
+late StratumThemeSet _themes;
+
+/// Reads the package default theme for [perfHost]; call it in `setUpAll`.
+Future<void> loadPerfTheme() async {
+  final text = await rootBundle.loadString(
+    'packages/stratum_ui/assets/themes/default/theme.yaml',
+  );
+  _themes = StratumThemeSet.fromConfig(
+    StratumThemeConfig.parse(
+      base: StratumThemeSource(
+        id: 'stratum-default',
+        folder: 'packages/stratum_ui/assets/themes/default',
+        yaml: text,
+      ),
+    ),
+  );
 }
-
-class _PerfColors extends Fake implements BaseThemeColor {
-  @override
-  Color get overlayHover => const Color(0x11000000);
-
-  @override
-  Color get overlayActive => const Color(0x22000000);
-
-  @override
-  Color get borderBrand => const Color(0xFF0000FF);
-
-  @override
-  TransparentColors get transparent => _PerfTransparent();
-}
-
-/// Answers only what the measured widgets read.
-class _PerfTheme extends Fake implements StratumThemeData {
-  @override
-  final BaseThemeColor color = _PerfColors();
-
-  @override
-  ScrollBehavior get scrollBehavior => const StratumScrollBehavior();
-
-  @override
-  ScrollPhysics get physics => const ClampingScrollPhysics();
-}
-
-final _theme = _PerfTheme();
 
 /// Places a scene in a [MaterialApp] (a real [Theme] platform) under a
-/// [StratumThemeApplication].
+/// [StratumThemeApplication] of the package default theme.
 Widget perfHost(Widget child) {
   return MaterialApp(
     home: StratumThemeApplication(
+      themes: _themes,
       themeMode: ThemeMode.light,
-      lightTheme: _theme,
-      darkTheme: null,
       child: Scaffold(body: child),
     ),
   );

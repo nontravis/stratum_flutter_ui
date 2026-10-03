@@ -146,7 +146,7 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           _sized(ListViewLayout.builder(itemCount: 3, itemBuilder: _item)),
-          theme: FakeStratumTheme(physics: const BouncingScrollPhysics()),
+          theme: fakeStratumTheme(physics: const BouncingScrollPhysics()),
         ),
       );
 

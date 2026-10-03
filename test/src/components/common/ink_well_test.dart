@@ -204,7 +204,7 @@ void main() {
       const next = Color(0x33000000);
 
       await tester.pumpWidget(build(fakeTheme));
-      await tester.pumpWidget(build(FakeStratumTheme(hover: next)));
+      await tester.pumpWidget(build(fakeStratumTheme(hover: next)));
       await tester.pumpAndSettle();
 
       expect(_overlayColor(tester), next);

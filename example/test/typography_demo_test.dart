@@ -8,7 +8,7 @@ void main() {
   ) async {
     final theme = await tester.runAsync(loadDemoTheme);
 
-    await tester.pumpWidget(TypographyDemoApp(theme: theme!));
+    await tester.pumpWidget(TypographyDemoApp(themes: theme!));
 
     expect(find.text('header s56'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('table s10'), 300);
@@ -17,7 +17,7 @@ void main() {
 
   testWidgets('switches the window size and the text scale', (tester) async {
     final theme = await tester.runAsync(loadDemoTheme);
-    await tester.pumpWidget(TypographyDemoApp(theme: theme!));
+    await tester.pumpWidget(TypographyDemoApp(themes: theme!));
     TextStyle sample() =>
         tester.widget<Text>(find.byKey(const ValueKey('header s56'))).style!;
 

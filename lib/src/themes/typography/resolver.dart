@@ -232,18 +232,21 @@ abstract final class TypographyResolver {
     return qualifieds.toList();
   }
 
-  static Color _color(BaseThemeColor colors, FontColor role) => switch (role) {
-    FontColor.brandPrimary => colors.brandPrimaryText,
-    FontColor.brandSecondary => colors.brandSecondaryText,
-    FontColor.brandTertiary => colors.brandTertiaryText,
-    FontColor.primary => colors.textPrimary,
-    FontColor.primaryInverse => colors.textPrimaryInverse,
-    FontColor.primaryOnColor => colors.textPrimaryOnColor,
-    FontColor.secondary => colors.textSecondary,
-    FontColor.secondaryInverse => colors.textSecondaryInverse,
-    FontColor.tertiary => colors.textTertiary,
-    FontColor.tertiaryInverse => colors.textTertiaryInverse,
-  };
+  /// The color of [role] in [colors]: the seven `text.default` roles by
+  /// name, and the three brand roles on `text.color.brand` (spec G28).
+  static Color _color(StratumColorTokens colors, FontColor role) =>
+      switch (role) {
+        FontColor.brandPrimary ||
+        FontColor.brandSecondary ||
+        FontColor.brandTertiary => colors.text.color.brand,
+        FontColor.primary => colors.text.defaults.primary,
+        FontColor.primaryInverse => colors.text.defaults.primaryInverse,
+        FontColor.primaryOnColor => colors.text.defaults.primaryOnColor,
+        FontColor.secondary => colors.text.defaults.secondary,
+        FontColor.secondaryInverse => colors.text.defaults.secondaryInverse,
+        FontColor.tertiary => colors.text.defaults.tertiary,
+        FontColor.tertiaryInverse => colors.text.defaults.tertiaryInverse,
+      };
 
   static void _warnOnce(String message) {
     if (kDebugMode && _warned.add(message)) {

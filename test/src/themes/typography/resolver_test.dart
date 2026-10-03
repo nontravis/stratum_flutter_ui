@@ -49,7 +49,7 @@ typography:
 
 StratumThemeData _theme([String? yaml]) {
   final document = loadYaml(yaml ?? _yaml()) as YamlMap;
-  return FakeStratumTheme(
+  return fakeStratumTheme(
     typography: StratumTypography.fromYaml(document['typography'] as YamlMap),
   );
 }
@@ -539,7 +539,7 @@ typography:
     );
 
     test('a missing type names itself in a StateError', () {
-      final badTheme = FakeStratumTheme(
+      final badTheme = fakeStratumTheme(
         typography: const StratumTypography(fonts: {}, families: {}, types: {}),
       );
 
@@ -556,7 +556,7 @@ typography:
     });
 
     test('a missing font key names itself in a StateError', () {
-      final badTheme = FakeStratumTheme(
+      final badTheme = fakeStratumTheme(
         typography: const StratumTypography(
           fonts: {},
           families: {
@@ -590,7 +590,7 @@ typography:
     });
 
     test('a type with no sizes names itself in a StateError', () {
-      final badTheme = FakeStratumTheme(
+      final badTheme = fakeStratumTheme(
         typography: const StratumTypography(
           fonts: {'inter': StratumFontData(family: 'Inter')},
           families: {

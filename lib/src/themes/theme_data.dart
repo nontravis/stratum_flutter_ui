@@ -1,150 +1,176 @@
 import 'package:stratum_ui/src/src.dart';
+
+/// The theme data of one color set (spec section 7.2). Build it through
+/// [StratumThemeSet.fromConfig]; change a field through [copyWith].
+@immutable
 class StratumThemeData {
   const new({
-    required this.defaultWidgetSize,
     required this.themeMode,
     required this.color,
-    required this.borderRadius,
-    required this.border,
-    required this.shadow,
-    required this.size,
-    required this.filter,
-    required this.systemOverlayStyle,
-    required this.systemOverlayInverseStyle,
+    required this.palette,
     required this.space,
-    required this.splashFactory,
+    required this.radius,
+    required this.layouts,
+    required this.appColors,
+    required this.appPalettes,
+    required this.assets,
+    required this.extensions,
     required this.typography,
+    required this.animation,
+    this.transparent = StratumTransparentTokens.builtIn,
+    this.defaultWidgetSize = WidgetSize.medium,
+    this.border = const AppBorder(),
+    this.shadow = const AppShadow(),
+    this.filter = const AppFilter(),
+    this.systemOverlayStyle = AppSystemUI.light,
+    this.systemOverlayInverseStyle = AppSystemUI.dark,
+    this.splashFactory = NoSplash.splashFactory,
     this.scrollBehavior = const StratumScrollBehavior(),
     this.physics = const ClampingScrollPhysics(),
-    this.animation = const StratumThemeAnimation(),
-    this.highContrastTheme,
-    this.highContrastDarkTheme,
     this.screenBorderRadius,
   });
 
-  final WidgetSize defaultWidgetSize;
+  /// `ThemeMode.light` for the light and high-contrast light data,
+  /// `ThemeMode.dark` for the other two.
   final ThemeMode themeMode;
-  final BaseThemeColor color;
+
+  /// `color.<set>` without `app`.
+  final StratumColorTokens color;
+
+  /// `palette` without `app`.
+  final StratumPaletteTokens palette;
+
+  /// The 64 built-in transparent steps.
+  final StratumTransparentTokens transparent;
+
+  final Map<String, StratumByWindowSize<StratumDimension>> space;
+  final Map<String, StratumByWindowSize<StratumDimension>> radius;
+  final Map<String, StratumByWindowSize<StratumDimension>> layouts;
+
+  /// `color.<set>.app`, by name.
+  final Map<String, Color> appColors;
+
+  /// `palette.app`, by ramp, then shade.
+  final Map<String, Map<String, Color>> appPalettes;
+
+  final StratumAssetTokens assets;
+  final Map<String, Object?> extensions;
+  final StratumTypography typography;
+
+  /// The yaml values; `StratumTheme.animation` returns them unchanged,
+  /// reduced motion included (spec C1).
+  final StratumAnimation animation;
+
+  final WidgetSize defaultWidgetSize;
   final AppBorder border;
-  final AppRadius borderRadius;
   final AppShadow shadow;
   final AppFilter filter;
-  final AppSpace space;
-  final AppSize size;
   final SystemUiOverlayStyle systemOverlayStyle;
   final SystemUiOverlayStyle systemOverlayInverseStyle;
   final InteractiveInkFeatureFactory splashFactory;
-  final StratumTypography typography;
   final ScrollBehavior scrollBehavior;
   final ScrollPhysics physics;
-  final StratumThemeAnimation animation;
-  final StratumThemeData? highContrastTheme;
-  final StratumThemeData? highContrastDarkTheme;
   final BorderRadius? screenBorderRadius;
 
-  ThemeData toThemeData() {
-    final brightness =
-        themeMode == ThemeMode.dark ? Brightness.dark : Brightness.light;
+  /// The app color [name]. Throws an [ArgumentError] that lists the names
+  /// in [appColors] (spec G13).
+  Color appColor(String name) =>
+      appColors[name] ??
+      (throw ArgumentError(
+        'no app color "$name"; this theme has: ${_names(appColors.keys)}',
+      ));
 
-    return ThemeData(
-      brightness: brightness,
-      colorScheme: ColorScheme(
-        brightness: brightness,
-        primary: color.brandPrimary,
-        onPrimary: color.iconPrimaryOnColor,
-        inversePrimary: color.iconPrimaryInverse,
-        secondary: color.brandPrimary,
-        onSecondary: color.iconPrimaryOnColor,
-        error: color.iconNegative,
-        onError: color.iconNegative,
-        surface: color.bg,
-        onSurface: color.bgInverse,
-      ),
-      splashFactory: splashFactory,
-      primaryColorLight: color.brandPrimary.lighten(10),
-      primaryColor: color.brandPrimary,
-      primaryColorDark: color.brandPrimary.darken(10),
-      hoverColor: color.overlayHover,
-      focusColor: color.overlayHover,
-      splashColor: color.overlayActive,
-      highlightColor: color.brandPrimary.withValues(alpha: 0.15),
-      canvasColor: color.bg,
-      cardColor: color.bgPopover,
-      scaffoldBackgroundColor: color.bg,
-      // fontFamily: FontFamily.primaryEnglish,
-      // fontFamilyFallback: const [
-      //   FontFamily.primaryEnglish,
-      //   FontFamily.primaryThai,
-      // ],
-      textSelectionTheme: TextSelectionThemeData(
-        cursorColor: color.textPrimary,
-        selectionHandleColor: color.brandPrimary,
-      ),
-      dividerTheme: DividerThemeData(
-        thickness: border.md.maxWidth,
-        color: color.border,
-      ),
-      appBarTheme: AppBarTheme(
-        systemOverlayStyle: systemOverlayStyle,
-      ),
-    );
+  /// The app color [name], or null.
+  Color? maybeAppColor(String name) => appColors[name];
+
+  /// The app ramp [name]. Throws an [ArgumentError] that lists the ramp
+  /// names in [appPalettes].
+  StratumAppPalette appPalette(String name) {
+    final shades = appPalettes[name];
+    if (shades == null) {
+      throw ArgumentError(
+        'no app palette "$name"; this theme has: ${_names(appPalettes.keys)}',
+      );
+    }
+    return StratumAppPalette(name, shades);
   }
 
+  /// Covers every field, `physics` included (FO-03 s03 invariant 8).
   StratumThemeData copyWith({
-    WidgetSize? defaultWidgetSize,
     ThemeMode? themeMode,
-    BaseThemeColor? color,
+    StratumColorTokens? color,
+    StratumPaletteTokens? palette,
+    StratumTransparentTokens? transparent,
+    Map<String, StratumByWindowSize<StratumDimension>>? space,
+    Map<String, StratumByWindowSize<StratumDimension>>? radius,
+    Map<String, StratumByWindowSize<StratumDimension>>? layouts,
+    Map<String, Color>? appColors,
+    Map<String, Map<String, Color>>? appPalettes,
+    StratumAssetTokens? assets,
+    Map<String, Object?>? extensions,
+    StratumTypography? typography,
+    StratumAnimation? animation,
+    WidgetSize? defaultWidgetSize,
     AppBorder? border,
-    AppRadius? borderRadius,
     AppShadow? shadow,
     AppFilter? filter,
-    AppSpace? space,
-    AppSize? size,
     SystemUiOverlayStyle? systemOverlayStyle,
     SystemUiOverlayStyle? systemOverlayInverseStyle,
     InteractiveInkFeatureFactory? splashFactory,
-    StratumTypography? typography,
     ScrollBehavior? scrollBehavior,
-    StratumThemeAnimation? animation,
-    Curve? themeAnimationCurve,
-    StratumThemeData? highContrastTheme,
-    StratumThemeData? highContrastDarkTheme,
+    ScrollPhysics? physics,
     BorderRadius? screenBorderRadius,
   }) {
     return StratumThemeData(
-      defaultWidgetSize: defaultWidgetSize ?? this.defaultWidgetSize,
       themeMode: themeMode ?? this.themeMode,
       color: color ?? this.color,
+      palette: palette ?? this.palette,
+      transparent: transparent ?? this.transparent,
+      space: space ?? this.space,
+      radius: radius ?? this.radius,
+      layouts: layouts ?? this.layouts,
+      appColors: appColors ?? this.appColors,
+      appPalettes: appPalettes ?? this.appPalettes,
+      assets: assets ?? this.assets,
+      extensions: extensions ?? this.extensions,
+      typography: typography ?? this.typography,
+      animation: animation ?? this.animation,
+      defaultWidgetSize: defaultWidgetSize ?? this.defaultWidgetSize,
       border: border ?? this.border,
-      borderRadius: borderRadius ?? this.borderRadius,
       shadow: shadow ?? this.shadow,
       filter: filter ?? this.filter,
-      space: space ?? this.space,
-      size: size ?? this.size,
       systemOverlayStyle: systemOverlayStyle ?? this.systemOverlayStyle,
       systemOverlayInverseStyle:
           systemOverlayInverseStyle ?? this.systemOverlayInverseStyle,
       splashFactory: splashFactory ?? this.splashFactory,
-      typography: typography ?? this.typography,
       scrollBehavior: scrollBehavior ?? this.scrollBehavior,
-      animation: animation ?? this.animation,
-      highContrastTheme: highContrastTheme ?? this.highContrastTheme,
-      highContrastDarkTheme:
-          highContrastDarkTheme ?? this.highContrastDarkTheme,
+      physics: physics ?? this.physics,
       screenBorderRadius: screenBorderRadius ?? this.screenBorderRadius,
     );
   }
 }
 
-class StratumThemeAnimation {
-  const StratumThemeAnimation({
-    this.normal = const AnimationStyle(
-      duration: Duration(milliseconds: 125),
-      curve: Curves.easeInOut,
-      reverseDuration: Duration(milliseconds: 80),
-      reverseCurve: Curves.easeInOut,
-    ),
-  });
+/// One app ramp of `palette.app`.
+@immutable
+class StratumAppPalette {
+  const new(this.name, this.shades);
 
-  final AnimationStyle normal;
+  final String name;
+
+  /// Shade name to color, as `palette.app.<name>` writes them.
+  final Map<String, Color> shades;
+
+  /// Throws an [ArgumentError] that lists the shade names.
+  Color shade(String shade) =>
+      shades[shade] ??
+      (throw ArgumentError(
+        'no shade "$shade" in app palette "$name"; it has: '
+        '${_names(shades.keys)}',
+      ));
+}
+
+/// [names] sorted and joined by `, `; `none` when empty.
+String _names(Iterable<String> names) {
+  final sorted = names.toList()..sort();
+  return sorted.isEmpty ? 'none' : sorted.join(', ');
 }

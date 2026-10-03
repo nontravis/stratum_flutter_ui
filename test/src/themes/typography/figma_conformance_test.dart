@@ -97,7 +97,7 @@ void main() {
       'assets/themes/default/theme.yaml',
     );
     final document = loadYaml(text) as YamlMap;
-    theme = FakeStratumTheme(
+    theme = fakeStratumTheme(
       typography: StratumTypography.fromYaml(document['typography'] as YamlMap),
     );
   });

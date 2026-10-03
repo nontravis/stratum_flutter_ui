@@ -9,41 +9,23 @@ import 'package:stratum_ui/src/src.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(TypographyDemoApp(theme: await loadDemoTheme()));
+  runApp(TypographyDemoApp(themes: await loadDemoTheme()));
 }
 
-/// The default theme's typography, read from the stratum_ui package assets.
-Future<StratumThemeData> loadDemoTheme() async {
+/// The package default theme, read from the stratum_ui package assets.
+Future<StratumThemeSet> loadDemoTheme() async {
   final text = await rootBundle.loadString(
     'packages/stratum_ui/assets/themes/default/theme.yaml',
   );
-  final document = loadYaml(text) as YamlMap;
-  return _DemoTheme(
-    StratumTypography.fromYaml(document['typography'] as YamlMap),
+  return StratumThemeSet.fromConfig(
+    StratumThemeConfig.parse(
+      base: StratumThemeSource(
+        id: 'stratum-default',
+        folder: 'packages/stratum_ui/assets/themes/default',
+        yaml: text,
+      ),
+    ),
   );
-}
-
-/// The smallest theme the text styles read: the typography and the primary
-/// text color. Any other member throws, as the test theme does.
-class _DemoTheme implements StratumThemeData {
-  _DemoTheme(this.typography);
-
-  @override
-  final StratumTypography typography;
-
-  @override
-  final BaseThemeColor color = _DemoColors();
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _DemoColors implements BaseThemeColor {
-  @override
-  final Color textPrimary = const Color(0xFF111827);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 const _sample = 'ปู่ นี้ ฟุ้ง ญี่ปุ่น · Ag 1,250.00';
@@ -64,18 +46,17 @@ StratumTextStyle _at(StratumTextStyle style, FontSize size) => switch (size) {
 };
 
 class TypographyDemoApp extends StatelessWidget {
-  const TypographyDemoApp({super.key, required this.theme});
+  const TypographyDemoApp({super.key, required this.themes});
 
-  final StratumThemeData theme;
+  final StratumThemeSet themes;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Stratum typography demo',
       builder: (context, child) => StratumThemeApplication(
+        themes: themes,
         themeMode: ThemeMode.light,
-        lightTheme: theme,
-        darkTheme: null,
         child: WindowSizeScope(child: child!),
       ),
       home: const _TypographyDemoPage(),
