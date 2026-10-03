@@ -5,6 +5,7 @@ export 'model/model.dart';
 export 'page/page.dart';
 export 'responsive/responsive.dart';
 export 'style/style.dart';
+export 'text_entry_guard.dart';
 export 'utility/utility.dart';
 export 'web_view/web_view.dart';
 export 'widget_performance_monitor.dart';
