@@ -47,16 +47,86 @@ scroll it, guarded so a text field inside keeps its own keys.
   Keyboard: K4 line-mode scrolling, 100 ms per key with `Curves.easeInOutSine`, or a jump when `MediaQuery` or the
   platform asks for reduced motion.
 - **`PageViewLayout`** (children or `.builder`) — one page per viewport, with `scrollDirection`, `controller`,
-  `pageSnapping`, `onPageChanged`; `style.padding` insets the viewport rather than scrolling. No previous/next
-  buttons; a component that needs them builds its own on top.
+  `pageSnapping`, `onPageChanged`; `style.padding` insets the viewport rather than scrolling.
   Keyboard: an arrow along the axis, Page Up/Page Down, Home, and End move one whole page; a change slides 300 ms
   with `Curves.easeInOutSine`, or jumps when `MediaQuery` or the platform asks for reduced motion; focus moves to the
   new page's first Tab-order node.
+  Buttons: the layout draws no previous or next buttons, and on desktop a mouse without a trackpad cannot swipe, so
+  the app adds previous and next buttons around the view (WCAG 2.5.1) until a component in the package provides
+  them. Like the keys, the buttons jump when motion is reduced: `jumpToPage` when
+  `MediaQuery.disableAnimationsOf(context)` is true, else `previousPage` or `nextPage` over 300 ms.
+
+  ```dart
+  void turn(BuildContext context, {required bool forward}) {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      final page = (pages.page ?? 0).round() + (forward ? 1 : -1);
+      pages.jumpToPage(page.clamp(0, slides.length - 1));
+    } else if (forward) {
+      pages.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutSine,
+      );
+    } else {
+      pages.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutSine,
+      );
+    }
+  }
+
+  ColumnLayout(
+    children: [
+      Expanded(child: PageViewLayout(controller: pages, children: slides)),
+      RowLayout(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          ContainerLayout(
+            semantics: const SemanticsProperties(button: true, label: 'Previous slide'),
+            interaction: StratumInteraction(
+              onTap: () => turn(context, forward: false),
+            ),
+            child: const Icon(Icons.chevron_left),
+          ),
+          ContainerLayout(
+            semantics: const SemanticsProperties(button: true, label: 'Next slide'),
+            interaction: StratumInteraction(
+              onTap: () => turn(context, forward: true),
+            ),
+            child: const Icon(Icons.chevron_right),
+          ),
+        ],
+      ),
+    ],
+  )
+  ```
 - **`ReorderableListViewLayout`** (`.builder` only) — a reorderable list on widgets `ReorderableList`, with a
   caller-placed drag handle or `longPressDrag`, `onReorderItem`, and `dragStyle` for the lifted item; each item keeps
   its `State` and focus across a move through a global key that never uses the index.
   Keyboard: Alt+arrow along the axis moves the focused item one slot, Alt+Home/Alt+End move it to either end; a move
   past either end is still handled, so it never reaches the browser (Chrome's Alt+Left/Alt+Right Back/Forward).
+  Without dragging: dragging is the list's only pointer path, so the app adds one that needs no drag (WCAG 2.5.7),
+  such as Move up and Move down buttons or context-menu entries on each item, until a component in the package
+  provides it. They call the handler the app passes to `onReorderItem`, with the indexes the keys pass, and that
+  handler ignores a target past either end.
+
+  ```dart
+  itemBuilder: (context, index) => RowLayout(
+    key: ValueKey(tasks[index].id),
+    children: [
+      Expanded(child: Text(tasks[index].title)),
+      ContainerLayout(
+        semantics: const SemanticsProperties(button: true, label: 'Move up'),
+        interaction: StratumInteraction(onTap: () => moveTask(index, index - 1)),
+        child: const Icon(Icons.arrow_upward),
+      ),
+      ContainerLayout(
+        semantics: const SemanticsProperties(button: true, label: 'Move down'),
+        interaction: StratumInteraction(onTap: () => moveTask(index, index + 1)),
+        child: const Icon(Icons.arrow_downward),
+      ),
+    ],
+  ),
+  ```
 - **`NestedScrollViewLayout`** — a collapsing header (`headerSliverBuilder`) above a `body` scroll view; it is never
   a Tab stop itself, only the body's scroll view is, and a desktop scrollbar needs `showScrollbar: false` when the
   body is a `TabBarView`.
