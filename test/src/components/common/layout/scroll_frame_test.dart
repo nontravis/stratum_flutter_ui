@@ -1278,7 +1278,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 160));
       expect(page(tester), greaterThan(0));
       expect(page(tester), lessThan(1));
-      await tester.pump(const Duration(milliseconds: 180));
+      // Past the package default's 300 ms: still short of the theme's
+      // 333 ms, so the package default would already read 1 here.
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(page(tester), lessThan(1));
+      await tester.pump(const Duration(milliseconds: 23));
       expect(page(tester), 1);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
