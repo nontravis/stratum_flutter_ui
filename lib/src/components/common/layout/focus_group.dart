@@ -445,6 +445,10 @@ void revealInViewports(FocusNode target) {
   // scrollable reveals it again, as Flutter's horizontal one does for both
   // axes.
   var revealed = object;
+  // The header of a nested scroll view whose body level placed both along
+  // their one range; its own level, which reads the body's last layout,
+  // then stays put.
+  ScrollPosition? placed;
   for (
     var scrollable = Scrollable.maybeOf(context);
     scrollable != null && shown != null;
@@ -454,7 +458,8 @@ void revealInViewports(FocusNode target) {
     final nested = _nestedBodyOf(scrollable);
     if (nested != null) {
       _revealInNestedBody(nested, scrollable, reveal, object);
-    } else {
+      placed = nested.outerController.position;
+    } else if (scrollable.position != placed) {
       final overhang = _overhang(target.rect, scrollable);
       if (overhang != 0) {
         scrollable.position.ensureVisible(

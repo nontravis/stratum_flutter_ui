@@ -552,6 +552,28 @@ void main() {
     );
 
     testWidgets(
+      "Shift+Tab to a row above a list body's start moves only the body",
+      (tester) async {
+        await tester.pumpWidget(_nested(before: _node('before')));
+        // The header has collapsed and the body shows 60 to 360; row 1, at
+        // 40 to 80, starts 20 px above it.
+        _inner(tester).jumpTo(60);
+        await tester.pump();
+        _focusNode('row 2').requestFocus();
+        await tester.pump();
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await _key(tester, LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+
+        expect(_focused(), 'row 1');
+        expect(_outer(tester).pixels, _header);
+        expect(_inner(tester).pixels, 40);
+      },
+      variant: _desktop,
+    );
+
+    testWidgets(
       'a reorder move that drops focus reveals the moved item once',
       (tester) async {
         final ids = [for (var i = 0; i < 12; i++) i];
