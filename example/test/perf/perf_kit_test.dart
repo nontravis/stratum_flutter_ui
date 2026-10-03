@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
 import '../../integration_test/baseline/baseline.dart';
+import '../../integration_test/perf/perf_host.dart';
 import '../../integration_test/perf/perf_kit.dart';
 
 void main() {
@@ -103,6 +104,27 @@ void main() {
           const WidgetStyle(width: 4),
         ),
       );
+    });
+
+    testWidgets('a tappable row runs the frozen FlexLayout and the frozen '
+        'tap surface', (tester) async {
+      await tester.pumpWidget(
+        perfHost(
+          const BaselineKit().row(
+            style: const WidgetStyle(),
+            onTap: onTap,
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: const [SizedBox(width: 10, height: 10)],
+          ),
+        ),
+      );
+
+      expect(
+        tester.widget(find.byType(BaselineRowLayout)),
+        isA<BaselineFlexLayout>(),
+      );
+      expect(find.byType(BaselineStratumInkWell), findsOneWidget);
+      expect(find.byType(StratumInkWell), findsNothing);
     });
   });
 }

@@ -1,19 +1,18 @@
-// Frozen by tool/perf_freeze.dart from 7271c1b:lib/src/components/common/layout/row_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 49a2d6b:lib/src/components/common/layout/row_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
 import 'baseline.dart';
 
-import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/src.dart';
 
-/// A [Row] on [BaselineBoxLayout]: style, interaction, semantics, and scrolling
-/// come from the base class.
+/// A row on [BaselineFlexLayout]: style, interaction, semantics, and scrolling come
+/// from [BaselineBoxLayout].
 ///
-/// A width or max width in [style] forces [MainAxisSize.max], so the row
-/// fills the width it is given. [gap] becomes [Row.spacing], and `scroll`
+/// A width or max width in `style` forces [MainAxisSize.max], so the row
+/// fills the width it is given. `gap` becomes [Flex.spacing], and `scroll`
 /// scrolls horizontally unless its `direction` says otherwise.
-class BaselineRowLayout extends BaselineBoxLayout {
+class BaselineRowLayout extends BaselineFlexLayout {
   const new({
     super.key,
     super.style,
@@ -28,70 +27,15 @@ class BaselineRowLayout extends BaselineBoxLayout {
     super.onEndAnimate,
     super.interaction,
     super.scroll,
-    this.mainAxisAlignment = MainAxisAlignment.start,
-    this.mainAxisSize = MainAxisSize.max,
-    this.crossAxisAlignment = CrossAxisAlignment.center,
-    this.textDirection,
-    this.verticalDirection = VerticalDirection.down,
-    this.textBaseline,
-    this.crossAxisIntrinsic = false,
-    this.gap,
-    this.focusGroup,
-    required this.children,
-  });
-
-  final MainAxisAlignment mainAxisAlignment;
-  final MainAxisSize mainAxisSize;
-  final CrossAxisAlignment crossAxisAlignment;
-  final TextDirection? textDirection;
-  final VerticalDirection verticalDirection;
-  final TextBaseline? textBaseline;
-
-  /// Sizes the row to its tallest child through [IntrinsicHeight], unless
-  /// [style] sets a height.
-  final bool crossAxisIntrinsic;
-
-  /// Space between children.
-  final double? gap;
-
-  /// Makes the focusable children one roving Tab stop with arrow, Home,
-  /// and End keys; see [StratumFocusGroup]. Switching between null and a
-  /// value remounts the children.
-  final StratumFocusGroup? focusGroup;
-  final List<Widget> children;
-
-  @override
-  Axis get scrollDirection => Axis.horizontal;
-
-  MainAxisSize get _mainAxisSize {
-    final style = this.style;
-    final fills = style?.width != null || style?.maxWidth != null;
-    return fills ? MainAxisSize.max : mainAxisSize;
-  }
-
-  @override
-  Widget buildContent(BuildContext context) {
-    final style = this.style;
-    final Widget row = Row(
-      mainAxisAlignment: mainAxisAlignment,
-      mainAxisSize: _mainAxisSize,
-      crossAxisAlignment: crossAxisAlignment,
-      textDirection: textDirection,
-      verticalDirection: verticalDirection,
-      textBaseline: textBaseline,
-      spacing: gap ?? 0,
-      children: children,
-    );
-    final content = crossAxisIntrinsic && style?.height == null
-        ? IntrinsicHeight(child: row)
-        : row;
-    final group = focusGroup;
-    if (group == null) return content;
-    return FocusGroupFrame(
-      group: group,
-      axis: FocusGroupAxis.horizontal,
-      textDirection: textDirection,
-      child: content,
-    );
-  }
+    super.mainAxisAlignment,
+    super.mainAxisSize,
+    super.crossAxisAlignment,
+    super.textDirection,
+    super.verticalDirection,
+    super.textBaseline,
+    super.crossAxisIntrinsic,
+    super.gap,
+    super.focusGroup,
+    required super.children,
+  }) : super(direction: Axis.horizontal);
 }

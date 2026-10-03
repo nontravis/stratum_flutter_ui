@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from 7271c1b:lib/src/components/common/layout/container_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 49a2d6b:lib/src/components/common/layout/container_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
@@ -28,13 +28,38 @@ class BaselineContainerLayout extends BaselineBoxLayout {
     super.onEndAnimate,
     super.interaction,
     super.scroll,
+    this.fit,
     this.child,
-  });
+  }) : assert(
+         fit == null || scroll == null,
+         'fit needs a box with an extent to fit into; a scrolling box has '
+         'none along its scroll axis',
+       );
 
+  /// Scales [child] into the box's padded area through [FittedBox].
+  ///
+  /// `style.alignment` becomes [FittedBox.alignment], centered when null,
+  /// and builds no [Align], so the padded area's constraints reach the
+  /// [FittedBox] unchanged and [BoxFit.cover] and [BoxFit.fill] reach the
+  /// edges of a box with a fixed size. A change of `style.alignment` takes
+  /// effect at once. The [FittedBox] does not clip: set
+  /// `style.clipBehavior` to crop a [BoxFit.cover] child at the box edge,
+  /// with its `borderRadius`. Null builds no [FittedBox].
+  final BoxFit? fit;
   final Widget? child;
 
   @override
+  bool get alignsContent => fit == null;
+
+  @override
   Widget buildContent(BuildContext context) {
-    return child ?? const SizedBox.shrink();
+    final content = child ?? const SizedBox.shrink();
+    final fit = this.fit;
+    if (fit == null) return content;
+    return FittedBox(
+      fit: fit,
+      alignment: style?.alignment ?? Alignment.center,
+      child: content,
+    );
   }
 }

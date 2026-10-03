@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from 7271c1b:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 49a2d6b:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
@@ -6,6 +6,7 @@ import 'baseline.dart';
 
 import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
+import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/components/common/style/style_decoration.dart';
 
 /// Wraps the styled box of an [BaselineAnimatedStyledBox] with the style of the
@@ -40,6 +41,7 @@ class BaselineAnimatedStyledBox extends StatefulWidget {
     this.onEnd,
     this.boxBuilder,
     this.scrollBuilder,
+    this.alignContent = true,
     this.child,
   });
 
@@ -71,6 +73,13 @@ class BaselineAnimatedStyledBox extends StatefulWidget {
   /// style, the box clips the viewport to its corners with
   /// [Clip.antiAlias].
   final BaselineStyledScrollBuilder? scrollBuilder;
+
+  /// Whether [WidgetStyle.alignment] builds an [Align] around the child.
+  ///
+  /// False leaves the alignment to the child, which then receives the
+  /// padded area's constraints unchanged: `BaselineContainerLayout.fit` hands it
+  /// to a [FittedBox].
+  final bool alignContent;
   final Widget? child;
 
   @override
@@ -128,7 +137,7 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
     final target = _target;
     if (target == _style.end) return;
     var begin = _style.evaluate(_animation);
-    if (_reducesMotion) begin = _jumpGeometry(begin, to: target);
+    if (reducesMotion(context)) begin = _jumpGeometry(begin, to: target);
     _style
       ..begin = begin
       ..end = target;
@@ -146,20 +155,6 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
 
   void _handleStatus(AnimationStatus status) {
     if (status.isCompleted) widget.onEnd?.call();
-  }
-
-  /// Whether the app or the platform asks for less motion.
-  ///
-  /// `disableAnimations` comes from the nearest [MediaQuery], so an app or
-  /// a test that sets it reaches the box, else from the platform.
-  /// `MediaQueryData` has no `reduceMotion` field, so that flag always
-  /// comes from the view's dispatcher.
-  bool get _reducesMotion {
-    final features = View.of(context).platformDispatcher.accessibilityFeatures;
-    final disable =
-        MediaQuery.maybeDisableAnimationsOf(context) ??
-        features.disableAnimations;
-    return disable || features.reduceMotion;
   }
 
   /// [from] with the size, spacing, and alignment of [to], so those fields
@@ -203,7 +198,7 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
       current = AspectRatio(aspectRatio: ratio, child: current);
     }
     final alignment = style.alignment;
-    if (alignment != null) {
+    if (alignment != null && widget.alignContent) {
       current = Align(alignment: alignment, child: current);
     }
     final padding = style.padding;

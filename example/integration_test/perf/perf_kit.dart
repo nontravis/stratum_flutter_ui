@@ -68,9 +68,10 @@ class CurrentKit implements PerfKit {
 
 /// The layouts of the frozen baseline (spec section 9.3).
 ///
-/// Phase 5's baseline is 7271c1b, the phase 4 layouts: a tappable row is a
-/// `BaselineRowLayout` with the shared `StratumInteraction`, which phase 5
-/// does not change.
+/// The layout follow-ups' baseline is 49a2d6b: a tappable row is a
+/// `BaselineRowLayout` on `BaselineFlexLayout`, whose tap surface is
+/// `BaselineStratumInkWell`, with the shared `StratumInteraction`, which
+/// the follow-ups do not change.
 class BaselineKit implements PerfKit {
   const new();
 

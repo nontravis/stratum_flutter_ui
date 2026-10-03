@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from 7271c1b:lib/src/components/common/layout/box_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 49a2d6b:lib/src/components/common/layout/box_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
@@ -111,6 +111,13 @@ abstract class BaselineBoxLayout extends StatelessWidget {
   @protected
   Axis get scrollDirection => Axis.vertical;
 
+  /// Whether `style.alignment` places [buildContent] through an [Align].
+  ///
+  /// A subclass that applies the alignment itself returns false, so the
+  /// content receives the padded area's constraints unchanged.
+  @protected
+  bool get alignsContent => true;
+
   bool get _isBare =>
       style == null &&
       ratio == null &&
@@ -146,6 +153,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
       scrollBuilder: scroll == null
           ? null
           : (content) => _buildScroll(scroll, content, linked: focusable),
+      alignContent: alignsContent,
       child: buildContent(context),
     );
     final degrees = rotate;
@@ -198,7 +206,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
     );
   }
 
-  /// Whether the [StratumInkWell] built from [interaction] can take focus:
+  /// Whether the [BaselineStratumInkWell] built from [interaction] can take focus:
   /// enabled, focusable, and with an activation callback or a shortcut.
   static bool _surfaceTakesFocus(StratumInteraction interaction) =>
       !interaction.disabled &&
@@ -229,7 +237,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
     WidgetStyle style,
     Widget box,
   ) {
-    return StratumInkWell(
+    return BaselineStratumInkWell(
       borderRadius: style.borderRadius,
       onTap: interaction.onTap,
       onDoubleTap: interaction.onDoubleTap,
