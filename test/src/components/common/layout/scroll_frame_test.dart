@@ -228,10 +228,8 @@ class _Edge {
     WidgetTester tester,
     Widget Function(List<Widget> items) scroller,
   ) async {
-    Widget item(FocusNode node) => Focus(
-      focusNode: node,
-      child: const SizedBox(width: 200, height: 40),
-    );
+    Widget item(FocusNode node) =>
+        Focus(focusNode: node, child: const SizedBox(width: 200, height: 40));
     await tester.pumpWidget(
       themedHost(
         Shortcuts(
@@ -517,7 +515,9 @@ void main() {
       );
 
       expect(
-        tester.widget<ContainerLayout>(find.byType(ContainerLayout)).style!
+        tester
+            .widget<ContainerLayout>(find.byType(ContainerLayout))
+            .style!
             .padding,
         style.padding,
       );
@@ -1269,6 +1269,19 @@ void main() {
       expect(page(tester), 1);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
+    testWidgets("us11/fr01: a page change slides over the theme's slow "
+        'level', (tester) async {
+      await focusView(tester, themedHost(pages(), theme: motionTheme()));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(page(tester), greaterThan(0));
+      expect(page(tester), lessThan(1));
+      await tester.pump(const Duration(milliseconds: 180));
+      expect(page(tester), 1);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
     testWidgets('reduced motion jumps to the page', (tester) async {
       await focusView(
         tester,
@@ -1525,27 +1538,23 @@ void main() {
         variant: TargetPlatformVariant.only(TargetPlatform.macOS),
       );
 
-      testWidgets(
-        'Tab walks above, the stop of a $name, its items, and below; '
-        'Shift+Tab walks back',
-        (tester) async {
-          final edge = _Edge();
-          await edge.pump(tester, scroller);
+      testWidgets('Tab walks above, the stop of a $name, its items, and below; '
+          'Shift+Tab walks back', (tester) async {
+        final edge = _Edge();
+        await edge.pump(tester, scroller);
 
-          final forward = await edge.press(tester, [
-            for (var i = 0; i < 4; i++) LogicalKeyboardKey.tab,
-          ]);
-          final back = <String>[];
-          for (var i = 0; i < 4; i++) {
-            await _shiftTab(tester);
-            back.add(edge.focused);
-          }
+        final forward = await edge.press(tester, [
+          for (var i = 0; i < 4; i++) LogicalKeyboardKey.tab,
+        ]);
+        final back = <String>[];
+        for (var i = 0; i < 4; i++) {
+          await _shiftTab(tester);
+          back.add(edge.focused);
+        }
 
-          expect(forward, ['box', 'first', 'second', 'below']);
-          expect(back, ['second', 'first', 'box', 'above']);
-        },
-        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-      );
+        expect(forward, ['box', 'first', 'second', 'below']);
+        expect(back, ['second', 'first', 'box', 'above']);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
     }
   });
 
@@ -1679,6 +1688,61 @@ void main() {
       },
       variant: TargetPlatformVariant.desktop(),
     );
+  });
+
+  group('ScrollFocus lines mode motion', () {
+    /// A focusable list after [before], under [theme], or under no theme
+    /// at all when [themed] is false.
+    Widget list(
+      FocusNode before, {
+      StratumThemeData? theme,
+      bool themed = true,
+    }) {
+      final host = _keyboardHost(
+        const ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
+        before: before,
+      );
+      return themed
+          ? themedHost(host, theme: theme)
+          : Directionality(
+              textDirection: TextDirection.ltr,
+              child: Center(child: host),
+            );
+    }
+
+    /// Pumps [build]'s host, tabs into the list, and presses Arrow Down.
+    Future<void> arrowDown(
+      WidgetTester tester,
+      Widget Function(FocusNode before) build,
+    ) async {
+      final before = _node();
+      await tester.pumpWidget(build(before));
+      await _tabIn(tester, before);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+    }
+
+    testWidgets("us11/fr01: an arrow moves over the theme's fast level", (
+      tester,
+    ) async {
+      await arrowDown(tester, (before) => list(before, theme: motionTheme()));
+
+      await tester.pump(const Duration(milliseconds: 38));
+      expect(_pixels(tester), greaterThan(0));
+      expect(_pixels(tester), lessThan(50));
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(_pixels(tester), 50);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+    testWidgets("us11/fr01: with no theme an arrow takes the package default's "
+        'fast level', (tester) async {
+      await arrowDown(tester, (before) => list(before, themed: false));
+
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(_pixels(tester), lessThan(50));
+      await tester.pump(const Duration(milliseconds: 26));
+      expect(_pixels(tester), 50);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
   });
 }
 

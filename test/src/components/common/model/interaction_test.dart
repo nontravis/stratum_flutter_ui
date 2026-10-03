@@ -256,7 +256,7 @@ void main() {
         );
         expect(
           box.style?.animationStyle?.duration,
-          const Duration(milliseconds: 100),
+          const Duration(milliseconds: 125),
         );
       });
     }

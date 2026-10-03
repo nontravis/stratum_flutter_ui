@@ -277,24 +277,73 @@ void main() {
       expect(ink.borderRadius, const BorderRadius.all(Radius.circular(6)));
     });
 
-    testWidgets('an interaction animates a style over 100 ms by default', (
-      tester,
-    ) async {
+    testWidgets("us11/fr01: an interaction animates a style over the theme's "
+        'fast level by default', (tester) async {
       await tester.pumpWidget(
         themedHost(
           const _Layout(
             style: WidgetStyle(width: 40),
             interaction: StratumInteraction(),
           ),
+          theme: motionTheme(),
         ),
       );
 
-      final box = tester.widget<AnimatedStyledBox>(
-        find.byType(AnimatedStyledBox),
+      final style = tester
+          .widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox))
+          .style
+          ?.animationStyle;
+      expect(style?.duration, const Duration(milliseconds: 77));
+      expect(style?.reverseDuration, const Duration(microseconds: 49280));
+      expect(style?.curve, Curves.easeInOutSine);
+    });
+
+    testWidgets('us11/fr01: with no theme above it takes the package '
+        "default's fast level", (tester) async {
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: _Layout(
+            style: WidgetStyle(width: 40),
+            interaction: StratumInteraction(),
+          ),
+        ),
       );
+
       expect(
-        box.style?.animationStyle?.duration,
-        const Duration(milliseconds: 100),
+        tester
+            .widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox))
+            .style
+            ?.animationStyle,
+        StratumAnimation.packageDefault.fast,
+      );
+    });
+
+    testWidgets('C1: under reduced motion the default timing still comes '
+        'from the theme', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+
+      await tester.pumpWidget(
+        themedHost(
+          const _Layout(
+            style: WidgetStyle(width: 40),
+            interaction: StratumInteraction(),
+          ),
+          theme: motionTheme(),
+        ),
+      );
+
+      expect(
+        tester
+            .widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox))
+            .style
+            ?.animationStyle
+            ?.duration,
+        const Duration(milliseconds: 77),
       );
     });
 
@@ -317,7 +366,7 @@ void main() {
       expect(box.style?.animationStyle, own);
     });
 
-    testWidgets('onEndAnimate fires once under the 100 ms default', (
+    testWidgets('onEndAnimate fires once under the fast default', (
       tester,
     ) async {
       var ends = 0;
@@ -414,8 +463,7 @@ void main() {
               primary: false,
               physics: physics,
               showScrollbar: false,
-              keyboardDismissBehavior:
-                  ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               restorationId: 'box',
             ),
           ),

@@ -11,10 +11,7 @@ import 'package:stratum_ui/src/src.dart';
 /// [scrollbars] keeps the behavior's own choice, which shows a scrollbar on
 /// desktop. A scroll view's own `physics` parameter applies on top of the
 /// result.
-ScrollBehavior resolveScrollBehavior(
-  BuildContext context, {
-  bool? scrollbars,
-}) {
+ScrollBehavior resolveScrollBehavior(BuildContext context, {bool? scrollbars}) {
   final theme = StratumThemeApplication.maybeOf(context);
   final behavior =
       theme?.scrollBehavior ??
@@ -41,10 +38,7 @@ class ScrollFrame extends StatelessWidget {
   /// view so it scrolls with the content; without it the padding stays on
   /// the box and insets the viewport. A rounded box clips the viewport to
   /// its corners unless the style sets its own `clipBehavior`.
-  static WidgetStyle boxStyle(
-    WidgetStyle style, {
-    bool scrollsPadding = true,
-  }) {
+  static WidgetStyle boxStyle(WidgetStyle style, {bool scrollsPadding = true}) {
     return style.copyWith(
       padding: scrollsPadding ? null : style.padding,
       clipBehavior:
@@ -287,16 +281,16 @@ class ScrollFocus extends StatefulWidget {
   State<ScrollFocus> createState() => _ScrollFocusState();
 }
 
-class _ScrollFocusState extends State<ScrollFocus>
-    with WidgetsBindingObserver {
+class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
   /// The width of [FocusSpread]'s ring.
   static const _ringWidth = 4.0;
 
-  /// How long a key page change slides.
-  static const _pageDuration = Duration(milliseconds: 300);
-
-  /// How long an arrow or a page scroll in [ScrollFocusMode.lines] takes.
-  static const _lineDuration = Duration(milliseconds: 100);
+  /// The theme's motion, else the package default's (spec section 9): a
+  /// [ScrollFocusMode.lines] key moves over `fast`, a page slides over
+  /// `slow`, each on its level's curve.
+  StratumAnimation get _motion =>
+      StratumTheme.maybeOf(context)?.animation ??
+      StratumAnimation.packageDefault;
 
   // Created on first use and kept until dispose, as StratumInkWell keeps
   // its node.
@@ -537,12 +531,18 @@ class _ScrollFocusState extends State<ScrollFocus>
     final amount = page ? 0.8 * position.viewportDimension : 50.0;
     final delta = direction == position.axisDirection ? amount : -amount;
     if (nested != null) {
-      _moveNested(nested.outerController.position, position, delta);
+      _moveNested(
+        nested.outerController.position,
+        position,
+        delta,
+        _motion.fast,
+      );
     } else {
+      final line = _motion.fast;
       position.moveTo(
         position.pixels + delta,
-        duration: _lineDuration,
-        curve: Curves.easeInOut,
+        duration: line.duration,
+        curve: line.curve,
       );
     }
     return KeyEventResult.handled;
@@ -580,6 +580,7 @@ class _ScrollFocusState extends State<ScrollFocus>
     ScrollPosition outer,
     ScrollPosition inner,
     double delta,
+    AnimationStyle line,
   ) {
     final header = outer.maxScrollExtent - outer.minScrollExtent;
     final scrolled = inner.pixels - inner.minScrollExtent;
@@ -590,14 +591,14 @@ class _ScrollFocusState extends State<ScrollFocus>
     if (target <= header) {
       outer.moveTo(
         outer.minScrollExtent + target,
-        duration: _lineDuration,
-        curve: Curves.easeInOut,
+        duration: line.duration,
+        curve: line.curve,
       );
     } else {
       inner.moveTo(
         inner.minScrollExtent + target - header,
-        duration: _lineDuration,
-        curve: Curves.easeInOut,
+        duration: line.duration,
+        curve: line.curve,
       );
     }
   }
@@ -640,9 +641,9 @@ class _ScrollFocusState extends State<ScrollFocus>
     return KeyEventResult.handled;
   }
 
-  /// Slides to [page] over [_pageDuration], or jumps there for [jump] or
-  /// when the app or the platform asks for less motion. With [focusPage],
-  /// focus then moves into the page, by [_focusPage].
+  /// Slides to [page] over the theme's `slow` level, or jumps there for
+  /// [jump] or when the app or the platform asks for less motion. With
+  /// [focusPage], focus then moves into the page, by [_focusPage].
   void _goToPage(
     PageController controller,
     int page, {
@@ -673,8 +674,8 @@ class _ScrollFocusState extends State<ScrollFocus>
       controller
           .animateToPage(
             page,
-            duration: _pageDuration,
-            curve: Curves.easeInOutSine,
+            duration: _motion.slow.duration!,
+            curve: _motion.slow.curve!,
           )
           .whenComplete(settle),
     );
@@ -885,12 +886,11 @@ class _PageMarkerState extends State<_PageMarker> {
 /// Builds the scroll view of a layout scroll view: [controller] comes from
 /// [ScrollFocus.controllerOf], and [padding] is `style.padding` when the
 /// padding scrolls, else null.
-typedef ScrollViewBuilder =
-    Widget Function(
-      BuildContext context,
-      ScrollController? controller,
-      EdgeInsetsGeometry? padding,
-    );
+typedef ScrollViewBuilder = Widget Function(
+  BuildContext context,
+  ScrollController? controller,
+  EdgeInsetsGeometry? padding,
+);
 
 /// The box, keyboard focus, and frame of a layout scroll view.
 ///

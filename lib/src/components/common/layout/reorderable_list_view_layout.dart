@@ -144,6 +144,11 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
   /// The key node of each built item, by index.
   final _itemNodes = <int, FocusNode>{};
 
+  /// The theme's motion, read in [build]: the drag proxy mounts outside
+  /// the themed subtree (spec section 9), so [_proxy] cannot read it from
+  /// its own context.
+  StratumAnimation _liftAnimation = StratumAnimation.packageDefault;
+
   ReorderableListViewLayout get _layout => widget.layout;
 
   /// Whether primary focus lies inside this list.
@@ -257,7 +262,11 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
   }
 
   Widget _proxy(Widget child, int index, Animation<double> animation) {
-    return _LiftedItem(style: _layout.dragStyle!, child: child);
+    return _LiftedItem(
+      style: _layout.dragStyle!,
+      fast: _liftAnimation.fast,
+      child: child,
+    );
   }
 
   Widget _buildItem(BuildContext context, int index) {
@@ -283,6 +292,9 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
   @override
   Widget build(BuildContext context) {
     final layout = _layout;
+    _liftAnimation =
+        StratumThemeApplication.maybeOf(context)?.animation ??
+        StratumAnimation.packageDefault;
     return ReorderableList(
       itemBuilder: _buildItem,
       itemCount: layout.itemCount,
@@ -388,10 +400,16 @@ class _ReorderKeysState extends State<_ReorderKeys> {
 
 /// The lifted item: starts from `const WidgetStyle()` and switches to
 /// [style] on its first frame, so [AnimatedStyledBox] animates the lift.
+///
+/// [fast] comes from the caller, not this widget's own context: the drag
+/// proxy mounts into the nearest [Overlay], a sibling of the themed
+/// subtree rather than a descendant, so a lookup from here never finds the
+/// [StratumThemeApplication] above the list (spec section 9).
 class _LiftedItem extends StatefulWidget {
-  const new({required this.style, required this.child});
+  const new({required this.style, required this.fast, required this.child});
 
   final WidgetStyle style;
+  final AnimationStyle fast;
   final Widget child;
 
   @override
@@ -399,12 +417,6 @@ class _LiftedItem extends StatefulWidget {
 }
 
 class _LiftedItemState extends State<_LiftedItem> {
-  /// The lift's duration when [_LiftedItem.style] sets none: the
-  /// interaction default of the layouts.
-  static const _defaultAnimation = AnimationStyle(
-    duration: Duration(milliseconds: 100),
-  );
-
   var _lifted = false;
 
   @override
@@ -415,10 +427,12 @@ class _LiftedItemState extends State<_LiftedItem> {
     });
   }
 
+  /// [_LiftedItem.style], with [_LiftedItem.fast] when it sets no timing:
+  /// the interaction default of the layouts (spec section 9).
   WidgetStyle get _liftStyle {
     final style = widget.style;
     if (style.animationStyle != null) return style;
-    return style.copyWith(animationStyle: _defaultAnimation);
+    return style.copyWith(animationStyle: widget.fast);
   }
 
   @override

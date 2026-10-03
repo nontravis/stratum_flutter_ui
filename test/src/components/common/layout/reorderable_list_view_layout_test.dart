@@ -7,12 +7,17 @@ const _red = Color(0xFFFF0000);
 
 /// [child], 200 by 300, in an app with an overlay, localizations, and the
 /// default keys, under the Stratum theme.
-Widget _app(Widget child, {TextDirection textDirection = TextDirection.ltr}) {
+Widget _app(
+  Widget child, {
+  TextDirection textDirection = TextDirection.ltr,
+  StratumThemeData? theme,
+}) {
   return MaterialApp(
     home: Material(
       child: themedHost(
         SizedBox(width: 200, height: 300, child: child),
         textDirection: textDirection,
+        theme: theme,
       ),
     ),
   );
@@ -134,9 +139,8 @@ class _ItemState extends State<_Item> {
 _HarnessState _harness(WidgetTester tester) =>
     tester.state<_HarnessState>(find.byType(_Harness));
 
-_ItemState _itemState(WidgetTester tester, int id) => tester.state<_ItemState>(
-  find.byKey(ValueKey(id), skipOffstage: false),
-);
+_ItemState _itemState(WidgetTester tester, int id) =>
+    tester.state<_ItemState>(find.byKey(ValueKey(id), skipOffstage: false));
 
 /// Focuses item [id] and returns its node.
 Future<FocusNode> _focusItem(WidgetTester tester, int id) async {
@@ -246,7 +250,7 @@ void main() {
       expect(lifted.style!.backgroundColor, _red);
       expect(
         lifted.style!.animationStyle?.duration,
-        const Duration(milliseconds: 100),
+        const Duration(milliseconds: 125),
       );
       await tester.pump(const Duration(milliseconds: 50));
       final fill = tester.widget<DecoratedBox>(
@@ -259,6 +263,74 @@ void main() {
       expect(color.a, greaterThan(0));
       expect(color.a, lessThan(1));
 
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets("us11/fr01: the lift takes the theme's fast level", (
+      tester,
+    ) async {
+      const dragStyle = WidgetStyle(backgroundColor: _red);
+      await tester.pumpWidget(
+        _app(
+          const _Harness(count: 5, dragStyle: dragStyle),
+          theme: motionTheme(),
+        ),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('0')),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.moveBy(const Offset(0, 30));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox))
+            .style!
+            .animationStyle
+            ?.duration,
+        const Duration(milliseconds: 77),
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('C1: under reduced motion the lift still fades over the '
+        "theme's duration", (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      const dragStyle = WidgetStyle(backgroundColor: _red);
+      await tester.pumpWidget(
+        _app(
+          const _Harness(count: 5, dragStyle: dragStyle),
+          theme: motionTheme(),
+        ),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('0')),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.moveBy(const Offset(0, 30));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 38));
+
+      final fill = tester.widget<DecoratedBox>(
+        find.descendant(
+          of: find.byType(AnimatedStyledBox),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      final color = (fill.decoration as StyleDecoration).color!;
+      expect(color.a, greaterThan(0));
+      expect(color.a, lessThan(1));
       await gesture.up();
       await tester.pumpAndSettle();
     });
@@ -347,11 +419,7 @@ void main() {
 
   group('ReorderableListViewLayout keys', () {
     for (final (axis, back, forth) in const [
-      (
-        Axis.vertical,
-        LogicalKeyboardKey.arrowUp,
-        LogicalKeyboardKey.arrowDown,
-      ),
+      (Axis.vertical, LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowDown),
       (
         Axis.horizontal,
         LogicalKeyboardKey.arrowLeft,
@@ -427,35 +495,27 @@ void main() {
       variant: TargetPlatformVariant.all(),
     );
 
-    testWidgets(
-      'Alt+Up on the first item and Alt+Down on the last item of a '
-      'vertical list are handled and move nothing',
-      (tester) async {
-        await tester.pumpWidget(_app(const _Harness(count: 3)));
-        await _focusItem(tester, 0);
-        expect(await _alt(tester, LogicalKeyboardKey.arrowUp), isTrue);
-        await _focusItem(tester, 2);
-        expect(await _alt(tester, LogicalKeyboardKey.arrowDown), isTrue);
+    testWidgets('Alt+Up on the first item and Alt+Down on the last item of a '
+        'vertical list are handled and move nothing', (tester) async {
+      await tester.pumpWidget(_app(const _Harness(count: 3)));
+      await _focusItem(tester, 0);
+      expect(await _alt(tester, LogicalKeyboardKey.arrowUp), isTrue);
+      await _focusItem(tester, 2);
+      expect(await _alt(tester, LogicalKeyboardKey.arrowDown), isTrue);
 
-        expect(_harness(tester).moves, isEmpty);
-      },
-      variant: TargetPlatformVariant.all(),
-    );
+      expect(_harness(tester).moves, isEmpty);
+    }, variant: TargetPlatformVariant.all());
 
-    testWidgets(
-      'Alt+Home on the first item and Alt+End on the last item are '
-      'handled and move nothing',
-      (tester) async {
-        await tester.pumpWidget(_app(const _Harness(count: 3)));
-        await _focusItem(tester, 0);
-        expect(await _alt(tester, LogicalKeyboardKey.home), isTrue);
-        await _focusItem(tester, 2);
-        expect(await _alt(tester, LogicalKeyboardKey.end), isTrue);
+    testWidgets('Alt+Home on the first item and Alt+End on the last item are '
+        'handled and move nothing', (tester) async {
+      await tester.pumpWidget(_app(const _Harness(count: 3)));
+      await _focusItem(tester, 0);
+      expect(await _alt(tester, LogicalKeyboardKey.home), isTrue);
+      await _focusItem(tester, 2);
+      expect(await _alt(tester, LogicalKeyboardKey.end), isTrue);
 
-        expect(_harness(tester).moves, isEmpty);
-      },
-      variant: TargetPlatformVariant.all(),
-    );
+      expect(_harness(tester).moves, isEmpty);
+    }, variant: TargetPlatformVariant.all());
 
     testWidgets('Alt+Left in a horizontal list is handled, so a browser '
         'does not go back', (tester) async {
