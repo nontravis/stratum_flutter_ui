@@ -198,7 +198,7 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
     }
     _layout.onReorderItem(index, target);
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _afterMove(target, forward: target > index, byKey: true),
+      (_) => _afterMove(target, byKey: true),
     );
     return KeyEventResult.handled;
   }
@@ -218,7 +218,7 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
     }
     _layout.onReorderItem(from, to);
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _afterMove(to, forward: to > from, byKey: false),
+      (_) => _afterMove(to, byKey: false),
     );
   }
 
@@ -239,21 +239,16 @@ class _ReorderableBodyState extends State<_ReorderableBody> {
     }
   }
 
-  /// Reveals the item at [target] after a move. After a key move, when
+  /// Reveals the item at [target] after a move, by the edge of each
+  /// viewport around it ([revealInViewports]). After a key move, when
   /// focus has left the list, it moves to that item's first node in Tab
   /// order.
-  void _afterMove(int target, {required bool forward, required bool byKey}) {
+  void _afterMove(int target, {required bool byKey}) {
     if (!mounted) return;
     final node = _itemNodes[target];
-    final item = node?.context;
-    if (node == null || item == null) return;
+    if (node == null || node.context == null) return;
     if (byKey && !_holdsFocus) firstTabStopIn(node)?.requestFocus();
-    Scrollable.ensureVisible(
-      item,
-      alignmentPolicy: forward
-          ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
-          : ScrollPositionAlignmentPolicy.keepVisibleAtStart,
-    );
+    revealInViewports(node);
   }
 
   Widget _proxy(Widget child, int index, Animation<double> animation) {

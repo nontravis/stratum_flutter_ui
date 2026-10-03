@@ -580,6 +580,54 @@ void main() {
     });
 
     testWidgets(
+      'Alt+Right reveals the moved item by the edge of each viewport: the '
+      'end of the list and the start of the page',
+      (tester) async {
+        final page = ScrollController();
+        addTearDown(page.dispose);
+        // Ten 40 px items in a 200 px horizontal list at 300 to 340 of a
+        // vertical page, between two 300 px fillers.
+        await tester.pumpWidget(
+          _app(
+            SingleChildScrollView(
+              controller: page,
+              child: const Column(
+                children: [
+                  SizedBox(height: 300),
+                  SizedBox(
+                    width: 200,
+                    height: 40,
+                    child: _Harness(count: 10, axis: Axis.horizontal),
+                  ),
+                  SizedBox(height: 300),
+                ],
+              ),
+            ),
+          ),
+        );
+        // Item 4 fills the list's last 40 px; the page shows 320 to 620,
+        // so the list extends past the page's top.
+        page.jumpTo(320);
+        await tester.pump();
+        await _focusItem(tester, 4);
+
+        await _alt(tester, LogicalKeyboardKey.arrowRight);
+
+        expect(_harness(tester).ids.indexOf(4), 5);
+        final list = tester.getRect(
+          find.descendant(
+            of: find.byType(ReorderableListViewLayout),
+            matching: find.byType(Scrollable),
+          ),
+        );
+        final item = tester.getRect(find.byKey(const ValueKey(4)));
+        expect(list.intersect(item), item);
+        expect(page.offset, 300);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
       'Alt+End moves an item to the end of a lazy list of 200 and keeps its '
       'focus in view',
       (tester) async {

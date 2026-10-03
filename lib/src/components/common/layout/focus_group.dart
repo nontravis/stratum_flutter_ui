@@ -130,13 +130,10 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
     final target = _target(event.logicalKey, current, items, reading);
     if (target == null) return KeyEventResult.ignored;
     if (target != current) {
-      final policy = _revealPolicy(target);
       target.requestFocus();
       final scope = node.nearestScope;
       if (scope != null) _policy.invalidateScopeData(scope);
-      if (policy != null) {
-        Scrollable.ensureVisible(target.context!, alignmentPolicy: policy);
-      }
+      revealInViewports(target);
     }
     return KeyEventResult.handled;
   }
@@ -400,43 +397,69 @@ class _FocusGroupPolicy extends ReadingOrderTraversalPolicy {
 FocusNode? firstTabStopIn(FocusNode container) {
   final first = _tabOrder.first(container);
   if (first == null) return null;
-  final policy = _revealPolicy(first);
-  if (policy != null) {
-    Scrollable.ensureVisible(first.context!, alignmentPolicy: policy);
-  }
+  revealInViewports(first);
   return first;
 }
 
-/// The policy that scrolls [target] into view, by where it lies on screen
-/// against the viewports around it, from the nearest outwards: the first
-/// viewport it extends past decides. Past the top or left edge it reveals
-/// at the start; past the bottom or right edge, at the end. Null when
-/// [target] lies inside every viewport, so nothing scrolls.
-/// [ScrollPosition.ensureVisible] flips both for a reversed axis, so
-/// right-to-left text and `reverse` never decide it.
-ScrollPositionAlignmentPolicy? _revealPolicy(FocusNode target) {
-  final rect = target.rect;
+/// Scrolls each viewport around [target], from the nearest outwards, by
+/// that viewport's own edge, so [target] shows whole with the least
+/// scroll: a viewport whose start [target] lies before reveals it at the
+/// start, one whose end it extends past reveals it at the end, and one
+/// that holds it whole stays put. [ScrollPosition.ensureVisible] flips
+/// start and end for a reversed axis, so right-to-left text and `reverse`
+/// never decide it.
+///
+/// [Scrollable.ensureVisible] applies one policy at every level, and
+/// `keepVisibleAtEnd` never scrolls a viewport back, so a row that
+/// scrolls to its end inside a page whose top the row extends past would
+/// stay cut off. The group arrows, [firstTabStopIn], and the traversal of
+/// a scroller's content group reveal through this.
+void revealInViewports(FocusNode target) {
+  final context = target.context;
+  final object = context?.findRenderObject();
+  if (context == null || object == null || !object.attached) return;
+  // What each level scrolls into view: the target, then the viewport that
+  // holds it, as Scrollable.ensureVisible walks the chain.
+  RenderObject? shown = object;
   for (
-    var scrollable = Scrollable.maybeOf(target.context!);
-    scrollable != null;
+    var scrollable = Scrollable.maybeOf(context);
+    scrollable != null && shown != null;
     scrollable = Scrollable.maybeOf(scrollable.context)
   ) {
-    final box = scrollable.context.findRenderObject();
-    if (box is! RenderBox || !box.hasSize) continue;
-    final viewport = MatrixUtils.transformRect(
-      box.getTransformTo(null),
-      Offset.zero & box.size,
-    );
-    final horizontal = scrollable.position.axis == Axis.horizontal;
-    final before = horizontal
-        ? rect.left < viewport.left
-        : rect.top < viewport.top;
-    if (before) return ScrollPositionAlignmentPolicy.keepVisibleAtStart;
-    final past = horizontal
-        ? rect.right > viewport.right
-        : rect.bottom > viewport.bottom;
-    if (past) return ScrollPositionAlignmentPolicy.keepVisibleAtEnd;
+    final policy = _edgePolicy(target.rect, scrollable);
+    if (policy != null) {
+      scrollable.position.ensureVisible(
+        shown,
+        alignmentPolicy: policy,
+        targetRenderObject: shown == object ? null : object,
+      );
+    }
+    shown = scrollable.context.findRenderObject();
   }
+}
+
+/// How [scrollable] reveals [rect], a rect on screen: at the start when
+/// [rect] starts before the viewport along its axis, at the end when it
+/// extends past it, and null when the viewport holds it whole.
+ScrollPositionAlignmentPolicy? _edgePolicy(
+  Rect rect,
+  ScrollableState scrollable,
+) {
+  final box = scrollable.context.findRenderObject();
+  if (box is! RenderBox || !box.hasSize) return null;
+  final viewport = MatrixUtils.transformRect(
+    box.getTransformTo(null),
+    Offset.zero & box.size,
+  );
+  final horizontal = scrollable.position.axis == Axis.horizontal;
+  final before = horizontal
+      ? rect.left < viewport.left
+      : rect.top < viewport.top;
+  if (before) return ScrollPositionAlignmentPolicy.keepVisibleAtStart;
+  final past = horizontal
+      ? rect.right > viewport.right
+      : rect.bottom > viewport.bottom;
+  if (past) return ScrollPositionAlignmentPolicy.keepVisibleAtEnd;
   return null;
 }
 

@@ -231,6 +231,26 @@ ScrollController _controller() {
   return controller;
 }
 
+/// The [Scrollable] of the only scrolling [RowLayout].
+Finder get _rowScrollable => find.descendant(
+  of: find.byType(RowLayout),
+  matching: find.byType(Scrollable),
+);
+
+ScrollPosition _rowPosition(WidgetTester tester) =>
+    tester.state<ScrollableState>(_rowScrollable).position;
+
+/// Expects [node] fully inside the scrolling row's viewport, horizontally.
+void _expectInRow(WidgetTester tester, FocusNode node) {
+  final row = tester.getRect(_rowScrollable);
+  final rect = node.rect;
+  expect(
+    rect.left >= row.left - 0.5 && rect.right <= row.right + 0.5,
+    isTrue,
+    reason: '${node.debugLabel} at $rect, row $row',
+  );
+}
+
 void main() {
   group('StratumFocusGroup Tab', () {
     testWidgets('Tab enters the group once, on the first item', (tester) async {
@@ -848,6 +868,50 @@ void main() {
         await _key(tester, LogicalKeyboardKey.arrowLeft);
 
         _expectInPage(tester, items[0], controller, 350 - 200);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'Right reveals the next card by the edge of each viewport: the end '
+      'of the row and the start of the page',
+      (tester) async {
+        final controller = _controller();
+        final items = _nodes(10);
+        await tester.pumpWidget(
+          _belowAndAbove(
+            SizedBox(
+              width: 200,
+              height: 50,
+              child: RowLayout(
+                style: const WidgetStyle(),
+                scroll: const StratumScroll(),
+                focusGroup: const StratumFocusGroup(),
+                children: [
+                  for (final node in items)
+                    Focus(
+                      focusNode: node,
+                      child: const SizedBox(width: 100, height: 50),
+                    ),
+                ],
+              ),
+            ),
+            controller,
+          ),
+        );
+        await _focus(tester, items[3]);
+        // The row shows cards 2 and 3, so card 4 lies past its end; the
+        // page shows 320 to 520, so the row, at 300 to 350, extends past
+        // the page's top.
+        _rowPosition(tester).jumpTo(200);
+        controller.jumpTo(320);
+        await tester.pump();
+
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+
+        expect(_rowPosition(tester).pixels, 300);
+        _expectInRow(tester, items[4]);
+        _expectInPage(tester, items[4], controller, 300);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
