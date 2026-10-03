@@ -197,6 +197,17 @@ class _StratumInkWellState extends State<StratumInkWell>
     shortcuts: widget.shortcuts,
   );
 
+  /// Whether [StratumInkWell.autofocus] may request focus: not
+  /// [StratumInkWell.disabled], a [StratumInkWell.focusType] other than
+  /// [FocusType.none], and [StratumInkWell.canRequestFocus] true. Looser
+  /// than [_canFocus]: it skips the activation-callback check, because a
+  /// directional [NavigationMode] honors autofocus on its own, ignoring
+  /// that check either way (`material/ink_well.dart:1292-1311`, `:1333-1336`).
+  bool get _autofocusEligible =>
+      !widget.disabled &&
+      widget.focusType != FocusType.none &&
+      widget.canRequestFocus;
+
   bool get _hasRing =>
       widget.focusType == FocusType.focused ||
       widget.focusType == FocusType.focusedVisible;
@@ -342,7 +353,7 @@ class _StratumInkWellState extends State<StratumInkWell>
           (disabled ? SystemMouseCursors.forbidden : null),
       focusNode: shortcutOnly ? null : _focusNode,
       canRequestFocus: !shortcutOnly && canFocus,
-      autofocus: !shortcutOnly && widget.autofocus && canFocus,
+      autofocus: !shortcutOnly && widget.autofocus && _autofocusEligible,
       statesController: _statesController,
       enableFeedback: widget.enableFeedback,
       excludeFromSemantics: widget.excludeFromSemantics,
@@ -364,7 +375,7 @@ class _StratumInkWellState extends State<StratumInkWell>
       result = Focus(
         focusNode: _focusNode,
         canRequestFocus: canFocus,
-        autofocus: widget.autofocus && canFocus,
+        autofocus: widget.autofocus && _autofocusEligible,
         onFocusChange: widget.onFocusChange,
         child: result,
       );

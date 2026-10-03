@@ -561,6 +561,61 @@ void main() {
 
       expect(changes, [true, false]);
     });
+
+    // autofocus has no activation callback and no shortcuts, so it never
+    // satisfies tapSurfaceTakesFocus's activation check. autofocus still
+    // honors a directional NavigationMode (49a2d6b), which ignores that
+    // check (us04/fr03).
+    testWidgets(
+      '(pin) autofocus with no activation holds focus in directional mode',
+      (tester) async {
+        final node = _node();
+        await tester.pumpWidget(
+          MediaQuery(
+            data: const MediaQueryData(
+              navigationMode: NavigationMode.directional,
+            ),
+            child: themedHost(
+              StratumInkWell(
+                onHover: (_) {},
+                autofocus: true,
+                focusNode: node,
+                child: _box,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(node.hasFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      '(pin) autofocus with no activation stays unfocused in traditional '
+      'mode',
+      (tester) async {
+        final node = _node();
+        await tester.pumpWidget(
+          MediaQuery(
+            data: const MediaQueryData(
+              navigationMode: NavigationMode.traditional,
+            ),
+            child: themedHost(
+              StratumInkWell(
+                onHover: (_) {},
+                autofocus: true,
+                focusNode: node,
+                child: _box,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(node.hasFocus, isFalse);
+      },
+    );
   });
 
   group('StratumInkWell semantics', () {
