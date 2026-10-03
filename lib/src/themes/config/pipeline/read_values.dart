@@ -78,22 +78,25 @@ final class _Read {
     return switch (path.first) {
       'transparent' => true,
       'palette' || 'color' => ThemeReader.parseColor(value) != null,
-      _ => _isTokenDimension(value),
+      'layouts' => _isTokenDimension(value, percent: true),
+      _ => _isTokenDimension(value, percent: false),
     };
   }
 
   /// Whether [value] reads as a `space`, `radius`, or `layouts` token: one
-  /// dimension, or a non-empty map of window sizes to dimensions.
-  static bool _isTokenDimension(Object? value) {
-    if (value is! Map<String, Object?>) {
-      return ThemeReader.parseDimension(value) != null;
-    }
+  /// dimension, or a non-empty map of window sizes to dimensions; a
+  /// percent only when [percent] is set (spec section 8.3).
+  static bool _isTokenDimension(Object? value, {required bool percent}) {
+    bool fits(Object? entry) => switch (ThemeReader.parseDimension(entry)) {
+      null => false,
+      PercentDimension() => percent,
+      FixedDimension() => true,
+    };
+    if (value is! Map<String, Object?>) return fits(value);
     final sizes = WindowSize.values.asNameMap();
     return value.isNotEmpty &&
         value.entries.every(
-          (entry) =>
-              sizes.containsKey(entry.key) &&
-              ThemeReader.parseDimension(entry.value) != null,
+          (entry) => sizes.containsKey(entry.key) && fits(entry.value),
         );
   }
 
@@ -152,17 +155,22 @@ final class _Read {
     return Map.unmodifiable({
       for (final MapEntry(key: name, value: token) in tokens.entries)
         if (!_theme.failed.contains('$group.$name'))
-          name: ?_byWindowSize('$group.$name', token),
+          name: ?_byWindowSize(
+            '$group.$name',
+            token,
+            percent: group == 'layouts',
+          ),
     });
   }
 
   StratumByWindowSize<StratumDimension>? _byWindowSize(
     String path,
-    Object? value,
-  ) {
+    Object? value, {
+    required bool percent,
+  }) {
     final reader = _readerFor(path, value);
     if (value is! Map<String, Object?>) {
-      final dimension = reader.dimension(value, path, required: true);
+      final dimension = _dimension(reader, value, path, percent: percent);
       return dimension == null ? null : StratumByWindowSize.all(dimension);
     }
     if (value.isEmpty) {
@@ -191,10 +199,35 @@ final class _Read {
           : entry is Map<String, Object?>
           ? _reader
           : _readerFor(entryPath, entry);
-      final dimension = entryReader.dimension(entry, entryPath, required: true);
+      final dimension = _dimension(
+        entryReader,
+        entry,
+        entryPath,
+        percent: percent,
+      );
       if (dimension != null) entries[size] = dimension;
     }
     return entries.isEmpty ? null : StratumByWindowSize(entries);
+  }
+
+  /// [reader]'s dimension of [value] at [path]. Without [percent] (`space`
+  /// and `radius`), a percent is reported as `expected_dimension` and
+  /// dropped (spec section 8.3).
+  StratumDimension? _dimension(
+    ThemeReader reader,
+    Object? value,
+    String path, {
+    required bool percent,
+  }) {
+    final dimension = reader.dimension(value, path, required: true);
+    if (percent || dimension is! PercentDimension) return dimension;
+    reader.report(
+      StratumThemeErrorCode.expectedDimension,
+      path,
+      'expected a number, got ${ThemeReader.show(value)}; a percent is '
+      'allowed only in layouts',
+    );
+    return null;
   }
 
   Map<String, Color> _palette(Object? value) {

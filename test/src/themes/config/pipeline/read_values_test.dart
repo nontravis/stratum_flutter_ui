@@ -161,10 +161,9 @@ color:
       const expected =
           'layer1 palette.app.mango: expected a map, got '
           '"{palette.brand.555}" [expected_map]';
-      expect(
-        _problems('palette:\n  app:\n    mango: "{palette.brand.555}"'),
-        [expected],
-      );
+      expect(_problems('palette:\n  app:\n    mango: "{palette.brand.555}"'), [
+        expected,
+      ]);
     });
 
     test('reads app colors and app ramps', () {
@@ -280,6 +279,73 @@ color:
         config.space['lg']!.valueFor(WindowSize.mobile),
         const StratumDimension.fixed(8),
       );
+    });
+
+    test('a percent in space, radius, or a window-size entry is '
+        'expected_dimension, and the token drops', () {
+      final (config, errors) = _read([
+        layer(
+          'space:\n  md: 5%\n  gutter: { mobile: 16, desktop: "10%" }\n'
+          'radius:\n  sm: "50%"',
+        ),
+      ]);
+
+      const spaceMd =
+          'layer1 space.md: expected a number, got "5%"; a percent is '
+          'allowed only in layouts [expected_dimension]';
+      const gutterDesktop =
+          'layer1 space.gutter.desktop: expected a number, got "10%"; a '
+          'percent is allowed only in layouts [expected_dimension]';
+      const radiusSm =
+          'layer1 radius.sm: expected a number, got "50%"; a percent is '
+          'allowed only in layouts [expected_dimension]';
+      expect(problems(errors), [spaceMd, gutterDesktop, radiusSm]);
+      expect(config.space.containsKey('md'), isFalse);
+      expect(
+        config.space['gutter']!.valueFor(WindowSize.bigDesktop),
+        const StratumDimension.fixed(16),
+      );
+    });
+
+    test('a percent in layouts reads, scalar and per window size', () {
+      final (config, errors) = _read([
+        layer('layouts:\n  max-width-read: { mobile: 100%, desktop: 80% }'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(
+        config.layouts['max-width-read']!.valueFor(WindowSize.mobile),
+        const StratumDimension.percent(1),
+      );
+      expect(
+        config.layouts['max-width-read']!.valueFor(WindowSize.desktop),
+        const StratumDimension.percent(0.8),
+      );
+    });
+
+    test('a space alias to a layouts percent reports at the holder', () {
+      const expected =
+          'layer1 space.lg: expected a number, got "80%"; a percent is '
+          'allowed only in layouts [expected_dimension]';
+
+      expect(
+        _problems(
+          'layouts:\n  max-width-read: 80%\nspace:\n'
+          '  lg: "{layouts.max-width-read}"',
+        ),
+        [expected],
+      );
+    });
+
+    test('a radius alias to a space percent reports once, at the space '
+        'token', () {
+      const expected =
+          'layer1 space.md: expected a number, got "5%"; a percent is '
+          'allowed only in layouts [expected_dimension]';
+
+      expect(_problems('space:\n  md: 5%\nradius:\n  sm: "{space.md}"'), [
+        expected,
+      ]);
     });
   });
 
