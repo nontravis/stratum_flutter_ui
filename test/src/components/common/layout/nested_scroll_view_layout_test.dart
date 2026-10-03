@@ -392,4 +392,141 @@ void main() {
       expect(_listPosition(tester, 'b 0').pixels, 50);
     }, variant: _desktop);
   });
+
+  group('NestedScrollViewLayout reveal', () {
+    /// Expects [node] wholly inside the nested scroll view, and the header
+    /// and the body scrolled to [outer] and [inner].
+    void expectRevealed(
+      WidgetTester tester,
+      FocusNode node, {
+      required double outer,
+      required double inner,
+    }) {
+      expect(node.hasPrimaryFocus, isTrue);
+      expect(_outer(tester).pixels, outer);
+      expect(_inner(tester).pixels, inner);
+      final view = tester.getRect(find.byType(NestedScrollViewLayout));
+      final rect = node.rect;
+      expect(
+        rect.top >= view.top - 0.5 && rect.bottom <= view.bottom + 0.5,
+        isTrue,
+        reason: '${node.debugLabel} at $rect, view $view',
+      );
+    }
+
+    testWidgets(
+      'a group arrow reveals the next item by collapsing the header, then '
+      'by scrolling the body past it',
+      (tester) async {
+        final items = [for (var i = 0; i < 12; i++) _node('item $i')];
+        await tester.pumpWidget(
+          _nested(
+            before: _node('before'),
+            body: ColumnLayout(
+              scroll: const StratumScroll(),
+              focusGroup: const StratumFocusGroup(),
+              children: [
+                for (final item in items)
+                  Focus(
+                    focusNode: item,
+                    child: const SizedBox(width: 200, height: 40),
+                  ),
+              ],
+            ),
+          ),
+        );
+        // Under the 200 px header, the window shows the body's first
+        // 100 px; item 2, at 80 to 120, ends 20 px below it.
+        items[1].requestFocus();
+        await tester.pump();
+
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+
+        expectRevealed(tester, items[2], outer: 20, inner: 0);
+
+        // Item 8, at 320 to 360, ends past the body's own viewport.
+        items[7].requestFocus();
+        await tester.pump();
+
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+
+        expectRevealed(tester, items[8], outer: _header, inner: 360 - 300);
+
+        // The body shows 60 to 360; item 1, at 40 to 80, starts above it.
+        items[2].requestFocus();
+        await tester.pump();
+
+        await _key(tester, LogicalKeyboardKey.arrowUp);
+
+        expectRevealed(tester, items[1], outer: _header, inner: 40);
+      },
+      variant: _desktop,
+    );
+
+    testWidgets(
+      'a reorder move reveals the moved item by collapsing the header, then '
+      'by scrolling the body past it',
+      (tester) async {
+        final nodes = [for (var i = 0; i < 12; i++) _node('item $i')];
+        final ids = [for (var i = 0; i < 12; i++) i];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Material(
+              child: themedHost(
+                SizedBox(
+                  width: 200,
+                  height: 300,
+                  child: NestedScrollViewLayout(
+                    headerSliverBuilder: _headerSlivers,
+                    body: StatefulBuilder(
+                      builder: (context, setState) =>
+                          ReorderableListViewLayout.builder(
+                            itemCount: ids.length,
+                            onReorderItem: (from, to) => setState(
+                              () => ids.insert(to, ids.removeAt(from)),
+                            ),
+                            itemBuilder: (context, index) => Focus(
+                              key: ValueKey(ids[index]),
+                              focusNode: nodes[ids[index]],
+                              child: const SizedBox(height: 40),
+                            ),
+                          ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        // Item 1 sits at 40 to 80 under the 200 px header; its next slot,
+        // at 80 to 120, ends 20 px below the window.
+        nodes[1].requestFocus();
+        await tester.pump();
+
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+
+        expect(ids.indexOf(1), 2);
+        expectRevealed(tester, nodes[1], outer: 20, inner: 0);
+
+        // Item 7's next slot, at 320 to 360, ends past the body's own
+        // viewport.
+        nodes[7].requestFocus();
+        await tester.pump();
+
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+
+        expect(ids.indexOf(7), 8);
+        expectRevealed(tester, nodes[7], outer: _header, inner: 360 - 300);
+      },
+      variant: _desktop,
+    );
+  });
+}
+
+/// Presses [key] with Alt held.
+Future<void> _alt(WidgetTester tester, LogicalKeyboardKey key) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+  await tester.sendKeyEvent(key);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+  await tester.pumpAndSettle();
 }
