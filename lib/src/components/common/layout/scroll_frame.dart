@@ -126,6 +126,14 @@ void jumpToEnd(ScrollPosition position, {required ValueGetter<bool> attached}) {
   jump(3);
 }
 
+/// [style]'s duration, else [Duration.zero] for a hand-built [AnimationStyle]
+/// that sets none (for example [AnimationStyle.noAnimation]).
+Duration _durationOf(AnimationStyle style) => style.duration ?? Duration.zero;
+
+/// [style]'s curve, else [Curves.easeInOutSine] for a hand-built
+/// [AnimationStyle] that sets none.
+Curve _curveOf(AnimationStyle style) => style.curve ?? Curves.easeInOutSine;
+
 /// How the keys of a [ScrollFocus] move its view.
 enum ScrollFocusMode {
   /// Arrows scroll 50 px, Page Up and Page Down 0.8 of the viewport, and
@@ -664,7 +672,7 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
 
     if (jump ||
         reducesMotion(context) ||
-        _motion.slow.duration == Duration.zero) {
+        _durationOf(_motion.slow) == Duration.zero) {
       _slideTarget = null;
       controller.jumpToPage(page);
       if (focusPage) {
@@ -677,8 +685,8 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
       controller
           .animateToPage(
             page,
-            duration: _motion.slow.duration!,
-            curve: _motion.slow.curve!,
+            duration: _durationOf(_motion.slow),
+            curve: _curveOf(_motion.slow),
           )
           .whenComplete(settle),
     );

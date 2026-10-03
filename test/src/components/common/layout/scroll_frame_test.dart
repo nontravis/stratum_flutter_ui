@@ -1299,6 +1299,27 @@ void main() {
       expect(page(tester), 1);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
+    testWidgets('BR3: a page change jumps when the slow level has no '
+        'fields at all', (tester) async {
+      final theme = fakeTheme.copyWith(
+        animation: StratumAnimation(
+          veryFast: StratumAnimation.packageDefault.veryFast,
+          fast: StratumAnimation.packageDefault.fast,
+          normal: StratumAnimation.packageDefault.normal,
+          slow: const AnimationStyle(),
+          verySlow: StratumAnimation.packageDefault.verySlow,
+          appear: StratumAnimation.packageDefault.appear,
+          defaultLevel: StratumMotionLevel.fast,
+        ),
+      );
+      await focusView(tester, themedHost(pages(), theme: theme));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+
+      expect(page(tester), 1);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
     testWidgets('reduced motion jumps to the page', (tester) async {
       await focusView(
         tester,

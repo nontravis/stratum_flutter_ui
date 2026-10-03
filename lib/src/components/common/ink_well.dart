@@ -396,6 +396,14 @@ class _TextEntryGuard extends ShortcutActivator {
   String debugDescribeKeys() => activator.debugDescribeKeys();
 }
 
+/// [style]'s duration, else [Duration.zero] for a hand-built [AnimationStyle]
+/// that sets none (for example [AnimationStyle.noAnimation]).
+Duration _durationOf(AnimationStyle style) => style.duration ?? Duration.zero;
+
+/// [style]'s curve, else [Curves.easeInOutSine] for a hand-built
+/// [AnimationStyle] that sets none.
+Curve _curveOf(AnimationStyle style) => style.curve ?? Curves.easeInOutSine;
+
 /// Paints the hover and press overlay over [child] from [states].
 ///
 /// It listens to [states] itself, below [InkWell]: [InkWell] updates the
@@ -440,8 +448,8 @@ class _StateOverlay extends StatelessWidget {
       listenable: states,
       builder: (context, child) => TweenAnimationBuilder<Color?>(
         tween: ColorTween(end: _target(states.value)),
-        duration: fast.duration!,
-        curve: fast.curve!,
+        duration: _durationOf(fast),
+        curve: _curveOf(fast),
         // Alpha 0 becomes no color, so an idle surface paints nothing.
         builder: (context, color, child) => DecoratedBox(
           position: DecorationPosition.foreground,

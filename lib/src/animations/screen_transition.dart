@@ -101,7 +101,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
               Animation<double> animation,
               Animation<double> secondaryAnimation,
               Widget child) {
-            final resolved = curve ?? _slowOf(context).curve!;
+            final resolved = curve ?? _curveOf(_slowOf(context));
             switch (type) {
               case ScreenTransitionType.fade:
                 return FadeTransition(opacity: animation, child: child);
@@ -334,12 +334,12 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
   /// else the package default's (spec G21).
   @override
   Duration get transitionDuration =>
-      duration ?? _slowOf(navigator?.context).duration!;
+      duration ?? _durationOf(_slowOf(navigator?.context));
 
   /// [reverseDuration], else the `slow` level's reverse duration.
   @override
   Duration get reverseTransitionDuration =>
-      reverseDuration ?? _slowOf(navigator?.context).reverseDuration!;
+      reverseDuration ?? _reverseDurationOf(_slowOf(navigator?.context));
 
   /// The `slow` level of the theme above [context], else the package
   /// default's.
@@ -350,3 +350,16 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
     return (theme?.animation ?? StratumAnimation.packageDefault).slow;
   }
 }
+
+/// [style]'s duration, else [Duration.zero] for a hand-built [AnimationStyle]
+/// that sets none (for example [AnimationStyle.noAnimation]).
+Duration _durationOf(AnimationStyle style) => style.duration ?? Duration.zero;
+
+/// [style]'s reverse duration, else [_durationOf] its own forward duration,
+/// for a hand-built [AnimationStyle] that sets none.
+Duration _reverseDurationOf(AnimationStyle style) =>
+    style.reverseDuration ?? _durationOf(style);
+
+/// [style]'s curve, else [Curves.easeInOutSine] for a hand-built
+/// [AnimationStyle] that sets none.
+Curve _curveOf(AnimationStyle style) => style.curve ?? Curves.easeInOutSine;

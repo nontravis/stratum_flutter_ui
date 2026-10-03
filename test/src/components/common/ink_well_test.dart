@@ -258,6 +258,34 @@ void main() {
       );
     });
 
+    testWidgets('BR3: a fast level with no duration or curve fades at '
+        'zero duration on easeInOutSine', (tester) async {
+      final theme = fakeTheme.copyWith(
+        animation: StratumAnimation(
+          veryFast: StratumAnimation.packageDefault.veryFast,
+          fast: const AnimationStyle(),
+          normal: StratumAnimation.packageDefault.normal,
+          slow: StratumAnimation.packageDefault.slow,
+          verySlow: StratumAnimation.packageDefault.verySlow,
+          appear: StratumAnimation.packageDefault.appear,
+          defaultLevel: StratumMotionLevel.fast,
+        ),
+      );
+
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(onTap: _noop, child: _box),
+          theme: theme,
+        ),
+      );
+
+      final builder = tester.widget<TweenAnimationBuilder<Color?>>(
+        find.byType(TweenAnimationBuilder<Color?>),
+      );
+      expect(builder.duration, Duration.zero);
+      expect(builder.curve, Curves.easeInOutSine);
+    });
+
     testWidgets('paints over the child, inside InkWell', (tester) async {
       await tester.pumpWidget(
         themedHost(const StratumInkWell(onTap: _noop, child: _Probe())),
