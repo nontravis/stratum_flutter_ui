@@ -258,7 +258,7 @@ void main() {
       );
     });
 
-    testWidgets('BR3: a fast level with no duration or curve fades at '
+    testWidgets('us11/fr01: a fast level with no duration or curve fades at '
         'zero duration on easeInOutSine', (tester) async {
       final theme = fakeTheme.copyWith(
         animation: StratumAnimation(

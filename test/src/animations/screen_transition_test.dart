@@ -104,7 +104,7 @@ void main() {
     expect(route.transitionDuration, const Duration(milliseconds: 333));
   });
 
-  testWidgets('BR3: a slow level with no fields pushes and pops at zero '
+  testWidgets('us11/fr01: a slow level with no fields pushes and pops at zero '
       'duration', (tester) async {
     final theme = fakeTheme.copyWith(
       animation: StratumAnimation(
@@ -124,7 +124,7 @@ void main() {
     expect(route.reverseTransitionDuration, Duration.zero);
   });
 
-  testWidgets('BR3: a slow level with a duration and no reverse duration '
+  testWidgets('us11/fr01: a slow level with a duration and no reverse duration '
       'or curve keeps that duration for the pop and falls back to '
       'easeInOutSine', (tester) async {
     final theme = fakeTheme.copyWith(

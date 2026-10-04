@@ -1286,7 +1286,7 @@ void main() {
       expect(page(tester), 1);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets("us11/fr01: a page change jumps when the theme's slow "
+    testWidgets("us10/fr01/e07: a page change jumps when the theme's slow "
         'level has no duration', (tester) async {
       await focusView(
         tester,
@@ -1299,7 +1299,7 @@ void main() {
       expect(page(tester), 1);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets('BR3: a page change jumps when the slow level has no '
+    testWidgets('us10/fr01/e07: a page change jumps when the slow level has no '
         'fields at all', (tester) async {
       final theme = fakeTheme.copyWith(
         animation: StratumAnimation(
