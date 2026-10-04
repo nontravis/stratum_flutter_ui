@@ -3,6 +3,7 @@ import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
 import '../../components/common/fakes/fake_stratum_theme.dart';
+import '../config/theme_fixtures.dart' show layer, sources;
 
 /// The section 7 setup of the spec, plus a Thai header font, a mono font
 /// for th_TH, and a table type with its own window scale.
@@ -673,6 +674,71 @@ typography:
       final style = resolve(StratumTextStyle.body);
 
       expect(style.fontFamily, 'Inter');
+    });
+  });
+
+  group('us07/fr01: TypographyResolver theme font families', () {
+    /// The data of the base fixture under [layers], each layer the app
+    /// theme of its key, read from `assets/themes/<key>`.
+    StratumThemeData themed(Map<String, String> layers) => fakeStratumTheme(
+      typography: StratumThemeConfig.parse(
+        base: sources(const []).first,
+        layers: [
+          for (final MapEntry(key: id, value: yaml) in layers.entries)
+            StratumThemeSource(id: id, folder: 'assets/themes/$id', yaml: yaml),
+        ],
+      ).typography,
+    );
+
+    final brandFont = layer('''
+typography:
+  fonts:
+    brand: { family: DB Heavent, files: [fonts/DBHeavent-Regular.ttf] }
+  families:
+    default:
+      body: brand''');
+
+    test('us05/s4: two themes that ship the same family name resolve '
+        'apart', () {
+      theme = themed({'brand': brandFont});
+      final brand = resolve(StratumTextStyle.body);
+      theme = themed({'night': brandFont});
+      final night = resolve(StratumTextStyle.body);
+
+      expect(brand.fontFamily, 'brand/DB Heavent');
+      expect(night.fontFamily, 'night/DB Heavent');
+    });
+
+    test('us05/fr01/e05: a theme that inherits the font draws with its '
+        "source's registration", () {
+      theme = themed({'default': brandFont, 'brand': layer('name: brand')});
+
+      expect(resolve(StratumTextStyle.body).fontFamily, 'default/DB Heavent');
+    });
+
+    test('a theme font never asks the Google Fonts seam', () {
+      final saved = GoogleFontsLookup.family;
+      addTearDown(() => GoogleFontsLookup.family = saved);
+      GoogleFontsLookup.family = (name, {required weight, required style}) =>
+          throw StateError('should not be called for $name');
+      theme = themed({'brand': brandFont});
+
+      expect(resolve(StratumTextStyle.body).fontFamily, 'brand/DB Heavent');
+    });
+
+    test('us05/fr01/e07: a theme font carries the resolved weight', () {
+      theme = themed({'brand': brandFont});
+
+      expect(resolve(StratumTextStyle.body).fontWeight, FontWeight.w400);
+      expect(resolve(StratumTextStyle.body.bold).fontWeight, FontWeight.w700);
+    });
+
+    test('S4 wght A: a variable theme font follows fontWeight, so no '
+        'font sets a wght axis', () {
+      theme = themed({'brand': brandFont});
+
+      expect(resolve(StratumTextStyle.body).fontVariations, isNull);
+      expect(resolve(StratumTextStyle.header).fontVariations, isNull);
     });
   });
 

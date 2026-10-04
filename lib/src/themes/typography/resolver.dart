@@ -100,8 +100,10 @@ abstract final class TypographyResolver {
   }
 
   /// [font]'s family at [weight] and [style]: its `qualifiedFamily` for an
-  /// app font; `GoogleFontsLookup.family` for a Google font, since its
-  /// family depends on the requested weight and style.
+  /// app font, and for a theme font, whose family already names its source
+  /// theme (`<source theme id>/<family>`); `GoogleFontsLookup.family` for a
+  /// Google font, since its family depends on the requested weight and
+  /// style.
   static String _familyOf(
     StratumFontData font,
     FontWeight weight,
