@@ -64,8 +64,9 @@ abstract class BoxLayout extends StatelessWidget {
   final bool repaintBoundary;
   final bool debug;
 
-  /// Semantics of the box, inside its margin. With a tap surface they
-  /// replace the surface's button role.
+  /// Semantics of the box, inside its margin. With a tap surface they keep
+  /// the surface's button role unless they set `button` or a field naming
+  /// another control; see [StratumInkWell.semantics].
   final SemanticsProperties? semantics;
 
   /// Called when a style animation completes; an instant change does not

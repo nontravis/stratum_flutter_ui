@@ -794,7 +794,9 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('semantics hands the role to the caller', (tester) async {
+    testWidgets('us04/fr02/e01: semantics hands the role to the caller', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         themedHost(
@@ -815,6 +817,312 @@ void main() {
           hasEnabledState: true,
           isEnabled: true,
           hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02: a label-only semantics keeps the button role', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(label: 'Open settings'),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Open settings',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02/e06: button false opts out even with a label', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(button: false, label: 'Close'),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Close',
+          isButton: false,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02/e07: an image semantics keeps the button role', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(image: true, label: 'Avatar'),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Avatar',
+          isImage: true,
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02/e07: a header semantics keeps the button role', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(header: true, label: 'Recent'),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Recent',
+          isHeader: true,
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02/e07: a selected semantics keeps the button role', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(selected: true, label: 'Week'),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Week',
+          hasSelectedState: true,
+          isSelected: true,
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02/e07: an enabled semantics keeps the button role', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(enabled: true, label: 'Save'),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Save',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02/e07: a caller enabled false wins over the surface', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(enabled: false, label: 'Save'),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Save',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02/e08: a none role keeps the button role', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(
+              role: SemanticsRole.none,
+              label: 'Save',
+            ),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Save',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets(
+      'us04/fr02/e02: a label-only semantics with no activation callback '
+      'adds no button',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            StratumInkWell(
+              onHover: (_) {},
+              semantics: const SemanticsProperties(label: 'Status'),
+              child: _box,
+            ),
+          ),
+        );
+
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            label: 'Status',
+            isButton: false,
+            hasEnabledState: false,
+            hasTapAction: false,
+          ),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('us04/fr02/e01: a false-valued role field still removes the '
+        'button role', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(checked: false, label: 'Mute'),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Mute',
+          isButton: false,
+          hasCheckedState: true,
+          isChecked: false,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02: a disabled label-only semantics reads as a dimmed '
+        'button', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            disabled: true,
+            semantics: SemanticsProperties(label: 'Open settings'),
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Open settings',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+          hasTapAction: false,
         ),
       );
       handle.dispose();

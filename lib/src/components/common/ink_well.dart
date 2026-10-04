@@ -96,7 +96,7 @@ class StratumInkWell extends StatefulWidget {
   final ValueChanged<bool>? onHighlightChanged;
 
   /// Turns off every callback, the overlay, the ring, and focus; semantics
-  /// then report a disabled button.
+  /// then report a disabled button unless [semantics] sets `enabled`.
   final bool disabled;
 
   /// Receives the interaction states from [InkWell] and drives the overlay.
@@ -125,8 +125,14 @@ class StratumInkWell extends StatefulWidget {
   final bool autofocus;
   final ValueChanged<bool>? onFocusChange;
 
-  /// Replaces the default button role; `container` and `enabled` are still
-  /// set. Applies also when [excludeFromSemantics] is true.
+  /// The caller's semantics. A set `button`, true or false, decides the
+  /// role; a set `link`, `textField`, `slider`, `keyboardKey`, `checked`,
+  /// `mixed`, `toggled`, or a `role` other than [SemanticsRole.none]
+  /// removes the default button role; any other field, such as a label,
+  /// `header`, or `image`, keeps it. A set `enabled` decides the enabled
+  /// flag; otherwise, with an activation callback, [disabled] does.
+  /// `container` is still set. Applies also when [excludeFromSemantics] is
+  /// true.
   final SemanticsProperties? semantics;
   final bool excludeFromSemantics;
 
@@ -448,8 +454,10 @@ class _StratumInkWellState extends State<StratumInkWell>
       final secondary = widget.onSecondaryTap;
       result = Semantics(
         container: true,
-        enabled: hasActivation ? !disabled : null,
-        button: hasActivation && properties == null ? true : null,
+        enabled: hasActivation && properties?.enabled == null
+            ? !disabled
+            : null,
+        button: hasActivation && !_setsRole(properties) ? true : null,
         customSemanticsActions: secondary == null || disabled
             ? null
             : {
@@ -489,6 +497,23 @@ Duration _durationOf(AnimationStyle style) => style.duration ?? Duration.zero;
 /// [style]'s curve, else [Curves.easeInOutSine] for a hand-built
 /// [AnimationStyle] that sets none.
 Curve _curveOf(AnimationStyle style) => style.curve ?? Curves.easeInOutSine;
+
+/// Whether [properties] sets a field that decides the role by itself: a
+/// `button` value, true or false, a field naming another control, or a
+/// `role` other than [SemanticsRole.none]. Any other field, such as a
+/// label, `header`, `image`, `selected`, or `enabled`, combines with the
+/// default button role.
+bool _setsRole(SemanticsProperties? properties) =>
+    properties != null &&
+    (properties.button != null ||
+        properties.link != null ||
+        properties.textField != null ||
+        properties.slider != null ||
+        properties.keyboardKey != null ||
+        properties.checked != null ||
+        properties.mixed != null ||
+        properties.toggled != null ||
+        (properties.role != null && properties.role != SemanticsRole.none));
 
 /// Paints the hover and press overlay over [child] from [states].
 ///
