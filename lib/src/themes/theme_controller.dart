@@ -207,7 +207,13 @@ class StratumThemeController extends ChangeNotifier {
         ),
     ];
     if (generation != _generation) return null;
-    final config = await ThemeParse.run(_packageDefault, layers);
+    StratumThemeConfig config;
+    try {
+      config = await ThemeParse.run(_packageDefault, layers);
+    } on Object {
+      if (generation != _generation || _disposed) return null;
+      rethrow;
+    }
     if (generation != _generation) return null;
     final themes = StratumThemeSet.fromConfig(config);
     await Future.wait([

@@ -506,6 +506,51 @@ void main() {
       expect(changes, isEmpty);
     });
 
+    test('us02/fr01/e05: a switch overtaken while its own theme fails to '
+        'parse completes with no error', () async {
+      final bundle = FakeThemeBundle(
+        themes: {'brand': brokenTheme(), 'night': appTheme()},
+      );
+      final (controller, changes) = await startController(bundle);
+      final gate = Completer<void>();
+      final saved = ThemeParse.run;
+      ThemeParse.run = (base, layers) async {
+        if (layers.any((layer) => layer.id == 'brand')) await gate.future;
+        return saved(base, layers);
+      };
+      addTearDown(() => ThemeParse.run = saved);
+
+      final first = controller.switchTo('brand');
+      await pumpEventQueue();
+      await controller.switchTo('night');
+      gate.complete();
+
+      await expectLater(first, completes);
+      expect(controller.activeId, 'night');
+      expect(changes, ['night']);
+    });
+
+    test('us02/fr01/e05: a switch that ends after dispose, whose theme '
+        'fails to parse, completes with no error', () async {
+      final bundle = FakeThemeBundle(themes: {'brand': brokenTheme()});
+      final (controller, changes) = await startController(bundle);
+      final gate = Completer<void>();
+      final saved = ThemeParse.run;
+      ThemeParse.run = (base, layers) async {
+        await gate.future;
+        return saved(base, layers);
+      };
+      addTearDown(() => ThemeParse.run = saved);
+
+      final pending = controller.switchTo('brand');
+      await pumpEventQueue();
+      controller.dispose();
+      gate.complete();
+
+      await expectLater(pending, completes);
+      expect(changes, isEmpty);
+    });
+
     test('us02/fr01/e06, us05/fr01/e06: a switch back reads the file again '
         'and registers no font twice', () async {
       final loads = recordFontLoads();
