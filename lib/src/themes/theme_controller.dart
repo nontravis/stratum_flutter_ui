@@ -90,12 +90,9 @@ class StratumThemeController extends ChangeNotifier {
     while (element != null) {
       InheritedElement? next;
       element.visitAncestorElements((ancestor) {
-        if (ancestor is InheritedElement &&
-            ancestor.widget is StratumThemeApplication) {
-          next = ancestor;
-          return false;
-        }
-        return true;
+        next = ancestor
+            .getElementForInheritedWidgetOfExactType<StratumThemeApplication>();
+        return false;
       });
       if (next == null) return null;
       final controller = (next!.widget as StratumThemeApplication).controller;
