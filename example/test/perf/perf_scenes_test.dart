@@ -32,6 +32,9 @@ class _RefusingKit implements PerfKit {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPerfTheme);
+
   group('perfScenes', () {
     test('lists the scenes of spec section 9.1 in run order, the S2-plain '
         'null control first', () {

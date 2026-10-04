@@ -11,10 +11,7 @@ import 'package:stratum_ui/src/src.dart';
 /// [scrollbars] keeps the behavior's own choice, which shows a scrollbar on
 /// desktop. A scroll view's own `physics` parameter applies on top of the
 /// result.
-ScrollBehavior resolveScrollBehavior(
-  BuildContext context, {
-  bool? scrollbars,
-}) {
+ScrollBehavior resolveScrollBehavior(BuildContext context, {bool? scrollbars}) {
   final theme = StratumThemeApplication.maybeOf(context);
   final behavior =
       theme?.scrollBehavior ??
@@ -41,10 +38,7 @@ class ScrollFrame extends StatelessWidget {
   /// view so it scrolls with the content; without it the padding stays on
   /// the box and insets the viewport. A rounded box clips the viewport to
   /// its corners unless the style sets its own `clipBehavior`.
-  static WidgetStyle boxStyle(
-    WidgetStyle style, {
-    bool scrollsPadding = true,
-  }) {
+  static WidgetStyle boxStyle(WidgetStyle style, {bool scrollsPadding = true}) {
     return style.copyWith(
       padding: scrollsPadding ? null : style.padding,
       clipBehavior:
@@ -132,6 +126,14 @@ void jumpToEnd(ScrollPosition position, {required ValueGetter<bool> attached}) {
   jump(3);
 }
 
+/// [style]'s duration, else [Duration.zero] for a hand-built [AnimationStyle]
+/// that sets none (for example [AnimationStyle.noAnimation]).
+Duration _durationOf(AnimationStyle style) => style.duration ?? Duration.zero;
+
+/// [style]'s curve, else [Curves.easeInOutSine] for a hand-built
+/// [AnimationStyle] that sets none.
+Curve _curveOf(AnimationStyle style) => style.curve ?? Curves.easeInOutSine;
+
 /// How the keys of a [ScrollFocus] move its view.
 enum ScrollFocusMode {
   /// Arrows scroll 50 px, Page Up and Page Down 0.8 of the viewport, and
@@ -173,11 +175,11 @@ enum ScrollFocusMode {
 ///
 /// While the viewport node holds focus, the arrows along [axis] scroll
 /// 50 px, Page Up and Page Down scroll 0.8 of the viewport, and Home and
-/// End jump to the first and last item. An arrow or a page moves over
-/// 100 ms with [Curves.easeInOutSine], or jumps when the app or the
-/// platform asks for less motion. While an item inside holds focus,
-/// the arrows keep Flutter's default, and Page Up, Page Down, Home, and
-/// End still scroll. No key acts while focus is inside a text field.
+/// End jump to the first and last item. An arrow or a page moves over the
+/// theme's `fast` level, or jumps when the app or the platform asks for
+/// less motion. While an item inside holds focus, the arrows keep
+/// Flutter's default, and Page Up, Page Down, Home, and End still scroll.
+/// No key acts while focus is inside a text field.
 ///
 /// The scroll view reads its controller through [controllerOf]: the
 /// caller's [controller]; else none when it inherits the
@@ -187,13 +189,14 @@ enum ScrollFocusMode {
 /// In [ScrollFocusMode.pages] the view is a [PageView]. The arrows along
 /// [axis] go to the page on that side of the screen, Page Down and Page Up
 /// to the next and the previous page, and Home and End to the first and
-/// the last page; End needs [pageCount]. A page change slides over 300 ms
-/// with [Curves.easeInOutSine], or jumps when the app or the platform asks
-/// for less motion; Home and End always jump. A key during a slide counts
-/// from the slide's target page, and a key that would go past the first or
-/// last page is not handled. The page view never inherits the
-/// [PrimaryScrollController]: [controller] must be a [PageController], and
-/// without one a focusable view gets an internal one.
+/// the last page; End needs [pageCount]. A page change slides over the
+/// theme's `slow` level, or jumps when the app or the platform asks for
+/// less motion or the level has no duration; Home and End always jump. A
+/// key during a slide counts from the slide's target page, and a key that
+/// would go past the first or last page is not handled. The page view
+/// never inherits the [PrimaryScrollController]: [controller] must be a
+/// [PageController], and without one a focusable view gets an internal
+/// one.
 ///
 /// Each page sits in [page]. While a node inside a page holds focus, the
 /// arrows keep Flutter's default, and when Page Up, Page Down, Home, or End
@@ -289,17 +292,17 @@ class ScrollFocus extends StatefulWidget {
   State<ScrollFocus> createState() => _ScrollFocusState();
 }
 
-class _ScrollFocusState extends State<ScrollFocus>
-    with WidgetsBindingObserver {
+class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
   /// The width of [FocusSpread]'s ring.
   static const _ringWidth = 4.0;
 
-  /// How long a key page change slides.
-  static const _pageDuration = Duration(milliseconds: 300);
-
-  /// How long an arrow or a page scroll in [ScrollFocusMode.lines] takes,
-  /// unless the app or the platform asks for less motion.
-  static const _lineDuration = Duration(milliseconds: 100);
+  /// The theme's motion, else the package default's (spec section 9): a
+  /// [ScrollFocusMode.lines] key moves over `fast`, a page slides over
+  /// `slow`, each on its level's curve; both jump when the app or the
+  /// platform asks for less motion.
+  StratumAnimation get _motion =>
+      StratumTheme.maybeOf(context)?.animation ??
+      StratumAnimation.packageDefault;
 
   // Created on first use and kept until dispose, as StratumInkWell keeps
   // its node.
@@ -540,14 +543,16 @@ class _ScrollFocusState extends State<ScrollFocus>
     final amount = page ? 0.8 * position.viewportDimension : 50.0;
     final delta = direction == position.axisDirection ? amount : -amount;
     // A zero duration makes moveTo jump (NFR-U03).
-    final duration = reducesMotion(context) ? Duration.zero : _lineDuration;
+    final line = reducesMotion(context)
+        ? AnimationStyle.noAnimation
+        : _motion.fast;
     if (nested != null) {
-      _moveNested(nested.outerController.position, position, delta, duration);
+      _moveNested(nested.outerController.position, position, delta, line);
     } else {
       position.moveTo(
         position.pixels + delta,
-        duration: duration,
-        curve: Curves.easeInOutSine,
+        duration: line.duration,
+        curve: line.curve,
       );
     }
     return KeyEventResult.handled;
@@ -580,13 +585,13 @@ class _ScrollFocusState extends State<ScrollFocus>
   /// because the coordinator maps every inner offset to a collapsed header.
   /// A target within the header's extent moves [outer], and the coordinator
   /// returns the body to its start; a target past it moves [inner], and the
-  /// coordinator holds the header collapsed. The move takes [duration];
-  /// zero jumps.
+  /// coordinator holds the header collapsed. The move takes [line]'s
+  /// duration on its curve; a zero or absent duration jumps.
   static void _moveNested(
     ScrollPosition outer,
     ScrollPosition inner,
     double delta,
-    Duration duration,
+    AnimationStyle line,
   ) {
     final header = outer.maxScrollExtent - outer.minScrollExtent;
     final scrolled = inner.pixels - inner.minScrollExtent;
@@ -597,14 +602,14 @@ class _ScrollFocusState extends State<ScrollFocus>
     if (target <= header) {
       outer.moveTo(
         outer.minScrollExtent + target,
-        duration: duration,
-        curve: Curves.easeInOutSine,
+        duration: line.duration,
+        curve: line.curve,
       );
     } else {
       inner.moveTo(
         inner.minScrollExtent + target - header,
-        duration: duration,
-        curve: Curves.easeInOutSine,
+        duration: line.duration,
+        curve: line.curve,
       );
     }
   }
@@ -647,9 +652,10 @@ class _ScrollFocusState extends State<ScrollFocus>
     return KeyEventResult.handled;
   }
 
-  /// Slides to [page] over [_pageDuration], or jumps there for [jump] or
-  /// when the app or the platform asks for less motion. With [focusPage],
-  /// focus then moves into the page, by [_focusPage].
+  /// Slides to [page] over the theme's `slow` level, or jumps there for
+  /// [jump], when the app or the platform asks for less motion, or when
+  /// the `slow` level has no duration. With [focusPage], focus then moves
+  /// into the page, by [_focusPage].
   void _goToPage(
     PageController controller,
     int page, {
@@ -667,7 +673,9 @@ class _ScrollFocusState extends State<ScrollFocus>
       if (focusPage && shown == page) _focusPage(page);
     }
 
-    if (jump || reducesMotion(context)) {
+    if (jump ||
+        reducesMotion(context) ||
+        _durationOf(_motion.slow) == Duration.zero) {
       _slideTarget = null;
       controller.jumpToPage(page);
       if (focusPage) {
@@ -680,8 +688,8 @@ class _ScrollFocusState extends State<ScrollFocus>
       controller
           .animateToPage(
             page,
-            duration: _pageDuration,
-            curve: Curves.easeInOutSine,
+            duration: _durationOf(_motion.slow),
+            curve: _curveOf(_motion.slow),
           )
           .whenComplete(settle),
     );
@@ -935,12 +943,11 @@ class _PageMarkerState extends State<_PageMarker> {
 /// Builds the scroll view of a layout scroll view: [controller] comes from
 /// [ScrollFocus.controllerOf], and [padding] is `style.padding` when the
 /// padding scrolls, else null.
-typedef ScrollViewBuilder =
-    Widget Function(
-      BuildContext context,
-      ScrollController? controller,
-      EdgeInsetsGeometry? padding,
-    );
+typedef ScrollViewBuilder = Widget Function(
+  BuildContext context,
+  ScrollController? controller,
+  EdgeInsetsGeometry? padding,
+);
 
 /// The box, keyboard focus, and frame of a layout scroll view.
 ///

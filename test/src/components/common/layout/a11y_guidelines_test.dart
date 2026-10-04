@@ -65,7 +65,9 @@ void main() {
     ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
-        themedHost(SizedBox(height: 40, child: _row(minHeight: 0))),
+        themedHost(
+          SizedBox(height: 40, child: _row(minHeight: 0, labeled: false)),
+        ),
       );
 
       await expectLater(

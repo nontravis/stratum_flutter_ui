@@ -63,8 +63,9 @@ class FocusSpread extends StatelessWidget {
         width: 4,
         strokeAlign: strokeAlign,
         color: shows
-            ? color ?? context.theme.color.borderBrand.withValues(alpha: 0.30)
-            : context.theme.color.transparent.t0,
+            ? color ??
+                  context.theme.color.border.color.brand.withValues(alpha: 0.30)
+            : context.theme.color.transparent.p0,
       ),
     );
   }

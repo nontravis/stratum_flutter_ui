@@ -1,6 +1,7 @@
 import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
+import 'package:stratum_ui/src/themes/config/animation_config.dart';
 import 'package:stratum_ui/src/themes/config/by_window_size.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/check_keys.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/load.dart';
@@ -26,6 +27,7 @@ class StratumThemeConfig {
     required this.palette,
     required this.color,
     required this.typography,
+    required this.animation,
     required this.extensions,
   });
 
@@ -69,6 +71,9 @@ class StratumThemeConfig {
 
   final StratumTypography typography;
 
+  /// The merged `animation` group (spec section 8.1).
+  final StratumAnimationConfig animation;
+
   /// The merged `extensions` group as plain Dart values: maps with string
   /// keys, lists, strings, numbers, booleans, and null. Never alias-resolved
   /// and never checked.
@@ -85,6 +90,7 @@ class StratumThemeConfig {
       mapEquals(other.palette, palette) &&
       other.color == color &&
       other.typography == typography &&
+      other.animation == animation &&
       _deepEquals(other.extensions, extensions);
 
   @override
@@ -97,6 +103,7 @@ class StratumThemeConfig {
     _mapHash(palette),
     color,
     typography,
+    animation,
     _deepHash(extensions),
   );
 }

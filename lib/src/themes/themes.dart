@@ -1,12 +1,16 @@
+export 'animation.dart';
 export 'behavior/behavior.dart';
-export 'color/color.dart';
+export 'component_defaults.dart';
 export 'config/config.dart';
 export 'constant/constant.dart';
 export 'font_data.dart';
 export 'styles/styles.dart';
+export 'theme.dart';
 export 'theme_application.dart';
-export 'theme_color.dart';
+export 'theme_asset_view.dart';
 export 'theme_data.dart';
+export 'theme_set.dart';
+export 'tokens/theme_tokens.g.dart';
 export 'typography/dimension.dart';
 export 'typography/resolver.dart';
 export 'typography/typography.dart' hide readTypography;

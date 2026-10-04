@@ -16,15 +16,20 @@ Widget _sized(Widget child) {
 /// fallback theme keeps the platform of the first test, so desktop cases
 /// set it here.
 Widget _macOSTheme(Widget child) {
-  return Theme(data: ThemeData(platform: TargetPlatform.macOS), child: child);
+  return Theme(
+    data: ThemeData(platform: TargetPlatform.macOS),
+    child: child,
+  );
 }
 
 List<Type> _physicsChain(WidgetTester tester) {
   final state = tester.state<ScrollableState>(find.byType(Scrollable).first);
   final chain = <Type>[];
-  for (ScrollPhysics? physics = state.position.physics;
-      physics != null;
-      physics = physics.parent) {
+  for (
+    ScrollPhysics? physics = state.position.physics;
+    physics != null;
+    physics = physics.parent
+  ) {
     chain.add(physics.runtimeType);
   }
   return chain;
@@ -58,8 +63,9 @@ void main() {
       expect(find.byType(AnimatedStyledBox), findsNothing);
     });
 
-    testWidgets('scrolls style padding with the items and keeps the box',
-        (tester) async {
+    testWidgets('scrolls style padding with the items and keeps the box', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         themedHost(
           _sized(
@@ -123,8 +129,9 @@ void main() {
       );
     });
 
-    testWidgets('applies the physics parameter on top of the theme',
-        (tester) async {
+    testWidgets('applies the physics parameter on top of the theme', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         themedHost(
           _sized(
@@ -146,15 +153,16 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           _sized(ListViewLayout.builder(itemCount: 3, itemBuilder: _item)),
-          theme: FakeStratumTheme(physics: const BouncingScrollPhysics()),
+          theme: fakeStratumTheme(physics: const BouncingScrollPhysics()),
         ),
       );
 
       expect(_physicsChain(tester), contains(BouncingScrollPhysics));
     });
 
-    testWidgets('builds no overscroll indicator under the theme',
-        (tester) async {
+    testWidgets('builds no overscroll indicator under the theme', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         themedHost(
           _sized(ListViewLayout.builder(itemCount: 50, itemBuilder: _item)),
@@ -222,11 +230,8 @@ void main() {
 
     test('asserts that gap has an itemCount', () {
       expect(
-        () => ListViewLayout.builder(
-          gap: 8,
-          itemCount: null,
-          itemBuilder: _item,
-        ),
+        () =>
+            ListViewLayout.builder(gap: 8, itemCount: null, itemBuilder: _item),
         throwsAssertionError,
       );
     });
@@ -267,8 +272,9 @@ void main() {
       );
     });
 
-    testWidgets('hands findChildIndexCallback to separated as item indices',
-        (tester) async {
+    testWidgets('hands findChildIndexCallback to separated as item indices', (
+      tester,
+    ) async {
       int? finder(Key key) => key == const ValueKey('x') ? 1 : null;
       await tester.pumpWidget(
         themedHost(
@@ -306,64 +312,58 @@ void main() {
       expect(list.scrollCacheExtent, extent);
     });
 
-    testWidgets(
-      'keeps the scrollbar of a nested list',
-      (tester) async {
-        await tester.pumpWidget(
-          themedHost(
-            _macOSTheme(
-              _sized(
-                ListViewLayout.builder(
-                  showScrollbar: false,
-                  itemCount: 1,
-                  itemBuilder: (context, index) => SizedBox(
-                    height: 200,
-                    child: ListViewLayout.builder(
-                      itemCount: 50,
-                      itemBuilder: _item,
-                    ),
+    testWidgets('keeps the scrollbar of a nested list', (tester) async {
+      await tester.pumpWidget(
+        themedHost(
+          _macOSTheme(
+            _sized(
+              ListViewLayout.builder(
+                showScrollbar: false,
+                itemCount: 1,
+                itemBuilder: (context, index) => SizedBox(
+                  height: 200,
+                  child: ListViewLayout.builder(
+                    itemCount: 50,
+                    itemBuilder: _item,
                   ),
                 ),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        expect(find.byType(Scrollbar), findsOneWidget);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(find.byType(Scrollbar), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets(
-      'keeps the scrollbar of a nested list without a theme',
-      (tester) async {
-        await tester.pumpWidget(
-          Directionality(
-            textDirection: TextDirection.ltr,
-            child: Center(
-              child: _sized(
-                ListViewLayout.builder(
-                  showScrollbar: false,
-                  itemCount: 1,
-                  itemBuilder: (context, index) => SizedBox(
-                    height: 200,
-                    child: ListViewLayout.builder(
-                      itemCount: 50,
-                      itemBuilder: _item,
-                    ),
+    testWidgets('keeps the scrollbar of a nested list without a theme', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: _sized(
+              ListViewLayout.builder(
+                showScrollbar: false,
+                itemCount: 1,
+                itemBuilder: (context, index) => SizedBox(
+                  height: 200,
+                  child: ListViewLayout.builder(
+                    itemCount: 50,
+                    itemBuilder: _item,
                   ),
                 ),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        expect(
-          find.byWidgetPredicate((widget) => widget is RawScrollbar),
-          findsOneWidget,
-        );
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(
+        find.byWidgetPredicate((widget) => widget is RawScrollbar),
+        findsOneWidget,
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 }

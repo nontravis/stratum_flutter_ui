@@ -34,6 +34,11 @@ class WindowSizeScope extends StatelessWidget {
       .dependOnInheritedWidgetOfExactType<_WindowSizeInherited>()
       ?.windowSize;
 
+  /// Whether a [WindowSizeScope] is above [context]; registers no
+  /// dependency.
+  static bool hasScope(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_WindowSizeInherited>() != null;
+
   @override
   Widget build(BuildContext context) => _WindowSizeInherited(
     windowSize: WindowSize.fromSize(MediaQuery.sizeOf(context)),

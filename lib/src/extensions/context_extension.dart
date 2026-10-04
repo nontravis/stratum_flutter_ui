@@ -1,10 +1,12 @@
 import 'package:stratum_ui/src/src.dart';
 
 extension StratumThemeContextExtension on BuildContext {
-  StratumThemeData get theme => StratumThemeApplication.of(this);
+  /// `StratumTheme.of(this)`.
+  StratumTheme get theme => StratumTheme.of(this);
 
-  StratumThemeData getTheme([ThemeMode? mode]) =>
-      StratumThemeApplication.of(this, themeMode: mode);
+  /// `StratumTheme.of(this, themeMode: mode)`.
+  StratumTheme getTheme([ThemeMode? mode]) =>
+      StratumTheme.of(this, themeMode: mode);
 
   void clearFocus() => FocusScope.of(this).unfocus();
 

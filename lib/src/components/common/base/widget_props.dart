@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_falmodel/flutter_falmodel.dart' show FullWidgetState;
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/components/common/responsive/device_window.dart';
+import 'package:stratum_ui/src/themes/component_defaults.dart';
 import 'package:stratum_ui/src/themes/constant/color.dart';
 import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
 import 'package:stratum_ui/src/themes/constant/widget_size.dart';
@@ -49,7 +50,7 @@ mixin StratumWidgetProps {
   /// Forwarded to `ContainerLayout.debug`.
   bool get debug;
 
-  /// Merged over the component's default style; see [resolveStyle].
+  /// The highest layer of [resolveStyle].
   WidgetStyle? get customStyle;
 
   /// Throws a [FlutterError] when no [StratumThemeApplication] is above
@@ -67,7 +68,13 @@ mixin StratumWidgetProps {
   WindowSize resolveWindowSize(BuildContext context) =>
       windowSize ?? context.deviceWindow.windowSize;
 
-  /// Returns [defaults] with every non-null field of [customStyle] applied.
-  WidgetStyle resolveStyle(WidgetStyle defaults) =>
-      defaults.merge(customStyle);
+  /// [defaults] (the component's own style from theme tokens), then the
+  /// app-wide default for this component's exact `runtimeType`, then
+  /// [customStyle], in the order FO-08 US-06 FR-01 owns; each layer
+  /// replaces only the fields it sets. The FO-08 L4 subclass default
+  /// style is not a layer yet.
+  WidgetStyle resolveStyle(BuildContext context, WidgetStyle defaults) =>
+      defaults
+          .merge(StratumComponentDefaults.styleOf(context, runtimeType))
+          .merge(customStyle);
 }

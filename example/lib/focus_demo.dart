@@ -4,63 +4,39 @@
 //   flutter run -d macos -t lib/focus_demo.dart
 import 'package:stratum_ui/stratum_ui.dart';
 
-void main() => runApp(const FocusDemoApp());
-
-/// The smallest theme the layouts, the tap surface, and the focus ring
-/// read: overlay and ring colors, scroll behavior, and physics. Any other
-/// member throws, as the test theme does.
-class _DemoTheme implements StratumThemeData {
-  @override
-  final BaseThemeColor color = _DemoColors();
-
-  @override
-  final ScrollBehavior scrollBehavior = const StratumScrollBehavior();
-
-  @override
-  final ScrollPhysics physics = const ClampingScrollPhysics();
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(FocusDemoApp(themes: await loadFocusDemoTheme()));
 }
 
-class _DemoColors implements BaseThemeColor {
-  @override
-  final Color overlayHover = const Color(0x11000000);
-
-  @override
-  final Color overlayActive = const Color(0x22000000);
-
-  @override
-  final Color borderBrand = const Color(0xFF2962FF);
-
-  @override
-  final TransparentColors transparent = _DemoTransparent();
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+/// The package default theme, read from the stratum_ui package assets.
+Future<StratumThemeSet> loadFocusDemoTheme() async {
+  final text = await rootBundle.loadString(
+    'packages/stratum_ui/assets/themes/default/theme.yaml',
+  );
+  return StratumThemeSet.fromConfig(
+    StratumThemeConfig.parse(
+      base: StratumThemeSource(
+        id: 'stratum-default',
+        folder: 'packages/stratum_ui/assets/themes/default',
+        yaml: text,
+      ),
+    ),
+  );
 }
-
-class _DemoTransparent implements TransparentColors {
-  @override
-  final Color t0 = const Color(0x00000000);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-final _theme = _DemoTheme();
 
 class FocusDemoApp extends StatelessWidget {
-  const FocusDemoApp({super.key});
+  const FocusDemoApp({super.key, required this.themes});
+
+  final StratumThemeSet themes;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Stratum focus demo',
       builder: (context, child) => StratumThemeApplication(
+        themes: themes,
         themeMode: ThemeMode.light,
-        lightTheme: _theme,
-        darkTheme: null,
         child: child!,
       ),
       home: const _FocusDemoPage(),

@@ -83,10 +83,6 @@ abstract class BoxLayout extends StatelessWidget {
   /// Down, Home, and End scroll it.
   final StratumScroll? scroll;
 
-  static const _interactionAnimation = AnimationStyle(
-    duration: Duration(milliseconds: 100),
-  );
-
   @nonVirtual
   @override
   Widget build(BuildContext context) {
@@ -129,7 +125,7 @@ abstract class BoxLayout extends StatelessWidget {
   }
 
   Widget _buildBox(BuildContext context) {
-    final style = _effectiveStyle;
+    final style = _effectiveStyle(context);
     final aspect = ratio;
     final duration = style?.animationStyle?.duration ?? Duration.zero;
     final scroll = this.scroll;
@@ -161,13 +157,17 @@ abstract class BoxLayout extends StatelessWidget {
     return current;
   }
 
-  /// The style, with a 100 ms animation when an interaction is set and the
-  /// style has no animation of its own.
-  WidgetStyle? get _effectiveStyle {
+  /// The style, with the theme's `fast` level when an interaction is set
+  /// and the style has no animation of its own; the package default's
+  /// `fast` level with no theme above (spec section 9).
+  WidgetStyle? _effectiveStyle(BuildContext context) {
     final style = this.style;
     if (style == null || interaction == null) return style;
     if (style.animationStyle != null) return style;
-    return style.copyWith(animationStyle: _interactionAnimation);
+    final animation =
+        StratumThemeApplication.maybeOf(context)?.animation ??
+        StratumAnimation.packageDefault;
+    return style.copyWith(animationStyle: animation.fast);
   }
 
   StyledBoxBuilder? get _boxBuilder {

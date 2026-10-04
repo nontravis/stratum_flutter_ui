@@ -26,6 +26,8 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized()
     ..framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
+  setUpAll(loadPerfTheme);
+
   final steps = runSteps(perfScenesNamed(_scenes), first: _from, count: _runs);
   for (final step in steps) {
     testWidgets(step.name, (tester) async {

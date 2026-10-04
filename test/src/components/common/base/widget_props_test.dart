@@ -10,14 +10,12 @@ import 'package:stratum_ui/src/themes/constant/widget_size.dart';
 import 'package:stratum_ui/src/themes/constant/window_size.dart';
 import 'package:stratum_ui/src/themes/theme_application.dart';
 import 'package:stratum_ui/src/themes/theme_data.dart';
+import 'package:stratum_ui/src/themes/theme_set.dart';
+
+import '../fakes/fake_stratum_theme.dart';
 
 class _StatelessProbe extends StratumStatelessWidget {
-  const new({
-    super.size,
-    super.themeMode,
-    super.windowSize,
-    super.customStyle,
-  });
+  const new({super.size, super.themeMode, super.windowSize, super.customStyle});
 
   @override
   Widget build(BuildContext context) => const SizedBox();
@@ -35,15 +33,12 @@ class _StatefulProbeState extends State<_StatefulProbe> {
   Widget build(BuildContext context) => const SizedBox();
 }
 
-class _FakeTheme extends Fake implements StratumThemeData {
-  new(this.defaultWidgetSize);
-
-  @override
-  final WidgetSize defaultWidgetSize;
-}
-
-final _light = _FakeTheme(WidgetSize.small);
-final _dark = _FakeTheme(WidgetSize.large);
+final StratumThemeData _light = fakeTheme.copyWith(
+  defaultWidgetSize: WidgetSize.small,
+);
+final StratumThemeData _dark = fakeTheme.copyWith(
+  defaultWidgetSize: WidgetSize.large,
+);
 
 /// Every prop of [props], in constructor order.
 List<Object?> _props(StratumWidgetProps props) => [
@@ -61,9 +56,8 @@ List<Object?> _props(StratumWidgetProps props) => [
 
 Widget _themed(Widget child, {ThemeMode themeMode = ThemeMode.light}) =>
     StratumThemeApplication(
+      themes: StratumThemeSet(light: _light, dark: _dark),
       themeMode: themeMode,
-      lightTheme: _light,
-      darkTheme: _dark,
       child: child,
     );
 
@@ -130,8 +124,7 @@ void main() {
     ) async {
       final windowSize = await _readInBuild(
         tester,
-        const _StatelessProbe(windowSize: WindowSize.desktop)
-            .resolveWindowSize,
+        const _StatelessProbe(windowSize: WindowSize.desktop).resolveWindowSize,
       );
 
       expect(windowSize, WindowSize.desktop);
@@ -183,33 +176,47 @@ void main() {
       dropShadow: [BoxShadow(blurRadius: 4)],
     );
 
-    test('returns the defaults when customStyle is null', () {
-      expect(const _StatelessProbe().resolveStyle(defaults), same(defaults));
+    testWidgets('returns the defaults when customStyle is null', (
+      tester,
+    ) async {
+      final style = await _readInBuild(
+        tester,
+        (context) => const _StatelessProbe().resolveStyle(context, defaults),
+      );
+
+      expect(style, same(defaults));
     });
 
-    test('applies each non-null customStyle field over the defaults', () {
-      final style = const _StatelessProbe(
-        customStyle: WidgetStyle(opacity: 1),
-      ).resolveStyle(defaults);
+    testWidgets('applies each non-null customStyle field over the defaults', (
+      tester,
+    ) async {
+      final style = await _readInBuild(
+        tester,
+        (context) =>
+            const _StatelessProbe(customStyle: WidgetStyle(opacity: 1))
+                .resolveStyle(context, defaults),
+      );
 
       expect(style.opacity, 1);
       expect(style.padding, const EdgeInsets.all(8));
       expect(style.dropShadow, defaults.dropShadow);
     });
 
-    test('clears default shadows when customStyle passes an empty list', () {
-      final style = const _StatelessProbe(
-        customStyle: WidgetStyle(dropShadow: []),
-      ).resolveStyle(defaults);
+    testWidgets('clears default shadows when customStyle passes an empty '
+        'list', (tester) async {
+      final style = await _readInBuild(
+        tester,
+        (context) =>
+            const _StatelessProbe(customStyle: WidgetStyle(dropShadow: []))
+                .resolveStyle(context, defaults),
+      );
 
       expect(style.dropShadow, isEmpty);
     });
   });
 
   group('resolveTheme', () {
-    testWidgets('returns the app theme when themeMode is null', (
-      tester,
-    ) async {
+    testWidgets('returns the app theme when themeMode is null', (tester) async {
       final theme = await _readInBuild(
         tester,
         const _StatelessProbe().resolveTheme,
@@ -296,10 +303,7 @@ void main() {
 
   group('StratumStatefulWidget', () {
     test('has the same defaults as StratumStatelessWidget', () {
-      expect(
-        _props(const _StatefulProbe()),
-        _props(const _StatelessProbe()),
-      );
+      expect(_props(const _StatefulProbe()), _props(const _StatelessProbe()));
     });
 
     testWidgets('resolveSize returns the given size', (tester) async {
