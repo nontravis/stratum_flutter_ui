@@ -617,10 +617,10 @@ color:
 
 typography:
   fonts:                         # font key: physical family plus its own tuning
-    inter:       { family: Inter }
-    geist:       { family: Geist }
-    geist-mono:  { family: Geist Mono }
-    roboto-mono: { family: Roboto Mono }
+    inter:       { family: "Google/Inter" }
+    geist:       { family: "Google/Geist" }
+    geist-mono:  { family: "Google/Geist Mono" }
+    roboto-mono: { family: "Google/Roboto Mono" }
     kanit:       { family: "Google/Kanit" }
 
   families:                      # per locale tag: type to font key

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -63,12 +65,25 @@ void main() {
       );
     });
 
-    test('reads the five fonts, the default family set, and Thai', () {
+    test('us07/fr01/e06: reads the five Google fonts, the default family '
+        'set, and Thai', () {
       expect(typography.fonts, {
-        'inter': const StratumFontData(family: 'Inter'),
-        'geist': const StratumFontData(family: 'Geist'),
-        'geist-mono': const StratumFontData(family: 'Geist Mono'),
-        'roboto-mono': const StratumFontData(family: 'Roboto Mono'),
+        'inter': const StratumFontData(
+          family: 'Inter',
+          source: StratumFontSource.google,
+        ),
+        'geist': const StratumFontData(
+          family: 'Geist',
+          source: StratumFontSource.google,
+        ),
+        'geist-mono': const StratumFontData(
+          family: 'Geist Mono',
+          source: StratumFontSource.google,
+        ),
+        'roboto-mono': const StratumFontData(
+          family: 'Roboto Mono',
+          source: StratumFontSource.google,
+        ),
         'kanit': const StratumFontData(
           family: 'Kanit',
           source: StratumFontSource.google,
@@ -94,6 +109,18 @@ void main() {
         ),
         FontType.code: const StratumFontRef(font: 'roboto-mono'),
       });
+    });
+
+    test('us07/fr01/e06: the package bundles no font file', () {
+      final fontFile = RegExp(r'\.(ttf|otf)$', caseSensitive: false);
+
+      expect(
+        Directory('assets')
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => fontFile.hasMatch(file.path)),
+        isEmpty,
+      );
     });
 
     test('reads the window scale', () {

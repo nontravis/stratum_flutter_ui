@@ -151,3 +151,7 @@ scroll it, guarded so a text field inside keeps its own keys.
   subfolders. A font with `files` takes no `package` and no `Google/` family. Each theme's fonts register under
   `<theme id>/<family>`, so two themes may ship files under the same family name; a theme that inherits the font
   from a layer it merges over shares that layer's registration.
+- **Default theme fonts** — the package default theme names Google fonts only (`Google/Inter`, `Google/Geist`,
+  `Google/Geist Mono`, `Google/Roboto Mono`, `Google/Kanit`) and bundles no font file. The app owns
+  `GoogleFonts.config`: bundle the font files under its own assets to skip the download, which also keeps the app's
+  widget tests off the network, since the google_fonts library looks in the assets first.
