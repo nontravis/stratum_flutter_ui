@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, NestedScrollViewLayout, Space/SpaceDirectional, or typography.fonts files in theme.yaml.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, or typography.fonts files in theme.yaml.
 ---
 
 # Stratum Flutter UI
@@ -155,3 +155,11 @@ scroll it, guarded so a text field inside keeps its own keys.
   `Google/Geist Mono`, `Google/Roboto Mono`, `Google/Kanit`) and bundles no font file. The app owns
   `GoogleFonts.config`: bundle the font files under its own assets to skip the download, which also keeps the app's
   widget tests off the network, since the google_fonts library looks in the assets first.
+- **`StratumThemeController`** — the registered themes and the active one. Build it before the first themed frame
+  with `await StratumThemeController.preload(initialThemeId: savedId, onThemeChanged: save)`; `googleFontsTimeout`
+  (default 3 s, also the limit of every switch) and `bundle` are optional. It registers every
+  `assets/themes/<id>/theme.yaml` the app declares in pubspec as `<id>` (`themeIds`: `default` first, then
+  alphabetical), and an app `default` folder layers over the package default. An `initialThemeId` that names no
+  theme starts on `default` and calls `onThemeChanged('default')`, so the app overwrites its saved id; a theme file
+  with problems throws `StratumThemeFormatException`. The package stores nothing: save the id `onThemeChanged`
+  reports.

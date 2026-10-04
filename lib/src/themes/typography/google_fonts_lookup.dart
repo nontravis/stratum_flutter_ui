@@ -1,19 +1,21 @@
 import 'package:stratum_ui/src/src.dart';
 
-/// Test seam for the two `GoogleFonts` calls a `google` font (see
+/// Test seam for the three `GoogleFonts` calls a `google` font (see
 /// `StratumFontSource`) needs.
 ///
-/// Replace [exists] or [family] in a test and restore both in `tearDown`;
-/// no test calls `GoogleFonts.getFont` for real, since it starts an HTTP
-/// fetch. A parse test may keep the real [exists] default: it reads
-/// `GoogleFonts.asMap()`, a const map with no network. Production code may
-/// only read [exists] and [family]; only a test may replace them.
+/// Replace [exists], [family], or [pending] in a test and restore them in
+/// `tearDown`; no test calls `GoogleFonts.getFont` for real, since it
+/// starts an HTTP fetch. A parse test may keep the real [exists] default:
+/// it reads `GoogleFonts.asMap()`, a const map with no network. Production
+/// code may only read [exists], [family], and [pending]; only a test may
+/// replace them.
 ///
 /// Deliberately kept out of `lib/src/themes/themes.dart` and every barrel
 /// it feeds, so the public `package:stratum_ui/stratum_ui.dart` export
 /// never exposes these setters to an app: `typography.dart`,
-/// `resolver.dart`, and their tests import this file directly with a
-/// package import instead of reaching it through a barrel.
+/// `resolver.dart`, `theme_controller.dart`, and their tests import this
+/// file directly with a package import instead of reaching it through a
+/// barrel.
 abstract final class GoogleFontsLookup {
   static bool Function(String name) _exists = (name) =>
       GoogleFonts.asMap().containsKey(name);
@@ -54,4 +56,13 @@ abstract final class GoogleFontsLookup {
     })
     value,
   ) => _family = value;
+
+  static Future<void> Function() _pending = GoogleFonts.pendingFonts;
+
+  /// Completes once every Google font the app asked for has loaded or
+  /// failed: `GoogleFonts.pendingFonts()`.
+  static Future<void> Function() get pending => _pending;
+
+  @visibleForTesting
+  static set pending(Future<void> Function() value) => _pending = value;
 }
