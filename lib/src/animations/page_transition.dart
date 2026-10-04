@@ -38,7 +38,7 @@ enum ScreenTransitionType {
   rightToLeftJoined,
 }
 
-class ScreenTransition<T> extends PageRouteBuilder<T> {
+class PageTransition<T> extends PageRouteBuilder<T> {
   /// Child for your next page
   final Widget child;
 
@@ -71,7 +71,7 @@ class ScreenTransition<T> extends PageRouteBuilder<T> {
   final bool inheritTheme;
 
   /// Page transition constructor. We can pass the next page as a child,
-  ScreenTransition({
+  PageTransition({
     required this.child,
     required this.type,
     this.childCurrent,

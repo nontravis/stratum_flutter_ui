@@ -1,7 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
 
-class NoAnimationPage extends MaterialPageRoute<dynamic> {
-  NoAnimationPage({
+class NoPageTransition extends MaterialPageRoute<dynamic> {
+  new({
     required super.builder,
     super.settings,
     super.maintainState,

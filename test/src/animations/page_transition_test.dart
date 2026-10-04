@@ -18,7 +18,7 @@ Widget _app(GlobalKey<NavigatorState> navigator, {StratumThemeData? theme}) =>
       home: const SizedBox(),
     );
 
-Future<ScreenTransition<void>> _push(
+Future<PageTransition<void>> _push(
   WidgetTester tester, {
   StratumThemeData? theme,
   ScreenTransitionType type = ScreenTransitionType.fade,
@@ -27,7 +27,7 @@ Future<ScreenTransition<void>> _push(
 }) async {
   final navigator = GlobalKey<NavigatorState>();
   await tester.pumpWidget(_app(navigator, theme: theme));
-  final route = ScreenTransition<void>(
+  final route = PageTransition<void>(
     type: type,
     duration: duration,
     child: child,
