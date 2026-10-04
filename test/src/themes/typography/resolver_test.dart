@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/typography/google_font_weights.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
 import '../../components/common/fakes/fake_stratum_theme.dart';
@@ -70,6 +71,54 @@ class _NonlinearScaler extends TextScaler {
   @override
   double get textScaleFactor => 2;
 }
+
+/// A typography whose six types draw the Google font [family]: header at
+/// [header], number at [number], body at [body], and paragraph and code at
+/// 400. The body font loads in every type's weight, so [family]'s weight
+/// set is {[header], [number], [body], 400}.
+String _googleYaml(
+  String family, {
+  int header = 600,
+  int number = 600,
+  int body = 400,
+}) =>
+    '''
+typography:
+  fonts:
+    g: { family: "Google/$family" }
+  families:
+    default:
+      header: g
+      paragraph: g
+      number: g
+      code: g
+      body: g
+      table: g
+  types:
+    header: { weight: $header, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: $number, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body:
+      weight: $body
+      sizes:
+        s12: { spaceHeight: 4 }
+        s16: { spaceHeight: 8 }
+''';
+
+/// [recipe] with no weight, then with each of the five weight getters.
+List<StratumTextStyle> _weighted(StratumTextStyle recipe) => [
+  recipe,
+  recipe.light,
+  recipe.regular,
+  recipe.medium,
+  recipe.semiBold,
+  recipe.bold,
+];
+
+/// The family and the weight [style] draws in.
+(String?, FontWeight?) _drawn(TextStyle style) =>
+    (style.fontFamily, style.fontWeight);
 
 void main() {
   late StratumThemeData theme;
@@ -627,8 +676,8 @@ typography:
       GoogleFontsLookup.family = defaultFamily;
     });
 
-    test('asks the seam for the primary and fallback family, with the '
-        "recipe's resolved weight and style", () {
+    test('us08/fr02: asks the seam for the primary and fallback family, '
+        "each at its own snapped weight and the recipe's style", () {
       final calls = <(String, FontWeight, FontStyle?)>[];
       GoogleFontsLookup.exists = (name) => true;
       GoogleFontsLookup.family = (name, {required weight, required style}) {
@@ -661,9 +710,12 @@ typography:
 
       expect(style.fontFamily, 'Resolved Kanit');
       expect(style.fontFamilyFallback, ['Resolved Kanit2']);
+      expect(style.fontWeight, FontWeight.w600);
+      // Kanit loads in {600}, header's weight; Kanit2, the body font, in
+      // every type's weight, {400, 600}: 700 snaps to 600 in both.
       expect(calls, [
-        ('Kanit', FontWeight.w700, FontStyle.italic),
-        ('Kanit2', FontWeight.w700, FontStyle.italic),
+        ('Kanit', FontWeight.w600, FontStyle.italic),
+        ('Kanit2', FontWeight.w600, FontStyle.italic),
       ]);
     });
 
@@ -674,6 +726,238 @@ typography:
       final style = resolve(StratumTextStyle.body);
 
       expect(style.fontFamily, 'Inter');
+    });
+  });
+
+  group('us08/fr02: TypographyResolver Google font weights', () {
+    final defaultExists = GoogleFontsLookup.exists;
+    final defaultFamily = GoogleFontsLookup.family;
+    final calls = <(String, FontWeight, FontStyle?)>[];
+
+    setUp(() {
+      calls.clear();
+      GoogleFontsLookup.exists = (name) => true;
+      GoogleFontsLookup.family = (name, {required weight, required style}) {
+        calls.add((name, weight, style));
+        return name;
+      };
+    });
+
+    tearDown(() {
+      GoogleFontsLookup.exists = defaultExists;
+      GoogleFontsLookup.family = defaultFamily;
+    });
+
+    /// Every `debugPrint` line of this test. The resolver warns once per
+    /// run, so each warning test uses a family no other test snaps.
+    List<String> printed() {
+      final lines = <String>[];
+      final saved = debugPrint;
+      debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+      addTearDown(() => debugPrint = saved);
+      return lines;
+    }
+
+    test('us08/s1: a theme whose body font is Google/Inter draws body text '
+        'in the family the library registers for Inter', () {
+      theme = defaultThemeSet.light.copyWith();
+
+      expect(resolve(StratumTextStyle.body).fontFamily, 'Inter');
+      expect(calls.first, ('Inter', FontWeight.w400, null));
+    });
+
+    test('us08/fr02/e03: a weight the theme loads draws as asked, with no '
+        'warning', () {
+      final lines = printed();
+      theme = _theme(_googleYaml('Semi Lato'));
+
+      expect(_drawn(resolve(StratumTextStyle.body.semiBold)), (
+        'Semi Lato',
+        FontWeight.w600,
+      ));
+      expect(calls, [('Semi Lato', FontWeight.w600, null)]);
+      expect(lines, isEmpty);
+    });
+
+    test('us08/fr02/e04: under the package default, body medium draws Inter '
+        '600, header bold Inter 600, body light Inter 400, and number '
+        'regular Geist 600', () {
+      theme = defaultThemeSet.light.copyWith();
+
+      expect(
+        [
+          resolve(StratumTextStyle.body.medium),
+          resolve(StratumTextStyle.header.s24.bold),
+          resolve(StratumTextStyle.body.light),
+          resolve(StratumTextStyle.number.regular),
+        ].map(_drawn),
+        [
+          ('Inter', FontWeight.w600),
+          ('Inter', FontWeight.w600),
+          ('Inter', FontWeight.w400),
+          ('Geist', FontWeight.w600),
+        ],
+      );
+    });
+
+    test('us08/fr02/e04: a snap warns once per family and requested weight '
+        'per run', () {
+      final lines = printed();
+      const warning =
+          'Stratum theme: Google font "Warn Lato" is not loaded in weight '
+          '500; drawing 600';
+
+      theme = _theme(_googleYaml('Warn Lato'));
+      resolve(StratumTextStyle.body.medium);
+      resolve(StratumTextStyle.body.s12.medium);
+      theme = _theme(_googleYaml('Warn Lato', header: 400, number: 400));
+      resolve(StratumTextStyle.body.medium);
+
+      expect(lines, [warning]);
+    });
+
+    test('s03/inv13: each theme snaps against its own weight set', () {
+      theme = _theme(_googleYaml('Switch Lato'));
+      final first = resolve(StratumTextStyle.body.medium).fontWeight;
+      theme = _theme(_googleYaml('Switch Lato', body: 500));
+      final second = resolve(StratumTextStyle.body.medium).fontWeight;
+      theme = _theme(_googleYaml('Switch Lato'));
+      final third = resolve(StratumTextStyle.body.medium).fontWeight;
+
+      expect(
+        [first, second, third],
+        [FontWeight.w600, FontWeight.w500, FontWeight.w600],
+      );
+    });
+
+    test('us08/fr02/e06: the primary and each Google font in the fallback '
+        'list snap against their own sets, ties to the heavier; an app '
+        'font keeps the asked weight', () {
+      theme = _theme('''
+typography:
+  fonts:
+    lato: { family: "Google/Lato" }
+    kanit: { family: "Google/Kanit" }
+    brand: { family: Brand }
+  families:
+    default:
+      header: lato
+      paragraph: lato
+      number: brand
+      code: brand
+      body: lato
+      table: lato
+    th:
+      header: kanit
+      body: brand
+  types:
+    header: { weight: 700, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+''');
+
+      // Lato loads in {400, 600, 700}; Kanit, named only for th's header,
+      // in {700}.
+      final header = resolve(StratumTextStyle.header.medium);
+      expect(_drawn(header), ('Lato', FontWeight.w600));
+      expect(header.fontFamilyFallback, ['Kanit', 'Brand']);
+      expect(calls, [
+        ('Lato', FontWeight.w600, null),
+        ('Kanit', FontWeight.w700, null),
+      ]);
+
+      calls.clear();
+      final number = resolve(StratumTextStyle.number.medium);
+      expect(_drawn(number), ('Brand', FontWeight.w500));
+      expect(number.fontFamilyFallback, ['Lato']);
+      expect(calls, [('Lato', FontWeight.w600, null)]);
+    });
+
+    test('us08/fr02/e07: an italic recipe snaps as a normal one and asks '
+        'for the italic face at the snapped weight', () {
+      theme = defaultThemeSet.light.copyWith();
+
+      final style = resolve(StratumTextStyle.header.s24.bold.italic);
+
+      expect(style.fontStyle, FontStyle.italic);
+      expect(style.fontWeight, FontWeight.w600);
+      expect(calls.first, ('Inter', FontWeight.w600, FontStyle.italic));
+      expect(calls.map((call) => call.$2).toSet(), {FontWeight.w600});
+    });
+
+    test('us08/fr02/e08: the library is never asked for a weight outside a '
+        "Google font's weight set", () {
+      theme = defaultThemeSet.light.copyWith();
+      final sets = GoogleFontWeights.of(theme.typography);
+
+      for (final locale in const [Locale('en'), Locale('th')]) {
+        for (final type in FontType.values) {
+          for (final recipe in _weighted(StratumTextStyle.type(type))) {
+            resolve(recipe, locale: locale);
+            resolve(recipe.mono, locale: locale);
+            resolve(recipe.italic, locale: locale);
+          }
+        }
+      }
+
+      expect(calls, isNotEmpty);
+      for (final (name, weight, _) in calls) {
+        expect(sets[name], contains(weight), reason: '$name $weight');
+      }
+    });
+
+    test('us05/fr02/e05: a weight the yaml does not declare for a Google '
+        'font is never asked of the library', () {
+      theme = defaultThemeSet.light.copyWith();
+
+      resolve(StratumTextStyle.body.medium);
+
+      expect(calls, isNotEmpty);
+      expect(calls.where((call) => call.$2 == FontWeight.w500), isEmpty);
+    });
+
+    test('us08/fr02/e08: run-time fetching on or off draws the same '
+        'weights', () {
+      final fetching = GoogleFonts.config.allowRuntimeFetching;
+      addTearDown(() => GoogleFonts.config.allowRuntimeFetching = fetching);
+      List<(String?, FontWeight?)> drawAll() {
+        theme = defaultThemeSet.light.copyWith();
+        return [
+          for (final type in FontType.values)
+            for (final recipe in _weighted(StratumTextStyle.type(type)))
+              _drawn(resolve(recipe)),
+        ];
+      }
+
+      GoogleFonts.config.allowRuntimeFetching = true;
+      final on = drawAll();
+      GoogleFonts.config.allowRuntimeFetching = false;
+      final off = drawAll();
+
+      expect(off, on);
+    });
+
+    test('us08/fr02/e10: the weight set comes from the theme typography, '
+        'with no wait run', () {
+      final pending = GoogleFontsLookup.pending;
+      addTearDown(() => GoogleFontsLookup.pending = pending);
+      GoogleFontsLookup.pending = () => throw StateError('no wait runs here');
+      theme = defaultThemeSet.light.copyWith();
+
+      expect(resolve(StratumTextStyle.body.medium).fontWeight, FontWeight.w600);
+    });
+
+    test('us08/fr02/e11: a bold recipe on a font loaded only in 400 draws '
+        'with weight 400', () {
+      theme = _theme(_googleYaml('Bold Lato', header: 400, number: 400));
+
+      expect(_drawn(resolve(StratumTextStyle.body.bold)), (
+        'Bold Lato',
+        FontWeight.w400,
+      ));
+      expect(calls, [('Bold Lato', FontWeight.w400, null)]);
     });
   });
 

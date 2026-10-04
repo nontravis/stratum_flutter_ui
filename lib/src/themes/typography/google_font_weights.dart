@@ -28,6 +28,21 @@ abstract final class GoogleFontWeights {
   static Map<String, Set<FontWeight>> of(StratumTypography typography) =>
       _sets[typography] ??= _compute(typography);
 
+  /// [weight] snapped into [weights]: [weight] itself when [weights] holds
+  /// it or is empty, else the weight in [weights] nearest to it by absolute
+  /// difference, the heavier on a tie (FO-02 US-08 FR-02).
+  static FontWeight snap(FontWeight weight, Set<FontWeight> weights) {
+    if (weights.isEmpty || weights.contains(weight)) return weight;
+    return weights.reduce((best, candidate) {
+      final distance = (candidate.value - weight.value).abs();
+      final bestDistance = (best.value - weight.value).abs();
+      return distance < bestDistance ||
+              (distance == bestDistance && candidate.value > best.value)
+          ? candidate
+          : best;
+    });
+  }
+
   static Map<String, Set<FontWeight>> _compute(StratumTypography typography) {
     FontWeight? weightOf(FontType type) =>
         typography.types[type == FontType.table ? FontType.body : type]?.weight;

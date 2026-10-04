@@ -155,6 +155,13 @@ scroll it, guarded so a text field inside keeps its own keys.
   `Google/Geist Mono`, `Google/Roboto Mono`, `Google/Kanit`) and bundles no font file. The app owns
   `GoogleFonts.config`: bundle the font files under its own assets to skip the download, which also keeps the app's
   widget tests off the network, since the google_fonts library looks in the assets first.
+- **Google font weights** — a Google font draws only in the weights its theme loads it in: each type's `weight` for
+  the font that type names, and every type's weight for each tag's `body` font and theme-wide `mono`. A recipe weight
+  outside that set, such as `.medium` on the package default's Inter (loaded in 400 and 600), draws the nearest loaded
+  weight, the heavier on a tie, and prints one debug warning per family and weight. The package asks google_fonts for
+  no other weight, with run-time fetching on or off, so bundling exactly those weights keeps every normal-style Google
+  font off the network; an italic face loads on first use, at the snapped weight. A font the theme ships as `files`
+  or the app registers keeps the weight it is asked for.
 - **Before `preload`** — call `WidgetsFlutterBinding.ensureInitialized()` first: `preload` reads the asset manifest
   through `rootBundle`, which needs the binding. In a `testWidgets` test, the background parse runs on a real
   isolate, which the test's fake-async zone never finishes; run `preload`, or pump a tree rooted in

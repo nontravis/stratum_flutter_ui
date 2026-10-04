@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/typography/google_font_weights.dart';
 
 import '../../components/common/fakes/fake_stratum_theme.dart';
 
@@ -117,6 +118,7 @@ void main() {
   for (final style in _figma) {
     test('${style.name} matches Figma at scale 1 on mobile', () {
       final resolved = resolve(style.recipe);
+      final loaded = GoogleFontWeights.of(theme.typography)[style.family]!;
 
       expect(resolved.fontSize, style.size);
       expect(
@@ -124,7 +126,10 @@ void main() {
         closeTo(style.lineHeight, 1e-9),
       );
       expect(resolved.fontFamily, style.family);
-      expect(resolved.fontWeight, style.weight);
+      // The Figma weight, snapped into the weights the package default
+      // loads the family in: body medium (500) draws Inter 600 (FO-02
+      // US-08 FR-02 E04).
+      expect(resolved.fontWeight, GoogleFontWeights.snap(style.weight, loaded));
     });
   }
 

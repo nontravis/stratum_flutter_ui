@@ -204,4 +204,52 @@ void main() {
       );
     });
   });
+
+  group('us08/fr02: GoogleFontWeights.snap', () {
+    final loaded = {FontWeight.w400, FontWeight.w600};
+
+    test('us08/fr02/e03: a weight in the set stays', () {
+      expect(GoogleFontWeights.snap(FontWeight.w600, loaded), FontWeight.w600);
+    });
+
+    test('us08/fr02/e04: a weight outside the set takes the nearest', () {
+      expect(GoogleFontWeights.snap(FontWeight.w300, loaded), FontWeight.w400);
+      expect(GoogleFontWeights.snap(FontWeight.w700, loaded), FontWeight.w600);
+      expect(
+        GoogleFontWeights.snap(FontWeight.w900, {FontWeight.w400}),
+        FontWeight.w400,
+      );
+    });
+
+    test('us08/fr02/e05: a tie takes the heavier, in any set order', () {
+      expect(GoogleFontWeights.snap(FontWeight.w500, loaded), FontWeight.w600);
+      expect(
+        GoogleFontWeights.snap(FontWeight.w500, {
+          FontWeight.w600,
+          FontWeight.w400,
+        }),
+        FontWeight.w600,
+      );
+    });
+
+    test('us08/fr02/e05: a weight off the hundreds snaps the same way', () {
+      final near = {FontWeight.w400, FontWeight.w500};
+
+      expect(
+        GoogleFontWeights.snap(const FontWeight(450), near),
+        FontWeight.w500,
+      );
+      expect(
+        GoogleFontWeights.snap(const FontWeight(430), near),
+        FontWeight.w400,
+      );
+    });
+
+    test('us08/fr02/e09: an empty set keeps the weight', () {
+      expect(
+        GoogleFontWeights.snap(FontWeight.w500, const {}),
+        FontWeight.w500,
+      );
+    });
+  });
 }

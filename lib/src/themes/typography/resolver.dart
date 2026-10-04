@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/typography/google_font_weights.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
 typedef _CacheKey = (StratumTextStyle, Locale, WindowSize?, TextScaler);
@@ -16,6 +17,7 @@ abstract final class TypographyResolver {
     'TypographyResolver cache',
   );
   static final _warned = <String>{};
+  static final _warnedWeights = <(String, FontWeight)>{};
 
   /// The [TextStyle] for [recipe] under [theme], [locale], [windowSize],
   /// and [textScaler]; the same instance while the cache holds it.
@@ -70,7 +72,8 @@ abstract final class TypographyResolver {
     final scaledBase = textScaler.scale(base);
     final lineBox = scaledBase + metrics.spaceHeight.resolve(of: scaledBase);
     final weight = recipe.fontWeight ?? style.weight;
-    final primaryFamily = _familyOf(font, weight, recipe.fontStyle);
+    final drawn = _snap(typography, font, weight);
+    final primaryFamily = _familyOf(font, drawn, recipe.fontStyle);
     final fallback = _fallback(
       typography,
       type,
@@ -84,7 +87,7 @@ abstract final class TypographyResolver {
     return TextStyle(
       color: recipe.customColor ?? _color(theme.color, recipe.colorRole),
       fontSize: fontSize,
-      fontWeight: weight,
+      fontWeight: drawn,
       fontStyle: recipe.fontStyle,
       letterSpacing: metrics.letterSpacing.resolve(of: textScaler.scale(size)),
       height: lineBox / textScaler.scale(fontSize),
@@ -102,8 +105,8 @@ abstract final class TypographyResolver {
   /// [font]'s family at [weight] and [style]: its `qualifiedFamily` for an
   /// app font, and for a theme font, whose family already names its source
   /// theme (`<source theme id>/<family>`); `GoogleFontsLookup.family` for a
-  /// Google font, since its family depends on the requested weight and
-  /// style.
+  /// Google font, since its family depends on the weight and style. A
+  /// caller passes a Google font's snapped weight (see [_snap]).
   static String _familyOf(
     StratumFontData font,
     FontWeight weight,
@@ -111,6 +114,33 @@ abstract final class TypographyResolver {
   ) => font.source == StratumFontSource.google
       ? GoogleFontsLookup.family(font.family, weight: weight, style: style)
       : font.qualifiedFamily;
+
+  /// The weight [font] draws [weight] in. A Google font draws only in its
+  /// weight set (`GoogleFontWeights.of`, FO-02 typography s03 invariant 13):
+  /// a weight outside a non-empty set snaps to the nearest one, the heavier
+  /// on a tie, with one debug warning per family and requested weight per
+  /// run. An app or theme font keeps [weight]: the engine picks its face
+  /// from its files.
+  static FontWeight _snap(
+    StratumTypography typography,
+    StratumFontData font,
+    FontWeight weight,
+  ) {
+    if (font.source != StratumFontSource.google) return weight;
+    final snapped = GoogleFontWeights.snap(
+      weight,
+      GoogleFontWeights.of(typography)[font.family] ?? const <FontWeight>{},
+    );
+    if (snapped != weight &&
+        kDebugMode &&
+        _warnedWeights.add((font.family, weight))) {
+      debugPrint(
+        'Stratum theme: Google font "${font.family}" is not loaded in '
+        'weight ${weight.value}; drawing ${snapped.value}',
+      );
+    }
+    return snapped;
+  }
 
   /// The metrics of the requested size, else of the nearest defined size.
   static StratumSizeMetrics _metrics(
@@ -206,7 +236,8 @@ abstract final class TypographyResolver {
   /// order; the mono font before the font when [mono] is set; then every
   /// tag's `body` font. Without [primaryKey] itself, and without
   /// duplicates by family or [primaryFamily]. Each family resolves at
-  /// [weight] and [style] (see [_familyOf]).
+  /// [style], and a Google family at [weight] snapped into its own weight
+  /// set (see [_snap] and [_familyOf]).
   static List<String> _fallback(
     StratumTypography typography,
     FontType type,
@@ -228,10 +259,12 @@ abstract final class TypographyResolver {
       ],
       for (final family in families) ?family.types[FontType.body]?.font,
     }..remove(primaryKey);
-    final qualifieds = <String>{
-      for (final key in keys) _familyOf(typography.fonts[key]!, weight, style),
-    }..remove(primaryFamily);
-    return qualifieds.toList();
+    final qualifieds = <String>{};
+    for (final key in keys) {
+      final font = typography.fonts[key]!;
+      qualifieds.add(_familyOf(font, _snap(typography, font, weight), style));
+    }
+    return (qualifieds..remove(primaryFamily)).toList();
   }
 
   /// The color of [role] in [colors]: the seven `text.default` roles by
