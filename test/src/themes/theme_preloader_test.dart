@@ -34,12 +34,8 @@ Widget _preloader(
 void main() {
   // Scoped to this file: `flutter test` runs each test file in its own
   // process, so this never turns leak tracking on for the rest of the
-  // suite. Ignored by default, since `StratumThemeController.preload`
-  // builds a controller before a broken start theme can still throw past
-  // it (a separate, pre-existing gap); only the one test below that asks
-  // for `withTrackedAll()` is checked.
+  // suite.
   LeakTesting.enable();
-  LeakTesting.settings = LeakTesting.settings.withIgnoredAll();
   setUp(ThemeFontLoader.reset);
 
   testWidgets('us01/fr03/e03: the loading screen shows until the start '

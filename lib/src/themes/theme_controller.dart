@@ -210,8 +210,15 @@ class StratumThemeController extends ChangeNotifier {
       );
     }
     final startId = fellBack ? 'default' : requested;
+    StratumThemeSet? themes;
+    try {
+      themes = await controller._load(startId, 0);
+    } on Object {
+      controller.dispose();
+      rethrow;
+    }
     controller
-      .._themes = (await controller._load(startId, 0))!
+      .._themes = themes!
       .._activeId = startId;
     if (fellBack) controller._onThemeChanged?.call('default');
     return controller;
