@@ -353,4 +353,219 @@ void main() {
       );
     });
   });
+
+  group('us02/fr01: switchTo', () {
+    test('us02/s1, us03/s2, us03/fr02: a switch makes the theme active in '
+        'one step and reports it once, after it is active', () async {
+      final seen = <String>[];
+      var notified = 0;
+      late final StratumThemeController controller;
+      controller = await StratumThemeController.preload(
+        onThemeChanged: (id) => seen.add('$id ${controller.activeId}'),
+        bundle: FakeThemeBundle(themes: {'brand': markTheme('brand-mark')}),
+      );
+      controller.addListener(() => notified++);
+
+      await controller.switchTo('brand');
+
+      expect(controller.activeId, 'brand');
+      expect(
+        controller.themes.light.typography.fonts.keys,
+        contains('brand-mark'),
+      );
+      expect(notified, 1);
+      expect(seen, ['brand brand']);
+    });
+
+    test('us02/fr01/e01: an unknown id throws theme_not_found with the '
+        'registered ids, and nothing changes', () async {
+      final (controller, changes) = await startController(
+        FakeThemeBundle(themes: {'brand': appTheme()}),
+      );
+      var notified = 0;
+      controller.addListener(() => notified++);
+
+      await expectLater(
+        controller.switchTo('nope'),
+        throwsA(
+          isA<StratumThemeNotFoundException>()
+              .having((error) => error.id, 'id', 'nope')
+              .having((error) => error.registeredIds, 'registeredIds', [
+                'default',
+                'brand',
+              ]),
+        ),
+      );
+      expect(controller.activeId, 'default');
+      expect(changes, isEmpty);
+      expect(notified, 0);
+    });
+
+    test('us02/s3, us02/fr01/e02, us03/fr02/e01: a theme that fails to '
+        'parse throws theme_format, and the active theme stays', () async {
+      final (controller, changes) = await startController(
+        FakeThemeBundle(themes: {'brand': brokenTheme()}),
+      );
+      final before = controller.themes;
+      var notified = 0;
+      controller.addListener(() => notified++);
+
+      await expectLater(
+        controller.switchTo('brand'),
+        throwsA(isA<StratumThemeFormatException>()),
+      );
+      expect(controller.activeId, 'default');
+      expect(controller.themes, same(before));
+      expect(changes, isEmpty);
+      expect(notified, 0);
+    });
+
+    test('us02/fr01/e04, us03/fr02/e06: a switch to the active id reads '
+        'nothing and reports nothing', () async {
+      final bundle = FakeThemeBundle(themes: {'brand': appTheme()});
+      final (controller, changes) = await startController(
+        bundle,
+        initialThemeId: 'brand',
+      );
+      final reads = Map.of(bundle.reads);
+      var notified = 0;
+      controller.addListener(() => notified++);
+
+      await controller.switchTo('brand');
+
+      expect(bundle.reads, reads);
+      expect(changes, isEmpty);
+      expect(notified, 0);
+    });
+
+    test('us02/fr01/e05, us03/fr02/e06: the latest of two overlapping '
+        'switches wins; the first completes with no error and no '
+        'callback', () async {
+      final bundle = FakeThemeBundle(
+        themes: {'brand': appTheme(), 'night': appTheme()},
+      );
+      final (controller, changes) = await startController(bundle);
+      var notified = 0;
+      controller.addListener(() => notified++);
+      final release = bundle.hold[themeKey('brand')] = Completer<void>();
+
+      final first = controller.switchTo('brand');
+      await controller.switchTo('night');
+      release.complete();
+      await first;
+
+      expect(controller.activeId, 'night');
+      expect(changes, ['night']);
+      expect(notified, 1);
+    });
+
+    test('a switch to the active id overtakes a switch in flight', () async {
+      final bundle = FakeThemeBundle(themes: {'brand': appTheme()});
+      final (controller, changes) = await startController(bundle);
+      var notified = 0;
+      controller.addListener(() => notified++);
+      final release = bundle.hold[themeKey('brand')] = Completer<void>();
+
+      final first = controller.switchTo('brand');
+      await controller.switchTo('default');
+      release.complete();
+      await first;
+
+      expect(controller.activeId, 'default');
+      expect(changes, isEmpty);
+      expect(notified, 0);
+    });
+
+    test('two switches to the same new id report it once', () async {
+      final bundle = FakeThemeBundle(themes: {'brand': appTheme()});
+      final (controller, changes) = await startController(bundle);
+      var notified = 0;
+      controller.addListener(() => notified++);
+      final release = bundle.hold[themeKey('brand')] = Completer<void>();
+
+      final first = controller.switchTo('brand');
+      final second = controller.switchTo('brand');
+      release.complete();
+      await Future.wait([first, second]);
+
+      expect(controller.activeId, 'brand');
+      expect(changes, ['brand']);
+      expect(notified, 1);
+    });
+
+    test('a switch that ends after dispose notifies no one', () async {
+      final bundle = FakeThemeBundle(themes: {'brand': appTheme()});
+      final (controller, changes) = await startController(bundle);
+      final release = bundle.hold[themeKey('brand')] = Completer<void>();
+
+      final pending = controller.switchTo('brand');
+      controller.dispose();
+      release.complete();
+      await pending;
+
+      expect(changes, isEmpty);
+    });
+
+    test('us02/fr01/e06, us05/fr01/e06: a switch back reads the file again '
+        'and registers no font twice', () async {
+      final loads = recordFontLoads();
+      final bundle = FakeThemeBundle(
+        themes: {'brand': fontTheme()},
+        fonts: {fontKey('brand')},
+      );
+      final (controller, changes) = await startController(bundle);
+
+      await controller.switchTo('brand');
+      await controller.switchTo('default');
+      await controller.switchTo('brand');
+
+      expect(bundle.reads[themeKey('brand')], 2);
+      expect(bundle.reads[fontKey('brand')], 1);
+      expect(loads, [('brand/DB Heavent', 1)]);
+      expect(changes, ['brand', 'default', 'brand']);
+    });
+
+    test('us05/s4: each theme that ships the same family name draws its own '
+        'file after a switch', () async {
+      final loads = recordFontLoads();
+      final (controller, _) = await startController(
+        FakeThemeBundle(
+          themes: {'brand': fontTheme(), 'night': fontTheme()},
+          fonts: {fontKey('brand'), fontKey('night')},
+        ),
+        initialThemeId: 'brand',
+      );
+
+      await controller.switchTo('night');
+
+      expect(loads, [('brand/DB Heavent', 1), ('night/DB Heavent', 1)]);
+      expect(
+        controller.themes.light.typography.fonts['brand']!.family,
+        'night/DB Heavent',
+      );
+    });
+
+    test('us02/s2, us05/fr02/e06: a switch waits for its Google fonts up to '
+        'the limit while the current theme stays', () {
+      fakeAsync((async) {
+        StratumThemeController? controller;
+        unawaited(
+          StratumThemeController.preload(
+            bundle: FakeThemeBundle(themes: {'brand': appTheme()}),
+          ).then((value) => controller = value),
+        );
+        async.flushMicrotasks();
+        recordGoogleFonts(pending: () => Completer<void>().future);
+        var done = false;
+        unawaited(controller!.switchTo('brand').then((_) => done = true));
+
+        async.elapse(const Duration(milliseconds: 2999));
+        expect(controller!.activeId, 'default');
+        expect(done, isFalse);
+        async.elapse(const Duration(milliseconds: 1));
+        expect(controller!.activeId, 'brand');
+        expect(done, isTrue);
+      });
+    });
+  });
 }

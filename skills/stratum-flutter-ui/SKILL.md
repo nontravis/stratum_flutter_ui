@@ -161,5 +161,8 @@ scroll it, guarded so a text field inside keeps its own keys.
   `assets/themes/<id>/theme.yaml` the app declares in pubspec as `<id>` (`themeIds`: `default` first, then
   alphabetical), and an app `default` folder layers over the package default. An `initialThemeId` that names no
   theme starts on `default` and calls `onThemeChanged('default')`, so the app overwrites its saved id; a theme file
-  with problems throws `StratumThemeFormatException`. The package stores nothing: save the id `onThemeChanged`
+  with problems throws `StratumThemeFormatException`.
+  `switchTo(id)` completes after the new theme is active, keeps the current theme on screen while it loads and when
+  it fails, throws `StratumThemeNotFoundException` for an unknown id, does nothing for the active id, and lets the
+  latest of overlapping switches win. The package stores nothing: save the id `onThemeChanged`
   reports.

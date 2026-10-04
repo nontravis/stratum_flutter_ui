@@ -60,13 +60,48 @@ class StratumThemeController extends ChangeNotifier {
 
   /// Counts switches, so a switch that a later one overtook drops its
   /// result (FO-03 US-02 FR-01 E05).
-  final int _generation = 0;
+  int _generation = 0;
+
+  bool _disposed = false;
 
   /// The id of the active theme.
   String get activeId => _activeId;
 
   /// The four theme data of the active theme.
   StratumThemeSet get themes => _themes;
+
+  /// Switches to the theme [id]: reads it merged over the package default
+  /// and the app's `default`, loads its fonts while the current theme stays
+  /// on screen, then makes it active in one step and calls
+  /// `onThemeChanged` with [id] (FO-03 US-02 FR-01, US-03 FR-02).
+  ///
+  /// Completes after the new theme is active. Throws
+  /// [StratumThemeNotFoundException] for an id that names no registered
+  /// theme, and `StratumThemeFormatException` for a theme file that fails
+  /// to parse; either leaves the active theme as it was. A switch to the
+  /// active id changes nothing. When switches overlap the latest wins: an
+  /// overtaken switch completes with no error and no callback, and its
+  /// theme is dropped. Only the active theme stays parsed, so a switch back
+  /// reads its file again; its font files stay registered.
+  Future<void> switchTo(String id) async {
+    if (!themeIds.contains(id)) {
+      throw StratumThemeNotFoundException(id, themeIds);
+    }
+    final generation = ++_generation;
+    if (id == _activeId) return;
+    final themes = await _load(id, generation);
+    if (themes == null || _disposed) return;
+    _themes = themes;
+    _activeId = id;
+    notifyListeners();
+    _onThemeChanged?.call(id);
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   /// Discovers the app's bundled themes, reads the start theme merged over
   /// the package default and the app's own `default`, loads its fonts, and
