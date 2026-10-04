@@ -372,12 +372,12 @@ void main() {
         'typography.families.default: required',
       ),
       (
-        'a Google font with an empty name',
+        'us08/s4: a Google font with an empty name',
         _typography(fonts: '{ inter: { family: "Google/" } }'),
         'typography.fonts.inter.family: expected a font name after "Google/"',
       ),
       (
-        'a Google font with a package',
+        'us08/s5: a Google font with a package',
         _typography(
           fonts: '{ inter: { family: "Google/Kanit", package: stratum_ui } }',
         ),
@@ -385,7 +385,7 @@ void main() {
             'package is not allowed with a Google font',
       ),
       (
-        'a Google font GoogleFonts.asMap() lacks',
+        'us08/s3: a Google font GoogleFonts.asMap() lacks',
         _typography(
           fonts: '{ inter: { family: "Google/Not A Real Font 12345" } }',
         ),

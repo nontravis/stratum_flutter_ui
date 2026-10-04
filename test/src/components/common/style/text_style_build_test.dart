@@ -86,6 +86,26 @@ void main() {
     expect(styles.single.fontFamily, 'Font A');
   });
 
+  testWidgets('us01/s1: body 16 in medium weight draws in the theme body '
+      'font at the body 16 line height, in medium, or, for a Google body '
+      'font the theme loads in no medium weight, in the nearest loaded '
+      'weight', (tester) async {
+    final styles = <TextStyle>[];
+    final recipe = StratumTextStyle.body.s16.medium;
+
+    await tester.pumpWidget(themedHost(_probe(styles, recipe), theme: theme));
+    final app = styles.last;
+    await tester.pumpWidget(themedHost(_probe(styles, recipe)));
+    final google = styles.last;
+
+    expect((app.fontFamily, app.fontWeight), ('Inter', FontWeight.w500));
+    expect(app.height! * app.fontSize!, closeTo(24, 1e-9));
+    // The package default loads Google Inter in 400 and 600 only; 500 is
+    // a tie, which goes to the heavier.
+    expect((google.fontFamily, google.fontWeight), ('Inter', FontWeight.w600));
+    expect(google.height! * google.fontSize!, closeTo(24, 1e-9));
+  });
+
   testWidgets('a resize inside one breakpoint builds no text', (tester) async {
     setWindowSize(tester, const Size(400, 800));
     addTearDown(tester.view.reset);
@@ -141,20 +161,21 @@ void main() {
     expect(styles.single.fontSize, 18);
   });
 
-  testWidgets('without a StratumThemeApplication it throws a FlutterError', (
-    tester,
-  ) async {
-    await tester.pumpWidget(_probe(<TextStyle>[]));
+  testWidgets(
+    'us01/s4: without a StratumThemeApplication it throws a FlutterError',
+    (tester) async {
+      await tester.pumpWidget(_probe(<TextStyle>[]));
 
-    expect(
-      tester.takeException(),
-      isA<FlutterError>().having(
-        (error) => error.message,
-        'message',
-        contains('StratumThemeApplication'),
-      ),
-    );
-  });
+      expect(
+        tester.takeException(),
+        isA<FlutterError>().having(
+          (error) => error.message,
+          'message',
+          contains('StratumThemeApplication'),
+        ),
+      );
+    },
+  );
 
   testWidgets('the themeMode override reads the theme of that mode', (
     tester,

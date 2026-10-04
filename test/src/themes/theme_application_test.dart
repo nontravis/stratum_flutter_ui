@@ -679,4 +679,46 @@ void main() {
       );
     });
   });
+
+  group('us05/fr02/e08: a theme with no wait', () {
+    setUp(ThemeFontLoader.reset);
+
+    testWidgets('StratumThemeApplication(themes:) draws the weights a '
+        'preloaded StratumThemeApplication.controlled draws', (tester) async {
+      final controller = await StratumThemeController.preload(
+        bundle: FakeThemeBundle(),
+      );
+      final styles = <TextStyle>[];
+      Widget probe() => Builder(
+        builder: (context) {
+          styles.add(StratumTextStyle.body.medium.build(context));
+          return const SizedBox();
+        },
+      );
+
+      await tester.pumpWidget(
+        StratumThemeApplication.controlled(
+          controller: controller,
+          themeMode: ThemeMode.light,
+          child: probe(),
+        ),
+      );
+      final waited = styles.last;
+      await tester.pumpWidget(
+        StratumThemeApplication(
+          themes: defaultThemeSet,
+          themeMode: ThemeMode.light,
+          child: probe(),
+        ),
+      );
+      final unwaited = styles.last;
+
+      expect(styles.length, greaterThanOrEqualTo(2));
+      expect(unwaited.fontFamily, waited.fontFamily);
+      expect(
+        [waited.fontWeight, unwaited.fontWeight],
+        [FontWeight.w600, FontWeight.w600],
+      );
+    });
+  });
 }

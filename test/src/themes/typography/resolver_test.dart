@@ -1000,7 +1000,7 @@ typography:
       expect(resolve(StratumTextStyle.body).fontFamily, 'default/DB Heavent');
     });
 
-    test('a theme font never asks the Google Fonts seam', () {
+    test('us08/fr02/e02: a theme font never asks the Google Fonts seam', () {
       final saved = GoogleFontsLookup.family;
       addTearDown(() => GoogleFontsLookup.family = saved);
       GoogleFontsLookup.family = (name, {required weight, required style}) =>
@@ -1027,7 +1027,7 @@ typography:
   });
 
   group('TypographyResolver cache', () {
-    test('a hit returns the identical instance', () {
+    test('us01/s3: a hit returns the identical instance', () {
       final recipe = StratumTextStyle.body.s20;
 
       expect(identical(resolve(recipe), resolve(recipe)), isTrue);

@@ -118,7 +118,7 @@ void main() {
   });
 
   group('StratumTextStyle immutability', () {
-    test('a stored style is not changed by a later getter', () {
+    test('us01/s2: a stored style is not changed by a later getter', () {
       final caption = StratumTextStyle.body.s12.colorTertiary;
       final medium = caption.medium;
 

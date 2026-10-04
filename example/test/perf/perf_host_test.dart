@@ -50,15 +50,13 @@ void main() {
     );
   });
 
-  test(
-    'every bundled weight loads from the assets with fetching off',
-    () async {
-      for (final (family, weight, _) in _bundled) {
-        GoogleFonts.getFont(family, fontWeight: weight);
-        await GoogleFonts.pendingFonts();
-      }
-    },
-  );
+  test('fo03/us05/fr02/e03: every bundled weight loads from the assets '
+      'with fetching off', () async {
+    for (final (family, weight, _) in _bundled) {
+      GoogleFonts.getFont(family, fontWeight: weight);
+      await GoogleFonts.pendingFonts();
+    }
+  });
 
   test(
     'a weight the example does not bundle fails instead of fetching',
