@@ -255,8 +255,11 @@ class StratumThemeController extends ChangeNotifier {
   }
 
   /// Reads [paths] and registers the files that read under [family]; a
-  /// file the bundle lacks, or a registration that fails, logs and leaves
-  /// its text in the fallback fonts (FO-03 US-05 FR-01 E04).
+  /// file the bundle lacks logs and leaves its text in the fallback fonts
+  /// (FO-03 US-05 FR-01 E04). A registration that fails also logs, leaves
+  /// the text in its fallback fonts, and drops [paths] from
+  /// `ThemeFontLoader.registrations`, so the next theme that needs one of
+  /// them registers it again (owner ruling R8).
   Future<void> _register(String family, List<String> paths) async {
     final files = <ByteData>[];
     for (final path in paths) {
@@ -274,6 +277,9 @@ class StratumThemeController extends ChangeNotifier {
     try {
       await ThemeFontLoader.load(family, files);
     } on Object catch (error) {
+      for (final path in paths) {
+        unawaited(ThemeFontLoader.registrations.remove('$family\n$path'));
+      }
       _warn(
         'the font files of "$family" failed to load ($error); its text uses '
         'the fallback fonts',

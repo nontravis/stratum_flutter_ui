@@ -244,6 +244,57 @@ void main() {
         hasLength(1),
       );
     });
+
+    test('R8 (owner ruling): a registration that fails, then succeeds once '
+        'the theme is needed again, loads and registers it', () async {
+      var attempt = 0;
+      ThemeFontLoader.load = (family, files) async {
+        attempt++;
+        if (attempt == 1) throw StateError('bad font bytes');
+      };
+      final logs = captureDebugPrint();
+      final bundle = FakeThemeBundle(
+        themes: {'brand': fontTheme()},
+        fonts: {fontKey('brand')},
+      );
+      final (controller, _) = await startController(
+        bundle,
+        initialThemeId: 'brand',
+      );
+
+      expect(controller.activeId, 'brand');
+      expect(attempt, 1);
+      expect(logs.where((line) => line.contains('failed')), hasLength(1));
+
+      await controller.switchTo('default');
+      await controller.switchTo('brand');
+
+      expect(attempt, 2);
+      expect(
+        controller.themes.light.typography.fonts['brand']!.family,
+        'brand/DB Heavent',
+      );
+    });
+
+    test('R8 (owner ruling): a registration that keeps failing logs a '
+        'warning each time the theme is needed again', () async {
+      ThemeFontLoader.load = (family, files) async =>
+          throw StateError('bad font bytes');
+      final logs = captureDebugPrint();
+      final bundle = FakeThemeBundle(
+        themes: {'brand': fontTheme()},
+        fonts: {fontKey('brand')},
+      );
+      final (controller, _) = await startController(
+        bundle,
+        initialThemeId: 'brand',
+      );
+      await controller.switchTo('default');
+      await controller.switchTo('brand');
+
+      expect(controller.activeId, 'brand');
+      expect(logs.where((line) => line.contains('failed')), hasLength(2));
+    });
   });
 
   group('us05/fr02: Google fonts', () {
