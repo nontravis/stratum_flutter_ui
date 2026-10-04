@@ -42,21 +42,25 @@ void main() {
       );
     });
 
-    testWidgets('an intrinsic column never runs the frozen IntrinsicWidth', (
-      tester,
-    ) async {
+    testWidgets('an intrinsic column builds the live FlexLayout and sizes '
+        'its buttons to the widest one', (tester) async {
       await tester.pumpWidget(
         perfHost(
           const CurrentKit().column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             crossAxisIntrinsic: true,
-            children: const [SizedBox(width: 10, height: 10)],
+            children: const [
+              SizedBox(key: Key('narrow'), width: 10, height: 10),
+              SizedBox(key: Key('wide'), width: 30, height: 10),
+            ],
           ),
         ),
       );
 
-      expect(find.byType(IntrinsicWidth), findsNothing);
+      expect(tester.widget(find.byType(ColumnLayout)), isA<FlexLayout>());
+      expect(tester.getSize(find.byKey(const Key('narrow'))).width, 30);
+      expect(tester.getSize(find.byType(ColumnLayout)).width, 30);
     });
   });
 
@@ -91,11 +95,7 @@ void main() {
         isA<BaselineRowLayout>().having(
           (r) => r.interaction,
           'interaction',
-          isA<StratumInteraction>().having(
-            (i) => i.onTap,
-            'onTap',
-            onTap,
-          ),
+          isA<StratumInteraction>().having((i) => i.onTap, 'onTap', onTap),
         ),
       );
     });
@@ -147,21 +147,28 @@ void main() {
       expect(find.byType(StratumInkWell), findsNothing);
     });
 
-    testWidgets('an intrinsic column runs the frozen IntrinsicWidth', (
-      tester,
-    ) async {
+    testWidgets('an intrinsic column builds the frozen FlexLayout and '
+        'sizes its buttons to the widest one', (tester) async {
       await tester.pumpWidget(
         perfHost(
           const BaselineKit().column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             crossAxisIntrinsic: true,
-            children: const [SizedBox(width: 10, height: 10)],
+            children: const [
+              SizedBox(key: Key('narrow'), width: 10, height: 10),
+              SizedBox(key: Key('wide'), width: 30, height: 10),
+            ],
           ),
         ),
       );
 
-      expect(find.byType(IntrinsicWidth), findsOneWidget);
+      expect(
+        tester.widget(find.byType(BaselineColumnLayout)),
+        isA<BaselineFlexLayout>(),
+      );
+      expect(tester.getSize(find.byKey(const Key('narrow'))).width, 30);
+      expect(tester.getSize(find.byType(BaselineColumnLayout)).width, 30);
     });
   });
 }
