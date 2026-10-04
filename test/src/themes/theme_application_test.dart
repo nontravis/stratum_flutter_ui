@@ -602,6 +602,39 @@ void main() {
       expect(maybe, same(controller));
     });
 
+    testWidgets('a reused reader under a plain application that becomes '
+        '.controlled in place rebuilds and sees the controller', (
+      tester,
+    ) async {
+      final controller = await StratumThemeController.preload(
+        bundle: FakeThemeBundle(),
+      );
+      final found = <StratumThemeController?>[];
+      final reader = Builder(
+        builder: (context) {
+          found.add(StratumThemeController.maybeOf(context));
+          return const SizedBox();
+        },
+      );
+
+      await tester.pumpWidget(
+        StratumThemeApplication(
+          themes: _set,
+          themeMode: ThemeMode.light,
+          child: reader,
+        ),
+      );
+      await tester.pumpWidget(
+        StratumThemeApplication.controlled(
+          controller: controller,
+          themeMode: ThemeMode.light,
+          child: reader,
+        ),
+      );
+
+      expect(found, [null, same(controller)]);
+    });
+
     testWidgets('us10/fr05: wrap keeps the controller and both modes', (
       tester,
     ) async {

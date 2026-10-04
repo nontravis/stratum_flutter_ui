@@ -81,14 +81,13 @@ class StratumThemeController extends ChangeNotifier {
   /// Walks past a plain `StratumThemeApplication(themes:)` nested below a
   /// controlled one, so it never hides the controller above it.
   static StratumThemeController? maybeOf(BuildContext context) {
+    final nearest = context
+        .dependOnInheritedWidgetOfExactType<StratumThemeApplication>();
+    if (nearest == null) return null;
+    if (nearest.controller != null) return nearest.controller;
     var element = context
         .getElementForInheritedWidgetOfExactType<StratumThemeApplication>();
     while (element != null) {
-      final controller = (element.widget as StratumThemeApplication).controller;
-      if (controller != null) {
-        context.dependOnInheritedElement(element);
-        return controller;
-      }
       InheritedElement? next;
       element.visitAncestorElements((ancestor) {
         if (ancestor is InheritedElement &&
@@ -98,6 +97,12 @@ class StratumThemeController extends ChangeNotifier {
         }
         return true;
       });
+      if (next == null) return null;
+      final controller = (next!.widget as StratumThemeApplication).controller;
+      if (controller != null) {
+        context.dependOnInheritedElement(next!);
+        return controller;
+      }
       element = next;
     }
     return null;
