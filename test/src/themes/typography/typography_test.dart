@@ -532,8 +532,7 @@ void main() {
       expect(
         _errors(
           _typography(
-            fonts:
-                '{ inter: { family: "Google/Nope", files: [fonts/A.ttf] } }',
+            fonts: '{ inter: { family: "Google/Nope", files: [fonts/A.ttf] } }',
           ),
         ),
         const [unknownError, filesError],

@@ -33,10 +33,12 @@ typography:
 
 /// An app theme whose font `brand` lists the same file twice under the
 /// family DB Heavent.
-String duplicateFontTheme() => appTheme('''
+String duplicateFontTheme() => appTheme(
+  '''
 typography:
   fonts:
-    brand: { family: DB Heavent, files: [fonts/DBHeavent-Regular.ttf, fonts/DBHeavent-Regular.ttf] }''');
+    brand: { family: DB Heavent, files: [fonts/DBHeavent-Regular.ttf, fonts/DBHeavent-Regular.ttf] }''',
+);
 
 /// An app theme with an unknown top-level key, which fails to parse.
 String brokenTheme() => appTheme('spcae:\n  md: 12');
