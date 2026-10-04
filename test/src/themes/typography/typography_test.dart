@@ -469,6 +469,12 @@ void main() {
         'typography.fonts.inter.files: $invalid "../Brand.woff"',
       ),
       (
+        'us07/fr02/e12: a .. segment with an accepted extension, apart '
+            'from the extension rule',
+        '{ inter: { family: Inter, files: [fonts/../../Brand.ttf] } }',
+        'typography.fonts.inter.files: $invalid "fonts/../../Brand.ttf"',
+      ),
+      (
         'us07/fr02/e12: a leading /',
         '{ inter: { family: Inter, files: [/fonts/Brand.ttf] } }',
         'typography.fonts.inter.files: $invalid "/fonts/Brand.ttf"',
