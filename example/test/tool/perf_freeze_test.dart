@@ -28,6 +28,18 @@ class _AnimatedStyledBoxState {}
 extension on Widget {}
 ''';
 
+const _boxLayout = '''
+import 'package:stratum_ui/a/row_layout.dart';
+import 'package:stratum_ui/src/src.dart';
+
+class BoxLayout extends StatelessWidget {
+  const BoxLayout({super.key});
+
+  @override
+  Widget build(BuildContext context) => const RowLayout();
+}
+''';
+
 void main() {
   group('declaredNames', () {
     test('finds public classes and typedefs, never private names or '
@@ -105,7 +117,10 @@ void main() {
       expect(
         () => freeze(
           commit: 'fd59ffa',
-          sources: {'lib/a/row_layout.dart': _row, 'lib/b/row_layout.dart': _row},
+          sources: {
+            'lib/a/row_layout.dart': _row,
+            'lib/b/row_layout.dart': _row,
+          },
         ),
         throwsArgumentError,
       );
@@ -125,6 +140,27 @@ void main() {
           sources: {'lib/a/row_layout.dart': 'library row;\n$_row'},
         ),
         throwsArgumentError,
+      );
+    });
+
+    test('imports a frozen sibling by path once, never the live file', () {
+      final withSibling = freeze(
+        commit: 'fd59ffa',
+        sources: {
+          'lib/a/row_layout.dart': _row,
+          'lib/c/box_layout.dart': _boxLayout,
+        },
+      );
+      final box = withSibling['box_layout.dart']!;
+      expect(box, isNot(contains('package:stratum_ui/a/row_layout.dart')));
+      expect(RegExp("import 'row_layout.dart';").allMatches(box).length, 1);
+      expect(box, contains("import 'package:stratum_ui/src/src.dart';"));
+      expect(
+        box,
+        contains(
+          '// ignore_for_file: type=lint, unused_import, '
+          'unnecessary_import',
+        ),
       );
     });
   });

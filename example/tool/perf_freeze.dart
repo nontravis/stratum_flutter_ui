@@ -77,6 +77,11 @@ Map<String, String> freeze({
   required Map<String, String> sources,
 }) {
   final names = declaredNames(sources.values);
+  final siblingsByPackagePath = {
+    for (final path in sources.keys)
+      if (path.startsWith('lib/'))
+        'package:stratum_ui/${path.substring(4)}': path.split('/').last,
+  };
   final files = <String, String>{};
   for (final MapEntry(key: path, value: source) in sources.entries) {
     final name = path.split('/').last;
@@ -86,17 +91,41 @@ Map<String, String> freeze({
     if (_directive.hasMatch(source)) {
       throw ArgumentError.value(path, 'sources', 'library or part directive');
     }
+    final rewritten = _importSiblings(source, siblingsByPackagePath);
     files[name] =
         '${_header('$commit:$path')}'
-        '// ignore_for_file: type=lint, unused_import\n'
+        // A sibling import rewritten to the frozen copy can duplicate a name
+        // the baseline barrel already exports; that is unnecessary_import,
+        // not a bug.
+        '// ignore_for_file: type=lint, unused_import, unnecessary_import\n'
         "import '$baselineBarrel';\n"
         '\n'
-        '${renameAll(source, names)}';
+        '${renameAll(rewritten, names)}';
   }
   files[baselineBarrel] =
       '${_header(commit)}\n'
       '${[for (final name in files.keys) "export '$name';\n"].join()}';
   return files;
+}
+
+/// [source] with each import of a path in [siblings] rewritten to import the
+/// frozen sibling file instead of the live package path.
+///
+/// Drops a rewritten import past the first so the frozen copy never imports
+/// the same sibling twice.
+String _importSiblings(String source, Map<String, String> siblings) {
+  if (siblings.isEmpty) return source;
+  final packagePaths = siblings.keys.map(RegExp.escape).join('|');
+  final pattern = RegExp(
+    "^import\\s+['\"]($packagePaths)['\"]\\s*;\$",
+    multiLine: true,
+  );
+  final imported = <String>{};
+  return source.replaceAllMapped(pattern, (match) {
+    final sibling = siblings[match[1]]!;
+    if (!imported.add(sibling)) return '';
+    return "import '$sibling';";
+  });
 }
 
 String _header(String origin) {
