@@ -1,5 +1,4 @@
-import 'package:flutter/rendering.dart'
-    show RenderAbstractViewport, RenderSliver;
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:stratum_ui/src/src.dart';
 
 /// Makes the focusable children of a [ColumnLayout], [RowLayout], or
@@ -504,7 +503,7 @@ void _revealInNestedBody(
 ) {
   final box = body.context.findRenderObject();
   final content = RenderAbstractViewport.maybeOf(object);
-  final window = box == null ? null : RenderAbstractViewport.maybeOf(box);
+  final window = _windowOf(box);
   if (box is! RenderBox || !box.hasSize || content == null || window == null) {
     return;
   }
@@ -535,7 +534,8 @@ void _revealInNestedBody(
   final length = collapsed - offset(window, box, 1) + extent;
   final covered = collapsed - header.pixels;
   // The body below the scrollable, such as a footer or bottom padding.
-  final below = offset(window, _bodyOf(box), 1) - offset(window, box, 1);
+  final below =
+      offset(window, _bodyOf(box, window), 1) - offset(window, box, 1);
   final shown = length - below - (covered > 0 ? covered : 0);
   final start = offset(content, object, 0, rect: rect);
   final end = offset(content, object, 1, rect: rect) + extent - shown;
@@ -550,15 +550,27 @@ void _revealInNestedBody(
   moveNested(header, inner, delta, Duration.zero);
 }
 
-/// The box that holds [box] inside the nested scroll view's body sliver,
-/// which ends where the view ends; [box] itself when no sliver holds it.
-RenderObject _bodyOf(RenderBox box) {
-  RenderObject body = box;
-  for (var parent = box.parent; parent != null; parent = parent.parent) {
-    if (parent is RenderSliver) return body;
-    body = parent;
+/// The nested scroll view's own viewport around [box]: the first one up,
+/// past any viewport inside the body, such as a tab view's pages.
+RenderNestedScrollViewViewport? _windowOf(RenderObject? box) {
+  for (var node = box?.parent; node != null; node = node.parent) {
+    if (node is RenderNestedScrollViewViewport) return node;
   }
-  return box;
+  return null;
+}
+
+/// The box that [window]'s body sliver holds around [box], which ends
+/// where the view ends: the last box on the way up from [box].
+RenderBox _bodyOf(RenderBox box, RenderObject window) {
+  var body = box;
+  for (
+    var node = box.parent;
+    node != null && node != window;
+    node = node.parent
+  ) {
+    if (node is RenderBox) body = node;
+  }
+  return body;
 }
 
 /// Moves a nested scroll view by [delta] along one range: [outer]'s

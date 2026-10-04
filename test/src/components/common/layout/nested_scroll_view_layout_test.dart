@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
@@ -14,9 +15,13 @@ FocusNode _node(String label) {
   return node;
 }
 
-/// [child], 200 by 300, after a focusable box, under the app's default
-/// Tab, arrow, and activation keys.
-Widget _keyboardHost(Widget child, {required FocusNode before}) {
+/// [child], [width] by 300, after a focusable box, under the app's
+/// default Tab, arrow, and activation keys.
+Widget _keyboardHost(
+  Widget child, {
+  required FocusNode before,
+  double width = 200,
+}) {
   return themedHost(
     Shortcuts(
       shortcuts: WidgetsApp.defaultShortcuts,
@@ -29,7 +34,7 @@ Widget _keyboardHost(Widget child, {required FocusNode before}) {
               focusNode: before,
               child: const SizedBox(width: 10, height: 10),
             ),
-            SizedBox(width: 200, height: 300, child: child),
+            SizedBox(width: width, height: 300, child: child),
           ],
         ),
       ),
@@ -617,6 +622,109 @@ void main() {
         variant: _desktop,
       );
     }
+
+    /// A nested scroll view 400 px wide, wider than its header, whose body
+    /// is three lists, `a`, `b`, and `c`, in a tab view on [tabs], above a
+    /// 50 px footer with [footer].
+    Widget tabBody(TabController tabs, {bool footer = false}) {
+      Widget body = TabBarView(
+        controller: tabs,
+        children: [
+          for (final label in const ['a', 'b', 'c'])
+            _list(label: label, showScrollbar: false),
+        ],
+      );
+      if (footer) {
+        body = Column(
+          children: [
+            Expanded(child: body),
+            const SizedBox(height: 50),
+          ],
+        );
+      }
+      return _keyboardHost(
+        NestedScrollViewLayout(headerSliverBuilder: _headerSlivers, body: body),
+        before: _node('before'),
+        width: 400,
+      );
+    }
+
+    TabController tabsAt(int index) {
+      final tabs = TabController(
+        length: 3,
+        vsync: const TestVSync(),
+        initialIndex: index,
+      );
+      addTearDown(tabs.dispose);
+      return tabs;
+    }
+
+    for (final (index, label) in const [(1, 'b'), (2, 'c')]) {
+      testWidgets(
+        'Tab to a visible row of tab $index in a tab view body moves nothing',
+        (tester) async {
+          await tester.pumpWidget(tabBody(tabsAt(index)));
+          // Under the 200 px header the list shows 0 to 100; rows 0 and 1
+          // lie inside.
+          _focusNode('$label 0').requestFocus();
+          await tester.pump();
+
+          await _key(tester, LogicalKeyboardKey.tab);
+
+          expect(_focused(), '$label 1');
+          expect(_outer(tester).pixels, 0);
+          expect(_inner(tester).pixels, 0);
+        },
+        variant: _desktop,
+      );
+    }
+
+    testWidgets(
+      'a second reveal in a tab view body, after the first moved the '
+      'header, moves nothing',
+      (tester) async {
+        await tester.pumpWidget(tabBody(tabsAt(0)));
+        // Row 2, at 80 to 120, ends 20 px below the list's 100 px.
+        final row = _focusNode('a 2');
+
+        revealInViewports(row);
+        revealInViewports(row);
+        await tester.pump();
+
+        expect(_outer(tester).pixels, 20);
+        expect(_inner(tester).pixels, 0);
+      },
+      variant: _desktop,
+    );
+
+    testWidgets(
+      'Tab reveals a row whole in a tab view body with a footer below it',
+      (tester) async {
+        await tester.pumpWidget(tabBody(tabsAt(1), footer: true));
+        // Under the 200 px header the list shows 0 to 50, above the
+        // footer; row 2, at 80 to 120, lies 70 px past that.
+        _focusNode('b 1').requestFocus();
+        await tester.pump();
+
+        await _key(tester, LogicalKeyboardKey.tab);
+
+        expect(_focused(), 'b 2');
+        expect(_outer(tester).pixels, 70);
+        expect(_inner(tester).pixels, 0);
+        final list = tester.getRect(
+          find
+              .ancestor(of: _row('b 2'), matching: find.byType(Scrollable))
+              .first,
+        );
+        final row = _focusNode('b 2').rect;
+        expect(
+          row.top >= list.top - 0.5 && row.bottom <= list.bottom + 0.5,
+          isTrue,
+          reason: 'row at $row, list $list',
+        );
+      },
+      variant: _desktop,
+    );
 
     testWidgets(
       'a reorder move that drops focus reveals the moved item once',
