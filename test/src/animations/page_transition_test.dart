@@ -4,19 +4,34 @@ import 'package:stratum_ui/src/src.dart';
 import '../components/common/fakes/fake_stratum_theme.dart';
 
 /// A [MaterialApp] whose builder places an application of [theme] above
-/// the navigator, or none when [theme] is null.
-Widget _app(GlobalKey<NavigatorState> navigator, {StratumThemeData? theme}) =>
-    MaterialApp(
-      navigatorKey: navigator,
-      builder: theme == null
-          ? null
-          : (context, child) => StratumThemeApplication(
-              themes: StratumThemeSet(light: theme),
-              themeMode: ThemeMode.light,
-              child: child!,
-            ),
-      home: const SizedBox(),
-    );
+/// the navigator, or none when [theme] is null, and, when [reducedMotion]
+/// is true, a [MediaQuery] with `disableAnimations: true` above that.
+Widget _app(
+  GlobalKey<NavigatorState> navigator, {
+  StratumThemeData? theme,
+  bool reducedMotion = false,
+}) => MaterialApp(
+  navigatorKey: navigator,
+  builder: (theme == null && !reducedMotion)
+      ? null
+      : (context, child) {
+          var result = theme == null
+              ? child!
+              : StratumThemeApplication(
+                  themes: StratumThemeSet(light: theme),
+                  themeMode: ThemeMode.light,
+                  child: child!,
+                );
+          if (reducedMotion) {
+            result = MediaQuery(
+              data: const MediaQueryData(disableAnimations: true),
+              child: result,
+            );
+          }
+          return result;
+        },
+  home: const SizedBox(),
+);
 
 Future<PageTransition<void>> _push(
   WidgetTester tester, {
@@ -24,13 +39,20 @@ Future<PageTransition<void>> _push(
   ScreenTransitionType type = ScreenTransitionType.fade,
   Duration? duration,
   Widget child = const SizedBox(),
+  Widget? childCurrent,
+  Alignment? alignment,
+  bool reducedMotion = false,
 }) async {
   final navigator = GlobalKey<NavigatorState>();
-  await tester.pumpWidget(_app(navigator, theme: theme));
+  await tester.pumpWidget(
+    _app(navigator, theme: theme, reducedMotion: reducedMotion),
+  );
   final route = PageTransition<void>(
     type: type,
     duration: duration,
     child: child,
+    childCurrent: childCurrent,
+    alignment: alignment,
   );
   navigator.currentState!.push(route).ignore();
   await tester.pump();
@@ -161,6 +183,167 @@ void main() {
     expect(
       slide.position.value.dx,
       closeTo(1 - Curves.easeInOutSine.transform(0.5), 1e-9),
+    );
+  });
+
+  testWidgets('us05/fr03: a fade plays over the full duration under reduced '
+      'motion', (tester) async {
+    const page = SizedBox(key: ValueKey('page'));
+    await _push(
+      tester,
+      type: ScreenTransitionType.fade,
+      child: page,
+      reducedMotion: true,
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+
+    final fade = tester.widget<FadeTransition>(
+      find
+          .ancestor(
+            of: find.byKey(const ValueKey('page')),
+            matching: find.byType(FadeTransition),
+          )
+          .first,
+    );
+    expect(fade.opacity.value, closeTo(0.5, 1e-9));
+  });
+
+  testWidgets('us05/fr03: a with-fade slide fades with no slide under '
+      'reduced motion', (tester) async {
+    const page = SizedBox(key: ValueKey('page'));
+    await _push(
+      tester,
+      type: ScreenTransitionType.rightToLeftWithFade,
+      child: page,
+      reducedMotion: true,
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('page')),
+        matching: find.byType(SlideTransition),
+      ),
+      findsNothing,
+    );
+    final fade = tester.widget<FadeTransition>(
+      find
+          .ancestor(
+            of: find.byKey(const ValueKey('page')),
+            matching: find.byType(FadeTransition),
+          )
+          .first,
+    );
+    expect(fade.opacity.value, closeTo(0.5, 1e-9));
+  });
+
+  testWidgets('us05/fr03: a slide shows the new page at once under reduced '
+      'motion', (tester) async {
+    const page = SizedBox(key: ValueKey('page'));
+    await _push(
+      tester,
+      type: ScreenTransitionType.rightToLeft,
+      child: page,
+      reducedMotion: true,
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+
+    expect(find.byKey(const ValueKey('page')), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('page')),
+        matching: find.byType(SlideTransition),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('us05/fr03: scale shows the new page at once under reduced '
+      'motion', (tester) async {
+    const page = SizedBox(key: ValueKey('page'));
+    await _push(
+      tester,
+      type: ScreenTransitionType.scale,
+      child: page,
+      alignment: Alignment.center,
+      reducedMotion: true,
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+
+    expect(find.byKey(const ValueKey('page')), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('page')),
+        matching: find.byType(ScaleTransition),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('us05/fr03: rotate shows the new page at once under reduced '
+      'motion', (tester) async {
+    const page = SizedBox(key: ValueKey('page'));
+    await _push(
+      tester,
+      type: ScreenTransitionType.rotate,
+      child: page,
+      alignment: Alignment.center,
+      reducedMotion: true,
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+
+    expect(find.byKey(const ValueKey('page')), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('page')),
+        matching: find.byType(RotationTransition),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('us05/fr03: size shows the new page at once under reduced '
+      'motion', (tester) async {
+    const page = SizedBox(key: ValueKey('page'));
+    await _push(
+      tester,
+      type: ScreenTransitionType.size,
+      child: page,
+      alignment: Alignment.center,
+      reducedMotion: true,
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+
+    expect(find.byKey(const ValueKey('page')), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('page')),
+        matching: find.byType(SizeTransition),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('us05/fr03: joined slides show the new page at once under '
+      'reduced motion', (tester) async {
+    const page = SizedBox(key: ValueKey('page'));
+    const current = SizedBox(key: ValueKey('current'));
+    await _push(
+      tester,
+      type: ScreenTransitionType.rightToLeftJoined,
+      child: page,
+      childCurrent: current,
+      reducedMotion: true,
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+
+    expect(find.byKey(const ValueKey('page')), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('page')),
+        matching: find.byType(SlideTransition),
+      ),
+      findsNothing,
     );
   });
 }

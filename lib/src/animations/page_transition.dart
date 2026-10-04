@@ -1,3 +1,4 @@
+import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 enum ScreenTransitionType {
@@ -108,12 +109,14 @@ class PageTransition<T> extends PageRouteBuilder<T> {
                Widget child,
              ) {
                final resolved = curve ?? _curveOf(_slowOf(context));
+               final reduced = reducesMotion(context);
                switch (type) {
                  case ScreenTransitionType.fade:
                    return FadeTransition(opacity: animation, child: child);
 
                  /// PageTransitionType.rightToLeft which is the give us right to left transition
                  case ScreenTransitionType.rightToLeft:
+                   if (reduced) return child;
                    return SlideTransition(
                      position:
                          Tween<Offset>(
@@ -127,6 +130,7 @@ class PageTransition<T> extends PageRouteBuilder<T> {
 
                  /// PageTransitionType.leftToRight which is the give us left to right transition
                  case ScreenTransitionType.leftToRight:
+                   if (reduced) return child;
                    return SlideTransition(
                      position:
                          Tween<Offset>(
@@ -140,6 +144,7 @@ class PageTransition<T> extends PageRouteBuilder<T> {
 
                  /// PageTransitionType.topToBottom which is the give us up to down transition
                  case ScreenTransitionType.topToBottom:
+                   if (reduced) return child;
                    return SlideTransition(
                      position:
                          Tween<Offset>(
@@ -153,6 +158,7 @@ class PageTransition<T> extends PageRouteBuilder<T> {
 
                  /// PageTransitionType.downToUp which is the give us down to up transition
                  case ScreenTransitionType.bottomToTop:
+                   if (reduced) return child;
                    return SlideTransition(
                      position:
                          Tween<Offset>(
@@ -167,6 +173,7 @@ class PageTransition<T> extends PageRouteBuilder<T> {
                  /// PageTransitionType.scale which is the scale functionality for transition you can also use curve for this transition
 
                  case ScreenTransitionType.scale:
+                   if (reduced) return child;
                    return ScaleTransition(
                      alignment: alignment!,
                      scale: CurvedAnimation(
@@ -179,6 +186,7 @@ class PageTransition<T> extends PageRouteBuilder<T> {
                  /// PageTransitionType.rotate which is the rotate functionality for transition you can also use alignment for this transition
 
                  case ScreenTransitionType.rotate:
+                   if (reduced) return child;
                    return RotationTransition(
                      alignment: alignment!,
                      turns: animation,
@@ -192,6 +200,7 @@ class PageTransition<T> extends PageRouteBuilder<T> {
                  /// PageTransitionType.size which is the rotate functionality for transition you can also use curve for this transition
 
                  case ScreenTransitionType.size:
+                   if (reduced) return child;
                    return Align(
                      alignment: alignment!,
                      child: SizeTransition(
@@ -206,6 +215,9 @@ class PageTransition<T> extends PageRouteBuilder<T> {
                  /// PageTransitionType.rightToLeftWithFade which is the fade functionality from right o left
 
                  case ScreenTransitionType.rightToLeftWithFade:
+                   if (reduced) {
+                     return FadeTransition(opacity: animation, child: child);
+                   }
                    return SlideTransition(
                      position:
                          Tween<Offset>(
@@ -229,6 +241,9 @@ class PageTransition<T> extends PageRouteBuilder<T> {
                  /// PageTransitionType.leftToRightWithFade which is the fade functionality from left o right with curve
 
                  case ScreenTransitionType.leftToRightWithFade:
+                   if (reduced) {
+                     return FadeTransition(opacity: animation, child: child);
+                   }
                    return SlideTransition(
                      position:
                          Tween<Offset>(
@@ -258,6 +273,7 @@ class PageTransition<T> extends PageRouteBuilder<T> {
                   childCurrent: this
 
                 """);
+                   if (reduced) return child;
                    return Stack(
                      children: <Widget>[
                        SlideTransition(
@@ -297,6 +313,7 @@ class PageTransition<T> extends PageRouteBuilder<T> {
                   childCurrent: this
 
                 """);
+                   if (reduced) return child;
                    return Stack(
                      children: <Widget>[
                        SlideTransition(
