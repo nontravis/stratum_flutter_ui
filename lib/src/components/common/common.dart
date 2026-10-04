@@ -1,4 +1,5 @@
 export 'base/base.dart';
+export 'in_app_update.dart';
 export 'ink_well.dart';
 export 'layout/layout.dart';
 export 'model/model.dart';
