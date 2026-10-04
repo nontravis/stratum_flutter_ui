@@ -106,6 +106,58 @@ Future<TestGesture> _mouse(WidgetTester tester) async {
   return gesture;
 }
 
+/// The widget types under the one [StratumInkWell], in tree order.
+List<String> _surfaceTypes(WidgetTester tester) {
+  final types = <String>[];
+  void visit(Element element) {
+    types.add('${element.widget.runtimeType}');
+    element.visitChildElements(visit);
+  }
+
+  tester.element(find.byType(StratumInkWell)).visitChildElements(visit);
+  return types;
+}
+
+/// [_surfaceTypes] of the plain tap path on master `ff3c890`: an activation
+/// callback, empty shortcuts, no onSecondaryTap, and [_box] as the child.
+const _plainTapPathTypes = [
+  'Semantics',
+  'FocusSpread',
+  'AnimatedContainer',
+  'Container',
+  'DecoratedBox',
+  'Padding',
+  'MouseRegion',
+  'Material',
+  'ClipPath',
+  '_ShapeBorderPaint',
+  'CustomPaint',
+  'NotificationListener<LayoutChangedNotification>',
+  '_InkFeatures',
+  'AnimatedDefaultTextStyle',
+  'DefaultTextStyle',
+  'InkWell',
+  '_InkResponseStateWidget',
+  '_ParentInkResponseProvider',
+  'Actions',
+  '_ActionsScope',
+  'Focus',
+  '_FocusInheritedScope',
+  'Semantics',
+  'MouseRegion',
+  'Builder',
+  'DefaultSelectionStyle',
+  'Semantics',
+  'GestureDetector',
+  'RawGestureDetector',
+  'Listener',
+  '_StateOverlay',
+  'ListenableBuilder',
+  'TweenAnimationBuilder<Color?>',
+  'DecoratedBox',
+  'SizedBox',
+];
+
 void main() {
   group('StratumInkWell overlay', () {
     testWidgets('an idle overlay has no color to paint', (tester) async {
@@ -1177,6 +1229,107 @@ void main() {
       );
       handle.dispose();
     });
+  });
+
+  group('StratumInkWell child State', () {
+    testWidgets('the plain tap path keeps its widget tree', (tester) async {
+      await tester.pumpWidget(
+        themedHost(const StratumInkWell(onTap: _noop, child: _box)),
+      );
+
+      expect(_surfaceTypes(tester), _plainTapPathTypes);
+    });
+
+    // Each builder returns the surface with the toggled setting off or on.
+    final toggles = <String, StratumInkWell Function({required bool on})>{
+      'onTap': ({required on}) =>
+          StratumInkWell(onTap: on ? _noop : null, child: const _Probe()),
+      'onDoubleTap': ({required on}) =>
+          StratumInkWell(onDoubleTap: on ? _noop : null, child: const _Probe()),
+      'onLongPress': ({required on}) =>
+          StratumInkWell(onLongPress: on ? _noop : null, child: const _Probe()),
+      'onSecondaryTap': ({required on}) => StratumInkWell(
+        onTap: _noop,
+        onSecondaryTap: on ? _noop : null,
+        child: const _Probe(),
+      ),
+      'onTap beside shortcuts': ({required on}) => StratumInkWell(
+        onTap: on ? _noop : null,
+        shortcuts: const {_keyA: _noop},
+        child: const _Probe(),
+      ),
+      'disabled beside shortcuts': ({required on}) => StratumInkWell(
+        disabled: on,
+        shortcuts: const {_keyA: _noop},
+        child: const _Probe(),
+      ),
+      'shortcuts beside onTap': ({required on}) => StratumInkWell(
+        onTap: _noop,
+        shortcuts: on ? const {_keyA: _noop} : const {},
+        child: const _Probe(),
+      ),
+      'shortcuts with no activation callback': ({required on}) =>
+          StratumInkWell(
+            shortcuts: on ? const {_keyA: _noop} : const {},
+            child: const _Probe(),
+          ),
+    };
+    for (final MapEntry(key: name, value: surface) in toggles.entries) {
+      testWidgets('toggling $name keeps the child State', (tester) async {
+        await tester.pumpWidget(themedHost(surface(on: false)));
+        final before = tester.state(find.byType(_Probe));
+
+        await tester.pumpWidget(themedHost(surface(on: true)));
+        expect(tester.state(find.byType(_Probe)), same(before));
+
+        await tester.pumpWidget(themedHost(surface(on: false)));
+        expect(tester.state(find.byType(_Probe)), same(before));
+      });
+    }
+
+    final activations = <String, GestureTapCallback?>{
+      'onTap': _noop,
+      'no activation callback': null,
+    };
+    for (final MapEntry(key: name, value: onTap) in activations.entries) {
+      testWidgets('with $name, toggling shortcuts keeps the typed text, the '
+          'cursor, and focus, and a binding still fires', (tester) async {
+        var calls = 0;
+        final bindings = {_controlKey: () => calls++};
+        Widget build(Map<ShortcutActivator, VoidCallback> shortcuts) =>
+            _appHost(
+              StratumInkWell(
+                onTap: onTap,
+                shortcuts: shortcuts,
+                child: const SizedBox(width: 200, child: TextField()),
+              ),
+            );
+        EditableText field() =>
+            tester.widget<EditableText>(find.byType(EditableText));
+        void expectKept(State before) {
+          expect(tester.state(find.byType(EditableText)), same(before));
+          expect(field().controller.text, 'note');
+          expect(
+            field().controller.selection,
+            const TextSelection.collapsed(offset: 4),
+          );
+          expect(field().focusNode.hasPrimaryFocus, isTrue);
+        }
+
+        await tester.pumpWidget(build(const {}));
+        await tester.enterText(find.byType(TextField), 'note');
+        await tester.pump();
+        final before = tester.state(find.byType(EditableText));
+
+        await tester.pumpWidget(build(bindings));
+        expectKept(before);
+        await _controlK(tester);
+        expect(calls, 1);
+
+        await tester.pumpWidget(build(const {}));
+        expectKept(before);
+      });
+    }
   });
 
   group('StratumInkWell focus keep-alive', () {

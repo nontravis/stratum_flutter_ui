@@ -41,7 +41,8 @@ bool tapSurfaceTakesFocus({
 /// * the context-menu key and Shift+F10 for [onSecondaryTap], and a custom
 ///   semantics action for it, so keyboard and screen-reader users reach
 ///   the secondary tap (K1);
-/// * focus-scoped [shortcuts] (K2);
+/// * focus-scoped [shortcuts] (K2); adding or clearing them, or
+///   [onSecondaryTap], keeps [child]'s State and focus;
 /// * a keep-alive while it has focus, so a lazy list never disposes the
 ///   focused item.
 ///
@@ -163,6 +164,12 @@ class _StratumInkWellState extends State<StratumInkWell>
   FocusNode? _internalFocusNode;
   WidgetStatesController? _internalStatesController;
 
+  // The Focus and CallbackShortcuts above Material come and go with the
+  // shortcuts and callbacks. The GlobalKey makes Flutter move Material's
+  // element instead of rebuilding it, so InkWell and the child keep their
+  // State.
+  final GlobalKey _surfaceKey = GlobalKey(debugLabel: 'StratumInkWell.surface');
+
   FocusNode get _focusNode =>
       widget.focusNode ?? (_internalFocusNode ??= FocusNode());
 
@@ -170,15 +177,20 @@ class _StratumInkWellState extends State<StratumInkWell>
       widget.statesController ??
       (_internalStatesController ??= WidgetStatesController());
 
-  bool get _hasActivation =>
-      widget.onTap != null ||
-      widget.onDoubleTap != null ||
-      widget.onLongPress != null ||
-      widget.onSecondaryTap != null;
+  bool get _hasActivation => _activates(widget);
 
-  /// Whether the focus node sits on an outer [Focus] instead of [InkWell]:
-  /// shortcuts with no activation callback (K2).
-  bool get _shortcutOnly => !_hasActivation && widget.shortcuts.isNotEmpty;
+  bool get _shortcutOnly => _isShortcutOnly(widget);
+
+  static bool _activates(StratumInkWell surface) =>
+      surface.onTap != null ||
+      surface.onDoubleTap != null ||
+      surface.onLongPress != null ||
+      surface.onSecondaryTap != null;
+
+  /// Whether [surface]'s focus node sits on an outer [Focus] instead of
+  /// [InkWell]: shortcuts with no activation callback (K2).
+  static bool _isShortcutOnly(StratumInkWell surface) =>
+      !_activates(surface) && surface.shortcuts.isNotEmpty;
 
   /// Keeps a focused item alive in a lazy list, also in touch highlight
   /// mode and for a shortcut-only node, where [InkWell] builds no focus
@@ -244,6 +256,7 @@ class _StratumInkWellState extends State<StratumInkWell>
       _focusNode.addListener(_handleFocusChange);
       updateKeepAlive();
     }
+    if (_isShortcutOnly(oldWidget) && !_canFocus) _yieldFocusKeepingChild();
     if (oldWidget.statesController != null && widget.statesController == null) {
       // InkWell rewrites only `disabled` on a swap, so a hover or press the
       // internal controller held before the caller's took over is stale.
@@ -258,6 +271,18 @@ class _StratumInkWellState extends State<StratumInkWell>
     _internalFocusNode?.dispose();
     _internalStatesController?.dispose();
     super.dispose();
+  }
+
+  /// Stops the node taking focus before the rebuild, while a focused
+  /// descendant still sits below it.
+  ///
+  /// Leaving shortcut-only mode moves the node into [InkWell]'s [Focus],
+  /// which detaches its own node and drops the descendant from the scope's
+  /// focus history; the later `canRequestFocus` flip would then move focus
+  /// out of the child. Flipped first, Flutter refocuses the descendant.
+  void _yieldFocusKeepingChild() {
+    final node = _focusNode;
+    if (node.hasFocus && !node.hasPrimaryFocus) node.canRequestFocus = false;
   }
 
   void _handleFocusChange() {
@@ -365,7 +390,11 @@ class _StratumInkWellState extends State<StratumInkWell>
         child: widget.child,
       ),
     );
-    result = Material(type: MaterialType.transparency, child: result);
+    result = Material(
+      key: _surfaceKey,
+      type: MaterialType.transparency,
+      child: result,
+    );
     if (shortcutOnly) {
       // InkWell grants focus only when enabled and forces canRequestFocus
       // off on a node it receives otherwise, so the node lives here.
