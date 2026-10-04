@@ -306,9 +306,15 @@ class StratumThemeController extends ChangeNotifier {
     }
 
     for (final set in typography.families.values) {
-      for (final MapEntry(key: type, value: ref) in set.types.entries) {
-        use(ref.font, [weightOf(type)]);
-        use(ref.mono, [weightOf(type)]);
+      for (final type in FontType.values) {
+        if (set.types[type] case final ref?) {
+          use(ref.font, [weightOf(type)]);
+          use(ref.mono, [weightOf(type)]);
+        }
+        // The resolver draws every tag's body font as a fallback at the
+        // requested type's weight (resolver.dart `_fallback`), even for a
+        // type the tag never names.
+        use(set.types[FontType.body]?.font, [weightOf(type)]);
       }
       use(set.mono, every);
     }

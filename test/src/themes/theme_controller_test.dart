@@ -329,6 +329,30 @@ void main() {
       });
     });
 
+    test('us05/fr02: a tag that names only its body font still waits for '
+        "it at another type's weight, since the resolver draws every "
+        "tag's body font as a fallback there", () async {
+      final calls = recordGoogleFonts();
+      await startController(
+        FakeThemeBundle(
+          themes: {
+            'brand': appTheme('''
+typography:
+  fonts:
+    xx-body: { family: "Google/Lato" }
+  families:
+    xx: { body: xx-body }'''),
+          },
+        ),
+        initialThemeId: 'brand',
+      );
+
+      // Nothing else in this theme names "Lato" directly for any type, so
+      // only the resolver's body-font fallback (resolver.dart `_fallback`)
+      // can ask for it at header's weight.
+      expect(calls, contains(('Lato', FontWeight.w600, FontStyle.normal)));
+    });
+
     test('us05/s3, us05/fr02/e02: preload goes on when the 3 s limit '
         'passes', () {
       fakeAsync((async) {
