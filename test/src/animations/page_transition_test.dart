@@ -208,55 +208,62 @@ void main() {
     expect(fade.opacity.value, closeTo(0.5, 1e-9));
   });
 
-  testWidgets('us05/fr03: a with-fade slide fades with no slide under '
-      'reduced motion', (tester) async {
-    const page = SizedBox(key: ValueKey('page'));
-    await _push(
-      tester,
-      type: ScreenTransitionType.rightToLeftWithFade,
-      child: page,
-      reducedMotion: true,
-    );
-    await tester.pump(const Duration(milliseconds: 150));
+  for (final type in [
+    ScreenTransitionType.rightToLeftWithFade,
+    ScreenTransitionType.leftToRightWithFade,
+  ]) {
+    testWidgets(
+      'us05/fr03: ${type.name} fades with no slide under reduced motion',
+      (tester) async {
+        const page = SizedBox(key: ValueKey('page'));
+        await _push(tester, type: type, child: page, reducedMotion: true);
+        await tester.pump(const Duration(milliseconds: 150));
 
-    expect(
-      find.ancestor(
-        of: find.byKey(const ValueKey('page')),
-        matching: find.byType(SlideTransition),
-      ),
-      findsNothing,
-    );
-    final fade = tester.widget<FadeTransition>(
-      find
-          .ancestor(
+        expect(
+          find.ancestor(
             of: find.byKey(const ValueKey('page')),
-            matching: find.byType(FadeTransition),
-          )
-          .first,
+            matching: find.byType(SlideTransition),
+          ),
+          findsNothing,
+        );
+        final fade = tester.widget<FadeTransition>(
+          find
+              .ancestor(
+                of: find.byKey(const ValueKey('page')),
+                matching: find.byType(FadeTransition),
+              )
+              .first,
+        );
+        expect(fade.opacity.value, closeTo(0.5, 1e-9));
+      },
     );
-    expect(fade.opacity.value, closeTo(0.5, 1e-9));
-  });
+  }
 
-  testWidgets('us05/fr03: a slide shows the new page at once under reduced '
-      'motion', (tester) async {
-    const page = SizedBox(key: ValueKey('page'));
-    await _push(
-      tester,
-      type: ScreenTransitionType.rightToLeft,
-      child: page,
-      reducedMotion: true,
-    );
-    await tester.pump(const Duration(milliseconds: 150));
+  for (final type in [
+    ScreenTransitionType.rightToLeft,
+    ScreenTransitionType.leftToRight,
+    ScreenTransitionType.topToBottom,
+    ScreenTransitionType.bottomToTop,
+  ]) {
+    testWidgets(
+      'us05/fr03: ${type.name} shows the new page at once under reduced '
+      'motion',
+      (tester) async {
+        const page = SizedBox(key: ValueKey('page'));
+        await _push(tester, type: type, child: page, reducedMotion: true);
+        await tester.pump(const Duration(milliseconds: 150));
 
-    expect(find.byKey(const ValueKey('page')), findsOneWidget);
-    expect(
-      find.ancestor(
-        of: find.byKey(const ValueKey('page')),
-        matching: find.byType(SlideTransition),
-      ),
-      findsNothing,
+        expect(find.byKey(const ValueKey('page')), findsOneWidget);
+        expect(
+          find.ancestor(
+            of: find.byKey(const ValueKey('page')),
+            matching: find.byType(SlideTransition),
+          ),
+          findsNothing,
+        );
+      },
     );
-  });
+  }
 
   testWidgets('us05/fr03: scale shows the new page at once under reduced '
       'motion', (tester) async {
@@ -324,26 +331,34 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr03: joined slides show the new page at once under '
-      'reduced motion', (tester) async {
-    const page = SizedBox(key: ValueKey('page'));
-    const current = SizedBox(key: ValueKey('current'));
-    await _push(
-      tester,
-      type: ScreenTransitionType.rightToLeftJoined,
-      child: page,
-      childCurrent: current,
-      reducedMotion: true,
-    );
-    await tester.pump(const Duration(milliseconds: 150));
+  for (final type in [
+    ScreenTransitionType.leftToRightJoined,
+    ScreenTransitionType.rightToLeftJoined,
+  ]) {
+    testWidgets(
+      'us05/fr03: ${type.name} shows the new page at once under reduced '
+      'motion',
+      (tester) async {
+        const page = SizedBox(key: ValueKey('page'));
+        const current = SizedBox(key: ValueKey('current'));
+        await _push(
+          tester,
+          type: type,
+          child: page,
+          childCurrent: current,
+          reducedMotion: true,
+        );
+        await tester.pump(const Duration(milliseconds: 150));
 
-    expect(find.byKey(const ValueKey('page')), findsOneWidget);
-    expect(
-      find.ancestor(
-        of: find.byKey(const ValueKey('page')),
-        matching: find.byType(SlideTransition),
-      ),
-      findsNothing,
+        expect(find.byKey(const ValueKey('page')), findsOneWidget);
+        expect(
+          find.ancestor(
+            of: find.byKey(const ValueKey('page')),
+            matching: find.byType(SlideTransition),
+          ),
+          findsNothing,
+        );
+      },
     );
-  });
+  }
 }
