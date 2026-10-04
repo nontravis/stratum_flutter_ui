@@ -245,6 +245,20 @@ void main() {
       );
     });
 
+    test('a file a theme lists twice registers once', () async {
+      final loads = recordFontLoads();
+      final (controller, _) = await startController(
+        FakeThemeBundle(
+          themes: {'brand': duplicateFontTheme()},
+          fonts: {fontKey('brand')},
+        ),
+        initialThemeId: 'brand',
+      );
+
+      expect(controller.activeId, 'brand');
+      expect(loads, [('brand/DB Heavent', 1)]);
+    });
+
     test('R8 (owner ruling): a registration that fails, then succeeds once '
         'the theme is needed again, loads and registers it', () async {
       var attempt = 0;

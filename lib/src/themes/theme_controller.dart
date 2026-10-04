@@ -237,12 +237,12 @@ class StratumThemeController extends ChangeNotifier {
     final waits = <Future<void>>{};
     for (final font in typography.fonts.values) {
       if (font.source != StratumFontSource.theme) continue;
-      final fresh = [
+      final fresh = {
         for (final path in font.files)
           if (!registrations.containsKey('${font.family}\n$path')) path,
-      ];
+      };
       if (fresh.isNotEmpty) {
-        final registering = _register(font.family, fresh);
+        final registering = _register(font.family, fresh.toList());
         for (final path in fresh) {
           registrations['${font.family}\n$path'] = registering;
         }
