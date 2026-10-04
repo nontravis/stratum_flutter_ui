@@ -77,9 +77,31 @@ class StratumThemeController extends ChangeNotifier {
   /// The controller of the nearest `StratumThemeApplication.controlled`
   /// above [context], or null when there is none; [context] rebuilds on
   /// every switch.
-  static StratumThemeController? maybeOf(BuildContext context) => context
-      .dependOnInheritedWidgetOfExactType<StratumThemeApplication>()
-      ?.controller;
+  ///
+  /// Walks past a plain `StratumThemeApplication(themes:)` nested below a
+  /// controlled one, so it never hides the controller above it.
+  static StratumThemeController? maybeOf(BuildContext context) {
+    var element = context
+        .getElementForInheritedWidgetOfExactType<StratumThemeApplication>();
+    while (element != null) {
+      final controller = (element.widget as StratumThemeApplication).controller;
+      if (controller != null) {
+        context.dependOnInheritedElement(element);
+        return controller;
+      }
+      InheritedElement? next;
+      element.visitAncestorElements((ancestor) {
+        if (ancestor is InheritedElement &&
+            ancestor.widget is StratumThemeApplication) {
+          next = ancestor;
+          return false;
+        }
+        return true;
+      });
+      element = next;
+    }
+    return null;
+  }
 
   /// The controller of the nearest `StratumThemeApplication.controlled`
   /// above [context]; throws a [FlutterError] when there is none.

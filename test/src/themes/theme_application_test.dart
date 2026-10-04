@@ -573,6 +573,35 @@ void main() {
       );
     });
 
+    testWidgets('a plain application nested below a controlled one still '
+        'forwards the controller to of and maybeOf', (tester) async {
+      final controller = await StratumThemeController.preload(
+        bundle: FakeThemeBundle(),
+      );
+      StratumThemeController? found;
+      StratumThemeController? maybe;
+      await tester.pumpWidget(
+        StratumThemeApplication.controlled(
+          controller: controller,
+          themeMode: ThemeMode.light,
+          child: StratumThemeApplication(
+            themes: _set,
+            themeMode: ThemeMode.dark,
+            child: Builder(
+              builder: (context) {
+                found = StratumThemeController.of(context);
+                maybe = StratumThemeController.maybeOf(context);
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(found, same(controller));
+      expect(maybe, same(controller));
+    });
+
     testWidgets('us10/fr05: wrap keeps the controller and both modes', (
       tester,
     ) async {
