@@ -225,8 +225,8 @@ void main() {
       expect(loads, [('brand/DB Heavent', 1), ('night/DB Heavent', 1)]);
     });
 
-    test('a font registration that fails logs, and the theme still '
-        'starts', () async {
+    test('us05/fr01/e08: a font registration that fails logs, and the theme '
+        'still starts', () async {
       ThemeFontLoader.load = (family, files) async =>
           throw StateError('bad font bytes');
       final logs = captureDebugPrint();
@@ -259,7 +259,7 @@ void main() {
       expect(loads, [('brand/DB Heavent', 1)]);
     });
 
-    test('R8 (owner ruling): a registration that fails, then succeeds once '
+    test('us05/fr01/e08: a registration that fails, then succeeds once '
         'the theme is needed again, loads and registers it', () async {
       var attempt = 0;
       ThemeFontLoader.load = (family, files) async {
@@ -290,7 +290,7 @@ void main() {
       );
     });
 
-    test('R8 (owner ruling): a registration that keeps failing logs a '
+    test('us05/fr01/e08: a registration that keeps failing logs a '
         'warning each time the theme is needed again', () async {
       ThemeFontLoader.load = (family, files) async =>
           throw StateError('bad font bytes');

@@ -136,7 +136,8 @@ void main() {
       );
     });
 
-    test('reads the header weight and the Figma metrics of header s56', () {
+    test('us07/s1: reads the header weight and the Figma metrics of header '
+        's56', () {
       final header = typography.types[FontType.header]!;
       expect(header.weight, FontWeight.w600);
       expect(header.sizes.keys, [
@@ -167,7 +168,8 @@ void main() {
   });
 
   group('StratumTypography.fromYaml errors', () {
-    test('reports several problems together, each with its yaml path', () {
+    test('us07/s3, us07/fr02: reports several problems together, each with '
+        'its yaml path', () {
       final node = _typography(
         families:
             '{ default: { header: inter, paragraph: inter, number: inter, '
@@ -204,8 +206,8 @@ void main() {
       ]);
     });
 
-    test('an error carries its code, its source, and the position of its '
-        'value, or of its key for an unknown key', () {
+    test('us07/fr02: an error carries its code, its source, and the position '
+        'of its value, or of its key for an unknown key', () {
       expect(
         () => StratumTypography.fromYaml(
           _typography(fonts: '{ inter: { family: 12, weight: 400 } }'),
@@ -240,33 +242,33 @@ void main() {
 
     final cases = <(String, YamlMap, String)>[
       (
-        'no fonts',
+        'us07/fr02/e01: reports no fonts',
         _typography(fonts: '{}'),
         'typography.fonts: expected at least one font',
       ),
       (
-        'a font without a family',
+        'us07/fr02/e02: reports a font without a family',
         _typography(fonts: '{ inter: { package: stratum_ui } }'),
         'typography.fonts.inter.family: required',
       ),
       (
-        'a font family that is not a string',
+        'us07/fr02/e03: reports a font family that is not a string',
         _typography(fonts: '{ inter: { family: 12 } }'),
         'typography.fonts.inter.family: expected a string, got 12',
       ),
       (
-        'an adjustSize that is not a dimension',
+        'us07/fr02/e03: reports an adjustSize that is not a dimension',
         _typography(fonts: '{ inter: { family: Inter, adjustSize: 2px } }'),
         'typography.fonts.inter.adjustSize: '
             'expected a number or "N%", got "2px"',
       ),
       (
-        'no default family set',
+        'us07/fr02/e02: reports no default family set',
         _typography(families: '{ th: { body: inter } }'),
         'typography.families.default: required',
       ),
       (
-        'a malformed locale tag',
+        'us07/fr02/e05: reports a malformed locale tag',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, number: inter, '
@@ -277,7 +279,7 @@ void main() {
             '"th", or a language and country such as "th_TH"',
       ),
       (
-        'a mono reference to an unknown font',
+        'us07/fr02/e04: reports a mono reference to an unknown font',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, '
@@ -288,7 +290,7 @@ void main() {
             'unknown font key "geist-mono"',
       ),
       (
-        'a weight off the 100 grid',
+        'us07/fr02/e07: reports a weight off the 100 grid',
         _typography(
           types: {
             'header': '{ weight: 650, sizes: { s16: { spaceHeight: 8 } } }',
@@ -298,19 +300,19 @@ void main() {
             'expected 100 to 900 in steps of 100, got 650',
       ),
       (
-        'a type without a weight',
+        'us07/fr02/e02: reports a type without a weight',
         _typography(
           types: {'header': '{ sizes: { s16: { spaceHeight: 8 } } }'},
         ),
         'typography.types.header.weight: required',
       ),
       (
-        'a type without sizes',
+        'us07/fr02/e08: reports a type without sizes',
         _typography(types: {'header': '{ weight: 600 }'}),
         'typography.types.header.sizes: expected at least one size',
       ),
       (
-        'a size without a spaceHeight',
+        'us07/fr02/e02: reports a size without a spaceHeight',
         _typography(
           types: {
             'header':
@@ -321,7 +323,7 @@ void main() {
         'typography.types.header.sizes.s14.spaceHeight: required',
       ),
       (
-        'a family entry with a mono but no font',
+        'us07/fr02/e02: reports a family entry with a mono but no font',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, '
@@ -331,12 +333,12 @@ void main() {
         'typography.families.default.number.font: required',
       ),
       (
-        'a missing type',
+        'us07/fr02/e02: reports a missing type',
         _typography(types: {'code': null}),
         'typography.types.code: required',
       ),
       (
-        'a types.table block',
+        'us07/s5, us07/fr02/e09: reports a types.table block',
         _typography(
           types: {
             'table': '{ weight: 400, sizes: { s16: { spaceHeight: 8 } } }',
@@ -346,7 +348,7 @@ void main() {
             'block',
       ),
       (
-        'a default family set without table',
+        'us07/s6, us07/fr02/e10: reports a default family set without table',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, number: inter, '
@@ -355,7 +357,7 @@ void main() {
         'typography.families.default.table: no font for type "table"',
       ),
       (
-        'two family tags that normalize to the same tag',
+        'us07/fr02/e06: reports two family tags that normalize to the same tag',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, number: inter, '
@@ -365,7 +367,7 @@ void main() {
         'typography.families.th_TH: duplicate tag "th_TH"',
       ),
       (
-        'a default family set with an empty value',
+        'us07/fr02/e02: reports a default family set with an empty value',
         _typography(families: '{ default: null, th: { body: inter } }'),
         'typography.families.default: required',
       ),
@@ -392,7 +394,7 @@ void main() {
       ),
     ];
     for (final (name, node, error) in cases) {
-      test('reports $name', () {
+      test(name, () {
         expect(_errors(node), [error]);
       });
     }
@@ -582,7 +584,7 @@ void main() {
   });
 
   group('StratumTypography.fromYaml tags and keys', () {
-    test('normalizes th-TH to th_TH and keeps yaml order', () {
+    test('us07/s2: normalizes th-TH to th_TH and keeps yaml order', () {
       final typography = StratumTypography.fromYaml(
         _typography(
           families:
@@ -595,7 +597,8 @@ void main() {
       expect(typography.families.keys, ['th_TH', 'default', 'th']);
     });
 
-    test('reports each unknown key as unknown_key, by position', () {
+    test('us07/s4, us07/fr02/e11: reports each unknown key as unknown_key, '
+        'by position', () {
       final node = _typography(
         fonts: '{ inter: { family: Inter, weight: 400 } }',
         types: {
