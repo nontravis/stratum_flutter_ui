@@ -282,9 +282,7 @@ class _TypographyParser {
           ? _files(font['files'], '$fontPath.files')
           : null;
       if (rawFamily == null) continue;
-      final resolved = _googleFamily(rawFamily, package, fontPath);
-      if (resolved == null) continue;
-      final google = resolved.source == StratumFontSource.google;
+      final google = rawFamily.startsWith(_googlePrefix);
       if (files != null && google) {
         _error(
           StratumThemeErrorCode.googleFontFiles,
@@ -292,6 +290,8 @@ class _TypographyParser {
           'files are not allowed with a Google font',
         );
       }
+      final resolved = _googleFamily(rawFamily, package, fontPath);
+      if (resolved == null) continue;
       if (files != null && !google && package != null) {
         _error(
           StratumThemeErrorCode.fontFilesPackage,

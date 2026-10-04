@@ -511,6 +511,36 @@ void main() {
         expect(_errors(_typography(fonts: fonts)), [error]);
       });
     }
+
+    test('us07/fr02/e14: files on a Google font with an empty or unknown '
+        'name reports that error and google_font_files, not one alone', () {
+      const filesError =
+          'typography.fonts.inter.files: files are not allowed with a '
+          'Google font';
+      const unknownError =
+          'typography.fonts.inter.family: unknown Google Fonts family '
+          '"Nope"';
+      const emptyError =
+          'typography.fonts.inter.family: expected a font name after '
+          '"Google/"';
+      expect(
+        _errors(
+          _typography(
+            fonts:
+                '{ inter: { family: "Google/Nope", files: [fonts/A.ttf] } }',
+          ),
+        ),
+        const [unknownError, filesError],
+      );
+      expect(
+        _errors(
+          _typography(
+            fonts: '{ inter: { family: "Google/", files: [fonts/A.ttf] } }',
+          ),
+        ),
+        const [emptyError, filesError],
+      );
+    });
   });
 
   group('StratumTypography.fromYaml table', () {
