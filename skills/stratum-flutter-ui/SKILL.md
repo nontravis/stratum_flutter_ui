@@ -155,6 +155,10 @@ scroll it, guarded so a text field inside keeps its own keys.
   `Google/Geist Mono`, `Google/Roboto Mono`, `Google/Kanit`) and bundles no font file. The app owns
   `GoogleFonts.config`: bundle the font files under its own assets to skip the download, which also keeps the app's
   widget tests off the network, since the google_fonts library looks in the assets first.
+- **Before `preload`** — call `WidgetsFlutterBinding.ensureInitialized()` first: `preload` reads the asset manifest
+  through `rootBundle`, which needs the binding. In a `testWidgets` test, the background parse runs on a real
+  isolate, which the test's fake-async zone never finishes; run `preload`, or pump a tree rooted in
+  `StratumThemePreloader`, under `tester.runAsync`.
 - **`StratumThemeController`** — the registered themes and the active one. Build it before the first themed frame
   with `await StratumThemeController.preload(initialThemeId: savedId, onThemeChanged: save)`; `googleFontsTimeout`
   (default 3 s, also the limit of every switch) and `bundle` are optional. It registers every
