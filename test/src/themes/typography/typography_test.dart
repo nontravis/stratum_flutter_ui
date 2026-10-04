@@ -390,6 +390,102 @@ void main() {
     );
   });
 
+  group('us07: StratumTypography.fromYaml font files', () {
+    test('us07/fr01/e05: files read into a theme font under the folder and '
+        'the id of the file', () {
+      final typography = StratumTypography.fromYaml(
+        _typography(
+          fonts:
+              '{ inter: { family: Inter }, brand: { family: Brand, '
+              'files: [fonts/Brand-Regular.ttf, fonts/Brand-Bold.OTF] } }',
+        ),
+        source: 'brand',
+        folder: 'assets/themes/brand/',
+      );
+
+      expect(
+        typography.fonts['brand'],
+        const StratumFontData(
+          family: 'brand/Brand',
+          source: StratumFontSource.theme,
+          files: [
+            'assets/themes/brand/fonts/Brand-Regular.ttf',
+            'assets/themes/brand/fonts/Brand-Bold.OTF',
+          ],
+        ),
+      );
+      expect(
+        () => typography.fonts['brand']!.files.add('fonts/More.ttf'),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('us07/fr01: ttf and otf pass in any case', () {
+      expect(
+        _errors(
+          _typography(
+            fonts:
+                '{ inter: { family: Inter, '
+                'files: [fonts/A.TTF, fonts/B.Otf, fonts/C.ttf] } }',
+          ),
+        ),
+        isEmpty,
+      );
+    });
+
+    const invalid =
+        'expected a path inside the theme folder ending in .ttf or .otf, got';
+    final cases = <(String, String, String)>[
+      (
+        'us07/fr02/e12: a .. segment',
+        '{ inter: { family: Inter, files: [../Brand.woff] } }',
+        'typography.fonts.inter.files: $invalid "../Brand.woff"',
+      ),
+      (
+        'us07/fr02/e12: a leading /',
+        '{ inter: { family: Inter, files: [/fonts/Brand.ttf] } }',
+        'typography.fonts.inter.files: $invalid "/fonts/Brand.ttf"',
+      ),
+      (
+        'us07/fr02/e12: another extension',
+        '{ inter: { family: Inter, files: [fonts/Brand.woff2] } }',
+        'typography.fonts.inter.files: $invalid "fonts/Brand.woff2"',
+      ),
+      (
+        'us07/fr02/e12: an entry that is not a string',
+        '{ inter: { family: Inter, files: [5] } }',
+        'typography.fonts.inter.files: $invalid 5',
+      ),
+      (
+        'us07/fr02/e12: a files value that is not a list',
+        '{ inter: { family: Inter, files: fonts/Brand.ttf } }',
+        'typography.fonts.inter.files: $invalid "fonts/Brand.ttf"',
+      ),
+      (
+        'us07/fr02/e13: an empty files list',
+        '{ inter: { family: Inter, files: [] } }',
+        'typography.fonts.inter.files: expected at least one font file',
+      ),
+      (
+        'us07/fr02/e14: files on a Google font',
+        '{ inter: { family: "Google/Kanit", files: [fonts/Kanit.ttf] } }',
+        'typography.fonts.inter.files: '
+            'files are not allowed with a Google font',
+      ),
+      (
+        'us07/fr02/e15: files with a package',
+        '{ inter: { family: Inter, package: brand_fonts, '
+            'files: [fonts/Inter.ttf] } }',
+        'typography.fonts.inter.package: package is not allowed with files',
+      ),
+    ];
+    for (final (name, fonts, error) in cases) {
+      test('reports $name', () {
+        expect(_errors(_typography(fonts: fonts)), [error]);
+      });
+    }
+  });
+
   group('StratumTypography.fromYaml table', () {
     test('parses with table named only in families.default, not types', () {
       expect(_errors(_typography()), isEmpty);

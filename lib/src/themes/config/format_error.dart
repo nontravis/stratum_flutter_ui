@@ -29,7 +29,11 @@ enum StratumThemeErrorCode {
   missingDefaultFont,
   unknownGoogleFont,
   emptyGoogleFont,
-  googleFontPackage;
+  googleFontPackage,
+  invalidFontFile,
+  emptyFontFiles,
+  googleFontFiles,
+  fontFilesPackage;
 
   static final _capital = RegExp('[A-Z]');
 

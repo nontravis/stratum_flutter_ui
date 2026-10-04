@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, NestedScrollViewLayout, or Space/SpaceDirectional.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, NestedScrollViewLayout, Space/SpaceDirectional, or typography.fonts files in theme.yaml.
 ---
 
 # Stratum Flutter UI
@@ -142,3 +142,12 @@ scroll it, guarded so a text field inside keeps its own keys.
   rest), returning `SizedBox`, `Gap`, or `EdgeInsets` in steps from 1 to 72 px.
 - **`SpaceDirectional`** — the same steps as `EdgeInsetsDirectional`, so start and end mirror under
   `TextDirection.rtl`.
+
+## Themes
+
+- **Theme font files** — a theme ships its own fonts by listing them under `typography.fonts.<key>.files` in its
+  `theme.yaml`: paths relative to that file's folder, ending in `ttf` or `otf` (`files: [fonts/Brand-Regular.ttf]`).
+  Declare the font folder in pubspec (`- assets/themes/brand/fonts/`), since Flutter does not include asset
+  subfolders. A font with `files` takes no `package` and no `Google/` family. Each theme's fonts register under
+  `<theme id>/<family>`, so two themes may ship files under the same family name; a theme that inherits the font
+  from a layer it merges over shares that layer's registration.

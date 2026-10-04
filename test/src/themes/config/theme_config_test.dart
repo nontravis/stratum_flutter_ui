@@ -242,6 +242,39 @@ color:
       expect(_parse(layers).hashCode, _parse(layers).hashCode);
     });
 
+    test('us07/fr01/e05: a font file keeps the folder and the id of the '
+        'file that set it', () {
+      final config = _parse([
+        layer('''
+typography:
+  fonts:
+    brand: { family: Brand, files: [fonts/Brand-Regular.ttf] }'''),
+        layer('''
+typography:
+  fonts:
+    brand: { adjustSize: 1 }
+    night: { family: Night, files: [fonts/Night.otf] }'''),
+      ]);
+
+      expect(
+        config.typography.fonts['brand'],
+        const StratumFontData(
+          family: 'layer1/Brand',
+          adjustSize: StratumDimension.fixed(1),
+          source: StratumFontSource.theme,
+          files: ['themes/layer1/fonts/Brand-Regular.ttf'],
+        ),
+      );
+      expect(
+        config.typography.fonts['night'],
+        const StratumFontData(
+          family: 'layer2/Night',
+          source: StratumFontSource.theme,
+          files: ['themes/layer2/fonts/Night.otf'],
+        ),
+      );
+    });
+
     test('an empty layers list parses the base alone', () {
       final config = _parse(const []);
 

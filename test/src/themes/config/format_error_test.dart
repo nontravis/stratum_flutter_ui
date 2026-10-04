@@ -88,7 +88,7 @@ void main() {
     expect(a, isNot(const StratumThemeFormatException([])));
   });
 
-  test('each of the 25 codes has its snake_case catalog key', () {
+  test('each of the 29 codes has its snake_case catalog key', () {
     expect(
       {for (final code in StratumThemeErrorCode.values) code: code.key},
       {
@@ -117,6 +117,10 @@ void main() {
         StratumThemeErrorCode.unknownGoogleFont: 'unknown_google_font',
         StratumThemeErrorCode.emptyGoogleFont: 'empty_google_font',
         StratumThemeErrorCode.googleFontPackage: 'google_font_package',
+        StratumThemeErrorCode.invalidFontFile: 'invalid_font_file',
+        StratumThemeErrorCode.emptyFontFiles: 'empty_font_files',
+        StratumThemeErrorCode.googleFontFiles: 'google_font_files',
+        StratumThemeErrorCode.fontFilesPackage: 'font_files_package',
       },
     );
   });

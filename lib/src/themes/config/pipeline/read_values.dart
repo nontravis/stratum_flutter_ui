@@ -415,7 +415,14 @@ final class _Read {
     final node = _reader.map(value, 'typography');
     return node == null
         ? const StratumTypography(fonts: {}, families: {}, types: {})
-        : readTypography(node, _reader);
+        : readTypography(
+            node,
+            _reader,
+            sources: [
+              for (final source in _sources)
+                (id: source.id, folder: source.folder),
+            ],
+          );
   }
 
   Map<String, Object?> _extensions(Object? value) =>

@@ -36,4 +36,43 @@ void main() {
     expect(a.hashCode, b.hashCode);
     expect(a, isNot(const StratumFontData(family: 'Font A')));
   });
+
+  test('us07/fr01: files take part in equality and default to none', () {
+    const a = StratumFontData(
+      family: 'brand/Brand',
+      source: StratumFontSource.theme,
+      files: ['assets/themes/brand/fonts/Brand-Regular.ttf'],
+    );
+    const b = StratumFontData(
+      family: 'brand/Brand',
+      source: StratumFontSource.theme,
+      files: ['assets/themes/brand/fonts/Brand-Regular.ttf'],
+    );
+
+    expect(a, b);
+    expect(a.hashCode, b.hashCode);
+    expect(
+      a,
+      isNot(
+        const StratumFontData(
+          family: 'brand/Brand',
+          source: StratumFontSource.theme,
+          files: ['assets/themes/brand/fonts/Brand-Bold.ttf'],
+        ),
+      ),
+    );
+    expect(const StratumFontData(family: 'Inter').files, isEmpty);
+  });
+
+  test('us07/fr01: qualifiedFamily of a theme font is its registered '
+      'family', () {
+    expect(
+      const StratumFontData(
+        family: 'brand/DB Heavent',
+        source: StratumFontSource.theme,
+        files: ['assets/themes/brand/fonts/DBHeavent-Regular.ttf'],
+      ).qualifiedFamily,
+      'brand/DB Heavent',
+    );
+  });
 }

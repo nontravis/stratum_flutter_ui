@@ -134,14 +134,20 @@ class StratumTypography {
   ///
   /// Collects every problem, an unknown key included, and throws one
   /// [StratumThemeFormatException] that lists them all; each error carries
-  /// [source] as its file id.
-  factory fromYaml(YamlMap node, {String source = 'theme'}) {
+  /// [source] as its file id. A font's `files` resolve against [folder],
+  /// the folder of that file, and register under `<source>/<family>`.
+  factory fromYaml(
+    YamlMap node, {
+    String source = 'theme',
+    String folder = '',
+  }) {
     final origins = <String, ThemeOrigin>{};
     final tree = plainOf(node, path: 'typography', source: 0, origins: origins);
     final errors = ThemeErrors([source]);
     final typography = readTypography(
       tree! as Map<String, Object?>,
       ThemeReader(errors, origins),
+      sources: [(id: source, folder: folder)],
     );
     errors.throwIfAny();
     return typography;
@@ -183,26 +189,34 @@ class StratumTypography {
 /// Reads the `typography` subtree [node], which sits at the path
 /// `typography`, and reports every problem through [reader].
 ///
+/// [sources] lists the id and the folder of each file of the parse, in the
+/// order of the source indexes [reader]'s origins hold; a font's `files`
+/// take the id and the folder of the file that set them. An empty [sources]
+/// reads as one file with the id `theme` and no folder.
+///
 /// Internal: `lib/src/themes/themes.dart` hides it from the public API.
 /// `StratumTypography.fromYaml` runs it on one file, and stage 5 of
 /// `StratumThemeConfig.parse` on the merged layers.
 StratumTypography readTypography(
   Map<String, Object?> node,
-  ThemeReader reader,
-) => _TypographyParser(reader).parse(node);
+  ThemeReader reader, {
+  List<({String id, String folder})> sources = const [],
+}) => _TypographyParser(reader, sources).parse(node);
 
 int _mapHash(Map<Object?, Object?> map) => Object.hashAllUnordered(
   map.entries.map((entry) => Object.hash(entry.key, entry.value)),
 );
 
 class _TypographyParser {
-  new(this._reader);
+  new(this._reader, this._sources);
 
   static const _path = 'typography';
   static const _googlePrefix = 'Google/';
   static final _tagPattern = RegExp(r'^([a-z]{2,3})(?:[-_]([A-Z]{2}))?$');
+  static final _fontFile = RegExp(r'\.(ttf|otf)$', caseSensitive: false);
 
   final ThemeReader _reader;
+  final List<({String id, String folder})> _sources;
 
   StratumTypography parse(Map<String, Object?> node) {
     _checkKeys(node, _path, const {
@@ -248,7 +262,12 @@ class _TypographyParser {
       final fontPath = '$path.$key';
       final font = _reader.map(value, fontPath);
       if (font == null) continue;
-      _checkKeys(font, fontPath, const {'family', 'package', 'adjustSize'});
+      _checkKeys(font, fontPath, const {
+        'family',
+        'package',
+        'adjustSize',
+        'files',
+      });
       final rawFamily = _reader.string(font['family'], '$fontPath.family');
       final package = _reader.string(
         font['package'],
@@ -259,17 +278,100 @@ class _TypographyParser {
         font['adjustSize'],
         '$fontPath.adjustSize',
       );
+      final files = font.containsKey('files')
+          ? _files(font['files'], '$fontPath.files')
+          : null;
       if (rawFamily == null) continue;
       final resolved = _googleFamily(rawFamily, package, fontPath);
       if (resolved == null) continue;
+      final google = resolved.source == StratumFontSource.google;
+      if (files != null && google) {
+        _error(
+          StratumThemeErrorCode.googleFontFiles,
+          '$fontPath.files',
+          'files are not allowed with a Google font',
+        );
+      }
+      if (files != null && !google && package != null) {
+        _error(
+          StratumThemeErrorCode.fontFilesPackage,
+          '$fontPath.package',
+          'package is not allowed with files',
+        );
+      }
+      if (files == null || google) {
+        fonts[key] = StratumFontData(
+          family: resolved.family,
+          package: google ? null : package,
+          adjustSize: adjustSize ?? const StratumDimension.fixed(0),
+          source: resolved.source,
+        );
+        continue;
+      }
+      final origin = _sourceOf('$fontPath.files');
       fonts[key] = StratumFontData(
-        family: resolved.family,
-        package: resolved.source == StratumFontSource.app ? package : null,
+        family: '${origin.id}/${resolved.family}',
         adjustSize: adjustSize ?? const StratumDimension.fixed(0),
-        source: resolved.source,
+        source: StratumFontSource.theme,
+        files: List.unmodifiable([
+          for (final file in files) _join(origin.folder, file),
+        ]),
       );
     }
     return Map.unmodifiable(fonts);
+  }
+
+  /// The entries of a font's `files` list that pass: reports
+  /// `empty_font_files` for an empty list, and `invalid_font_file` for a
+  /// value that is not a list and for each entry that is not a relative
+  /// path inside the theme folder ending in `ttf` or `otf` (any case).
+  List<String> _files(Object? value, String path) {
+    if (value is! List<Object?>) {
+      _invalidFontFile(path, value);
+      return const [];
+    }
+    if (value.isEmpty) {
+      _error(
+        StratumThemeErrorCode.emptyFontFiles,
+        path,
+        'expected at least one font file',
+      );
+    }
+    final files = <String>[];
+    for (final entry in value) {
+      if (entry is String &&
+          !entry.startsWith('/') &&
+          !entry.split('/').contains('..') &&
+          _fontFile.hasMatch(entry)) {
+        files.add(entry);
+      } else {
+        _invalidFontFile(path, entry);
+      }
+    }
+    return files;
+  }
+
+  void _invalidFontFile(String path, Object? value) => _error(
+    StratumThemeErrorCode.invalidFontFile,
+    path,
+    'expected a path inside the theme folder ending in .ttf or .otf, got '
+    '${ThemeReader.show(value)}',
+  );
+
+  /// The id and the folder of the file that set [path].
+  ({String id, String folder}) _sourceOf(String path) {
+    final index = _reader.origins[path]?.source ?? 0;
+    return index < _sources.length
+        ? _sources[index]
+        : (id: 'theme', folder: '');
+  }
+
+  /// [file] below [folder], with one `/` between them.
+  static String _join(String folder, String file) {
+    final base = folder.endsWith('/')
+        ? folder.substring(0, folder.length - 1)
+        : folder;
+    return base.isEmpty ? file : '$base/$file';
   }
 
   /// `rawFamily` as-is for an app font; the bare Google Fonts name, with
