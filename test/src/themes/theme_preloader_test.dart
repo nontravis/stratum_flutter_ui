@@ -164,4 +164,23 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('rebuilt with a new onThemeChanged, the preloader keeps the '
+      'first one (S1 plan choice 6)', (tester) async {
+    final bundle = FakeThemeBundle();
+    final first = <String>[];
+    final second = <String>[];
+    Widget build(ValueChanged<String> onThemeChanged) => _preloader(
+      bundle,
+      initialThemeId: 'gone',
+      onThemeChanged: onThemeChanged,
+    );
+
+    await tester.pumpWidget(build(first.add));
+    await tester.pumpWidget(build(second.add));
+    await tester.pumpAndSettle();
+
+    expect(first, ['default']);
+    expect(second, isEmpty);
+  });
 }

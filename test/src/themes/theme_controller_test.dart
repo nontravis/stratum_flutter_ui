@@ -640,6 +640,68 @@ typography:
       expect(changes, isEmpty);
     });
 
+    test('us02/fr01/e05: three rapid switches, only the latest wins', () async {
+      final bundle = FakeThemeBundle(
+        themes: {'brand': appTheme(), 'night': appTheme(), 'ocean': appTheme()},
+      );
+      final (controller, changes) = await startController(bundle);
+      final releaseBrand = bundle.hold[themeKey('brand')] = Completer<void>();
+      final releaseNight = bundle.hold[themeKey('night')] = Completer<void>();
+
+      final first = controller.switchTo('brand');
+      final second = controller.switchTo('night');
+      final third = controller.switchTo('ocean');
+      releaseBrand.complete();
+      releaseNight.complete();
+      await Future.wait([first, second, third]);
+
+      expect(controller.activeId, 'ocean');
+      expect(changes, ['ocean']);
+    });
+
+    test('us02/fr01: switchTo called again after dispose, with no switch '
+        'already in flight, does no work and throws nothing', () async {
+      final bundle = FakeThemeBundle(themes: {'brand': appTheme()});
+      final (controller, changes) = await startController(bundle);
+      controller.dispose();
+
+      await controller.switchTo('brand');
+
+      expect(changes, isEmpty);
+    });
+
+    test('us02/fr01/e01 x e05: an unknown-id switch thrown while a '
+        'different switch is in flight does not affect that in-flight '
+        'switch', () async {
+      final bundle = FakeThemeBundle(
+        themes: {'brand': appTheme(), 'night': appTheme()},
+      );
+      final (controller, changes) = await startController(bundle);
+      final release = bundle.hold[themeKey('brand')] = Completer<void>();
+
+      final inFlight = controller.switchTo('brand');
+      await expectLater(
+        controller.switchTo('nope'),
+        throwsA(isA<StratumThemeNotFoundException>()),
+      );
+      release.complete();
+      await inFlight;
+
+      expect(controller.activeId, 'brand');
+      expect(changes, ['brand']);
+    });
+
+    test('us03/fr02/e02: switchTo with no onThemeChanged still '
+        'completes', () async {
+      final controller = await StratumThemeController.preload(
+        bundle: FakeThemeBundle(themes: {'brand': appTheme()}),
+      );
+
+      await controller.switchTo('brand');
+
+      expect(controller.activeId, 'brand');
+    });
+
     test('us02/fr01/e06, us05/fr01/e06: a switch back reads the file again '
         'and registers no font twice', () async {
       final loads = recordFontLoads();
