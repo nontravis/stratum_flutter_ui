@@ -70,6 +70,26 @@ class StratumThemeController extends ChangeNotifier {
   /// The four theme data of the active theme.
   StratumThemeSet get themes => _themes;
 
+  /// The controller of the nearest `StratumThemeApplication.controlled`
+  /// above [context], or null when there is none; [context] rebuilds on
+  /// every switch.
+  static StratumThemeController? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<StratumThemeApplication>()
+      ?.controller;
+
+  /// The controller of the nearest `StratumThemeApplication.controlled`
+  /// above [context]; throws a [FlutterError] when there is none.
+  static StratumThemeController of(BuildContext context) {
+    final controller = maybeOf(context);
+    if (controller == null) {
+      throw FlutterError(
+        'StratumThemeController.of() called with a context that has no '
+        'StratumThemeApplication.controlled above it.',
+      );
+    }
+    return controller;
+  }
+
   /// Switches to the theme [id]: reads it merged over the package default
   /// and the app's `default`, loads its fonts while the current theme stays
   /// on screen, then makes it active in one step and calls

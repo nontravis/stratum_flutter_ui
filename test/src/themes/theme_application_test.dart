@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 
 import '../components/common/fakes/fake_stratum_theme.dart';
+import 'theme_runtime_fakes.dart';
 
 final StratumThemeData _light = fakeTheme;
 final StratumThemeData _dark = fakeTheme.copyWith(themeMode: ThemeMode.dark);
@@ -455,6 +457,164 @@ void main() {
       );
 
       expect(find.byType(WindowSizeScope), findsOneWidget);
+    });
+  });
+
+  group('us02/fr01: StratumThemeApplication.controlled', () {
+    setUp(ThemeFontLoader.reset);
+
+    testWidgets('us02/s1: a switch rebuilds each dependent once, with the '
+        'new data', (tester) async {
+      final controller = await StratumThemeController.preload(
+        bundle: FakeThemeBundle(themes: {'brand': markTheme('brand-mark')}),
+      );
+      final marks = <bool>[];
+      await tester.pumpWidget(
+        StratumThemeApplication.controlled(
+          controller: controller,
+          themeMode: ThemeMode.light,
+          child: Builder(
+            builder: (context) {
+              marks.add(
+                StratumThemeApplication.of(context).typography.fonts
+                    .containsKey('brand-mark'),
+              );
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      await controller.switchTo('brand');
+      await tester.pump();
+
+      expect(marks, [false, true]);
+    });
+
+    testWidgets('fr02: the same controller and modes rebuild nothing; a new '
+        'controller rebuilds', (tester) async {
+      final bundle = FakeThemeBundle();
+      final first = await StratumThemeController.preload(bundle: bundle);
+      final second = await StratumThemeController.preload(bundle: bundle);
+      var builds = 0;
+      final reader = Builder(
+        builder: (context) {
+          builds++;
+          StratumThemeApplication.maybeOf(context);
+          return const SizedBox();
+        },
+      );
+      Widget host(StratumThemeController controller) =>
+          StratumThemeApplication.controlled(
+            controller: controller,
+            themeMode: ThemeMode.light,
+            child: reader,
+          );
+
+      await tester.pumpWidget(host(first));
+      await tester.pumpWidget(host(first));
+      expect(builds, 1);
+      await tester.pumpWidget(host(second));
+      expect(builds, 2);
+    });
+
+    testWidgets('StratumThemeController.of and maybeOf find the '
+        'controller', (tester) async {
+      final controller = await StratumThemeController.preload(
+        bundle: FakeThemeBundle(),
+      );
+      StratumThemeController? found;
+      StratumThemeController? maybe;
+      await tester.pumpWidget(
+        StratumThemeApplication.controlled(
+          controller: controller,
+          themeMode: ThemeMode.light,
+          child: Builder(
+            builder: (context) {
+              found = StratumThemeController.of(context);
+              maybe = StratumThemeController.maybeOf(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(found, same(controller));
+      expect(maybe, same(controller));
+    });
+
+    testWidgets('under StratumThemeApplication(themes:), maybeOf is null and '
+        'of throws a FlutterError naming the controlled constructor', (
+      tester,
+    ) async {
+      StratumThemeController? maybe;
+      await tester.pumpWidget(
+        StratumThemeApplication(
+          themes: _set,
+          themeMode: ThemeMode.light,
+          child: Builder(
+            builder: (context) {
+              maybe = StratumThemeController.maybeOf(context);
+              StratumThemeController.of(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(maybe, isNull);
+      expect(
+        tester.takeException(),
+        isA<FlutterError>().having(
+          (error) => error.message,
+          'message',
+          contains('StratumThemeApplication.controlled'),
+        ),
+      );
+    });
+
+    testWidgets('us10/fr05: wrap keeps the controller and both modes', (
+      tester,
+    ) async {
+      final controller = await StratumThemeController.preload(
+        bundle: FakeThemeBundle(),
+      );
+      late Widget wrapped;
+      await tester.pumpWidget(
+        StratumThemeApplication.controlled(
+          controller: controller,
+          themeMode: ThemeMode.dark,
+          highContrast: HighContrastMode.on,
+          componentDefaults: _defaults,
+          child: Builder(
+            builder: (context) {
+              wrapped = StratumThemeApplication.wrap(
+                context,
+                child: const SizedBox(),
+              );
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(
+        wrapped,
+        isA<StratumThemeApplication>()
+            .having((app) => app.controller, 'controller', same(controller))
+            .having((app) => app.themes, 'themes', same(controller.themes))
+            .having((app) => app.themeMode, 'themeMode', ThemeMode.dark)
+            .having(
+              (app) => app.highContrast,
+              'highContrast',
+              HighContrastMode.on,
+            )
+            .having(
+              (app) => app.componentDefaults,
+              'componentDefaults',
+              same(_defaults),
+            ),
+      );
     });
   });
 }
