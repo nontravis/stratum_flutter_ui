@@ -573,6 +573,51 @@ void main() {
       variant: _desktop,
     );
 
+    // A 50 px gap below the list, inside the body.
+    final gaps = <String, Widget Function(Widget list)>{
+      'a footer': (list) => Column(
+        children: [
+          Expanded(child: list),
+          const SizedBox(height: 50),
+        ],
+      ),
+      'bottom padding': (list) =>
+          Padding(padding: const EdgeInsets.only(bottom: 50), child: list),
+    };
+    for (final MapEntry(key: name, value: gap) in gaps.entries) {
+      testWidgets(
+        'Tab reveals a row whole in a list body with $name below it',
+        (tester) async {
+          await tester.pumpWidget(
+            _nested(before: _node('before'), body: gap(_list())),
+          );
+          // Under the 200 px header the list shows 0 to 50, above the gap;
+          // row 2, at 80 to 120, lies 70 px past that.
+          _focusNode('row 1').requestFocus();
+          await tester.pump();
+
+          await _key(tester, LogicalKeyboardKey.tab);
+
+          expect(_focused(), 'row 2');
+          expect(_outer(tester).pixels, 70);
+          expect(_inner(tester).pixels, 0);
+          final list = tester.getRect(
+            find.descendant(
+              of: find.byType(ListViewLayout),
+              matching: find.byType(Scrollable),
+            ),
+          );
+          final row = _focusNode('row 2').rect;
+          expect(
+            row.top >= list.top - 0.5 && row.bottom <= list.bottom + 0.5,
+            isTrue,
+            reason: 'row at $row, list $list',
+          );
+        },
+        variant: _desktop,
+      );
+    }
+
     testWidgets(
       'a reorder move that drops focus reveals the moved item once',
       (tester) async {

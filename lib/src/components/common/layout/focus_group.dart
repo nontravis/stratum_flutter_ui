@@ -1,4 +1,5 @@
-import 'package:flutter/rendering.dart' show RenderAbstractViewport;
+import 'package:flutter/rendering.dart'
+    show RenderAbstractViewport, RenderSliver;
 import 'package:stratum_ui/src/src.dart';
 
 /// Makes the focusable children of a [ColumnLayout], [RowLayout], or
@@ -533,7 +534,9 @@ void _revealInNestedBody(
   final collapsed = offset(window, box, 0);
   final length = collapsed - offset(window, box, 1) + extent;
   final covered = collapsed - header.pixels;
-  final shown = length - (covered > 0 ? covered : 0);
+  // The body below the scrollable, such as a footer or bottom padding.
+  final below = offset(window, _bodyOf(box), 1) - offset(window, box, 1);
+  final shown = length - below - (covered > 0 ? covered : 0);
   final start = offset(content, object, 0, rect: rect);
   final end = offset(content, object, 1, rect: rect) + extent - shown;
   final pixels = inner.pixels;
@@ -545,6 +548,17 @@ void _revealInNestedBody(
   }
   if (delta == 0 || !delta.isFinite) return;
   moveNested(header, inner, delta, Duration.zero);
+}
+
+/// The box that holds [box] inside the nested scroll view's body sliver,
+/// which ends where the view ends; [box] itself when no sliver holds it.
+RenderObject _bodyOf(RenderBox box) {
+  RenderObject body = box;
+  for (var parent = box.parent; parent != null; parent = parent.parent) {
+    if (parent is RenderSliver) return body;
+    body = parent;
+  }
+  return box;
 }
 
 /// Moves a nested scroll view by [delta] along one range: [outer]'s
