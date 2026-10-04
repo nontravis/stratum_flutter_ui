@@ -7,6 +7,9 @@ import '../../integration_test/perf/perf_host.dart';
 import '../../integration_test/perf/perf_kit.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPerfTheme);
+
   void onTap() {}
 
   group('CurrentKit', () {

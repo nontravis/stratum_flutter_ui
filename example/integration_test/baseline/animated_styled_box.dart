@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from 49a2d6b:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from d107dcb:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
@@ -8,6 +8,8 @@ import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/components/common/style/style_decoration.dart';
+import 'package:stratum_ui/src/themes/animation.dart';
+import 'package:stratum_ui/src/themes/theme_application.dart';
 
 /// Wraps the styled box of an [BaselineAnimatedStyledBox] with the style of the
 /// current animation frame; see [BaselineAnimatedStyledBox.boxBuilder].
@@ -21,9 +23,9 @@ typedef BaselineStyledScrollBuilder = Widget Function(Widget content);
 ///
 /// Duration and curve come from the target style's
 /// [WidgetStyle.animationStyle]; a null value applies the new style in the
-/// same frame. A null curve uses [Curves.easeInOutSine], because a linear
-/// change looks stiff. `AnimationStyle.reverseDuration` and `reverseCurve`
-/// are not used.
+/// same frame. A null curve uses the theme's `standard` curve, else the
+/// package default's [Curves.easeInOutSine] (spec G19).
+/// `AnimationStyle.reverseDuration` and `reverseCurve` are not used.
 ///
 /// When the app's [MediaQuery] or the platform asks for less motion
 /// (`disableAnimations`, or the platform's `reduceMotion`), size, spacing,
@@ -113,9 +115,14 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
   Duration get _duration =>
       widget.style?.animationStyle?.duration ?? Duration.zero;
 
-  Curve get _curve => widget.style?.animationStyle?.curve ?? _defaultCurve;
+  Curve get _curve => widget.style?.animationStyle?.curve ?? _themeCurve;
 
-  static const Curve _defaultCurve = Curves.easeInOutSine;
+  /// The `standard` curve of the theme above, read in
+  /// [didChangeDependencies]; every level of a theme uses it.
+  Curve _themeCurve = _packageCurve;
+
+  static final Curve _packageCurve =
+      StratumAnimation.packageDefault.defaultStyle.curve!;
 
   @override
   void initState() {
@@ -126,13 +133,21 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _themeCurve =
+        StratumThemeApplication.maybeOf(context)
+            ?.animation
+            .defaultStyle
+            .curve ??
+        _packageCurve;
+    _syncCurve();
+  }
+
+  @override
   void didUpdateWidget(BaselineAnimatedStyledBox oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final oldCurve = oldWidget.style?.animationStyle?.curve ?? _defaultCurve;
-    if (_curve != oldCurve) {
-      _animation.dispose();
-      _animation = CurvedAnimation(parent: _controller, curve: _curve);
-    }
+    _syncCurve();
     _controller.duration = _duration;
     final target = _target;
     if (target == _style.end) return;
@@ -142,6 +157,13 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
       ..begin = begin
       ..end = target;
     _controller.forward(from: 0);
+  }
+
+  /// Replaces the curved animation when [_curve] changed.
+  void _syncCurve() {
+    if (_animation.curve == _curve) return;
+    _animation.dispose();
+    _animation = CurvedAnimation(parent: _controller, curve: _curve);
   }
 
   @override

@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from 49a2d6b:lib/src/components/common/ink_well.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from d107dcb:lib/src/components/common/ink_well.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import
@@ -11,8 +11,8 @@ import 'package:stratum_ui/src/src.dart';
 /// Builds on [InkWell] for gestures, keyboard activation, focus, and hover,
 /// and adds what [InkWell] leaves out:
 ///
-/// * a flat overlay over [child]: the theme's `overlayHover` while hovered
-///   and `overlayActive` while pressed;
+/// * a flat overlay over [child]: the theme's `state.hover` color while
+///   hovered and `state.press` while pressed;
 /// * a [FocusSpread] ring, shown per [focusType];
 /// * a semantics node with a button role and a disabled flag;
 /// * the context-menu key and Shift+F10 for [onSecondaryTap], and a custom
@@ -182,8 +182,7 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
     return switch (widget.focusType) {
       FocusType.focused => true,
       FocusType.focusedVisible =>
-        FocusManager.instance.highlightMode ==
-            FocusHighlightMode.traditional,
+        FocusManager.instance.highlightMode == FocusHighlightMode.traditional,
       FocusType.none || FocusType.invisible => false,
     };
   }
@@ -205,8 +204,7 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
       _focusNode.addListener(_handleFocusChange);
       updateKeepAlive();
     }
-    if (oldWidget.statesController != null &&
-        widget.statesController == null) {
+    if (oldWidget.statesController != null && widget.statesController == null) {
       // InkWell rewrites only `disabled` on a swap, so a hover or press the
       // internal controller held before the caller's took over is stale.
       _internalStatesController?.value = <WidgetState>{};
@@ -228,8 +226,7 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
   }
 
   void _handleHighlightMode(FocusHighlightMode mode) {
-    if (widget.focusType == FocusType.focusedVisible &&
-        _focusNode.hasFocus) {
+    if (widget.focusType == FocusType.focusedVisible && _focusNode.hasFocus) {
       setState(() {});
     }
   }
@@ -321,8 +318,8 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
       overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       child: _StateOverlay(
         states: _statesController,
-        hoverColor: colors.overlayHover,
-        pressedColor: colors.overlayActive,
+        hoverColor: colors.state.hover,
+        pressedColor: colors.state.press,
         enabled: !disabled && !widget.disabledPressAnimation,
         borderRadius: widget.borderRadius,
         child: widget.child,
@@ -405,6 +402,14 @@ class _TextEntryGuard extends ShortcutActivator {
   String debugDescribeKeys() => activator.debugDescribeKeys();
 }
 
+/// [style]'s duration, else [Duration.zero] for a hand-built [AnimationStyle]
+/// that sets none (for example [AnimationStyle.noAnimation]).
+Duration _durationOf(AnimationStyle style) => style.duration ?? Duration.zero;
+
+/// [style]'s curve, else [Curves.easeInOutSine] for a hand-built
+/// [AnimationStyle] that sets none.
+Curve _curveOf(AnimationStyle style) => style.curve ?? Curves.easeInOutSine;
+
 /// Paints the hover and press overlay over [child] from [states].
 ///
 /// It listens to [states] itself, below [InkWell]: [InkWell] updates the
@@ -419,8 +424,6 @@ class _StateOverlay extends StatelessWidget {
     required this.borderRadius,
     required this.child,
   });
-
-  static const _duration = Duration(milliseconds: 100);
 
   final WidgetStatesController states;
   final Color hoverColor;
@@ -442,12 +445,17 @@ class _StateOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The theme's fast level, else the package default's (spec G18).
+    final fast =
+        (StratumThemeApplication.maybeOf(context)?.animation ??
+                StratumAnimation.packageDefault)
+            .fast;
     return ListenableBuilder(
       listenable: states,
       builder: (context, child) => TweenAnimationBuilder<Color?>(
         tween: ColorTween(end: _target(states.value)),
-        duration: _duration,
-        curve: Curves.easeInOutSine,
+        duration: _durationOf(fast),
+        curve: _curveOf(fast),
         // Alpha 0 becomes no color, so an idle surface paints nothing.
         builder: (context, color, child) => DecoratedBox(
           position: DecorationPosition.foreground,
