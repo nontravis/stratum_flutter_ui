@@ -8,8 +8,8 @@ import '../baseline/baseline.dart';
 /// Scenes reach layouts only through a kit, so moving to a new layout API
 /// changes the kits and leaves the scenes as they are.
 abstract interface class PerfKit {
-  /// A row; a non-null [onTap] makes it a tap surface with the default
-  /// 100 ms style animation.
+  /// A row; a non-null [onTap] makes it a tap surface with the theme's
+  /// `fast` level style animation.
   Widget row({
     WidgetStyle? style,
     VoidCallback? onTap,

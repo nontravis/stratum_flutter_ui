@@ -1159,14 +1159,19 @@ void main() {
 
   group('ScrollFocus lines mode motion', () {
     /// Pumps a focusable list of 50 rows of 40 px in a 200 by 300 view,
-    /// under [data] when set, and Tabs onto its viewport.
-    Future<void> focusList(WidgetTester tester, {MediaQueryData? data}) async {
+    /// under [theme] or [data] when set, and Tabs onto its viewport.
+    Future<void> focusList(
+      WidgetTester tester, {
+      MediaQueryData? data,
+      StratumThemeData? theme,
+    }) async {
       final before = _node();
       var host = themedHost(
         _keyboardHost(
           const ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
           before: before,
         ),
+        theme: theme,
       );
       if (data != null) host = MediaQuery(data: data, child: host);
       await tester.pumpWidget(host);
@@ -1213,10 +1218,13 @@ void main() {
     testWidgets(
       "an arrow moves over the theme's fast level on its curve (us07/fr04)",
       (tester) async {
-        final fast = fakeTheme.animation.fast;
+        final theme = motionTheme(
+          standard: const StratumNamedCurve('easeInOutQuad'),
+        );
+        final fast = theme.animation.fast;
         final duration = fast.duration!;
         const step = Duration(milliseconds: 25);
-        await focusList(tester);
+        await focusList(tester, theme: theme);
 
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
         await tester.pump();
@@ -1231,6 +1239,59 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+
+    /// A focusable list after [before], under [theme], or under no theme
+    /// at all when [themed] is false.
+    Widget list(
+      FocusNode before, {
+      StratumThemeData? theme,
+      bool themed = true,
+    }) {
+      final host = _keyboardHost(
+        const ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
+        before: before,
+      );
+      return themed
+          ? themedHost(host, theme: theme)
+          : Directionality(
+              textDirection: TextDirection.ltr,
+              child: Center(child: host),
+            );
+    }
+
+    /// Pumps [build]'s host, tabs into the list, and presses Arrow Down.
+    Future<void> arrowDown(
+      WidgetTester tester,
+      Widget Function(FocusNode before) build,
+    ) async {
+      final before = _node();
+      await tester.pumpWidget(build(before));
+      await _tabIn(tester, before);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+    }
+
+    testWidgets("us11/fr01: an arrow moves over the theme's fast level", (
+      tester,
+    ) async {
+      await arrowDown(tester, (before) => list(before, theme: motionTheme()));
+
+      await tester.pump(const Duration(milliseconds: 38));
+      expect(_pixels(tester), greaterThan(0));
+      expect(_pixels(tester), lessThan(50));
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(_pixels(tester), 50);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+    testWidgets("us11/fr01: with no theme an arrow takes the package default's "
+        'fast level', (tester) async {
+      await arrowDown(tester, (before) => list(before, themed: false));
+
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(_pixels(tester), lessThan(50));
+      await tester.pump(const Duration(milliseconds: 26));
+      expect(_pixels(tester), 50);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
   });
 
   group('ScrollFocus pages mode', () {
@@ -2286,61 +2347,6 @@ void main() {
       },
       variant: TargetPlatformVariant.desktop(),
     );
-  });
-
-  group('ScrollFocus lines mode motion', () {
-    /// A focusable list after [before], under [theme], or under no theme
-    /// at all when [themed] is false.
-    Widget list(
-      FocusNode before, {
-      StratumThemeData? theme,
-      bool themed = true,
-    }) {
-      final host = _keyboardHost(
-        const ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
-        before: before,
-      );
-      return themed
-          ? themedHost(host, theme: theme)
-          : Directionality(
-              textDirection: TextDirection.ltr,
-              child: Center(child: host),
-            );
-    }
-
-    /// Pumps [build]'s host, tabs into the list, and presses Arrow Down.
-    Future<void> arrowDown(
-      WidgetTester tester,
-      Widget Function(FocusNode before) build,
-    ) async {
-      final before = _node();
-      await tester.pumpWidget(build(before));
-      await _tabIn(tester, before);
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-      await tester.pump();
-    }
-
-    testWidgets("us11/fr01: an arrow moves over the theme's fast level", (
-      tester,
-    ) async {
-      await arrowDown(tester, (before) => list(before, theme: motionTheme()));
-
-      await tester.pump(const Duration(milliseconds: 38));
-      expect(_pixels(tester), greaterThan(0));
-      expect(_pixels(tester), lessThan(50));
-      await tester.pump(const Duration(milliseconds: 40));
-      expect(_pixels(tester), 50);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
-
-    testWidgets("us11/fr01: with no theme an arrow takes the package default's "
-        'fast level', (tester) async {
-      await arrowDown(tester, (before) => list(before, themed: false));
-
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(_pixels(tester), lessThan(50));
-      await tester.pump(const Duration(milliseconds: 26));
-      expect(_pixels(tester), 50);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
   });
 }
 

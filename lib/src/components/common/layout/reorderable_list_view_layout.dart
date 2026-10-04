@@ -84,8 +84,8 @@ class ReorderableListViewLayout extends StatelessWidget {
   /// The lifted item's style while it is dragged.
   ///
   /// The lifted item starts from `const WidgetStyle()` and animates to
-  /// this style with its `animationStyle`, else over 100 ms. Null shows
-  /// the item as built.
+  /// this style with its `animationStyle`, else over the theme's `fast`
+  /// level. Null shows the item as built.
   final WidgetStyle? dragStyle;
 
   /// Whether a long press anywhere on an item starts a drag, on every

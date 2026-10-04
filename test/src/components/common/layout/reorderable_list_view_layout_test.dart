@@ -228,44 +228,48 @@ void main() {
       expect(find.byType(ReorderableDelayedDragStartListener), findsNothing);
     });
 
-    testWidgets('dragStyle reaches the lifted item and animates over 100 ms', (
-      tester,
-    ) async {
-      const dragStyle = WidgetStyle(backgroundColor: _red);
-      await tester.pumpWidget(
-        _app(const _Harness(count: 5, dragStyle: dragStyle)),
-      );
+    testWidgets(
+      "dragStyle reaches the lifted item and animates over the theme's "
+      'fast level',
+      (tester) async {
+        const dragStyle = WidgetStyle(backgroundColor: _red);
+        await tester.pumpWidget(
+          _app(const _Harness(count: 5, dragStyle: dragStyle)),
+        );
 
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.text('0')),
-      );
-      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
-      await gesture.moveBy(const Offset(0, 30));
-      await tester.pump();
-      await tester.pump();
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('0')),
+        );
+        await tester.pump(
+          kLongPressTimeout + const Duration(milliseconds: 50),
+        );
+        await gesture.moveBy(const Offset(0, 30));
+        await tester.pump();
+        await tester.pump();
 
-      final lifted = tester.widget<AnimatedStyledBox>(
-        find.byType(AnimatedStyledBox),
-      );
-      expect(lifted.style!.backgroundColor, _red);
-      expect(
-        lifted.style!.animationStyle?.duration,
-        const Duration(milliseconds: 125),
-      );
-      await tester.pump(const Duration(milliseconds: 50));
-      final fill = tester.widget<DecoratedBox>(
-        find.descendant(
-          of: find.byType(AnimatedStyledBox),
-          matching: find.byType(DecoratedBox),
-        ),
-      );
-      final color = (fill.decoration as StyleDecoration).color!;
-      expect(color.a, greaterThan(0));
-      expect(color.a, lessThan(1));
+        final lifted = tester.widget<AnimatedStyledBox>(
+          find.byType(AnimatedStyledBox),
+        );
+        expect(lifted.style!.backgroundColor, _red);
+        expect(
+          lifted.style!.animationStyle?.duration,
+          const Duration(milliseconds: 125),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+        final fill = tester.widget<DecoratedBox>(
+          find.descendant(
+            of: find.byType(AnimatedStyledBox),
+            matching: find.byType(DecoratedBox),
+          ),
+        );
+        final color = (fill.decoration as StyleDecoration).color!;
+        expect(color.a, greaterThan(0));
+        expect(color.a, lessThan(1));
 
-      await gesture.up();
-      await tester.pumpAndSettle();
-    });
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
 
     testWidgets("us11/fr01: the lift takes the theme's fast level", (
       tester,
@@ -361,7 +365,8 @@ void main() {
         lifted.style!.animationStyle?.duration,
         const Duration(milliseconds: 300),
       );
-      // Past the 100 ms default, the 300 ms lift is still under way.
+      // Past the fast level's 125 ms default, the 300 ms lift is still
+      // under way.
       await tester.pump(const Duration(milliseconds: 150));
       final fill = tester.widget<DecoratedBox>(
         find.descendant(

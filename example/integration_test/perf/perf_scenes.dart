@@ -83,7 +83,8 @@ Widget _boxRow(PerfKit kit, int index) {
   );
 }
 
-/// S3: S2 with a tap callback and the 100 ms default style animation.
+/// S3: S2 with a tap callback and the theme's `fast` level style
+/// animation.
 Widget _tappableRow(PerfKit kit, int index) {
   return kit.row(
     style: _cardStyle,

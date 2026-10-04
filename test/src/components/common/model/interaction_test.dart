@@ -239,26 +239,28 @@ void main() {
         expect(tester.state(find.byType(_Probe)), same(before));
       });
 
-      testWidgets('$name animates a style over 100 ms without callbacks', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          themedHost(
-            build(
-              interaction: const StratumInteraction(),
-              style: const WidgetStyle(width: 40, height: 20),
+      testWidgets(
+        "$name animates a style over the theme's fast level without "
+        'callbacks',
+        (tester) async {
+          await tester.pumpWidget(
+            themedHost(
+              build(
+                interaction: const StratumInteraction(),
+                style: const WidgetStyle(width: 40, height: 20),
+              ),
             ),
-          ),
-        );
+          );
 
-        final box = tester.widget<AnimatedStyledBox>(
-          find.byType(AnimatedStyledBox),
-        );
-        expect(
-          box.style?.animationStyle?.duration,
-          const Duration(milliseconds: 125),
-        );
-      });
+          final box = tester.widget<AnimatedStyledBox>(
+            find.byType(AnimatedStyledBox),
+          );
+          expect(
+            box.style?.animationStyle?.duration,
+            const Duration(milliseconds: 125),
+          );
+        },
+      );
     }
   });
 }

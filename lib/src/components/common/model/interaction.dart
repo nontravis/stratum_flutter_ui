@@ -8,10 +8,10 @@ import 'package:stratum_ui/src/src.dart';
 /// [onDoubleTap], [onLongPress], [onSecondaryTap], [onHover],
 /// [onHighlightChanged], or [onFocusChange] is set, or [shortcuts] is not
 /// empty. A value with none of them still animates the layout's style over
-/// 100 ms and adds no tap surface, so pass `const StratumInteraction()`
-/// when callbacks come and go: switching `interaction` between null and a
-/// value remounts the content on an otherwise bare layout; see
-/// `BoxLayout`'s tier rule for the full case.
+/// the theme's `fast` level and adds no tap surface, so pass
+/// `const StratumInteraction()` when callbacks come and go: switching
+/// `interaction` between null and a value remounts the content on an
+/// otherwise bare layout; see `BoxLayout`'s tier rule for the full case.
 ///
 /// The class does not override `==`: callbacks compare by identity.
 @immutable
