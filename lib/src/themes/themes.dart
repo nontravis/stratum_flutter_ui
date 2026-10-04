@@ -10,6 +10,7 @@ export 'theme_application.dart';
 export 'theme_asset_view.dart';
 export 'theme_controller.dart';
 export 'theme_data.dart';
+export 'theme_preloader.dart';
 export 'theme_set.dart';
 export 'tokens/theme_tokens.g.dart';
 export 'typography/dimension.dart';

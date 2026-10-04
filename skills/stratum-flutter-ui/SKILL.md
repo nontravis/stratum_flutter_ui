@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, or typography.fonts files in theme.yaml.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, or typography.fonts files in theme.yaml.
 ---
 
 # Stratum Flutter UI
@@ -171,3 +171,8 @@ scroll it, guarded so a text field inside keeps its own keys.
   per switch; below it, `StratumThemeController.of(context)` and `maybeOf(context)` find the controller, so a theme
   picker calls `StratumThemeController.of(context).switchTo('brand')`. `StratumThemeApplication(themes:)` stays for a
   fixed theme set.
+- **`StratumThemePreloader`** — the widget form of `preload`: `StratumThemePreloader(initialThemeId:,
+  onThemeChanged:, googleFontsTimeout:, loading:, error:, builder: (context, controller) => ...)` shows `loading`
+  until the start theme is active, then `builder`, or `error` with what preload threw; it reads its asset bundle from
+  `DefaultAssetBundle` and disposes its controller when it leaves the tree. Pick it or `await preload(...)` before
+  `runApp`, not both.
