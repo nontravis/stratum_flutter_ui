@@ -1,6 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 import 'package:stratum_ui/src/themes/theme_parse.dart';
+import 'package:stratum_ui/src/themes/typography/google_font_weights.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
 /// Thrown by `StratumThemeController.switchTo` for an id that names no
@@ -318,37 +319,12 @@ class StratumThemeController extends ChangeNotifier {
     }
   }
 
-  /// Starts every Google font the yaml declares a weight for, in normal
-  /// style, then waits for them up to the time limit; a timeout or a
+  /// Starts every Google font of [typography] in each weight of its weight
+  /// set (`GoogleFontWeights.of`, the rule the resolver draws by too), in
+  /// normal style, then waits for them up to the time limit; a timeout or a
   /// failure goes on with the fallback fonts (FO-03 US-05 FR-02).
-  ///
-  /// A font a tag names for a type, as `font` or `mono`, loads in that
-  /// type's weight, `table` taking body's; a tag's theme-wide `mono` loads
-  /// in every type's weight.
   Future<void> _waitForGoogleFonts(StratumTypography typography) async {
-    FontWeight weightOf(FontType type) =>
-        typography.types[type == FontType.table ? FontType.body : type]!.weight;
-    final every = {for (final type in FontType.values) weightOf(type)};
-    final weights = <String, Set<FontWeight>>{};
-    void use(String? key, Iterable<FontWeight> typeWeights) {
-      final font = key == null ? null : typography.fonts[key];
-      if (font == null || font.source != StratumFontSource.google) return;
-      (weights[font.family] ??= {}).addAll(typeWeights);
-    }
-
-    for (final set in typography.families.values) {
-      for (final type in FontType.values) {
-        if (set.types[type] case final ref?) {
-          use(ref.font, [weightOf(type)]);
-          use(ref.mono, [weightOf(type)]);
-        }
-        // The resolver draws every tag's body font as a fallback at the
-        // requested type's weight (resolver.dart `_fallback`), even for a
-        // type the tag never names.
-        use(set.types[FontType.body]?.font, [weightOf(type)]);
-      }
-      use(set.mono, every);
-    }
+    final weights = GoogleFontWeights.of(typography);
     if (weights.isEmpty) return;
     for (final MapEntry(key: name, value: fontWeights) in weights.entries) {
       for (final weight in fontWeights) {

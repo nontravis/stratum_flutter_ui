@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 import 'package:stratum_ui/src/themes/theme_parse.dart';
+import 'package:stratum_ui/src/themes/typography/google_font_weights.dart';
 
 import 'theme_runtime_fakes.dart';
 
@@ -351,6 +352,27 @@ typography:
       // only the resolver's body-font fallback (resolver.dart `_fallback`)
       // can ask for it at header's weight.
       expect(calls, contains(('Lato', FontWeight.w600, FontStyle.normal)));
+    });
+
+    test('us05/fr02/e05: the wait loads each Google font in exactly the '
+        'weights GoogleFontWeights.of gives, the one rule the resolver '
+        'reads', () async {
+      final calls = recordGoogleFonts();
+      final (controller, _) = await startController(FakeThemeBundle());
+      final weights = GoogleFontWeights.of(controller.themes.light.typography);
+
+      expect(calls.toSet(), {
+        for (final MapEntry(key: name, value: fontWeights) in weights.entries)
+          for (final weight in fontWeights) (name, weight, FontStyle.normal),
+      });
+    });
+
+    test('us05/fr02/e07: the wait asks for no italic face', () async {
+      final calls = recordGoogleFonts();
+      await startController(FakeThemeBundle());
+
+      expect(calls, isNotEmpty);
+      expect(calls.map((call) => call.$3).toSet(), {FontStyle.normal});
     });
 
     test('us05/s3, us05/fr02/e02: preload goes on when the 3 s limit '
