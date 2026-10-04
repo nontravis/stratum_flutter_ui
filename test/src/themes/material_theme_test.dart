@@ -3,6 +3,7 @@ import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
 import '../components/common/fakes/fake_stratum_theme.dart';
+import 'config/theme_fixtures.dart' show layer;
 
 ThemeData _material(
   StratumThemeData data, {
@@ -24,12 +25,22 @@ List<Object?> _fields(TextStyle? style) => [
   style?.color,
 ];
 
+/// The weights of the six title and label slots of [theme].
+List<FontWeight?> _titlesAndLabels(TextTheme theme) => [
+  theme.titleLarge?.fontWeight,
+  theme.titleMedium?.fontWeight,
+  theme.titleSmall?.fontWeight,
+  theme.labelLarge?.fontWeight,
+  theme.labelMedium?.fontWeight,
+  theme.labelSmall?.fontWeight,
+];
+
 void main() {
   for (final (name, data) in [
     ('light', defaultThemeSet.light),
     ('dark', defaultThemeSet.dark!),
   ]) {
-    group('fr01: the $name ColorScheme', () {
+    group('us08/fr01/e01: the $name ColorScheme', () {
       final scheme = _material(data).colorScheme;
       final color = data.color;
 
@@ -74,7 +85,7 @@ void main() {
     });
   }
 
-  test('fr01: the section 10.3 fields', () {
+  test('us08/s1: the section 10.3 fields', () {
     final data = defaultThemeSet.light;
     final material = _material(data);
     final color = data.color;
@@ -103,7 +114,8 @@ void main() {
     expect(material.appBarTheme.systemOverlayStyle, AppSystemUI.light);
   });
 
-  group('fr01/e02: the text theme of spec section 10.4', () {
+  group('us08/s2, us08/fr01/e02: the text theme of themes s01 Material text '
+      'theme', () {
     final slots = <String, (TextStyle? Function(TextTheme), StratumTextStyle)>{
       'displayLarge': (
         (theme) => theme.displayLarge,
@@ -129,33 +141,15 @@ void main() {
         (theme) => theme.headlineSmall,
         StratumTextStyle.header.s18,
       ),
-      'titleLarge': (
-        (theme) => theme.titleLarge,
-        StratumTextStyle.body.s18.medium,
-      ),
-      'titleMedium': (
-        (theme) => theme.titleMedium,
-        StratumTextStyle.body.s16.medium,
-      ),
-      'titleSmall': (
-        (theme) => theme.titleSmall,
-        StratumTextStyle.body.s14.medium,
-      ),
+      'titleLarge': ((theme) => theme.titleLarge, StratumTextStyle.body.s18),
+      'titleMedium': ((theme) => theme.titleMedium, StratumTextStyle.body.s16),
+      'titleSmall': ((theme) => theme.titleSmall, StratumTextStyle.body.s14),
       'bodyLarge': ((theme) => theme.bodyLarge, StratumTextStyle.body.s16),
       'bodyMedium': ((theme) => theme.bodyMedium, StratumTextStyle.body.s14),
       'bodySmall': ((theme) => theme.bodySmall, StratumTextStyle.body.s12),
-      'labelLarge': (
-        (theme) => theme.labelLarge,
-        StratumTextStyle.body.s14.medium,
-      ),
-      'labelMedium': (
-        (theme) => theme.labelMedium,
-        StratumTextStyle.body.s12.medium,
-      ),
-      'labelSmall': (
-        (theme) => theme.labelSmall,
-        StratumTextStyle.body.s10.medium,
-      ),
+      'labelLarge': ((theme) => theme.labelLarge, StratumTextStyle.body.s14),
+      'labelMedium': ((theme) => theme.labelMedium, StratumTextStyle.body.s12),
+      'labelSmall': ((theme) => theme.labelSmall, StratumTextStyle.body.s10),
     };
     for (final windowSize in const [WindowSize.mobile, WindowSize.desktop]) {
       for (final MapEntry(key: slot, value: (read, recipe)) in slots.entries) {
@@ -177,6 +171,42 @@ void main() {
       }
     }
 
+    test("us08/fr01/e02: the six title and label slots draw the body type's "
+        'weight, 400 in the package default', () {
+      expect(
+        _titlesAndLabels(_material(defaultThemeSet.light).textTheme),
+        everyElement(FontWeight.w400),
+      );
+    });
+
+    test('us08/fr01/e03: a theme whose body declares another weight draws '
+        'it in the six title and label slots', () {
+      final data = StratumThemeSet.fromConfig(
+        StratumThemeConfig.parse(
+          base: StratumThemeSource(
+            id: 'stratum-default',
+            folder: 'packages/stratum_ui/assets/themes/default',
+            yaml: defaultThemeSource,
+          ),
+          layers: [
+            StratumThemeSource(
+              id: 'light-body',
+              folder: 'assets/themes/light-body',
+              yaml: layer(
+                'typography:\n  types:\n    body:\n      weight: 300',
+              ),
+            ),
+          ],
+        ),
+      ).light;
+
+      // Inter now loads in 300 (body), 400, and 600, so 300 draws as is.
+      expect(
+        _titlesAndLabels(_material(data).textTheme),
+        everyElement(FontWeight.w300),
+      );
+    });
+
     group('under th', () {
       final defaultFamily = GoogleFontsLookup.family;
       setUp(() {
@@ -197,7 +227,7 @@ void main() {
   });
 
   group('the application inserts the Material theme', () {
-    testWidgets('fr01: Theme.of below it follows the active data', (
+    testWidgets('us08/fr01: Theme.of below it follows the active data', (
       tester,
     ) async {
       ColorScheme? scheme;

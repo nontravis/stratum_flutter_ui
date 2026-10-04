@@ -96,9 +96,11 @@ class StratumThemeData {
   }
 
   /// The Material theme of spec section 10: the [ColorScheme] of section
-  /// 10.2, the fields of section 10.3, and the text theme of section 10.4
-  /// resolved for [locale], [windowSize], and [textScaler]. A null
-  /// [windowSize] adds no window scale to the text theme.
+  /// 10.2, the fields of section 10.3, and the text theme of
+  /// `docs/specs/stratum_ui/themes/s01_architecture.md`
+  /// `### Material text theme`, resolved for [locale], [windowSize], and
+  /// [textScaler]. No slot sets a weight, so each draws its type's yaml
+  /// weight. A null [windowSize] adds no window scale to the text theme.
   ThemeData toThemeData({
     required Locale locale,
     required WindowSize? windowSize,
@@ -167,15 +169,15 @@ class StratumThemeData {
         headlineLarge: resolve(StratumTextStyle.header.s24),
         headlineMedium: resolve(StratumTextStyle.header.s20),
         headlineSmall: resolve(StratumTextStyle.header.s18),
-        titleLarge: resolve(StratumTextStyle.body.s18.medium),
-        titleMedium: resolve(StratumTextStyle.body.s16.medium),
-        titleSmall: resolve(StratumTextStyle.body.s14.medium),
+        titleLarge: resolve(StratumTextStyle.body.s18),
+        titleMedium: resolve(StratumTextStyle.body.s16),
+        titleSmall: resolve(StratumTextStyle.body.s14),
         bodyLarge: resolve(StratumTextStyle.body.s16),
         bodyMedium: resolve(StratumTextStyle.body.s14),
         bodySmall: resolve(StratumTextStyle.body.s12),
-        labelLarge: resolve(StratumTextStyle.body.s14.medium),
-        labelMedium: resolve(StratumTextStyle.body.s12.medium),
-        labelSmall: resolve(StratumTextStyle.body.s10.medium),
+        labelLarge: resolve(StratumTextStyle.body.s14),
+        labelMedium: resolve(StratumTextStyle.body.s12),
+        labelSmall: resolve(StratumTextStyle.body.s10),
       ),
     );
   }

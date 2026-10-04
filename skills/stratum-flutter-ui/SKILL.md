@@ -162,6 +162,10 @@ scroll it, guarded so a text field inside keeps its own keys.
   no other weight, with run-time fetching on or off, so bundling exactly those weights keeps every normal-style Google
   font off the network; an italic face loads on first use, at the snapped weight. A font the theme ships as `files`
   or the app registers keeps the weight it is asked for.
+- **Material text theme** — `StratumThemeApplication` inserts a Material `ThemeData` whose text theme resolves Stratum
+  recipes for the active theme, locale, and window size: display and headline slots read `header`; title, body, and
+  label slots read `body`. No slot sets a weight, so each draws its type's yaml weight: title and label slots draw the
+  body weight (400 in the package default), not Material's medium.
 - **Before `preload`** — call `WidgetsFlutterBinding.ensureInitialized()` first: `preload` reads the asset manifest
   through `rootBundle`, which needs the binding. In a `testWidgets` test, the background parse runs on a real
   isolate, which the test's fake-async zone never finishes; run `preload`, or pump a tree rooted in
