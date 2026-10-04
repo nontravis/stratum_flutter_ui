@@ -164,6 +164,12 @@ class _StratumInkWellState extends State<StratumInkWell>
   FocusNode? _internalFocusNode;
   WidgetStatesController? _internalStatesController;
 
+  // InkWell's node while the outer Focus holds the surface's node, owned
+  // here and kept until dispose like _internalFocusNode. Passing InkWell
+  // null instead would let its Focus keep a listener on its own node across
+  // each null-to-node swap, one more per shortcut toggle.
+  FocusNode? _inkFocusNode;
+
   // The Focus and CallbackShortcuts above Material come and go with the
   // shortcuts and callbacks. The GlobalKey makes Flutter move Material's
   // element instead of rebuilding it, so InkWell and the child keep their
@@ -269,17 +275,20 @@ class _StratumInkWellState extends State<StratumInkWell>
     FocusManager.instance.removeHighlightModeListener(_handleHighlightMode);
     _focusNode.removeListener(_handleFocusChange);
     _internalFocusNode?.dispose();
+    _inkFocusNode?.dispose();
     _internalStatesController?.dispose();
     super.dispose();
   }
 
-  /// Stops the node taking focus before the rebuild, while a focused
-  /// descendant still sits below it.
+  /// Sets `canRequestFocus` false before the rebuild when a descendant, not
+  /// the node itself, holds focus. Called when shortcut-only settings
+  /// change to settings that take no focus: leaving the mode, or staying in
+  /// it while disabled.
   ///
-  /// Leaving shortcut-only mode moves the node into [InkWell]'s [Focus],
-  /// which detaches its own node and drops the descendant from the scope's
-  /// focus history; the later `canRequestFocus` flip would then move focus
-  /// out of the child. Flipped first, Flutter refocuses the descendant.
+  /// Leaving the mode moves the node into [InkWell]'s [Focus], which
+  /// detaches [InkWell]'s node and drops the descendant from the scope's
+  /// focus history; a flip after that moves focus out of the child. Flipped
+  /// first, Flutter refocuses the descendant.
   void _yieldFocusKeepingChild() {
     final node = _focusNode;
     if (node.hasFocus && !node.hasPrimaryFocus) node.canRequestFocus = false;
@@ -373,7 +382,9 @@ class _StratumInkWellState extends State<StratumInkWell>
       mouseCursor:
           widget.mouseCursor ??
           (disabled ? SystemMouseCursors.forbidden : null),
-      focusNode: shortcutOnly ? null : _focusNode,
+      focusNode: shortcutOnly
+          ? (_inkFocusNode ??= FocusNode(debugLabel: 'StratumInkWell.ink'))
+          : _focusNode,
       canRequestFocus: !shortcutOnly && canFocus,
       autofocus: !shortcutOnly && widget.autofocus && _autofocusEligible,
       statesController: _statesController,

@@ -106,56 +106,60 @@ Future<TestGesture> _mouse(WidgetTester tester) async {
   return gesture;
 }
 
-/// The widget types under the one [StratumInkWell], in tree order.
-List<String> _surfaceTypes(WidgetTester tester) {
-  final types = <String>[];
-  void visit(Element element) {
-    types.add('${element.widget.runtimeType}');
-    element.visitChildElements(visit);
+/// The widgets the one [StratumInkWell] builds, from its root down to
+/// [InkWell]'s child, skipping the SDK's own internals.
+List<Widget> _surfaceChain(WidgetTester tester) {
+  final chain = <Widget>[];
+  late Widget root;
+  tester
+      .element(find.byType(StratumInkWell))
+      .visitChildElements((element) => root = element.widget);
+  for (Widget? widget = root; widget != null;) {
+    chain.add(widget);
+    widget = switch (widget) {
+      Semantics(:final child) => child,
+      FocusSpread(:final child) => child,
+      MouseRegion(:final child) => child,
+      CallbackShortcuts(:final child) => child,
+      Focus(:final child) => child,
+      Material(:final child) => child,
+      InkWell(:final child) => child,
+      _ => null,
+    };
   }
-
-  tester.element(find.byType(StratumInkWell)).visitChildElements(visit);
-  return types;
+  return chain;
 }
 
-/// [_surfaceTypes] of the plain tap path on master `ff3c890`: an activation
-/// callback, empty shortcuts, no onSecondaryTap, and [_box] as the child.
+/// A text field with no controller, so only its State holds the text.
+const _noteField = SizedBox(width: 200, child: TextField());
+
+/// Types 'note' into the one [TextField], which takes focus; returns its
+/// [EditableText] State.
+Future<State> _typeNote(WidgetTester tester) async {
+  await tester.enterText(find.byType(TextField), 'note');
+  await tester.pump();
+  return tester.state(find.byType(EditableText));
+}
+
+/// Expects the [EditableText] State [before], its text 'note', the cursor
+/// after it, and primary focus.
+void _expectNoteKept(WidgetTester tester, State before) {
+  final field = tester.widget<EditableText>(find.byType(EditableText));
+  expect(tester.state(find.byType(EditableText)), same(before));
+  expect(field.controller.text, 'note');
+  expect(field.controller.selection, const TextSelection.collapsed(offset: 4));
+  expect(field.focusNode.hasPrimaryFocus, isTrue);
+}
+
+/// [_surfaceChain]'s types on the plain tap path on master `ff3c890`: an
+/// activation callback, empty shortcuts, and no onSecondaryTap.
 const _plainTapPathTypes = [
   'Semantics',
   'FocusSpread',
-  'AnimatedContainer',
-  'Container',
-  'DecoratedBox',
-  'Padding',
   'MouseRegion',
   'Material',
-  'ClipPath',
-  '_ShapeBorderPaint',
-  'CustomPaint',
-  'NotificationListener<LayoutChangedNotification>',
-  '_InkFeatures',
-  'AnimatedDefaultTextStyle',
-  'DefaultTextStyle',
   'InkWell',
-  '_InkResponseStateWidget',
-  '_ParentInkResponseProvider',
-  'Actions',
-  '_ActionsScope',
-  'Focus',
-  '_FocusInheritedScope',
-  'Semantics',
-  'MouseRegion',
-  'Builder',
-  'DefaultSelectionStyle',
-  'Semantics',
-  'GestureDetector',
-  'RawGestureDetector',
-  'Listener',
   '_StateOverlay',
-  'ListenableBuilder',
-  'TweenAnimationBuilder<Color?>',
-  'DecoratedBox',
-  'SizedBox',
 ];
 
 void main() {
@@ -1233,11 +1237,43 @@ void main() {
 
   group('StratumInkWell child State', () {
     testWidgets('the plain tap path keeps its widget tree', (tester) async {
+      Key? materialKey() =>
+          _surfaceChain(tester).whereType<Material>().single.key;
       await tester.pumpWidget(
         themedHost(const StratumInkWell(onTap: _noop, child: _box)),
       );
+      final key = materialKey();
+      await tester.pumpWidget(
+        themedHost(const StratumInkWell(onTap: _noop, child: _Probe())),
+      );
 
-      expect(_surfaceTypes(tester), _plainTapPathTypes);
+      expect(
+        _surfaceChain(tester).map((widget) => '${widget.runtimeType}'),
+        _plainTapPathTypes,
+      );
+      // The one change from master: Material carries the State's own key.
+      expect(key, isA<GlobalKey>());
+      expect(materialKey(), same(key));
+    });
+
+    testWidgets('a shortcut-only surface hands InkWell a node it owns, so '
+        "InkWell's Focus adds no listener per toggle", (tester) async {
+      Widget build(Map<ShortcutActivator, VoidCallback> shortcuts) =>
+          themedHost(StratumInkWell(shortcuts: shortcuts, child: _box));
+      final inkFocus = find
+          .descendant(of: find.byType(InkWell), matching: find.byType(Focus))
+          .first;
+      FocusNode? inkNode() => tester.widget<Focus>(inkFocus).focusNode;
+
+      await tester.pumpWidget(build(const {_keyA: _noop}));
+      final owned = inkNode();
+      await tester.pumpWidget(build(const {}));
+      await tester.pumpWidget(build(const {_keyA: _noop}));
+
+      // A null node makes the SDK Focus keep its listener on its own node
+      // across each null-to-node swap, one more per toggle.
+      expect(owned, isNotNull);
+      expect(inkNode(), same(owned));
     });
 
     // Each builder returns the surface with the toggled setting off or on.
@@ -1304,30 +1340,50 @@ void main() {
                 child: const SizedBox(width: 200, child: TextField()),
               ),
             );
-        EditableText field() =>
-            tester.widget<EditableText>(find.byType(EditableText));
-        void expectKept(State before) {
-          expect(tester.state(find.byType(EditableText)), same(before));
-          expect(field().controller.text, 'note');
-          expect(
-            field().controller.selection,
-            const TextSelection.collapsed(offset: 4),
-          );
-          expect(field().focusNode.hasPrimaryFocus, isTrue);
-        }
-
         await tester.pumpWidget(build(const {}));
-        await tester.enterText(find.byType(TextField), 'note');
-        await tester.pump();
-        final before = tester.state(find.byType(EditableText));
+        final before = await _typeNote(tester);
 
         await tester.pumpWidget(build(bindings));
-        expectKept(before);
+        _expectNoteKept(tester, before);
         await _controlK(tester);
         expect(calls, 1);
 
         await tester.pumpWidget(build(const {}));
-        expectKept(before);
+        _expectNoteKept(tester, before);
+      });
+    }
+
+    // Each builder returns the surface around [_noteField] with the setting
+    // off or on.
+    final focusToggles = <String, StratumInkWell Function({required bool on})>{
+      'onSecondaryTap': ({required on}) => StratumInkWell(
+        onTap: _noop,
+        onSecondaryTap: on ? _noop : null,
+        child: _noteField,
+      ),
+      'onTap beside shortcuts': ({required on}) => StratumInkWell(
+        onTap: on ? _noop : null,
+        shortcuts: const {_controlKey: _noop},
+        child: _noteField,
+      ),
+      'onTap and disabled beside shortcuts': ({required on}) => StratumInkWell(
+        onTap: on ? _noop : null,
+        disabled: on,
+        shortcuts: const {_controlKey: _noop},
+        child: _noteField,
+      ),
+    };
+    for (final MapEntry(key: name, value: surface) in focusToggles.entries) {
+      testWidgets('toggling $name keeps the typed text, the cursor, and '
+          'focus', (tester) async {
+        await tester.pumpWidget(_appHost(surface(on: false)));
+        final before = await _typeNote(tester);
+
+        await tester.pumpWidget(_appHost(surface(on: true)));
+        _expectNoteKept(tester, before);
+
+        await tester.pumpWidget(_appHost(surface(on: false)));
+        _expectNoteKept(tester, before);
       });
     }
   });
