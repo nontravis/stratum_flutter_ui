@@ -542,7 +542,7 @@ class _ScrollFocusState extends State<ScrollFocus>
     // A zero duration makes moveTo jump (NFR-U03).
     final duration = reducesMotion(context) ? Duration.zero : _lineDuration;
     if (nested != null) {
-      moveNested(nested.outerController.position, position, delta, duration);
+      _moveNested(nested.outerController.position, position, delta, duration);
     } else {
       position.moveTo(
         position.pixels + delta,
@@ -571,6 +571,42 @@ class _ScrollFocusState extends State<ScrollFocus>
       }
     }
     return null;
+  }
+
+  /// Moves a nested scroll view by [delta] along one range: [outer]'s
+  /// extent, over which the header collapses, then [inner]'s, the body's.
+  ///
+  /// Moving [inner] by its own offset would collapse the header at once,
+  /// because the coordinator maps every inner offset to a collapsed header.
+  /// A target within the header's extent moves [outer], and the coordinator
+  /// returns the body to its start; a target past it moves [inner], and the
+  /// coordinator holds the header collapsed. The move takes [duration];
+  /// zero jumps.
+  static void _moveNested(
+    ScrollPosition outer,
+    ScrollPosition inner,
+    double delta,
+    Duration duration,
+  ) {
+    final header = outer.maxScrollExtent - outer.minScrollExtent;
+    final scrolled = inner.pixels - inner.minScrollExtent;
+    final offset =
+        outer.pixels - outer.minScrollExtent + (scrolled > 0 ? scrolled : 0);
+    final end = header + inner.maxScrollExtent - inner.minScrollExtent;
+    final target = clampDouble(offset + delta, 0, end);
+    if (target <= header) {
+      outer.moveTo(
+        outer.minScrollExtent + target,
+        duration: duration,
+        curve: Curves.easeInOutSine,
+      );
+    } else {
+      inner.moveTo(
+        inner.minScrollExtent + target - header,
+        duration: duration,
+        curve: Curves.easeInOutSine,
+      );
+    }
   }
 
   /// The keys of [ScrollFocusMode.pages]: each goes to one page, counted

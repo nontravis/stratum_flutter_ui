@@ -425,9 +425,7 @@ void requestFocusInViewports(
 /// start, one whose end it extends past reveals it at the end, and one
 /// that holds it whole stays put. [ScrollPosition.ensureVisible] flips
 /// start and end for a reversed axis, so right-to-left text and `reverse`
-/// never decide it. A nested scroll view's body moves along the header's
-/// range first ([moveNested]), so the header collapses only as far as
-/// [target] needs.
+/// never decide it.
 ///
 /// [Scrollable.ensureVisible] applies one policy at every level, and
 /// `keepVisibleAtEnd` never scrolls a viewport back, so a row that
@@ -445,167 +443,22 @@ void revealInViewports(FocusNode target) {
   // scrollable reveals it again, as Flutter's horizontal one does for both
   // axes.
   var revealed = object;
-  // The header of a nested scroll view whose body level placed both along
-  // their one range; its own level, which reads the body's last layout,
-  // then stays put.
-  ScrollPosition? placed;
   for (
     var scrollable = Scrollable.maybeOf(context);
     scrollable != null && shown != null;
     scrollable = Scrollable.maybeOf(scrollable.context)
   ) {
     final reveal = _inViewportOf(shown, scrollable) ? shown : revealed;
-    final nested = _nestedBodyOf(scrollable);
-    if (nested != null) {
-      _revealInNestedBody(nested, scrollable, reveal, object);
-      placed = nested.outerController.position;
-    } else if (scrollable.position != placed) {
-      final overhang = _overhang(target.rect, scrollable);
-      if (overhang != 0) {
-        scrollable.position.ensureVisible(
-          reveal,
-          alignmentPolicy: overhang < 0
-              ? ScrollPositionAlignmentPolicy.keepVisibleAtStart
-              : ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-          targetRenderObject: reveal == object ? null : object,
-        );
-      }
+    final policy = _edgePolicy(target.rect, scrollable);
+    if (policy != null) {
+      scrollable.position.ensureVisible(
+        reveal,
+        alignmentPolicy: policy,
+        targetRenderObject: reveal == object ? null : object,
+      );
     }
     revealed = reveal;
     shown = scrollable.context.findRenderObject();
-  }
-}
-
-/// The nested scroll view whose inner controller holds [scrollable]'s
-/// position, so the header and the body scroll as one range; else null.
-NestedScrollViewState? _nestedBodyOf(ScrollableState scrollable) {
-  final nested = scrollable.context
-      .findAncestorStateOfType<NestedScrollViewState>();
-  if (nested == null ||
-      !nested.innerController.positions.contains(scrollable.position)) {
-    return null;
-  }
-  return nested;
-}
-
-/// Moves [nested]'s header and its body, [body], along their one range
-/// ([moveNested]) so [object], or [target] inside it, shows whole in the
-/// body with the least scroll.
-///
-/// Reads scroll offsets and the last layout's extents only, never a rect
-/// on screen, which a sliver body paints from its last layout; a second
-/// reveal before the next layout then moves nothing.
-void _revealInNestedBody(
-  NestedScrollViewState nested,
-  ScrollableState body,
-  RenderObject object,
-  RenderObject target,
-) {
-  final box = body.context.findRenderObject();
-  final content = RenderAbstractViewport.maybeOf(object);
-  final window = _windowOf(box);
-  if (box is! RenderBox || !box.hasSize || content == null || window == null) {
-    return;
-  }
-  final inner = body.position;
-  final header = nested.outerController.position;
-  final axis = inner.axis;
-  final rect = target == object
-      ? null
-      : MatrixUtils.transformRect(
-          target.getTransformTo(object),
-          object.paintBounds.intersect(target.paintBounds),
-        );
-  double offset(
-    RenderAbstractViewport viewport,
-    RenderObject of,
-    double alignment, {
-    Rect? rect,
-  }) {
-    return viewport
-        .getOffsetToReveal(of, alignment, rect: rect, axis: axis)
-        .offset;
-  }
-
-  final extent = axis == Axis.vertical ? box.size.height : box.size.width;
-  // From the header offset [collapsed] on, the body shows [length] long;
-  // before it, the header still covers the rest of the way there.
-  final collapsed = offset(window, box, 0);
-  final length = collapsed - offset(window, box, 1) + extent;
-  final covered = collapsed - header.pixels;
-  // The body below the scrollable, such as a footer or bottom padding.
-  final below =
-      offset(window, _bodyOf(box, window), 1) - offset(window, box, 1);
-  final shown = length - below - (covered > 0 ? covered : 0);
-  final start = offset(content, object, 0, rect: rect);
-  final end = offset(content, object, 1, rect: rect) + extent - shown;
-  final pixels = inner.pixels;
-  var delta = 0.0;
-  if (pixels > start) {
-    delta = start - pixels;
-  } else if (pixels < end) {
-    delta = end - pixels;
-  }
-  if (delta == 0 || !delta.isFinite) return;
-  moveNested(header, inner, delta, Duration.zero);
-}
-
-/// The nested scroll view's own viewport around [box]: the first one up,
-/// past any viewport inside the body, such as a tab view's pages.
-RenderNestedScrollViewViewport? _windowOf(RenderObject? box) {
-  for (var node = box?.parent; node != null; node = node.parent) {
-    if (node is RenderNestedScrollViewViewport) return node;
-  }
-  return null;
-}
-
-/// The box that [window]'s body sliver holds around [box], which ends
-/// where the view ends: the last box on the way up from [box].
-RenderBox _bodyOf(RenderBox box, RenderObject window) {
-  var body = box;
-  for (
-    var node = box.parent;
-    node != null && node != window;
-    node = node.parent
-  ) {
-    if (node is RenderBox) body = node;
-  }
-  return body;
-}
-
-/// Moves a nested scroll view by [delta] along one range: [outer]'s
-/// extent, over which the header collapses, then [inner]'s, the body's.
-///
-/// Moving [inner] by its own offset would collapse the header at once,
-/// because the coordinator maps every inner offset to a collapsed header.
-/// A target within the header's extent moves [outer], and the coordinator
-/// returns the body to its start; a target past it moves [inner], and the
-/// coordinator holds the header collapsed. The move takes [duration];
-/// zero jumps. `ScrollFocus`'s keys and [revealInViewports] share it.
-void moveNested(
-  ScrollPosition outer,
-  ScrollPosition inner,
-  double delta,
-  Duration duration,
-) {
-  final header = outer.maxScrollExtent - outer.minScrollExtent;
-  final scrolled = inner.pixels - inner.minScrollExtent;
-  final offset =
-      outer.pixels - outer.minScrollExtent + (scrolled > 0 ? scrolled : 0);
-  final end = header + inner.maxScrollExtent - inner.minScrollExtent;
-  final target = clampDouble(offset + delta, 0, end);
-  if (target <= header) {
-    outer.moveTo(
-      outer.minScrollExtent + target,
-      duration: duration,
-      curve: Curves.easeInOutSine,
-    );
-  } else {
-    inner.moveTo(
-      inner.minScrollExtent + target - header,
-      duration: duration,
-      curve: Curves.easeInOutSine,
-    );
   }
 }
 
@@ -627,26 +480,29 @@ bool _inViewportOf(RenderObject object, ScrollableState scrollable) {
   return false;
 }
 
-/// How far [rect], a rect on screen, lies outside [scrollable]'s viewport
-/// along its axis: negative by how far it starts before the viewport,
-/// positive by how far it extends past it, and zero when the viewport
-/// holds it whole.
-double _overhang(Rect rect, ScrollableState scrollable) {
+/// How [scrollable] reveals [rect], a rect on screen: at the start when
+/// [rect] starts before the viewport along its axis, at the end when it
+/// extends past it, and null when the viewport holds it whole.
+ScrollPositionAlignmentPolicy? _edgePolicy(
+  Rect rect,
+  ScrollableState scrollable,
+) {
   final box = scrollable.context.findRenderObject();
-  if (box is! RenderBox || !box.hasSize) return 0;
+  if (box is! RenderBox || !box.hasSize) return null;
   final viewport = MatrixUtils.transformRect(
     box.getTransformTo(null),
     Offset.zero & box.size,
   );
   final horizontal = scrollable.position.axis == Axis.horizontal;
   final before = horizontal
-      ? rect.left - viewport.left
-      : rect.top - viewport.top;
-  if (before < 0) return before;
+      ? rect.left < viewport.left
+      : rect.top < viewport.top;
+  if (before) return ScrollPositionAlignmentPolicy.keepVisibleAtStart;
   final past = horizontal
-      ? rect.right - viewport.right
-      : rect.bottom - viewport.bottom;
-  return past > 0 ? past : 0;
+      ? rect.right > viewport.right
+      : rect.bottom > viewport.bottom;
+  if (past) return ScrollPositionAlignmentPolicy.keepVisibleAtEnd;
+  return null;
 }
 
 /// Whether [node] is the node of a [FocusTraversalGroup], whose members are

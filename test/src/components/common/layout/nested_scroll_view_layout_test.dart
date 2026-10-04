@@ -145,6 +145,32 @@ class _KeptAliveState extends State<_KeptAlive>
   }
 }
 
+/// A 200 px header that collapses to a 50 px bar pinned on top.
+class _PinnedHeader extends SliverPersistentHeaderDelegate {
+  const new();
+
+  /// The key of the header's box.
+  static const ValueKey<String> bar = ValueKey('bar');
+
+  @override
+  double get minExtent => 50;
+
+  @override
+  double get maxExtent => _header;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return const SizedBox.expand(key: bar);
+  }
+
+  @override
+  bool shouldRebuild(_PinnedHeader oldDelegate) => false;
+}
+
 void main() {
   group('NestedScrollViewLayout keys', () {
     testWidgets('Down collapses the header 50 px per press and then scrolls '
@@ -399,29 +425,25 @@ void main() {
   });
 
   group('NestedScrollViewLayout reveal', () {
-    /// Expects [node] wholly inside the nested scroll view, and the header
-    /// and the body scrolled to [outer] and [inner].
-    void expectRevealed(
-      WidgetTester tester,
-      FocusNode node, {
-      required double outer,
-      required double inner,
-    }) {
-      expect(node.hasPrimaryFocus, isTrue);
-      expect(_outer(tester).pixels, outer);
-      expect(_inner(tester).pixels, inner);
+    /// Expects [node] wholly inside the part of the scroll view around it
+    /// that the nested scroll view shows: below the header, inside the
+    /// window, and above anything below the scroll view in the body.
+    void expectShown(WidgetTester tester, FocusNode node) {
+      final box =
+          Scrollable.of(node.context!).context.findRenderObject()! as RenderBox;
       final view = tester.getRect(find.byType(NestedScrollViewLayout));
+      final shown = (box.localToGlobal(Offset.zero) & box.size).intersect(view);
       final rect = node.rect;
       expect(
-        rect.top >= view.top - 0.5 && rect.bottom <= view.bottom + 0.5,
+        rect.top >= shown.top - 0.5 && rect.bottom <= shown.bottom + 0.5,
         isTrue,
-        reason: '${node.debugLabel} at $rect, view $view',
+        reason: '${node.debugLabel} at $rect, shown $shown',
       );
     }
 
     testWidgets(
-      'a group arrow reveals the next item by collapsing the header, then '
-      'by scrolling the body past it',
+      'a group arrow reveals the next item whole past either edge of the '
+      'window',
       (tester) async {
         final items = [for (var i = 0; i < 12; i++) _node('item $i')];
         await tester.pumpWidget(
@@ -447,30 +469,33 @@ void main() {
 
         await _key(tester, LogicalKeyboardKey.arrowDown);
 
-        expectRevealed(tester, items[2], outer: 20, inner: 0);
+        expect(items[2].hasPrimaryFocus, isTrue);
+        expectShown(tester, items[2]);
 
-        // Item 8, at 320 to 360, ends past the body's own viewport.
+        // Item 8, at 320 to 360, ends past the body's own 300 px viewport.
         items[7].requestFocus();
         await tester.pump();
 
         await _key(tester, LogicalKeyboardKey.arrowDown);
 
-        expectRevealed(tester, items[8], outer: _header, inner: 360 - 300);
+        expect(items[8].hasPrimaryFocus, isTrue);
+        expectShown(tester, items[8]);
 
-        // The body shows 60 to 360; item 1, at 40 to 80, starts above it.
+        // The body has scrolled past item 1, at 40 to 80.
         items[2].requestFocus();
         await tester.pump();
 
         await _key(tester, LogicalKeyboardKey.arrowUp);
 
-        expectRevealed(tester, items[1], outer: _header, inner: 40);
+        expect(items[1].hasPrimaryFocus, isTrue);
+        expectShown(tester, items[1]);
       },
       variant: _desktop,
     );
 
     testWidgets(
-      'a reorder move reveals the moved item by collapsing the header, then '
-      'by scrolling the body past it',
+      'a reorder move reveals the moved item whole past the window and past '
+      "the body's own viewport",
       (tester) async {
         final nodes = [for (var i = 0; i < 12; i++) _node('item $i')];
         final ids = [for (var i = 0; i < 12; i++) i];
@@ -511,17 +536,19 @@ void main() {
         await _alt(tester, LogicalKeyboardKey.arrowDown);
 
         expect(ids.indexOf(1), 2);
-        expectRevealed(tester, nodes[1], outer: 20, inner: 0);
+        expect(nodes[1].hasPrimaryFocus, isTrue);
+        expectShown(tester, nodes[1]);
 
         // Item 7's next slot, at 320 to 360, ends past the body's own
-        // viewport.
+        // 300 px viewport.
         nodes[7].requestFocus();
         await tester.pump();
 
         await _alt(tester, LogicalKeyboardKey.arrowDown);
 
         expect(ids.indexOf(7), 8);
-        expectRevealed(tester, nodes[7], outer: _header, inner: 360 - 300);
+        expect(nodes[7].hasPrimaryFocus, isTrue);
+        expectShown(tester, nodes[7]);
       },
       variant: _desktop,
     );
@@ -556,27 +583,24 @@ void main() {
       variant: _desktop,
     );
 
-    testWidgets(
-      "Shift+Tab to a row above a list body's start moves only the body",
-      (tester) async {
-        await tester.pumpWidget(_nested(before: _node('before')));
-        // The header has collapsed and the body shows 60 to 360; row 1, at
-        // 40 to 80, starts 20 px above it.
-        _inner(tester).jumpTo(60);
-        await tester.pump();
-        _focusNode('row 2').requestFocus();
-        await tester.pump();
+    testWidgets("Shift+Tab reveals a row above a list body's start whole", (
+      tester,
+    ) async {
+      await tester.pumpWidget(_nested(before: _node('before')));
+      // The header has collapsed and the body shows 60 to 360; row 1, at
+      // 40 to 80, starts 20 px above it.
+      _inner(tester).jumpTo(60);
+      await tester.pump();
+      _focusNode('row 2').requestFocus();
+      await tester.pump();
 
-        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-        await _key(tester, LogicalKeyboardKey.tab);
-        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await _key(tester, LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
 
-        expect(_focused(), 'row 1');
-        expect(_outer(tester).pixels, _header);
-        expect(_inner(tester).pixels, 40);
-      },
-      variant: _desktop,
-    );
+      expect(_focused(), 'row 1');
+      expectShown(tester, _focusNode('row 1'));
+    }, variant: _desktop);
 
     // A 50 px gap below the list, inside the body.
     final gaps = <String, Widget Function(Widget list)>{
@@ -604,20 +628,7 @@ void main() {
           await _key(tester, LogicalKeyboardKey.tab);
 
           expect(_focused(), 'row 2');
-          expect(_outer(tester).pixels, 70);
-          expect(_inner(tester).pixels, 0);
-          final list = tester.getRect(
-            find.descendant(
-              of: find.byType(ListViewLayout),
-              matching: find.byType(Scrollable),
-            ),
-          );
-          final row = _focusNode('row 2').rect;
-          expect(
-            row.top >= list.top - 0.5 && row.bottom <= list.bottom + 0.5,
-            isTrue,
-            reason: 'row at $row, list $list',
-          );
+          expectShown(tester, _focusNode('row 2'));
         },
         variant: _desktop,
       );
@@ -659,7 +670,7 @@ void main() {
       return tabs;
     }
 
-    for (final (index, label) in const [(1, 'b'), (2, 'c')]) {
+    for (final (index, label) in const [(0, 'a'), (1, 'b'), (2, 'c')]) {
       testWidgets(
         'Tab to a visible row of tab $index in a tab view body moves nothing',
         (tester) async {
@@ -680,19 +691,22 @@ void main() {
     }
 
     testWidgets(
-      'a second reveal in a tab view body, after the first moved the '
-      'header, moves nothing',
+      'a second reveal in a tab view body before the next layout moves '
+      'nothing',
       (tester) async {
         await tester.pumpWidget(tabBody(tabsAt(0)));
         // Row 2, at 80 to 120, ends 20 px below the list's 100 px.
         final row = _focusNode('a 2');
 
         revealInViewports(row);
+        final outer = _outer(tester).pixels;
+        final inner = _inner(tester).pixels;
         revealInViewports(row);
-        await tester.pump();
 
-        expect(_outer(tester).pixels, 20);
-        expect(_inner(tester).pixels, 0);
+        expect(_outer(tester).pixels, outer);
+        expect(_inner(tester).pixels, inner);
+        await tester.pump();
+        expectShown(tester, row);
       },
       variant: _desktop,
     );
@@ -709,25 +723,13 @@ void main() {
         await _key(tester, LogicalKeyboardKey.tab);
 
         expect(_focused(), 'b 2');
-        expect(_outer(tester).pixels, 70);
-        expect(_inner(tester).pixels, 0);
-        final list = tester.getRect(
-          find
-              .ancestor(of: _row('b 2'), matching: find.byType(Scrollable))
-              .first,
-        );
-        final row = _focusNode('b 2').rect;
-        expect(
-          row.top >= list.top - 0.5 && row.bottom <= list.bottom + 0.5,
-          isTrue,
-          reason: 'row at $row, list $list',
-        );
+        expectShown(tester, _focusNode('b 2'));
       },
       variant: _desktop,
     );
 
     testWidgets(
-      'a reorder move that drops focus reveals the moved item once',
+      'a reorder move that drops focus reveals the moved item whole',
       (tester) async {
         final ids = [for (var i = 0; i < 12; i++) i];
         // Each move rebuilds every item under a new key, so focus leaves
@@ -772,8 +774,55 @@ void main() {
 
         expect(ids.indexOf(1), 2);
         expect(_focused(), 'item 1');
-        expect(_outer(tester).pixels, 20);
-        expect(_inner(tester).pixels, 0);
+        expectShown(tester, _focusNode('item 1'));
+      },
+      variant: _desktop,
+    );
+
+    testWidgets(
+      '(pin) a group arrow can leave an item under a pinned header, as '
+      'FR-01 E02 documents',
+      (tester) async {
+        final items = [for (var i = 0; i < 20; i++) _node('item $i')];
+        await tester.pumpWidget(
+          _keyboardHost(
+            NestedScrollViewLayout(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => const [
+                SliverPersistentHeader(pinned: true, delegate: _PinnedHeader()),
+              ],
+              body: ColumnLayout(
+                scroll: const StratumScroll(),
+                focusGroup: const StratumFocusGroup(),
+                children: [
+                  for (final item in items)
+                    Focus(
+                      focusNode: item,
+                      child: const SizedBox(width: 200, height: 40),
+                    ),
+                ],
+              ),
+            ),
+            before: _node('before'),
+          ),
+        );
+        // The header has collapsed to its 50 px bar, which the body scrolls
+        // under; the body shows 220 on, and item 5, at 200 to 240, starts
+        // 20 px above it.
+        _inner(tester).jumpTo(220);
+        await tester.pump();
+        items[6].requestFocus();
+        await tester.pump();
+
+        await _key(tester, LogicalKeyboardKey.arrowUp);
+
+        expect(items[5].hasPrimaryFocus, isTrue);
+        final bar = tester.getRect(find.byKey(_PinnedHeader.bar));
+        final rect = items[5].rect;
+        expect(
+          rect.top >= bar.top - 0.5 && rect.bottom <= bar.bottom + 0.5,
+          isTrue,
+          reason: 'item 5 at $rect, bar $bar',
+        );
       },
       variant: _desktop,
     );
@@ -781,7 +830,9 @@ void main() {
 }
 
 /// The node labeled [label].
-FocusNode _focusNode(String label) => FocusManager.instance.rootScope
+FocusNode _focusNode(String label) => FocusManager
+    .instance
+    .rootScope
     .descendants
     .firstWhere((node) => node.debugLabel == label);
 
