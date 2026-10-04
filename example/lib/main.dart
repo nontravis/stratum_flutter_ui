@@ -4,8 +4,12 @@ import 'package:flutter/material.dart';
 // barrel directly.
 // ignore: implementation_imports
 import 'package:stratum_ui/src/components/common/web_view/web_view.dart';
+import 'package:stratum_ui_example/font_licenses.dart';
 
-void main() => runApp(const StratumWebViewExampleApp());
+void main() {
+  registerGoogleFontLicenses();
+  runApp(const StratumWebViewExampleApp());
+}
 
 class StratumWebViewExampleApp extends StatefulWidget {
   const StratumWebViewExampleApp({super.key});

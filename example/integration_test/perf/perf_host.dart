@@ -19,8 +19,12 @@ const settleTime = Duration(milliseconds: 250);
 
 late StratumThemeSet _themes;
 
-/// Reads the package default theme for [perfHost]; call it in `setUpAll`.
+/// Reads the package default theme for [perfHost] and turns Google Fonts
+/// runtime fetching off, so every run draws the theme's Google fonts from
+/// the files under `assets/google_fonts/` and no run waits on the network;
+/// call it in `setUpAll`.
 Future<void> loadPerfTheme() async {
+  GoogleFonts.config.allowRuntimeFetching = false;
   final text = await rootBundle.loadString(
     'packages/stratum_ui/assets/themes/default/theme.yaml',
   );

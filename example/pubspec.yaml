@@ -64,6 +64,16 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # The default theme's Google fonts at the weights its yaml declares, named
+  # as google_fonts matches them (Family-Weight.ttf), each folder with the
+  # family's OFL text. Flutter does not recurse, so each folder is listed.
+  assets:
+    - assets/google_fonts/inter/
+    - assets/google_fonts/geist/
+    - assets/google_fonts/geistmono/
+    - assets/google_fonts/robotomono/
+    - assets/google_fonts/kanit/
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

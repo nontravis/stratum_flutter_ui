@@ -3,9 +3,11 @@
 //   flutter run -d chrome -t lib/focus_demo.dart
 //   flutter run -d macos -t lib/focus_demo.dart
 import 'package:stratum_ui/stratum_ui.dart';
+import 'package:stratum_ui_example/font_licenses.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerGoogleFontLicenses();
   runApp(FocusDemoApp(themes: await loadFocusDemoTheme()));
 }
 

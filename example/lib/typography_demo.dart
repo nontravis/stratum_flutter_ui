@@ -6,9 +6,11 @@
 //
 // ignore_for_file: implementation_imports
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui_example/font_licenses.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerGoogleFontLicenses();
   runApp(TypographyDemoApp(themes: await loadDemoTheme()));
 }
 
