@@ -1,10 +1,39 @@
-// Frozen by tool/perf_freeze.dart from d107dcb:lib/src/components/common/ink_well.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from ff3c890:lib/src/components/common/ink_well.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
-// ignore_for_file: type=lint, unused_import
+// ignore_for_file: type=lint, unused_import, unnecessary_import
 import 'baseline.dart';
 
 import 'package:stratum_ui/src/src.dart';
+
+/// Whether a [BaselineStratumInkWell] with these settings takes focus: not
+/// [disabled], [canRequestFocus] true, a [focusType] other than
+/// [FocusType.none], and an activation callback ([onTap], [onDoubleTap],
+/// [onLongPress], [onSecondaryTap]) or a non-empty [shortcuts] map.
+///
+/// The one tap-surface focus rule: [BaselineStratumInkWell] follows it, and a
+/// scrolling `BaselineBoxLayout` gives up its own Tab stop exactly when it holds.
+/// Not exported: `common/common.dart` hides it, and `box_layout.dart`
+/// imports this file by path.
+bool tapSurfaceTakesFocus({
+  required bool disabled,
+  required bool canRequestFocus,
+  required FocusType focusType,
+  required GestureTapCallback? onTap,
+  required GestureTapCallback? onDoubleTap,
+  required GestureLongPressCallback? onLongPress,
+  required GestureTapCallback? onSecondaryTap,
+  required Map<ShortcutActivator, VoidCallback> shortcuts,
+}) {
+  return !disabled &&
+      canRequestFocus &&
+      focusType != FocusType.none &&
+      (onTap != null ||
+          onDoubleTap != null ||
+          onLongPress != null ||
+          onSecondaryTap != null ||
+          shortcuts.isNotEmpty);
+}
 
 /// The tap surface of the design system.
 ///
@@ -163,7 +192,24 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
   @override
   bool get wantKeepAlive => _focusNode.hasFocus;
 
-  bool get _canFocus =>
+  bool get _canFocus => tapSurfaceTakesFocus(
+    disabled: widget.disabled,
+    canRequestFocus: widget.canRequestFocus,
+    focusType: widget.focusType,
+    onTap: widget.onTap,
+    onDoubleTap: widget.onDoubleTap,
+    onLongPress: widget.onLongPress,
+    onSecondaryTap: widget.onSecondaryTap,
+    shortcuts: widget.shortcuts,
+  );
+
+  /// Whether [BaselineStratumInkWell.autofocus] may request focus: not
+  /// [BaselineStratumInkWell.disabled], a [BaselineStratumInkWell.focusType] other than
+  /// [FocusType.none], and [BaselineStratumInkWell.canRequestFocus] true. Looser
+  /// than [_canFocus]: it skips the activation-callback check, because a
+  /// directional [NavigationMode] honors autofocus on its own, ignoring
+  /// that check either way (`material/ink_well.dart:1292-1311`, `:1333-1336`).
+  bool get _autofocusEligible =>
       !widget.disabled &&
       widget.focusType != FocusType.none &&
       widget.canRequestFocus;
@@ -310,7 +356,7 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
           (disabled ? SystemMouseCursors.forbidden : null),
       focusNode: shortcutOnly ? null : _focusNode,
       canRequestFocus: !shortcutOnly && canFocus,
-      autofocus: !shortcutOnly && widget.autofocus && canFocus,
+      autofocus: !shortcutOnly && widget.autofocus && _autofocusEligible,
       statesController: _statesController,
       enableFeedback: widget.enableFeedback,
       excludeFromSemantics: widget.excludeFromSemantics,
@@ -332,7 +378,7 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
       result = Focus(
         focusNode: _focusNode,
         canRequestFocus: canFocus,
-        autofocus: widget.autofocus && canFocus,
+        autofocus: widget.autofocus && _autofocusEligible,
         onFocusChange: widget.onFocusChange,
         child: result,
       );

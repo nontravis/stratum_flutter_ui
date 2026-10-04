@@ -1,11 +1,12 @@
-// Frozen by tool/perf_freeze.dart from d107dcb:lib/src/components/common/layout/box_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from ff3c890:lib/src/components/common/layout/box_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
-// ignore_for_file: type=lint, unused_import
+// ignore_for_file: type=lint, unused_import, unnecessary_import
 import 'baseline.dart';
 
 import 'dart:math' as math;
 
+import 'ink_well.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -194,7 +195,18 @@ abstract class BaselineBoxLayout extends StatelessWidget {
   BaselineStyledBoxBuilder _focusBuilder(StratumScroll scroll) {
     final inner = _boxBuilder;
     final interaction = this.interaction;
-    final surfaceFocus = interaction != null && _surfaceTakesFocus(interaction);
+    final surfaceFocus =
+        interaction != null &&
+        tapSurfaceTakesFocus(
+          disabled: interaction.disabled,
+          canRequestFocus: interaction.canRequestFocus,
+          focusType: interaction.focusType,
+          onTap: interaction.onTap,
+          onDoubleTap: interaction.onDoubleTap,
+          onLongPress: interaction.onLongPress,
+          onSecondaryTap: interaction.onSecondaryTap,
+          shortcuts: interaction.shortcuts,
+        );
     return (style, box) => ScrollFocus(
       focusable: true,
       axis: scroll.direction ?? scrollDirection,
@@ -205,18 +217,6 @@ abstract class BaselineBoxLayout extends StatelessWidget {
       child: inner == null ? box : inner(style, box),
     );
   }
-
-  /// Whether the [BaselineStratumInkWell] built from [interaction] can take focus:
-  /// enabled, focusable, and with an activation callback or a shortcut.
-  static bool _surfaceTakesFocus(StratumInteraction interaction) =>
-      !interaction.disabled &&
-      interaction.canRequestFocus &&
-      interaction.focusType != FocusType.none &&
-      (interaction.onTap != null ||
-          interaction.onDoubleTap != null ||
-          interaction.onLongPress != null ||
-          interaction.onSecondaryTap != null ||
-          interaction.shortcuts.isNotEmpty);
 
   static bool _needsTapSurface(StratumInteraction interaction) =>
       interaction.onTap != null ||
