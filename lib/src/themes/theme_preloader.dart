@@ -60,18 +60,14 @@ class _StratumThemePreloaderState extends State<StratumThemePreloader> {
   }
 
   Future<void> _preload(AssetBundle bundle) async {
+    StratumThemeController controller;
     try {
-      final controller = await StratumThemeController.preload(
+      controller = await StratumThemeController.preload(
         initialThemeId: widget.initialThemeId,
         onThemeChanged: widget.onThemeChanged,
         googleFontsTimeout: widget.googleFontsTimeout,
         bundle: bundle,
       );
-      if (!mounted) {
-        controller.dispose();
-        return;
-      }
-      setState(() => _controller = controller);
     } on Object catch (error, stack) {
       if (!mounted) return;
       if (widget.error == null) {
@@ -85,7 +81,13 @@ class _StratumThemePreloaderState extends State<StratumThemePreloader> {
         );
       }
       setState(() => _error = error);
+      return;
     }
+    if (!mounted) {
+      controller.dispose();
+      return;
+    }
+    setState(() => _controller = controller);
   }
 
   @override

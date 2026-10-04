@@ -36,7 +36,11 @@ class StratumThemeController extends ChangeNotifier {
     this._appDefault,
     this._googleFontsTimeout,
     this._onThemeChanged,
-  );
+  ) {
+    if (kFlutterMemoryAllocationsEnabled) {
+      ChangeNotifier.maybeDispatchObjectCreation(this);
+    }
+  }
 
   /// The parse id of the package default theme file; the app's own
   /// `default` file keeps the id `default`.

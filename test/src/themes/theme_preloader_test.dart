@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 
@@ -31,6 +32,14 @@ Widget _preloader(
 );
 
 void main() {
+  // Scoped to this file: `flutter test` runs each test file in its own
+  // process, so this never turns leak tracking on for the rest of the
+  // suite. Ignored by default, since `StratumThemeController.preload`
+  // builds a controller before a broken start theme can still throw past
+  // it (a separate, pre-existing gap); only the one test below that asks
+  // for `withTrackedAll()` is checked.
+  LeakTesting.enable();
+  LeakTesting.settings = LeakTesting.settings.withIgnoredAll();
   setUp(ThemeFontLoader.reset);
 
   testWidgets('us01/fr03/e03: the loading screen shows until the start '
@@ -137,15 +146,22 @@ void main() {
     expect(() => controller.addListener(() {}), throwsFlutterError);
   });
 
-  testWidgets('unmounted before preload completes', (tester) async {
-    final bundle = FakeThemeBundle();
-    final release = bundle.hold[packageDefaultKey] = Completer<void>();
-    await tester.pumpWidget(_preloader(bundle));
+  testWidgets(
+    'unmounted before preload completes',
+    experimentalLeakTesting: LeakTesting.settings.withTrackedAll(),
+    (tester) async {
+      final bundle = FakeThemeBundle();
+      final release = bundle.hold[packageDefaultKey] = Completer<void>();
+      await tester.pumpWidget(_preloader(bundle));
 
-    await tester.pumpWidget(const SizedBox());
-    release.complete();
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+      release.complete();
+      await tester.pumpAndSettle();
 
-    expect(tester.takeException(), isNull);
-  });
+      // No lifecycle error (the mounted guard caught it in time) and no
+      // leaked controller (dispose ran): leak tracking fails this test if
+      // either is ever removed.
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
