@@ -53,27 +53,26 @@ scroll it, guarded so a text field inside keeps its own keys.
   platform asks for reduced motion or the level has no duration; focus moves to the new page's first Tab-order node.
   Buttons: the layout draws no previous or next buttons, and on desktop a mouse without a trackpad cannot swipe, so
   the app adds previous and next buttons around the view (WCAG 2.5.1) until a component in the package provides
-  them. Like the keys, the buttons jump when motion is reduced: `jumpToPage` when
-  `MediaQuery.disableAnimationsOf(context)` or the platform's `reduceMotion` is true, else `previousPage` or
-  `nextPage` over 300 ms.
+  them. Like the keys, the buttons jump when motion is reduced or the theme's `slow` level has no duration, else
+  `previousPage` or `nextPage` over that level's duration and curve.
 
   ```dart
   void turn(BuildContext context, {required bool forward}) {
+    final slow = StratumTheme.of(context).animation.slow;
     final reduced =
         MediaQuery.disableAnimationsOf(context) ||
-        View.of(context).platformDispatcher.accessibilityFeatures.reduceMotion;
+        View.of(context).platformDispatcher.accessibilityFeatures.reduceMotion ||
+        slow.duration == null ||
+        slow.duration == Duration.zero;
     if (reduced) {
       final page = (pages.page ?? 0).round() + (forward ? 1 : -1);
       pages.jumpToPage(page.clamp(0, slides.length - 1));
     } else if (forward) {
-      pages.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOutSine,
-      );
+      pages.nextPage(duration: slow.duration!, curve: slow.curve ?? Curves.easeInOutSine);
     } else {
       pages.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOutSine,
+        duration: slow.duration!,
+        curve: slow.curve ?? Curves.easeInOutSine,
       );
     }
   }
