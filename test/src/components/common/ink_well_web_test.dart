@@ -371,6 +371,73 @@ void main() {
     );
 
     testWidgets(
+      'us04/fr02/e07: a header button inside a header button splits at each '
+      'surface',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        const outerKey = Key('outer');
+        const innerKey = Key('inner');
+        await tester.pumpWidget(
+          webThemedHost(
+            const StratumInkWell(
+              key: outerKey,
+              onTap: _noop,
+              semantics: SemanticsProperties(header: true),
+              child: StratumInkWell(
+                key: innerKey,
+                onTap: _noop,
+                semantics: SemanticsProperties(
+                  headingLevel: 3,
+                  label: 'Recent',
+                ),
+                child: _box,
+              ),
+            ),
+          ),
+        );
+
+        final outerHeading = tester.getSemantics(find.byKey(outerKey));
+        expect(outerHeading.getSemanticsData().headingLevel, 2);
+        expect(
+          outerHeading,
+          isSemantics(
+            label: '',
+            isHeader: false,
+            isButton: false,
+            hasTapAction: false,
+          ),
+        );
+        final outerButton = _onlyChild(outerHeading);
+        expect(outerButton.getSemanticsData().headingLevel, 0);
+        expect(
+          outerButton,
+          isSemantics(
+            label: '',
+            isHeader: false,
+            isButton: true,
+            hasTapAction: true,
+          ),
+        );
+        final innerHeading = _onlyChild(outerButton);
+        expect(innerHeading.getSemanticsData().headingLevel, 3);
+        final innerButton = _onlyChild(innerHeading);
+        expect(innerButton.getSemanticsData().headingLevel, 0);
+        expect(
+          innerButton,
+          isSemantics(
+            label: 'Recent',
+            isHeader: false,
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true,
+          ),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
       'us04/fr02/e07: adding a header and changing its level keeps the '
       'child State',
       (tester) async {
