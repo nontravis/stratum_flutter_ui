@@ -157,6 +157,29 @@ void main() {
         expect(recorder.errors.single.type, StratumWebViewErrorType.http);
         expect(recorder.errors.single.code, HttpStatus.notFound);
         expect(recorder.errors.single.url, target);
+        expect(recorder.kindsSince(0), ['started', 'error', 'finished']);
+      },
+    );
+
+    testWidgets(
+      'us08/s9, us08/fr01/e05: a 302 then 200 starts once, finishes once, '
+      'and reports no error',
+      (tester) async {
+        // CO-01-02 US-01 FR-01 E05 of the package docs: Android's finish for
+        // the redirect target before it starts never reaches the app.
+        final page = server.page('/redirect-ok');
+        final recorder = await _showPage(tester, page);
+        final finished = await _pumpUntil(
+          tester,
+          () => recorder.finishes.isNotEmpty,
+        );
+        await tester.pump(_settle);
+        recorder.logOrder('302 then 200');
+        await _checkpoint(binding, tester, 'b_redirect_ok');
+        expect(finished, isTrue, reason: 'no onPageFinished for $page');
+        expect(recorder.kindsSince(0), ['started', 'finished']);
+        // The /ok page's missing image answers 404: FR-02 E02 drops it.
+        expect(recorder.errors, isEmpty);
       },
     );
 
@@ -176,6 +199,154 @@ void main() {
       expect(recorder.errors, hasLength(1));
       expect(recorder.errors.single.type, StratumWebViewErrorType.network);
     });
+
+    testWidgets(
+      'us08/s10, us08/fr01/e05: going back to a no-store page that now '
+      'answers 404 reports start, one http error, finish',
+      (tester) async {
+        // CO-01-02 US-01 FR-02 E08 and US-04 FR-01 E07 of the package docs.
+        final controller = StratumWebViewController();
+        final flip = server.page('/flip-nostore', query: 'case=back');
+        final recorder = await _showPage(tester, flip, controller: controller);
+        final shown = await _pumpUntil(
+          tester,
+          () => recorder.finishes.isNotEmpty,
+        );
+        await tester.pump(_settle);
+        final left =
+            shown &&
+            await _finishAfter(
+                  tester,
+                  recorder,
+                  () => controller.loadUrl(server.page('/ok')),
+                ) !=
+                null;
+        final mark = left
+            ? await _finishAfter(tester, recorder, controller.goBack)
+            : null;
+        recorder.logOrder('back to 404');
+        await _checkpoint(binding, tester, 'b_back');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(shown, isTrue, reason: 'no onPageFinished for $flip');
+        expect(left, isTrue, reason: 'the second page never finished');
+        expect(mark, isNotNull, reason: 'no onPageFinished after goBack');
+        expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
+        expect(recorder.errors, hasLength(1));
+        expect(recorder.errors.single.type, StratumWebViewErrorType.http);
+        expect(recorder.errors.single.code, HttpStatus.notFound);
+        expect(recorder.errors.single.url, flip);
+      },
+    );
+
+    testWidgets(
+      'us08/s10, us08/fr01/e05: going forward to an entry that answered 404 '
+      'reports start, one http error, finish',
+      (tester) async {
+        // CO-01-02 US-01 FR-02 E08: Android replays the 404 from its HTTP
+        // cache without a request.
+        final controller = StratumWebViewController();
+        final first = server.page('/ok');
+        final missing = server.page('/missing', query: 'case=forward');
+        final recorder = await _showPage(tester, first, controller: controller);
+        final shown = await _pumpUntil(
+          tester,
+          () => recorder.finishes.isNotEmpty,
+        );
+        await tester.pump(_settle);
+        final failed =
+            shown &&
+            await _finishAfter(
+                  tester,
+                  recorder,
+                  () => controller.loadUrl(missing),
+                ) !=
+                null;
+        final back =
+            failed &&
+            await _finishAfter(tester, recorder, controller.goBack) != null;
+        final mark = back
+            ? await _finishAfter(tester, recorder, controller.goForward)
+            : null;
+        recorder.logOrder('forward to 404');
+        await _checkpoint(binding, tester, 'b_forward');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(shown, isTrue, reason: 'no onPageFinished for $first');
+        expect(failed, isTrue, reason: 'no onPageFinished for $missing');
+        expect(back, isTrue, reason: 'no onPageFinished after goBack');
+        expect(mark, isNotNull, reason: 'no onPageFinished after goForward');
+        expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
+        // One error for the load of the 404 entry, one for the move forward.
+        expect(recorder.errors, hasLength(2));
+        expect(recorder.errors.last.type, StratumWebViewErrorType.http);
+        expect(recorder.errors.last.code, HttpStatus.notFound);
+        expect(recorder.errors.last.url, missing);
+      },
+    );
+
+    testWidgets(
+      'us08/s10, us08/fr01/e05: reloading a page that now answers 404 '
+      'reports start, one http error, finish',
+      (tester) async {
+        // CO-01-02 US-01 FR-02 E08 and US-04 FR-01 E07 of the package docs.
+        final controller = StratumWebViewController();
+        final flip = server.page('/flip', query: 'case=reload');
+        final recorder = await _showPage(tester, flip, controller: controller);
+        final shown = await _pumpUntil(
+          tester,
+          () => recorder.finishes.isNotEmpty,
+        );
+        await tester.pump(_settle);
+        final mark = shown
+            ? await _finishAfter(tester, recorder, controller.reload)
+            : null;
+        recorder.logOrder('reload to 404');
+        await _checkpoint(binding, tester, 'b_reload');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(shown, isTrue, reason: 'no onPageFinished for $flip');
+        expect(mark, isNotNull, reason: 'no onPageFinished after reload');
+        expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
+        expect(recorder.errors, hasLength(1));
+        expect(recorder.errors.single.type, StratumWebViewErrorType.http);
+        expect(recorder.errors.single.code, HttpStatus.notFound);
+        expect(recorder.errors.single.url, flip);
+      },
+    );
+
+    testWidgets(
+      'us08/s10, us08/fr01/e05: reloading after a 302 then 404 reports '
+      'start, one http error naming the target, finish',
+      (tester) async {
+        // CO-01-02 US-01 FR-02 E07 and E08: Android reloads the redirect
+        // target, never the original address.
+        final controller = StratumWebViewController();
+        final page = server.page('/redirect');
+        final target = server.page('/gone');
+        final recorder = await _showPage(tester, page, controller: controller);
+        final failed = await _pumpUntil(
+          tester,
+          () => recorder.errors.isNotEmpty,
+        );
+        await tester.pump(_settle);
+        final mark = failed
+            ? await _finishAfter(tester, recorder, controller.reload)
+            : null;
+        recorder.logOrder('reload after 302 then 404');
+        await _checkpoint(binding, tester, 'b_reload_redirect');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(failed, isTrue, reason: 'no onError for $page');
+        expect(mark, isNotNull, reason: 'no onPageFinished after reload');
+        expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
+        // One error for the redirected load, one for the reload.
+        expect(recorder.errors, hasLength(2));
+        expect(recorder.errors.last.type, StratumWebViewErrorType.http);
+        expect(recorder.errors.last.code, HttpStatus.notFound);
+        expect(recorder.errors.last.url, target);
+      },
+    );
 
     testWidgets('us08/s3, us08/fr01: a page on the allowlist and the app trade '
         'messages both ways', (tester) async {
@@ -254,6 +425,9 @@ class _PageServer {
 
   final HttpServer _server;
 
+  /// Addresses of the flip pages that have answered once.
+  final _answered = <String>{};
+
   static Future<_PageServer> start() async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final pages = _PageServer._(server);
@@ -264,8 +438,9 @@ class _PageServer {
   /// The origin the bridge case puts on the allowlist.
   Uri get origin => Uri.parse('http://127.0.0.1:${_server.port}');
 
-  /// The address of [path] on this server.
-  Uri page(String path) => origin.replace(path: path);
+  /// The address of [path] on this server, with [query] when given.
+  Uri page(String path, {String? query}) =>
+      origin.replace(path: path, query: query);
 
   void _answer(HttpRequest request) {
     final response = request.response;
@@ -281,6 +456,24 @@ class _PageServer {
         response
           ..statusCode = HttpStatus.found
           ..headers.set(HttpHeaders.locationHeader, page('/gone').toString());
+      case '/redirect-ok':
+        response
+          ..statusCode = HttpStatus.found
+          ..headers.set(HttpHeaders.locationHeader, page('/ok').toString());
+      case '/flip' || '/flip-nostore':
+        // 200 on the first request of each address, 404 after it: the back
+        // and reload cases (CO-01-02 US-01 FR-02 E08). The no-store variant
+        // keeps the page out of the back-forward cache, so going back
+        // requests it again.
+        if (request.uri.path == '/flip-nostore') {
+          response.headers.set(HttpHeaders.cacheControlHeader, 'no-store');
+        }
+        final first = _answered.add(request.uri.toString());
+        _writePage(
+          response,
+          first ? HttpStatus.ok : HttpStatus.notFound,
+          first ? '<h1>Flip</h1>' : '<h1>Not found</h1>',
+        );
       case '/bridge':
         _writePage(response, HttpStatus.ok, _bridgeBody);
       default:
@@ -356,10 +549,21 @@ class _Recorder {
     _events.add('message ${message.data}');
   }
 
-  /// Prints the callback order of [caseName]; no test asserts it (FR-01 E05).
+  /// Prints the callback order of [caseName]; the six cases of FR-01 E05
+  /// also assert it.
   void logOrder(String caseName) => debugPrint(
     'ORDER ${defaultTargetPlatform.name} $caseName: ${_events.join(' | ')}',
   );
+
+  /// The position the next callback takes; [kindsSince] reads from it.
+  int get mark => _events.length;
+
+  /// The kind of each page callback since [mark]: `started`, `error`, or
+  /// `finished`; messages are left out.
+  List<String> kindsSince(int mark) => [
+    for (final event in _events.skip(mark))
+      if (!event.startsWith('message ')) event.split(' ').first,
+  ];
 }
 
 /// Shows one StratumWebView on [page] that reports into a new recorder; the
@@ -387,4 +591,22 @@ Future<_Recorder> _showPage(
     ),
   );
   return recorder;
+}
+
+/// Runs [action], then pumps until a page finish follows it and listens
+/// [_settle] longer; returns the mark taken right before [action], or
+/// `null` when no finish came.
+Future<int?> _finishAfter(
+  WidgetTester tester,
+  _Recorder recorder,
+  Future<void> Function() action,
+) async {
+  final mark = recorder.mark;
+  await action();
+  final finished = await _pumpUntil(
+    tester,
+    () => recorder.kindsSince(mark).contains('finished'),
+  );
+  await tester.pump(_settle);
+  return finished ? mark : null;
 }
