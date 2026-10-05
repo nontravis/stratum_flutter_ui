@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart' show RenderSemanticsAnnotations;
 import 'package:stratum_ui/src/src.dart';
 
 /// Whether a [StratumInkWell] with these settings takes focus: not
@@ -59,6 +60,18 @@ int? tapSurfaceHeadingLevel({
   if (level != null) return level;
   return semantics.header == true ? 2 : null;
 }
+
+/// A [Semantics.fromProperties] whose node carries every field of
+/// [properties] but `header` and `headingLevel`.
+///
+/// [StratumInkWell] builds the caller's node through it when
+/// [tapSurfaceHeadingLevel] gives a level, so that on web the button node
+/// under the heading node renders as a button. Not exported:
+/// `common/common.dart` hides it.
+Widget semanticsWithoutHeading({
+  required SemanticsProperties properties,
+  required Widget child,
+}) => _SemanticsWithoutHeading(properties: properties, child: child);
 
 /// The tap surface of the design system.
 ///
@@ -545,6 +558,71 @@ bool _setsRole(SemanticsProperties? properties) =>
         properties.mixed != null ||
         properties.toggled != null ||
         (properties.role != null && properties.role != SemanticsRole.none));
+
+/// A [Semantics] whose node carries neither `header` nor `headingLevel`.
+///
+/// [SemanticsProperties] has no `copyWith`, so the render object clears the
+/// two fields after the inherited configuration copies them in; any field
+/// a later Flutter adds passes through unchanged.
+class _SemanticsWithoutHeading extends Semantics {
+  const new({required super.properties, super.child}) : super.fromProperties();
+
+  @override
+  RenderSemanticsAnnotations createRenderObject(BuildContext context) {
+    return _RenderSemanticsWithoutHeading(
+      container: container,
+      explicitChildNodes: explicitChildNodes,
+      excludeSemantics: excludeSemantics,
+      blockUserActions: blockUserActions,
+      properties: properties,
+      localeForSubtree: localeForSubtree,
+      textDirection: _textDirection(context),
+    );
+  }
+
+  /// The direction [properties] sets, else the ambient one when
+  /// [properties] carries text: the rule of `_getTextDirection` in
+  /// Flutter's `widgets/basic.dart`, which is private to that library. The
+  /// inherited `updateRenderObject` applies that rule itself.
+  TextDirection? _textDirection(BuildContext context) {
+    final direction = properties.textDirection;
+    if (direction != null) return direction;
+    final containsText =
+        properties.label != null ||
+        properties.attributedLabel != null ||
+        properties.value != null ||
+        properties.attributedValue != null ||
+        properties.increasedValue != null ||
+        properties.attributedIncreasedValue != null ||
+        properties.decreasedValue != null ||
+        properties.attributedDecreasedValue != null ||
+        properties.hint != null ||
+        properties.attributedHint != null ||
+        properties.tooltip != null;
+    return containsText ? Directionality.maybeOf(context) : null;
+  }
+}
+
+/// Clears `header` and `headingLevel` after the inherited configuration.
+class _RenderSemanticsWithoutHeading extends RenderSemanticsAnnotations {
+  new({
+    required super.properties,
+    super.container,
+    super.explicitChildNodes,
+    super.excludeSemantics,
+    super.blockUserActions,
+    super.localeForSubtree,
+    super.textDirection,
+  });
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    config
+      ..isHeader = false
+      ..headingLevel = 0;
+  }
+}
 
 /// Paints the hover and press overlay over [child] from [states].
 ///

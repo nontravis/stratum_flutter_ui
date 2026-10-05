@@ -1,6 +1,7 @@
 export 'base/base.dart';
 export 'in_app_update.dart';
-export 'ink_well.dart' hide tapSurfaceHeadingLevel, tapSurfaceTakesFocus;
+export 'ink_well.dart'
+    hide semanticsWithoutHeading, tapSurfaceHeadingLevel, tapSurfaceTakesFocus;
 export 'layout/layout.dart';
 export 'model/model.dart';
 export 'page/page.dart';

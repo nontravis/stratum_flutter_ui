@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/ink_well.dart'
-    show tapSurfaceHeadingLevel;
+    show semanticsWithoutHeading, tapSurfaceHeadingLevel;
 import 'package:stratum_ui/src/src.dart';
 
 import 'fakes/fake_stratum_theme.dart';
@@ -1286,6 +1286,135 @@ void main() {
         ),
         isNull,
       );
+    });
+  });
+
+  group('us04/fr02, s03/inv8: semanticsWithoutHeading', () {
+    /// A caller semantics with many fields set besides `header` and
+    /// `headingLevel`, so the tripwire sees any field the subclass drops.
+    SemanticsProperties properties({
+      bool? header,
+      int? headingLevel,
+      TextDirection? textDirection = TextDirection.ltr,
+    }) => SemanticsProperties(
+      header: header,
+      headingLevel: headingLevel,
+      textDirection: textDirection,
+      label: 'Recent',
+      value: '3 new',
+      hint: 'Opens the list',
+      tooltip: 'Recent items',
+      identifier: 'recent',
+      enabled: true,
+      selected: false,
+      focused: true,
+      image: true,
+      liveRegion: true,
+      onTap: _noop,
+      onLongPress: _noop,
+    );
+
+    /// Pumps [node] under one container node and returns that node's data.
+    Future<SemanticsData> dataOf(
+      WidgetTester tester,
+      Widget node, {
+      TextDirection direction = TextDirection.ltr,
+    }) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: direction,
+          child: Center(child: Semantics(container: true, child: node)),
+        ),
+      );
+      return tester.getSemantics(find.byWidget(node)).getSemanticsData();
+    }
+
+    testWidgets(
+      'us04/fr02/e07: drops header and headingLevel and keeps every other '
+      'field',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final plain = await dataOf(
+          tester,
+          Semantics.fromProperties(
+            properties: properties(header: true, headingLevel: 3),
+            child: _box,
+          ),
+        );
+        final stripped = await dataOf(
+          tester,
+          semanticsWithoutHeading(
+            properties: properties(header: true, headingLevel: 3),
+            child: _box,
+          ),
+        );
+        final expected = await dataOf(
+          tester,
+          Semantics.fromProperties(properties: properties(), child: _box),
+        );
+
+        expect(plain.flagsCollection.isHeader, isTrue);
+        expect(plain.headingLevel, 3);
+        expect(stripped.flagsCollection.isHeader, isFalse);
+        expect(stripped.headingLevel, 0);
+        expect(stripped, expected);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('us04/fr02/e07: takes the ambient direction like Semantics', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final stripped = await dataOf(
+        tester,
+        semanticsWithoutHeading(
+          properties: properties(
+            header: true,
+            headingLevel: 3,
+            textDirection: null,
+          ),
+          child: _box,
+        ),
+        direction: TextDirection.rtl,
+      );
+      final expected = await dataOf(
+        tester,
+        Semantics.fromProperties(
+          properties: properties(textDirection: null),
+          child: _box,
+        ),
+        direction: TextDirection.rtl,
+      );
+
+      expect(stripped.textDirection, TextDirection.rtl);
+      expect(stripped, expected);
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02/e07: an update keeps header and headingLevel off', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await dataOf(
+        tester,
+        semanticsWithoutHeading(
+          properties: const SemanticsProperties(header: true, label: 'Old'),
+          child: _box,
+        ),
+      );
+      final updated = await dataOf(
+        tester,
+        semanticsWithoutHeading(
+          properties: const SemanticsProperties(headingLevel: 4, label: 'New'),
+          child: _box,
+        ),
+      );
+
+      expect(updated.label, 'New');
+      expect(updated.flagsCollection.isHeader, isFalse);
+      expect(updated.headingLevel, 0);
+      handle.dispose();
     });
   });
 
