@@ -188,7 +188,8 @@ scroll it, guarded so a text field inside keeps its own keys.
   outside that set, such as `.medium` on the package default's Inter (loaded in 400 and 600), draws the nearest loaded
   weight, the heavier on a tie, and prints one debug warning per family and weight. A Google font in the fallback list
   snaps the style's drawn weight — the primary's snapped weight, or the recipe's weight when the primary is an app or
-  theme font — into its own set, so a fallback never draws lighter than the primary. The package asks google_fonts for
+  theme font — into its own set: the drawn weight when its set holds it, otherwise the nearest weight in it (the
+  heavier on a tie), which can be lighter than the primary. The package asks google_fonts for
   no other weight, with run-time fetching on or off, so bundling exactly those weights keeps every normal-style Google
   font off the network; an italic face loads on first use, at the snapped weight. A font the theme ships as `files`
   or the app registers keeps the weight it is asked for.
