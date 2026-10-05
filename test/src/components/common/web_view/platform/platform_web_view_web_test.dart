@@ -47,6 +47,47 @@ void main() {
   StratumWebViewSource missingPage() =>
       StratumWebViewSource.url(appOrigin.replace(path: '/missing'));
 
+  void fireFrameLoad() => view.iframe.dispatchEvent(web.Event('load'));
+
+  test(
+    'us01/fr01: a controller load reports one start and one finish',
+    () async {
+      final url = appOrigin.replace(path: '/one');
+      await view.load(StratumWebViewSource.url(url));
+      fireFrameLoad();
+      expect(listener.events, ['started $url', 'finished $url']);
+    },
+  );
+
+  test('us01/fr01/e06: a frame load with no open start reports its start '
+      'right before its finish', () async {
+    final url = appOrigin.replace(path: '/one');
+    await view.load(StratumWebViewSource.url(url));
+    fireFrameLoad();
+    // A link inside the frame: the frame loads again with no controller call.
+    fireFrameLoad();
+    expect(listener.events, [
+      'started $url',
+      'finished $url',
+      'started $url',
+      'finished $url',
+    ]);
+  });
+
+  test('us01/fr01/e06: HTML whose frame reloads on re-insertion reports a '
+      'start before that finish', () async {
+    await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
+    fireFrameLoad();
+    // The view is inserted again: srcdoc reloads with no controller call.
+    fireFrameLoad();
+    expect(listener.events, [
+      'started null',
+      'finished null',
+      'started null',
+      'finished null',
+    ]);
+  });
+
   test('renders HTML in a scripts-only sandbox', () async {
     await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
     expect(view.iframe.getAttribute('sandbox'), 'allow-scripts');
