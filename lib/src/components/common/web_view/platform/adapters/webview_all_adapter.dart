@@ -82,12 +82,14 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   @override
   Future<void> goBack() async {
     await _ready;
+    _session.willNavigate();
     await _controller.goBack();
   }
 
   @override
   Future<void> goForward() async {
     await _ready;
+    _session.willNavigate();
     await _controller.goForward();
   }
 
@@ -159,7 +161,9 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   }
 
   void _handlePageFinished(String url) {
-    _session.didFinishPage();
+    // Android reports a finish for a redirect target before that page
+    // starts; a finish with no open page start never reaches the app.
+    if (!_session.didFinishPage()) return;
     _listener.onPageFinished(Uri.tryParse(url));
   }
 

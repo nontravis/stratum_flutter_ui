@@ -49,9 +49,19 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 ///   top-level page. Treat bridge messages as untrusted input, and use
 ///   [onNavigationRequest] to prevent top-level navigation outside
 ///   [allowedOrigins] when a hard boundary is needed.
-/// * Android: an HTTP error for the page that `goBack` or `goForward`
-///   lands on is dropped instead of reaching [onError], because a history
-///   move sets no navigation target to hold the error against.
+/// * Android: the platform marks no main frame on an HTTP error, so an HTTP
+///   error counts for the page whose start follows it. A sub-resource that
+///   failed on the address a later back or forward of the page's own script
+///   lands on is reported through [onError] as that page's error, even when
+///   the page now answers 200, unless a navigation began between: a load, a
+///   reload, a controller back or forward, or a main-frame navigation that
+///   [onNavigationRequest] allows. Only a controller call ends a loading
+///   page's start, so a navigation the page starts while it still loads
+///   may report its HTTP error through [onError] before the new load's
+///   [onPageStarted] when it goes to the page's own address, or may report
+///   an [onPageFinished] that names the redirect target, ending the loading
+///   page's start, before the target's [onPageStarted] when it goes to an
+///   address the server redirects.
 class StratumWebView extends StatefulWidget {
   const new({
     super.key,
@@ -95,9 +105,16 @@ class StratumWebView extends StatefulWidget {
   final StratumNavigationDecision Function(Uri url)? onNavigationRequest;
 
   /// Called when a page starts loading.
+  ///
+  /// On the web, also right before a frame `load` that no controller call
+  /// started: a link inside the frame, or the frame's reload when the view
+  /// is inserted again.
   final ValueChanged<Uri?>? onPageStarted;
 
   /// Called when a page finishes loading.
+  ///
+  /// Each call pairs with one earlier [onPageStarted] call, on every
+  /// platform.
   final ValueChanged<Uri?>? onPageFinished;
 
   /// Called for main-frame loading failures on native platforms.

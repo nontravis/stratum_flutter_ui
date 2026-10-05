@@ -242,13 +242,276 @@ void runNativeAdapterContract(
           ),
         ]);
         expect(listener.events, [
-          'finished $target',
           'started $target',
           'error http $target',
           'finished $target',
         ]);
       },
     );
+
+    test('us01/fr01/e05: a page finish with no open start never reaches '
+        'onPageFinished and releases no candidate', () async {
+      final page = Uri.parse('https://app.example.com/missing');
+      await adapter.load(StratumWebViewSource.url(page));
+      harness
+        ..failHttp(statusCode: 404, requestUrl: page)
+        ..finishPage(page.toString());
+      expect(listener.events, isEmpty);
+    });
+
+    test('us01/fr01/e05: Android order, a 302 then 200 reports one start and '
+        'one finish', () async {
+      final target = Uri.parse('https://app.example.com/ok');
+      await adapter.load(
+        StratumWebViewSource.url(
+          Uri.parse('https://app.example.com/redirect-ok'),
+        ),
+      );
+      await harness.requestNavigation(target.toString(), isMainFrame: true);
+      harness
+        ..finishPage(target.toString())
+        ..startPage(target.toString())
+        ..changeUrl(target.toString())
+        ..finishPage(target.toString());
+      expect(listener.errors, isEmpty);
+      expect(listener.events, ['started $target', 'finished $target']);
+    });
+
+    test('us01/fr02/e07, us01/fr02/e08: Android order, a reload after a 302 '
+        'then 404 reports start, error, finish on the target', () async {
+      final target = Uri.parse('https://app.example.com/gone');
+      await adapter.load(
+        StratumWebViewSource.url(Uri.parse('https://app.example.com/redirect')),
+      );
+      await harness.requestNavigation(target.toString(), isMainFrame: true);
+      harness
+        ..finishPage(target.toString())
+        ..failHttp(statusCode: 404, requestUrl: target)
+        ..startPage(target.toString())
+        ..finishPage(target.toString());
+      await adapter.reload();
+      harness
+        ..failHttp(statusCode: 404, requestUrl: target)
+        ..startPage(target.toString())
+        ..finishPage(target.toString());
+      expect(listener.events, [
+        'started $target',
+        'error http $target',
+        'finished $target',
+        'started $target',
+        'error http $target',
+        'finished $target',
+      ]);
+    });
+
+    test('us01/fr02/e08, us04/fr01/e07: Android order, goBack to a page that '
+        'now answers 404 reports start, error, finish', () async {
+      // Pin: P3, the no-store variant.
+      final flip = Uri.parse('https://app.example.com/flip');
+      final other = Uri.parse('https://app.example.com/b');
+      await adapter.load(StratumWebViewSource.url(flip));
+      harness
+        ..startPage(flip.toString())
+        ..finishPage(flip.toString());
+      await adapter.load(StratumWebViewSource.url(other));
+      harness
+        ..startPage(other.toString())
+        ..finishPage(other.toString());
+      await adapter.goBack();
+      harness
+        ..failHttp(statusCode: 404, requestUrl: flip)
+        ..startPage(flip.toString())
+        ..changeUrl(flip.toString())
+        ..finishPage(flip.toString());
+      expect(listener.events.skip(4), [
+        'started $flip',
+        'error http $flip',
+        'finished $flip',
+      ]);
+      expect(listener.errors.single.code, 404);
+    });
+
+    test('us01/fr02/e08, us04/fr01/e07: Android order, a reload while the '
+        'page still loads reports start, error, finish for the reload',
+        () async {
+      // R9: the reload closes the open start of the load it replaces; that
+      // load's late finish is unpaired and dropped.
+      await adapter.load(StratumWebViewSource.url(appPage));
+      harness.startPage(appPage.toString());
+      await adapter.reload();
+      harness
+        ..finishPage(appPage.toString())
+        ..failHttp(statusCode: 503, requestUrl: appPage)
+        ..startPage(appPage.toString())
+        ..finishPage(appPage.toString());
+      expect(listener.events, [
+        'started $appPage',
+        'started $appPage',
+        'error http $appPage',
+        'finished $appPage',
+      ]);
+      expect(listener.errors.single.code, 503);
+    });
+
+    test('us01/fr01/e05, us01/fr02/e07: WebKit order, a server redirect asked '
+        'about after the page start keeps its finish', () async {
+      // Pin, R10: an allowed main-frame request leaves the start open. The
+      // harness's failHttp always carries a request URL, so the error names
+      // the target the URL change reported; M1-T2 pins WebKit's null URL.
+      final page = Uri.parse('https://app.example.com/redirect');
+      final target = Uri.parse('https://app.example.com/gone');
+      await adapter.load(StratumWebViewSource.url(page));
+      harness.startPage(page.toString());
+      await harness.requestNavigation(target.toString(), isMainFrame: true);
+      harness
+        ..changeUrl(target.toString())
+        ..failHttp(statusCode: 404, requestUrl: target)
+        ..finishPage(target.toString());
+      expect(listener.events, [
+        'started $page',
+        'error http $target',
+        'finished $target',
+      ]);
+    });
+
+    test('us01/fr02/e10: Android order, a redirecting navigation the page '
+        'starts while it loads lets the stray finish pair with its start',
+        () async {
+      // Pin, R10 residue (b): the allowed request leaves the loading page's
+      // start open, so Android's stray finish for the redirect target pairs
+      // with it once; the target's own start and finish follow.
+      final page = Uri.parse('https://app.example.com/a');
+      final target = Uri.parse('https://app.example.com/b');
+      await adapter.load(StratumWebViewSource.url(page));
+      harness.startPage(page.toString());
+      await harness.requestNavigation(target.toString(), isMainFrame: true);
+      harness
+        ..finishPage(target.toString())
+        ..startPage(target.toString())
+        ..finishPage(target.toString());
+      expect(listener.events, [
+        'started $page',
+        'finished $target',
+        'started $target',
+        'finished $target',
+      ]);
+    });
+
+    test('us04/fr01: Android order, goBack restored from the back-forward '
+        'cache reports start and finish with no error', () async {
+      // Pin: P3, the default variant: no request, no error.
+      final flip = Uri.parse('https://app.example.com/flip');
+      final other = Uri.parse('https://app.example.com/b');
+      await adapter.load(StratumWebViewSource.url(flip));
+      harness
+        ..startPage(flip.toString())
+        ..finishPage(flip.toString());
+      await adapter.load(StratumWebViewSource.url(other));
+      harness
+        ..startPage(other.toString())
+        ..finishPage(other.toString());
+      await adapter.goBack();
+      harness
+        ..startPage(flip.toString())
+        ..finishPage(flip.toString());
+      expect(listener.events.skip(4), ['started $flip', 'finished $flip']);
+      expect(listener.errors, isEmpty);
+    });
+
+    test('us01/fr02/e08, us04/fr01/e07: Android order, goForward to an entry '
+        'that answered 404 replays the error from the HTTP cache', () async {
+      // Pin: P4.
+      final first = Uri.parse('https://app.example.com/a');
+      final flip = Uri.parse('https://app.example.com/flip');
+      await adapter.load(StratumWebViewSource.url(first));
+      harness
+        ..startPage(first.toString())
+        ..finishPage(first.toString());
+      await adapter.load(StratumWebViewSource.url(flip));
+      harness
+        ..failHttp(statusCode: 404, requestUrl: flip)
+        ..startPage(flip.toString())
+        ..finishPage(flip.toString());
+      await adapter.goBack();
+      harness
+        ..startPage(first.toString())
+        ..finishPage(first.toString());
+      await adapter.goForward();
+      harness
+        ..failHttp(statusCode: 404, requestUrl: flip)
+        ..startPage(flip.toString())
+        ..finishPage(flip.toString());
+      expect(listener.events.skip(7), [
+        'started $flip',
+        'error http $flip',
+        'finished $flip',
+      ]);
+      expect(listener.errors, hasLength(2));
+    });
+
+    test('us01/fr02/e08: Android order, a history move the page script '
+        'starts reports start, error, finish', () async {
+      // Pin: history.back() in the page; no adapter call precedes it.
+      final flip = Uri.parse('https://app.example.com/flip');
+      final other = Uri.parse('https://app.example.com/b');
+      await adapter.load(StratumWebViewSource.url(flip));
+      harness
+        ..startPage(flip.toString())
+        ..finishPage(flip.toString());
+      await adapter.load(StratumWebViewSource.url(other));
+      harness
+        ..startPage(other.toString())
+        ..finishPage(other.toString())
+        ..failHttp(statusCode: 404, requestUrl: flip)
+        ..startPage(flip.toString())
+        ..finishPage(flip.toString());
+      expect(listener.events.skip(4), [
+        'started $flip',
+        'error http $flip',
+        'finished $flip',
+      ]);
+    });
+
+    test('us01/fr02/e09: a sub-resource 404 on the URL a later page-script '
+        'history move lands on reaches onError as that page error', () async {
+      // Pin: D1's stated residual.
+      final page = Uri.parse('https://app.example.com/x');
+      final image = Uri.parse('https://app.example.com/y');
+      await adapter.load(StratumWebViewSource.url(page));
+      harness
+        ..startPage(page.toString())
+        ..failHttp(statusCode: 404, requestUrl: image)
+        ..finishPage(page.toString())
+        ..startPage(image.toString())
+        ..finishPage(image.toString());
+      expect(listener.events, [
+        'started $page',
+        'finished $page',
+        'started $image',
+        'error http $image',
+        'finished $image',
+      ]);
+    });
+
+    test('us01/fr02: goBack, goForward, reload, and an allowed main-frame '
+        'navigation each discard every candidate', () async {
+      final image = Uri.parse('https://app.example.com/y');
+      Future<void> check(Future<void> Function() begin) async {
+        harness.failHttp(statusCode: 404, requestUrl: image);
+        await begin();
+        harness
+          ..startPage(image.toString())
+          ..finishPage(image.toString());
+      }
+
+      await check(adapter.goBack);
+      await check(adapter.goForward);
+      await check(adapter.reload);
+      await check(
+        () => harness.requestNavigation(image.toString(), isMainFrame: true),
+      );
+      expect(listener.errors, isEmpty);
+    });
 
     test('us01/fr02, us01/fr02/e02: Android order, an HTTP error before its '
         'page starts reaches onError once, after the start; a later favicon '
@@ -304,8 +567,8 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us01/fr02: Android order, the late start of a replaced load keeps '
-        'the newer target', () async {
+    test('us01/fr02: Android order, the late start of a replaced load does '
+        'not take the error of the newer page', () async {
       final first = Uri.parse('https://app.example.com/first');
       final second = Uri.parse('https://app.example.com/second');
       await adapter.load(StratumWebViewSource.url(first));
@@ -331,30 +594,36 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us01/fr02: a new load, an HTML load, or dispose discards an early '
-        'HTTP error', () async {
+    test('us01/fr02: a new load, an HTML load, or dispose discards every '
+        'candidate, even when the replaced page starts late', () async {
       final page = Uri.parse('https://app.example.com/missing');
       await adapter.load(StratumWebViewSource.url(page));
       harness.failHttp(statusCode: 404, requestUrl: page);
       await adapter.load(StratumWebViewSource.url(appPage));
-      harness.finishPage(appPage.toString());
+      harness
+        ..startPage(page.toString())
+        ..finishPage(page.toString());
 
       await adapter.load(StratumWebViewSource.url(page));
       harness.failHttp(statusCode: 404, requestUrl: page);
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
-      harness.finishPage('about:blank');
+      harness
+        ..startPage(page.toString())
+        ..finishPage(page.toString());
 
       await adapter.load(StratumWebViewSource.url(page));
       harness.failHttp(statusCode: 404, requestUrl: page);
       adapter.dispose();
-      harness.finishPage(page.toString());
+      harness
+        ..startPage(page.toString())
+        ..finishPage(page.toString());
 
       expect(listener.errors, isEmpty);
     });
 
     test(
-      'us01/fr02: Android order, an HTTP error before a reloaded page starts '
-      'reaches onError once, after the start',
+      'us01/fr02/e08, us04/fr01/e07: Android order, an HTTP error before a '
+      'reloaded page starts reaches onError once, after the start',
       () async {
         await adapter.load(StratumWebViewSource.url(appPage));
         harness
