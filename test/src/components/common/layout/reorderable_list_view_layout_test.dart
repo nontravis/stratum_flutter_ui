@@ -35,6 +35,7 @@ class _Harness extends StatefulWidget {
     this.longPressDrag = true,
     this.handles = false,
     this.fieldAt,
+    this.innerAt,
     this.itemsController,
     this.focusable,
     this.itemExtent,
@@ -56,6 +57,9 @@ class _Harness extends StatefulWidget {
 
   /// The id of the item that holds a text field.
   final int? fieldAt;
+
+  /// The id of the item that holds a second focus node after its own.
+  final int? innerAt;
 
   /// The controller the list animates inserts and removes through.
   final StratumReorderableItemsController? itemsController;
@@ -157,6 +161,7 @@ class _HarnessState extends State<_Harness> {
         index: index,
         handle: widget.handles,
         field: widget.fieldAt == ids[index],
+        inner: widget.innerAt == ids[index],
         paintLog: widget.paintLog,
         fill: widget.fillItems,
       ),
@@ -173,6 +178,7 @@ class _Item extends StatefulWidget {
     required this.index,
     this.handle = false,
     this.field = false,
+    this.inner = false,
     this.paintLog,
     this.fill = false,
   });
@@ -181,6 +187,10 @@ class _Item extends StatefulWidget {
   final int index;
   final bool handle;
   final bool field;
+
+  /// Whether a second node, labeled `inner <id>`, follows the item's own
+  /// node in Tab order, inside it.
+  final bool inner;
 
   /// Logs [id] each time the item paints.
   final List<int>? paintLog;
@@ -195,11 +205,13 @@ class _Item extends StatefulWidget {
 
 class _ItemState extends State<_Item> {
   late final node = FocusNode(debugLabel: 'item ${widget.id}');
+  late final inner = FocusNode(debugLabel: 'inner ${widget.id}');
   bool expanded = false;
 
   @override
   void dispose() {
     node.dispose();
+    inner.dispose();
     super.dispose();
   }
 
@@ -208,9 +220,20 @@ class _ItemState extends State<_Item> {
     if (widget.field) {
       return SizedBox(width: 40, height: 40, child: TextField(focusNode: node));
     }
+    final label = SizedBox(width: 40, height: 40, child: Text('${widget.id}'));
     Widget item = Focus(
       focusNode: node,
-      child: SizedBox(width: 40, height: 40, child: Text('${widget.id}')),
+      child: widget.inner
+          ? Row(
+              children: [
+                label,
+                Focus(
+                  focusNode: inner,
+                  child: const SizedBox(width: 40, height: 40),
+                ),
+              ],
+            )
+          : label,
     );
     if (widget.handle) {
       item = Row(
@@ -409,9 +432,7 @@ void main() {
         final gesture = await tester.startGesture(
           tester.getCenter(find.text('0')),
         );
-        await tester.pump(
-          kLongPressTimeout + const Duration(milliseconds: 50),
-        );
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
         await gesture.moveBy(const Offset(0, 30));
         await tester.pump();
         await tester.pump();
@@ -2590,6 +2611,158 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(field.hasPrimaryFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e16: a focused item removed and inserted back at its index '
+      'with its key in one turn keeps its State and focus',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller)),
+        );
+        final state = _itemState(tester, 2);
+        final focused = await _focusItem(tester, 2);
+
+        _harness(tester)
+          ..remove(2)
+          ..insert(2, 2);
+        await tester.pumpAndSettle();
+
+        expect(_itemState(tester, 2), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e16: a focused item removed in a builder look and inserted '
+      'back at its index with its key in one turn keeps its State and focus',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller)),
+        );
+        final state = _itemState(tester, 2);
+        final focused = await _focusItem(tester, 2);
+
+        _harness(tester)
+          ..remove(
+            2,
+            builder: (context) => const SizedBox(
+              key: ValueKey('gone'),
+              height: 40,
+              child: Text('gone'),
+            ),
+          )
+          ..insert(2, 2);
+        await tester.pumpAndSettle();
+
+        expect(_itemState(tester, 2), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
+    // Where focused item 2 of five goes back, after its removal leaves four.
+    final returnsAt = ValueVariant<int>({0, 4});
+    testWidgets(
+      'us11/fr04/e16: a focused item removed and inserted back at another '
+      'index with its key in one turn keeps its State and focus',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller)),
+        );
+        final state = _itemState(tester, 2);
+        final focused = await _focusItem(tester, 2);
+
+        _harness(tester)
+          ..remove(2)
+          ..insert(returnsAt.currentValue!, 2);
+        await tester.pumpAndSettle();
+
+        expect(_itemState(tester, 2), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+      variant: returnsAt,
+    );
+
+    testWidgets(
+      'us11/fr04/e16: a focused node inside an item removed and inserted '
+      'back at its index with its key in one turn keeps focus',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller, innerAt: 2)),
+        );
+        final state = _itemState(tester, 2);
+        final focused = state.inner..requestFocus();
+        await tester.pump();
+        expect(focused.hasPrimaryFocus, isTrue);
+
+        _harness(tester)
+          ..remove(2)
+          ..insert(2, 2);
+        await tester.pumpAndSettle();
+
+        expect(_itemState(tester, 2), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
+    // Where focused item 100 of 200 goes back once the list shows it at its
+    // top: slot 0 and slot 40 lie far before the viewport and its cache
+    // extent, so the list has not built them.
+    final returnsUnbuilt = ValueVariant<int>({0, 40});
+    testWidgets(
+      'us11/fr04/e17: a focused item removed and inserted back with its key '
+      'in one turn at a slot the list has not built takes focus on its first '
+      'control and shows on screen',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .jumpTo(4000);
+        await tester.pump();
+        await _focusItem(tester, 100);
+
+        _harness(tester)
+          ..remove(100)
+          ..insert(returnsUnbuilt.currentValue!, 100);
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 100');
+        expect(_itemInView(tester, 100), isTrue);
+      },
+      variant: returnsUnbuilt,
+    );
+
+    testWidgets(
+      'us11/fr04/e16: a focused item removed and inserted back with its key '
+      'in one turn at a slot built past the viewport keeps its State and '
+      'focus and shows on screen',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        final state = _itemState(tester, 2);
+        final focused = await _focusItem(tester, 2);
+
+        // Slot 10 runs from 400 to 440: past the 300 px viewport, inside
+        // its cache extent.
+        _harness(tester)
+          ..remove(2)
+          ..insert(10, 2);
+        await tester.pumpAndSettle();
+
+        expect(_itemState(tester, 2), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_itemInView(tester, 2), isTrue);
       },
     );
 
