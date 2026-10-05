@@ -248,7 +248,7 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
       child: current,
     );
     if (blur != null) {
-      if (style.dropShadow != null) {
+      if (style.dropShadow?.isNotEmpty ?? false) {
         current = DecoratedBox(
           decoration: StyleDecoration(
             borderRadius: style.borderRadius,
@@ -317,8 +317,8 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
       style.backgroundColor != null ||
       style.backgroundGradient != null ||
       style.backgroundImage != null ||
-      style.dropShadow != null ||
-      style.innerShadow != null;
+      (style.dropShadow?.isNotEmpty ?? false) ||
+      (style.innerShadow?.isNotEmpty ?? false);
 
   static bool _hasForeground(WidgetStyle style) =>
       style.foregroundColor != null ||

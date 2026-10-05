@@ -1,3 +1,5 @@
+import 'dart:ui' as ui show ImageByteFormat;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';
@@ -92,6 +94,65 @@ class _CountingChild extends StatelessWidget {
   }
 }
 
+const _frame = Key('fading-glass-frame');
+
+/// Black and white vertical stripes, 4 px each, so a blur turns them grey.
+class _Stripes extends CustomPainter {
+  const new();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
+    final black = Paint()..color = const Color(0xFF000000);
+    for (var x = 0.0; x < size.width; x += 8) {
+      canvas.drawRect(Rect.fromLTWH(x, 0, 4, size.height), black);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Stripes oldDelegate) => false;
+}
+
+/// A 160 by 80 frame of stripes, under [glass] when it is not null.
+Widget _glassScene(WidgetStyle? glass) {
+  return Directionality(
+    textDirection: TextDirection.ltr,
+    child: Center(
+      child: RepaintBoundary(
+        key: _frame,
+        child: SizedBox(
+          width: 160,
+          height: 80,
+          child: Stack(
+            children: [
+              const Positioned.fill(child: CustomPaint(painter: _Stripes())),
+              if (glass != null)
+                Positioned.fill(child: AnimatedStyledBox(style: glass)),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// The red channel at (81, 40) of [_glassScene], inside a black stripe.
+Future<int> _redAt(WidgetTester tester, WidgetStyle? glass) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pumpWidget(_glassScene(glass));
+  final red = await tester.runAsync(() async {
+    final image = await captureImage(tester.element(find.byKey(_frame)));
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final offset = (40 * image.width + 81) * 4;
+    image.dispose();
+    return bytes!.getUint8(offset);
+  });
+  return red!;
+}
+
 void main() {
   _robustnessTests();
 
@@ -146,6 +207,80 @@ void main() {
       );
 
       expect(find.byType(DecoratedBox), findsNothing);
+    });
+
+    testWidgets('us01/fr02/e02: an override with an empty drop shadow list '
+        'builds no decoration', (tester) async {
+      const base = WidgetStyle(
+        dropShadow: [BoxShadow(blurRadius: 4), BoxShadow(blurRadius: 8)],
+      );
+      await tester.pumpWidget(
+        _host(base.merge(const WidgetStyle(dropShadow: []))),
+      );
+
+      expect(find.byType(DecoratedBox), findsNothing);
+    });
+
+    testWidgets('us01/fr02/e02: an empty inner shadow list builds no '
+        'decoration', (tester) async {
+      await tester.pumpWidget(_host(const WidgetStyle(innerShadow: [])));
+
+      expect(find.byType(DecoratedBox), findsNothing);
+    });
+
+    testWidgets('us01/fr02/e02: an empty drop shadow list adds no shadow '
+        'layer over a blur', (tester) async {
+      await tester.pumpWidget(
+        _host(const WidgetStyle(backgroundBlur: _blur, dropShadow: [])),
+      );
+
+      expect(_decorated(where: (d) => d.dropShadow != null), findsNothing);
+      expect(find.byType(DecoratedBox), findsOneWidget);
+    });
+
+    testWidgets(
+      'us01/fr02/e02: the child keeps its State when a shadow list toggles '
+      'empty and back',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            const WidgetStyle(dropShadow: [BoxShadow(blurRadius: 4)]),
+            child: const _Probe(),
+          ),
+        );
+        final before = tester.state(find.byType(_Probe));
+
+        await tester.pumpWidget(
+          _host(const WidgetStyle(dropShadow: []), child: const _Probe()),
+        );
+        expect(find.byType(DecoratedBox), findsNothing);
+        expect(identical(tester.state(find.byType(_Probe)), before), isTrue);
+
+        await tester.pumpWidget(
+          _host(
+            const WidgetStyle(dropShadow: [BoxShadow(blurRadius: 4)]),
+            child: const _Probe(),
+          ),
+        );
+        expect(find.byType(DecoratedBox), findsOneWidget);
+        expect(identical(tester.state(find.byType(_Probe)), before), isTrue);
+      },
+    );
+
+    testWidgets('(pin) a fill with empty shadow lists keeps its decoration', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(
+            backgroundColor: _red,
+            dropShadow: [],
+            innerShadow: [],
+          ),
+        ),
+      );
+
+      expect(find.byType(DecoratedBox), findsOneWidget);
     });
 
     testWidgets('opacity below 1 adds Opacity, and 1 does not', (tester) async {
@@ -906,6 +1041,25 @@ void main() {
       await tester.pumpWidget(_host(null, boxBuilder: _probe));
 
       expect(find.byType(_BoxProbe), findsOneWidget);
+    });
+  });
+
+  group('AnimatedStyledBox fading glass', () {
+    testWidgets('us02/fr02: a blurred box at half opacity shows its glass '
+        'at half strength', (tester) async {
+      const glass = WidgetStyle(
+        backgroundBlur: ImageBlurFilter(sigmaX: 8, sigmaY: 8),
+      );
+      final backdrop = await _redAt(tester, null);
+      final full = await _redAt(tester, glass);
+      final half = await _redAt(tester, glass.copyWith(opacity: 0.5));
+
+      expect(
+        (full - backdrop).abs(),
+        greaterThan(40),
+        reason: 'the test renderer drew no blur, so it cannot probe a fade',
+      );
+      expect(half, closeTo((full + backdrop) / 2, 8));
     });
   });
 }

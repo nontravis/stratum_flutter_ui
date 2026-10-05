@@ -1,7 +1,14 @@
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart'
+    show
+        DiagnosticPropertiesBuilder,
+        DiagnosticsProperty,
+        DiagnosticsTreeStyle,
+        IterableProperty,
+        listEquals;
 import 'package:flutter/widgets.dart';
 
-/// A [BoxDecoration] that also paints inset shadows.
+/// A [Decoration] that paints drop shadows, a fill, and inner shadows in
+/// Figma order.
 ///
 /// Drop shadows are painted outside the box shape when the fill is
 /// translucent, so a glass card does not look dimmed by its own shadow.
@@ -64,25 +71,69 @@ class StyleDecoration extends Decoration {
       _StylePainter(this, onChanged);
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is StyleDecoration &&
-          other.color == color &&
-          other.gradient == gradient &&
-          other.image == image &&
-          other.borderRadius == borderRadius &&
-          listEquals(other.dropShadow, dropShadow) &&
-          listEquals(other.innerShadow, innerShadow);
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties
+      ..defaultDiagnosticsTreeStyle = DiagnosticsTreeStyle.whitespace
+      ..emptyBodyDescription = '<no decorations specified>'
+      ..add(ColorProperty('color', color, defaultValue: null))
+      ..add(
+        DiagnosticsProperty<Gradient>('gradient', gradient, defaultValue: null),
+      )
+      ..add(
+        DiagnosticsProperty<DecorationImage>(
+          'image',
+          image,
+          defaultValue: null,
+        ),
+      )
+      ..add(
+        DiagnosticsProperty<BorderRadiusGeometry>(
+          'borderRadius',
+          borderRadius,
+          defaultValue: null,
+        ),
+      )
+      ..add(
+        IterableProperty<BoxShadow>(
+          'dropShadow',
+          dropShadow,
+          defaultValue: null,
+          style: DiagnosticsTreeStyle.whitespace,
+        ),
+      )
+      ..add(
+        IterableProperty<BoxShadow>(
+          'innerShadow',
+          innerShadow,
+          defaultValue: null,
+          style: DiagnosticsTreeStyle.whitespace,
+        ),
+      );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other.runtimeType != runtimeType) return false;
+    return other is StyleDecoration &&
+        other.color == color &&
+        other.gradient == gradient &&
+        other.image == image &&
+        other.borderRadius == borderRadius &&
+        listEquals(other.dropShadow, dropShadow) &&
+        listEquals(other.innerShadow, innerShadow);
+  }
 
   @override
   int get hashCode => Object.hash(
-        color,
-        gradient,
-        image,
-        borderRadius,
-        _hashList(dropShadow),
-        _hashList(innerShadow),
-      );
+    color,
+    gradient,
+    image,
+    borderRadius,
+    _hashList(dropShadow),
+    _hashList(innerShadow),
+  );
 
   static int? _hashList(List<BoxShadow>? shadows) =>
       shadows == null ? null : Object.hashAll(shadows);
@@ -149,10 +200,7 @@ class _StylePainter extends BoxPainter {
         ..fillType = PathFillType.evenOdd
         ..addRect(rect.inflate(_reach([shadow])))
         ..addRRect(hole);
-      final paint = Paint()..color = shadow.color;
-      if (shadow.blurSigma > 0) {
-        paint.maskFilter = MaskFilter.blur(BlurStyle.normal, shadow.blurSigma);
-      }
+      final paint = shadow.toPaint();
       canvas
         ..save()
         ..clipRRect(rrect)
@@ -165,7 +213,8 @@ class _StylePainter extends BoxPainter {
   static double _reach(List<BoxShadow> shadows) {
     var reach = 0.0;
     for (final shadow in shadows) {
-      final extent = shadow.blurSigma * 3 +
+      final extent =
+          shadow.blurSigma * 3 +
           shadow.spreadRadius.abs() +
           shadow.offset.distance;
       if (extent > reach) reach = extent;
