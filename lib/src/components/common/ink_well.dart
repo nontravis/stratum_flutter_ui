@@ -29,6 +29,37 @@ bool tapSurfaceTakesFocus({
           shortcuts.isNotEmpty);
 }
 
+/// The heading level of the node that holds a [StratumInkWell]'s button
+/// node, or null when the surface builds no heading node.
+///
+/// On web the engine renders a header node with a label, or any node with
+/// a heading level, as a heading with no tap behaviour, so the surface
+/// splits: a heading node at this level holds the button node. That
+/// happens exactly when [isWeb] holds, the surface builds its node
+/// ([excludeFromSemantics] false), the node reads as a button ([semantics]
+/// sets `button: true`, or [hasActivation] holds and [semantics] sets no
+/// role-bearing field), and [semantics] sets `header: true` or a
+/// `headingLevel`. The level is that `headingLevel`, else 2, the level the
+/// engine gives a header.
+///
+/// Takes [isWeb] as a parameter, as `defaultScrollFocusable` does, so a
+/// Dart VM test covers both sides. Not exported: `common/common.dart`
+/// hides it.
+int? tapSurfaceHeadingLevel({
+  required bool isWeb,
+  required bool hasActivation,
+  required bool excludeFromSemantics,
+  required SemanticsProperties? semantics,
+}) {
+  if (!isWeb || excludeFromSemantics || semantics == null) return null;
+  final readsAsButton =
+      semantics.button ?? (hasActivation && !_setsRole(semantics));
+  if (!readsAsButton) return null;
+  final level = semantics.headingLevel;
+  if (level != null) return level;
+  return semantics.header == true ? 2 : null;
+}
+
 /// The tap surface of the design system.
 ///
 /// Builds on [InkWell] for gestures, keyboard activation, focus, and hover,

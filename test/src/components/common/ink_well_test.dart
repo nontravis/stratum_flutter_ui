@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/ink_well.dart'
+    show tapSurfaceHeadingLevel;
 import 'package:stratum_ui/src/src.dart';
 
 import 'fakes/fake_stratum_theme.dart';
@@ -1164,6 +1166,126 @@ void main() {
 
       expect(find.bySemanticsLabel('Open settings'), findsOneWidget);
       handle.dispose();
+    });
+  });
+
+  group('us04/fr02, s03/inv8: tapSurfaceHeadingLevel', () {
+    int? level(
+      SemanticsProperties? semantics, {
+      bool isWeb = true,
+      bool hasActivation = true,
+      bool excludeFromSemantics = false,
+    }) => tapSurfaceHeadingLevel(
+      isWeb: isWeb,
+      hasActivation: hasActivation,
+      excludeFromSemantics: excludeFromSemantics,
+      semantics: semantics,
+    );
+
+    test('us04/fr02/e07: a header button on web takes level 2', () {
+      expect(
+        level(const SemanticsProperties(header: true, label: 'Recent')),
+        2,
+      );
+    });
+
+    test('us04/fr02/e07: a caller button true splits with no callback', () {
+      const semantics = SemanticsProperties(button: true, header: true);
+      expect(level(semantics, hasActivation: false), 2);
+    });
+
+    test('us04/fr02/e07: a caller button true wins over a link', () {
+      const semantics = SemanticsProperties(
+        button: true,
+        link: true,
+        header: true,
+      );
+      expect(level(semantics, hasActivation: false), 2);
+    });
+
+    test('us04/fr02/e07: native platforms never split', () {
+      expect(
+        level(const SemanticsProperties(header: true), isWeb: false),
+        isNull,
+      );
+      expect(
+        level(const SemanticsProperties(headingLevel: 3), isWeb: false),
+        isNull,
+      );
+    });
+
+    test('us04/fr02/e07: no header and no headingLevel gives no split', () {
+      expect(level(null), isNull);
+      expect(level(const SemanticsProperties(label: 'Recent')), isNull);
+      expect(
+        level(const SemanticsProperties(header: false, label: 'Recent')),
+        isNull,
+      );
+      expect(
+        level(const SemanticsProperties(image: true, label: 'Avatar')),
+        isNull,
+      );
+    });
+
+    test('us04/fr02/e09: a headingLevel from 1 to 6 sets the level', () {
+      for (var value = 1; value <= 6; value++) {
+        expect(level(SemanticsProperties(headingLevel: value)), value);
+      }
+    });
+
+    test('us04/fr02/e09: a headingLevel wins over header', () {
+      expect(
+        level(const SemanticsProperties(header: true, headingLevel: 4)),
+        4,
+      );
+    });
+
+    test('us04/fr02/e08: a role of none still splits', () {
+      expect(
+        level(
+          const SemanticsProperties(role: SemanticsRole.none, header: true),
+        ),
+        2,
+      );
+    });
+
+    test('us04/fr02/e01: a node that is no button gives no split', () {
+      expect(
+        level(const SemanticsProperties(header: true), hasActivation: false),
+        isNull,
+      );
+      expect(
+        level(const SemanticsProperties(link: true, header: true)),
+        isNull,
+      );
+      expect(
+        level(const SemanticsProperties(role: SemanticsRole.tab, header: true)),
+        isNull,
+      );
+    });
+
+    test('us04/fr02/e06: a caller button false gives no split', () {
+      expect(
+        level(const SemanticsProperties(button: false, header: true)),
+        isNull,
+      );
+    });
+
+    test('us04/fr02/e03: excludeFromSemantics gives no split', () {
+      expect(
+        level(
+          const SemanticsProperties(header: true),
+          excludeFromSemantics: true,
+        ),
+        isNull,
+      );
+      expect(
+        level(
+          const SemanticsProperties(button: true, header: true),
+          excludeFromSemantics: true,
+        ),
+        isNull,
+      );
     });
   });
 
