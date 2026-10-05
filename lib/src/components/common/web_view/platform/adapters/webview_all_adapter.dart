@@ -64,7 +64,9 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
     await _ready;
     switch (source) {
       case StratumWebViewUrlSource(:final url):
-        _session.willLoadUrl();
+        _session
+          ..willLoadUrl()
+          ..willNavigate(url);
         await _controller.loadRequest(wa.LoadRequestParams(uri: url));
       case StratumWebViewHtmlSource(:final html):
         _session.willLoadHtml();
@@ -128,6 +130,7 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
     // about:blank first, so audio, video, and timers stop immediately
     // instead of running until the native view is collected (parity with
     // the web implementation, which navigates the iframe away on dispose).
+    _session.willDispose();
     unawaited(_disposeLoad());
   }
 
@@ -144,17 +147,22 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
     if (url == null) return wa.NavigationDecision.prevent;
     if (url.isScheme('about')) return wa.NavigationDecision.navigate;
     final decision = _listener.onNavigationRequest(url);
-    return decision == StratumNavigationDecision.navigate
-        ? wa.NavigationDecision.navigate
-        : wa.NavigationDecision.prevent;
+    if (decision != StratumNavigationDecision.navigate) {
+      return wa.NavigationDecision.prevent;
+    }
+    _session.willNavigate(url);
+    return wa.NavigationDecision.navigate;
   }
 
   void _handlePageStarted(String url) {
-    _session.didStartPage(url);
+    final heldError = _session.didStartPage(url);
     _listener.onPageStarted(Uri.tryParse(url));
+    if (heldError != null) _listener.onError(heldError);
   }
 
   void _handlePageFinished(String url) {
+    final heldError = _session.didFinishPage();
+    if (heldError != null) _listener.onError(heldError);
     _listener.onPageFinished(Uri.tryParse(url));
   }
 

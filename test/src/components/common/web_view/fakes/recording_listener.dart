@@ -17,6 +17,10 @@ final class RecordingListener implements PlatformStratumWebViewListener {
   final List<Uri?> pagesFinished = [];
   final List<StratumWebViewError> errors = [];
 
+  /// Page starts, page finishes, and errors in the order they arrived, as
+  /// `started <url>`, `finished <url>`, and `error <type> <url>`.
+  final List<String> events = [];
+
   @override
   void onMessage(StratumWebViewMessage message) {
     messages.add(message);
@@ -30,11 +34,20 @@ final class RecordingListener implements PlatformStratumWebViewListener {
   }
 
   @override
-  void onPageStarted(Uri? url) => pagesStarted.add(url);
+  void onPageStarted(Uri? url) {
+    pagesStarted.add(url);
+    events.add('started $url');
+  }
 
   @override
-  void onPageFinished(Uri? url) => pagesFinished.add(url);
+  void onPageFinished(Uri? url) {
+    pagesFinished.add(url);
+    events.add('finished $url');
+  }
 
   @override
-  void onError(StratumWebViewError error) => errors.add(error);
+  void onError(StratumWebViewError error) {
+    errors.add(error);
+    events.add('error ${error.type.name} ${error.url}');
+  }
 }

@@ -290,6 +290,96 @@ void main() {
       );
     });
 
+    test('us01/fr02: an HTTP error on the navigation target before its page '
+        'starts is held until that page starts', () {
+      final target = Uri.parse('https://app.example.com/missing');
+      session.willNavigate(target);
+      expect(session.httpError(statusCode: 404, requestUrl: target), isNull);
+      expect(
+        session.didStartPage('https://app.example.com/missing#top'),
+        StratumWebViewError(
+          type: StratumWebViewErrorType.http,
+          description: 'HTTP error 404',
+          code: 404,
+          url: target,
+        ),
+      );
+      expect(session.didFinishPage(), isNull);
+    });
+
+    test('us01/fr02: a held HTTP error whose page never starts is released '
+        'by the next page finish', () {
+      final target = Uri.parse('https://app.example.com/missing');
+      session.willNavigate(target);
+      expect(session.httpError(statusCode: 404, requestUrl: target), isNull);
+      expect(session.didStartPage('https://app.example.com/home'), isNull);
+      expect(session.didFinishPage()?.url, target);
+      expect(session.didFinishPage(), isNull);
+    });
+
+    test('us01/fr02: a URL load, an HTML load, or dispose discards a held '
+        'HTTP error', () {
+      final target = Uri.parse('https://app.example.com/missing');
+      void hold() {
+        session.willNavigate(target);
+        expect(session.httpError(statusCode: 404, requestUrl: target), isNull);
+      }
+
+      hold();
+      session.willLoadUrl();
+      expect(session.didFinishPage(), isNull);
+      hold();
+      session.willLoadHtml();
+      expect(session.didFinishPage(), isNull);
+      hold();
+      session.willDispose();
+      expect(session.didFinishPage(), isNull);
+    });
+
+    test('us01/fr02: an empty path matches its canonical slash, fragment '
+        'ignored', () {
+      session.willNavigate(Uri.parse('https://app.example.com'));
+      expect(
+        session.httpError(
+          statusCode: 404,
+          requestUrl: Uri.parse('https://app.example.com/#top'),
+        ),
+        isNull,
+      );
+      expect(
+        session.didStartPage('https://app.example.com/')?.url,
+        Uri.parse('https://app.example.com/#top'),
+      );
+      expect(
+        session
+            .httpError(
+              statusCode: 500,
+              requestUrl: Uri.parse('https://app.example.com'),
+            )
+            ?.url,
+        Uri.parse('https://app.example.com'),
+      );
+    });
+
+    test('us01/fr02/e02: only the start of the target page, or an HTML load, '
+        'ends the navigation target', () {
+      final target = Uri.parse('https://app.example.com/missing');
+      session
+        ..willNavigate(target)
+        ..didStartPage('https://app.example.com/home');
+      expect(session.httpError(statusCode: 404, requestUrl: target), isNull);
+      expect(session.didStartPage(target.toString())?.url, target);
+      // The target page has started: its errors now pass at once.
+      expect(session.httpError(statusCode: 500, requestUrl: target)?.code, 500);
+      // An HTML load ends the target too.
+      final next = Uri.parse('https://app.example.com/next');
+      session
+        ..willNavigate(next)
+        ..willLoadHtml();
+      expect(session.httpError(statusCode: 404, requestUrl: next), isNull);
+      expect(session.didFinishPage(), isNull);
+    });
+
     test('drops HTTP errors before any page', () {
       expect(
         session.httpError(
@@ -309,6 +399,22 @@ void main() {
           description: 'HTTP error 500',
           code: 500,
           url: Uri.parse('https://app.example.com/home'),
+        ),
+      );
+    });
+
+    test('us01/fr02/e07: WebKit order, a null request URL after a redirect '
+        'names the target', () {
+      session
+        ..didStartPage('https://app.example.com/start')
+        ..didChangeUrl('https://app.example.com/gone');
+      expect(
+        session.httpError(statusCode: 404, requestUrl: null),
+        StratumWebViewError(
+          type: StratumWebViewErrorType.http,
+          description: 'HTTP error 404',
+          code: 404,
+          url: Uri.parse('https://app.example.com/gone'),
         ),
       );
     });

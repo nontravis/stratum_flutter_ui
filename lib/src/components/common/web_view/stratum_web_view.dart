@@ -49,6 +49,9 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 ///   top-level page. Treat bridge messages as untrusted input, and use
 ///   [onNavigationRequest] to prevent top-level navigation outside
 ///   [allowedOrigins] when a hard boundary is needed.
+/// * Android: an HTTP error for the page that `goBack` or `goForward`
+///   lands on is dropped instead of reaching [onError], because a history
+///   move sets no navigation target to hold the error against.
 class StratumWebView extends StatefulWidget {
   const new({
     super.key,
