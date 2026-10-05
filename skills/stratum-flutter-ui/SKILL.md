@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, or typography.fonts files in theme.yaml.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, or typography.fonts files in theme.yaml.
 ---
 
 # Stratum Flutter UI
@@ -129,6 +129,34 @@ scroll it, guarded so a text field inside keeps its own keys.
       ),
     ],
   ),
+  ```
+
+  Insert and remove: pass a `StratumReorderableItemsController` as `itemsController` (the scroll `controller` stays
+  separate) and call `insertItem(index)` or `removeItem(index)` in the same turn as the data change, outside a build
+  and outside `onReorderItem`, `onReorderStart`, and `onReorderEnd`; from those, call after the frame.
+  An added item grows and fades in over the theme's `normal` level, and a removed one shrinks and fades out in the
+  look it had, unless `removeItem`'s `builder` gives it another; `itemTransitionBuilder(context, animation, child)`
+  replaces the size and fade both ways. Without `builder`, a removed item's leaving copy ends at once if its key
+  comes back; pass `builder` to keep that copy fading on its own look instead. The leaving item keeps its State and
+  still rebuilds, so an item that reads its data through `context` (a `watch` or `select` by id or index, a provider
+  family) needs a `builder` that captures that data. Under reduced motion, or with `itemExtent`, `itemExtentBuilder`,
+  or `prototypeItem`, the size jumps and the fade plays. Focus on a removed item moves to the next item, else the
+  previous one, else the list's own Tab stop when the list is focusable, unless the app moves focus itself in the
+  same turn. A reorder of a leaving item's neighbor ends that leaving item. An insert or remove during a drag,
+  or an item-count change, ends the drag first with `onReorderEnd` at its start index and no `onReorderItem`.
+
+  ```dart
+  final itemsController = StratumReorderableItemsController();
+
+  void addTask(int index, Task task) {
+    setState(() => tasks.insert(index, task));
+    itemsController.insertItem(index);
+  }
+
+  void deleteTask(int index) {
+    setState(() => tasks.removeAt(index));
+    itemsController.removeItem(index);
+  }
   ```
 - **`NestedScrollViewLayout`** — a collapsing header (`headerSliverBuilder`) above a `body` scroll view; it is never
   a Tab stop itself, only the body's scroll view is, and a desktop scrollbar needs `showScrollbar: false` when the
