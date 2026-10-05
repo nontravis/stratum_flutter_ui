@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from ff3c890. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 6ffb8d1. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 

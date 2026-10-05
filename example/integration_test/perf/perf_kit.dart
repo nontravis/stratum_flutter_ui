@@ -72,10 +72,10 @@ class CurrentKit implements PerfKit {
 
 /// The layouts of the frozen baseline (spec section 9.3).
 ///
-/// The layout follow-ups' baseline is d107dcb, the master tip they merge:
-/// a tappable row is a `BaselineRowLayout` on `BaselineFlexLayout`, whose
-/// tap surface is `BaselineStratumInkWell`, with the shared
-/// `StratumInteraction`, which the follow-ups do not change.
+/// The FO-05 WidgetStyle minors' baseline is 6ffb8d1, the commit they
+/// start from: a tappable row is a `BaselineRowLayout` on
+/// `BaselineFlexLayout`, whose tap surface is `BaselineStratumInkWell`,
+/// with the shared `StratumInteraction`, which the minors do not change.
 class BaselineKit implements PerfKit {
   const new();
 

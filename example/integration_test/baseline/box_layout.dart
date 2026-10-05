@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from ff3c890:lib/src/components/common/layout/box_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 6ffb8d1:lib/src/components/common/layout/box_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
@@ -70,8 +70,9 @@ abstract class BaselineBoxLayout extends StatelessWidget {
   final bool repaintBoundary;
   final bool debug;
 
-  /// Semantics of the box, inside its margin. With a tap surface they
-  /// replace the surface's button role.
+  /// Semantics of the box, inside its margin. With a tap surface they keep
+  /// the surface's button role unless they set `button` or a field naming
+  /// another control; see [BaselineStratumInkWell.semantics].
   final SemanticsProperties? semantics;
 
   /// Called when a style animation completes; an instant change does not
