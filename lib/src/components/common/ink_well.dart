@@ -490,8 +490,16 @@ class _StratumInkWellState extends State<StratumInkWell>
     // A caller's semantics apply even with excludeFromSemantics, the usual
     // way to replace the gesture semantics with a custom label and actions.
     final properties = widget.semantics;
+    final headingLevel = tapSurfaceHeadingLevel(
+      isWeb: kIsWeb,
+      hasActivation: _hasActivation,
+      excludeFromSemantics: widget.excludeFromSemantics,
+      semantics: properties,
+    );
     if (properties != null) {
-      result = Semantics.fromProperties(properties: properties, child: result);
+      result = headingLevel == null
+          ? Semantics.fromProperties(properties: properties, child: result)
+          : semanticsWithoutHeading(properties: properties, child: result);
     }
     if (!widget.excludeFromSemantics) {
       final hasActivation = _hasActivation;
@@ -508,6 +516,15 @@ class _StratumInkWellState extends State<StratumInkWell>
                 CustomSemanticsAction(label: _secondaryTapLabel(context)):
                     secondary,
               },
+        child: result,
+      );
+    }
+    // On web the engine checks a heading role before the button role, so a
+    // heading node holds the button node (FR-02 E07, E09).
+    if (headingLevel != null) {
+      result = Semantics(
+        container: true,
+        headingLevel: headingLevel,
         child: result,
       );
     }
