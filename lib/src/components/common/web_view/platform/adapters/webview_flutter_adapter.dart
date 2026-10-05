@@ -52,9 +52,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     await _ready;
     switch (source) {
       case StratumWebViewUrlSource(:final url):
-        _session
-          ..willLoadUrl()
-          ..willNavigate(url);
+        _session.willLoadUrl();
         await _controller.loadRequest(url);
       case StratumWebViewHtmlSource(:final html):
         _session.willLoadHtml();
@@ -135,7 +133,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     if (decision != StratumNavigationDecision.navigate) {
       return wf.NavigationDecision.prevent;
     }
-    _session.willNavigate(url);
+    _session.didAllowNavigation();
     return wf.NavigationDecision.navigate;
   }
 
@@ -146,8 +144,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   }
 
   void _handlePageFinished(String url) {
-    final heldError = _session.didFinishPage();
-    if (heldError != null) _listener.onError(heldError);
+    _session.didFinishPage();
     _listener.onPageFinished(Uri.tryParse(url));
   }
 

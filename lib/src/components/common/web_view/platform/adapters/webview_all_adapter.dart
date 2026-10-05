@@ -64,9 +64,7 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
     await _ready;
     switch (source) {
       case StratumWebViewUrlSource(:final url):
-        _session
-          ..willLoadUrl()
-          ..willNavigate(url);
+        _session.willLoadUrl();
         await _controller.loadRequest(wa.LoadRequestParams(uri: url));
       case StratumWebViewHtmlSource(:final html):
         _session.willLoadHtml();
@@ -150,7 +148,7 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
     if (decision != StratumNavigationDecision.navigate) {
       return wa.NavigationDecision.prevent;
     }
-    _session.willNavigate(url);
+    _session.didAllowNavigation();
     return wa.NavigationDecision.navigate;
   }
 
@@ -161,8 +159,7 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   }
 
   void _handlePageFinished(String url) {
-    final heldError = _session.didFinishPage();
-    if (heldError != null) _listener.onError(heldError);
+    _session.didFinishPage();
     _listener.onPageFinished(Uri.tryParse(url));
   }
 

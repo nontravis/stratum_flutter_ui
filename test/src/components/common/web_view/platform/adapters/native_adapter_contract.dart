@@ -331,16 +331,6 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us01/fr02: an early HTTP error whose page never starts reaches '
-        'onError before the next page finish', () async {
-      final page = Uri.parse('https://app.example.com/missing');
-      await adapter.load(StratumWebViewSource.url(page));
-      harness
-        ..failHttp(statusCode: 404, requestUrl: page)
-        ..finishPage(page.toString());
-      expect(listener.events, ['error http $page', 'finished $page']);
-    });
-
     test('us01/fr02: a new load, an HTML load, or dispose discards an early '
         'HTTP error', () async {
       final page = Uri.parse('https://app.example.com/missing');
