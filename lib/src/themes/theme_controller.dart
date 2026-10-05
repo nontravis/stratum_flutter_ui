@@ -1,8 +1,12 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/remote/remote_theme_bundle.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 import 'package:stratum_ui/src/themes/theme_parse.dart';
 import 'package:stratum_ui/src/themes/typography/google_font_weights.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
+
+/// A registered theme's parse source id and its folder in the bundle.
+typedef _Registered = ({String sourceId, String folder});
 
 /// Thrown by `StratumThemeController.switchTo` for an id that names no
 /// registered theme: the error `theme_not_found` of
@@ -32,7 +36,7 @@ class StratumThemeNotFoundException implements Exception {
 class StratumThemeController extends ChangeNotifier {
   new _(
     this._bundle,
-    this.themeIds,
+    this._registry,
     this._packageDefault,
     this._appDefault,
     this._googleFontsTimeout,
@@ -50,15 +54,40 @@ class StratumThemeController extends ChangeNotifier {
       'packages/stratum_ui/assets/themes/default';
   static final _themeFile = RegExp(r'^assets/themes/([^/]+)/theme\.yaml$');
 
-  final AssetBundle _bundle;
+  final RemoteThemeBundle _bundle;
   final StratumThemeSource _packageDefault;
   final StratumThemeSource? _appDefault;
   final Duration _googleFontsTimeout;
   final ValueChanged<String>? _onThemeChanged;
 
-  /// Every registered theme id: `default` first, then each theme the app
-  /// bundles, in alphabetical order (FO-03 US-01 FR-02).
-  final List<String> themeIds;
+  /// Each registered id with its parse source id and folder: a bundled
+  /// theme reads `assets/themes/<id>`, a theme installed from a zip
+  /// `stratum-remote/<id>/<generation>` in [_bundle] (FO-04 design D3).
+  final Map<String, _Registered> _registry;
+
+  /// Every registered theme id: `default` first, then every other id,
+  /// bundled or installed from a zip, in alphabetical order (FO-03 US-01
+  /// FR-02; FO-04 US-01 FR-03).
+  List<String> get themeIds => _themeIds;
+
+  // Assigned again when an install registers an id (M3-T13), so not final.
+  // ignore: prefer_final_fields
+  late List<String> _themeIds = _sortedIds();
+
+  /// The folder of the theme on screen.
+  // Read by the install seam's pin logic (M3-T12); this seam only writes it.
+  // ignore: unused_field
+  String _activeFolder = '';
+
+  /// The overlay bundle that serves installed zips; `StratumThemeAssetView`
+  /// reads a remote slot through it.
+  @internal
+  RemoteThemeBundle get remoteBundle => _bundle;
+
+  List<String> _sortedIds() => List.unmodifiable([
+    'default',
+    ...(_registry.keys.where((id) => id != 'default').toList()..sort()),
+  ]);
 
   late String _activeId;
   late StratumThemeSet _themes;
@@ -138,10 +167,12 @@ class StratumThemeController extends ChangeNotifier {
     }
     final generation = ++_generation;
     if (id == _activeId) return;
-    final themes = await _load(id, generation);
+    final entry = _registry[id]!;
+    final themes = await _load(entry, generation);
     if (themes == null || _disposed) return;
     _themes = themes;
     _activeId = id;
+    _activeFolder = entry.folder;
     notifyListeners();
     _onThemeChanged?.call(id);
   }
@@ -149,6 +180,7 @@ class StratumThemeController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _bundle.clear();
     super.dispose();
   }
 
@@ -176,11 +208,12 @@ class StratumThemeController extends ChangeNotifier {
         if (_themeFile.firstMatch(key) case final match?) match[1]!,
     };
     final controller = StratumThemeController._(
-      assets,
-      List.unmodifiable([
-        'default',
-        ...bundled.where((id) => id != 'default').toList()..sort(),
-      ]),
+      RemoteThemeBundle(assets),
+      {
+        'default': (sourceId: 'default', folder: 'assets/themes/default'),
+        for (final id in bundled)
+          id: (sourceId: id, folder: 'assets/themes/$id'),
+      },
       StratumThemeSource(
         id: _packageDefaultId,
         folder: _packageDefaultFolder,
@@ -213,31 +246,32 @@ class StratumThemeController extends ChangeNotifier {
     final startId = fellBack ? 'default' : requested;
     StratumThemeSet? themes;
     try {
-      themes = await controller._load(startId, 0);
+      themes = await controller._load(controller._registry[startId]!, 0);
     } on Object {
       controller.dispose();
       rethrow;
     }
     controller
       .._themes = themes!
-      .._activeId = startId;
+      .._activeId = startId
+      .._activeFolder = controller._registry[startId]!.folder;
     if (fellBack) controller._onThemeChanged?.call('default');
     return controller;
   }
 
-  /// Reads [id] merged over the package default and the app's `default`,
-  /// registers its font files, waits for its Google fonts, and returns its
-  /// theme set; null when a later switch overtook the switch numbered
-  /// [generation].
-  Future<StratumThemeSet?> _load(String id, int generation) async {
+  /// Reads the theme of [entry] merged over the package default and the
+  /// app's `default`, registers its font files, waits for its Google
+  /// fonts, and returns its theme set; null when a later switch overtook
+  /// the switch numbered [generation].
+  Future<StratumThemeSet?> _load(_Registered entry, int generation) async {
     final layers = [
       ?_appDefault,
-      if (id != 'default')
+      if (entry.sourceId != 'default')
         StratumThemeSource(
-          id: id,
-          folder: 'assets/themes/$id',
+          id: entry.sourceId,
+          folder: entry.folder,
           yaml: await _bundle.loadString(
-            'assets/themes/$id/theme.yaml',
+            '${entry.folder}/theme.yaml',
             cache: false,
           ),
         ),
