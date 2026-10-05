@@ -11,15 +11,26 @@ const _box = SizedBox(width: 40, height: 20);
 void _noop() {}
 
 class _Keep extends StatefulWidget {
-  const new();
+  const new({this.focusNode});
+
+  final FocusNode? focusNode;
 
   @override
   State<_Keep> createState() => _KeepState();
 }
 
 class _KeepState extends State<_Keep> {
+  late final FocusNode _node = FocusNode(debugLabel: '_Keep');
+
   @override
-  Widget build(BuildContext context) => _box;
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Focus(focusNode: widget.focusNode ?? _node, child: _box);
 }
 
 /// The one child node of [node]; fails when it has none or several.
@@ -290,11 +301,13 @@ void main() {
       'child State',
       (tester) async {
         final handle = tester.ensureSemantics();
+        final keepFocus = FocusNode(debugLabel: '_Keep');
+        addTearDown(keepFocus.dispose);
         Widget build(SemanticsProperties semantics) => webThemedHost(
           StratumInkWell(
             onTap: _noop,
             semantics: semantics,
-            child: const _Keep(),
+            child: _Keep(focusNode: keepFocus),
           ),
         );
 
@@ -302,17 +315,22 @@ void main() {
           build(const SemanticsProperties(label: 'Recent')),
         );
         final before = tester.state(find.byType(_Keep));
+        keepFocus.requestFocus();
+        await tester.pump();
+        expect(FocusManager.instance.primaryFocus, same(keepFocus));
 
         await tester.pumpWidget(
           build(const SemanticsProperties(header: true, label: 'Recent')),
         );
         expect(tester.state(find.byType(_Keep)), same(before));
+        expect(FocusManager.instance.primaryFocus, same(keepFocus));
         expect(_levelOf(tester, find.byType(StratumInkWell)), 2);
 
         await tester.pumpWidget(
           build(const SemanticsProperties(headingLevel: 4, label: 'Recent')),
         );
         expect(tester.state(find.byType(_Keep)), same(before));
+        expect(FocusManager.instance.primaryFocus, same(keepFocus));
         expect(_levelOf(tester, find.byType(StratumInkWell)), 4);
         handle.dispose();
       },

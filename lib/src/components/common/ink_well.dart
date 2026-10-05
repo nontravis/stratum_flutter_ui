@@ -586,41 +586,24 @@ class _SemanticsWithoutHeading extends Semantics {
 
   @override
   RenderSemanticsAnnotations createRenderObject(BuildContext context) {
-    return _RenderSemanticsWithoutHeading(
+    final renderObject = _RenderSemanticsWithoutHeading(
       container: container,
       explicitChildNodes: explicitChildNodes,
       excludeSemantics: excludeSemantics,
       blockUserActions: blockUserActions,
       properties: properties,
       localeForSubtree: localeForSubtree,
-      textDirection: _textDirection(context),
     );
-  }
-
-  /// The direction [properties] sets, else the ambient one when
-  /// [properties] carries text: the rule of `_getTextDirection` in
-  /// Flutter's `widgets/basic.dart`, which is private to that library. The
-  /// inherited `updateRenderObject` applies that rule itself.
-  TextDirection? _textDirection(BuildContext context) {
-    final direction = properties.textDirection;
-    if (direction != null) return direction;
-    final containsText =
-        properties.label != null ||
-        properties.attributedLabel != null ||
-        properties.value != null ||
-        properties.attributedValue != null ||
-        properties.increasedValue != null ||
-        properties.attributedIncreasedValue != null ||
-        properties.decreasedValue != null ||
-        properties.attributedDecreasedValue != null ||
-        properties.hint != null ||
-        properties.attributedHint != null ||
-        properties.tooltip != null;
-    return containsText ? Directionality.maybeOf(context) : null;
+    // Sets the direction by the SDK's own rule, which is private to
+    // `Semantics` in `widgets/basic.dart` and so unreachable from here.
+    updateRenderObject(context, renderObject);
+    return renderObject;
   }
 }
 
-/// Clears `header` and `headingLevel` after the inherited configuration.
+/// Clears `header` and `headingLevel` after the inherited configuration,
+/// only when it set them, so a config that would contribute no node
+/// still contributes none.
 class _RenderSemanticsWithoutHeading extends RenderSemanticsAnnotations {
   new({
     required super.properties,
@@ -629,15 +612,14 @@ class _RenderSemanticsWithoutHeading extends RenderSemanticsAnnotations {
     super.excludeSemantics,
     super.blockUserActions,
     super.localeForSubtree,
-    super.textDirection,
   });
 
   @override
   void describeSemanticsConfiguration(SemanticsConfiguration config) {
     super.describeSemanticsConfiguration(config);
-    config
-      ..isHeader = false
-      ..headingLevel = 0;
+    if (config.isHeader) config.isHeader = false;
+    // The setter no-ops on 0, but names the cleared field.
+    config.headingLevel = 0;
   }
 }
 
