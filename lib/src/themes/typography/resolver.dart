@@ -72,7 +72,8 @@ abstract final class TypographyResolver {
     final scaledBase = textScaler.scale(base);
     final lineBox = scaledBase + metrics.spaceHeight.resolve(of: scaledBase);
     final weight = recipe.fontWeight ?? style.weight;
-    final drawn = _snap(typography, font, weight);
+    final googleWeights = GoogleFontWeights.of(typography);
+    final drawn = _snap(googleWeights, font, weight);
     final primaryFamily = _familyOf(font, drawn, recipe.fontStyle);
     final fallback = _fallback(
       typography,
@@ -80,8 +81,9 @@ abstract final class TypographyResolver {
       mono,
       primaryKey,
       primaryFamily,
-      weight,
+      font.source == StratumFontSource.google ? drawn : weight,
       recipe.fontStyle,
+      googleWeights,
     );
 
     return TextStyle(
@@ -122,14 +124,14 @@ abstract final class TypographyResolver {
   /// run. An app or theme font keeps [weight]: the engine picks its face
   /// from its files.
   static FontWeight _snap(
-    StratumTypography typography,
+    Map<String, Set<FontWeight>> googleWeights,
     StratumFontData font,
     FontWeight weight,
   ) {
     if (font.source != StratumFontSource.google) return weight;
     final snapped = GoogleFontWeights.snap(
       weight,
-      GoogleFontWeights.of(typography)[font.family] ?? const <FontWeight>{},
+      googleWeights[font.family] ?? const <FontWeight>{},
     );
     if (snapped != weight &&
         kDebugMode &&
@@ -236,8 +238,11 @@ abstract final class TypographyResolver {
   /// order; the mono font before the font when [mono] is set; then every
   /// tag's `body` font. Without [primaryKey] itself, and without
   /// duplicates by family or [primaryFamily]. Each family resolves at
-  /// [style], and a Google family at [weight] snapped into its own weight
-  /// set (see [_snap] and [_familyOf]).
+  /// [style], and a Google family at [weight] — the style's drawn weight,
+  /// the primary's snapped weight, or the resolved weight when the primary
+  /// is an `app` or `theme` font — snapped into its own weight set (see
+  /// [_snap] and [_familyOf]), so a fallback never draws lighter than the
+  /// primary.
   static List<String> _fallback(
     StratumTypography typography,
     FontType type,
@@ -246,6 +251,7 @@ abstract final class TypographyResolver {
     String primaryFamily,
     FontWeight weight,
     FontStyle? style,
+    Map<String, Set<FontWeight>> googleWeights,
   ) {
     final families = [
       ?typography.families['default'],
@@ -262,7 +268,9 @@ abstract final class TypographyResolver {
     final qualifieds = <String>{};
     for (final key in keys) {
       final font = typography.fonts[key]!;
-      qualifieds.add(_familyOf(font, _snap(typography, font, weight), style));
+      qualifieds.add(
+        _familyOf(font, _snap(googleWeights, font, weight), style),
+      );
     }
     return (qualifieds..remove(primaryFamily)).toList();
   }

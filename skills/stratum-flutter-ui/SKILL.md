@@ -186,7 +186,9 @@ scroll it, guarded so a text field inside keeps its own keys.
 - **Google font weights** — a Google font draws only in the weights its theme loads it in: each type's `weight` for
   the font that type names, and every type's weight for each tag's `body` font and theme-wide `mono`. A recipe weight
   outside that set, such as `.medium` on the package default's Inter (loaded in 400 and 600), draws the nearest loaded
-  weight, the heavier on a tie, and prints one debug warning per family and weight. The package asks google_fonts for
+  weight, the heavier on a tie, and prints one debug warning per family and weight. A Google font in the fallback list
+  snaps the style's drawn weight — the primary's snapped weight, or the recipe's weight when the primary is an app or
+  theme font — into its own set, so a fallback never draws lighter than the primary. The package asks google_fonts for
   no other weight, with run-time fetching on or off, so bundling exactly those weights keeps every normal-style Google
   font off the network; an italic face loads on first use, at the snapped weight. A font the theme ships as `files`
   or the app registers keeps the weight it is asked for.

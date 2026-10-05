@@ -816,6 +816,31 @@ typography:
       expect(lines, [warning]);
     });
 
+    test('us08/fr02/e04: a weight off the hundreds, and w100 and w900, '
+        'snap through the resolver as the pure rule says', () {
+      theme = _theme(_googleYaml('Odd Lato'));
+
+      // Odd Lato loads in {400, 600}: 450 is nearer 400, w100 snaps up to
+      // 400, w900 down to 600.
+      expect(
+        _drawn(resolve(StratumTextStyle.body.weight(const FontWeight(450)))),
+        ('Odd Lato', FontWeight.w400),
+      );
+      expect(_drawn(resolve(StratumTextStyle.body.weight(FontWeight.w100))), (
+        'Odd Lato',
+        FontWeight.w400,
+      ));
+      expect(_drawn(resolve(StratumTextStyle.body.weight(FontWeight.w900))), (
+        'Odd Lato',
+        FontWeight.w600,
+      ));
+      expect(calls.map((call) => (call.$1, call.$2)), [
+        ('Odd Lato', FontWeight.w400),
+        ('Odd Lato', FontWeight.w400),
+        ('Odd Lato', FontWeight.w600),
+      ]);
+    });
+
     test('s03/inv13: each theme snaps against its own weight set', () {
       theme = _theme(_googleYaml('Switch Lato'));
       final first = resolve(StratumTextStyle.body.medium).fontWeight;
@@ -875,6 +900,160 @@ typography:
       expect(calls, [('Lato', FontWeight.w600, null)]);
     });
 
+    test('us08/fr02/e06: under the package default, number regular draws '
+        'Geist 600 and its Inter and Kanit fallbacks name their 600 faces', () {
+      theme = defaultThemeSet.light.copyWith();
+
+      final style = resolve(StratumTextStyle.number.regular);
+
+      expect(_drawn(style), ('Geist', FontWeight.w600));
+      // Geist snaps 400 to 600 (set {600}), so the style draws w600; each
+      // Google fallback snaps that drawn weight into its own set, so Inter
+      // and Kanit (sets {400, 600}) name their 600 faces, never a 400-only
+      // face the engine would fake bold from (FR-02 E06).
+      expect(calls, [
+        ('Geist', FontWeight.w600, null),
+        ('Inter', FontWeight.w600, null),
+        ('Kanit', FontWeight.w600, null),
+      ]);
+    });
+
+    test("us08/fr02/e06: a table font of its own snaps at body's weight, "
+        'differently from the fonts the other types name', () {
+      // Body draws Inter (set {400, 600}); table draws Roboto Flex
+      // (set {400}), so the two snap the same requested weight apart.
+      theme = _theme('''
+typography:
+  fonts:
+    inter: { family: "Google/Inter" }
+    flex: { family: "Google/Roboto Flex" }
+  families:
+    default:
+      header: inter
+      paragraph: inter
+      number: inter
+      code: inter
+      body: inter
+      table: flex
+  types:
+    header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+''');
+
+      final table = resolve(StratumTextStyle.table.bold);
+      final body = resolve(StratumTextStyle.body.bold);
+
+      // Table has no type entry of its own, so Roboto Flex loads only in
+      // table's weight — body's 400 — while Inter loads in {400, 600}: the
+      // same bold recipe snaps 700 down to 400 for table and to 600 for
+      // body.
+      expect(_drawn(table), ('Roboto Flex', FontWeight.w400));
+      expect(_drawn(body), ('Inter', FontWeight.w600));
+    });
+
+    test('s03/inv13: the same recipe snaps differently under different '
+        "locale tags, each tag against its own font's set", () {
+      // Default's header draws Inter (set {400, 600}); th's header draws
+      // Kanit, named only there, in header's weight alone (set {600}), so
+      // the same light recipe snaps 300 down to 400 under default but up
+      // to 600 under th.
+      theme = _theme('''
+typography:
+  fonts:
+    inter: { family: "Google/Inter" }
+    kanit: { family: "Google/Kanit" }
+  families:
+    default:
+      header: inter
+      paragraph: inter
+      number: inter
+      code: inter
+      body: inter
+      table: inter
+    th: { header: kanit }
+  types:
+    header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+''');
+
+      final english = resolve(StratumTextStyle.header.light, locale: _en);
+      final thai = resolve(
+        StratumTextStyle.header.light,
+        locale: const Locale('th'),
+      );
+
+      expect(_drawn(english), ('Inter', FontWeight.w400));
+      expect(_drawn(thai), ('Kanit', FontWeight.w600));
+    });
+
+    test('us08/fr02/e06: a theme-source primary with Google fallbacks keeps '
+        'the resolved weight, and each fallback snaps that weight into its '
+        'own set', () {
+      final brandFont = layer('''
+typography:
+  fonts:
+    brand: { family: DB Heavent, files: [fonts/DBHeavent-Regular.ttf] }
+    lato: { family: "Google/Lato" }
+    kanit: { family: "Google/Kanit" }
+  families:
+    default:
+      header: brand
+      paragraph: lato
+      number: lato
+      code: lato
+      body: lato
+      table: lato
+    th:
+      header: kanit
+  types:
+    header: { weight: 700, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+''');
+      theme = fakeStratumTheme(
+        typography: StratumThemeConfig.parse(
+          base: sources(const []).first,
+          layers: [
+            StratumThemeSource(
+              id: 'brand',
+              folder: 'assets/themes/brand',
+              yaml: brandFont,
+            ),
+          ],
+        ).typography,
+      );
+
+      // The theme font keeps the resolved weight; each Google fallback
+      // snaps it into its own set: Lato, the default body font, loads in
+      // every type's weight ({400, 600, 700}); Kanit, named only for th's
+      // header, in {700} — so bold passes through both, and medium draws
+      // Lato 600 but Kanit 700, each nearest in its own set.
+      final bold = resolve(StratumTextStyle.header.bold);
+      expect(_drawn(bold), ('brand/DB Heavent', FontWeight.w700));
+      expect(bold.fontFamilyFallback, ['Kanit', 'Lato']);
+      expect(calls, [
+        ('Kanit', FontWeight.w700, null),
+        ('Lato', FontWeight.w700, null),
+      ]);
+
+      calls.clear();
+      final medium = resolve(StratumTextStyle.header.medium);
+      expect(_drawn(medium), ('brand/DB Heavent', FontWeight.w500));
+      expect(medium.fontFamilyFallback, ['Kanit', 'Lato']);
+      expect(calls, [
+        ('Kanit', FontWeight.w700, null),
+        ('Lato', FontWeight.w600, null),
+      ]);
+    });
+
     test('us08/fr02/e07: an italic recipe snaps as a normal one and asks '
         'for the italic face at the snapped weight', () {
       theme = defaultThemeSet.light.copyWith();
@@ -918,25 +1097,35 @@ typography:
       expect(calls.where((call) => call.$2 == FontWeight.w500), isEmpty);
     });
 
-    test('us08/fr02/e08: run-time fetching on or off draws the same '
-        'weights', () {
+    test('us08/fr02/e08: run-time fetching on or off asks the library for '
+        "the same weights, each inside its family's weight set", () {
       final fetching = GoogleFonts.config.allowRuntimeFetching;
       addTearDown(() => GoogleFonts.config.allowRuntimeFetching = fetching);
-      List<(String?, FontWeight?)> drawAll() {
+      List<(String, FontWeight, FontStyle?)> drawAll() {
+        calls.clear();
         theme = defaultThemeSet.light.copyWith();
-        return [
-          for (final type in FontType.values)
-            for (final recipe in _weighted(StratumTextStyle.type(type)))
-              _drawn(resolve(recipe)),
-        ];
+        void draw(StratumTextStyle recipe) => resolve(recipe);
+        for (final type in FontType.values) {
+          _weighted(StratumTextStyle.type(type)).forEach(draw);
+        }
+        return List.of(calls);
       }
 
       GoogleFonts.config.allowRuntimeFetching = true;
       final on = drawAll();
       GoogleFonts.config.allowRuntimeFetching = false;
       final off = drawAll();
+      final sets = GoogleFontWeights.of(theme.typography);
 
+      // The fake lookup never reads the flag, so equality alone cannot
+      // fail; the load-bearing half is that the same in-set weights are
+      // asked under both values (the real fetch-off proof lives in the
+      // example's perf_fonts_test).
       expect(off, on);
+      expect(on, isNotEmpty);
+      for (final (name, weight, _) in on) {
+        expect(sets[name], contains(weight), reason: '$name $weight');
+      }
     });
 
     test('us08/fr02/e10: the weight set comes from the theme typography, '
@@ -1052,6 +1241,24 @@ typography:
 
       expect(identical(resolve(recipe), first), isFalse);
       expect(resolve(recipe), first);
+    });
+
+    test('s03/inv13: a cached style of one theme never serves another, and '
+        'a switch back to a theme still in scope serves its own entry', () {
+      // Two themes over the same yaml but parsed apart, so each holds its
+      // own typography instance and its own cache.
+      final a = _theme();
+      final b = _theme();
+      final recipe = StratumTextStyle.body.s20;
+
+      theme = a;
+      final fromA = resolve(recipe);
+      theme = b;
+      final fromB = resolve(recipe);
+      theme = a;
+
+      expect(identical(resolve(recipe), fromA), isTrue);
+      expect(identical(fromB, fromA), isFalse);
     });
 
     test('the 513th entry clears the cache', () {
