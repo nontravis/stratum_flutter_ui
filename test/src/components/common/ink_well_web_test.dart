@@ -179,6 +179,48 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('us04/fr02/e07: a right-to-left header button splits like '
+        'left-to-right', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        webThemedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(header: true, label: 'Recent'),
+            child: _box,
+          ),
+          textDirection: TextDirection.rtl,
+        ),
+      );
+
+      final heading = tester.getSemantics(find.byType(StratumInkWell));
+      expect(heading.getSemanticsData().headingLevel, 2);
+      expect(
+        heading,
+        isSemantics(
+          label: '',
+          isHeader: false,
+          isButton: false,
+          hasTapAction: false,
+        ),
+      );
+      final button = _onlyChild(heading);
+      expect(button.getSemanticsData().headingLevel, 0);
+      expect(
+        button,
+        isSemantics(
+          label: 'Recent',
+          isHeader: false,
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          isFocusable: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
     testWidgets(
       'us04/fr02/e05: a disabled header button is a dimmed button in the '
       'heading',
@@ -210,6 +252,38 @@ void main() {
         handle.dispose();
       },
     );
+
+    testWidgets('us04/fr02/e07: a caller enabled false keeps the heading and a '
+        'disabled button', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        webThemedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(
+              enabled: false,
+              header: true,
+              label: 'Recent',
+            ),
+            child: _box,
+          ),
+        ),
+      );
+
+      final heading = tester.getSemantics(find.byType(StratumInkWell));
+      expect(heading.getSemanticsData().headingLevel, 2);
+      expect(
+        _onlyChild(heading),
+        isSemantics(
+          label: 'Recent',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
 
     testWidgets('us04/fr02/e01: a link header stays one node', (tester) async {
       final handle = tester.ensureSemantics();

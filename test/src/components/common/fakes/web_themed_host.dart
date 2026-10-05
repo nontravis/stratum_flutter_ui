@@ -15,14 +15,17 @@ final StratumThemeData webDefaultTheme = StratumThemeSet.fromConfig(
 ).light;
 
 /// Places [child] in a [Center] under a [StratumThemeApplication] of
-/// [webDefaultTheme] and a left-to-right [Directionality], as `themedHost`
-/// does on the Dart VM.
-Widget webThemedHost(Widget child) {
+/// [webDefaultTheme] and a [Directionality], as `themedHost` does on the
+/// Dart VM.
+Widget webThemedHost(
+  Widget child, {
+  TextDirection textDirection = TextDirection.ltr,
+}) {
   return StratumThemeApplication(
     themes: StratumThemeSet(light: webDefaultTheme),
     themeMode: ThemeMode.light,
     child: Directionality(
-      textDirection: TextDirection.ltr,
+      textDirection: textDirection,
       child: Center(child: child),
     ),
   );

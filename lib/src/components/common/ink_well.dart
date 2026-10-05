@@ -177,6 +177,10 @@ class StratumInkWell extends StatefulWidget {
   /// flag; otherwise, with an activation callback, [disabled] does.
   /// `container` is still set. Applies also when [excludeFromSemantics] is
   /// true.
+  ///
+  /// On web, a node that reads as a button with `header` or `headingLevel`
+  /// becomes a heading node at that level, default 2, holding the button
+  /// node; native keeps one node (FR-02 E07, E09).
   final SemanticsProperties? semantics;
   final bool excludeFromSemantics;
 
@@ -618,7 +622,8 @@ class _RenderSemanticsWithoutHeading extends RenderSemanticsAnnotations {
   void describeSemanticsConfiguration(SemanticsConfiguration config) {
     super.describeSemanticsConfiguration(config);
     if (config.isHeader) config.isHeader = false;
-    // The setter no-ops on 0, but names the cleared field.
+    // Skips the write when the level is already 0, so a config with no
+    // level stays unannotated; otherwise it clears the copied level.
     config.headingLevel = 0;
   }
 }
