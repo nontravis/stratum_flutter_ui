@@ -241,8 +241,9 @@ abstract final class TypographyResolver {
   /// [style], and a Google family at [weight] — the style's drawn weight,
   /// the primary's snapped weight, or the resolved weight when the primary
   /// is an `app` or `theme` font — snapped into its own weight set (see
-  /// [_snap] and [_familyOf]), so a fallback never draws lighter than the
-  /// primary.
+  /// [_snap] and [_familyOf]): the drawn weight when the set holds it, else
+  /// the nearest weight in the set, the heavier on a tie, which can be
+  /// lighter than the primary.
   static List<String> _fallback(
     StratumTypography typography,
     FontType type,
