@@ -1,10 +1,14 @@
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
+import 'package:stratum_ui/src/themes/config/theme_model.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
+
+part 'generated/typography.freezed.dart';
 
 /// The fonts one type uses under one locale tag.
 @immutable
-class StratumFontRef {
+@themeModel
+class StratumFontRef with _$StratumFontRef {
   const new({required this.font, this.mono});
 
   /// Key into [StratumTypography.fonts].
@@ -14,36 +18,22 @@ class StratumFontRef {
   final String? mono;
 
   @override
-  bool operator ==(Object other) =>
-      other is StratumFontRef && other.font == font && other.mono == mono;
-
-  @override
-  int get hashCode => Object.hash(font, mono);
-
-  @override
   String toString() => 'StratumFontRef(font: $font, mono: $mono)';
 }
 
 /// The fonts of one `typography.families` entry, that is one locale tag.
-@immutable
-class StratumFamilySet {
-  const new({required this.types, this.mono});
+@themeModel
+abstract class StratumFamilySet with _$StratumFamilySet {
+  const factory({
+    /// The fonts of each type this tag names.
+    required Map<FontType, StratumFontRef> types,
 
-  /// The fonts of each type this tag names.
-  final Map<FontType, StratumFontRef> types;
+    /// Key of the theme-wide mono font of this tag, for `.mono` on a type
+    /// without a mono font of its own, or null.
+    String? mono,
+  }) = _StratumFamilySet;
 
-  /// Key of the theme-wide mono font of this tag, for `.mono` on a type
-  /// without a mono font of its own, or null.
-  final String? mono;
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumFamilySet &&
-      mapEquals(other.types, types) &&
-      other.mono == mono;
-
-  @override
-  int get hashCode => Object.hash(_mapHash(types), mono);
+  const new _();
 
   @override
   String toString() => 'StratumFamilySet(types: $types, mono: $mono)';
@@ -51,7 +41,8 @@ class StratumFamilySet {
 
 /// The line spacing and tracking of one type at one size.
 @immutable
-class StratumSizeMetrics {
+@themeModel
+class StratumSizeMetrics with _$StratumSizeMetrics {
   const new({
     required this.spaceHeight,
     this.letterSpacing = const StratumDimension.fixed(0),
@@ -65,15 +56,6 @@ class StratumSizeMetrics {
   final StratumDimension letterSpacing;
 
   @override
-  bool operator ==(Object other) =>
-      other is StratumSizeMetrics &&
-      other.spaceHeight == spaceHeight &&
-      other.letterSpacing == letterSpacing;
-
-  @override
-  int get hashCode => Object.hash(spaceHeight, letterSpacing);
-
-  @override
   String toString() =>
       'StratumSizeMetrics(spaceHeight: $spaceHeight, '
       'letterSpacing: $letterSpacing)';
@@ -81,36 +63,20 @@ class StratumSizeMetrics {
 
 /// One entry of `typography.types`. There is no `table` entry: `table`
 /// reads `body`'s style in code and always draws tabular figures.
-@immutable
-class StratumTypeStyle {
-  const new({
-    required this.weight,
-    required this.sizes,
-    this.scaleByWindowSize,
-  });
+@themeModel
+abstract class StratumTypeStyle with _$StratumTypeStyle {
+  const factory({
+    /// The weight when the text style sets none.
+    required FontWeight weight,
 
-  /// The weight when the text style sets none.
-  final FontWeight weight;
+    /// The metrics of each size this type defines, smallest first.
+    required Map<FontSize, StratumSizeMetrics> sizes,
 
-  /// The window scale of this type, or null for the theme-wide one.
-  final Map<WindowSize, StratumDimension>? scaleByWindowSize;
+    /// The window scale of this type, or null for the theme-wide one.
+    Map<WindowSize, StratumDimension>? scaleByWindowSize,
+  }) = _StratumTypeStyle;
 
-  /// The metrics of each size this type defines, smallest first.
-  final Map<FontSize, StratumSizeMetrics> sizes;
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumTypeStyle &&
-      other.weight == weight &&
-      mapEquals(other.scaleByWindowSize, scaleByWindowSize) &&
-      mapEquals(other.sizes, sizes);
-
-  @override
-  int get hashCode => Object.hash(
-    weight,
-    scaleByWindowSize == null ? null : _mapHash(scaleByWindowSize!),
-    _mapHash(sizes),
-  );
+  const new _();
 
   @override
   String toString() =>
@@ -119,16 +85,29 @@ class StratumTypeStyle {
 }
 
 /// The typography of a theme: the `typography:` subtree of `theme.yaml`.
-@immutable
-class StratumTypography {
-  const new({
-    required this.fonts,
-    required this.families,
-    required this.types,
-    this.scaleByWindowSize = const StratumByWindowSize.all(
-      StratumDimension.fixed(0),
-    ),
-  });
+@themeModel
+abstract class StratumTypography with _$StratumTypography {
+  const factory({
+    /// Each font by its key.
+    required Map<String, StratumFontData> fonts,
+
+    /// Each family set by its locale tag (`default`, `th`, `th_TH`), in
+    /// yaml order.
+    required Map<String, StratumFamilySet> families,
+
+    /// The style of every type except `table`, which has no entry here:
+    /// its style is `body`'s, read in code.
+    required Map<FontType, StratumTypeStyle> types,
+
+    /// The size each window size adds. A window size the yaml map omits
+    /// takes the value of the nearest smaller window size it names, else
+    /// of the smallest one it names; a theme without the map adds 0
+    /// everywhere.
+    @Default(
+      StratumByWindowSize<StratumDimension>.all(StratumDimension.fixed(0)),
+    )
+    StratumByWindowSize<StratumDimension> scaleByWindowSize,
+  }) = _StratumTypography;
 
   /// Parses the `typography:` node of one `theme.yaml` file.
   ///
@@ -152,38 +131,6 @@ class StratumTypography {
     errors.throwIfAny();
     return typography;
   }
-
-  /// Each font by its key.
-  final Map<String, StratumFontData> fonts;
-
-  /// Each family set by its locale tag (`default`, `th`, `th_TH`), in yaml
-  /// order.
-  final Map<String, StratumFamilySet> families;
-
-  /// The size each window size adds. A window size the yaml map omits takes
-  /// the value of the nearest smaller window size it names, else of the
-  /// smallest one it names; a theme without the map adds 0 everywhere.
-  final StratumByWindowSize<StratumDimension> scaleByWindowSize;
-
-  /// The style of every type except `table`, which has no entry here: its
-  /// style is `body`'s, read in code.
-  final Map<FontType, StratumTypeStyle> types;
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumTypography &&
-      mapEquals(other.fonts, fonts) &&
-      mapEquals(other.families, families) &&
-      other.scaleByWindowSize == scaleByWindowSize &&
-      mapEquals(other.types, types);
-
-  @override
-  int get hashCode => Object.hash(
-    _mapHash(fonts),
-    _mapHash(families),
-    scaleByWindowSize,
-    _mapHash(types),
-  );
 }
 
 /// Reads the `typography` subtree [node], which sits at the path
@@ -202,10 +149,6 @@ StratumTypography readTypography(
   ThemeReader reader, {
   List<({String id, String folder})> sources = const [],
 }) => _TypographyParser(reader, sources).parse(node);
-
-int _mapHash(Map<Object?, Object?> map) => Object.hashAllUnordered(
-  map.entries.map((entry) => Object.hash(entry.key, entry.value)),
-);
 
 class _TypographyParser {
   new(this._reader, this._sources);

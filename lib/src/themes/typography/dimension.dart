@@ -1,4 +1,7 @@
-import 'package:stratum_ui/src/src.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/config/theme_model.dart';
+
+part 'generated/dimension.freezed.dart';
 
 /// A theme length: a fixed number of logical pixels, or a percent of a base
 /// length that the caller supplies when it resolves the value.
@@ -37,7 +40,8 @@ sealed class StratumDimension {
 }
 
 /// A [StratumDimension] of [px] logical pixels.
-final class FixedDimension extends StratumDimension {
+@themeModel
+final class FixedDimension extends StratumDimension with _$FixedDimension {
   const new(this.px);
 
   /// The length in logical pixels.
@@ -47,17 +51,12 @@ final class FixedDimension extends StratumDimension {
   double resolve({required double of}) => px;
 
   @override
-  bool operator ==(Object other) => other is FixedDimension && other.px == px;
-
-  @override
-  int get hashCode => Object.hash(FixedDimension, px);
-
-  @override
   String toString() => 'StratumDimension.fixed($px)';
 }
 
 /// A [StratumDimension] of [ratio] times the base it resolves against.
-final class PercentDimension extends StratumDimension {
+@themeModel
+final class PercentDimension extends StratumDimension with _$PercentDimension {
   const new(this.ratio);
 
   /// The share of the base; `0.5` is 50%.
@@ -65,13 +64,6 @@ final class PercentDimension extends StratumDimension {
 
   @override
   double resolve({required double of}) => ratio * of;
-
-  @override
-  bool operator ==(Object other) =>
-      other is PercentDimension && other.ratio == ratio;
-
-  @override
-  int get hashCode => Object.hash(PercentDimension, ratio);
 
   @override
   String toString() => 'StratumDimension.percent($ratio)';
