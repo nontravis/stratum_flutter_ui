@@ -111,7 +111,7 @@ final class _Read {
 
   Map<String, StratumThemeAsset> _assets(Object? value) {
     final slots = _reader.map(value, 'assets', required: false);
-    return Map.unmodifiable({
+    return frozenMap({
       for (final MapEntry(key: slot, value: relative)
           in (slots ?? const <String, Object?>{}).entries)
         slot: ?_asset('assets.$slot', relative),
@@ -154,7 +154,7 @@ final class _Read {
     final tokens = value is Map<String, Object?>
         ? value
         : const <String, Object?>{};
-    return Map.unmodifiable({
+    return frozenMap({
       for (final MapEntry(key: name, value: token) in tokens.entries)
         if (!_theme.failed.contains('$group.$name'))
           name: ?_byWindowSize(
@@ -249,7 +249,7 @@ final class _Read {
         _shades(['palette', 'app', name], appShades, palette);
       }
     }
-    return Map.unmodifiable(palette);
+    return frozenMap(palette);
   }
 
   void _shades(List<String> ramp, Object? value, Map<String, Color> out) {
@@ -270,7 +270,7 @@ final class _Read {
       'color',
       name,
     ], colors);
-    return Map.unmodifiable(colors);
+    return frozenMap(colors);
   }
 
   void _walkSet(
@@ -335,10 +335,10 @@ final class _Read {
         if (key != 'default') key,
     ];
     return StratumAnimationConfig(
-      durations: Map.unmodifiable(_durations(duration, levels)),
+      durations: frozenMap(_durations(duration, levels)),
       defaultLevel: _defaultLevel(duration, levels),
       reverseRatio: node == null ? 0 : _reverseRatio(node['reverseDuration']),
-      curves: Map.unmodifiable(_curves(curve)),
+      curves: frozenMap(_curves(curve)),
     );
   }
 
@@ -431,7 +431,7 @@ final class _Read {
       : const {};
 
   static Object? _frozen(Object? value) => switch (value) {
-    final Map<String, Object?> map => Map<String, Object?>.unmodifiable({
+    final Map<String, Object?> map => frozenMap<String, Object?>({
       for (final MapEntry(:key, value: child) in map.entries)
         key: _frozen(child),
     }),

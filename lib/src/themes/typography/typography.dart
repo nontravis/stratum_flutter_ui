@@ -261,7 +261,7 @@ class _TypographyParser {
         ]),
       );
     }
-    return Map.unmodifiable(fonts);
+    return frozenMap(fonts);
   }
 
   /// The entries of a font's `files` list that pass: reports
@@ -393,12 +393,9 @@ class _TypographyParser {
         final fontRef = _fontRef(ref, refPath, fontKeys);
         if (fontRef != null) types[type] = fontRef;
       }
-      families[tag] = StratumFamilySet(
-        types: Map.unmodifiable(types),
-        mono: mono,
-      );
+      families[tag] = StratumFamilySet(types: frozenMap(types), mono: mono);
     }
-    return Map.unmodifiable(families);
+    return frozenMap(families);
   }
 
   String? _tag(String key, String path) {
@@ -461,7 +458,7 @@ class _TypographyParser {
       final dimension = _reader.dimension(value, sizePath, required: true);
       if (dimension != null) scale[windowSize] = dimension;
     }
-    return Map.unmodifiable(scale);
+    return frozenMap(scale);
   }
 
   Map<FontType, StratumTypeStyle> _types(
@@ -496,7 +493,7 @@ class _TypographyParser {
       if (type == FontType.table || seen.contains(type)) continue;
       _error(StratumThemeErrorCode.required, '$path.${type.name}', 'required');
     }
-    return Map.unmodifiable(types);
+    return frozenMap(types);
   }
 
   StratumTypeStyle? _typeStyle(Map<String, Object?> node, String path) {
@@ -518,7 +515,7 @@ class _TypographyParser {
     return StratumTypeStyle(
       weight: weight,
       scaleByWindowSize: scale,
-      sizes: Map.unmodifiable({
+      sizes: frozenMap({
         for (final size in FontSize.values) size: ?sizes[size],
       }),
     );
@@ -553,7 +550,7 @@ class _TypographyParser {
         letterSpacing: letterSpacing ?? const StratumDimension.fixed(0),
       );
     }
-    return Map.unmodifiable(sizes);
+    return frozenMap(sizes);
   }
 
   FontWeight? _weight(Object? value, String path) {

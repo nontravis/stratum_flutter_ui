@@ -1,5 +1,6 @@
 import 'dart:ui' show Color;
 
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
 import 'package:yaml/yaml.dart';
@@ -78,6 +79,17 @@ Object? copyTree(Object? value) => switch (value) {
   ],
   _ => value,
 };
+
+/// An [EqualUnmodifiableMapView] over an unmodifiable copy of [map].
+///
+/// A `@themeModel` factory's generated getter wraps its stored map in a
+/// fresh [EqualUnmodifiableMapView] on every read, unless the stored map is
+/// already one, in which case it returns that exact instance instead. Every
+/// producer that hands a map to such a factory calls this, so the model's
+/// map, and `copyWith` when it keeps the field, give back the same instance
+/// on every later read.
+Map<K, V> frozenMap<K, V>(Map<K, V> map) =>
+    EqualUnmodifiableMapView(Map<K, V>.unmodifiable(map));
 
 typedef _Entry = ({int source, int order, StratumThemeFormatError error});
 
