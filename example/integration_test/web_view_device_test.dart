@@ -201,8 +201,9 @@ void main() {
     });
 
     testWidgets(
-      'us08/s10, us08/fr01/e05: going back to a no-store page that now '
-      'answers 404 reports start, one http error, finish',
+      'us08/s10, us08/s11, us08/fr01/e05: going back to a no-store page '
+      'that now answers 404 reports start, one http error, finish on '
+      'Android, and start, finish with no error on iOS and macOS',
       (tester) async {
         // CO-01-02 US-01 FR-02 E08 and US-04 FR-01 E07 of the package docs.
         final controller = StratumWebViewController();
@@ -231,20 +232,29 @@ void main() {
         expect(shown, isTrue, reason: 'no onPageFinished for $flip');
         expect(left, isTrue, reason: 'the second page never finished');
         expect(mark, isNotNull, reason: 'no onPageFinished after goBack');
-        expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
-        expect(recorder.errors, hasLength(1));
-        expect(recorder.errors.single.type, StratumWebViewErrorType.http);
-        expect(recorder.errors.single.code, HttpStatus.notFound);
-        expect(recorder.errors.single.url, flip);
+        if (_isAndroid()) {
+          expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
+          expect(recorder.errors, hasLength(1));
+          expect(recorder.errors.single.type, StratumWebViewErrorType.http);
+          expect(recorder.errors.single.code, HttpStatus.notFound);
+          expect(recorder.errors.single.url, flip);
+        } else {
+          // WebKit restores the entry from its back-forward cache with no
+          // request, so no HTTP error exists to report.
+          expect(recorder.kindsSince(mark!), ['started', 'finished']);
+          expect(recorder.errors, isEmpty);
+        }
       },
     );
 
     testWidgets(
-      'us08/s10, us08/fr01/e05: going forward to an entry that answered 404 '
-      'reports start, one http error, finish',
+      'us08/s10, us08/s11, us08/fr01/e05: going forward to an entry that '
+      'answered 404 reports start, one http error, finish on Android, and '
+      'start, finish with no error on iOS and macOS',
       (tester) async {
         // CO-01-02 US-01 FR-02 E08: Android replays the 404 from its HTTP
-        // cache without a request.
+        // cache without a request; WebKit instead restores the entry from
+        // its back-forward cache, so only the load's own error exists.
         final controller = StratumWebViewController();
         final first = server.page('/ok');
         final missing = server.page('/missing', query: 'case=forward');
@@ -276,17 +286,22 @@ void main() {
         expect(failed, isTrue, reason: 'no onPageFinished for $missing');
         expect(back, isTrue, reason: 'no onPageFinished after goBack');
         expect(mark, isNotNull, reason: 'no onPageFinished after goForward');
-        expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
-        // One error for the load of the 404 entry, one for the move forward.
-        expect(recorder.errors, hasLength(2));
+        // One error for the load of the 404 entry, plus one more on Android
+        // for the move forward; the WebKit cache restore adds none.
+        expect(recorder.errors, hasLength(_isAndroid() ? 2 : 1));
         expect(recorder.errors.last.type, StratumWebViewErrorType.http);
         expect(recorder.errors.last.code, HttpStatus.notFound);
         expect(recorder.errors.last.url, missing);
+        if (_isAndroid()) {
+          expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
+        } else {
+          expect(recorder.kindsSince(mark!), ['started', 'finished']);
+        }
       },
     );
 
     testWidgets(
-      'us08/s10, us08/fr01/e05: reloading a page that now answers 404 '
+      'us08/s12, us08/fr01/e05: reloading a page that now answers 404 '
       'reports start, one http error, finish',
       (tester) async {
         // CO-01-02 US-01 FR-02 E08 and US-04 FR-01 E07 of the package docs.
@@ -316,7 +331,7 @@ void main() {
     );
 
     testWidgets(
-      'us08/s10, us08/fr01/e05: reloading after a 302 then 404 reports '
+      'us08/s12, us08/fr01/e05: reloading after a 302 then 404 reports '
       'start, one http error naming the target, finish',
       (tester) async {
         // CO-01-02 US-01 FR-02 E07 and E08: Android reloads the redirect
@@ -379,6 +394,13 @@ void main() {
     });
   }, skip: kIsWeb);
 }
+
+/// Whether this run is Android, where the back and forward cases assert one
+/// `onPageStarted`, the http error, one `onPageFinished`; on iOS and macOS
+/// WebKit restores those entries from its back-forward cache with no
+/// request, so the same cases assert start and finish with no error
+/// (US-08 scenarios 10 and 11).
+bool _isAndroid() => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
 /// Pumps a frame every [interval] until [done] holds; returns `false` once
 /// [timeout] passes.
