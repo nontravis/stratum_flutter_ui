@@ -771,6 +771,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (handoff != null && handoff > index) _handoffGap = handoff + 1;
     final reachGap = _reachGap;
     if (reachGap != null && reachGap > index) _reachGap = reachGap + 1;
+    for (final held in _givenUpGaps) {
+      if (held.index > index) held.index += 1;
+    }
     final follow = _followGap;
     if (follow != null && follow > index) _followGap = follow + 1;
     for (final target in _moveTargets) {
@@ -798,6 +801,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (handoff != null && handoff > index) _handoffGap = handoff - 1;
     final reachGap = _reachGap;
     if (reachGap != null && reachGap > index) _reachGap = reachGap - 1;
+    for (final held in _givenUpGaps) {
+      if (held.index > index) held.index -= 1;
+    }
     final follow = _followGap;
     if (follow != null && follow > index) _followGap = follow - 1;
     for (final target in _moveTargets) {
@@ -1264,6 +1270,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// each call moves it, as it moves [_handoffGap].
   _DataIndex? _reachGap;
 
+  /// The gap of each reach given up away from where it started, as an
+  /// index of the current data, until the frame after the list jumps back
+  /// hands focus on from it: each call moves them, as it moves
+  /// [_handoffGap] (D7).
+  final _givenUpGaps = <_HeldGap>[];
+
   /// Starts [_reach] in a microtask after this frame's post-frame
   /// callbacks. Flutter moves focus off the item's disposed node in its own
   /// microtask, queued earlier in the frame, so the reach starts from the
@@ -1345,11 +1357,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// Gives up a reach that did not reach its slot (R5): the list returns
   /// to [origin], the offset it held before the reach's first jump, so the
   /// gap's neighbors are built again, and after that frame it hands focus
-  /// on from the gap (E04), so focus is never lost. The offset returns on
-  /// the list's live [ScrollPosition]: the Scrollable may have replaced and
-  /// disposed [origin]'s position while the reach ran, a physics or
-  /// controller swap, and R5 saves the offset, never the position object,
-  /// so no position the Scrollable no longer holds takes a call.
+  /// on from the gap (E04), so focus is never lost. Until then the gap
+  /// waits in [_givenUpGaps], where a call made during the jump back or
+  /// earlier in the next post-frame batch moves it (D7). The offset
+  /// returns on the list's live [ScrollPosition]: the Scrollable may have
+  /// replaced and disposed [origin]'s position while the reach ran, a
+  /// physics or controller swap, and R5 saves the offset, never the
+  /// position object, so no position the Scrollable no longer holds takes
+  /// a call.
   void _giveUpReach(({ScrollPosition position, double pixels})? origin) {
     final gap = _reachGap;
     _endReach();
@@ -1357,11 +1372,18 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (origin != null) {
       final live = _livePositionOf(origin.position);
       if (live != null && live.pixels != origin.pixels) {
+        // Held before the jump: its scroll notifications may reach an app
+        // listener that calls the controller at once.
+        final held = _HeldGap(gap);
+        _givenUpGaps.add(held);
         live.jumpTo(
           origin.pixels.clamp(live.minScrollExtent, live.maxScrollExtent),
         );
         WidgetsBinding.instance
-          ..addPostFrameCallback((_) => _handOffFocus(gap))
+          ..addPostFrameCallback((_) {
+            _givenUpGaps.remove(held);
+            _handOffFocus(held.index);
+          })
           ..scheduleFrame();
         return;
       }
@@ -2132,4 +2154,12 @@ class _MoveTarget {
   new(this.index);
 
   _DataIndex? index;
+}
+
+/// A gap of the app's data, before the item at [index], that a reader
+/// takes after a frame; moved by each later call until then.
+class _HeldGap {
+  new(this.index);
+
+  _DataIndex index;
 }
