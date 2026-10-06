@@ -8,10 +8,12 @@ import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
 import 'package:stratum_ui/src/themes/config/theme_config.dart';
+import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
 import 'package:stratum_ui/src/themes/constant/window_size.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
 import 'package:stratum_ui/src/themes/typography/typography.dart';
+import 'package:stratum_ui/src/themes/typography/typography_parser.dart';
 
 /// Stage 5 (spec section 7): reads the resolved tree into a
 /// [StratumThemeConfig]. Every problem goes to [errors]; the result holds
@@ -20,12 +22,18 @@ StratumThemeConfig readThemeValues(
   ResolvedTheme theme,
   ThemeSchema schema,
   List<StratumThemeSource> sources,
-  ThemeErrors errors,
-) => _Read(theme, schema, sources, errors).run();
+  ThemeErrors errors, {
+  required bool Function(String name) googleFontExists,
+}) => _Read(theme, schema, sources, errors, googleFontExists).run();
 
 final class _Read {
-  new(this._theme, this._schema, this._sources, ThemeErrors errors)
-    : _reader = ThemeReader(errors, _theme.origins),
+  new(
+    this._theme,
+    this._schema,
+    this._sources,
+    ThemeErrors errors,
+    this._googleFontExists,
+  ) : _reader = ThemeReader(errors, _theme.origins),
       _quiet = ThemeReader(
         ThemeErrors([for (final source in _sources) source.id]),
         _theme.origins,
@@ -34,6 +42,7 @@ final class _Read {
   final ResolvedTheme _theme;
   final ThemeSchema _schema;
   final List<StratumThemeSource> _sources;
+  final bool Function(String name) _googleFontExists;
 
   /// Reports to the parse's errors.
   final ThemeReader _reader;
@@ -416,13 +425,16 @@ final class _Read {
     final node = _reader.map(value, 'typography');
     return node == null
         ? const StratumTypography(fonts: {}, families: {}, types: {})
-        : readTypography(
-            node,
-            _reader,
-            sources: [
-              for (final source in _sources)
-                (id: source.id, folder: source.folder),
-            ],
+        : convertTypography(
+            readTypography(
+              node,
+              _reader,
+              sources: [
+                for (final source in _sources)
+                  (id: source.id, folder: source.folder),
+              ],
+              googleFontExists: _googleFontExists,
+            ),
           );
   }
 

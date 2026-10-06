@@ -6,6 +6,7 @@ import 'package:stratum_ui/src/themes/config/pipeline/merge.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/read_values.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
+import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
 import '../theme_fixtures.dart';
 
@@ -21,7 +22,16 @@ import '../theme_fixtures.dart';
   final checked = checkThemeKeys(roots, errors);
   final merged = mergeThemes(checked, errors);
   final resolved = resolveThemeAliases(merged, checked.schema, errors);
-  return (readThemeValues(resolved, checked.schema, all, errors), errors);
+  return (
+    readThemeValues(
+      resolved,
+      checked.schema,
+      all,
+      errors,
+      googleFontExists: (name) => GoogleFontsLookup.exists(name),
+    ),
+    errors,
+  );
 }
 
 /// The errors stages 1 to 5 report for one layer of [body].

@@ -1,4 +1,5 @@
-import 'package:stratum_ui/src/src.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/typography/dimension.dart';
 
 /// Where a [StratumFontData]'s physical family comes from.
 enum StratumFontSource {
@@ -66,7 +67,7 @@ class StratumFontData {
       other.package == package &&
       other.adjustSize == adjustSize &&
       other.source == source &&
-      listEquals(other.files, files);
+      const DeepCollectionEquality().equals(other.files, files);
 
   @override
   int get hashCode =>

@@ -13,6 +13,7 @@ import 'package:stratum_ui/src/themes/config/theme_asset.dart';
 import 'package:stratum_ui/src/themes/config/theme_model.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
+import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 import 'package:stratum_ui/src/themes/typography/typography.dart';
 
 part 'generated/theme_config.freezed.dart';
@@ -63,7 +64,13 @@ abstract class StratumThemeConfig with _$StratumThemeConfig {
     final checked = checkThemeKeys(roots, errors);
     final merged = mergeThemes(checked, errors);
     final resolved = resolveThemeAliases(merged, checked.schema, errors);
-    final config = readThemeValues(resolved, checked.schema, sources, errors);
+    final config = readThemeValues(
+      resolved,
+      checked.schema,
+      sources,
+      errors,
+      googleFontExists: (name) => GoogleFontsLookup.exists(name),
+    );
     errors.throwIfAny();
     return config;
   }

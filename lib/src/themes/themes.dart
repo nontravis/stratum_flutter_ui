@@ -16,4 +16,4 @@ export 'theme_set.dart';
 export 'tokens/theme_tokens.g.dart';
 export 'typography/dimension.dart';
 export 'typography/resolver.dart';
-export 'typography/typography.dart' hide readTypography;
+export 'typography/typography.dart';
