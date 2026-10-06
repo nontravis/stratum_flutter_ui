@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:stratum_ui/src/themes/remote/remote_install_check.dart';
 
 /// The overlay asset bundle of FO-04 (design D3): serves the entries of
 /// each installed theme zip from memory under
@@ -13,10 +13,11 @@ class RemoteThemeBundle extends AssetBundle {
   new(this.parent);
 
   /// The first segment of every key this bundle serves from memory.
-  static const root = 'stratum-remote';
+  static const String root = remoteFolderRoot;
 
   /// The folder of install [generation] of [id].
-  static String folderOf(String id, int generation) => '$root/$id/$generation';
+  static String folderOf(String id, int generation) =>
+      remoteFolderOf(id, generation);
 
   /// Decodes a zip entry as strict UTF-8: the one text decode of install
   /// step 9 and of every later read, so a theme that installed always
@@ -24,7 +25,7 @@ class RemoteThemeBundle extends AssetBundle {
   ///
   /// Throws [FormatException] whose `offset` is the byte where decoding
   /// stops.
-  static String decodeText(Uint8List bytes) => utf8.decode(bytes);
+  static String decodeText(Uint8List bytes) => decodeRemoteText(bytes);
 
   /// The app bundle every other key goes to.
   final AssetBundle parent;

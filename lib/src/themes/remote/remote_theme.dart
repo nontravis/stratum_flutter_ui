@@ -1,4 +1,6 @@
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 
