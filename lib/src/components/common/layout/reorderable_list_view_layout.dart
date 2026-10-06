@@ -1484,19 +1484,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Jumps in a move's call turn toward the slot the focused item whose key
   /// node is [node] enters at [to] of the current data, when the last frame
-  /// did not build that slot number: [to] plus [_newBoxesBefore] it, for a
-  /// move either way (invariant 35). Exactly to the start or end for an
-  /// edge slot, as a key move to either end does, else by
-  /// [_estimateTowards] at slot [to] (FR-05 E04). The item's key comes
-  /// from its built slot, so the list never calls `itemBuilder` here.
-  /// Returns the offset before the jump, where a failed reach returns (R5);
-  /// null with no jump.
+  /// did not build that slot number ([_enteredSlot], invariant 35).
+  /// Exactly to the start or end for an edge slot, as a key move to either
+  /// end does, else by [_estimateTowards] at slot [to] (FR-05 E04). The
+  /// item's key comes from its built slot, so the list never calls
+  /// `itemBuilder` here. Returns the offset before the jump, where a failed
+  /// reach returns (R5); null with no jump.
   ({ScrollPosition position, double pixels})? _jumpForMove(
     _DataIndex to,
     FocusNode node,
   ) {
-    final entered = to.nextSlot + _newBoxesBefore(to);
-    if (_builtSlot(entered)) return null;
+    if (_builtSlot(_enteredSlot(to))) return null;
     final item = node.context;
     final position = item == null ? null : Scrollable.maybeOf(item)?.position;
     if (item == null || position == null) return null;
@@ -1517,17 +1515,43 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   bool _builtSlot(int slot) =>
       _itemNodes.keys.any((index) => index.slot == slot);
 
-  /// How many boxes the next frame draws at full extent before the item at
-  /// [to] of the current data that the last frame did not draw: each exit
-  /// started since the last build at or before [to], the slot a move left
-  /// or the leaving copy of a built item, unless exits take no room
-  /// (invariant 35).
-  int _newBoxesBefore(_DataIndex to) {
-    if (_exitsTakeNoExtent(context)) return 0;
-    return _exits.where((exit) {
-      final gap = exit.gap;
-      return exit.fresh && gap != null && gap <= to;
-    }).length;
+  /// The slot the item at [to] of the current data enters in the next
+  /// frame, for a move either way (invariant 35). The next frame anchors
+  /// its layout at the first slot the last frame built, so the count
+  /// starts there: that slot plus the boxes the next frame draws at full
+  /// extent from it through [to]. Those are the items before [to], save
+  /// an insert of this turn that grows in from 0 px, and each exit started
+  /// since the last build, the slot a move left or the leaving copy of a
+  /// built item, unless exits take no room. A box before that first slot
+  /// counts nothing, and a target before it enters a slot the last frame
+  /// did not build. Slots only, as [_builtSlot] reads them.
+  int _enteredSlot(_DataIndex to) {
+    final slot = to.nextSlot;
+    int? built;
+    for (final index in _itemNodes.keys) {
+      if (built == null || index.slot < built) built = index.slot;
+    }
+    if (built == null || slot < built) return slot;
+    final first = built;
+    bool counts(int at) => at >= first && at <= slot;
+    var entered = slot;
+    // The built-in transition starts an insert at 0 px; a fixed extent,
+    // reduced motion, or a caller transition gives it its room.
+    if (_layout.itemTransitionBuilder == null &&
+        !_fixedExtent &&
+        !reducesMotion(context)) {
+      entered -= _pendingInserts.where((insert) {
+        final at = insert.index.nextSlot;
+        return at < slot && counts(at);
+      }).length;
+    }
+    if (!_exitsTakeNoExtent(context)) {
+      entered += _exits.where((exit) {
+        final gap = exit.gap;
+        return exit.fresh && gap != null && counts(gap.nextSlot);
+      }).length;
+    }
+    return entered;
   }
 
   /// After the frame that moved the focused item [key] (FR-05 E04): with

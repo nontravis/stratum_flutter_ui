@@ -5293,6 +5293,55 @@ void main() {
       },
     );
 
+    testWidgets(
+      's03/inv35: a focused move up to a slot before the first one the frame '
+      'built jumps first and keeps its State, though a leaving copy sits '
+      'before the target',
+      (tester) async {
+        final position = await pumpAt4000(tester);
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // The removes of item 93, the first built, and item 10 put item 100
+        // at index 98 and item 93's leaving copy at 92. The move up to 92
+        // enters before slot 93, where the next frame anchors its layout,
+        // so the box before it does not carry it into the built slots.
+        _harness(tester)
+          ..remove(93)
+          ..remove(10)
+          ..move(98, 92);
+        expect(position.pixels, isNot(4000));
+        await tester.pump();
+
+        expect(statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
+    testWidgets(
+      's03/inv35: a focused move down past an item inserted in view in the '
+      'same turn keeps the list still when the slot it enters is built',
+      (tester) async {
+        final position = await pumpAt4000(tester);
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // The insert at 95 puts item 100 at index 101 and grows in from
+        // 0 px, so it counts nothing, while the closing slot counts one:
+        // item 100 enters slot 113, which the frame built.
+        _harness(tester)
+          ..insert(95, 900)
+          ..move(101, 113);
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
     // Alt+Up on item 1 of a list of two, before the frame of the app's
     // remove: on the item removed, or on the item left.
     final removedOfTwo = ValueVariant<String>({
