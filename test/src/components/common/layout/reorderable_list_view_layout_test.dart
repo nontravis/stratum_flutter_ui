@@ -5524,5 +5524,93 @@ void main() {
       },
       variant: endInput,
     );
+
+    testWidgets(
+      's03/inv29: a moved item the app removes before a grow-in before it '
+      'ends takes no second reveal',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+
+        // A screen-reader move of item 5 in the turn of an insert at the
+        // start, which grows in before the item's new place.
+        final harness = _harness(tester)..insert(0, 500);
+        final node = tester.getSemantics(find.byKey(const ValueKey(5)));
+        node.owner!.performAction(
+          node.id,
+          SemanticsAction.customAction,
+          CustomSemanticsAction.getIdentifier(
+            const CustomSemanticsAction(label: 'Move down'),
+          ),
+        );
+        await tester.pump();
+        expect(harness.ids.indexOf(5), 7);
+        // The app removes the moved item; its exit ends before the grow-in.
+        harness.remove(7);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 140));
+        await tester.pump();
+        expect(
+          find.byKey(const ValueKey(5), skipOffstage: false),
+          findsNothing,
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: an app insert from the scroll listener of a focused '
+      "move's call-turn jump leaves the give-up handoff on the item after "
+      'the gap',
+      (tester) async {
+        // Slots before index 100 are 80 px and the rest 40 px, so the jump in
+        // the call turn lands short of slot 40 and the State is lost.
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 200,
+              itemsController: controller,
+              itemExtentBuilder: (index, dimensions) => index < 100 ? 80 : 40,
+            ),
+          ),
+        );
+        final position =
+            tester.state<ScrollableState>(find.byType(Scrollable)).position
+              ..jumpTo(8000);
+        await tester.pump();
+        await _focusItem(tester, 100);
+
+        // The app inserts at the start from inside the call-turn jump's
+        // scroll notification; each jump of the reach then springs back to
+        // where that jump landed, so the reach gives up and hands focus on.
+        final harness = _harness(tester);
+        double? landing;
+        var springs = 0;
+        position.addListener(() {
+          if (landing == null) {
+            landing = position.pixels;
+            harness.insert(0, 900);
+            return;
+          }
+          if (springs == 4 || position.pixels == landing) return;
+          springs += 1;
+          position.jumpTo(landing!);
+        });
+        harness.move(100, 40);
+        await tester.pumpAndSettle();
+
+        // The data holds item 101 right after the gap item 100 left.
+        expect(springs, 4);
+        expect(harness.ids[harness.ids.indexOf(99) + 1], 101);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 101');
+      },
+    );
   });
 }
