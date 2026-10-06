@@ -232,17 +232,17 @@ void main() {
         expect(shown, isTrue, reason: 'no onPageFinished for $flip');
         expect(left, isTrue, reason: 'the second page never finished');
         expect(mark, isNotNull, reason: 'no onPageFinished after goBack');
-        if (_isAndroid()) {
+        if (_isWebKit()) {
+          // WebKit restores the entry from its back-forward cache with no
+          // request, so no HTTP error exists to report.
+          expect(recorder.kindsSince(mark!), ['started', 'finished']);
+          expect(recorder.errors, isEmpty);
+        } else {
           expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
           expect(recorder.errors, hasLength(1));
           expect(recorder.errors.single.type, StratumWebViewErrorType.http);
           expect(recorder.errors.single.code, HttpStatus.notFound);
           expect(recorder.errors.single.url, flip);
-        } else {
-          // WebKit restores the entry from its back-forward cache with no
-          // request, so no HTTP error exists to report.
-          expect(recorder.kindsSince(mark!), ['started', 'finished']);
-          expect(recorder.errors, isEmpty);
         }
       },
     );
@@ -286,16 +286,17 @@ void main() {
         expect(failed, isTrue, reason: 'no onPageFinished for $missing');
         expect(back, isTrue, reason: 'no onPageFinished after goBack');
         expect(mark, isNotNull, reason: 'no onPageFinished after goForward');
-        // One error for the load of the 404 entry, plus one more on Android
-        // for the move forward; the WebKit cache restore adds none.
-        expect(recorder.errors, hasLength(_isAndroid() ? 2 : 1));
+        // One error for the load of the 404 entry, plus one more wherever
+        // the move forward re-requests or replays it; the WebKit cache
+        // restore adds none.
+        expect(recorder.errors, hasLength(_isWebKit() ? 1 : 2));
         expect(recorder.errors.last.type, StratumWebViewErrorType.http);
         expect(recorder.errors.last.code, HttpStatus.notFound);
         expect(recorder.errors.last.url, missing);
-        if (_isAndroid()) {
-          expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
-        } else {
+        if (_isWebKit()) {
           expect(recorder.kindsSince(mark!), ['started', 'finished']);
+        } else {
+          expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
         }
       },
     );
@@ -395,12 +396,16 @@ void main() {
   }, skip: kIsWeb);
 }
 
-/// Whether this run is Android, where the back and forward cases assert one
-/// `onPageStarted`, the http error, one `onPageFinished`; on iOS and macOS
-/// WebKit restores those entries from its back-forward cache with no
-/// request, so the same cases assert start and finish with no error
-/// (US-08 scenarios 10 and 11).
-bool _isAndroid() => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+/// Whether this run's engine is WebKit (iOS, macOS), which restores a
+/// `goBack` or `goForward` entry from its back-forward cache with no
+/// request, so the back and forward cases assert one `onPageStarted`, one
+/// `onPageFinished`, and no error; every other native target reports the
+/// page's current HTTP status, the start, error, finish order (US-08
+/// scenarios 10 and 11).
+bool _isWebKit() =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS);
 
 /// Pumps a frame every [interval] until [done] holds; returns `false` once
 /// [timeout] passes.
