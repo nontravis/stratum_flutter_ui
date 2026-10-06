@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, or typography.fonts files in theme.yaml.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, or typography.fonts files in theme.yaml.
 ---
 
 # Stratum Flutter UI
@@ -187,6 +187,20 @@ scroll it, guarded so a text field inside keeps its own keys.
   rest), returning `SizedBox`, `Gap`, or `EdgeInsets` in steps from 1 to 72 px.
 - **`SpaceDirectional`** — the same steps as `EdgeInsetsDirectional`, so start and end mirror under
   `TextDirection.rtl`.
+
+## Focus ring
+
+- **`StratumFocusBorder`** — the Figma `FocusBorder` ring around one `child`. `StratumInkWell`, and so every
+  `interaction`, and every focusable scroll view already draw it; wrap a widget yourself only when it takes focus or
+  hover without them. Key parameters: `style` (`StratumFocusBorderStyle.outside`, the default, for every interaction
+  the user does not type into; `.inside` for form fields), `state` (`FullWidgetState.focused`, `.hovered`, or
+  `.normal`, resolved from focus and hover alone: a field in error that holds focus still passes `focused`, and any
+  other value shows no ring), `borderRadius` (the child's own radius), `insideEdge` (an outside ring on the child's
+  inner edge, for a box whose ring around it would leave the window), and per-ring `customColor`, `width`, and `gap`.
+  Look: outside, 3 px in `border.subtle.blue` after a 2 px gap, only when focused; inside, `border.default.normal`
+  on the inner edge, 3 px when hovered and 2 px when focused. It fades over the theme's `fast` level, shows at once
+  under reduced motion, and never changes the child's layout size. Its colors stay below the 3:1 contrast of WCAG
+  1.4.11 by design; pass `customColor` where an app needs that ratio.
 
 ## Themes
 
