@@ -151,11 +151,15 @@ final class _Read {
     return StratumThemeAsset(kind: kind, path: '${_folderOf(path)}/$relative');
   }
 
+  /// `PlainThemeConfig` holds this once, un-wrapped by `frozenMap`:
+  /// `convertThemeConfig` rebuilds it into a `StratumByWindowSize` map for
+  /// the freezed model, so this copy carries no identity contract of its
+  /// own (plan perf finding, fix round 1).
   Map<String, PlainByWindowSize> _tokens(Object? value, String group) {
     final tokens = value is Map<String, Object?>
         ? value
         : const <String, Object?>{};
-    return frozenMap({
+    return Map.unmodifiable({
       for (final MapEntry(key: name, value: token) in tokens.entries)
         if (!_theme.failed.contains('$group.$name'))
           name: ?_byWindowSize(
@@ -233,6 +237,8 @@ final class _Read {
     return null;
   }
 
+  /// Like [_tokens], held un-wrapped by `frozenMap` here: `convertThemeConfig`
+  /// rebuilds this into `Color` values for the freezed model.
   Map<String, int> _palette(Object? value) {
     final ramps = value is Map<String, Object?>
         ? value
@@ -250,7 +256,7 @@ final class _Read {
         _shades(['palette', 'app', name], appShades, palette);
       }
     }
-    return frozenMap(palette);
+    return Map.unmodifiable(palette);
   }
 
   void _shades(List<String> ramp, Object? value, Map<String, int> out) {
@@ -262,7 +268,9 @@ final class _Read {
   }
 
   /// The colors of the set [name], walked along the package default's
-  /// shape of that set, then its `app` names.
+  /// shape of that set, then its `app` names. `convertThemeConfig` rebuilds
+  /// this into `Color` values for the freezed model, so, like [_tokens] and
+  /// [_palette], this copy holds no identity contract of its own.
   Map<String, int> _colorSet(String name) {
     final colors = <String, int>{};
     final color = _theme.tree['color'];
@@ -271,7 +279,7 @@ final class _Read {
       'color',
       name,
     ], colors);
-    return frozenMap(colors);
+    return Map.unmodifiable(colors);
   }
 
   void _walkSet(

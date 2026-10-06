@@ -46,5 +46,5 @@ PlainThemeConfig _parse((StratumThemeSource, List<StratumThemeSource>) input) =>
     parseThemeValues(
       base: input.$1,
       layers: input.$2,
-      googleFontExists: GoogleFontsLookup.exists,
+      googleFontExists: (name) => GoogleFontsLookup.exists(name),
     );
