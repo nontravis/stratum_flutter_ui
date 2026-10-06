@@ -6,6 +6,7 @@ import 'package:stratum_ui/src/themes/config/pipeline/merge.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/read_values.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
+import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
 import '../theme_fixtures.dart';
@@ -23,12 +24,14 @@ import '../theme_fixtures.dart';
   final merged = mergeThemes(checked, errors);
   final resolved = resolveThemeAliases(merged, checked.schema, errors);
   return (
-    readThemeValues(
-      resolved,
-      checked.schema,
-      all,
-      errors,
-      googleFontExists: (name) => GoogleFontsLookup.exists(name),
+    convertThemeConfig(
+      readThemeValues(
+        resolved,
+        checked.schema,
+        all,
+        errors,
+        googleFontExists: (name) => GoogleFontsLookup.exists(name),
+      ),
     ),
     errors,
   );

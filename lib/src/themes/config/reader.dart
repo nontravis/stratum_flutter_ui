@@ -1,5 +1,3 @@
-import 'dart:ui' show Color;
-
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
@@ -246,7 +244,7 @@ final class ThemeReader {
   /// [value] read by [parseColor]; reports `required` for null and
   /// `expected_color` for anything else that does not parse, naming
   /// [alias] when the value came through one.
-  Color? color(Object? value, String path, {String? alias}) {
+  int? color(Object? value, String path, {String? alias}) {
     if (value == null) {
       report(StratumThemeErrorCode.required, path, 'required');
       return null;
@@ -263,15 +261,15 @@ final class ThemeReader {
     return color;
   }
 
-  /// A quoted `"#RRGGBB"` or `"#RRGGBBAA"` in either case, alpha last;
-  /// null for anything else.
-  static Color? parseColor(Object? value) {
+  /// A quoted `"#RRGGBB"` or `"#RRGGBBAA"` in either case, alpha last, as
+  /// `0xAARRGGBB`; null for anything else.
+  static int? parseColor(Object? value) {
     if (value is! String) return null;
     final match = _hex.firstMatch(value);
     if (match == null) return null;
     final rgb = int.parse(match[1]!, radix: 16);
     final alpha = match[2] == null ? 0xFF : int.parse(match[2]!, radix: 16);
-    return Color(alpha << 24 | rgb);
+    return alpha << 24 | rgb;
   }
 
   /// [value] read by [StratumDimension.parse], or null when it does not

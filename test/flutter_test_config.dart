@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/parse_values.dart';
 import 'package:stratum_ui/src/themes/theme_parse.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
@@ -11,7 +12,10 @@ import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 /// `tearDown`.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   GoogleFontsLookup.family = (name, {required weight, required style}) => name;
-  ThemeParse.run = (base, layers) async =>
-      StratumThemeConfig.parse(base: base, layers: layers);
+  ThemeParse.run = (base, layers) async => parseThemeValues(
+    base: base,
+    layers: layers,
+    googleFontExists: (name) => GoogleFontsLookup.exists(name),
+  );
   await testMain();
 }

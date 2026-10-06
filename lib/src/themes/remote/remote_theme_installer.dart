@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 import 'package:stratum_ui/src/themes/remote/remote_checksum.dart';
 import 'package:stratum_ui/src/themes/remote/remote_id.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_bundle.dart';
@@ -74,14 +75,16 @@ abstract final class RemoteThemeInstaller {
     final sourceId = '${theme.id}@$generation';
     final StratumThemeConfig config;
     try {
-      config = await ThemeParse.run(packageDefault, [
-        ?appDefault,
-        StratumThemeSource(
-          id: sourceId,
-          folder: folder,
-          yaml: _decodeThemeFile(entries['theme.yaml']!, sourceId),
-        ),
-      ]);
+      config = convertThemeConfig(
+        await ThemeParse.run(packageDefault, [
+          ?appDefault,
+          StratumThemeSource(
+            id: sourceId,
+            folder: folder,
+            yaml: _decodeThemeFile(entries['theme.yaml']!, sourceId),
+          ),
+        ]),
+      );
     } on StratumThemeFormatException catch (report) {
       throw StratumRemoteThemeException(
         code: StratumRemoteThemeErrorCode.themeFormat,

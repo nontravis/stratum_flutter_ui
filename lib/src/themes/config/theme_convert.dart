@@ -1,5 +1,6 @@
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/config/plain_by_window_size.dart';
+import 'package:stratum_ui/src/themes/config/plain_theme_config.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/typography/typography_parser.dart';
 
@@ -41,4 +42,35 @@ Map<WindowSize, StratumDimension> _bySize(
 ) => frozenMap({
   for (final MapEntry(:key, :value) in byName.entries)
     WindowSize.values.byName(key): value,
+});
+
+/// [plain] as `StratumThemeConfig`, each color a [Color].
+StratumThemeConfig convertThemeConfig(PlainThemeConfig plain) =>
+    StratumThemeConfig(
+      name: plain.name,
+      assets: plain.assets,
+      space: _tokens(plain.space),
+      radius: _tokens(plain.radius),
+      layouts: _tokens(plain.layouts),
+      palette: _colors(plain.palette),
+      color: StratumColorSets(
+        light: _colors(plain.color.light),
+        dark: _colors(plain.color.dark),
+        highContrastLight: _colors(plain.color.highContrastLight),
+        highContrastDark: _colors(plain.color.highContrastDark),
+      ),
+      typography: convertTypography(plain.typography),
+      animation: plain.animation,
+      extensions: plain.extensions,
+    );
+
+Map<String, StratumByWindowSize<StratumDimension>> _tokens(
+  Map<String, PlainByWindowSize> tokens,
+) => frozenMap({
+  for (final MapEntry(:key, :value) in tokens.entries)
+    key: convertByWindowSize(value),
+});
+
+Map<String, Color> _colors(Map<String, int> argb) => frozenMap({
+  for (final MapEntry(:key, :value) in argb.entries) key: Color(value),
 });

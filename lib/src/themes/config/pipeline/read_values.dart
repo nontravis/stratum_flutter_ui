@@ -1,24 +1,19 @@
-import 'dart:ui' show Color;
-
 import 'package:stratum_ui/src/themes/config/animation_config.dart';
-import 'package:stratum_ui/src/themes/config/by_window_size.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/check_keys.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
+import 'package:stratum_ui/src/themes/config/plain_by_window_size.dart';
+import 'package:stratum_ui/src/themes/config/plain_theme_config.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
-import 'package:stratum_ui/src/themes/config/theme_config.dart';
-import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
-import 'package:stratum_ui/src/themes/constant/window_size.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
-import 'package:stratum_ui/src/themes/typography/typography.dart';
 import 'package:stratum_ui/src/themes/typography/typography_parser.dart';
 
 /// Stage 5 (spec section 7): reads the resolved tree into a
-/// [StratumThemeConfig]. Every problem goes to [errors]; the result holds
+/// [PlainThemeConfig]. Every problem goes to [errors]; the result holds
 /// the values that read, so the caller throws when [errors] is not empty.
-StratumThemeConfig readThemeValues(
+PlainThemeConfig readThemeValues(
   ResolvedTheme theme,
   ThemeSchema schema,
   List<StratumThemeSource> sources,
@@ -51,16 +46,16 @@ final class _Read {
   /// (spec section 7.4).
   final ThemeReader _quiet;
 
-  StratumThemeConfig run() {
+  PlainThemeConfig run() {
     final tree = _theme.tree;
-    return StratumThemeConfig(
+    return PlainThemeConfig(
       name: _reader.string(tree['name'], 'name') ?? '',
       assets: _assets(tree['assets']),
       space: _tokens(tree['space'], 'space'),
       radius: _tokens(tree['radius'], 'radius'),
       layouts: _tokens(tree['layouts'], 'layouts'),
       palette: _palette(tree['palette']),
-      color: StratumColorSets(
+      color: PlainColorSets(
         light: _colorSet('light'),
         dark: _colorSet('dark'),
         highContrastLight: _colorSet('highContrastLight'),
@@ -104,10 +99,9 @@ final class _Read {
       FixedDimension() => true,
     };
     if (value is! Map<String, Object?>) return fits(value);
-    final sizes = WindowSize.values.asNameMap();
     return value.isNotEmpty &&
         value.entries.every(
-          (entry) => sizes.containsKey(entry.key) && fits(entry.value),
+          (entry) => windowSizeNames.contains(entry.key) && fits(entry.value),
         );
   }
 
@@ -157,10 +151,7 @@ final class _Read {
     return StratumThemeAsset(kind: kind, path: '${_folderOf(path)}/$relative');
   }
 
-  Map<String, StratumByWindowSize<StratumDimension>> _tokens(
-    Object? value,
-    String group,
-  ) {
+  Map<String, PlainByWindowSize> _tokens(Object? value, String group) {
     final tokens = value is Map<String, Object?>
         ? value
         : const <String, Object?>{};
@@ -175,7 +166,7 @@ final class _Read {
     });
   }
 
-  StratumByWindowSize<StratumDimension>? _byWindowSize(
+  PlainByWindowSize? _byWindowSize(
     String path,
     Object? value, {
     required bool percent,
@@ -183,18 +174,16 @@ final class _Read {
     final reader = _readerFor(path, value);
     if (value is! Map<String, Object?>) {
       final dimension = _dimension(reader, value, path, percent: percent);
-      return dimension == null ? null : StratumByWindowSize.all(dimension);
+      return dimension == null ? null : PlainByWindowSize.all(dimension);
     }
     if (value.isEmpty) {
       reader.report(StratumThemeErrorCode.required, path, 'required');
       return null;
     }
-    final sizes = WindowSize.values.asNameMap();
-    final entries = <WindowSize, StratumDimension>{};
+    final entries = <String, StratumDimension>{};
     for (final MapEntry(key: name, value: entry) in value.entries) {
       final entryPath = '$path.$name';
-      final size = sizes[name];
-      if (size == null) {
+      if (!windowSizeNames.contains(name)) {
         reader.report(
           StratumThemeErrorCode.unknownKey,
           entryPath,
@@ -217,9 +206,11 @@ final class _Read {
         entryPath,
         percent: percent,
       );
-      if (dimension != null) entries[size] = dimension;
+      if (dimension != null) entries[name] = dimension;
     }
-    return entries.isEmpty ? null : StratumByWindowSize(entries);
+    return entries.isEmpty
+        ? null
+        : PlainByWindowSize(Map.unmodifiable(entries));
   }
 
   /// [reader]'s dimension of [value] at [path]. Without [percent] (`space`
@@ -242,11 +233,11 @@ final class _Read {
     return null;
   }
 
-  Map<String, Color> _palette(Object? value) {
+  Map<String, int> _palette(Object? value) {
     final ramps = value is Map<String, Object?>
         ? value
         : const <String, Object?>{};
-    final palette = <String, Color>{};
+    final palette = <String, int>{};
     for (final MapEntry(key: ramp, value: shades) in ramps.entries) {
       if (ramp != 'app') {
         _shades(['palette', ramp], shades, palette);
@@ -262,7 +253,7 @@ final class _Read {
     return frozenMap(palette);
   }
 
-  void _shades(List<String> ramp, Object? value, Map<String, Color> out) {
+  void _shades(List<String> ramp, Object? value, Map<String, int> out) {
     final shades = _reader.map(value, ramp.join('.'));
     if (shades == null) return;
     for (final MapEntry(key: shade, value: color) in shades.entries) {
@@ -272,8 +263,8 @@ final class _Read {
 
   /// The colors of the set [name], walked along the package default's
   /// shape of that set, then its `app` names.
-  Map<String, Color> _colorSet(String name) {
-    final colors = <String, Color>{};
+  Map<String, int> _colorSet(String name) {
+    final colors = <String, int>{};
     final color = _theme.tree['color'];
     final values = color is Map<String, Object?> ? color[name] : null;
     _walkSet(_schema.keysAt(['color', name]) ?? const {}, values, [
@@ -287,7 +278,7 @@ final class _Read {
     Map<String, Object?> shape,
     Object? values,
     List<String> path,
-    Map<String, Color> out,
+    Map<String, int> out,
   ) {
     final node = values is Map<String, Object?>
         ? values
@@ -313,7 +304,7 @@ final class _Read {
   void _color(
     List<String> path,
     Object? value,
-    Map<String, Color> out, {
+    Map<String, int> out, {
     required int skip,
   }) {
     final dotted = path.join('.');
@@ -421,20 +412,18 @@ final class _Read {
     return curves;
   }
 
-  StratumTypography _typography(Object? value) {
+  PlainTypography _typography(Object? value) {
     final node = _reader.map(value, 'typography');
     return node == null
-        ? const StratumTypography(fonts: {}, families: {}, types: {})
-        : convertTypography(
-            readTypography(
-              node,
-              _reader,
-              sources: [
-                for (final source in _sources)
-                  (id: source.id, folder: source.folder),
-              ],
-              googleFontExists: _googleFontExists,
-            ),
+        ? const PlainTypography(fonts: {}, families: {}, types: {})
+        : readTypography(
+            node,
+            _reader,
+            sources: [
+              for (final source in _sources)
+                (id: source.id, folder: source.folder),
+            ],
+            googleFontExists: _googleFontExists,
           );
   }
 

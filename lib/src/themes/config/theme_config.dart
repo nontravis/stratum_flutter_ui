@@ -3,13 +3,9 @@ import 'dart:ui' show Color;
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/config/animation_config.dart';
 import 'package:stratum_ui/src/themes/config/by_window_size.dart';
-import 'package:stratum_ui/src/themes/config/pipeline/check_keys.dart';
-import 'package:stratum_ui/src/themes/config/pipeline/load.dart';
-import 'package:stratum_ui/src/themes/config/pipeline/merge.dart';
-import 'package:stratum_ui/src/themes/config/pipeline/read_values.dart';
-import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
-import 'package:stratum_ui/src/themes/config/reader.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/parse_values.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
+import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 import 'package:stratum_ui/src/themes/config/theme_model.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
@@ -56,24 +52,13 @@ abstract class StratumThemeConfig with _$StratumThemeConfig {
   factory parse({
     required StratumThemeSource base,
     List<StratumThemeSource> layers = const [],
-  }) {
-    final sources = [base, ...layers];
-    final errors = ThemeErrors([for (final source in sources) source.id]);
-    final roots = loadThemes(sources, errors);
-    errors.throwIfAny();
-    final checked = checkThemeKeys(roots, errors);
-    final merged = mergeThemes(checked, errors);
-    final resolved = resolveThemeAliases(merged, checked.schema, errors);
-    final config = readThemeValues(
-      resolved,
-      checked.schema,
-      sources,
-      errors,
+  }) => convertThemeConfig(
+    parseThemeValues(
+      base: base,
+      layers: layers,
       googleFontExists: (name) => GoogleFontsLookup.exists(name),
-    );
-    errors.throwIfAny();
-    return config;
-  }
+    ),
+  );
 }
 
 /// The four color sets of a theme; each maps a token path inside the set

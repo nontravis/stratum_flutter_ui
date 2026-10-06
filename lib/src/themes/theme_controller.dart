@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_bundle.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_installer.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
@@ -460,7 +461,9 @@ class StratumThemeController extends ChangeNotifier {
     if (generation != _generation) return null;
     StratumThemeConfig config;
     try {
-      config = await ThemeParse.run(_packageDefault, layers);
+      config = convertThemeConfig(
+        await ThemeParse.run(_packageDefault, layers),
+      );
     } on Object {
       if (generation != _generation || _disposed) return null;
       rethrow;

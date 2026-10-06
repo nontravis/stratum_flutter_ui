@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/parse_values.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_installer.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 import 'package:stratum_ui/src/themes/theme_parse.dart';
@@ -153,7 +154,10 @@ List<String> captureRemoteLogs() {
 /// Parses on the calling isolate for this test, as `fakeAsync` and the web
 /// need.
 void useSyncParse() {
-  ThemeParse.run = (base, layers) async =>
-      StratumThemeConfig.parse(base: base, layers: layers);
+  ThemeParse.run = (base, layers) async => parseThemeValues(
+    base: base,
+    layers: layers,
+    googleFontExists: (name) => GoogleFontsLookup.exists(name),
+  );
   addTearDown(ThemeParse.reset);
 }

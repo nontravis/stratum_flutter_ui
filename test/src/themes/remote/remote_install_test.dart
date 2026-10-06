@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/parse_values.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 import 'package:stratum_ui/src/themes/theme_parse.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
@@ -21,7 +22,11 @@ Completer<void> _holdSwitchParse() {
   final hold = Completer<void>();
   ThemeParse.run = (base, layers) async {
     if (layers.every((layer) => !layer.id.contains('@'))) await hold.future;
-    return StratumThemeConfig.parse(base: base, layers: layers);
+    return parseThemeValues(
+      base: base,
+      layers: layers,
+      googleFontExists: (name) => GoogleFontsLookup.exists(name),
+    );
   };
   return hold;
 }
@@ -252,7 +257,11 @@ void main() {
     final parseHold = Completer<void>();
     ThemeParse.run = (base, layers) async {
       await parseHold.future;
-      return StratumThemeConfig.parse(base: base, layers: layers);
+      return parseThemeValues(
+        base: base,
+        layers: layers,
+        googleFontExists: (name) => GoogleFontsLookup.exists(name),
+      );
     };
     var notified = 0;
     controller.addListener(() => notified++);
@@ -464,7 +473,11 @@ void main() {
       final hold = Completer<void>();
       holds.add(hold);
       await hold.future;
-      return StratumThemeConfig.parse(base: base, layers: layers);
+      return parseThemeValues(
+        base: base,
+        layers: layers,
+        googleFontExists: (name) => GoogleFontsLookup.exists(name),
+      );
     };
 
     final first = controller.install(_zip('brand', body: _mark('first')));
@@ -489,7 +502,11 @@ void main() {
     final hold = Completer<void>();
     ThemeParse.run = (base, layers) async {
       await hold.future;
-      return StratumThemeConfig.parse(base: base, layers: layers);
+      return parseThemeValues(
+        base: base,
+        layers: layers,
+        googleFontExists: (name) => GoogleFontsLookup.exists(name),
+      );
     };
 
     final first = controller.install(_zip('brand', body: _mark('first')));
@@ -604,7 +621,11 @@ void main() {
     final parseHold = Completer<void>();
     ThemeParse.run = (base, layers) async {
       await parseHold.future;
-      return StratumThemeConfig.parse(base: base, layers: layers);
+      return parseThemeValues(
+        base: base,
+        layers: layers,
+        googleFontExists: (name) => GoogleFontsLookup.exists(name),
+      );
     };
     final switching = controller.switchTo('default');
     await pumpEventQueue();
@@ -641,7 +662,11 @@ void main() {
       if (layers.every((layer) => !layer.id.contains('@'))) {
         await parseHold.future;
       }
-      return StratumThemeConfig.parse(base: base, layers: layers);
+      return parseThemeValues(
+        base: base,
+        layers: layers,
+        googleFontExists: (name) => GoogleFontsLookup.exists(name),
+      );
     };
     final switching = controller.switchTo('default');
     await pumpEventQueue();
