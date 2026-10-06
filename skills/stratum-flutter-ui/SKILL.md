@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, or typography.fonts files in theme.yaml.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, or typography.fonts files in theme.yaml.
 ---
 
 # Stratum Flutter UI
@@ -239,3 +239,17 @@ scroll it, guarded so a text field inside keeps its own keys.
   until the start theme is active, then `builder`, or `error` with what preload threw; it reads its asset bundle from
   `DefaultAssetBundle` and disposes its controller when it leaves the tree. Pick it or `await preload(...)` before
   `runApp`, not both.
+- **Remote theme zips** — hand a downloaded `<id>.zip` with the checksum your own API serves (never a file beside the
+  zip): `StratumRemoteTheme(id:, bytes:, checksum: 'sha256:<64 hex>')`, caps `maxBytes` 20 MB and `maxEntries` 200 by
+  default. Pass kept zips to `preload(remoteThemes: [...], onRemoteThemeError: (id, error) => ...)` or the same two
+  parameters of `StratumThemePreloader`; a zip that fails is skipped and reported, so delete it and download it again.
+  At run time `await controller.install(theme)`, then `switchTo(theme.id)`; installing the active id repaints in one
+  step with no `onThemeChanged`. The latest install of an id that reaches registration wins, a bundled id too, for the
+  run only; of overlapping `install` calls for one id, the later-started call that installs wins, and an earlier call
+  that finishes after it completes normally while installing nothing, so await the call you started last; a later call
+  that fails leaves an earlier one free to install. `default` is always refused. Ask your server for the zip of
+  `StratumSchemaVersion.current`. `theme.yaml` sits at the zip root or in its one top folder; every `files:` font and
+  asset slot it names must be in the zip; `Google/<Name>` fonts load as for a bundled theme. A failure throws
+  `StratumRemoteThemeException` with a `code` (`StratumRemoteThemeErrorCode`), `themeFormat` carrying the FO-01 report
+  in `formatException`. Its `path` field is entry text straight from the zip: escape it before your app logs or shows
+  it, since a hostile zip crafts it.

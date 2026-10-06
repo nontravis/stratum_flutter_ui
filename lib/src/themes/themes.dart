@@ -4,6 +4,7 @@ export 'component_defaults.dart';
 export 'config/config.dart';
 export 'constant/constant.dart';
 export 'font_data.dart';
+export 'remote/remote.dart';
 export 'styles/styles.dart';
 export 'theme.dart';
 export 'theme_application.dart';
