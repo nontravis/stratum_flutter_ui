@@ -528,11 +528,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final focused = node?.hasFocus ?? false;
     // A leaving item drawn beside the moved item would travel with it.
     if (built != null) _endExitsBeside(built);
-    // A focused item whose new slot is not built jumps there first, so the
-    // frame that moves it builds the slot and keeps its State (E04).
-    final origin = focused && node != null
-        ? _jumpForMove(from, to, node)
-        : null;
     final box = node?.context?.findRenderObject();
     final size = box is RenderBox && box.hasSize ? box.size : null;
     _shiftForRemove(from);
@@ -556,6 +551,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     unawaited(
       motion.controller.forward().then<void>((_) => _finishInsert(motion)),
     );
+    // A focused item whose new slot is not built jumps there first, so the
+    // frame that moves it builds the slot and keeps its State (E04). Asked
+    // after the booking, which starts the boxes that slot counts.
+    final origin = focused && node != null ? _jumpForMove(to, node) : null;
     if (focused && node != null && key != null) {
       // The slot the item left, by the index of the item now after it; both
       // this gap and the item's slot live in fields each call in this turn
@@ -849,6 +848,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     _yieldExitsTo(returning);
     if (_fixedExtent) _dropEndExits();
+    // This build draws every exit left, so none adds a box after it.
+    for (final exit in _exits) {
+      exit.fresh = false;
+    }
     if (count == 0) return;
     for (final exit in _exits) {
       final gap = exit.gap;
@@ -1440,20 +1443,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// Jumps in a move's call turn toward the slot the focused item whose key
-  /// node is [node] enters, when the last frame did not build that slot
-  /// number: [to] for a move up, and the slot after [to] for a move down,
-  /// since the item enters after the item now at [to] (invariant 35).
-  /// Exactly to the start or end for an edge slot, as a key move to either
-  /// end does, else by [_estimateTowards] at slot [to] (FR-05 E04). The
-  /// item's key comes from its built slot, so the list never calls
-  /// `itemBuilder` here. Returns the offset before the jump, where a failed
-  /// reach returns (R5); null with no jump.
+  /// node is [node] enters at [to] of the current data, when the last frame
+  /// did not build that slot number: [to] plus [_newBoxesBefore] it, for a
+  /// move either way (invariant 35). Exactly to the start or end for an
+  /// edge slot, as a key move to either end does, else by
+  /// [_estimateTowards] at slot [to] (FR-05 E04). The item's key comes
+  /// from its built slot, so the list never calls `itemBuilder` here.
+  /// Returns the offset before the jump, where a failed reach returns (R5);
+  /// null with no jump.
   ({ScrollPosition position, double pixels})? _jumpForMove(
-    _DataIndex from,
     _DataIndex to,
     FocusNode node,
   ) {
-    final entered = from < to ? (to + 1).nextSlot : to.nextSlot;
+    final entered = to.nextSlot + _newBoxesBefore(to);
     if (_builtSlot(entered)) return null;
     final item = node.context;
     final position = item == null ? null : Scrollable.maybeOf(item)?.position;
@@ -1474,6 +1476,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// reads slot numbers, never an index converted between the spaces.
   bool _builtSlot(int slot) =>
       _itemNodes.keys.any((index) => index.slot == slot);
+
+  /// How many boxes the next frame draws at full extent before the item at
+  /// [to] of the current data that the last frame did not draw: each exit
+  /// started since the last build at or before [to], the slot a move left
+  /// or the leaving copy of a built item, unless exits take no room
+  /// (invariant 35).
+  int _newBoxesBefore(_DataIndex to) {
+    if (_exitsTakeNoExtent(context)) return 0;
+    return _exits.where((exit) {
+      final gap = exit.gap;
+      return exit.fresh && gap != null && gap <= to;
+    }).length;
+  }
 
   /// After the frame that moved the focused item [key] (FR-05 E04): with
   /// its State kept, it keeps focus and is revealed twice; with its State
@@ -2101,6 +2116,10 @@ class _Exit {
 
   /// The item's laid-out size at `removeItem`, which a fixed extent keeps.
   Size? size;
+
+  /// Whether the exit started after the last build, so the next frame
+  /// draws a box the last one did not (invariant 35).
+  bool fresh = true;
 }
 
 /// A position in the app's data after this turn's `insertItem`,
