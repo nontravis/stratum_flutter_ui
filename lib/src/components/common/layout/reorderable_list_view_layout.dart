@@ -1196,22 +1196,36 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Hands focus from a removed item to the first node of the item now at
   /// [gap], else of the item before it, else to the list's own Tab stop
-  /// (E04). Each target is revealed in every viewport around it, as
-  /// invariant 21 reveals every focus move.
+  /// (E04). [gap] is an index of the current data, converted when read, so
+  /// a call that runs earlier in the post-frame batch cannot land focus one
+  /// item off; an item at the gap that the frame has not built, inserted
+  /// after the frame, is skipped (R3). Each target is revealed in every
+  /// viewport around it, as invariant 21 reveals every focus move.
   void _handOffFocus(_DataIndex gap) {
     if (!mounted) return;
-    // TEMPORARY CROSSING (W4, W5): the data gap read as a frame index, as
-    // before the retype, until the handoff converts it at read (D7).
-    final at = _FrameIndex(gap.value);
+    final next = _builtNear(gap, 1);
+    final previous = _builtNear(gap - 1, -1);
     final target =
-        (at < _FrameIndex(_layout.itemCount) ? _firstStopOf(at) : null) ??
-        (at > const _FrameIndex(0) ? _firstStopOf(at - 1) : null);
+        (next == null ? null : _firstStopOf(next)) ??
+        (previous == null ? null : _firstStopOf(previous));
     if (target != null) {
       target.requestFocus();
       return;
     }
     final own = _ownTabStop();
     if (own != null) requestFocusInViewports(own);
+  }
+
+  /// The index in the last frame of the item nearest [index] of the
+  /// current data, from [index] on in the direction of [step], that the
+  /// frame drew at that place: an item inserted since the frame, or moved
+  /// there since, is skipped (R3). Null past either end of the data.
+  _FrameIndex? _builtNear(_DataIndex index, int step) {
+    for (var i = index; i >= const _DataIndex(0) && i < _dataEnd; i += step) {
+      final built = _builtIndexOf(i, inPlace: true);
+      if (built != null) return built;
+    }
+    return null;
   }
 
   /// Reveals the item whose key node is [node] by [revealInViewports],
