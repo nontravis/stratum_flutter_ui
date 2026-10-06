@@ -21,10 +21,15 @@ class _ProbeState extends State<_Probe> {
   Widget build(BuildContext context) => _box;
 }
 
-Finder get _overlay => find.byWidgetPredicate(
-  (widget) =>
-      widget is DecoratedBox &&
-      widget.position == DecorationPosition.foreground,
+/// The overlay inside [InkWell]; the ring above it paints a foreground
+/// [DecoratedBox] too.
+Finder get _overlay => find.descendant(
+  of: find.byType(InkWell),
+  matching: find.byWidgetPredicate(
+    (widget) =>
+        widget is DecoratedBox &&
+        widget.position == DecorationPosition.foreground,
+  ),
 );
 
 /// The overlay color, or null when the overlay paints nothing.
@@ -34,8 +39,24 @@ Color? _overlayColor(WidgetTester tester) {
   return color == null || color.a == 0 ? null : color;
 }
 
+/// Whether the ring shows: its state is focused.
 bool _ring(WidgetTester tester) =>
-    tester.widget<FocusSpread>(find.byType(FocusSpread)).focus;
+    tester.widget<StratumFocusBorder>(find.byType(StratumFocusBorder)).state ==
+    FullWidgetState.focused;
+
+/// The side the ring paints, from the [DecoratedBox] right below it.
+BorderSide _ringSide(WidgetTester tester) {
+  final box = tester.widget<DecoratedBox>(
+    find
+        .descendant(
+          of: find.byType(StratumFocusBorder),
+          matching: find.byType(DecoratedBox),
+        )
+        .first,
+  );
+  final shape = (box.decoration as ShapeDecoration).shape;
+  return (shape as RoundedRectangleBorder).side;
+}
 
 void _useHighlightStrategy(FocusHighlightStrategy strategy) {
   FocusManager.instance.highlightStrategy = strategy;
@@ -120,7 +141,7 @@ List<Widget> _surfaceChain(WidgetTester tester) {
     chain.add(widget);
     widget = switch (widget) {
       Semantics(:final child) => child,
-      FocusSpread(:final child) => child,
+      StratumFocusBorder(:final child) => child,
       MouseRegion(:final child) => child,
       CallbackShortcuts(:final child) => child,
       Focus(:final child) => child,
@@ -153,11 +174,12 @@ void _expectNoteKept(WidgetTester tester, State before) {
   expect(field.focusNode.hasPrimaryFocus, isTrue);
 }
 
-/// [_surfaceChain]'s types on the plain tap path on master `ff3c890`: an
-/// activation callback, empty shortcuts, and no onSecondaryTap.
+/// [_surfaceChain]'s types on the plain tap path on master `ff3c890`, with
+/// the ring renamed to [StratumFocusBorder] (US-04 FR-03): an activation
+/// callback, empty shortcuts, and no onSecondaryTap.
 const _plainTapPathTypes = [
   'Semantics',
-  'FocusSpread',
+  'StratumFocusBorder',
   'MouseRegion',
   'Material',
   'InkWell',
@@ -502,7 +524,9 @@ void main() {
   });
 
   group('StratumInkWell focus', () {
-    testWidgets('unmounting leaves a caller focusNode usable', (tester) async {
+    testWidgets('us04/fr03/e01: unmounting leaves a caller focusNode usable', (
+      tester,
+    ) async {
       final node = _node();
       await tester.pumpWidget(
         themedHost(StratumInkWell(onTap: _noop, focusNode: node, child: _box)),
@@ -512,9 +536,8 @@ void main() {
       expect(() => node.addListener(_noop), returnsNormally);
     });
 
-    testWidgets('the focus node swaps between internal and caller', (
-      tester,
-    ) async {
+    testWidgets('us04/fr03/e02: the focus node swaps between internal and '
+        'caller', (tester) async {
       final node = _node();
       Widget build(FocusNode? focusNode) => themedHost(
         StratumInkWell(onTap: _noop, focusNode: focusNode, child: _box),
@@ -574,9 +597,8 @@ void main() {
       expect(_ring(tester), isTrue);
     });
 
-    testWidgets('focusedVisible leaves focus on another node after a tap', (
-      tester,
-    ) async {
+    testWidgets('us04/fr03/e04: focusedVisible leaves focus on another node '
+        'after a tap', (tester) async {
       final other = _node();
       await tester.pumpWidget(
         themedHost(
@@ -618,7 +640,7 @@ void main() {
       await tester.pump();
 
       expect(node.hasFocus, isFalse);
-      expect(find.byType(FocusSpread), findsNothing);
+      expect(find.byType(StratumFocusBorder), findsNothing);
     });
 
     testWidgets('invisible takes focus and has no ring', (tester) async {
@@ -638,7 +660,7 @@ void main() {
       await tester.pump();
 
       expect(node.hasFocus, isTrue);
-      expect(find.byType(FocusSpread), findsNothing);
+      expect(find.byType(StratumFocusBorder), findsNothing);
     });
 
     testWidgets('disabled cannot take focus', (tester) async {
@@ -661,6 +683,120 @@ void main() {
       expect(node.hasFocus, isFalse);
       expect(_ring(tester), isFalse);
     });
+
+    testWidgets(
+      'us04/nf01: the ring is the outside style at the surface radius, in '
+      "the theme's border.subtle.blue while focused",
+      (tester) async {
+        _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+        const radius = BorderRadius.all(Radius.circular(8));
+        final node = _node();
+        await tester.pumpWidget(
+          themedHost(
+            StratumInkWell(
+              onTap: _noop,
+              focusNode: node,
+              borderRadius: radius,
+              child: _box,
+            ),
+          ),
+        );
+        final ring = tester.widget<StratumFocusBorder>(
+          find.byType(StratumFocusBorder),
+        );
+        expect(ring.style, StratumFocusBorderStyle.outside);
+        expect(ring.insideEdge, isFalse);
+        expect(ring.borderRadius, radius);
+        expect(ring.customColor, isNull);
+        expect(_ringSide(tester).color.a, 0);
+
+        node.requestFocus();
+        await tester.pumpAndSettle();
+
+        expect(
+          _ringSide(tester).color,
+          isSameColorAs(fakeTheme.color.border.subtle.blue),
+        );
+      },
+    );
+
+    testWidgets('us04/fr03/e05: a hovered and focused surface shows the '
+        'focused look', (tester) async {
+      _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+      final node = _node();
+      await tester.pumpWidget(
+        themedHost(StratumInkWell(onTap: _noop, focusNode: node, child: _box)),
+      );
+      node.requestFocus();
+      final mouse = await _mouse(tester);
+      await mouse.moveTo(tester.getCenter(find.byType(StratumInkWell)));
+      await tester.pumpAndSettle();
+
+      expect(_overlayColor(tester), fakeHover);
+      expect(_ring(tester), isTrue);
+      expect(
+        _ringSide(tester).color,
+        isSameColorAs(fakeTheme.color.border.subtle.blue),
+      );
+    });
+
+    testWidgets(
+      'us04/fr03/e12: a focused surface in another state still shows the '
+      'ring; a disabled one takes no focus and shows none',
+      (tester) async {
+        _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+        final node = _node();
+        final states = _states({WidgetState.error, WidgetState.selected});
+        Widget build({required bool disabled}) => themedHost(
+          StratumInkWell(
+            key: ValueKey(disabled),
+            onTap: _noop,
+            focusNode: node,
+            statesController: states,
+            disabled: disabled,
+            child: _box,
+          ),
+        );
+        await tester.pumpWidget(build(disabled: false));
+        node.requestFocus();
+        await tester.pumpAndSettle();
+        expect(_ring(tester), isTrue);
+
+        // A new, disabled surface on the same node and states.
+        await tester.pumpWidget(build(disabled: true));
+        node.requestFocus();
+        await tester.pumpAndSettle();
+        expect(node.hasFocus, isFalse);
+        expect(_ring(tester), isFalse);
+        expect(_ringSide(tester).color.a, 0);
+      },
+    );
+
+    testWidgets(
+      'us04/fr03/e03: a focused surface that turns disabled loses focus and '
+      'its ring',
+      (tester) async {
+        _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+        final node = _node();
+        Widget build({required bool disabled}) => themedHost(
+          StratumInkWell(
+            onTap: _noop,
+            focusNode: node,
+            disabled: disabled,
+            child: _box,
+          ),
+        );
+        await tester.pumpWidget(build(disabled: false));
+        node.requestFocus();
+        await tester.pumpAndSettle();
+        expect(_ring(tester), isTrue);
+
+        await tester.pumpWidget(build(disabled: true));
+        await tester.pumpAndSettle();
+        expect(node.hasFocus, isFalse);
+        expect(_ring(tester), isFalse);
+      },
+    );
 
     testWidgets('onFocusChange reports each change', (tester) async {
       final node = _node();
@@ -741,7 +877,7 @@ void main() {
   });
 
   group('StratumInkWell semantics', () {
-    testWidgets('an activation callback gives an enabled button', (
+    testWidgets('us04/s4: an activation callback gives an enabled button', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
@@ -1483,7 +1619,9 @@ void main() {
       expect(calls, isEmpty);
     });
 
-    testWidgets('Enter calls onTap on a focused widget', (tester) async {
+    testWidgets('us04/s3: Enter calls onTap on a focused widget', (
+      tester,
+    ) async {
       var taps = 0;
       final node = _node();
       await tester.pumpWidget(
@@ -1993,5 +2131,141 @@ void main() {
         );
       });
     }
+  });
+
+  group('StratumInkWell US-04 scenarios', () {
+    testWidgets(
+      'us04/s1: pressing a card covers it with the pressed overlay, and '
+      'releasing it runs its action',
+      (tester) async {
+        var taps = 0;
+        await tester.pumpWidget(
+          themedHost(StratumInkWell(onTap: () => taps++, child: _box)),
+        );
+        final press = await tester.startGesture(
+          tester.getCenter(find.byType(StratumInkWell)),
+        );
+        await tester.pump(kPressTimeout);
+        await tester.pumpAndSettle();
+        expect(_overlayColor(tester), fakeActive);
+        expect(taps, 0);
+
+        await press.up();
+        await tester.pumpAndSettle();
+        expect(taps, 1);
+        expect(_overlayColor(tester), isNull);
+      },
+    );
+
+    testWidgets(
+      'us04/s2: a pointer entering a card fades the hover overlay in over '
+      "the theme's fast level",
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(onTap: _noop, child: _box),
+            theme: motionTheme(fast: const Duration(milliseconds: 100)),
+          ),
+        );
+        final mouse = await _mouse(tester);
+        await mouse.moveTo(tester.getCenter(find.byType(StratumInkWell)));
+        await tester.pump();
+        expect(_overlayColor(tester), isNull);
+
+        await tester.pump(const Duration(milliseconds: 50));
+        final half = _overlayColor(tester)!;
+        expect(half.a, greaterThan(0));
+        expect(half.a, lessThan(fakeHover.a));
+
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(_overlayColor(tester), fakeHover);
+      },
+    );
+
+    testWidgets('us04/s5: tabbing to a card shows the ring around it', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _appHost(const StratumInkWell(onTap: _noop, child: _box)),
+      );
+      expect(_ring(tester), isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+
+      expect(_ring(tester), isTrue);
+      expect(
+        _ringSide(tester).color,
+        isSameColorAs(fakeTheme.color.border.subtle.blue),
+      );
+    });
+
+    testWidgets(
+      'us04/s6: a tap on a card leaves focus and the on-screen keyboard on a '
+      'text field',
+      (tester) async {
+        var taps = 0;
+        await tester.pumpWidget(
+          _appHost(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _noteField,
+                StratumInkWell(onTap: () => taps++, child: _box),
+              ],
+            ),
+          ),
+        );
+        await tester.showKeyboard(find.byType(TextField));
+        expect(tester.testTextInput.isVisible, isTrue);
+
+        await tester.tap(find.byType(StratumInkWell));
+        await tester.pump();
+
+        expect(taps, 1);
+        final field = tester.widget<EditableText>(find.byType(EditableText));
+        expect(field.focusNode.hasPrimaryFocus, isTrue);
+        expect(tester.testTextInput.isVisible, isTrue);
+      },
+    );
+
+    testWidgets(
+      'us04/s7: a disabled card runs nothing on a tap or Enter, shows no '
+      'overlay, and reads as a dimmed button',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        var taps = 0;
+        final node = _node();
+        await tester.pumpWidget(
+          _appHost(
+            StratumInkWell(
+              onTap: () => taps++,
+              disabled: true,
+              focusNode: node,
+              child: _box,
+            ),
+          ),
+        );
+
+        await tester.tap(find.byType(StratumInkWell));
+        node.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(taps, 0);
+        expect(_overlayColor(tester), isNull);
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+            hasTapAction: false,
+          ),
+        );
+        handle.dispose();
+      },
+    );
   });
 }
