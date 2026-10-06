@@ -554,17 +554,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     unawaited(
       motion.controller.forward().then<void>((_) => _finishInsert(motion)),
     );
-    // A focused item whose new slot is not built jumps there first, so the
-    // frame that moves it builds the slot and keeps its State (E04). Asked
-    // after the booking, which starts the boxes that slot counts.
-    final origin = focused && node != null ? _jumpForMove(to, node) : null;
     if (focused && node != null && key != null) {
       // The slot the item left, by the index of the item now after it; both
       // this gap and the item's slot live in fields each call in this turn
       // shifts, and the build that settles the move re-reads the slot by
       // key, so the post-frame follow follows the data, not frozen indices.
+      // Set before the jump below: its scroll notifications may reach an
+      // app listener that calls the controller at once.
       _followKey = key;
       _followGap = from < to ? from : from + 1;
+      // A focused item whose new slot is not built jumps there first, so
+      // the frame that moves it builds the slot and keeps its State (E04).
+      // Asked after the booking, which starts the boxes that slot counts.
+      final origin = _jumpForMove(to, node);
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _followMoved(node, key, origin),
       );
