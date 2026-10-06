@@ -290,65 +290,236 @@ void main() {
       );
     });
 
-    test('us01/fr02: an HTTP error on the navigation target before its page '
-        'starts is held until that page starts', () {
-      final target = Uri.parse('https://app.example.com/missing');
-      session.willNavigate(target);
-      expect(session.httpError(statusCode: 404, requestUrl: target), isNull);
+    test('us01/fr02: an HTTP error before its page starts is held as the '
+        'candidate of its URL and released right after that page starts', () {
+      final page = Uri.parse('https://app.example.com/missing');
+      expect(session.httpError(statusCode: 404, requestUrl: page), isNull);
       expect(
         session.didStartPage('https://app.example.com/missing#top'),
         StratumWebViewError(
           type: StratumWebViewErrorType.http,
           description: 'HTTP error 404',
           code: 404,
-          url: target,
+          url: page,
         ),
       );
-      expect(session.didFinishPage(), isNull);
+      expect(session.didFinishPage(), isTrue);
     });
 
-    test('us01/fr02: a held HTTP error whose page never starts is released '
-        'by the next page finish', () {
-      final target = Uri.parse('https://app.example.com/missing');
-      session.willNavigate(target);
-      expect(session.httpError(statusCode: 404, requestUrl: target), isNull);
+    test('us01/fr02/e02: a page start discards every candidate of another '
+        'URL', () {
+      final missing = Uri.parse('https://app.example.com/missing');
+      session
+        ..httpError(statusCode: 404, requestUrl: missing)
+        ..httpError(
+          statusCode: 404,
+          requestUrl: Uri.parse('https://app.example.com/favicon.ico'),
+        );
       expect(session.didStartPage('https://app.example.com/home'), isNull);
-      expect(session.didFinishPage()?.url, target);
-      expect(session.didFinishPage(), isNull);
+      expect(session.didFinishPage(), isTrue);
+      expect(session.didStartPage(missing.toString()), isNull);
     });
 
-    test('us01/fr02: a URL load, an HTML load, or dispose discards a held '
-        'HTTP error', () {
-      final target = Uri.parse('https://app.example.com/missing');
+    test('us01/fr02: the newest HTTP error of a URL replaces its candidate, '
+        'so one failure reaches the app once', () {
+      final page = Uri.parse('https://app.example.com/missing');
+      session
+        ..httpError(statusCode: 404, requestUrl: page)
+        ..httpError(statusCode: 410, requestUrl: page);
+      expect(session.didStartPage(page.toString())?.code, 410);
+    });
+
+    test('us01/fr02: at most 16 candidates are held, the oldest dropped '
+        'first', () {
+      Uri pageOf(int index) => Uri.parse('https://app.example.com/p$index');
       void hold() {
-        session.willNavigate(target);
-        expect(session.httpError(statusCode: 404, requestUrl: target), isNull);
+        for (var index = 0; index < 16; index++) {
+          session.httpError(statusCode: 404, requestUrl: pageOf(index));
+        }
+        // p0 fails again and becomes the newest; the 17th URL then drops the
+        // oldest, p1.
+        session
+          ..httpError(statusCode: 410, requestUrl: pageOf(0))
+          ..httpError(statusCode: 404, requestUrl: pageOf(16));
       }
 
       hold();
-      session.willLoadUrl();
-      expect(session.didFinishPage(), isNull);
+      expect(session.didStartPage(pageOf(1).toString()), isNull);
+      expect(session.didFinishPage(), isTrue);
       hold();
-      session.willLoadHtml();
-      expect(session.didFinishPage(), isNull);
+      expect(session.didStartPage(pageOf(0).toString())?.code, 410);
+      expect(session.didFinishPage(), isTrue);
       hold();
-      session.willDispose();
-      expect(session.didFinishPage(), isNull);
+      expect(session.didStartPage(pageOf(16).toString())?.code, 404);
+    });
+
+    test('us01/fr02: every navigation begin and dispose discard every '
+        'candidate', () {
+      final page = Uri.parse('https://app.example.com/missing');
+      for (final begin in <void Function()>[
+        session.willLoadUrl,
+        session.willLoadHtml,
+        session.willReload,
+        session.willNavigate,
+        session.didAllowNavigation,
+        session.willDispose,
+      ]) {
+        expect(session.httpError(statusCode: 404, requestUrl: page), isNull);
+        begin();
+        expect(session.didStartPage(page.toString()), isNull);
+        expect(session.didFinishPage(), isTrue);
+      }
+    });
+
+    test('us01/fr02/e08: an HTTP error on the page itself is held while its '
+        'start is closed, so a reload reports start, error, finish', () {
+      final page = Uri.parse('https://app.example.com/flip');
+      session.didStartPage(page.toString());
+      expect(session.didFinishPage(), isTrue);
+      // A reload by the controller.
+      session.willReload();
+      expect(session.httpError(statusCode: 404, requestUrl: page), isNull);
+      expect(session.didStartPage(page.toString())?.code, 404);
+      expect(session.didFinishPage(), isTrue);
+      // A reload by the page's own script: no navigation begin is seen.
+      expect(session.httpError(statusCode: 404, requestUrl: page), isNull);
+      expect(session.didStartPage(page.toString())?.code, 404);
+    });
+
+    test('us01/fr02/e08: a history move the page script starts releases the '
+        'candidate of the page it lands on', () {
+      final flip = Uri.parse('https://app.example.com/flip');
+      session.didStartPage('https://app.example.com/b');
+      expect(session.didFinishPage(), isTrue);
+      // history.back() in page script: no navigation begin reaches the
+      // session, and Android reports the error before the page starts.
+      expect(session.httpError(statusCode: 404, requestUrl: flip), isNull);
+      expect(session.didStartPage(flip.toString())?.url, flip);
+    });
+
+    test('us01/fr02/e09: a sub-resource 404 on the URL a later page-script '
+        'history move lands on reaches onError as that page error', () {
+      final image = Uri.parse('https://app.example.com/y');
+      session.didStartPage('https://app.example.com/x');
+      // <img src="/y"> on /x answers 404 while /x loads.
+      expect(session.httpError(statusCode: 404, requestUrl: image), isNull);
+      expect(session.didFinishPage(), isTrue);
+      // history.back() to /y, which now answers 200: with no navigation
+      // begin between, arrival before the page start decides.
+      expect(session.didStartPage(image.toString())?.url, image);
+    });
+
+    test('us01/fr01/e05: a page finish with no open start is dropped and '
+        'releases no candidate', () {
+      final target = Uri.parse('https://app.example.com/gone');
+      // Android after a 302: a finish names the target before it starts.
+      expect(session.didFinishPage(), isFalse);
+      expect(session.httpError(statusCode: 404, requestUrl: target), isNull);
+      expect(session.didFinishPage(), isFalse);
+      expect(session.didStartPage(target.toString())?.url, target);
+      expect(session.didFinishPage(), isTrue);
+      expect(session.didFinishPage(), isFalse);
+    });
+
+    test('us04/fr01/e05: a controller goBack with no new start keeps the '
+        'open finish', () {
+      // R14: a controller action ends only at-once eligibility, never the
+      // finish pairing. A goBack with no history entry starts no document.
+      session
+        ..didStartPage('https://app.example.com/a')
+        ..willNavigate();
+      expect(session.didFinishPage(), isTrue);
+    });
+
+    test('us01/fr01/e05: after a reload whose page never restarts, the old '
+        'finish still reports', () {
+      // R14: the reload ends only at-once eligibility, so the load it
+      // replaces keeps its finish.
+      session
+        ..didStartPage('https://app.example.com/flip')
+        ..willReload();
+      expect(session.didFinishPage(), isTrue);
+    });
+
+    test('us01/fr02/e08: a tracked-page HTTP error after a controller action '
+        'is a candidate, not at once', () {
+      // R8 and R9, kept by R14: the controller action ends at-once
+      // eligibility, so the error waits for the page it belongs to.
+      final page = Uri.parse('https://app.example.com/flip');
+      session
+        ..didStartPage(page.toString())
+        ..willNavigate();
+      expect(session.httpError(statusCode: 404, requestUrl: page), isNull);
+      expect(session.didStartPage(page.toString())?.code, 404);
+    });
+
+    test('us01/fr02/e08: a controller action ends the at-once error '
+        'eligibility, so the error of a reload while the page still loads '
+        'waits for its start', () {
+      // R8, R9, and R14: every controller action ends the at-once
+      // eligibility only.
+      final page = Uri.parse('https://app.example.com/flip');
+      for (final begin in <void Function()>[
+        session.willLoadUrl,
+        session.willLoadHtml,
+        session.willReload,
+        session.willNavigate,
+      ]) {
+        session.didStartPage(page.toString());
+        begin();
+        expect(session.httpError(statusCode: 404, requestUrl: page), isNull);
+        expect(session.didStartPage(page.toString())?.code, 404);
+        expect(session.didFinishPage(), isTrue);
+      }
+    });
+
+    test('us01/fr01/e05: the late finish of a load that a controller action '
+        'replaced pairs with its own start and reaches the app', () {
+      // R14: the reload ends only the at-once error eligibility, so the
+      // replaced load's finish still pairs with the start it left open.
+      const page = 'https://app.example.com/flip';
+      session
+        ..didStartPage(page)
+        ..willReload();
+      expect(session.didFinishPage(), isTrue);
+      session.didStartPage(page);
+      expect(session.didFinishPage(), isTrue);
+    });
+
+    test('us01/fr01/e05: an allowed navigation request keeps the open start, '
+        'so a WebKit redirect keeps its finish', () {
+      // R10: WebKit asks for the redirect target after the page start.
+      final target = Uri.parse('https://app.example.com/gone');
+      session
+        ..didStartPage('https://app.example.com/redirect')
+        ..didAllowNavigation()
+        ..didChangeUrl(target.toString());
+      expect(session.httpError(statusCode: 404, requestUrl: null)?.url, target);
+      expect(session.didFinishPage(), isTrue);
+    });
+
+    test('us01/fr02/e10: a navigation the page starts to itself while it '
+        'loads reports its early HTTP error at once', () {
+      // R10 residue: only a controller action ends the open start.
+      final page = Uri.parse('https://app.example.com/flip');
+      session
+        ..didStartPage(page.toString())
+        ..didAllowNavigation();
+      expect(session.httpError(statusCode: 404, requestUrl: page)?.url, page);
     });
 
     test('us01/fr02: an empty path matches its canonical slash, fragment '
         'ignored', () {
-      session.willNavigate(Uri.parse('https://app.example.com'));
       expect(
         session.httpError(
           statusCode: 404,
-          requestUrl: Uri.parse('https://app.example.com/#top'),
+          requestUrl: Uri.parse('https://app.example.com#top'),
         ),
         isNull,
       );
       expect(
         session.didStartPage('https://app.example.com/')?.url,
-        Uri.parse('https://app.example.com/#top'),
+        Uri.parse('https://app.example.com#top'),
       );
       expect(
         session
@@ -361,26 +532,8 @@ void main() {
       );
     });
 
-    test('us01/fr02/e02: only the start of the target page, or an HTML load, '
-        'ends the navigation target', () {
-      final target = Uri.parse('https://app.example.com/missing');
-      session
-        ..willNavigate(target)
-        ..didStartPage('https://app.example.com/home');
-      expect(session.httpError(statusCode: 404, requestUrl: target), isNull);
-      expect(session.didStartPage(target.toString())?.url, target);
-      // The target page has started: its errors now pass at once.
-      expect(session.httpError(statusCode: 500, requestUrl: target)?.code, 500);
-      // An HTML load ends the target too.
-      final next = Uri.parse('https://app.example.com/next');
-      session
-        ..willNavigate(next)
-        ..willLoadHtml();
-      expect(session.httpError(statusCode: 404, requestUrl: next), isNull);
-      expect(session.didFinishPage(), isNull);
-    });
-
-    test('drops HTTP errors before any page', () {
+    test('us01/fr02/e02: holds an HTTP error that arrives before any page as '
+        'a candidate', () {
       expect(
         session.httpError(
           statusCode: 500,
@@ -388,9 +541,10 @@ void main() {
         ),
         isNull,
       );
+      expect(session.didStartPage('https://app.example.com/other'), isNull);
     });
 
-    test('treats a null request URL as the current page', () {
+    test('us01/fr02/e03: treats a null request URL as the current page', () {
       session.didStartPage('https://app.example.com/home');
       expect(
         session.httpError(statusCode: 500, requestUrl: null),

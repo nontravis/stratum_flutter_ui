@@ -39,10 +39,10 @@ dependencies:
   archive: ^4.3.0
   crypto: ^3.0.7
   web: ^1.1.1
-  webview_all_linux: ^1.4.3
-  webview_all_windows: ^1.4.3
+  webview_all_linux: ^1.4.4
+  webview_all_windows: ^1.4.4
   webview_flutter: ^4.14.1
-  webview_platform_interface: ^1.4.3
+  webview_platform_interface: ^1.4.4
 
 dev_dependencies:
   flutter_test:

@@ -52,6 +52,9 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   String? _htmlNonce;
   web.MessagePort? _bridgePort;
 
+  /// Whether a page start was reported that no frame `load` has finished.
+  bool _pageStartOpen = false;
+
   /// The iframe that shows the page.
   @visibleForTesting
   web.HTMLIFrameElement get iframe => _iframe;
@@ -189,6 +192,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   void _show(StratumWebViewSource source) {
     _applySandbox(source);
     _closeBridgePort();
+    _pageStartOpen = true;
     switch (source) {
       case StratumWebViewUrlSource(:final url):
         _htmlNonce = null;
@@ -233,9 +237,14 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     if (_disposed) return;
     final current = _history.current;
     if (current == null) return;
-    _listener.onPageFinished(
-      current is StratumWebViewUrlSource ? current.url : null,
-    );
+    final url = current is StratumWebViewUrlSource ? current.url : null;
+    // The web has no start event of its own: a frame load that no `_show`
+    // started (a link inside the frame, or the reload when the view is
+    // inserted again) reports its start first, so every finish pairs with
+    // one start.
+    if (!_pageStartOpen) _listener.onPageStarted(url);
+    _pageStartOpen = false;
+    _listener.onPageFinished(url);
   }
 
   void _handleMessage(web.MessageEvent event) {

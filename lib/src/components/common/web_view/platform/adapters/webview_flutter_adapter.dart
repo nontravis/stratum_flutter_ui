@@ -52,9 +52,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     await _ready;
     switch (source) {
       case StratumWebViewUrlSource(:final url):
-        _session
-          ..willLoadUrl()
-          ..willNavigate(url);
+        _session.willLoadUrl();
         await _controller.loadRequest(url);
       case StratumWebViewHtmlSource(:final html):
         _session.willLoadHtml();
@@ -72,12 +70,14 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   @override
   Future<void> goBack() async {
     await _ready;
+    _session.willNavigate();
     await _controller.goBack();
   }
 
   @override
   Future<void> goForward() async {
     await _ready;
+    _session.willNavigate();
     await _controller.goForward();
   }
 
@@ -135,7 +135,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     if (decision != StratumNavigationDecision.navigate) {
       return wf.NavigationDecision.prevent;
     }
-    _session.willNavigate(url);
+    _session.didAllowNavigation();
     return wf.NavigationDecision.navigate;
   }
 
@@ -146,8 +146,9 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   }
 
   void _handlePageFinished(String url) {
-    final heldError = _session.didFinishPage();
-    if (heldError != null) _listener.onError(heldError);
+    // Android reports a finish for a redirect target before that page
+    // starts; a finish with no open page start never reaches the app.
+    if (!_session.didFinishPage()) return;
     _listener.onPageFinished(Uri.tryParse(url));
   }
 
