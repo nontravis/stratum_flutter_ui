@@ -68,9 +68,9 @@ class StratumRemoteThemeException implements Exception {
   /// What failed, for a person reading the log.
   final String message;
 
-  /// The entry path exactly as the zip holds it, for `unsafeEntryPath` and
-  /// `missingEntry`: untrusted text the app escapes before it logs or shows
-  /// it.
+  /// The entry path exactly as the zip holds it, for `unsafeEntryPath`,
+  /// `missingEntry`, and an `invalidArchive` path held twice: untrusted
+  /// text the app escapes before it logs or shows it.
   final String? path;
 
   /// The measured entry count or size, for `archiveTooLarge`.

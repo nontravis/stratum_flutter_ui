@@ -226,8 +226,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   theme starts on `default` and calls `onThemeChanged('default')`, so the app overwrites its saved id; a theme file
   with problems throws `StratumThemeFormatException`.
   `switchTo(id)` completes after the new theme is active, keeps the current theme on screen while it loads and when
-  it fails, throws `StratumThemeNotFoundException` for an unknown id, does nothing for the active id, and lets the
-  latest of overlapping switches win. The package stores nothing: save the id `onThemeChanged`
+  it fails, throws `StratumThemeNotFoundException` for an unknown id, and lets the latest of overlapping switches
+  win. For the active id it does nothing, unless a newer install of that id is registered and not yet on screen:
+  then it shows that install, with no `onThemeChanged`. The package stores nothing: save the id `onThemeChanged`
   reports.
 - **`StratumThemeApplication.controlled`** — `StratumThemeApplication.controlled(controller:, themeMode:,
   highContrast:, componentDefaults:, child:)` publishes the controller's active theme and rebuilds dependents once

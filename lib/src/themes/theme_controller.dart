@@ -1,5 +1,4 @@
 import 'package:stratum_ui/src/src.dart';
-import 'package:stratum_ui/src/themes/remote/remote_theme.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_bundle.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_installer.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
@@ -174,17 +173,34 @@ class StratumThemeController extends ChangeNotifier {
   /// [StratumThemeNotFoundException] for an id that names no registered
   /// theme, and `StratumThemeFormatException` for a theme file that fails
   /// to parse; either leaves the active theme as it was. A switch to the
-  /// active id changes nothing. When switches overlap the latest wins: an
-  /// overtaken switch completes with no error and no callback, and its
-  /// theme is dropped. Only the active theme stays parsed, so a switch back
-  /// reads its file again; its font files stay registered.
+  /// active id changes nothing while the active id's latest install is on
+  /// screen; else it lands that install as above with no `onThemeChanged`,
+  /// the id being unchanged (FO-04 s03 invariant 10). When switches overlap
+  /// the latest wins: an overtaken switch completes with no error and no
+  /// callback, and its theme is dropped. Only the active theme stays
+  /// parsed, so a switch back reads its file again; its font files stay
+  /// registered.
   Future<void> switchTo(String id) async {
     if (!themeIds.contains(id)) {
       throw StratumThemeNotFoundException(id, themeIds);
     }
     final generation = ++_generation;
     _switchTarget = id;
-    if (id == _activeId) return;
+    if (id == _activeId && _registry[id]!.folder == _activeFolder) return;
+    final landing = id == _activeId;
+    try {
+      await _switch(id, generation);
+    } on Object {
+      // A failed landing of the active id would only fail again.
+      if (!landing) _landRegistered();
+      rethrow;
+    }
+    _landRegistered();
+  }
+
+  /// Loads the registered theme of [id] for the switch numbered
+  /// [generation] and makes it active, unless a later switch overtook it.
+  Future<void> _switch(String id, int generation) async {
     final entry = _registry[id]!;
     _pin(entry.folder);
     _switchInFlight = generation;
@@ -192,16 +208,31 @@ class StratumThemeController extends ChangeNotifier {
       final themes = await _load(entry, generation);
       if (themes == null || _disposed) return;
       final previous = _activeFolder;
+      final changed = id != _activeId;
       _themes = themes;
       _activeId = id;
       _activeFolder = entry.folder;
       notifyListeners();
-      _onThemeChanged?.call(id);
+      if (changed) _onThemeChanged?.call(id);
       _release(previous);
     } finally {
       if (_switchInFlight == generation) _switchInFlight = null;
       _unpin(entry.folder);
     }
+  }
+
+  /// Lands the active id's registered generation as a same-id switch when
+  /// another generation is on screen and no switch is in flight, so an
+  /// install whose swap dropped still reaches the screen (FO-04 s03
+  /// invariant 10).
+  void _landRegistered() {
+    if (_disposed || _switchInFlight != null) return;
+    if (_registry[_activeId]!.folder == _activeFolder) return;
+    unawaited(
+      switchTo(_activeId).catchError((Object error) {
+        _warn('the latest install of "$_activeId" failed to land ($error)');
+      }),
+    );
   }
 
   /// Installs a theme zip the app downloaded (FO-04 US-01 FR-01 to FR-03):
@@ -213,10 +244,11 @@ class StratumThemeController extends ChangeNotifier {
   /// An install of a non-active id registers with no repaint and no
   /// callback. An install of the active id loads the new theme's fonts and
   /// swaps it in one step, with no `onThemeChanged`, since the id does not
-  /// change; a switch to another id that starts before that swap wins, and
-  /// the install keeps its registration, while a switch to the same id
-  /// changes nothing and the swap goes ahead. An install of an id that the
-  /// latest switch is still loading acts as a later switch to that id: the
+  /// change. That swap drops when a switch is in flight or the install is
+  /// already on screen; the registration stays, and once no switch is in
+  /// flight, or at a switch to the same id, the newest install lands with
+  /// one repaint and no callback. An install of an id that the latest
+  /// switch is still loading acts as a later switch to that id: the
   /// earlier switch is dropped, and the screen lands on the newest install
   /// in one step with one `onThemeChanged`. Of overlapping install calls
   /// for one id, the later-started call that registers wins: an earlier
@@ -251,6 +283,7 @@ class StratumThemeController extends ChangeNotifier {
       if (_disposed ||
           _installRegistered[install.id] != call ||
           _activeId != install.id ||
+          _activeFolder == install.folder ||
           _switchInFlight == _generation) {
         return;
       }

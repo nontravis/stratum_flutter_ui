@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
-import 'package:stratum_ui/src/themes/remote/remote_theme.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_installer.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 import 'package:stratum_ui/src/themes/theme_parse.dart';
@@ -91,6 +90,20 @@ StratumRemoteTheme remoteTheme(
     maxBytes: maxBytes ?? StratumRemoteTheme.defaultMaxBytes,
     maxEntries: maxEntries ?? StratumRemoteTheme.defaultMaxEntries,
   );
+}
+
+/// A remote theme [id] whose `theme.yaml` line 2 is `# caf`, the Latin-1
+/// byte 0xE9, and ` note`: not valid UTF-8 at line 2, column 7, where
+/// strict decoding stops.
+StratumRemoteTheme latin1Theme(String id) {
+  final bytes = buildZip([
+    ZipEntryFixture('theme.yaml', [
+      ...utf8.encode('$remoteSchemaLine\n# caf'),
+      0xE9,
+      ...utf8.encode(' note\n'),
+    ]),
+  ]);
+  return StratumRemoteTheme(id: id, bytes: bytes, checksum: checksumOf(bytes));
 }
 
 /// The family and file count of every font registration; registers

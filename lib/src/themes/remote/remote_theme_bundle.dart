@@ -18,6 +18,14 @@ class RemoteThemeBundle extends AssetBundle {
   /// The folder of install [generation] of [id].
   static String folderOf(String id, int generation) => '$root/$id/$generation';
 
+  /// Decodes a zip entry as strict UTF-8: the one text decode of install
+  /// step 9 and of every later read, so a theme that installed always
+  /// reads again (FO-04 s03 invariant 4).
+  ///
+  /// Throws [FormatException] whose `offset` is the byte where decoding
+  /// stops.
+  static String decodeText(Uint8List bytes) => utf8.decode(bytes);
+
   /// The app bundle every other key goes to.
   final AssetBundle parent;
 
@@ -60,7 +68,7 @@ class RemoteThemeBundle extends AssetBundle {
   Future<String> loadString(String key, {bool cache = true}) async {
     final data = _entry(key);
     if (data == null) return parent.loadString(key, cache: cache);
-    return utf8.decode(data);
+    return decodeText(data);
   }
 
   @override

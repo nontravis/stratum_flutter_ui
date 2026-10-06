@@ -18,7 +18,8 @@ enum StratumRemoteThemeErrorCode {
   /// The zip passes `maxEntries` or `maxBytes`.
   archiveTooLarge,
 
-  /// An entry path leaves the zip root, or an entry is a symbolic link.
+  /// An entry path is not a canonical relative path, or an entry is
+  /// neither a file nor a folder, such as a symbolic link.
   unsafeEntryPath,
 
   /// No `theme.yaml` at a theme root.

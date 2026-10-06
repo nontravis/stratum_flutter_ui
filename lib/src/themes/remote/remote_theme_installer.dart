@@ -1,7 +1,6 @@
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/remote/remote_checksum.dart';
 import 'package:stratum_ui/src/themes/remote/remote_id.dart';
-import 'package:stratum_ui/src/themes/remote/remote_theme.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_bundle.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 import 'package:stratum_ui/src/themes/remote/remote_zip_reader.dart';
@@ -43,6 +42,8 @@ abstract final class RemoteThemeInstaller {
   /// registrations and engine fonts are process-wide.
   static final _generations = <String, int>{};
 
+  static const _lineFeed = 0x0A;
+
   /// Checks [theme] and reads it over [packageDefault] and [appDefault];
   /// throws [StratumRemoteThemeException] at the first failed step and
   /// changes nothing it does not own.
@@ -70,14 +71,15 @@ abstract final class RemoteThemeInstaller {
     final generation = (_generations[theme.id] ?? 0) + 1;
     _generations[theme.id] = generation;
     final folder = RemoteThemeBundle.folderOf(theme.id, generation);
+    final sourceId = '${theme.id}@$generation';
     final StratumThemeConfig config;
     try {
       config = await ThemeParse.run(packageDefault, [
         ?appDefault,
         StratumThemeSource(
-          id: '${theme.id}@$generation',
+          id: sourceId,
           folder: folder,
-          yaml: utf8.decode(entries['theme.yaml']!, allowMalformed: true),
+          yaml: _decodeThemeFile(entries['theme.yaml']!, sourceId),
         ),
       ]);
     } on StratumThemeFormatException catch (report) {
@@ -95,6 +97,43 @@ abstract final class RemoteThemeInstaller {
       config: config,
       entries: entries,
     );
+  }
+
+  /// D2 step 9: [bytes] decoded as strict UTF-8; a byte that is not valid
+  /// UTF-8 throws FO-01's report with one `yaml_syntax` problem at the byte
+  /// where decoding stops (FO-04 s05).
+  static String _decodeThemeFile(Uint8List bytes, String sourceId) {
+    try {
+      return RemoteThemeBundle.decodeText(bytes);
+    } on FormatException catch (error) {
+      final (line, column) = _position(bytes, error.offset);
+      throw StratumThemeFormatException([
+        StratumThemeFormatError(
+          code: StratumThemeErrorCode.yamlSyntax,
+          source: sourceId,
+          path: '',
+          message: 'not valid UTF-8 text',
+          line: line,
+          column: column,
+        ),
+      ]);
+    }
+  }
+
+  /// The 1-based line and column of byte [offset] of [bytes], counting
+  /// line-feed bytes for the line and bytes for the column; both null when
+  /// [offset] is.
+  static (int?, int?) _position(Uint8List bytes, int? offset) {
+    if (offset == null) return (null, null);
+    var line = 1;
+    var lineStart = 0;
+    for (var index = 0; index < offset; index++) {
+      if (bytes[index] == _lineFeed) {
+        line++;
+        lineStart = index + 1;
+      }
+    }
+    return (line, offset - lineStart + 1);
   }
 
   /// D2 step 10: every font file and asset slot file the zip's own theme

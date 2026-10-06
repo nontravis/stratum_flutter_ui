@@ -1,7 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
-import 'package:stratum_ui/src/themes/remote/remote_theme.dart';
-import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 
 import 'remote_fakes.dart';
 import 'remote_test_zip.dart';
@@ -147,6 +145,18 @@ void main() {
         '(checksum_mismatch); skipped',
       ),
     );
+  });
+
+  test('us01/fr04, r12: a kept zip whose theme file is not UTF-8 is skipped '
+      'as theme_format, and the start falls back to default', () async {
+    final controller = await start([
+      latin1Theme('brand'),
+    ], initialThemeId: 'brand');
+
+    expect(controller.themeIds, ['default']);
+    expect(controller.activeId, 'default');
+    expect(changes, ['default']);
+    expect(errors, [('brand', StratumRemoteThemeErrorCode.themeFormat)]);
   });
 
   test('us01/fr04/e06: no kept zip runs preload as FO-03 states', () async {

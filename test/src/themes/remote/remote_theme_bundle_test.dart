@@ -44,6 +44,38 @@ void main() {
     expect(parent.reads, isEmpty);
   });
 
+  test('r12: an entry read as text takes the strict decode of install step '
+      '9, failing at the byte where it stops', () async {
+    final latin1 = Uint8List.fromList([
+      ...utf8.encode('# caf'),
+      0xE9,
+      ...utf8.encode(' note'),
+    ]);
+    final bundle = RemoteThemeBundle(_Parent())
+      ..add('stratum-remote/brand/1', {'theme.yaml': latin1});
+    final stopsAt = isA<FormatException>().having((e) => e.offset, 'offset', 6);
+
+    expect(() => RemoteThemeBundle.decodeText(latin1), throwsA(stopsAt));
+    await expectLater(
+      bundle.loadString('stratum-remote/brand/1/theme.yaml'),
+      throwsA(stopsAt),
+    );
+  });
+
+  test('r12: valid UTF-8 text reads back unchanged', () async {
+    const thai = 'name: สงกรานต์';
+    final bundle = RemoteThemeBundle(_Parent())
+      ..add('stratum-remote/brand/1', {
+        'theme.yaml': Uint8List.fromList(utf8.encode(thai)),
+      });
+
+    expect(
+      RemoteThemeBundle.decodeText(Uint8List.fromList(utf8.encode(thai))),
+      thai,
+    );
+    expect(await bundle.loadString('stratum-remote/brand/1/theme.yaml'), thai);
+  });
+
   test('d3: every other key goes to the app bundle', () async {
     final parent = _Parent();
     final bundle = RemoteThemeBundle(parent);
