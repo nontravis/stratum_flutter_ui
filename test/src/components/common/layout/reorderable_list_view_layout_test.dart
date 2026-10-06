@@ -1,4 +1,5 @@
-import 'package:flutter/rendering.dart' show ItemExtentBuilder;
+import 'package:flutter/rendering.dart'
+    show ItemExtentBuilder, SliverLayoutDimensions;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -38,6 +39,7 @@ class _Harness extends StatefulWidget {
     this.innerAt,
     this.itemsController,
     this.focusable,
+    this.physics,
     this.itemExtent,
     this.itemTransitionBuilder,
     this.reverse = false,
@@ -45,6 +47,7 @@ class _Harness extends StatefulWidget {
     this.itemExtentBuilder,
     this.prototypeItem,
     this.fillItems = false,
+    this.onItemBuild,
   });
 
   final int count;
@@ -66,6 +69,9 @@ class _Harness extends StatefulWidget {
 
   /// The list's `focusable`; null keeps the platform default.
   final bool? focusable;
+
+  /// The list's scroll physics, if any.
+  final ScrollPhysics? physics;
 
   /// The list's fixed item extent, if any.
   final double? itemExtent;
@@ -93,6 +99,9 @@ class _Harness extends StatefulWidget {
   /// Whether each item fills its slot around its 40 px box.
   final bool fillItems;
 
+  /// Runs each time the list calls `itemBuilder`, with the context it gets.
+  final void Function(BuildContext context)? onItemBuild;
+
   @override
   State<_Harness> createState() => _HarnessState();
 }
@@ -106,6 +115,13 @@ class _HarnessState extends State<_Harness> {
   /// Runs inside `onReorderStart`, after the start is logged.
   void Function(int index)? onStart;
 
+  /// Whether the item [_Harness.innerAt] names still builds its inner node.
+  bool innerShown = true;
+
+  /// Stops building the inner node of item [_Harness.innerAt], so that node
+  /// leaves the tree while the item keeps its State.
+  void hideInner() => setState(() => innerShown = false);
+
   /// Inserts [id] at [index] of the ids and animates it in.
   void insert(int index, int id) {
     setState(() => ids.insert(index, id));
@@ -117,6 +133,12 @@ class _HarnessState extends State<_Harness> {
   void remove(int index, {WidgetBuilder? builder}) {
     setState(() => ids.removeAt(index));
     widget.itemsController!.removeItem(index, builder: builder);
+  }
+
+  /// Moves the id at [from] to [to] of the ids and animates the move.
+  void move(int from, int to) {
+    setState(() => ids.insert(to, ids.removeAt(from)));
+    widget.itemsController!.moveItem(from, to);
   }
 
   /// Inserts [id] at [index] of the ids with no controller call.
@@ -141,6 +163,7 @@ class _HarnessState extends State<_Harness> {
       longPressDrag: widget.longPressDrag,
       itemsController: widget.itemsController,
       focusable: widget.focusable,
+      physics: widget.physics,
       itemExtent: widget.itemExtent,
       itemTransitionBuilder: widget.itemTransitionBuilder,
       reverse: widget.reverse,
@@ -155,16 +178,19 @@ class _HarnessState extends State<_Harness> {
         moves.add((from, to));
         ids.insert(to, ids.removeAt(from));
       }),
-      itemBuilder: (context, index) => _Item(
-        key: ValueKey(ids[index]),
-        id: ids[index],
-        index: index,
-        handle: widget.handles,
-        field: widget.fieldAt == ids[index],
-        inner: widget.innerAt == ids[index],
-        paintLog: widget.paintLog,
-        fill: widget.fillItems,
-      ),
+      itemBuilder: (context, index) {
+        widget.onItemBuild?.call(context);
+        return _Item(
+          key: ValueKey(ids[index]),
+          id: ids[index],
+          index: index,
+          handle: widget.handles,
+          field: widget.fieldAt == ids[index],
+          inner: innerShown && widget.innerAt == ids[index],
+          paintLog: widget.paintLog,
+          fill: widget.fillItems,
+        );
+      },
     );
   }
 }
@@ -285,6 +311,10 @@ class _PaintLogger extends CustomPainter {
 _HarnessState _harness(WidgetTester tester) =>
     tester.state<_HarnessState>(find.byType(_Harness));
 
+/// The first [_Harness] in the tree, for a tree that holds more than one.
+_HarnessState _harnessA(WidgetTester tester) =>
+    tester.state<_HarnessState>(find.byType(_Harness).first);
+
 _ItemState _itemState(WidgetTester tester, int id) =>
     tester.state<_ItemState>(find.byKey(ValueKey(id), skipOffstage: false));
 
@@ -314,6 +344,45 @@ bool _itemInView(WidgetTester tester, int id) {
   return view.intersect(item) == item;
 }
 
+/// Pumps [harness], scrolls its list to [offset], focuses item [id], and in
+/// one turn removes it and inserts it back at [slot] of the data.
+Future<void> _returnFocused(
+  WidgetTester tester,
+  _Harness harness, {
+  required double offset,
+  required int id,
+  required int slot,
+  TextDirection textDirection = TextDirection.ltr,
+}) async {
+  await tester.pumpWidget(_app(harness, textDirection: textDirection));
+  tester
+      .state<ScrollableState>(find.byType(Scrollable))
+      .position
+      .jumpTo(offset);
+  await tester.pump();
+  await _focusItem(tester, id);
+  _harness(tester)
+    ..remove(id)
+    ..insert(slot, id);
+}
+
+/// Holds the list at [pixels]: each jump away springs back at once, and
+/// [onSpringBack] counts it.
+void _pinScroll(
+  WidgetTester tester,
+  double pixels, {
+  VoidCallback? onSpringBack,
+}) {
+  final position = tester
+      .state<ScrollableState>(find.byType(Scrollable))
+      .position;
+  position.addListener(() {
+    if (position.pixels == pixels) return;
+    onSpringBack?.call();
+    position.jumpTo(pixels);
+  });
+}
+
 /// Presses [key] with Alt held and returns whether it was handled.
 Future<bool> _alt(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
@@ -328,6 +397,13 @@ double _offsetBetween(WidgetTester tester, int from, int to) =>
     tester.getTopLeft(find.byKey(ValueKey(to))).dy -
     tester.getTopLeft(find.byKey(ValueKey(from))).dy;
 
+/// The main-axis distance from the list's top to item [id]'s top. An item
+/// inside a running size transition sits centered in its clip, so read
+/// only items that are not growing.
+double _top(WidgetTester tester, int id) =>
+    tester.getTopLeft(find.byKey(ValueKey(id))).dy -
+    tester.getTopLeft(find.byType(Scrollable)).dy;
+
 /// The opacity of the nearest [FadeTransition] around item [id].
 double _opacity(WidgetTester tester, int id) => tester
     .widget<FadeTransition>(
@@ -335,6 +411,21 @@ double _opacity(WidgetTester tester, int id) => tester
           .ancestor(
             of: find.byKey(ValueKey(id)),
             matching: find.byType(FadeTransition),
+          )
+          .first,
+    )
+    .opacity
+    .value;
+
+/// The opacity of the nearest [FadeTransition] around item [id], reached
+/// even offstage: a zero-extent child at offset 0, as an item entering
+/// slot 0 is, is offstage to the default finders.
+double _enteringOpacity(WidgetTester tester, int id) => tester
+    .widget<FadeTransition>(
+      find
+          .ancestor(
+            of: find.byKey(ValueKey(id), skipOffstage: false),
+            matching: find.byType(FadeTransition, skipOffstage: false),
           )
           .first,
     )
@@ -1136,6 +1227,72 @@ void main() {
         expect(find.byKey(const ValueKey(2)), findsNothing);
         expect(_offsetBetween(tester, 1, 3), 40);
         expect(_harness(tester).ids, [0, 1, 3, 4]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e15: an insert or a remove the app defers from inside a '
+      'build to after the frame animates as calls made outside',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        final mid = Curves.easeInOutSine.transform(0.5);
+        // Which deferred call the next build schedules: the insert from the
+        // first build, the remove once the test asks for it after the
+        // insert has settled (E15).
+        var deferredInsert = false;
+        var deferredRemove = false;
+        Widget buildApp() => _app(
+          _Harness(
+            count: 3,
+            itemsController: controller,
+            onItemBuild: (context) {
+              if (!deferredInsert) {
+                deferredInsert = true;
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _harness(tester).insert(1, 9),
+                );
+              } else if (deferredRemove) {
+                deferredRemove = false;
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _harness(tester).remove(2),
+                );
+              }
+            },
+          ),
+          theme: theme,
+        );
+        await tester.pumpWidget(buildApp());
+
+        // The deferred insert ran after the first frame, with its data
+        // change, and then grew and faded in as an outside call does.
+        await tester.pump();
+        expect(_offsetBetween(tester, 0, 1), 40);
+        expect(_opacity(tester, 9), 0);
+
+        await tester.pump(const Duration(milliseconds: 125));
+        expect(_offsetBetween(tester, 0, 1), moreOrLessEquals(40 + 40 * mid));
+        expect(_opacity(tester, 9), moreOrLessEquals(mid));
+
+        await tester.pumpAndSettle();
+        expect(_harness(tester).ids, [0, 9, 1, 2]);
+
+        // A later build defers a remove the same way; ids now hold
+        // [0, 9, 1, 2], so index 2 is item 1, between items 9 and 2.
+        deferredRemove = true;
+        await tester.pumpWidget(buildApp());
+        await tester.pump();
+        expect(_offsetBetween(tester, 9, 2), 80);
+        expect(_opacity(tester, 1), 1);
+
+        await tester.pump(_halfReverse(theme));
+        expect(_offsetBetween(tester, 9, 2), moreOrLessEquals(40 + 40 * mid));
+        expect(_opacity(tester, 1), moreOrLessEquals(mid));
+
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey(1)), findsNothing);
+        expect(_offsetBetween(tester, 9, 2), 40);
+        expect(_harness(tester).ids, [0, 9, 2]);
       },
     );
 
@@ -2568,7 +2725,7 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr04: a leaving key the data holds again with no insertItem '
+      'us11/fr04/e13: a leaving key the data holds again with no insertItem '
       'fails a debug assert when its item builds',
       (tester) async {
         final controller = StratumReorderableItemsController();
@@ -2767,7 +2924,425 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr04: a reorder key on the item a leaving item is drawn beside '
+      'us11/fr04/e18: a focused node inside an item removed and inserted '
+      'back with its key in one turn, gone while the item keeps its State, '
+      "hands focus to the item's first node",
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller, innerAt: 2)),
+        );
+        final state = _itemState(tester, 2);
+        state.inner.requestFocus();
+        await tester.pump();
+        expect(state.inner.hasPrimaryFocus, isTrue);
+
+        _harness(tester)
+          ..remove(2)
+          ..insert(4, 2)
+          ..hideInner();
+        await tester.pumpAndSettle();
+
+        expect(_itemState(tester, 2), same(state));
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_itemInView(tester, 2), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e16: focus the app moves in the turn it removes a focused '
+      'item and inserts it back stays where the app put it',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller, fieldAt: 4)),
+        );
+        await _focusItem(tester, 2);
+        final field = _itemState(tester, 4).node;
+
+        _harness(tester)
+          ..remove(2)
+          ..insert(0, 2);
+        field.requestFocus();
+        await tester.pumpAndSettle();
+
+        expect(field.hasPrimaryFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/s13: a button inside an item the app takes out and puts back at '
+      'the fifth slot keeps focus, and the item shows there',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller, innerAt: 2)),
+        );
+        final button = _itemState(tester, 2).inner..requestFocus();
+        await tester.pump();
+
+        _harness(tester)
+          ..remove(2)
+          ..insert(4, 2);
+        await tester.pumpAndSettle();
+
+        expect(_harness(tester).ids, [0, 1, 3, 4, 2]);
+        expect(FocusManager.instance.primaryFocus, same(button));
+        expect(_offsetBetween(tester, 0, 2), 160);
+        expect(_itemInView(tester, 2), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: in a reversed list a focused item inserted back at a '
+      'slot the list has not built takes focus and shows on screen',
+      (tester) async {
+        await _returnFocused(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            reverse: true,
+          ),
+          offset: 4000,
+          id: 100,
+          slot: returnsUnbuilt.currentValue!,
+        );
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 100');
+        expect(_itemInView(tester, 100), isTrue);
+      },
+      variant: returnsUnbuilt,
+    );
+
+    testWidgets(
+      'us11/fr04/e17: in a horizontal list a focused item inserted back at '
+      'a slot the list has not built takes focus and shows on screen',
+      (tester) async {
+        await _returnFocused(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            axis: Axis.horizontal,
+          ),
+          offset: 4000,
+          id: 100,
+          slot: returnsUnbuilt.currentValue!,
+        );
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 100');
+        expect(_itemInView(tester, 100), isTrue);
+      },
+      variant: returnsUnbuilt,
+    );
+
+    testWidgets(
+      'us11/fr04/e17: in a horizontal list under right-to-left text a '
+      'focused item inserted back at an unbuilt slot takes focus and shows '
+      'on screen',
+      (tester) async {
+        await _returnFocused(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            axis: Axis.horizontal,
+          ),
+          offset: 4000,
+          id: 100,
+          slot: 40,
+          textDirection: TextDirection.rtl,
+        );
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 100');
+        expect(_itemInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: in a list of varied item extents the list jumps again '
+      'after a missed estimate and reaches the slot',
+      (tester) async {
+        // Slots before index 100 are 80 px and the rest 40 px, so the items
+        // built around index 100 put slot 40 too far down; the items built
+        // after that first jump are all 80 px and land it.
+        await _returnFocused(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            itemExtentBuilder: (index, dimensions) => index < 100 ? 80 : 40,
+          ),
+          offset: 8000,
+          id: 100,
+          slot: 40,
+        );
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 100');
+        expect(_itemInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: the list calls itemBuilder only inside a build while '
+      'it reaches an unbuilt slot',
+      (tester) async {
+        var outside = 0;
+        await _returnFocused(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            onItemBuild: (context) {
+              if (!context.owner!.debugBuilding) outside += 1;
+            },
+          ),
+          offset: 4000,
+          id: 100,
+          slot: 0,
+        );
+        await tester.pumpAndSettle();
+
+        expect(outside, 0);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 100');
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: a node that takes focus while the list reaches a slot '
+      'ends the reach and keeps that focus',
+      (tester) async {
+        await _returnFocused(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+          offset: 4000,
+          id: 100,
+          slot: 0,
+        );
+        _pinScroll(tester, 4000);
+        await tester.pump();
+        final other = _itemState(tester, 105).node..requestFocus();
+        await tester.pumpAndSettle();
+
+        expect(other.hasPrimaryFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: an insert while the list reaches a slot puts another '
+      'key there, so the list returns to its offset and hands focus to the '
+      'item after the gap',
+      (tester) async {
+        await _returnFocused(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+          offset: 4000,
+          id: 100,
+          slot: 0,
+        );
+        final position = tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position;
+        var lowest = position.pixels;
+        position.addListener(() {
+          if (position.pixels < lowest) lowest = position.pixels;
+        });
+        await tester.pump();
+        _harness(tester).insert(0, 500);
+        await tester.pumpAndSettle();
+
+        // The reach jumped to slot 0, found item 500 there, and returned to
+        // 4000 (R5). The insert at index 0 moved the gap from index 101 to
+        // 102, where item 101 still follows it.
+        expect(lowest, 0);
+        expect(position.pixels, 4000);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 101');
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: a slot the list does not reach in 4 frames hands focus '
+      'on from the gap',
+      (tester) async {
+        var jumps = 0;
+        await _returnFocused(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+          offset: 4000,
+          id: 100,
+          slot: 0,
+        );
+        // Every jump of the reach springs back, so slot 0 is never built.
+        _pinScroll(tester, 4000, onSpringBack: () => jumps += 1);
+        await tester.pumpAndSettle();
+
+        expect(jumps, 4);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 101');
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: focus Flutter hands back to an item focused earlier '
+      'does not end the reach',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .jumpTo(4000);
+        await tester.pump();
+        // Item 99 sits in the cache extent just above the viewport.
+        await _focusItem(tester, 99);
+        await _focusItem(tester, 100);
+
+        _harness(tester)
+          ..remove(100)
+          ..insert(0, 100);
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 100');
+        expect(_itemInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: a list taken out of the tree while it reaches a slot '
+      'stops reaching',
+      (tester) async {
+        await _returnFocused(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+          offset: 4000,
+          id: 100,
+          slot: 0,
+        );
+        await tester.pump();
+        await tester.pumpWidget(_app(const SizedBox()));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    // A physics the list can tell apart from the platform default by type, so
+    // a rebuild that swaps it in makes the Scrollable replace and dispose the
+    // position the reach in flight still holds.
+    const swapPhysics = NeverScrollableScrollPhysics();
+
+    testWidgets(
+      "us11/fr04/e17: a reach that gives up after the app swaps the list's "
+      'scroll physics returns on the live position and hands focus off with '
+      'no exception',
+      (tester) async {
+        // Slots before index 100 are 80 px and the rest 40 px, so the jump in
+        // the call turn misses slot 40 and the State is lost.
+        final controller = StratumReorderableItemsController();
+        double? extents(int index, SliverLayoutDimensions dimensions) =>
+            index < 100 ? 80 : 40;
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 200,
+              itemsController: controller,
+              itemExtentBuilder: extents,
+            ),
+          ),
+        );
+        tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .jumpTo(8000);
+        await tester.pump();
+        await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 40);
+        final landing = tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .pixels;
+        // The frame that builds the move also swaps the physics, which
+        // replaces and disposes the position the reach's return still holds.
+        // This frame's post-frame callbacks pin the new position: each jump
+        // of the reach springs back to the landing, so it gives up after its
+        // 4 jumps, and the return jump, the fifth, passes through.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final position = tester
+              .state<ScrollableState>(find.byType(Scrollable))
+              .position;
+          var springs = 0;
+          position.addListener(() {
+            if (springs == 4 || position.pixels == landing) return;
+            springs += 1;
+            position.jumpTo(landing);
+          });
+        });
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 200,
+              itemsController: controller,
+              physics: swapPhysics,
+              itemExtentBuilder: extents,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // The list returned to its offset from before the move on the live
+        // position (R5 for moves) and handed focus on from the gap.
+        expect(tester.takeException(), isNull);
+        final position = tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position;
+        expect(position.pixels, 8000);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 101');
+      },
+    );
+
+    testWidgets(
+      'us11/s14: a button inside the first item of a long list the app '
+      'takes out and puts back at the last slot: the list scrolls there and '
+      'focus lands on the first control',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller, innerAt: 0)),
+        );
+        _itemState(tester, 0).inner.requestFocus();
+        await tester.pump();
+
+        _harness(tester)
+          ..remove(0)
+          ..insert(199, 0);
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 0');
+        expect(_itemInView(tester, 0), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e14: a reorder key on the item a leaving item is drawn beside '
       'ends that leaving item at once',
       (tester) async {
         final controller = StratumReorderableItemsController();
@@ -3057,6 +3632,923 @@ void main() {
         expect(_harness(tester).ids, [0, 2, 3, 4, 9]);
         expect(identical(_itemState(tester, 2), state), isTrue);
         expect(state.expanded, isTrue);
+      },
+    );
+  });
+
+  group('ReorderableListViewLayout moveItem', () {
+    testWidgets(
+      'us11/s15: the app moves the third item to the first slot: the third '
+      'slot closes, the item grows and fades in, and its button keeps focus',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(
+            _Harness(count: 5, itemsController: controller, innerAt: 2),
+            theme: theme,
+          ),
+        );
+        final state = _itemState(tester, 2);
+        final button = state.inner..requestFocus();
+        await tester.pump();
+        final mid = Curves.easeInOutSine.transform(0.5);
+
+        _harness(tester).move(2, 0);
+        await tester.pump();
+        // Item 2 enters slot 0 at no size; its old slot is still 40 px.
+        expect(_top(tester, 0), 0);
+        expect(_top(tester, 3), 120);
+        expect(_enteringOpacity(tester, 2), 0);
+
+        await tester.pump(_halfForward(theme));
+        expect(_top(tester, 0), moreOrLessEquals(40 * mid));
+        expect(_top(tester, 3), moreOrLessEquals(120));
+        expect(_enteringOpacity(tester, 2), moreOrLessEquals(mid));
+
+        await tester.pumpAndSettle();
+        expect(_top(tester, 2), 0);
+        expect(_top(tester, 0), 40);
+        expect(_top(tester, 3), 120);
+        expect(_harness(tester).ids, [2, 0, 1, 3, 4]);
+        expect(_harness(tester).moves, isEmpty);
+        expect(_itemState(tester, 2), same(state));
+        expect(FocusManager.instance.primaryFocus, same(button));
+      },
+    );
+
+    testWidgets(
+      'us11/fr05: a move down closes the old slot as the item grows into '
+      'its new one, and the items past both slots hold still',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller), theme: theme),
+        );
+        final mid = Curves.easeInOutSine.transform(0.5);
+
+        _harness(tester).move(0, 3);
+        await tester.pump();
+        expect(_top(tester, 1), 40);
+        expect(_top(tester, 4), 160);
+
+        await tester.pump(_halfForward(theme));
+        expect(_top(tester, 1), moreOrLessEquals(40 * (1 - mid)));
+        expect(_top(tester, 4), moreOrLessEquals(160));
+
+        await tester.pumpAndSettle();
+        expect(_top(tester, 0), 120);
+        expect(_top(tester, 4), 160);
+        expect(_harness(tester).ids, [1, 2, 3, 0, 4]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05: in a reversed list a move to an earlier index closes the '
+      "old slot at the data's last slot as the item grows into its new one, "
+      'and the items past both slots hold still',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(
+            _Harness(count: 5, itemsController: controller, reverse: true),
+            theme: theme,
+          ),
+        );
+        final mid = Curves.easeInOutSine.transform(0.5);
+
+        _harness(tester).move(4, 1);
+        await tester.pump();
+        expect(_top(tester, 3), 140);
+        expect(_top(tester, 0), 260);
+
+        await tester.pump(_halfForward(theme));
+        expect(_top(tester, 3), moreOrLessEquals(100 + 40 * (1 - mid)));
+        expect(_top(tester, 0), moreOrLessEquals(260));
+
+        await tester.pumpAndSettle();
+        expect(_top(tester, 3), 100);
+        expect(_top(tester, 0), 260);
+        expect(_harness(tester).ids, [0, 4, 1, 2, 3]);
+      },
+    );
+
+    testWidgets('us11/fr05/e01: a move to the same index does nothing', (
+      tester,
+    ) async {
+      final controller = StratumReorderableItemsController();
+      await tester.pumpWidget(
+        _app(_Harness(count: 5, itemsController: controller)),
+      );
+      final state = _itemState(tester, 2);
+
+      _harness(tester).move(2, 2);
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(ReorderableList),
+          matching: find.byType(FadeTransition),
+        ),
+        findsNothing,
+      );
+      expect(_itemState(tester, 2), same(state));
+      expect(_harness(tester).ids, [0, 1, 2, 3, 4]);
+    });
+
+    testWidgets(
+      'us11/fr05/e02: under reduced motion the old slot closes at once and '
+      'the moved item fades in over the full forward duration',
+      (tester) async {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller), theme: theme),
+        );
+        final mid = Curves.easeInOutSine.transform(0.5);
+
+        _harness(tester).move(2, 0);
+        await tester.pump();
+        expect(_top(tester, 0), 40);
+        expect(_top(tester, 3), 120);
+        expect(_opacity(tester, 2), 0);
+
+        await tester.pump(_halfForward(theme));
+        expect(_opacity(tester, 2), moreOrLessEquals(mid));
+        await tester.pumpAndSettle();
+        expect(_top(tester, 3), 120);
+      },
+    );
+
+    testWidgets(
+      "us11/fr05/e02: under the platform's disableAnimations flag the old "
+      'slot closes at once and the moved item fades in over the full '
+      'forward duration',
+      (tester) async {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(disableAnimations: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller), theme: theme),
+        );
+        final mid = Curves.easeInOutSine.transform(0.5);
+
+        _harness(tester).move(2, 0);
+        await tester.pump();
+        expect(_top(tester, 0), 40);
+        expect(_top(tester, 3), 120);
+        expect(_opacity(tester, 2), 0);
+
+        await tester.pump(_halfForward(theme));
+        expect(_opacity(tester, 2), moreOrLessEquals(mid));
+        await tester.pumpAndSettle();
+        expect(_top(tester, 3), 120);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e02: reduced motion switched on mid-move leaves the running '
+      'fade to finish and settles the list right',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller), theme: theme),
+        );
+        final mid = Curves.easeInOutSine.transform(0.5);
+
+        // Motion on at the call, so the move books its closing gap (E02
+        // fixes the state at the call): the items past both slots hold
+        // still while the item grows in and the gap closes.
+        _harness(tester).move(2, 0);
+        await tester.pump();
+        expect(_top(tester, 0), 0);
+        expect(_top(tester, 3), 120);
+        expect(_top(tester, 4), 160);
+
+        await tester.pump(_halfForward(theme));
+        expect(_top(tester, 0), moreOrLessEquals(40 * mid));
+
+        // Halfway through, the platform flag turns on. No frame even
+        // rebuilds for a bare reduce-motion toggle (MediaQueryData carries
+        // no such field), so the running motion keeps its own timeline:
+        // the gap still closes and the item still fades, with no exception
+        // and no snap.
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(_top(tester, 0), moreOrLessEquals(40 * mid));
+        expect(_top(tester, 3), 120);
+        expect(_enteringOpacity(tester, 2), moreOrLessEquals(mid));
+
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids, [2, 0, 1, 3, 4]);
+        expect(_top(tester, 2), 0);
+        expect(_top(tester, 3), 120);
+
+        // A move called under the flag the frame reads: E02 applies, so the
+        // old slot is already closed and no size transition runs, the moved
+        // item only fading in.
+        _harness(tester).move(0, 3);
+        await tester.pump();
+        expect(
+          find.descendant(
+            of: find.byType(ReorderableList),
+            matching: find.byType(SizeTransition),
+          ),
+          findsNothing,
+        );
+        expect(_opacity(tester, 2), 0);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids, [0, 1, 3, 2, 4]);
+        expect(_top(tester, 2), 120);
+        expect(_top(tester, 4), 160);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e02: with a fixed item extent the old slot closes at once '
+      'and the moved item fades in',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller, itemExtent: 40)),
+        );
+
+        _harness(tester).move(2, 0);
+        await tester.pump();
+
+        expect(_top(tester, 0), 40);
+        expect(_top(tester, 3), 120);
+        expect(_opacity(tester, 2), 0);
+        expect(
+          find.descendant(
+            of: find.byType(ReorderableList),
+            matching: find.byType(SizeTransition),
+          ),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e03: a caller itemTransitionBuilder wraps the entering '
+      'item and never the slot it left',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              itemsController: controller,
+              itemTransitionBuilder: (context, animation, child) =>
+                  KeyedSubtree(
+                    key: const ValueKey('caller'),
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+            ),
+          ),
+        );
+
+        _harness(tester).move(2, 0);
+        await tester.pump();
+
+        expect(find.byKey(const ValueKey('caller')), findsOneWidget);
+        expect(
+          find.ancestor(
+            of: find.byKey(const ValueKey(2)),
+            matching: find.byKey(const ValueKey('caller')),
+          ),
+          findsOneWidget,
+        );
+        // Item 1's top to item 3's top: item 1, then the 40 px old slot.
+        expect(_offsetBetween(tester, 1, 3), 80);
+      },
+    );
+
+    testWidgets('us11/fr05/e06: a move during a drag ends the drag first', (
+      tester,
+    ) async {
+      final controller = StratumReorderableItemsController();
+      await tester.pumpWidget(
+        _app(_Harness(count: 5, itemsController: controller)),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('0')),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.moveBy(const Offset(0, 30));
+      await tester.pump();
+
+      _harness(tester).move(3, 1);
+      expect(_harness(tester).ends, [0]);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(_harness(tester).moves, isEmpty);
+      expect(_harness(tester).ends, [0]);
+      expect(_harness(tester).ids, [0, 3, 1, 2, 4]);
+    });
+
+    testWidgets(
+      'us11/fr05/e07: an out-of-range index or a controller attached to no '
+      'list fails a debug assert',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        expect(() => controller.moveItem(0, 1), throwsAssertionError);
+
+        await tester.pumpWidget(
+          _app(_Harness(count: 3, itemsController: controller)),
+        );
+
+        expect(() => controller.moveItem(3, 0), throwsAssertionError);
+        expect(() => controller.moveItem(0, 3), throwsAssertionError);
+        expect(() => controller.moveItem(-1, 0), throwsAssertionError);
+        expect(() => controller.moveItem(0, -1), throwsAssertionError);
+        await tester.pump();
+        expect(_harness(tester).ids, [0, 1, 2]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e08: a move the app defers to after the frame animates as '
+      'a move made outside a build',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller)),
+        );
+
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _harness(tester).move(2, 0),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        expect(_top(tester, 3), 120);
+        expect(_enteringOpacity(tester, 2), 0);
+        await tester.pumpAndSettle();
+        expect(_harness(tester).ids, [2, 0, 1, 3, 4]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e08: a moveItem the app defers from inside a build to '
+      'after the frame animates as a call made outside',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        var armed = false;
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              itemsController: controller,
+              onItemBuild: (context) {
+                if (armed) return;
+                armed = true;
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _harness(tester).move(2, 0),
+                );
+              },
+            ),
+            theme: theme,
+          ),
+        );
+        final mid = Curves.easeInOutSine.transform(0.5);
+
+        // The deferred move ran after the frame that armed it, with its
+        // data change, and then closed the old slot as the item grew in.
+        await tester.pump();
+        expect(_top(tester, 0), 0);
+        expect(_top(tester, 3), 120);
+        expect(_enteringOpacity(tester, 2), 0);
+
+        await tester.pump(_halfForward(theme));
+        expect(_top(tester, 0), moreOrLessEquals(40 * mid));
+        expect(_top(tester, 3), moreOrLessEquals(120));
+        expect(_enteringOpacity(tester, 2), moreOrLessEquals(mid));
+
+        await tester.pumpAndSettle();
+        expect(_harness(tester).ids, [2, 0, 1, 3, 4]);
+        expect(_top(tester, 2), 0);
+        expect(_top(tester, 0), 40);
+        expect(_top(tester, 3), 120);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e09: a move ends at once the leaving item drawn beside the '
+      'moved item',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller)),
+        );
+
+        _harness(tester).remove(3);
+        await tester.pump();
+        expect(find.byKey(const ValueKey(3)), findsOneWidget);
+
+        _harness(tester).move(3, 0);
+        await tester.pump();
+
+        expect(find.byKey(const ValueKey(3)), findsNothing);
+        expect(_harness(tester).ids, [4, 0, 1, 2]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e10: a moved item still growing in starts its entry again '
+      'at its new slot',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(_Harness(count: 3, itemsController: controller), theme: theme),
+        );
+
+        _harness(tester).insert(1, 9);
+        await tester.pump();
+        await tester.pump(_halfForward(theme));
+        expect(_opacity(tester, 9), greaterThan(0));
+
+        _harness(tester).move(1, 3);
+        await tester.pump();
+
+        expect(_opacity(tester, 9), 0);
+        await tester.pumpAndSettle();
+        expect(_harness(tester).ids, [0, 1, 2, 9]);
+        expect(_top(tester, 9), 120);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e05: an item playing its remove animation counts in no '
+      'index of moveItem',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller)),
+        );
+
+        _harness(tester).remove(1);
+        await tester.pump();
+        _harness(tester).move(2, 0);
+        await tester.pumpAndSettle();
+
+        expect(_harness(tester).ids, [3, 0, 2, 4]);
+        expect(_top(tester, 3), 0);
+        expect(find.byKey(const ValueKey(1)), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05: a remove and a move in one turn read the move against the '
+      'data after the remove',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller)),
+        );
+
+        _harness(tester)
+          ..remove(0)
+          ..move(2, 0);
+        await tester.pumpAndSettle();
+
+        expect(_harness(tester).ids, [3, 1, 2, 4]);
+        expect(_top(tester, 3), 0);
+        expect(_top(tester, 4), 120);
+        expect(find.byKey(const ValueKey(0)), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05: an item moved from beyond the built slots grows in at its '
+      'new slot with no closing slot and no scroll',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        final position = tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position;
+
+        _harness(tester).move(150, 2);
+        await tester.pump();
+
+        expect(_opacity(tester, 150), 0);
+        expect(_top(tester, 2), 80);
+        await tester.pumpAndSettle();
+        expect(_top(tester, 150), 80);
+        expect(_top(tester, 2), 120);
+        expect(position.pixels, 0);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: a focused item moved to the unbuilt last slot keeps '
+      'its State and focus, and shows on screen',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        final state = _itemState(tester, 0);
+        final focused = await _focusItem(tester, 0);
+
+        _harness(tester).move(0, 199);
+        await tester.pumpAndSettle();
+
+        expect(_itemState(tester, 0), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_itemInView(tester, 0), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: a focused item moved to the unbuilt first slot keeps '
+      'its State and focus, and shows on screen',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .jumpTo(4000);
+        await tester.pump();
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 0);
+        await tester.pumpAndSettle();
+
+        expect(_itemState(tester, 100), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_itemInView(tester, 100), isTrue);
+      },
+    );
+
+    // The axis of a list whose focused item moves to an unbuilt middle slot.
+    final moveAxes = ValueVariant<Axis>({Axis.vertical, Axis.horizontal});
+    testWidgets(
+      'us11/fr05/e04: a focused item moved to an unbuilt middle slot keeps '
+      'its State and focus, and the list calls itemBuilder only inside a '
+      'build',
+      (tester) async {
+        var outside = 0;
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 200,
+              itemsController: controller,
+              axis: moveAxes.currentValue!,
+              onItemBuild: (context) {
+                if (!context.owner!.debugBuilding) outside += 1;
+              },
+            ),
+          ),
+        );
+        tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .jumpTo(4000);
+        await tester.pump();
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 40);
+        await tester.pumpAndSettle();
+
+        expect(outside, 0);
+        expect(_itemState(tester, 100), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_itemInView(tester, 100), isTrue);
+      },
+      variant: moveAxes,
+    );
+
+    testWidgets(
+      'us11/fr05/e04: after a missed estimate the list reaches the moved '
+      "item's slot and focuses its first node",
+      (tester) async {
+        // Slots before index 100 are 80 px and the rest 40 px, so the jump
+        // in the call turn lands short of slot 40 and the State is lost.
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 200,
+              itemsController: controller,
+              itemExtentBuilder: (index, dimensions) => index < 100 ? 80 : 40,
+            ),
+          ),
+        );
+        tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .jumpTo(8000);
+        await tester.pump();
+        await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 40);
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 100');
+        expect(_itemInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: when the reach after a move fails, the list returns to '
+      'its offset from before the move and hands focus on from the slot the '
+      'item left',
+      (tester) async {
+        // As above, the jump in the call turn lands short of slot 40. Each
+        // jump of the reach then springs back to that landing, so the reach
+        // fails; the list's return to 8000 is the first move let through.
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 200,
+              itemsController: controller,
+              itemExtentBuilder: (index, dimensions) => index < 100 ? 80 : 40,
+            ),
+          ),
+        );
+        final position =
+            tester.state<ScrollableState>(find.byType(Scrollable)).position
+              ..jumpTo(8000);
+        await tester.pump();
+        await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 40);
+        final landing = position.pixels;
+        var springs = 0;
+        position.addListener(() {
+          if (springs == 4 || position.pixels == landing) return;
+          springs += 1;
+          position.jumpTo(landing);
+        });
+        await tester.pumpAndSettle();
+
+        // Item 100 left index 100, so index 101 holds item 101, the item
+        // after the slot it left, at 8040.
+        expect(landing, lessThan(8000));
+        expect(springs, 4);
+        expect(position.pixels, 8000);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 101');
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: a focused item moved to a slot built past the viewport '
+      'shows on screen once it has grown in',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        final state = _itemState(tester, 2);
+        final focused = await _focusItem(tester, 2);
+
+        // Slot 10 runs from 400 to 440: past the 300 px viewport, inside its
+        // cache extent.
+        _harness(tester).move(2, 10);
+        await tester.pumpAndSettle();
+
+        expect(_itemState(tester, 2), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_itemInView(tester, 2), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: an insert in the same turn as a focused move whose '
+      'estimate misses hands focus off from the shifted gap',
+      (tester) async {
+        // Slots before index 100 are 80 px and the rest 40 px, so the jump in
+        // the call turn lands short of slot 40 and the State is lost.
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 200,
+              itemsController: controller,
+              itemExtentBuilder: (index, dimensions) => index < 100 ? 80 : 40,
+            ),
+          ),
+        );
+        tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .jumpTo(8000);
+        await tester.pump();
+        await _focusItem(tester, 100);
+
+        _harness(tester)
+          ..move(100, 40)
+          ..insert(0, 500);
+        // Each jump of the reach springs back to where the call-turn jump
+        // landed, so the reach gives up and the E04 handoff runs.
+        final position = tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position;
+        final landing = position.pixels;
+        var springs = 0;
+        position.addListener(() {
+          if (springs == 4 || position.pixels == landing) return;
+          springs += 1;
+          position.jumpTo(landing);
+        });
+        await tester.pumpAndSettle();
+
+        // The reach never reaches the moved item, so the list returns to the
+        // offset from before the move and hands focus on from the gap the
+        // insert shifted, the item after it (E04): the data now holds item
+        // 101 right after the gap.
+        expect(springs, 4);
+        expect(position.pixels, 8000);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 101');
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: a focused item moved and then removed in one turn '
+      'hands focus off, never to the scope',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller)),
+        );
+        await _focusItem(tester, 3);
+
+        // The remove takes the moved item back out in the same turn; the
+        // follow finds no settled slot for it, so the list returns and hands
+        // focus on from the gap.
+        _harness(tester)
+          ..move(3, 1)
+          ..remove(1);
+        await tester.pumpAndSettle();
+        final primary = FocusManager.instance.primaryFocus;
+
+        expect(tester.takeException(), isNull);
+        expect(primary, isA<FocusNode>());
+        expect(primary, isNot(isA<FocusScopeNode>()));
+        expect(primary?.debugLabel, 'item 4');
+      },
+    );
+
+    testWidgets('us11/fr05/e04: a focused move with a missed estimate and an '
+        'unexplained count change in one turn hands focus off, never to the '
+        'scope', (tester) async {
+      // Slots before index 100 are 80 px and the rest 40 px, so the jump
+      // in the call turn lands short of slot 40 and the State is lost.
+      final controller = StratumReorderableItemsController();
+      await tester.pumpWidget(
+        _app(
+          _Harness(
+            count: 200,
+            itemsController: controller,
+            itemExtentBuilder: (index, dimensions) => index < 100 ? 80 : 40,
+          ),
+        ),
+      );
+      tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .jumpTo(8000);
+      await tester.pump();
+      await _focusItem(tester, 100);
+
+      // The count change no call explains resets the motion (E12), so the
+      // settling build records no slot for the moved item; the list still
+      // returns and hands focus on from the gap.
+      _harness(tester)
+        ..move(100, 40)
+        ..insertData(0, 500);
+      await tester.pumpAndSettle();
+      final primary = FocusManager.instance.primaryFocus;
+
+      expect(tester.takeException(), isNull);
+      expect(primary, isA<FocusNode>());
+      expect(primary, isNot(isA<FocusScopeNode>()));
+      expect(primary?.debugLabel, startsWith('item'));
+    });
+
+    testWidgets(
+      'us11/fr05/e05: the list never scrolls for a moved item that does not '
+      'hold focus',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        final position =
+            tester.state<ScrollableState>(find.byType(Scrollable)).position
+              ..jumpTo(4000);
+        await tester.pump();
+        final other = await _focusItem(tester, 105);
+
+        _harness(tester).move(100, 0);
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, 4000);
+        expect(other.hasPrimaryFocus, isTrue);
+        expect(find.byKey(const ValueKey(100)), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: handing the controller to a second list in the turn '
+      'of a focused move to an unbuilt slot keeps focus on a live item of '
+      'the first list, never on the second list',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        // List A of 200 above list B of three items; the rebuild that builds
+        // A's move also takes the controller off A and gives it to B.
+        late StateSetter setHandOff;
+        var onB = false;
+        await tester.pumpWidget(
+          _app(
+            StatefulBuilder(
+              builder: (context, setState) {
+                setHandOff = setState;
+                return Column(
+                  children: [
+                    Expanded(
+                      child: _Harness(
+                        count: 200,
+                        itemsController: onB ? null : controller,
+                        // Slots before index 100 are 80 px and the rest
+                        // 40 px, so the jump in the call turn lands short
+                        // of slot 40 and the reach runs.
+                        itemExtentBuilder: (index, dimensions) =>
+                            index < 100 ? 80 : 40,
+                      ),
+                    ),
+                    Expanded(
+                      child: _Harness(
+                        count: 3,
+                        itemsController: onB ? controller : null,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+        tester
+            .state<ScrollableState>(find.byType(Scrollable).first)
+            .position
+            .jumpTo(8000);
+        await tester.pump();
+        await _focusItem(tester, 100);
+
+        // The move and the hand-off in one turn: the frame that builds the
+        // move also re-attaches the controller to B, and A's post-frame
+        // follow and its reach then run while B holds the controller.
+        setHandOff(() => onB = true);
+        _harnessA(tester).move(100, 40);
+        await tester.pumpAndSettle();
+        final primary = FocusManager.instance.primaryFocus;
+
+        expect(tester.takeException(), isNull);
+        expect(primary, isA<FocusNode>());
+        expect(primary, isNot(isA<FocusScopeNode>()));
+        expect(primary?.debugLabel, 'item 100');
+        // The node lives in list A, the list that owns the moved item, and
+        // never in B, which now holds the controller.
+        expect(
+          primary?.context?.findAncestorStateOfType<_HarnessState>(),
+          same(_harnessA(tester)),
+        );
       },
     );
   });
