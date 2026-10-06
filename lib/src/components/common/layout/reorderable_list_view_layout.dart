@@ -53,7 +53,8 @@ import 'package:stratum_ui/src/src.dart';
 /// [onReorderEnd] reports the index the drag started at, and
 /// [onReorderItem] does not fire. A drag that starts between an
 /// `insertItem` or `removeItem` call and the next frame ends the same way
-/// at once.
+/// at once. A reorder key or a screen reader's move during a drag, or
+/// while a dropped item settles, ends it the same way before it moves.
 class ReorderableListViewLayout extends StatelessWidget {
   const new builder({
     super.key,
@@ -939,7 +940,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The reorder keys of item [index], from the node of its [_ReorderKeys].
   /// They act at once, also between a call and its frame, and report
-  /// indices of the app's data (FR-02 E07).
+  /// indices of the app's data (FR-02 E07); a move ends a drag or a
+  /// settling drop first (FR-02 E08).
   KeyEventResult _handleKey(_FrameIndex index, FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final keyboard = HardwareKeyboard.instance;
@@ -976,6 +978,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (_dataCount < 2) return KeyEventResult.ignored;
     final target = _targetOf(from, intent);
     if (target == null) return KeyEventResult.handled;
+    // A drag, or a drop still settling, ends first, as a call ends it
+    // (invariant 28): the move changes the data under it.
+    _cancelDrag();
     if (intent == _MoveIntent.start || intent == _MoveIntent.end) {
       _jumpTowards(item, position, toStart: intent == _MoveIntent.start);
     }
@@ -1017,23 +1022,26 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The list's own moves: a drop and a screen reader's move actions, told
   /// apart by drag state: the drag proxy holds the dropped item
-  /// ([_liftedKey]) until after the SDK reports the drop. A drop converts
-  /// its frame indices, since a call during a drag ends it first
-  /// (invariant 28); a screen-reader move is decoded into its intent and
-  /// takes the reorder keys' target (R4), so it acts at once, also between
-  /// a call and its frame (FR-03 E07). A move to the first or last slot
-  /// jumps there first when that slot is not built, so the moved item
-  /// keeps its State.
+  /// ([_liftedKey]) until after the SDK reports the drop, so a report of
+  /// that item is the drop. A drop converts its frame indices, since a
+  /// call during a drag ends it first (invariant 28); a screen-reader move
+  /// is decoded into its intent and takes the reorder keys' target (R4),
+  /// so it acts at once, also between a call and its frame (FR-03 E07),
+  /// and ends a drag or a settling drop first, as a call does (FR-03 E08).
+  /// A move to the first or last slot jumps there first when that slot is
+  /// not built, so the moved item keeps its State.
   void _handleReorderItem(int fromIndex, int toIndex) {
     final index = _FrameIndex(fromIndex);
+    final drop = _liftedKey != null && _lookAt(index)?.key == _liftedKey;
     final from = _dataIndexOf(index);
     // An item the app removed in this turn does not move (R2).
     if (from == null) return;
     final to = _FrameIndex(toIndex);
-    final target = _liftedKey != null
+    final target = drop
         ? _dataIndexOf(to)
         : _targetOf(from, _intentOf(index, to));
     if (target == null) return;
+    if (!drop) _cancelDrag();
     final item = _nodeAt(index)?.context;
     final position = item == null ? null : Scrollable.maybeOf(item)?.position;
     const start = _DataIndex(0);
@@ -1116,8 +1124,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _layout.onReorderEnd?.call(index);
   }
 
-  /// Cancels a drag in progress before an insert or remove, or one that
-  /// starts before their frame (E06): the dragged item returns to its slot,
+  /// Cancels a drag in progress before an insert, remove, or move, a key
+  /// move or a screen-reader move among them, or one that starts before
+  /// their frame (E06): the dragged item returns to its slot,
   /// `onReorderEnd` fires with the index the drag started at, and
   /// `onReorderItem` does not fire. A dropped item still settling ends the
   /// same way, with no second `onReorderEnd`.

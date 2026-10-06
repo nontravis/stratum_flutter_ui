@@ -5370,7 +5370,8 @@ void main() {
         expect(_harness(tester).starts, [3]);
         return (gesture, <int>[]);
       }
-      await gesture.moveBy(const Offset(0, 60));
+      // Left alone, the drop reports the move (3, 4) once it settles.
+      await gesture.moveBy(const Offset(0, 100));
       // The lift runs its full 250 ms, so the drop takes 250 ms to settle.
       await tester.pump(const Duration(milliseconds: 300));
       await gesture.up();
