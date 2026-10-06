@@ -1476,18 +1476,18 @@ packages:
     dependency: transitive
     description:
       name: webview_all_linux
-      sha256: eda45984ae6fcf0aef1eeb08953d7123b9cae8369953a7dc7eef7a7c6dca2265
+      sha256: "7330af208db409d1c240ff08a4c7df647a204db536a4415a33b36f7b722acec9"
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.3"
+    version: "1.4.4"
   webview_all_windows:
     dependency: transitive
     description:
       name: webview_all_windows
-      sha256: "59d63edb0003bae9b5dc54ead66e5840050f6a8c224533dfe53c553f2a950de3"
+      sha256: "1716e52da42a6c67bc00ec48b4626d46e3672bcf368220cb30c630ecec3b2f7b"
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.3"
+    version: "1.4.4"
   webview_flutter:
     dependency: transitive
     description:
@@ -1524,10 +1524,10 @@ packages:
     dependency: transitive
     description:
       name: webview_platform_interface
-      sha256: "911a68b1116680e117d1010fac21b0ae6e20c21e9276a014aef87b9d97089b14"
+      sha256: c214c5b44d26a590c8b7192eb9e9cd8142590a17a85a2a32d3d6445caa0f937d
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.3"
+    version: "1.4.4"
   win32:
     dependency: transitive
     description:
