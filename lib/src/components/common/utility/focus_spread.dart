@@ -1,6 +1,20 @@
 import 'package:stratum_ui/src/src.dart';
 
+/// The focus ring before [StratumFocusBorder], which it now builds.
+///
+/// [focus] shows the focused look, [color] becomes
+/// [StratumFocusBorder.customColor], and [inside] places the ring on
+/// [child]'s inner edge, as [StratumFocusBorder.insideEdge] does. The ring
+/// takes the outside style of the Figma `FocusBorder`. Deprecated in 1.1.0.
+@Deprecated(
+  'Use StratumFocusBorder instead. FocusSpread will be removed after one '
+  'minor version.',
+)
 class FocusSpread extends StatelessWidget {
+  @Deprecated(
+    'Use StratumFocusBorder instead. FocusSpread will be removed after one '
+    'minor version.',
+  )
   const new({
     super.key,
     required this.child,
@@ -11,62 +25,34 @@ class FocusSpread extends StatelessWidget {
     this.inside,
   });
 
+  /// The box the ring surrounds.
   final Widget child;
+
+  /// [child]'s own corner radius; null is radius 0.
   final BorderRadiusGeometry? borderRadius;
+
+  /// Unused, as before; kept so callers still compile.
   final double spread;
+
+  /// Whether the ring shows its focused look.
   final bool focus;
+
+  /// The ring's color, passed on as [StratumFocusBorder.customColor]; it no
+  /// longer fills [child]'s box.
   final Color? color;
 
-  /// Where the ring draws while [focus] is true: around [child] when null
-  /// or false, and inside [child]'s edge, over [child], when true. A
-  /// non-null value always builds the inside layer, so a flip keeps
-  /// [child]'s State.
+  /// Whether the ring draws on [child]'s inner edge while [focus] is true;
+  /// null and false draw it around [child].
   final bool? inside;
 
   @override
   Widget build(BuildContext context) {
-    final inside = this.inside;
-    return AnimatedContainer(
-      duration: 80.milliseconds,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: borderRadius,
-        border: _ring(
-          context,
-          BorderSide.strokeAlignOutside,
-          shows: focus && inside != true,
-        ),
-      ),
-      foregroundDecoration: inside == null
-          ? null
-          : BoxDecoration(
-              borderRadius: borderRadius,
-              border: _ring(
-                context,
-                BorderSide.strokeAlignInside,
-                shows: focus && inside,
-              ),
-            ),
+    return StratumFocusBorder(
+      state: focus ? FullWidgetState.focused : FullWidgetState.normal,
+      customColor: color,
+      insideEdge: inside ?? false,
+      borderRadius: borderRadius,
       child: child,
-    );
-  }
-
-  /// The 4 px ring at [strokeAlign]: in the ring color when it [shows],
-  /// else transparent.
-  Border _ring(
-    BuildContext context,
-    double strokeAlign, {
-    required bool shows,
-  }) {
-    return Border.fromBorderSide(
-      BorderSide(
-        width: 4,
-        strokeAlign: strokeAlign,
-        color: shows
-            ? color ??
-                  context.theme.color.border.color.brand.withValues(alpha: 0.30)
-            : context.theme.color.transparent.p0,
-      ),
     );
   }
 }

@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, or typography.fonts files in theme.yaml.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, or typography.fonts files in theme.yaml.
 ---
 
 # Stratum Flutter UI
@@ -201,6 +201,12 @@ scroll it, guarded so a text field inside keeps its own keys.
   on the inner edge, 3 px when hovered and 2 px when focused. It fades over the theme's `fast` level, shows at once
   under reduced motion, and never changes the child's layout size. Its colors stay below the 3:1 contrast of WCAG
   1.4.11 by design; pass `customColor` where an app needs that ratio.
+- **`FocusSpread`** — deprecated in 1.1.0, and removed after one minor version: it builds `StratumFocusBorder`, so
+  it already draws the new look. Its `color` now colors only the ring, as `customColor`, and no longer fills the
+  box; a box that needs a fill takes it from its own style. Replace `FocusSpread(focus: f, color: c, inside: i,
+  borderRadius: r, child: x)` with `StratumFocusBorder(state: f ? FullWidgetState.focused : FullWidgetState.normal,
+  customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
+  took effect.
 
 ## Themes
 

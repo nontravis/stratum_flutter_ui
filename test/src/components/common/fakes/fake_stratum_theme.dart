@@ -8,7 +8,7 @@ const fakeHover = Color(0x11000000);
 /// Press overlay color of [fakeTheme].
 const fakeActive = Color(0x22000000);
 
-/// Focus ring color of [fakeTheme], before the ring's 0.30 alpha.
+/// The `border.color.brand` color of [fakeTheme].
 const fakeRing = Color(0xFF0000FF);
 
 /// The text color a [fakeStratumTheme] gives each [FontColor]; the three
