@@ -143,7 +143,7 @@ final class _LayerCheck {
         _errors.add(
           StratumThemeErrorCode.unknownKey,
           childPath.join('.'),
-          'unknown key "$name"',
+          'unknown key ${ThemeReader.show(name)}',
           source: _source,
           at: positionOf(key),
         );

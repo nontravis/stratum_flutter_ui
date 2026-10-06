@@ -350,7 +350,7 @@ class _TypographyParser {
       _error(
         StratumThemeErrorCode.unknownGoogleFont,
         '$fontPath.family',
-        'unknown Google Fonts family "$name"',
+        'unknown Google Fonts family ${ThemeReader.show(name)}',
       );
       return null;
     }
@@ -373,7 +373,7 @@ class _TypographyParser {
         _error(
           StratumThemeErrorCode.duplicateTag,
           tagPath,
-          'duplicate tag "$tag"',
+          'duplicate tag ${ThemeReader.show(tag)}',
         );
         continue;
       }
@@ -434,7 +434,7 @@ class _TypographyParser {
     _error(
       StratumThemeErrorCode.unknownFontKey,
       path,
-      'unknown font key "$key"',
+      'unknown font key ${ThemeReader.show(key)}',
     );
     return null;
   }
@@ -450,7 +450,7 @@ class _TypographyParser {
         _reader.report(
           StratumThemeErrorCode.unknownKey,
           sizePath,
-          'unknown window size "$key"',
+          'unknown window size ${ThemeReader.show(key)}',
           atKey: true,
         );
         continue;
@@ -597,7 +597,7 @@ class _TypographyParser {
   void _unknownKey(String path, String key) => _reader.report(
     StratumThemeErrorCode.unknownKey,
     path,
-    'unknown key "$key"',
+    'unknown key ${ThemeReader.show(key)}',
     atKey: true,
   );
 

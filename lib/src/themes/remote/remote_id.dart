@@ -10,13 +10,14 @@ void checkRemoteThemeId(String id) {
   if (id == 'default') {
     throw RemoteThemeFailure(
       StratumRemoteThemeErrorCode.invalidId,
-      'theme id "$id" is the default theme, which a zip never replaces',
+      'theme id "${escapeZipText(id)}" is the default theme, which a zip never '
+      'replaces',
     );
   }
   if (!_remoteId.hasMatch(id)) {
     throw RemoteThemeFailure(
       StratumRemoteThemeErrorCode.invalidId,
-      'theme id "$id" may hold only a-z, 0-9, "-", and "_"',
+      'theme id "${escapeZipText(id)}" may hold only a-z, 0-9, "-", and "_"',
     );
   }
 }

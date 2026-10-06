@@ -257,4 +257,5 @@ scroll it, guarded so a text field inside keeps its own keys.
   asset slot it names must be in the zip; `Google/<Name>` fonts load as for a bundled theme. A failure throws
   `StratumRemoteThemeException` with a `code` (`StratumRemoteThemeErrorCode`), `themeFormat` carrying the FO-01 report
   in `formatException`. Its `path` field is entry text straight from the zip: escape it before your app logs or shows
-  it, since a hostile zip crafts it.
+  it, since a hostile zip crafts it. `StratumThemeFormatException` and each `StratumThemeFormatError` print their
+  yaml paths and messages escaped, but an error's `path` field is the raw yaml path: escape it the same way.

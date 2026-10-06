@@ -1,3 +1,4 @@
+import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/check_keys.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/merge.dart';
@@ -217,7 +218,7 @@ final class _Resolve {
     _reader.report(
       StratumThemeErrorCode.aliasCycle,
       path,
-      'alias cycle: ${cycle.join(' -> ')}',
+      'alias cycle: ${escapeZipText(cycle.join(' -> '))}',
     );
   }
 
@@ -242,7 +243,7 @@ final class _Resolve {
 
   void _report(String path, StratumThemeErrorCode code, String what) {
     if (_merged.inherited.contains(path)) return;
-    _reader.report(code, path, '"${_aliases[path]}" $what');
+    _reader.report(code, path, '${ThemeReader.show(_aliases[path])} $what');
   }
 
   Object? _valueOf(String target) {

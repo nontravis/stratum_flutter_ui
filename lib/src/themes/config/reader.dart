@@ -1,6 +1,7 @@
 import 'dart:ui' show Color;
 
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
 import 'package:yaml/yaml.dart';
@@ -252,7 +253,7 @@ final class ThemeReader {
     }
     final color = parseColor(value);
     if (color == null) {
-      final from = alias == null ? '' : ' (from "$alias")';
+      final from = alias == null ? '' : ' (from ${show(alias)})';
       report(
         StratumThemeErrorCode.expectedColor,
         path,
@@ -283,8 +284,10 @@ final class ThemeReader {
     }
   }
 
-  /// [value] as an error message shows it: a string in double quotes.
-  static String show(Object? value) => value is String ? '"$value"' : '$value';
+  /// [value] as an error message shows it, escaped by FO-04's rule: a string
+  /// in double quotes.
+  static String show(Object? value) =>
+      value is String ? '"${escapeZipText(value)}"' : escapeZipText('$value');
 
   int _ancestorSource(String path) {
     var current = path;

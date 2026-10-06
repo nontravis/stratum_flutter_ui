@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:stratum_ui/src/themes/config/theme_model.dart';
 
 part 'generated/dimension.freezed.dart';
@@ -28,7 +29,9 @@ sealed class StratumDimension {
       final number = double.parse(value.substring(0, value.length - 1));
       return StratumDimension.percent(number / 100);
     }
-    final shown = value is String ? '"$value"' : '$value';
+    final shown = value is String
+        ? '"${escapeZipText(value)}"'
+        : escapeZipText('$value');
     throw FormatException('expected a number or "N%", got $shown');
   }
 

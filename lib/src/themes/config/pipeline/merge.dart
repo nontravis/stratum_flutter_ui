@@ -1,3 +1,4 @@
+import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/check_keys.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
@@ -114,7 +115,7 @@ final class _Merge {
     _errors.add(
       StratumThemeErrorCode.required,
       'color.$lack.app.$name',
-      'required; color.$have.app.$name has no $lack value',
+      'required; color.$have.app.${escapeZipText(name)} has no $lack value',
       source: origin?.source ?? 0,
       at: origin?.key,
     );
@@ -139,7 +140,7 @@ final class _Merge {
       _errors.add(
         StratumThemeErrorCode.unknownKey,
         path,
-        'no color "$name" in color.$base.app',
+        'no color ${ThemeReader.show(name)} in color.$base.app',
         source: origin?.source ?? 0,
         at: origin?.key,
       );

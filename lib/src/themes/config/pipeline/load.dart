@@ -73,7 +73,8 @@ bool _checkSchema(YamlMap root, int source, ThemeErrors errors) {
   if (version == null) {
     fail(
       StratumThemeErrorCode.unsupportedSchema,
-      'expected "stratum-theme/v<major>.<minor>.<patch>", got "$value"',
+      'expected "stratum-theme/v<major>.<minor>.<patch>", got '
+      '${ThemeReader.show(value)}',
     );
     return false;
   }

@@ -126,7 +126,8 @@ final class _Read {
       _reader.report(
         StratumThemeErrorCode.invalidAsset,
         path,
-        'expected a path inside the theme folder, got "$relative"',
+        'expected a path inside the theme folder, got '
+        '${ThemeReader.show(relative)}',
       );
       return null;
     }
@@ -140,7 +141,7 @@ final class _Read {
         StratumThemeErrorCode.invalidAsset,
         path,
         'expected one of png, jpg, jpeg, webp, svg, gif, json, lottie, '
-        'got "$relative"',
+        'got ${ThemeReader.show(relative)}',
       );
       return null;
     }
@@ -188,7 +189,7 @@ final class _Read {
         reader.report(
           StratumThemeErrorCode.unknownKey,
           entryPath,
-          'unknown window size "$name"',
+          'unknown window size ${ThemeReader.show(name)}',
           atKey: true,
         );
         continue;

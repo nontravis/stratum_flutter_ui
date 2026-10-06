@@ -30,9 +30,45 @@ void main() {
                 'code',
                 StratumRemoteThemeErrorCode.invalidId,
               )
-              .having((f) => f.message, 'message', contains('"$id"')),
+              .having(
+                (f) => f.message,
+                'message',
+                contains('"${escapeZipText(id)}"'),
+              ),
         ),
       );
     });
   }
+
+  test('d-m, oq-f, us01/fr01/e02: an off-rule id reaches the invalid_id '
+      'message escaped', () {
+    final id = 'brand${String.fromCharCode(0x0e44)}${String.fromCharCode(7)}';
+
+    expect(
+      () => checkRemoteThemeId(id),
+      throwsA(
+        isA<RemoteThemeFailure>().having(
+          (f) => f.message,
+          'message',
+          r'theme id "brand\u0e44\u0007" may hold only a-z, 0-9, "-", '
+              'and "_"',
+        ),
+      ),
+    );
+  });
+
+  test('d-m, oq-f, us01/fr01/e02: the default-id message keeps its text, '
+      'escaped by the same rule', () {
+    expect(
+      () => checkRemoteThemeId('default'),
+      throwsA(
+        isA<RemoteThemeFailure>().having(
+          (f) => f.message,
+          'message',
+          'theme id "default" is the default theme, which a zip never '
+              'replaces',
+        ),
+      ),
+    );
+  });
 }

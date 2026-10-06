@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:stratum_ui/src/themes/config/theme_model.dart';
 
 part 'generated/format_error.freezed.dart';
@@ -78,9 +79,9 @@ class StratumThemeFormatError with _$StratumThemeFormatError {
   /// 1-based; null exactly when [line] is null.
   final int? column;
 
-  /// `<path>: <message>`, unchanged from sub-project 1.
+  /// `<path>: <message>`, the path escaped by FO-04's rule (FO-01 S-06).
   @override
-  String toString() => '$path: $message';
+  String toString() => '${escapeZipText(path)}: $message';
 }
 
 /// Thrown when one or more `theme.yaml` files have problems; [errors] lists
@@ -113,7 +114,7 @@ class StratumThemeFormatException implements Exception {
 
   static String _describe(StratumThemeFormatError error) {
     final position = error.line == null ? '' : ':${error.line}:${error.column}';
-    final path = error.path.isEmpty ? '(root)' : error.path;
+    final path = error.path.isEmpty ? '(root)' : escapeZipText(error.path);
     return '${error.source}$position $path: ${error.message} '
         '[${error.code.key}]';
   }

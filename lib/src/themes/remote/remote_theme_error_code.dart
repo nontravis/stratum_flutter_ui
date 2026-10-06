@@ -1,3 +1,6 @@
+export 'package:stratum_ui/src/themes/config/escape_text.dart'
+    show escapeZipText;
+
 /// Why an install from a theme zip failed: the `code` of
 /// `StratumRemoteThemeException`, one value per row of the FO-04 error
 /// catalog (`docs/specs/stratum_ui/themes/remote/s05_errors.md`).
@@ -60,27 +63,4 @@ final class RemoteThemeFailure implements Exception {
 
   @override
   String toString() => 'RemoteThemeFailure(${code.key}): $message';
-}
-
-/// The longest escaped zip text a message holds before `...` cuts it.
-const _maxZipText = 200;
-
-/// Returns [text], which a zip supplied, fit for a message (FO-04 S-06):
-/// each UTF-16 code unit outside U+0020 to U+007E, and each `"` and `\`,
-/// as `\u` and four lower-case hex digits; past 200 characters, its first
-/// 200 and `...`.
-String escapeZipText(String text) {
-  final out = StringBuffer();
-  for (final unit in text.codeUnits) {
-    if (out.length > _maxZipText) break;
-    if (unit < 0x20 || unit > 0x7E || unit == 0x22 || unit == 0x5C) {
-      out.write('\\u${unit.toRadixString(16).padLeft(4, '0')}');
-    } else {
-      out.writeCharCode(unit);
-    }
-  }
-  final escaped = out.toString();
-  return escaped.length > _maxZipText
-      ? '${escaped.substring(0, _maxZipText)}...'
-      : escaped;
 }
