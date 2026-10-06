@@ -1,6 +1,7 @@
 import 'package:lottie/lottie.dart' show Lottie;
 import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/remote/remote_theme_bundle.dart';
 
 enum _Slot { splashScreen, loading }
 
@@ -8,10 +9,11 @@ enum _Slot { splashScreen, loading }
 /// 11): an image, an SVG, or a Lottie animation.
 ///
 /// Reads `StratumTheme.of(context).assets`, so a theme switch shows the new
-/// theme's asset. Bundled assets only: the files of an installed zip
-/// theme are sub-project 5. Under reduced motion a Lottie asset holds a
-/// still frame; an animated GIF or WebP plays as Flutter's [Image] plays
-/// it.
+/// theme's asset. A slot a theme installed from a zip sets reads its file
+/// from that zip through the controller's overlay bundle; every other slot
+/// reads from [DefaultAssetBundle] (FO-03 US-07 FR-02 E04). Under reduced
+/// motion a Lottie asset holds a still frame; an animated GIF or WebP plays
+/// as Flutter's [Image] plays it.
 class StratumThemeAssetView extends StatelessWidget {
   /// The `loading` slot.
   const new loading({
@@ -47,9 +49,13 @@ class StratumThemeAssetView extends StatelessWidget {
       _Slot.loading => assets.loading,
     };
     if (asset == null) return placeholder;
+    final bundle = asset.path.startsWith('${RemoteThemeBundle.root}/')
+        ? StratumThemeController.maybeOf(context)?.remoteBundle
+        : null;
     return switch (asset.kind) {
       StratumAssetKind.image => Image.asset(
         asset.path,
+        bundle: bundle,
         width: width,
         height: height,
         fit: fit,
@@ -57,6 +63,7 @@ class StratumThemeAssetView extends StatelessWidget {
       ),
       StratumAssetKind.svg => SvgPicture.asset(
         asset.path,
+        bundle: bundle,
         width: width,
         height: height,
         fit: fit ?? BoxFit.contain,
@@ -64,6 +71,7 @@ class StratumThemeAssetView extends StatelessWidget {
       ),
       StratumAssetKind.lottie => Lottie.asset(
         asset.path,
+        bundle: bundle,
         width: width,
         height: height,
         fit: fit,
