@@ -1,8 +1,12 @@
-import 'package:flutter/foundation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/config/theme_model.dart';
+
+part 'generated/theme_source.freezed.dart';
 
 /// One `theme.yaml` file that `StratumThemeConfig.parse` reads.
 @immutable
-class StratumThemeSource {
+@themeModel
+class StratumThemeSource with _$StratumThemeSource {
   const new({required this.id, required this.folder, required this.yaml});
 
   /// The theme id that every error from this file carries as `source`.
@@ -17,16 +21,6 @@ class StratumThemeSource {
 
   /// The text of the file.
   final String yaml;
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumThemeSource &&
-      other.id == id &&
-      other.folder == folder &&
-      other.yaml == yaml;
-
-  @override
-  int get hashCode => Object.hash(id, folder, yaml);
 
   @override
   String toString() => 'StratumThemeSource(id: $id, folder: $folder)';

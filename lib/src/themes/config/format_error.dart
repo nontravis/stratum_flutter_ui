@@ -1,4 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/config/theme_model.dart';
+
+part 'generated/format_error.freezed.dart';
 
 /// The kind of a `theme.yaml` problem; [key] is its catalog name.
 enum StratumThemeErrorCode {
@@ -45,7 +48,8 @@ enum StratumThemeErrorCode {
 
 /// One problem in a `theme.yaml` file.
 @immutable
-class StratumThemeFormatError {
+@themeModel
+class StratumThemeFormatError with _$StratumThemeFormatError {
   const new({
     required this.code,
     required this.source,
@@ -74,19 +78,6 @@ class StratumThemeFormatError {
   /// 1-based; null exactly when [line] is null.
   final int? column;
 
-  @override
-  bool operator ==(Object other) =>
-      other is StratumThemeFormatError &&
-      other.code == code &&
-      other.source == source &&
-      other.path == path &&
-      other.message == message &&
-      other.line == line &&
-      other.column == column;
-
-  @override
-  int get hashCode => Object.hash(code, source, path, message, line, column);
-
   /// `<path>: <message>`, unchanged from sub-project 1.
   @override
   String toString() => '$path: $message';
@@ -105,7 +96,8 @@ class StratumThemeFormatException implements Exception {
 
   @override
   bool operator ==(Object other) =>
-      other is StratumThemeFormatException && listEquals(other.errors, errors);
+      other is StratumThemeFormatException &&
+      const DeepCollectionEquality().equals(other.errors, errors);
 
   @override
   int get hashCode => Object.hashAll(errors);

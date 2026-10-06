@@ -1,9 +1,13 @@
-import 'package:flutter/foundation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/config/theme_model.dart';
+
+part 'generated/schema_version.freezed.dart';
 
 /// The `$schema` version of a `theme.yaml` file:
 /// `stratum-theme/v<major>.<minor>.<patch>`.
 @immutable
-class StratumSchemaVersion {
+@themeModel
+class StratumSchemaVersion with _$StratumSchemaVersion {
   const new(this.major, this.minor, this.patch);
 
   /// The newest version this package reads: `stratum-theme/v1.0.0`.
@@ -29,16 +33,6 @@ class StratumSchemaVersion {
 
   /// The same major as [current] and a minor no newer than its; any patch.
   bool get isSupported => major == current.major && minor <= current.minor;
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumSchemaVersion &&
-      other.major == major &&
-      other.minor == minor &&
-      other.patch == patch;
-
-  @override
-  int get hashCode => Object.hash(major, minor, patch);
 
   @override
   String toString() => 'stratum-theme/v$major.$minor.$patch';

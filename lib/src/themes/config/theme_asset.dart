@@ -1,4 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/config/theme_model.dart';
+
+part 'generated/theme_asset.freezed.dart';
 
 /// How the file of an asset slot renders, read from its extension.
 enum StratumAssetKind {
@@ -24,7 +27,8 @@ enum StratumAssetKind {
 
 /// One asset slot of a theme (`splash-screen`, `loading`).
 @immutable
-class StratumThemeAsset {
+@themeModel
+class StratumThemeAsset with _$StratumThemeAsset {
   const new({required this.kind, required this.path});
 
   /// How the file renders.
@@ -33,13 +37,6 @@ class StratumThemeAsset {
   /// The folder of the file that set the slot, a single `/`, then the
   /// slot's relative path.
   final String path;
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumThemeAsset && other.kind == kind && other.path == path;
-
-  @override
-  int get hashCode => Object.hash(kind, path);
 
   @override
   String toString() => 'StratumThemeAsset(kind: ${kind.name}, path: $path)';
