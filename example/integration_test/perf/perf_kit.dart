@@ -72,10 +72,11 @@ class CurrentKit implements PerfKit {
 
 /// The layouts of the frozen baseline (spec section 9.3).
 ///
-/// The FO-05 WidgetStyle minors' baseline is 6ffb8d1, the commit they
-/// start from: a tappable row is a `BaselineRowLayout` on
-/// `BaselineFlexLayout`, whose tap surface is `BaselineStratumInkWell`,
-/// with the shared `StratumInteraction`, which the minors do not change.
+/// The focus border's baseline is the commit its branch starts from, which
+/// each frozen file's header names: a tappable row is a
+/// `BaselineRowLayout` on `BaselineFlexLayout`, whose tap surface is
+/// `BaselineStratumInkWell` with its `BaselineFocusSpread` ring, and the
+/// shared `StratumInteraction`, which the focus border does not change.
 class BaselineKit implements PerfKit {
   const new();
 

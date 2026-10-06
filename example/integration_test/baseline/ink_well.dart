@@ -1,9 +1,10 @@
-// Frozen by tool/perf_freeze.dart from 6ffb8d1:lib/src/components/common/ink_well.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from f64627d:lib/src/components/common/ink_well.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
 import 'baseline.dart';
 
+import 'package:flutter/rendering.dart' show RenderSemanticsAnnotations;
 import 'package:stratum_ui/src/src.dart';
 
 /// Whether a [BaselineStratumInkWell] with these settings takes focus: not
@@ -35,6 +36,49 @@ bool tapSurfaceTakesFocus({
           shortcuts.isNotEmpty);
 }
 
+/// The heading level of the node that holds a [BaselineStratumInkWell]'s button
+/// node, or null when the surface builds no heading node.
+///
+/// On web the engine renders a header node with a label, or any node with
+/// a heading level, as a heading with no tap behaviour, so the surface
+/// splits: a heading node at this level holds the button node. That
+/// happens exactly when [isWeb] holds, the surface builds its node
+/// ([excludeFromSemantics] false), the node reads as a button ([semantics]
+/// sets `button: true`, or [hasActivation] holds and [semantics] sets no
+/// role-bearing field), and [semantics] sets `header: true` or a
+/// `headingLevel`. The level is that `headingLevel`, else 2, the level the
+/// engine gives a header.
+///
+/// Takes [isWeb] as a parameter, as `defaultScrollFocusable` does, so a
+/// Dart VM test covers both sides. Not exported: `common/common.dart`
+/// hides it.
+int? tapSurfaceHeadingLevel({
+  required bool isWeb,
+  required bool hasActivation,
+  required bool excludeFromSemantics,
+  required SemanticsProperties? semantics,
+}) {
+  if (!isWeb || excludeFromSemantics || semantics == null) return null;
+  final readsAsButton =
+      semantics.button ?? (hasActivation && !_setsRole(semantics));
+  if (!readsAsButton) return null;
+  final level = semantics.headingLevel;
+  if (level != null) return level;
+  return semantics.header == true ? 2 : null;
+}
+
+/// A [Semantics.fromProperties] whose node carries every field of
+/// [properties] but `header` and `headingLevel`.
+///
+/// [BaselineStratumInkWell] builds the caller's node through it when
+/// [tapSurfaceHeadingLevel] gives a level, so that on web the button node
+/// under the heading node renders as a button. Not exported:
+/// `common/common.dart` hides it.
+Widget semanticsWithoutHeading({
+  required SemanticsProperties properties,
+  required Widget child,
+}) => _SemanticsWithoutHeading(properties: properties, child: child);
+
 /// The tap surface of the design system.
 ///
 /// Builds on [InkWell] for gestures, keyboard activation, focus, and hover,
@@ -42,7 +86,7 @@ bool tapSurfaceTakesFocus({
 ///
 /// * a flat overlay over [child]: the theme's `state.hover` color while
 ///   hovered and `state.press` while pressed;
-/// * a [FocusSpread] ring, shown per [focusType];
+/// * a [BaselineFocusSpread] ring, shown per [focusType];
 /// * a semantics node with a button role and a disabled flag;
 /// * the context-menu key and Shift+F10 for [onSecondaryTap], and a custom
 ///   semantics action for it, so keyboard and screen-reader users reach
@@ -139,6 +183,10 @@ class BaselineStratumInkWell extends StatefulWidget {
   /// flag; otherwise, with an activation callback, [disabled] does.
   /// `container` is still set. Applies also when [excludeFromSemantics] is
   /// true.
+  ///
+  /// On web, a node that reads as a button with `header` or `headingLevel`
+  /// becomes a heading node at that level, default 2, holding the button
+  /// node; native keeps one node (FR-02 E07, E09).
   final SemanticsProperties? semantics;
   final bool excludeFromSemantics;
 
@@ -443,7 +491,7 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
       child: result,
     );
     if (_hasRing) {
-      result = FocusSpread(
+      result = BaselineFocusSpread(
         focus: _ringVisible,
         borderRadius: widget.borderRadius,
         child: result,
@@ -452,8 +500,16 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
     // A caller's semantics apply even with excludeFromSemantics, the usual
     // way to replace the gesture semantics with a custom label and actions.
     final properties = widget.semantics;
+    final headingLevel = tapSurfaceHeadingLevel(
+      isWeb: kIsWeb,
+      hasActivation: _hasActivation,
+      excludeFromSemantics: widget.excludeFromSemantics,
+      semantics: properties,
+    );
     if (properties != null) {
-      result = Semantics.fromProperties(properties: properties, child: result);
+      result = headingLevel == null
+          ? Semantics.fromProperties(properties: properties, child: result)
+          : semanticsWithoutHeading(properties: properties, child: result);
     }
     if (!widget.excludeFromSemantics) {
       final hasActivation = _hasActivation;
@@ -470,6 +526,15 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
                 CustomSemanticsAction(label: _secondaryTapLabel(context)):
                     secondary,
               },
+        child: result,
+      );
+    }
+    // On web the engine checks a heading role before the button role, so a
+    // heading node holds the button node (FR-02 E07, E09).
+    if (headingLevel != null) {
+      result = Semantics(
+        container: true,
+        headingLevel: headingLevel,
         child: result,
       );
     }
@@ -520,6 +585,54 @@ bool _setsRole(SemanticsProperties? properties) =>
         properties.mixed != null ||
         properties.toggled != null ||
         (properties.role != null && properties.role != SemanticsRole.none));
+
+/// A [Semantics] whose node carries neither `header` nor `headingLevel`.
+///
+/// [SemanticsProperties] has no `copyWith`, so the render object clears the
+/// two fields after the inherited configuration copies them in; any field
+/// a later Flutter adds passes through unchanged.
+class _SemanticsWithoutHeading extends Semantics {
+  const new({required super.properties, super.child}) : super.fromProperties();
+
+  @override
+  RenderSemanticsAnnotations createRenderObject(BuildContext context) {
+    final renderObject = _RenderSemanticsWithoutHeading(
+      container: container,
+      explicitChildNodes: explicitChildNodes,
+      excludeSemantics: excludeSemantics,
+      blockUserActions: blockUserActions,
+      properties: properties,
+      localeForSubtree: localeForSubtree,
+    );
+    // Sets the direction by the SDK's own rule, which is private to
+    // `Semantics` in `widgets/basic.dart` and so unreachable from here.
+    updateRenderObject(context, renderObject);
+    return renderObject;
+  }
+}
+
+/// Clears `header` and `headingLevel` after the inherited configuration,
+/// only when it set them, so a config that would contribute no node
+/// still contributes none.
+class _RenderSemanticsWithoutHeading extends RenderSemanticsAnnotations {
+  new({
+    required super.properties,
+    super.container,
+    super.explicitChildNodes,
+    super.excludeSemantics,
+    super.blockUserActions,
+    super.localeForSubtree,
+  });
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    if (config.isHeader) config.isHeader = false;
+    // Skips the write when the level is already 0, so a config with no
+    // level stays unannotated; otherwise it clears the copied level.
+    config.headingLevel = 0;
+  }
+}
 
 /// Paints the hover and press overlay over [child] from [states].
 ///
