@@ -1,5 +1,4 @@
 import 'package:stratum_ui/src/src.dart';
-import 'package:stratum_ui/src/themes/remote/remote_theme.dart';
 
 /// Builds the app on a preloaded theme: shows [loading] while
 /// [StratumThemeController.preload] runs, then [builder] with the

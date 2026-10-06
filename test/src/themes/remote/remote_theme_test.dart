@@ -1,7 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
-import 'package:stratum_ui/src/themes/remote/remote_theme.dart';
-import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 
 void main() {
   test('us01/fr02: the caps default to 20 MB and 200 entries', () {
