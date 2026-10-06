@@ -228,7 +228,6 @@ class StratumThemeController extends ChangeNotifier {
   Future<void> install(StratumRemoteTheme theme) async {
     final call = _installStarted[theme.id] =
         (_installStarted[theme.id] ?? 0) + 1;
-    final switches = _generation;
     final install = await RemoteThemeInstaller.prepare(
       theme,
       packageDefault: _packageDefault,
@@ -252,7 +251,7 @@ class StratumThemeController extends ChangeNotifier {
       if (_disposed ||
           _installRegistered[install.id] != call ||
           _activeId != install.id ||
-          (switches != _generation && _switchTarget != install.id)) {
+          _switchInFlight == _generation) {
         return;
       }
       final previous = _activeFolder;

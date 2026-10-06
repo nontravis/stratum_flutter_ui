@@ -391,4 +391,84 @@ void main() {
     expect(overlay.holds('stratum-remote/brand/1'), isFalse);
     expect(overlay.holds('stratum-remote/brand/2'), isTrue);
   });
+
+  test('us01/fr03/e08 fix-1 trigger A: a switch to another id that starts '
+      'before an active-id install swaps drops the swap, with one repaint '
+      'when the switch lands', () async {
+    final changes = <String>[];
+    final controller = await StratumThemeController.preload(
+      onThemeChanged: changes.add,
+      bundle: RemoteFakeBundle(),
+    );
+    addTearDown(controller.dispose);
+    await controller.install(_zip('brand'));
+    await controller.switchTo('brand');
+    changes.clear();
+    final parseHold = Completer<void>();
+    ThemeParse.run = (base, layers) async {
+      // Holds the switch's parse (no remote `<id>@<gen>` layer), not the
+      // install's own prepare parse.
+      if (layers.every((layer) => !layer.id.contains('@'))) {
+        await parseHold.future;
+      }
+      return StratumThemeConfig.parse(base: base, layers: layers);
+    };
+    final switching = controller.switchTo('default');
+    await pumpEventQueue();
+    var notified = 0;
+    controller.addListener(() => notified++);
+    final before = controller.themes;
+
+    final installing = controller.install(_zip('brand'));
+    await pumpEventQueue();
+    await installing;
+
+    expect(controller.activeId, 'brand');
+    expect(controller.themes, same(before));
+    expect(notified, 0);
+    expect(changes, isEmpty);
+
+    parseHold.complete();
+    await switching;
+    expect(controller.activeId, 'default');
+    expect(notified, 1);
+    expect(changes, ['default']);
+  });
+
+  test('us01/fr03/e05 fix-1 trigger B: a switch away that fails to parse '
+      'while an active-id install loads does not strand the install off '
+      'screen', () async {
+    final changes = <String>[];
+    final controller = await StratumThemeController.preload(
+      onThemeChanged: changes.add,
+      bundle: RemoteFakeBundle(
+        themes: {'night': '$remoteSchemaLine\nspcae:\n  md: 12'},
+      ),
+    );
+    addTearDown(controller.dispose);
+    await controller.install(
+      _zip('brand', body: '$_font\n    old-mark: { family: old-mark }'),
+    );
+    await controller.switchTo('brand');
+    changes.clear();
+    final fontHold = Completer<void>();
+    ThemeFontLoader.load = (family, files) =>
+        family == 'brand@2/Prompt' ? fontHold.future : Future<void>.value();
+    var notified = 0;
+    controller.addListener(() => notified++);
+
+    final installing = controller.install(
+      _zip('brand', body: '$_font\n    new-mark: { family: new-mark }'),
+    );
+    await pumpEventQueue();
+    await expectLater(controller.switchTo('night'), throwsException);
+    fontHold.complete();
+    await installing;
+
+    expect(controller.activeId, 'brand');
+    expect(_fontKeys(controller), contains('new-mark'));
+    expect(_fontKeys(controller), isNot(contains('old-mark')));
+    expect(notified, 1);
+    expect(changes, isEmpty);
+  });
 }
