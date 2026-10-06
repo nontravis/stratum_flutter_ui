@@ -88,11 +88,11 @@ List<_Entry> _walk(
   var declared = 0;
   var at = end.directoryStart;
   while (at < stop) {
-    if (entries.length == maxEntries) {
+    if (entries.length >= maxEntries) {
       throw RemoteThemeFailure(
         StratumRemoteThemeErrorCode.archiveTooLarge,
         'the zip holds more than maxEntries $maxEntries entries',
-        measured: maxEntries + 1,
+        measured: entries.length + 1,
       );
     }
     final entry = _Entry.read(data, view, at, stop)..checkReadable();

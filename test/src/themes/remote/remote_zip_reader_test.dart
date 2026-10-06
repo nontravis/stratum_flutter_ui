@@ -483,7 +483,7 @@ void main() {
       );
     });
 
-    test('a ZIP64 locator is invalid_archive', () {
+    test('a ZIP64 locator alone is invalid_archive', () {
       final zip = buildZip([
         ZipEntryFixture('theme.yaml', yaml),
       ], zip64Locator: true);
@@ -493,6 +493,29 @@ void main() {
         _fails(StratumRemoteThemeErrorCode.invalidArchive),
       );
     });
+
+    test('a ZIP64 end record alone is invalid_archive', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+      ], zip64Record: true);
+
+      expect(
+        () => _read(zip),
+        _fails(StratumRemoteThemeErrorCode.invalidArchive),
+      );
+    });
+
+    for (final maxEntries in [0, -1]) {
+      test('a maxEntries of $maxEntries refuses a one-entry zip as '
+          'archive_too_large', () {
+        final zip = buildZip([ZipEntryFixture('theme.yaml', yaml)]);
+
+        expect(
+          () => _read(zip, maxEntries: maxEntries),
+          _fails(StratumRemoteThemeErrorCode.archiveTooLarge, measured: 1),
+        );
+      });
+    }
 
     test('a disk other than the first is invalid_archive', () {
       final zip = buildZip([ZipEntryFixture('theme.yaml', yaml)], disk: 1);

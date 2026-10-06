@@ -209,8 +209,8 @@ void main() {
     );
   });
 
-  test('I2, R11 rule 1: a refused zip leaves the app buffer unchanged, '
-      'reading only the private copy', () async {
+  test('I2: a local-only encrypted zip is invalid_archive and leaves the '
+      'app buffer unchanged', () async {
     final bytes = localOnlyEncryptedZip(
       utf8.encode('$remoteSchemaLine\nname: brand\n'),
     );

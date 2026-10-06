@@ -99,14 +99,15 @@ void _u32(BytesBuilder builder, int value) => builder.add(
 ///
 /// - [endCount]: the entry count the end record declares.
 /// - [disk]: the end record's disk number.
-/// - [zip64Locator]: writes a ZIP64 end record and locator before the end
-///   record.
+/// - [zip64Record]: writes a ZIP64 end record after the central directory.
+/// - [zip64Locator]: writes a ZIP64 locator right before the end record.
 /// - [directoryOffset]: the central directory offset the end record
 ///   declares.
 Uint8List buildZip(
   List<ZipEntryFixture> entries, {
   int? endCount,
   int disk = 0,
+  bool zip64Record = false,
   bool zip64Locator = false,
   int? directoryOffset,
 }) {
@@ -140,10 +141,12 @@ Uint8List buildZip(
   final start = out.length;
   final directory = central.toBytes();
   out.add(directory);
-  if (zip64Locator) {
-    final record = out.length;
+  final record = out.length;
+  if (zip64Record) {
     _u32(out, 0x06064b50);
     out.add(Uint8List(52));
+  }
+  if (zip64Locator) {
     _u32(out, 0x07064b50);
     _u32(out, 0);
     _u32(out, record);
