@@ -75,5 +75,26 @@ void main() {
 
       expect(error.message, r'"{palette.brand.\u00e9}" names no token');
     });
+
+    test('m1-t6 fix-1 f1: a malformed tag escapes the esc and newline it '
+        'injects', () {
+      final report = _report('name: !!%1B%5B2J%0A%20%20forged x');
+      final error = report.errors.single;
+
+      expect(error.code, StratumThemeErrorCode.yamlSyntax);
+      expect(error.message, contains(r'\u001b'));
+      expect(error.message, contains(r'\u000a'));
+      expect(error.message, isNot(contains('\u001b')));
+      expect(error.message, isNot(contains('\n')));
+      expect(report.toString().split('\n'), hasLength(2));
+    });
+
+    test('m1-t6 fix-1 f2: a malformed percent escape in a tag is '
+        'yaml_syntax, not ArgumentError', () {
+      final error = _report('name: !<%ZZ> x').errors.single;
+
+      expect(error.code, StratumThemeErrorCode.yamlSyntax);
+      expect(error.message, 'invalid percent escape in a tag');
+    });
   });
 }

@@ -1,3 +1,4 @@
+import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/config/schema_version.dart';
@@ -28,11 +29,26 @@ YamlMap? _load(String yaml, int source, ThemeErrors errors) {
     errors.add(
       StratumThemeErrorCode.yamlSyntax,
       '',
-      error.message,
+      escapeZipText(error.message),
       source: source,
       at: start == null
           ? null
           : (line: start.line + 1, column: start.column + 1),
+    );
+    return null;
+  }
+  // package:yaml's leaky ArgumentError below is untrusted-input text, not a
+  // programming bug; see the WORKAROUND on the next line.
+  // ignore: avoid_catching_errors
+  on ArgumentError {
+    // WORKAROUND: package:yaml throws ArgumentError, not YamlException, for a
+    // malformed %-escape in a tag; remove once package:yaml reports it as
+    // YamlException.
+    errors.add(
+      StratumThemeErrorCode.yamlSyntax,
+      '',
+      'invalid percent escape in a tag',
+      source: source,
     );
     return null;
   }
