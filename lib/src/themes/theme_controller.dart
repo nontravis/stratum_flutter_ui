@@ -1,8 +1,13 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/remote/remote_theme_bundle.dart';
+import 'package:stratum_ui/src/themes/remote/remote_theme_installer.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 import 'package:stratum_ui/src/themes/theme_parse.dart';
 import 'package:stratum_ui/src/themes/typography/google_font_weights.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
+
+/// A registered theme's parse source id and its folder in the bundle.
+typedef _Registered = ({String sourceId, String folder});
 
 /// Thrown by `StratumThemeController.switchTo` for an id that names no
 /// registered theme: the error `theme_not_found` of
@@ -32,7 +37,7 @@ class StratumThemeNotFoundException implements Exception {
 class StratumThemeController extends ChangeNotifier {
   new _(
     this._bundle,
-    this.themeIds,
+    this._registry,
     this._packageDefault,
     this._appDefault,
     this._googleFontsTimeout,
@@ -50,15 +55,55 @@ class StratumThemeController extends ChangeNotifier {
       'packages/stratum_ui/assets/themes/default';
   static final _themeFile = RegExp(r'^assets/themes/([^/]+)/theme\.yaml$');
 
-  final AssetBundle _bundle;
+  final RemoteThemeBundle _bundle;
   final StratumThemeSource _packageDefault;
   final StratumThemeSource? _appDefault;
   final Duration _googleFontsTimeout;
   final ValueChanged<String>? _onThemeChanged;
 
-  /// Every registered theme id: `default` first, then each theme the app
-  /// bundles, in alphabetical order (FO-03 US-01 FR-02).
-  final List<String> themeIds;
+  /// Each registered id with its parse source id and folder: a bundled
+  /// theme reads `assets/themes/<id>`, a theme installed from a zip
+  /// `stratum-remote/<id>/<generation>` in [_bundle] (FO-04 design D3).
+  final Map<String, _Registered> _registry;
+
+  /// Every registered theme id: `default` first, then every other id,
+  /// bundled or installed from a zip, in alphabetical order (FO-03 US-01
+  /// FR-02; FO-04 US-01 FR-03).
+  List<String> get themeIds => _themeIds;
+
+  // Assigned again when an install registers an id, so not final.
+  late List<String> _themeIds = _sortedIds();
+
+  /// The folder of the theme on screen.
+  String _activeFolder = '';
+
+  /// How many loads and swaps in flight read each remote folder.
+  final _pins = <String, int>{};
+
+  /// The sequence number of the latest `install` call each id started.
+  final _installStarted = <String, int>{};
+
+  /// The sequence number of the latest `install` call each id registered;
+  /// a call registers only above it, so an earlier call that finishes
+  /// after a later one registered registers nothing, and a later call that
+  /// fails never blocks an earlier one (main ruling 2026-10-05, N4).
+  final _installRegistered = <String, int>{};
+
+  /// The id the latest `switchTo` call named.
+  String? _switchTarget;
+
+  /// The generation of the switch whose load is in flight, else null.
+  int? _switchInFlight;
+
+  /// The overlay bundle that serves installed zips; `StratumThemeAssetView`
+  /// reads a remote slot through it.
+  @internal
+  RemoteThemeBundle get remoteBundle => _bundle;
+
+  List<String> _sortedIds() => List.unmodifiable([
+    'default',
+    ...(_registry.keys.where((id) => id != 'default').toList()..sort()),
+  ]);
 
   late String _activeId;
   late StratumThemeSet _themes;
@@ -128,27 +173,169 @@ class StratumThemeController extends ChangeNotifier {
   /// [StratumThemeNotFoundException] for an id that names no registered
   /// theme, and `StratumThemeFormatException` for a theme file that fails
   /// to parse; either leaves the active theme as it was. A switch to the
-  /// active id changes nothing. When switches overlap the latest wins: an
-  /// overtaken switch completes with no error and no callback, and its
-  /// theme is dropped. Only the active theme stays parsed, so a switch back
-  /// reads its file again; its font files stay registered.
+  /// active id changes nothing while the active id's latest install is on
+  /// screen; else it lands that install as above with no `onThemeChanged`,
+  /// the id being unchanged (FO-04 s03 invariant 10). When switches overlap
+  /// the latest wins: an overtaken switch completes with no error and no
+  /// callback, and its theme is dropped. Only the active theme stays
+  /// parsed, so a switch back reads its file again; its font files stay
+  /// registered.
   Future<void> switchTo(String id) async {
     if (!themeIds.contains(id)) {
       throw StratumThemeNotFoundException(id, themeIds);
     }
     final generation = ++_generation;
-    if (id == _activeId) return;
-    final themes = await _load(id, generation);
-    if (themes == null || _disposed) return;
-    _themes = themes;
-    _activeId = id;
-    notifyListeners();
-    _onThemeChanged?.call(id);
+    _switchTarget = id;
+    if (id == _activeId && _registry[id]!.folder == _activeFolder) return;
+    final landing = id == _activeId;
+    try {
+      await _switch(id, generation);
+    } on Object {
+      // A failed landing of the active id would only fail again.
+      if (!landing) _landRegistered();
+      rethrow;
+    }
+    _landRegistered();
+  }
+
+  /// Loads the registered theme of [id] for the switch numbered
+  /// [generation] and makes it active, unless a later switch overtook it.
+  Future<void> _switch(String id, int generation) async {
+    final entry = _registry[id]!;
+    _pin(entry.folder);
+    _switchInFlight = generation;
+    try {
+      final themes = await _load(entry, generation);
+      if (themes == null || _disposed) return;
+      final previous = _activeFolder;
+      final changed = id != _activeId;
+      _themes = themes;
+      _activeId = id;
+      _activeFolder = entry.folder;
+      notifyListeners();
+      if (changed) _onThemeChanged?.call(id);
+      _release(previous);
+    } finally {
+      if (_switchInFlight == generation) _switchInFlight = null;
+      _unpin(entry.folder);
+    }
+  }
+
+  /// Lands the active id's registered generation as a same-id switch when
+  /// another generation is on screen and no switch is in flight, so an
+  /// install whose swap dropped still reaches the screen (FO-04 s03
+  /// invariant 10).
+  void _landRegistered() {
+    if (_disposed || _switchInFlight != null) return;
+    if (_registry[_activeId]!.folder == _activeFolder) return;
+    unawaited(
+      switchTo(_activeId).catchError((Object error) {
+        _warn('the latest install of "$_activeId" failed to land ($error)');
+      }),
+    );
+  }
+
+  /// Installs a theme zip the app downloaded (FO-04 US-01 FR-01 to FR-03):
+  /// checks the id, the checksum, and the zip, reads the theme over the
+  /// package default and the app's `default`, and registers it under its
+  /// id, replacing an earlier install of that id or a bundled theme of that
+  /// id for the app's run. Then call [switchTo] to show it.
+  ///
+  /// An install of a non-active id registers with no repaint and no
+  /// callback. An install of the active id loads the new theme's fonts and
+  /// swaps it in one step, with no `onThemeChanged`, since the id does not
+  /// change. That swap drops when a switch is in flight or the install is
+  /// already on screen; the registration stays, and once no switch is in
+  /// flight, or at a switch to the same id, the newest install lands with
+  /// one repaint and no callback. An install of an id that the latest
+  /// switch is still loading acts as a later switch to that id: the
+  /// earlier switch is dropped, and the screen lands on the newest install
+  /// in one step with one `onThemeChanged`. Of overlapping install calls
+  /// for one id, the later-started call that registers wins: an earlier
+  /// call that finishes after it registers nothing and completes with no
+  /// error, and a later call that fails leaves the earlier one free to
+  /// register. Throws
+  /// [StratumRemoteThemeException] for a zip it refuses, and leaves every
+  /// registered theme and the active theme as they were.
+  Future<void> install(StratumRemoteTheme theme) async {
+    final call = _installStarted[theme.id] =
+        (_installStarted[theme.id] ?? 0) + 1;
+    final install = await RemoteThemeInstaller.prepare(
+      theme,
+      packageDefault: _packageDefault,
+      appDefault: _appDefault,
+    );
+    if (_disposed || call <= (_installRegistered[install.id] ?? 0)) return;
+    _installRegistered[install.id] = call;
+    _registerRemote(install);
+    if (install.id != _activeId) {
+      if (_switchInFlight == _generation && _switchTarget == install.id) {
+        await switchTo(install.id);
+      }
+      return;
+    }
+    _pin(install.folder);
+    try {
+      await Future.wait([
+        _registerFontFiles(install.config.typography),
+        _waitForGoogleFonts(install.config.typography),
+      ]);
+      if (_disposed ||
+          _installRegistered[install.id] != call ||
+          _activeId != install.id ||
+          _activeFolder == install.folder ||
+          _switchInFlight == _generation) {
+        return;
+      }
+      final previous = _activeFolder;
+      _themes = StratumThemeSet.fromConfig(install.config);
+      _activeFolder = install.folder;
+      notifyListeners();
+      _release(previous);
+    } finally {
+      _unpin(install.folder);
+    }
+  }
+
+  /// D2 step 11: serves [install]'s entries and registers its id,
+  /// replacing the earlier entry of that id, whose folder drops once
+  /// nothing uses it.
+  void _registerRemote(RemoteInstall install) {
+    final previous = _registry[install.id];
+    _bundle.add(install.folder, install.entries);
+    _registry[install.id] = (
+      sourceId: install.sourceId,
+      folder: install.folder,
+    );
+    _themeIds = _sortedIds();
+    if (previous != null) _release(previous.folder);
+  }
+
+  void _pin(String folder) => _pins[folder] = (_pins[folder] ?? 0) + 1;
+
+  void _unpin(String folder) {
+    final left = (_pins[folder] ?? 1) - 1;
+    if (left == 0) {
+      _pins.remove(folder);
+    } else {
+      _pins[folder] = left;
+    }
+    _release(folder);
+  }
+
+  /// Drops a remote [folder] from memory once no theme on screen, no
+  /// registry entry, and no load in flight uses it (FO-04 design R10 OQ4).
+  void _release(String folder) {
+    if (!folder.startsWith('${RemoteThemeBundle.root}/')) return;
+    if (folder == _activeFolder || _pins.containsKey(folder)) return;
+    if (_registry.values.any((entry) => entry.folder == folder)) return;
+    _bundle.remove(folder);
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _bundle.clear();
     super.dispose();
   }
 
@@ -163,11 +350,20 @@ class StratumThemeController extends ChangeNotifier {
   /// preload makes. A theme file that fails to parse throws
   /// `StratumThemeFormatException`. Google fonts get [googleFontsTimeout]
   /// to load, here and at every switch. [bundle] defaults to [rootBundle].
+  /// Each zip of [remoteThemes] installs in list order after the bundled
+  /// themes register and before the start theme is picked (FO-04 US-01
+  /// FR-04); of two with one id the later wins. A zip that fails is
+  /// skipped with a debug log and [onRemoteThemeError], registers nothing,
+  /// and never throws; a start id that names it starts on `default`
+  /// unless a bundled theme carries that id.
   static Future<StratumThemeController> preload({
     String? initialThemeId,
     ValueChanged<String>? onThemeChanged,
     Duration googleFontsTimeout = const Duration(seconds: 3),
     AssetBundle? bundle,
+    List<StratumRemoteTheme> remoteThemes = const [],
+    void Function(String id, StratumRemoteThemeException error)?
+    onRemoteThemeError,
   }) async {
     final assets = bundle ?? rootBundle;
     final manifest = await AssetManifest.loadFromAssetBundle(assets);
@@ -176,11 +372,12 @@ class StratumThemeController extends ChangeNotifier {
         if (_themeFile.firstMatch(key) case final match?) match[1]!,
     };
     final controller = StratumThemeController._(
-      assets,
-      List.unmodifiable([
-        'default',
-        ...bundled.where((id) => id != 'default').toList()..sort(),
-      ]),
+      RemoteThemeBundle(assets),
+      {
+        'default': (sourceId: 'default', folder: 'assets/themes/default'),
+        for (final id in bundled)
+          id: (sourceId: id, folder: 'assets/themes/$id'),
+      },
       StratumThemeSource(
         id: _packageDefaultId,
         folder: _packageDefaultFolder,
@@ -202,6 +399,23 @@ class StratumThemeController extends ChangeNotifier {
       googleFontsTimeout,
       onThemeChanged,
     );
+    for (final theme in remoteThemes) {
+      try {
+        controller._registerRemote(
+          await RemoteThemeInstaller.prepare(
+            theme,
+            packageDefault: controller._packageDefault,
+            appDefault: controller._appDefault,
+          ),
+        );
+      } on StratumRemoteThemeException catch (error) {
+        _warn(
+          'kept zip "${theme.id}" failed to install (${error.code.key}); '
+          'skipped',
+        );
+        onRemoteThemeError?.call(theme.id, error);
+      }
+    }
     final requested = initialThemeId ?? 'default';
     final fellBack = !controller.themeIds.contains(requested);
     if (fellBack) {
@@ -213,31 +427,32 @@ class StratumThemeController extends ChangeNotifier {
     final startId = fellBack ? 'default' : requested;
     StratumThemeSet? themes;
     try {
-      themes = await controller._load(startId, 0);
+      themes = await controller._load(controller._registry[startId]!, 0);
     } on Object {
       controller.dispose();
       rethrow;
     }
     controller
       .._themes = themes!
-      .._activeId = startId;
+      .._activeId = startId
+      .._activeFolder = controller._registry[startId]!.folder;
     if (fellBack) controller._onThemeChanged?.call('default');
     return controller;
   }
 
-  /// Reads [id] merged over the package default and the app's `default`,
-  /// registers its font files, waits for its Google fonts, and returns its
-  /// theme set; null when a later switch overtook the switch numbered
-  /// [generation].
-  Future<StratumThemeSet?> _load(String id, int generation) async {
+  /// Reads the theme of [entry] merged over the package default and the
+  /// app's `default`, registers its font files, waits for its Google
+  /// fonts, and returns its theme set; null when a later switch overtook
+  /// the switch numbered [generation].
+  Future<StratumThemeSet?> _load(_Registered entry, int generation) async {
     final layers = [
       ?_appDefault,
-      if (id != 'default')
+      if (entry.sourceId != 'default')
         StratumThemeSource(
-          id: id,
-          folder: 'assets/themes/$id',
+          id: entry.sourceId,
+          folder: entry.folder,
           yaml: await _bundle.loadString(
-            'assets/themes/$id/theme.yaml',
+            '${entry.folder}/theme.yaml',
             cache: false,
           ),
         ),

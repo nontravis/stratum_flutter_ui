@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, or typography.fonts files in theme.yaml.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, or typography.fonts files in theme.yaml.
 ---
 
 # Stratum Flutter UI
@@ -142,8 +142,10 @@ scroll it, guarded so a text field inside keeps its own keys.
   family) needs a `builder` that captures that data. Under reduced motion, or with `itemExtent`, `itemExtentBuilder`,
   or `prototypeItem`, the size jumps and the fade plays. Focus on a removed item moves to the next item, else the
   previous one, else the list's own Tab stop when the list is focusable, unless the app moves focus itself in the
-  same turn. A reorder of a leaving item's neighbor ends that leaving item. An insert or remove during a drag,
-  or an item-count change, ends the drag first with `onReorderEnd` at its start index and no `onReorderItem`.
+  same turn; a focused item the app removes and inserts back with its key in the same turn keeps focus instead, and
+  the list scrolls to it and shows it. A reorder of a leaving item's neighbor ends that leaving item. An insert or
+  remove during a drag, or an item-count change, ends the drag first with `onReorderEnd` at its start index and no
+  `onReorderItem`.
 
   ```dart
   final itemsController = StratumReorderableItemsController();
@@ -156,6 +158,21 @@ scroll it, guarded so a text field inside keeps its own keys.
   void deleteTask(int index) {
     setState(() => tasks.removeAt(index));
     itemsController.removeItem(index);
+  }
+  ```
+
+  Move: call `moveItem(from, to)` in the same turn as moving the item in the data, where `to` is the index the item
+  ends at, as `onReorderItem` reports it. The old slot closes while the item grows and fades into its new one over the
+  theme's `normal` level (under reduced motion or a fixed extent the slot closes at once and the item only fades in);
+  the item keeps its State and focus, a focused item shows on screen even when its new slot is far off screen, and
+  `onReorderItem` does not fire. Prefer it to `removeItem` plus `insertItem`, which keeps the item's State only when
+  the list has built its new slot. The Move up and Move down buttons above can call it.
+
+  ```dart
+  void moveTask(int from, int to) {
+    if (to < 0 || to >= tasks.length) return;
+    setState(() => tasks.insert(to, tasks.removeAt(from)));
+    itemsController.moveItem(from, to);
   }
   ```
 - **`NestedScrollViewLayout`** — a collapsing header (`headerSliverBuilder`) above a `body` scroll view; it is never
@@ -209,8 +226,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   theme starts on `default` and calls `onThemeChanged('default')`, so the app overwrites its saved id; a theme file
   with problems throws `StratumThemeFormatException`.
   `switchTo(id)` completes after the new theme is active, keeps the current theme on screen while it loads and when
-  it fails, throws `StratumThemeNotFoundException` for an unknown id, does nothing for the active id, and lets the
-  latest of overlapping switches win. The package stores nothing: save the id `onThemeChanged`
+  it fails, throws `StratumThemeNotFoundException` for an unknown id, and lets the latest of overlapping switches
+  win. For the active id it does nothing, unless a newer install of that id is registered and not yet on screen:
+  then it shows that install, with no `onThemeChanged`. The package stores nothing: save the id `onThemeChanged`
   reports.
 - **`StratumThemeApplication.controlled`** — `StratumThemeApplication.controlled(controller:, themeMode:,
   highContrast:, componentDefaults:, child:)` publishes the controller's active theme and rebuilds dependents once
@@ -222,3 +240,17 @@ scroll it, guarded so a text field inside keeps its own keys.
   until the start theme is active, then `builder`, or `error` with what preload threw; it reads its asset bundle from
   `DefaultAssetBundle` and disposes its controller when it leaves the tree. Pick it or `await preload(...)` before
   `runApp`, not both.
+- **Remote theme zips** — hand a downloaded `<id>.zip` with the checksum your own API serves (never a file beside the
+  zip): `StratumRemoteTheme(id:, bytes:, checksum: 'sha256:<64 hex>')`, caps `maxBytes` 20 MB and `maxEntries` 200 by
+  default. Pass kept zips to `preload(remoteThemes: [...], onRemoteThemeError: (id, error) => ...)` or the same two
+  parameters of `StratumThemePreloader`; a zip that fails is skipped and reported, so delete it and download it again.
+  At run time `await controller.install(theme)`, then `switchTo(theme.id)`; installing the active id repaints in one
+  step with no `onThemeChanged`. The latest install of an id that reaches registration wins, a bundled id too, for the
+  run only; of overlapping `install` calls for one id, the later-started call that installs wins, and an earlier call
+  that finishes after it completes normally while installing nothing, so await the call you started last; a later call
+  that fails leaves an earlier one free to install. `default` is always refused. Ask your server for the zip of
+  `StratumSchemaVersion.current`. `theme.yaml` sits at the zip root or in its one top folder; every `files:` font and
+  asset slot it names must be in the zip; `Google/<Name>` fonts load as for a bundled theme. A failure throws
+  `StratumRemoteThemeException` with a `code` (`StratumRemoteThemeErrorCode`), `themeFormat` carrying the FO-01 report
+  in `formatException`. Its `path` field is entry text straight from the zip: escape it before your app logs or shows
+  it, since a hostile zip crafts it.
