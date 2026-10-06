@@ -3,6 +3,9 @@ description: "Stratum UI design system"
 version: 1.0.0
 homepage:
 
+executables:
+  stratum_theme:
+
 environment:
   sdk: ^3.13.3
   flutter: ">=3.41.0"
