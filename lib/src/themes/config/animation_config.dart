@@ -1,4 +1,3 @@
-import 'package:flutter/animation.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/config/theme_model.dart';
 
@@ -30,10 +29,10 @@ abstract class StratumAnimationConfig with _$StratumAnimationConfig {
 sealed class StratumCurve {
   const new();
 
-  /// A name of [StratumNamedCurve.byName], or `cubic(a, b, c, d)` with a
+  /// A name of [StratumNamedCurve.names], or `cubic(a, b, c, d)` with a
   /// and c within 0 and 1; null for anything else.
   static StratumCurve? tryParse(String value) {
-    if (StratumNamedCurve.byName.containsKey(value)) {
+    if (StratumNamedCurve.names.contains(value)) {
       return StratumNamedCurve(value);
     }
     final match = StratumCubicCurve.pattern.firstMatch(value);
@@ -52,54 +51,55 @@ final class StratumNamedCurve extends StratumCurve with _$StratumNamedCurve {
   const new(this.name);
 
   /// The curve names `theme.yaml` accepts, case-sensitive (spec section
-  /// 8.2), in the order of `animation/curves.dart`.
-  static const byName = <String, Curve>{
-    'linear': Curves.linear,
-    'decelerate': Curves.decelerate,
-    'fastLinearToSlowEaseIn': Curves.fastLinearToSlowEaseIn,
-    'fastEaseInToSlowEaseOut': Curves.fastEaseInToSlowEaseOut,
-    'ease': Curves.ease,
-    'easeIn': Curves.easeIn,
-    'easeInToLinear': Curves.easeInToLinear,
-    'easeInSine': Curves.easeInSine,
-    'easeInQuad': Curves.easeInQuad,
-    'easeInCubic': Curves.easeInCubic,
-    'easeInQuart': Curves.easeInQuart,
-    'easeInQuint': Curves.easeInQuint,
-    'easeInExpo': Curves.easeInExpo,
-    'easeInCirc': Curves.easeInCirc,
-    'easeInBack': Curves.easeInBack,
-    'easeOut': Curves.easeOut,
-    'linearToEaseOut': Curves.linearToEaseOut,
-    'easeOutSine': Curves.easeOutSine,
-    'easeOutQuad': Curves.easeOutQuad,
-    'easeOutCubic': Curves.easeOutCubic,
-    'easeOutQuart': Curves.easeOutQuart,
-    'easeOutQuint': Curves.easeOutQuint,
-    'easeOutExpo': Curves.easeOutExpo,
-    'easeOutCirc': Curves.easeOutCirc,
-    'easeOutBack': Curves.easeOutBack,
-    'easeInOut': Curves.easeInOut,
-    'easeInOutSine': Curves.easeInOutSine,
-    'easeInOutQuad': Curves.easeInOutQuad,
-    'easeInOutCubic': Curves.easeInOutCubic,
-    'easeInOutCubicEmphasized': Curves.easeInOutCubicEmphasized,
-    'easeInOutQuart': Curves.easeInOutQuart,
-    'easeInOutQuint': Curves.easeInOutQuint,
-    'easeInOutExpo': Curves.easeInOutExpo,
-    'easeInOutCirc': Curves.easeInOutCirc,
-    'easeInOutBack': Curves.easeInOutBack,
-    'fastOutSlowIn': Curves.fastOutSlowIn,
-    'slowMiddle': Curves.slowMiddle,
-    'bounceIn': Curves.bounceIn,
-    'bounceOut': Curves.bounceOut,
-    'bounceInOut': Curves.bounceInOut,
-    'elasticIn': Curves.elasticIn,
-    'elasticOut': Curves.elasticOut,
-    'elasticInOut': Curves.elasticInOut,
+  /// 8.2), in the order of `animation/curves.dart`. A test pins them to
+  /// the keys of `StratumCurveConvert.byName`.
+  static const names = <String>{
+    'linear',
+    'decelerate',
+    'fastLinearToSlowEaseIn',
+    'fastEaseInToSlowEaseOut',
+    'ease',
+    'easeIn',
+    'easeInToLinear',
+    'easeInSine',
+    'easeInQuad',
+    'easeInCubic',
+    'easeInQuart',
+    'easeInQuint',
+    'easeInExpo',
+    'easeInCirc',
+    'easeInBack',
+    'easeOut',
+    'linearToEaseOut',
+    'easeOutSine',
+    'easeOutQuad',
+    'easeOutCubic',
+    'easeOutQuart',
+    'easeOutQuint',
+    'easeOutExpo',
+    'easeOutCirc',
+    'easeOutBack',
+    'easeInOut',
+    'easeInOutSine',
+    'easeInOutQuad',
+    'easeInOutCubic',
+    'easeInOutCubicEmphasized',
+    'easeInOutQuart',
+    'easeInOutQuint',
+    'easeInOutExpo',
+    'easeInOutCirc',
+    'easeInOutBack',
+    'fastOutSlowIn',
+    'slowMiddle',
+    'bounceIn',
+    'bounceOut',
+    'bounceInOut',
+    'elasticIn',
+    'elasticOut',
+    'elasticInOut',
   };
 
-  /// A key of [byName].
+  /// A member of [names].
   final String name;
 
   @override

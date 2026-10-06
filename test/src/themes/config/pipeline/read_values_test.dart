@@ -592,7 +592,7 @@ typography:
     });
 
     test('every curve name of the table reads', () {
-      for (final name in StratumNamedCurve.byName.keys) {
+      for (final name in StratumNamedCurve.names) {
         final (config, errors) = _read([
           layer('animation:\n  curve:\n    standard: $name'),
         ]);
@@ -600,7 +600,7 @@ typography:
         expect(problems(errors), isEmpty, reason: name);
         expect(
           config.animation.curves['standard']!.curve,
-          same(StratumNamedCurve.byName[name]),
+          same(StratumCurveConvert.byName[name]),
           reason: name,
         );
       }

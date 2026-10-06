@@ -162,8 +162,8 @@ void main() {
         .toList();
 
     expect(names, hasLength(43));
-    expect(StratumNamedCurve.byName.keys, names);
-    expect(StratumNamedCurve.byName['easeInOutSine'], Curves.easeInOutSine);
-    expect(StratumNamedCurve.byName['elasticInOut'], Curves.elasticInOut);
+    expect(StratumNamedCurve.names, names);
+    expect(StratumCurveConvert.byName['easeInOutSine'], Curves.easeInOutSine);
+    expect(StratumCurveConvert.byName['elasticInOut'], Curves.elasticInOut);
   }, skip: flutterRoot == null ? 'FLUTTER_ROOT is not set' : null);
 }
