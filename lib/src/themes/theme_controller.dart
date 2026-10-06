@@ -318,11 +318,20 @@ class StratumThemeController extends ChangeNotifier {
   /// preload makes. A theme file that fails to parse throws
   /// `StratumThemeFormatException`. Google fonts get [googleFontsTimeout]
   /// to load, here and at every switch. [bundle] defaults to [rootBundle].
+  /// Each zip of [remoteThemes] installs in list order after the bundled
+  /// themes register and before the start theme is picked (FO-04 US-01
+  /// FR-04); of two with one id the later wins. A zip that fails is
+  /// skipped with a debug log and [onRemoteThemeError], registers nothing,
+  /// and never throws; a start id that names it starts on `default`
+  /// unless a bundled theme carries that id.
   static Future<StratumThemeController> preload({
     String? initialThemeId,
     ValueChanged<String>? onThemeChanged,
     Duration googleFontsTimeout = const Duration(seconds: 3),
     AssetBundle? bundle,
+    List<StratumRemoteTheme> remoteThemes = const [],
+    void Function(String id, StratumRemoteThemeException error)?
+    onRemoteThemeError,
   }) async {
     final assets = bundle ?? rootBundle;
     final manifest = await AssetManifest.loadFromAssetBundle(assets);
@@ -358,6 +367,23 @@ class StratumThemeController extends ChangeNotifier {
       googleFontsTimeout,
       onThemeChanged,
     );
+    for (final theme in remoteThemes) {
+      try {
+        controller._registerRemote(
+          await RemoteThemeInstaller.prepare(
+            theme,
+            packageDefault: controller._packageDefault,
+            appDefault: controller._appDefault,
+          ),
+        );
+      } on StratumRemoteThemeException catch (error) {
+        _warn(
+          'kept zip "${theme.id}" failed to install (${error.code.key}); '
+          'skipped',
+        );
+        onRemoteThemeError?.call(theme.id, error);
+      }
+    }
     final requested = initialThemeId ?? 'default';
     final fellBack = !controller.themeIds.contains(requested);
     if (fellBack) {
