@@ -115,6 +115,9 @@ class _HarnessState extends State<_Harness> {
   /// Runs inside `onReorderStart`, after the start is logged.
   void Function(int index)? onStart;
 
+  /// Runs inside `onReorderItem`, after the move is applied.
+  void Function(int from, int to)? onMove;
+
   /// Whether the item [_Harness.innerAt] names still builds its inner node.
   bool innerShown = true;
 
@@ -174,10 +177,13 @@ class _HarnessState extends State<_Harness> {
         onStart?.call(index);
       },
       onReorderEnd: ends.add,
-      onReorderItem: (from, to) => setState(() {
-        moves.add((from, to));
-        ids.insert(to, ids.removeAt(from));
-      }),
+      onReorderItem: (from, to) {
+        setState(() {
+          moves.add((from, to));
+          ids.insert(to, ids.removeAt(from));
+        });
+        onMove?.call(from, to);
+      },
       itemBuilder: (context, index) {
         widget.onItemBuild?.call(context);
         return _Item(
@@ -5080,6 +5086,43 @@ void main() {
 
         expect(springs, 4);
         expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 6');
+      },
+    );
+
+    testWidgets(
+      'us11/fr03: an insert the app defers from onReorderItem leaves the '
+      'reveal on the moved item',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        final position = tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position;
+        // The app defers its insert from inside onReorderItem (FR-04 E15),
+        // so it runs before the move's reveal, in the same post-frame batch.
+        final harness = _harness(tester)
+          ..onMove = (from, to) => WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _harness(tester).insert(0, 500),
+          );
+        // Item 6 fills 240 to 280 of the 300 px viewport; slot 7 ends 20 px
+        // past it.
+        final node = tester.getSemantics(find.byKey(const ValueKey(6)));
+        node.owner!.performAction(
+          node.id,
+          SemanticsAction.customAction,
+          CustomSemanticsAction.getIdentifier(
+            const CustomSemanticsAction(label: 'Move down'),
+          ),
+        );
+        await tester.pump();
+
+        expect(harness.ids.indexOf(6), 8);
+        expect(position.pixels, 20);
+        await tester.pumpAndSettle();
+        handle.dispose();
       },
     );
   });
