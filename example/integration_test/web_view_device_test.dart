@@ -233,22 +233,7 @@ void main() {
         expect(left, isTrue, reason: 'the second page never finished');
         expect(mark, isNotNull, reason: 'no onPageFinished after goBack');
         if (_isWebKit()) {
-          // WebKit restores the entry from its back-forward cache with no
-          // request, so no HTTP error exists to report; when it instead
-          // requests the page again, the Android order holds (US-08
-          // scenario 11).
-          final kinds = recorder.kindsSince(mark!);
-          final errors = recorder.errorsSince(mark);
-          if (kinds.contains('error')) {
-            expect(kinds, ['started', 'error', 'finished']);
-            expect(errors, hasLength(1));
-            expect(errors.single.type, StratumWebViewErrorType.http);
-            expect(errors.single.code, HttpStatus.notFound);
-            expect(errors.single.url, flip);
-          } else {
-            expect(kinds, ['started', 'finished']);
-            expect(errors, isEmpty);
-          }
+          _expectWebKitHistoryMove(recorder, mark!, flip);
         } else {
           expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
           expect(recorder.errors, hasLength(1));
@@ -300,22 +285,7 @@ void main() {
         expect(back, isTrue, reason: 'no onPageFinished after goBack');
         expect(mark, isNotNull, reason: 'no onPageFinished after goForward');
         if (_isWebKit()) {
-          // WebKit restores the entry from its back-forward cache with no
-          // request, so no error follows the load's own one; when it
-          // instead requests the page again, the Android order holds
-          // (US-08 scenario 11).
-          final kinds = recorder.kindsSince(mark!);
-          final errors = recorder.errorsSince(mark);
-          if (kinds.contains('error')) {
-            expect(kinds, ['started', 'error', 'finished']);
-            expect(errors, hasLength(1));
-            expect(errors.single.type, StratumWebViewErrorType.http);
-            expect(errors.single.code, HttpStatus.notFound);
-            expect(errors.single.url, missing);
-          } else {
-            expect(kinds, ['started', 'finished']);
-            expect(errors, isEmpty);
-          }
+          _expectWebKitHistoryMove(recorder, mark!, missing);
         } else {
           // One error for the load of the 404 entry, plus one for the
           // replay from Android's HTTP cache.
@@ -433,6 +403,26 @@ bool _isWebKit() =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS);
+
+/// Asserts the either-outcome contract of one WebKit history move (US-08
+/// scenario 11): WebKit either restores the entry from its back-forward
+/// cache with no request — start, finish, and no new error — or requests
+/// [entry] again, and then the Android order holds with exactly one new
+/// `http` error naming [entry], counted since [mark].
+void _expectWebKitHistoryMove(_Recorder recorder, int mark, Uri entry) {
+  final kinds = recorder.kindsSince(mark);
+  final errors = recorder.errorsSince(mark);
+  if (kinds.contains('error')) {
+    expect(kinds, ['started', 'error', 'finished']);
+    expect(errors, hasLength(1));
+    expect(errors.single.type, StratumWebViewErrorType.http);
+    expect(errors.single.code, HttpStatus.notFound);
+    expect(errors.single.url, entry);
+  } else {
+    expect(kinds, ['started', 'finished']);
+    expect(errors, isEmpty);
+  }
+}
 
 /// Pumps a frame every [interval] until [done] holds; returns `false` once
 /// [timeout] passes.
