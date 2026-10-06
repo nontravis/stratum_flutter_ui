@@ -1,5 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/remote/remote_theme.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_bundle.dart';
+import 'package:stratum_ui/src/themes/remote/remote_theme_installer.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 import 'package:stratum_ui/src/themes/theme_parse.dart';
 import 'package:stratum_ui/src/themes/typography/google_font_weights.dart';
@@ -70,14 +72,29 @@ class StratumThemeController extends ChangeNotifier {
   /// FR-02; FO-04 US-01 FR-03).
   List<String> get themeIds => _themeIds;
 
-  // Assigned again when an install registers an id (M3-T13), so not final.
-  // ignore: prefer_final_fields
+  // Assigned again when an install registers an id, so not final.
   late List<String> _themeIds = _sortedIds();
 
   /// The folder of the theme on screen.
-  // Read by the install seam's pin logic (M3-T12); this seam only writes it.
-  // ignore: unused_field
   String _activeFolder = '';
+
+  /// How many loads and swaps in flight read each remote folder.
+  final _pins = <String, int>{};
+
+  /// The sequence number of the latest `install` call each id started.
+  final _installStarted = <String, int>{};
+
+  /// The sequence number of the latest `install` call each id registered;
+  /// a call registers only above it, so an earlier call that finishes
+  /// after a later one registered registers nothing, and a later call that
+  /// fails never blocks an earlier one (main ruling 2026-10-05, N4).
+  final _installRegistered = <String, int>{};
+
+  /// The id the latest `switchTo` call named.
+  String? _switchTarget;
+
+  /// The generation of the switch whose load is in flight, else null.
+  int? _switchInFlight;
 
   /// The overlay bundle that serves installed zips; `StratumThemeAssetView`
   /// reads a remote slot through it.
@@ -166,15 +183,121 @@ class StratumThemeController extends ChangeNotifier {
       throw StratumThemeNotFoundException(id, themeIds);
     }
     final generation = ++_generation;
+    _switchTarget = id;
     if (id == _activeId) return;
     final entry = _registry[id]!;
-    final themes = await _load(entry, generation);
-    if (themes == null || _disposed) return;
-    _themes = themes;
-    _activeId = id;
-    _activeFolder = entry.folder;
-    notifyListeners();
-    _onThemeChanged?.call(id);
+    _pin(entry.folder);
+    _switchInFlight = generation;
+    try {
+      final themes = await _load(entry, generation);
+      if (themes == null || _disposed) return;
+      final previous = _activeFolder;
+      _themes = themes;
+      _activeId = id;
+      _activeFolder = entry.folder;
+      notifyListeners();
+      _onThemeChanged?.call(id);
+      _release(previous);
+    } finally {
+      if (_switchInFlight == generation) _switchInFlight = null;
+      _unpin(entry.folder);
+    }
+  }
+
+  /// Installs a theme zip the app downloaded (FO-04 US-01 FR-01 to FR-03):
+  /// checks the id, the checksum, and the zip, reads the theme over the
+  /// package default and the app's `default`, and registers it under its
+  /// id, replacing an earlier install of that id or a bundled theme of that
+  /// id for the app's run. Then call [switchTo] to show it.
+  ///
+  /// An install of a non-active id registers with no repaint and no
+  /// callback. An install of the active id loads the new theme's fonts and
+  /// swaps it in one step, with no `onThemeChanged`, since the id does not
+  /// change; a switch to another id that starts before that swap wins, and
+  /// the install keeps its registration, while a switch to the same id
+  /// changes nothing and the swap goes ahead. An install of an id that the
+  /// latest switch is still loading acts as a later switch to that id: the
+  /// earlier switch is dropped, and the screen lands on the newest install
+  /// in one step with one `onThemeChanged`. Of overlapping install calls
+  /// for one id, the later-started call that registers wins: an earlier
+  /// call that finishes after it registers nothing and completes with no
+  /// error, and a later call that fails leaves the earlier one free to
+  /// register. Throws
+  /// [StratumRemoteThemeException] for a zip it refuses, and leaves every
+  /// registered theme and the active theme as they were.
+  Future<void> install(StratumRemoteTheme theme) async {
+    final call = _installStarted[theme.id] =
+        (_installStarted[theme.id] ?? 0) + 1;
+    final switches = _generation;
+    final install = await RemoteThemeInstaller.prepare(
+      theme,
+      packageDefault: _packageDefault,
+      appDefault: _appDefault,
+    );
+    if (_disposed || call <= (_installRegistered[install.id] ?? 0)) return;
+    _installRegistered[install.id] = call;
+    _registerRemote(install);
+    if (install.id != _activeId) {
+      if (_switchInFlight == _generation && _switchTarget == install.id) {
+        await switchTo(install.id);
+      }
+      return;
+    }
+    _pin(install.folder);
+    try {
+      await Future.wait([
+        _registerFontFiles(install.config.typography),
+        _waitForGoogleFonts(install.config.typography),
+      ]);
+      if (_disposed ||
+          _installRegistered[install.id] != call ||
+          _activeId != install.id ||
+          (switches != _generation && _switchTarget != install.id)) {
+        return;
+      }
+      final previous = _activeFolder;
+      _themes = StratumThemeSet.fromConfig(install.config);
+      _activeFolder = install.folder;
+      notifyListeners();
+      _release(previous);
+    } finally {
+      _unpin(install.folder);
+    }
+  }
+
+  /// D2 step 11: serves [install]'s entries and registers its id,
+  /// replacing the earlier entry of that id, whose folder drops once
+  /// nothing uses it.
+  void _registerRemote(RemoteInstall install) {
+    final previous = _registry[install.id];
+    _bundle.add(install.folder, install.entries);
+    _registry[install.id] = (
+      sourceId: install.sourceId,
+      folder: install.folder,
+    );
+    _themeIds = _sortedIds();
+    if (previous != null) _release(previous.folder);
+  }
+
+  void _pin(String folder) => _pins[folder] = (_pins[folder] ?? 0) + 1;
+
+  void _unpin(String folder) {
+    final left = (_pins[folder] ?? 1) - 1;
+    if (left == 0) {
+      _pins.remove(folder);
+    } else {
+      _pins[folder] = left;
+    }
+    _release(folder);
+  }
+
+  /// Drops a remote [folder] from memory once no theme on screen, no
+  /// registry entry, and no load in flight uses it (FO-04 design R10 OQ4).
+  void _release(String folder) {
+    if (!folder.startsWith('${RemoteThemeBundle.root}/')) return;
+    if (folder == _activeFolder || _pins.containsKey(folder)) return;
+    if (_registry.values.any((entry) => entry.folder == folder)) return;
+    _bundle.remove(folder);
   }
 
   @override
