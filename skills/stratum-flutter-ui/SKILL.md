@@ -133,19 +133,19 @@ scroll it, guarded so a text field inside keeps its own keys.
 
   Insert and remove: pass a `StratumReorderableItemsController` as `itemsController` (the scroll `controller` stays
   separate) and call `insertItem(index)` or `removeItem(index)` in the same turn as the data change, outside a build
-  and outside `onReorderItem`, `onReorderStart`, and `onReorderEnd`; from those, call after the frame.
+  and `onReorderItem`, `onReorderStart`, and `onReorderEnd`; from those, call after the frame.
   An added item grows and fades in over the theme's `normal` level, and a removed one shrinks and fades out in the
   look it had, unless `removeItem`'s `builder` gives it another; `itemTransitionBuilder(context, animation, child)`
-  replaces the size and fade both ways. Without `builder`, a removed item's leaving copy ends at once if its key
-  comes back; pass `builder` to keep that copy fading on its own look instead. The leaving item keeps its State and
-  still rebuilds, so an item that reads its data through `context` (a `watch` or `select` by id or index, a provider
-  family) needs a `builder` that captures that data. Under reduced motion, or with `itemExtent`, `itemExtentBuilder`,
-  or `prototypeItem`, the size jumps and the fade plays. Focus on a removed item moves to the next item, else the
-  previous one, else the list's own Tab stop when the list is focusable, unless the app moves focus itself in the
-  same turn; a focused item the app removes and inserts back with its key in the same turn keeps focus instead, and
-  the list scrolls to it and shows it. A reorder of a leaving item's neighbor ends that leaving item. An insert or
-  remove during a drag, or an item-count change, ends the drag first with `onReorderEnd` at its start index and no
-  `onReorderItem`.
+  replaces the size and fade both ways. Without `builder`, a removed item's leaving copy ends at once if its key comes
+  back; a `builder` keeps it fading on its own look. The leaving item keeps its State and rebuilds, so an item reading
+  its data through `context` (a `watch` or `select` by id or index, a provider family) needs a `builder` capturing that
+  data. Under reduced motion, or with `itemExtent`, `itemExtentBuilder`, or `prototypeItem`, the size jumps and the fade
+  plays. Focus on a removed item moves to the next item, else the previous, else the list's Tab stop when the list is
+  focusable, unless the app moves focus in the same turn; a focused item the app removes and inserts back with its key
+  in the same turn keeps focus instead, and the list scrolls to it and shows it. A reorder of a leaving item's neighbor
+  ends that leaving item. An `insertItem`, `removeItem`, `moveItem`, key or screen-reader move, or item-count change
+  during a drag ends it first with `onReorderEnd` at its start index and no `onReorderItem`; key and screen-reader moves
+  then report their own.
 
   ```dart
   final itemsController = StratumReorderableItemsController();
