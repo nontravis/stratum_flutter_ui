@@ -214,6 +214,10 @@ scroll it, guarded so a text field inside keeps its own keys.
   recipes for the active theme, locale, and window size: display and headline slots read `header`; title, body, and
   label slots read `body`. No slot sets a weight, so each draws its type's yaml weight: title and label slots draw the
   body weight (400 in the package default), not Material's medium.
+- **Theme models** — the parsed theme types (`StratumThemeConfig`, `StratumColorSets`, `StratumTypography`,
+  `StratumTypeStyle`, `StratumAnimationConfig`, and the models inside them) are immutable values with `copyWith`;
+  their maps refuse changes, so derive a variant with `config.copyWith(name: ...)` instead of editing a map. A
+  `StratumCurve` gives its Flutter `Curve` as `.curve` through `package:stratum_ui/stratum_ui.dart`.
 - **Before `preload`** — call `WidgetsFlutterBinding.ensureInitialized()` first: `preload` reads the asset manifest
   through `rootBundle`, which needs the binding. In a `testWidgets` test, the background parse runs on a real
   isolate, which the test's fake-async zone never finishes; run `preload`, or pump a tree rooted in
