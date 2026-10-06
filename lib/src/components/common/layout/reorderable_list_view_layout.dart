@@ -49,12 +49,14 @@ import 'package:stratum_ui/src/src.dart';
 /// State and focus.
 ///
 /// An insert or remove during a drag, through [itemsController] or not,
-/// ends the drag first: the dragged item goes back to its slot,
-/// [onReorderEnd] reports the index the drag started at, and
-/// [onReorderItem] does not fire. A drag that starts between an
-/// `insertItem` or `removeItem` call and the next frame ends the same way
-/// at once. A reorder key or a screen reader's move during a drag, or
-/// while a dropped item settles, ends it the same way before it moves.
+/// and a `moveItem` call during one, end the drag first: the dragged item
+/// goes back to its slot, [onReorderEnd] reports the index the drag
+/// started at, and [onReorderItem] does not fire. A drag that starts
+/// between an `insertItem`, `removeItem`, or `moveItem` call, or a move
+/// the list reported through [onReorderItem], and the next frame ends the
+/// same way at once. A reorder key or a screen reader's move during a
+/// drag, or while a dropped item settles, ends it the same way before it
+/// moves.
 class ReorderableListViewLayout extends StatelessWidget {
   const new builder({
     super.key,
@@ -340,9 +342,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The item count the last build gave [ReorderableList].
   int? _listCount;
 
-  /// Where each key or screen-reader move of this frame put its item, as an
-  /// index of the current data, until the frame after it reveals the item:
-  /// each call moves them, as it moves [_handoffGap].
+  /// Where each key move, screen-reader move, or drop of this frame put its
+  /// item, as an index of the current data, until the frame after it
+  /// reveals the item: each call moves them, as it moves [_handoffGap].
   final _moveTargets = <_MoveTarget>[];
 
   /// Whether `onReorderStart` is running: the SDK sets the drag up only
@@ -2161,9 +2163,11 @@ class _Exit {
 }
 
 /// A position in the app's data after this turn's `insertItem`,
-/// `removeItem`, and `moveItem` calls. It becomes a [_FrameIndex] only
-/// through `_builtIndexOf`; its `value` leaves it only there, in [nextSlot],
-/// and at `onReorderItem`, `onReorderStart`, `onReorderEnd`, and
+/// `removeItem`, and `moveItem` calls and the moves the list reported
+/// through `onReorderItem`. It becomes a [_FrameIndex] only through
+/// `_builtIndexOf`; its `value` leaves it only in `_builtIndexOf` (its
+/// argument and the entries of `_pending`), in `_dataIndexOf` (the entries
+/// of `_pending`), in [nextSlot], and at `onReorderItem` and
 /// `itemBuilder`.
 extension type const _DataIndex(int value) {
   /// The slot the item at this index takes in the next frame: the sliver
@@ -2185,8 +2189,10 @@ extension type const _DataIndex(int value) {
 
 /// A position in the frame the list last built: the keys of `_itemNodes`
 /// and `_itemLooks`, and the index the SDK reports. It becomes a
-/// [_DataIndex] only through `_dataIndexOf`; its `value` leaves it as a
-/// [_DataIndex]'s does, and in [slot].
+/// [_DataIndex] only through `_dataIndexOf`; its `value` leaves it only
+/// there (its argument), in [slot], and at `onReorderEnd` for the
+/// `_dragIndex` of a drag the list ends (`_cancelDrag`,
+/// `_reportCountEnd`).
 extension type const _FrameIndex(int value) {
   /// The slot this index held in the last frame.
   int get slot => value;
@@ -2204,9 +2210,9 @@ extension type const _FrameIndex(int value) {
 /// moves of FR-02 and FR-03 E03.
 enum _MoveIntent { start, previous, next, end }
 
-/// The index of the app's data a key or screen-reader move put its item
-/// at, moved by each later call until the frame after the move reads it;
-/// null once a call takes the item out.
+/// The index of the app's data a key move, a screen-reader move, or a drop
+/// put its item at, moved by each later call until the frame after the
+/// move reads it; null once a call takes the item out.
 class _MoveTarget {
   new(this.index);
 
