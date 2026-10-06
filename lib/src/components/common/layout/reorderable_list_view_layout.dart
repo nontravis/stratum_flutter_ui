@@ -1235,7 +1235,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       if (!status.isCompleted) return;
       motion.controller.removeStatusListener(grown);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || node.context == null) return;
+        // A FocusNode keeps its context once disposed: the item is live
+        // only while its node is registered.
+        if (!mounted || !_itemNodes.containsValue(node)) return;
         if (!byKey || node.hasFocus) revealInViewports(node);
       });
     }
@@ -1288,7 +1290,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       if (!status.isCompleted) return;
       motion.dropGrown();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && node.context != null && node.hasFocus) {
+        if (mounted && _itemNodes.containsValue(node) && node.hasFocus) {
           revealInViewports(node);
         }
       });
