@@ -952,9 +952,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     final item = node.context;
     final position = item == null ? null : Scrollable.maybeOf(item)?.position;
-    if (_dataCount < 2 || item == null || position == null) {
-      return KeyEventResult.ignored;
-    }
+    if (item == null || position == null) return KeyEventResult.ignored;
     final key = event.logicalKey;
     final _MoveIntent intent;
     if (key == LogicalKeyboardKey.home) {
@@ -970,11 +968,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
           : _MoveIntent.previous;
     }
     final from = _dataIndexOf(index);
-    final target = from == null ? null : _targetOf(from, intent);
-    // An item the app removed in this turn does not move (R2), nor does a
-    // move past either end; both are handled, so the browser never sees
-    // the key.
-    if (from == null || target == null) return KeyEventResult.handled;
+    // An item the app removed in this turn does not move (R2), even when
+    // fewer than two items are left (R8), nor does a move past either end;
+    // both are handled, so the browser never sees the key. Any other key
+    // in a list of fewer than two items is not handled (E02).
+    if (from == null) return KeyEventResult.handled;
+    if (_dataCount < 2) return KeyEventResult.ignored;
+    final target = _targetOf(from, intent);
+    if (target == null) return KeyEventResult.handled;
     if (intent == _MoveIntent.start || intent == _MoveIntent.end) {
       _jumpTowards(item, position, toStart: intent == _MoveIntent.start);
     }
