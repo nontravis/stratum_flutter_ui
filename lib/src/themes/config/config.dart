@@ -1,5 +1,6 @@
 export 'animation_config.dart';
 export 'by_window_size.dart';
+export 'curve_convert.dart';
 export 'format_error.dart';
 export 'schema_version.dart';
 export 'theme_asset.dart';

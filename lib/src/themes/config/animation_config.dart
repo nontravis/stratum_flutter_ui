@@ -1,52 +1,31 @@
 import 'package:flutter/animation.dart';
-import 'package:flutter/foundation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/config/theme_model.dart';
+
+part 'generated/animation_config.freezed.dart';
 
 /// The merged `animation` group of a theme (spec section 8.1).
-@immutable
-class StratumAnimationConfig {
-  const new({
-    required this.durations,
-    required this.defaultLevel,
-    required this.reverseRatio,
-    required this.curves,
-  });
+@themeModel
+abstract class StratumAnimationConfig with _$StratumAnimationConfig {
+  const factory({
+    /// Level name to forward duration: the levels of `animation.duration`
+    /// other than `default`.
+    required Map<String, Duration> durations,
 
-  /// Level name to forward duration: the levels of `animation.duration`
-  /// other than `default`.
-  final Map<String, Duration> durations;
+    /// `animation.duration.default`, a key of [durations].
+    required String defaultLevel,
 
-  /// `animation.duration.default`, a key of [durations].
-  final String defaultLevel;
+    /// `animation.reverseDuration` as a ratio: 0.64 for `64%`.
+    required double reverseRatio,
 
-  /// `animation.reverseDuration` as a ratio: 0.64 for `64%`.
-  final double reverseRatio;
-
-  /// `animation.curve`: `standard`, `enter`, `exit`.
-  final Map<String, StratumCurve> curves;
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumAnimationConfig &&
-      mapEquals(other.durations, durations) &&
-      other.defaultLevel == defaultLevel &&
-      other.reverseRatio == reverseRatio &&
-      mapEquals(other.curves, curves);
-
-  @override
-  int get hashCode => Object.hash(
-    Object.hashAllUnordered(
-      durations.entries.map((entry) => Object.hash(entry.key, entry.value)),
-    ),
-    defaultLevel,
-    reverseRatio,
-    Object.hashAllUnordered(
-      curves.entries.map((entry) => Object.hash(entry.key, entry.value)),
-    ),
-  );
+    /// `animation.curve`: `standard`, `enter`, `exit`.
+    required Map<String, StratumCurve> curves,
+  }) = _StratumAnimationConfig;
 }
 
 /// A curve as `theme.yaml` writes it: a `Curves` name or
-/// `cubic(a, b, c, d)` (spec G15).
+/// `cubic(a, b, c, d)` (spec G15). `StratumCurveConvert` gives its Flutter
+/// `Curve`.
 @immutable
 sealed class StratumCurve {
   const new();
@@ -65,13 +44,11 @@ sealed class StratumCurve {
     if (a < 0 || a > 1 || c < 0 || c > 1) return null;
     return StratumCubicCurve(a, b, c, d);
   }
-
-  /// The curve to animate with.
-  Curve get curve;
 }
 
 /// One of the 43 `static const` curves of Flutter's `Curves` class.
-final class StratumNamedCurve extends StratumCurve {
+@themeModel
+final class StratumNamedCurve extends StratumCurve with _$StratumNamedCurve {
   const new(this.name);
 
   /// The curve names `theme.yaml` accepts, case-sensitive (spec section
@@ -126,22 +103,13 @@ final class StratumNamedCurve extends StratumCurve {
   final String name;
 
   @override
-  Curve get curve => byName[name]!;
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumNamedCurve && other.name == name;
-
-  @override
-  int get hashCode => name.hashCode;
-
-  @override
   String toString() => 'StratumNamedCurve($name)';
 }
 
 /// `cubic(a, b, c, d)`, as Figma and CSS `cubic-bezier` write it.
-final class StratumCubicCurve extends StratumCurve {
-  new(this.a, this.b, this.c, this.d);
+@themeModel
+final class StratumCubicCurve extends StratumCurve with _$StratumCubicCurve {
+  const new(this.a, this.b, this.c, this.d);
 
   /// `cubic(a, b, c, d)` with each value a decimal number such as `0.37`,
   /// `-0.28`, or `.5`, spaces allowed around each.
@@ -156,22 +124,6 @@ final class StratumCubicCurve extends StratumCurve {
   final double b;
   final double c;
   final double d;
-
-  /// One [Cubic] per instance: Flutter's `Cubic` defines no `==`, so the
-  /// same instance keeps `AnimationStyle` equality stable.
-  @override
-  late final Curve curve = Cubic(a, b, c, d);
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumCubicCurve &&
-      other.a == a &&
-      other.b == b &&
-      other.c == c &&
-      other.d == d;
-
-  @override
-  int get hashCode => Object.hash(a, b, c, d);
 
   @override
   String toString() => 'StratumCubicCurve($a, $b, $c, $d)';
