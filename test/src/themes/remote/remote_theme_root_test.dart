@@ -54,6 +54,40 @@ void main() {
     expect(findThemeRoot(['README.md', 'brand/theme.yaml']), 'brand/');
   });
 
+  test('M6: folder names and a deep path reach the message escaped', () {
+    expect(
+      () => findThemeRoot(['a\u001b/theme.yaml', 'b\n/theme.yaml']),
+      throwsA(
+        isA<RemoteThemeFailure>().having(
+          (f) => f.message,
+          'message',
+          allOf(
+            contains(r'a\u001b, b\u000a'),
+            isNot(contains('\u001b')),
+            isNot(contains('\n')),
+          ),
+        ),
+      ),
+    );
+    expect(
+      () => findThemeRoot(['a/\u202E/theme.yaml']),
+      _missing(r'two or more folders deep: a/\u202e/theme.yaml'),
+    );
+  });
+
+  test('M6: a long folder list is one text cut at 200 characters', () {
+    expect(
+      () => findThemeRoot([for (var i = 0; i < 100; i++) 'folder$i/x']),
+      throwsA(
+        isA<RemoteThemeFailure>().having(
+          (f) => f.message,
+          'message',
+          allOf(endsWith('...'), isNot(contains('folder99'))),
+        ),
+      ),
+    );
+  });
+
   test('ignored entries: __MACOSX/ and .DS_Store only', () {
     expect(isIgnoredEntry('__MACOSX/x'), isTrue);
     expect(isIgnoredEntry('a/.DS_Store'), isTrue);

@@ -11,7 +11,8 @@ bool isIgnoredEntry(String name) =>
 /// E05): `''` when the zip root holds `theme.yaml`; else `'<folder>/'`
 /// when the zip holds exactly one top folder, ignored entries and loose
 /// top files aside, and that folder holds `theme.yaml`. Throws
-/// `RemoteThemeFailure` `missingThemeFile` whose message names the cause.
+/// `RemoteThemeFailure` `missingThemeFile` whose message names the cause,
+/// the zip's folder names escaped.
 String findThemeRoot(Iterable<String> names) {
   final files = [
     for (final name in names)
@@ -26,7 +27,7 @@ String findThemeRoot(Iterable<String> names) {
     throw RemoteThemeFailure(
       StratumRemoteThemeErrorCode.missingThemeFile,
       'the zip root holds no theme.yaml and holds two or more top '
-      'folders: ${(folders.toList()..sort()).join(', ')}',
+      'folders: ${escapeZipText((folders.toList()..sort()).join(', '))}',
     );
   }
   if (folders.length == 1) {
@@ -37,7 +38,7 @@ String findThemeRoot(Iterable<String> names) {
   if (deep.isNotEmpty) {
     throw RemoteThemeFailure(
       StratumRemoteThemeErrorCode.missingThemeFile,
-      'theme.yaml sits two or more folders deep: ${deep.first}',
+      'theme.yaml sits two or more folders deep: ${escapeZipText(deep.first)}',
     );
   }
   throw const RemoteThemeFailure(

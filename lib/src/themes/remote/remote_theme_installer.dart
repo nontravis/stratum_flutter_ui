@@ -55,9 +55,12 @@ abstract final class RemoteThemeInstaller {
     try {
       checkRemoteThemeId(theme.id);
       checkChecksumText(theme.checksum);
-      verifyChecksum(theme.checksum, theme.bytes);
+      // D2 step 3: hash and read one private copy, so the bytes read are
+      // the bytes hashed and the app's buffer is never written.
+      final bytes = Uint8List.fromList(theme.bytes);
+      verifyChecksum(theme.checksum, bytes);
       entries = readRemoteZip(
-        theme.bytes,
+        bytes,
         maxBytes: theme.maxBytes,
         maxEntries: theme.maxEntries,
       );
@@ -113,7 +116,9 @@ abstract final class RemoteThemeInstaller {
         throw StratumRemoteThemeException(
           code: StratumRemoteThemeErrorCode.missingEntry,
           id: id,
-          message: 'the theme file names "$relative", which the zip lacks',
+          message:
+              'the theme file names "${escapeZipText(relative)}", which the '
+              'zip lacks',
           path: relative,
         );
       }

@@ -209,6 +209,53 @@ void main() {
     );
   });
 
+  test('I2, R11 rule 1: a refused zip leaves the app buffer unchanged, '
+      'reading only the private copy', () async {
+    final bytes = localOnlyEncryptedZip(
+      utf8.encode('$remoteSchemaLine\nname: brand\n'),
+    );
+    final before = Uint8List.fromList(bytes);
+
+    await expectLater(
+      _prepare(
+        StratumRemoteTheme(
+          id: 'brand',
+          bytes: bytes,
+          checksum: checksumOf(bytes),
+        ),
+      ),
+      _fails(StratumRemoteThemeErrorCode.invalidArchive),
+    );
+    expect(bytes, before);
+  });
+
+  test('M6: a missing_entry path reaches the message escaped and the path '
+      'raw', () async {
+    await expectLater(
+      _prepare(
+        remoteTheme('brand', body: 'assets:\n  loading: "images/\\e\\n.png"'),
+      ),
+      throwsA(
+        isA<StratumRemoteThemeException>()
+            .having(
+              (e) => e.code,
+              'code',
+              StratumRemoteThemeErrorCode.missingEntry,
+            )
+            .having((e) => e.path, 'path', 'images/\u001b\n.png')
+            .having(
+              (e) => e.toString(),
+              'toString',
+              allOf(
+                contains(r'images/\u001b\u000a.png'),
+                isNot(contains('\u001b')),
+                isNot(contains('\n')),
+              ),
+            ),
+      ),
+    );
+  });
+
   test(
     'us01/s10: a one-folder zip resolves fonts and assets against it',
     () async {
