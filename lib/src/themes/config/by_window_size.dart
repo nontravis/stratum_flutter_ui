@@ -1,5 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/constant/window_size.dart';
+
+part 'generated/by_window_size.freezed.dart';
 
 /// A theme value that may differ per [WindowSize].
 ///
@@ -8,8 +10,17 @@ import 'package:stratum_ui/src/themes/constant/window_size.dart';
 ///
 /// Two instances are equal when they give the same value on every window
 /// size, so `.all(8)` equals a map that names all five sizes with 8.
+///
+/// No `copyWith`: it holds no public field to copy, and its `==`
+/// compares the value per window size (design Q8; plan D-k).
 @immutable
-class StratumByWindowSize<T> {
+@Freezed(
+  copyWith: false,
+  equal: false,
+  map: FreezedMapOptions.none,
+  when: FreezedWhenOptions.none,
+)
+class StratumByWindowSize<T> with _$StratumByWindowSize<T> {
   /// The entries a `theme.yaml` map wrote; asserts [values] is not empty.
   new(Map<WindowSize, T> values)
     : assert(values.isNotEmpty, 'A window-size map needs at least one entry.'),
