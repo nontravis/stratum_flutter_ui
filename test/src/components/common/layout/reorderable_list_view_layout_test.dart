@@ -4552,4 +4552,535 @@ void main() {
       },
     );
   });
+
+  group('ReorderableListViewLayout data and frame indices', () {
+    // 200 items of 40 px in a 300 px viewport scrolled to 4000, with the
+    // default 250 px cache extent: the frame builds slots 93 to 113.
+    Future<ScrollPosition> pumpAt4000(WidgetTester tester) async {
+      await tester.pumpWidget(
+        _app(
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        ),
+      );
+      final position =
+          tester.state<ScrollableState>(find.byType(Scrollable)).position
+            ..jumpTo(4000);
+      await tester.pump();
+      expect(find.byKey(const ValueKey(113), skipOffstage: false), findsOne);
+      expect(
+        find.byKey(const ValueKey(114), skipOffstage: false),
+        findsNothing,
+      );
+      return position;
+    }
+
+    List<_ItemState> statesOf(WidgetTester tester, int id) => tester
+        .stateList<_ItemState>(find.byKey(ValueKey(id), skipOffstage: false))
+        .toList();
+
+    // Presses Alt+Up with no pump, so the key lands before the next frame.
+    Future<void> altUpNow(WidgetTester tester) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    }
+
+    testWidgets(
+      'us11/fr05/e04: a focused move down past the built slots after an '
+      'insertItem in the same turn jumps first and keeps its State',
+      (tester) async {
+        final position = await pumpAt4000(tester);
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // After three inserts item 100 sits at index 103; slot 116, the slot
+        // it enters, is past the built 93 to 113.
+        _harness(tester)
+          ..insert(0, 1000)
+          ..insert(0, 1001)
+          ..insert(0, 1002)
+          ..move(103, 115);
+        expect(position.pixels, isNot(4000));
+        await tester.pump();
+
+        expect(statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
+    testWidgets('us11/fr05/e04: a focused move up into a built slot after an '
+        'insertItem in the same turn does not scroll in the call turn', (
+      tester,
+    ) async {
+      final position = await pumpAt4000(tester);
+      final state = _itemState(tester, 100);
+      final focused = await _focusItem(tester, 100);
+
+      // Slot 95, the slot item 100 enters, is built.
+      _harness(tester)
+        ..insert(0, 1000)
+        ..insert(0, 1001)
+        ..insert(0, 1002)
+        ..move(103, 95);
+      expect(position.pixels, 4000);
+      await tester.pumpAndSettle();
+
+      expect(statesOf(tester, 100), contains(state));
+      expect(FocusManager.instance.primaryFocus, same(focused));
+    });
+
+    testWidgets(
+      'us11/fr05/e04: a focused move down to the last built slot jumps '
+      'first, since the item enters the slot after it, and keeps its State',
+      (tester) async {
+        final position = await pumpAt4000(tester);
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // A move down to 113 enters slot 114, which the frame did not build.
+        _harness(tester).move(100, 113);
+        expect(position.pixels, isNot(4000));
+        await tester.pump();
+
+        expect(statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
+    // The reorder key pressed between an insertItem call and its frame.
+    final windowKeys = ValueVariant<LogicalKeyboardKey>({
+      LogicalKeyboardKey.arrowUp,
+      LogicalKeyboardKey.end,
+    });
+    testWidgets(
+      'us11/fr02/e07: a reorder key between an insertItem call and its frame '
+      "moves the focused item by indices of the app's data",
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        await _focusItem(tester, 5);
+
+        // The insert puts item 5 at index 6 of 21 before the frame.
+        final harness = _harness(tester)..insert(0, 500);
+        final key = windowKeys.currentValue!;
+        expect(await _alt(tester, key), isTrue);
+
+        final up = key == LogicalKeyboardKey.arrowUp;
+        expect(harness.moves, [if (up) (6, 5) else (6, 20)]);
+        expect(harness.ids.indexOf(5), up ? 5 : 20);
+      },
+      variant: windowKeys,
+    );
+
+    // A screen-reader move made after an insertItem call and before its
+    // frame: the action, the insert index, and the move it reports.
+    const windowActions = {
+      'Move up after an insert at 0': ('Move up', 0, (6, 5)),
+      'Move to the start after an insert at 0': (
+        'Move to the start',
+        0,
+        (6, 0),
+      ),
+      'Move to the end after an insert at 0': ('Move to the end', 0, (6, 20)),
+      'Move to the end after an insert at the end': (
+        'Move to the end',
+        20,
+        (5, 20),
+      ),
+    };
+    final windowAction = ValueVariant<String>(windowActions.keys.toSet());
+    testWidgets(
+      'us11/fr03/e07: a screen-reader move between an insertItem call and '
+      "its frame moves the item it names by indices of the app's data",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+
+        final (label, insertAt, move) =
+            windowActions[windowAction.currentValue]!;
+        final harness = _harness(tester)..insert(insertAt, 500);
+        await _moveAction(tester, 5, label);
+
+        expect(harness.moves, [move]);
+        handle.dispose();
+      },
+      variant: windowAction,
+    );
+
+    // The input that tries to move an item the app removed in that turn.
+    final removedInput = ValueVariant<String>({'Alt+Up', 'Move up'});
+    testWidgets('us11/fr03/e07: a key or screen-reader move on an item the app '
+        'removed in the same turn moves nothing', (tester) async {
+      final handle = tester.ensureSemantics();
+      final controller = StratumReorderableItemsController();
+      await tester.pumpWidget(
+        _app(_Harness(count: 20, itemsController: controller)),
+      );
+      await _focusItem(tester, 5);
+
+      final harness = _harness(tester)..remove(5);
+      if (removedInput.currentValue == 'Alt+Up') {
+        expect(await _alt(tester, LogicalKeyboardKey.arrowUp), isTrue);
+      } else {
+        await _moveAction(tester, 5, 'Move up');
+      }
+
+      expect(harness.moves, isEmpty);
+      expect(harness.ids, [
+        for (var id = 0; id < 20; id++)
+          if (id != 5) id,
+      ]);
+      handle.dispose();
+    }, variant: removedInput);
+
+    // The input that moves an item the app moved in that turn.
+    final movedInput = ValueVariant<String>({'Alt+Up', 'Move up'});
+    testWidgets('us11/fr03/e07: a key or screen-reader move on an item the app '
+        'moved in the same turn moves it from its new index', (tester) async {
+      final handle = tester.ensureSemantics();
+      final controller = StratumReorderableItemsController();
+      await tester.pumpWidget(
+        _app(_Harness(count: 20, itemsController: controller)),
+      );
+      await _focusItem(tester, 5);
+
+      // The app's move puts item 5 at index 10 of its data before the frame.
+      final harness = _harness(tester)..move(5, 10);
+      if (movedInput.currentValue == 'Alt+Up') {
+        expect(await _alt(tester, LogicalKeyboardKey.arrowUp), isTrue);
+      } else {
+        await _moveAction(tester, 5, 'Move up');
+      }
+
+      expect(harness.moves, [(10, 9)]);
+      expect(harness.ids.indexOf(5), 9);
+      handle.dispose();
+    }, variant: movedInput);
+
+    // An app call, then an input on item 5 before the call's frame: whether
+    // the call is a move of item 5 (else an insert of item 500 at 5), the
+    // input, the item that grows in, and the item that does not.
+    const growIns = {
+      'Alt+Up across an insert': (false, 'Alt+Up', 500, 5),
+      'Move up across an insert': (false, 'Move up', 500, 5),
+      'Alt+Up on an item the app moved': (true, 'Alt+Up', 5, 10),
+    };
+    final growIn = ValueVariant<String>(growIns.keys.toSet());
+    testWidgets(
+      's03/inv29: a key or screen-reader move between a call and its frame '
+      'leaves each grow-in on its own item',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        await _focusItem(tester, 5);
+
+        final (moved, input, grows, still) = growIns[growIn.currentValue]!;
+        final harness = _harness(tester);
+        if (moved) {
+          harness.move(5, 10);
+        } else {
+          harness.insert(5, 500);
+        }
+        if (input == 'Alt+Up') {
+          await altUpNow(tester);
+        } else {
+          final node = tester.getSemantics(find.byKey(const ValueKey(5)));
+          node.owner!.performAction(
+            node.id,
+            SemanticsAction.customAction,
+            CustomSemanticsAction.getIdentifier(
+              const CustomSemanticsAction(label: 'Move up'),
+            ),
+          );
+        }
+        await tester.pump();
+
+        expect(_enteringOpacity(tester, grows), 0);
+        expect(_enteringOpacity(tester, still), 1);
+        await tester.pumpAndSettle();
+        expect(harness.ids.indexOf(5), moved ? 9 : 5);
+        handle.dispose();
+      },
+      variant: growIn,
+    );
+
+    testWidgets(
+      'us11/fr04/e06: a drag that starts between a reorder key and its frame '
+      'ends at once, and the key move stands',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller)),
+        );
+        await _focusItem(tester, 3);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('2')),
+        );
+        await tester.pump(kLongPressTimeout - const Duration(milliseconds: 50));
+        // Alt+Up moves item 3 above item 2; the long press then lifts item
+        // 2 before the key's frame, which moves it to index 3.
+        await altUpNow(tester);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).starts, [2]);
+        expect(_harness(tester).ends, [2]);
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(_harness(tester).moves, [(3, 2)]);
+        expect(_harness(tester).ids, [0, 1, 3, 2, 4]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e04: a focused item a reorder key moved and the app then '
+      'removed in the same turn leaves from there and hands focus on',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        await _focusItem(tester, 5);
+
+        // Alt+Up puts item 5 at index 4; the app removes it from there
+        // before the key's frame.
+        await altUpNow(tester);
+        _harness(tester).remove(4);
+        await tester.pump();
+
+        expect(find.byKey(const ValueKey(5), skipOffstage: false), findsOne);
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey(5), skipOffstage: false),
+          findsNothing,
+        );
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 4');
+      },
+    );
+
+    testWidgets(
+      'us11/fr05: a moveItem of an item a reorder key moved in the same turn '
+      'closes the slot the key moved it to, and the items past both slots '
+      'hold still',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller), theme: theme),
+        );
+        final state = _itemState(tester, 5);
+        await _focusItem(tester, 5);
+
+        // Alt+Up puts item 5 at index 4; the app moves it on to index 2
+        // before the key's frame.
+        await altUpNow(tester);
+        _harness(tester).move(4, 2);
+        await tester.pump();
+        expect(_top(tester, 6), 240);
+        await tester.pump(_halfForward(theme));
+        expect(_top(tester, 4), moreOrLessEquals(200));
+        expect(_top(tester, 6), moreOrLessEquals(240));
+
+        await tester.pumpAndSettle();
+        expect(_harness(tester).ids.sublist(0, 7), [0, 1, 5, 2, 3, 4, 6]);
+        expect(_itemState(tester, 5), same(state));
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 5');
+      },
+    );
+
+    testWidgets(
+      'us11/fr02: a reorder key the app does not apply leaves the next key '
+      'on the indices the frame shows',
+      (tester) async {
+        final moves = <(int, int)>[];
+        await tester.pumpWidget(
+          _app(
+            ReorderableListViewLayout.builder(
+              itemCount: 5,
+              // The app turns every move down: its data never changes.
+              onReorderItem: (from, to) => moves.add((from, to)),
+              itemBuilder: (context, index) =>
+                  _Item(key: ValueKey(index), id: index, index: index),
+            ),
+          ),
+        );
+        await _focusItem(tester, 3);
+
+        expect(await _alt(tester, LogicalKeyboardKey.arrowUp), isTrue);
+        expect(await _alt(tester, LogicalKeyboardKey.arrowUp), isTrue);
+
+        expect(moves, [(3, 2), (3, 2)]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e04: an app call earlier in the same post-frame batch '
+      'leaves focus on the item after a removed one',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        await _focusItem(tester, 5);
+
+        // The app's own post-frame insert runs before the handoff.
+        final harness = _harness(tester);
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => harness.insert(0, 500),
+        );
+        harness.remove(5);
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 6');
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e04: the handoff skips an item an insertItem call after '
+      'the frame adds at the gap and goes to the next item the frame shows',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        await _focusItem(tester, 5);
+
+        // The app's own post-frame calls run before the handoff: the insert
+        // at the start moves the gap to 6, and the insert at 6 puts an item
+        // the frame has not built at the gap.
+        final harness = _harness(tester);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          harness
+            ..insert(0, 500)
+            ..insert(6, 501);
+        });
+        harness.remove(5);
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 6');
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e04: the handoff skips an item a moveItem call after the '
+      'frame brings to the gap and goes to the next item the frame shows',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        await _focusItem(tester, 5);
+
+        // The app's own post-frame move runs before the handoff and puts
+        // item 8, which the frame drew two slots past the gap, at the gap.
+        final harness = _harness(tester);
+        WidgetsBinding.instance.addPostFrameCallback((_) => harness.move(7, 5));
+        harness.remove(5);
+        await tester.pumpAndSettle();
+
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 6');
+      },
+    );
+
+    testWidgets(
+      'us11/fr05: an item moved and then removed in one turn shows no '
+      'leaving copy at its new index',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller)),
+        );
+
+        _harness(tester)
+          ..move(3, 1)
+          ..remove(1);
+        await tester.pump();
+
+        expect(
+          find.byKey(const ValueKey(3), skipOffstage: false),
+          findsNothing,
+        );
+        await tester.pumpAndSettle();
+        expect(_harness(tester).ids, [0, 1, 2, 4]);
+        expect(_top(tester, 4), 120);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05: a second moveItem of an item in the same turn closes only '
+      'the slot the frame drew it in, and the items past both slots hold '
+      'still',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, itemsController: controller), theme: theme),
+        );
+        final state = _itemState(tester, 0);
+
+        _harness(tester)
+          ..move(0, 2)
+          ..move(2, 3);
+        await tester.pump();
+        expect(_top(tester, 4), 160);
+        await tester.pump(_halfForward(theme));
+        expect(_top(tester, 4), moreOrLessEquals(160));
+
+        await tester.pumpAndSettle();
+        expect(_harness(tester).ids, [1, 2, 3, 0, 4]);
+        expect(_top(tester, 0), 120);
+        expect(_itemState(tester, 0), same(state));
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: a reach that gives up where it started hands focus on '
+      'from the gap an app call in its last frame moved',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await _returnFocused(
+          tester,
+          _Harness(count: 200, itemsController: controller),
+          offset: 0,
+          id: 5,
+          slot: 150,
+        );
+        final harness = _harness(tester);
+        // Every jump of the reach springs back to 0, so after its fourth
+        // jump the reach gives up with the list where it started and hands
+        // focus on at once; the app's post-frame insert, registered on that
+        // jump, runs first in the reach's last frame.
+        var springs = 0;
+        _pinScroll(
+          tester,
+          0,
+          onSpringBack: () {
+            springs += 1;
+            if (springs != 4) return;
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => harness.insert(0, 900),
+            );
+          },
+        );
+        await tester.pumpAndSettle();
+
+        expect(springs, 4);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 6');
+      },
+    );
+  });
 }
