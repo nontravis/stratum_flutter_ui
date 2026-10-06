@@ -1201,16 +1201,44 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// current data, converted when read, so a call made after the move, or
   /// one the app defers to run earlier in the post-frame batch (FR-04
   /// E15), cannot shift it (D7). After a key move, when focus has left the
-  /// list, it moves to that item's first node in Tab order.
+  /// list, it moves to that item's first node in Tab order. An item still
+  /// growing in before it pushes it past the edge it was revealed at, so it
+  /// is revealed again as each such grow-in ends (R10).
   void _afterMove(_MoveTarget moved, {required bool byKey}) {
     _moveTargets.remove(moved);
     final index = moved.index;
     if (!mounted || index == null) return;
     final built = _builtIndexOf(index);
-    final node = built == null ? null : _nodeAt(built);
+    if (built == null) return;
+    final node = _nodeAt(built);
     if (node == null || node.context == null) return;
     if (byKey && !_holdsFocus) firstTabStopIn(node)?.requestFocus();
     revealInViewports(node);
+    for (final MapEntry(key: at, value: look) in _itemLooks.entries) {
+      final motion = at < built ? _incoming[look.key] : null;
+      if (motion != null) _revealAfterGrowIn(node, motion, byKey: byKey);
+    }
+  }
+
+  /// Reveals the moved item whose key node is [node] again in the frame
+  /// [motion], the grow-in of an item before it, completes (R10): after a
+  /// key move only while the item keeps focus, as E16's second reveal.
+  /// Disposing [motion] before it completes drops the listener with it.
+  void _revealAfterGrowIn(
+    FocusNode node,
+    _ItemMotion motion, {
+    required bool byKey,
+  }) {
+    void grown(AnimationStatus status) {
+      if (!status.isCompleted) return;
+      motion.controller.removeStatusListener(grown);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || node.context == null) return;
+        if (!byKey || node.hasFocus) revealInViewports(node);
+      });
+    }
+
+    motion.controller.addStatusListener(grown);
   }
 
   /// Hands focus from a removed item to the first node of the item now at
