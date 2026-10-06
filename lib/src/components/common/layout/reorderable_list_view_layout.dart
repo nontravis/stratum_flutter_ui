@@ -524,7 +524,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (built != null) _endExitsBeside(built);
     // A focused item whose new slot is not built jumps there first, so the
     // frame that moves it builds the slot and keeps its State (E04).
-    final origin = focused && node != null ? _jumpForMove(to, node) : null;
+    final origin = focused && node != null
+        ? _jumpForMove(from, to, node)
+        : null;
     final box = node?.context?.findRenderObject();
     final size = box is RenderBox && box.hasSize ? box.size : null;
     _shiftForRemove(from);
@@ -1303,18 +1305,22 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return (position: position, offset: offset);
   }
 
-  /// Jumps in a move's call turn toward slot [to] of the focused item
-  /// whose key node is [node], when that slot is not built: exactly to the
-  /// start or end for an edge slot, as a key move to either end does, else
-  /// by [_estimateTowards] (FR-05 E04). The item's key comes from its built
-  /// slot, so the list never calls `itemBuilder` here. Returns the offset
-  /// before the jump, where a failed reach returns (R5); null with no jump.
+  /// Jumps in a move's call turn toward the slot the focused item whose key
+  /// node is [node] enters, when the last frame did not build that slot
+  /// number: [to] for a move up, and the slot after [to] for a move down,
+  /// since the item enters after the item now at [to] (invariant 35).
+  /// Exactly to the start or end for an edge slot, as a key move to either
+  /// end does, else by [_estimateTowards] at slot [to] (FR-05 E04). The
+  /// item's key comes from its built slot, so the list never calls
+  /// `itemBuilder` here. Returns the offset before the jump, where a failed
+  /// reach returns (R5); null with no jump.
   ({ScrollPosition position, double pixels})? _jumpForMove(
+    _DataIndex from,
     _DataIndex to,
     FocusNode node,
   ) {
-    final target = _builtIndexOf(to, inPlace: true);
-    if (target != null && _nodeAt(target) != null) return null;
+    final entered = from < to ? (to + 1).nextSlot : to.nextSlot;
+    if (_builtSlot(entered)) return null;
     final item = node.context;
     final position = item == null ? null : Scrollable.maybeOf(item)?.position;
     if (item == null || position == null) return null;
@@ -1329,6 +1335,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     estimate.position.jumpTo(estimate.offset);
     return origin;
   }
+
+  /// Whether the last frame built [slot]: a question of geometry, so it
+  /// reads slot numbers, never an index converted between the spaces.
+  bool _builtSlot(int slot) =>
+      _itemNodes.keys.any((index) => index.slot == slot);
 
   /// After the frame that moved the focused item [key] (FR-05 E04): with
   /// its State kept, it keeps focus and is revealed twice; with its State
