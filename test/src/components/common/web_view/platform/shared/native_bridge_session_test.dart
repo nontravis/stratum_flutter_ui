@@ -421,10 +421,43 @@ void main() {
       expect(session.didFinishPage(), isFalse);
     });
 
-    test('us01/fr02/e08: a controller action closes the open start, so the '
-        'error of a reload while the page still loads waits for its start',
-        () {
-      // R9 and R10: every controller action ends the open start.
+    test('us04/fr01/e05: a controller goBack with no new start keeps the '
+        'open finish', () {
+      // R14: a controller action ends only at-once eligibility, never the
+      // finish pairing. A goBack with no history entry starts no document.
+      session
+        ..didStartPage('https://app.example.com/a')
+        ..willNavigate();
+      expect(session.didFinishPage(), isTrue);
+    });
+
+    test('us01/fr01/e05: after a reload whose page never restarts, the old '
+        'finish still reports', () {
+      // R14: the reload ends only at-once eligibility, so the load it
+      // replaces keeps its finish.
+      session
+        ..didStartPage('https://app.example.com/flip')
+        ..willReload();
+      expect(session.didFinishPage(), isTrue);
+    });
+
+    test('us01/fr02/e08: a tracked-page HTTP error after a controller action '
+        'is a candidate, not at once', () {
+      // R8 and R9, kept by R14: the controller action ends at-once
+      // eligibility, so the error waits for the page it belongs to.
+      final page = Uri.parse('https://app.example.com/flip');
+      session
+        ..didStartPage(page.toString())
+        ..willNavigate();
+      expect(session.httpError(statusCode: 404, requestUrl: page), isNull);
+      expect(session.didStartPage(page.toString())?.code, 404);
+    });
+
+    test('us01/fr02/e08: a controller action ends the at-once error '
+        'eligibility, so the error of a reload while the page still loads '
+        'waits for its start', () {
+      // R8, R9, and R14: every controller action ends the at-once
+      // eligibility only.
       final page = Uri.parse('https://app.example.com/flip');
       for (final begin in <void Function()>[
         session.willLoadUrl,
@@ -441,13 +474,14 @@ void main() {
     });
 
     test('us01/fr01/e05: the late finish of a load that a controller action '
-        'replaced is dropped', () {
-      // R9: the reload ends the open start of the page it replaces.
+        'replaced pairs with its own start and reaches the app', () {
+      // R14: the reload ends only the at-once error eligibility, so the
+      // replaced load's finish still pairs with the start it left open.
       const page = 'https://app.example.com/flip';
       session
         ..didStartPage(page)
         ..willReload();
-      expect(session.didFinishPage(), isFalse);
+      expect(session.didFinishPage(), isTrue);
       session.didStartPage(page);
       expect(session.didFinishPage(), isTrue);
     });

@@ -51,17 +51,22 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 ///   [allowedOrigins] when a hard boundary is needed.
 /// * Android: the platform marks no main frame on an HTTP error, so an HTTP
 ///   error counts for the page whose start follows it. A sub-resource that
-///   failed on the address a later back or forward of the page's own script
-///   lands on is reported through [onError] as that page's error, even when
-///   the page now answers 200, unless a navigation began between: a load, a
-///   reload, a controller back or forward, or a main-frame navigation that
-///   [onNavigationRequest] allows. Only a controller call ends a loading
-///   page's start, so a navigation the page starts while it still loads
-///   may report its HTTP error through [onError] before the new load's
+///   failed on the address a later navigation the page starts and the
+///   platform does not ask about — a history move of the page's own script,
+///   a script reload, a form POST — lands on is reported through [onError]
+///   as that page's error, even when the page now answers 200, unless a
+///   navigation began between: a load, a reload, a controller back or
+///   forward, or a main-frame navigation that [onNavigationRequest] allows.
+///   A loading page's start ends only when the platform reports its finish
+///   or a new page starts, so a back or forward that starts no new document
+///   keeps the page's finish, and a replaced load's late finish pairs with
+///   its own start. A navigation the page starts while it still loads may
+///   report its HTTP error through [onError] before the new load's
 ///   [onPageStarted] when it goes to the page's own address, or may report
-///   an [onPageFinished] that names the redirect target, ending the loading
-///   page's start, before the target's [onPageStarted] when it goes to an
-///   address the server redirects.
+///   an [onPageFinished] that names the redirect target, paired with the
+///   loading page's open start, before the target's [onPageStarted] when it
+///   goes to an address the server redirects; a stray finish of a replaced
+///   navigation may likewise pair with the replacement's own start.
 class StratumWebView extends StatefulWidget {
   const new({
     super.key,

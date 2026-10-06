@@ -23,8 +23,12 @@ final class NativeBridgeSession {
   bool _pageUrlUnknown = false;
 
   /// Whether a main-frame page start has had neither a page finish nor a
-  /// controller action since.
+  /// new page start since, so a finish still pairs with it.
   bool _pageStartOpen = false;
+
+  /// Whether a tracked-page HTTP error still reports at once: ended by
+  /// every controller action, kept by a navigation the app allows.
+  bool _atOnceErrorOpen = false;
 
   /// HTTP errors held until a main-frame page start names their URL, keyed
   /// by [_comparable] URL, oldest first.
@@ -63,11 +67,14 @@ final class NativeBridgeSession {
   void willDispose() => _candidates.clear();
 
   /// A controller action begins a navigation: every candidate is discarded,
-  /// and the open page start closes because the load it belongs to is
-  /// replaced, so a late finish of that load is unpaired and dropped.
+  /// and the at-once error eligibility of the tracked page ends, because
+  /// the HTTP error Android reports for the new load belongs to the page it
+  /// starts. The open page start stays: a history move that starts no new
+  /// document keeps the loading page's finish, and a late finish of a
+  /// replaced load still pairs with the start it left open.
   void _beginNavigation() {
     _candidates.clear();
-    _pageStartOpen = false;
+    _atOnceErrorOpen = false;
   }
 
   /// Call when the platform reports that a main-frame page started loading.
@@ -80,6 +87,7 @@ final class NativeBridgeSession {
     _pageUrl = pageUrl;
     _pageUrlUnknown = false;
     _pageStartOpen = true;
+    _atOnceErrorOpen = true;
     // While our HTML is still loading, a page with a real origin is the late
     // start of the load it superseded, never our HTML (which reports a
     // host-less URL). Letting it count would use up the HTML's first-load
@@ -96,12 +104,14 @@ final class NativeBridgeSession {
   /// Call when the platform reports that a main-frame page finished loading.
   ///
   /// Returns whether the adapter reports the finish: only a finish that
-  /// pairs with an open page start does. Android reports a finish for a
-  /// redirect target before that page starts, and a load that a controller
-  /// action replaced may still report its finish; neither releases anything.
+  /// pairs with an open page start does, and only while the pairing is open
+  /// does a tracked-page HTTP error report at once. Android reports a
+  /// finish for a redirect target before that page starts; it releases
+  /// nothing.
   bool didFinishPage() {
     if (!_pageStartOpen) return false;
     _pageStartOpen = false;
+    _atOnceErrorOpen = false;
     return true;
   }
 
@@ -168,14 +178,17 @@ final class NativeBridgeSession {
   /// Android reports the HTTP error of a main-frame response before its
   /// page starts, on a load, a history move, and a reload alike, and
   /// `webview_flutter_android` passes no main-frame flag on it. So an error
-  /// whose request URL is not the page with an open start is held as the
-  /// candidate of its URL, the newest replacing an older one, and
-  /// [didStartPage] returns the candidate its page names: every platform
-  /// then reports page start, error, page finish, whoever started the
-  /// navigation. A sub-resource error stays a candidate until a navigation
-  /// begin or the next page start discards it. WebKit (iOS, macOS) reports
-  /// HTTP errors only for navigation responses and never supplies a request
-  /// URL, so a `null` [requestUrl] is treated as the current page instead.
+  /// whose request URL is not the tracked page with at-once eligibility
+  /// open is held as the candidate of its URL, the newest replacing an
+  /// older one, and [didStartPage] returns the candidate its page names:
+  /// every platform then reports page start, error, page finish, whoever
+  /// started the navigation. A controller action ends the at-once
+  /// eligibility only, so its load's error waits for its own start while
+  /// the replaced load's finish still pairs with the start it left open. A
+  /// sub-resource error stays a candidate until a navigation begin or the
+  /// next page start discards it. WebKit (iOS, macOS) reports HTTP errors
+  /// only for navigation responses and never supplies a request URL, so a
+  /// `null` [requestUrl] is treated as the current page instead.
   StratumWebViewError? httpError({
     required int? statusCode,
     required Uri? requestUrl,
@@ -188,7 +201,7 @@ final class NativeBridgeSession {
     );
     if (requestUrl == null) return error;
     final url = _comparable(requestUrl)!;
-    if (_pageStartOpen && url == _comparable(_pageUrl)) return error;
+    if (_atOnceErrorOpen && url == _comparable(_pageUrl)) return error;
     _candidates
       ..remove(url)
       ..[url] = error;
