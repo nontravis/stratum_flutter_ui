@@ -234,9 +234,21 @@ void main() {
         expect(mark, isNotNull, reason: 'no onPageFinished after goBack');
         if (_isWebKit()) {
           // WebKit restores the entry from its back-forward cache with no
-          // request, so no HTTP error exists to report.
-          expect(recorder.kindsSince(mark!), ['started', 'finished']);
-          expect(recorder.errors, isEmpty);
+          // request, so no HTTP error exists to report; when it instead
+          // requests the page again, the Android order holds (US-08
+          // scenario 11).
+          final kinds = recorder.kindsSince(mark!);
+          final errors = recorder.errorsSince(mark);
+          if (kinds.contains('error')) {
+            expect(kinds, ['started', 'error', 'finished']);
+            expect(errors, hasLength(1));
+            expect(errors.single.type, StratumWebViewErrorType.http);
+            expect(errors.single.code, HttpStatus.notFound);
+            expect(errors.single.url, flip);
+          } else {
+            expect(kinds, ['started', 'finished']);
+            expect(errors, isEmpty);
+          }
         } else {
           expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
           expect(recorder.errors, hasLength(1));
@@ -253,8 +265,9 @@ void main() {
       'start, finish with no error on iOS and macOS',
       (tester) async {
         // CO-01-02 US-01 FR-02 E08: Android replays the 404 from its HTTP
-        // cache without a request; WebKit instead restores the entry from
-        // its back-forward cache, so only the load's own error exists.
+        // cache without a request; WebKit either restores the entry from
+        // its back-forward cache, leaving the load's own error the last
+        // one, or requests the page again (US-08 scenario 11).
         final controller = StratumWebViewController();
         final first = server.page('/ok');
         final missing = server.page('/missing', query: 'case=forward');
@@ -286,16 +299,30 @@ void main() {
         expect(failed, isTrue, reason: 'no onPageFinished for $missing');
         expect(back, isTrue, reason: 'no onPageFinished after goBack');
         expect(mark, isNotNull, reason: 'no onPageFinished after goForward');
-        // One error for the load of the 404 entry, plus one more wherever
-        // the move forward re-requests or replays it; the WebKit cache
-        // restore adds none.
-        expect(recorder.errors, hasLength(_isWebKit() ? 1 : 2));
-        expect(recorder.errors.last.type, StratumWebViewErrorType.http);
-        expect(recorder.errors.last.code, HttpStatus.notFound);
-        expect(recorder.errors.last.url, missing);
         if (_isWebKit()) {
-          expect(recorder.kindsSince(mark!), ['started', 'finished']);
+          // WebKit restores the entry from its back-forward cache with no
+          // request, so no error follows the load's own one; when it
+          // instead requests the page again, the Android order holds
+          // (US-08 scenario 11).
+          final kinds = recorder.kindsSince(mark!);
+          final errors = recorder.errorsSince(mark);
+          if (kinds.contains('error')) {
+            expect(kinds, ['started', 'error', 'finished']);
+            expect(errors, hasLength(1));
+            expect(errors.single.type, StratumWebViewErrorType.http);
+            expect(errors.single.code, HttpStatus.notFound);
+            expect(errors.single.url, missing);
+          } else {
+            expect(kinds, ['started', 'finished']);
+            expect(errors, isEmpty);
+          }
         } else {
+          // One error for the load of the 404 entry, plus one for the
+          // replay from Android's HTTP cache.
+          expect(recorder.errors, hasLength(2));
+          expect(recorder.errors.last.type, StratumWebViewErrorType.http);
+          expect(recorder.errors.last.code, HttpStatus.notFound);
+          expect(recorder.errors.last.url, missing);
           expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
         }
       },
@@ -552,6 +579,7 @@ class _Recorder {
   final errors = <StratumWebViewError>[];
   final messages = <String>[];
   final _events = <String>[];
+  final _errorAt = <int>[];
 
   void onStarted(Uri? url) {
     starts.add(url);
@@ -564,6 +592,7 @@ class _Recorder {
   }
 
   void onError(StratumWebViewError error) {
+    _errorAt.add(_events.length);
     errors.add(error);
     _events.add(
       'error ${error.type.name} ${error.code} ${error.url} '
@@ -590,6 +619,13 @@ class _Recorder {
   List<String> kindsSince(int mark) => [
     for (final event in _events.skip(mark))
       if (!event.startsWith('message ')) event.split(' ').first,
+  ];
+
+  /// Each error that arrived at or after [mark], so a later move's case
+  /// leaves the earlier load's own errors out.
+  List<StratumWebViewError> errorsSince(int mark) => [
+    for (var i = 0; i < errors.length; i++)
+      if (_errorAt[i] >= mark) errors[i],
   ];
 }
 
