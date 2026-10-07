@@ -414,6 +414,35 @@ location.href = 'data:text/html,' + encodeURIComponent(
     expect(await view.currentUrl(), second);
   });
 
+  test('us04/fr01/e02: currentUrl reports the entry URL while a '
+      "re-inserted view restarts that entry's navigation, not the "
+      "restarted navigation's transient about:blank", () async {
+    Future<void> finishes(int count) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (listener.pagesFinished.length < count) {
+        if (DateTime.now().isAfter(deadline)) fail('no frame load $count');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    }
+
+    final url = appOrigin.replace(path: '/missing');
+    await view.load(StratumWebViewSource.url(url));
+    attach();
+    await finishes(1);
+    expect(await view.currentUrl(), url);
+
+    view.iframe.remove();
+    final host = web.HTMLDivElement();
+    web.document.body!.appendChild(host);
+    // A tear-off of a JS interop member does not compile, so wrap it.
+    // ignore: unnecessary_lambdas
+    addTearDown(() => host.remove());
+    view.attachTo(host);
+    expect(await view.currentUrl(), url);
+    await finishes(2);
+    expect(await view.currentUrl(), url);
+  });
+
   test('us03/fr01/e05: an outgoing URL page message arrives with its own '
       'origin after the view moved on, to HTML or to another URL', () async {
     await view.load(missingPage());

@@ -53,7 +53,8 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   web.MessagePort? _bridgePort;
 
   /// Whether a page start was reported that no frame `load` has finished:
-  /// from a controller load until the frame's `load` for that entry.
+  /// from a controller load, or a re-insertion that restarts a completed
+  /// entry's navigation, until the frame's `load` for that entry.
   bool _pageStartOpen = false;
 
   /// The iframe that shows the page.
@@ -66,13 +67,24 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   /// Flutter creates a fresh host each time the view is inserted into the
   /// page, so re-insertion always moves the iframe and discards its browsing
   /// context: `srcdoc` reloads, the bootstrap script runs again, and a new
-  /// handshake carrying the same nonce replaces the adopted port.
+  /// handshake carrying the same nonce replaces the adopted port. When that
+  /// restart lands on a completed entry (no load already open), reopen the
+  /// request-to-load window: otherwise `currentUrl()` would read the
+  /// restarted navigation's transient `about:blank` instead of the entry's
+  /// URL (US-04 FR-01 E02).
   @visibleForTesting
   void attachTo(web.HTMLElement host) {
     host.style
       ..width = '100%'
       ..height = '100%';
     host.appendChild(_iframe);
+    final current = _history.current;
+    if (current != null && !_pageStartOpen) {
+      _pageStartOpen = true;
+      _listener.onPageStarted(
+        current is StratumWebViewUrlSource ? current.url : null,
+      );
+    }
   }
 
   @override
@@ -242,9 +254,8 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     if (current == null) return;
     final url = current is StratumWebViewUrlSource ? current.url : null;
     // The web has no start event of its own: a frame load that no `_show`
-    // started (a link inside the frame, or the reload when the view is
-    // inserted again) reports its start first, so every finish pairs with
-    // one start.
+    // or `attachTo` restart already opened (a link inside the frame)
+    // reports its start first, so every finish pairs with one start.
     if (!_pageStartOpen) _listener.onPageStarted(url);
     _pageStartOpen = false;
     _listener.onPageFinished(url);
