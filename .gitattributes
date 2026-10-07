@@ -1,0 +1,4 @@
+# The re-pack test pins the committed zip bytes: keep these as written.
+example/assets/remote_themes/*.zip binary
+example/assets/remote_themes/**/*.yaml text eol=lf
+example/assets/remote_themes/**/*.svg text eol=lf
