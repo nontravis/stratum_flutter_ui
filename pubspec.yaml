@@ -77,6 +77,12 @@ flutter:
       android:
         package: dev.stratum.stratum_ui
         pluginClass: StratumUiPlugin
+      ios:
+        pluginClass: StratumUiPlugin
+        sharedDarwinSource: true
+      macos:
+        pluginClass: StratumUiPlugin
+        sharedDarwinSource: true
   uses-material-design: true
   generate: true
 
