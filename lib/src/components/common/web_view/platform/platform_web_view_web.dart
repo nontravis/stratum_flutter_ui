@@ -277,6 +277,12 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
 
   void _handleMessage(web.MessageEvent event) {
     if (_disposed) return;
+    // A script on the app's own origin can dispatch a synthetic `message`
+    // event with a forged `origin` and `source`, or forge the HTML
+    // handshake once it reads the nonce from `frameElement.srcdoc` (sec-m3
+    // F3): drop any event the browser did not author itself, before the
+    // handshake branch sees it too.
+    if (!event.isTrusted) return;
     final frameWindow = _iframe.contentWindow;
     if (frameWindow == null) return;
     if (!event.source.strictEquals(frameWindow).toDart) return;

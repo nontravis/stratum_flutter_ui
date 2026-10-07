@@ -322,4 +322,5 @@ scroll it, guarded so a text field inside keeps its own keys.
   gets nothing and the send throws `StateError`. On Windows and Linux every frame of an allowed page can send,
   credited to the page of the last `onPageStarted`.
   Web: `onMessage`'s origin names the page that sent the message, even a URL page the view has moved away from, and
-  `currentUrl()` reports the requested URL until the frame finishes loading it.
+  `currentUrl()` reports the requested URL until the frame finishes loading it. On the web, load only content the app
+  trusts on the app's own origin: such a page runs with the app's privileges.

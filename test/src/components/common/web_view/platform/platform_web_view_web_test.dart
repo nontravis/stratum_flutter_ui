@@ -59,6 +59,33 @@ void main() {
     }
   }
 
+  /// Waits until the listener has recorded [count] messages, so a test can
+  /// act on a real, asynchronously posted message instead of racing it.
+  Future<void> waitForMessages(int count) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (listener.messages.length < count) {
+      if (DateTime.now().isAfter(deadline)) fail('no message $count');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
+
+  /// Loads [script] as a real `<script>` run inside a `url` source page's
+  /// own JavaScript realm.
+  ///
+  /// The frame navigates to a `blob:` URL this test created: a Blob URL's
+  /// origin is the origin of the document that created it, not of the frame
+  /// that navigates to it, so the page stays on [appOrigin]. `event.source`
+  /// and `event.origin` on any message [script] posts are then browser-set,
+  /// never forgeable by the test (sec-m3 F3).
+  Future<void> loadBlobScript(String script) async {
+    final blob = web.Blob(
+      <JSAny>['<script>$script</script>'.toJS].toJS,
+      web.BlobPropertyBag(type: 'text/html'),
+    );
+    final url = Uri.parse(web.URL.createObjectURL(blob));
+    await view.load(StratumWebViewSource.url(url));
+  }
+
   test(
     'us01/fr01: a controller load reports one start and one finish',
     () async {
@@ -135,36 +162,108 @@ void main() {
     );
   });
 
-  test('delivers a message from the iframe with an allowed origin', () async {
+  test(
+    'delivers a real message from the iframe with an allowed origin',
+    () async {
+      await loadBlobScript("parent.postMessage('hello','*');");
+      attach();
+      await waitForMessages(1);
+      expect(listener.messages, [
+        StratumWebViewMessage(data: 'hello', origin: appOrigin),
+      ]);
+    },
+  );
+
+  test('drops a real message from another window, not the frame', () async {
     await view.load(missingPage());
     attach();
-    dispatchMessage('hello'.toJS, origin: appOrigin.toString());
-    expect(listener.messages, [
-      StratumWebViewMessage(data: 'hello', origin: appOrigin),
-    ]);
+    // A real, browser-authored message window posts to itself: its source
+    // is the top window, never the frame.
+    web.window.postMessage('from app window'.toJS, appOrigin.toString().toJS);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(listener.messages, isEmpty);
   });
 
   test(
-    'drops messages from other windows, other origins, and non-strings',
+    'drops a real frame message once its origin leaves the allowlist',
     () async {
-      await view.load(missingPage());
+      // `isAllowedOrigin` itself is covered by origin_policy_test.dart; this
+      // only proves the wiring drops a real message whose real origin is not
+      // in the listener's allowlist, in place of a harness-unreachable origin.
+      listener.allowedOrigins = {};
+      await loadBlobScript("parent.postMessage('from frame','*');");
       attach();
-      dispatchMessage(
-        'from app window'.toJS,
-        origin: appOrigin.toString(),
-        source: web.window,
-      );
-      dispatchMessage('from evil'.toJS, origin: 'https://evil.example.net');
-      dispatchMessage(42.toJS, origin: appOrigin.toString());
+      await Future<void>.delayed(const Duration(milliseconds: 300));
       expect(listener.messages, isEmpty);
     },
   );
 
-  test('drops an opaque-origin message while a URL is shown', () async {
+  test('drops a real non-string message from the frame', () async {
+    await loadBlobScript('parent.postMessage(42,"*");');
+    attach();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(listener.messages, isEmpty);
+  });
+
+  test('drops a real opaque-origin message while a URL is shown', () async {
+    const html = '<script>parent.postMessage("opaque","*")</script>';
+    final crossOrigin = Uri.parse(
+      'data:text/html,${Uri.encodeComponent(html)}',
+    );
+    await view.load(StratumWebViewSource.url(crossOrigin));
+    attach();
+    await finishes(1);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(listener.messages, isEmpty);
+  });
+
+  test('us03/fr01/e13: a forged message event, with an allowed origin and '
+      'the frame as source, is dropped', () async {
     await view.load(missingPage());
     attach();
-    dispatchMessage('opaque'.toJS, origin: 'null');
+    dispatchMessage('forged'.toJS, origin: appOrigin.toString());
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     expect(listener.messages, isEmpty);
+  });
+
+  test('us03/fr01/e13: a forged "null" handshake carrying the real nonce, '
+      'with a real port, never adopts and never hijacks the bridge', () async {
+    await view.load(
+      const StratumWebViewSource.html(
+        "<script>StratumBridge.postMessage('ready');</script>",
+      ),
+    );
+    attach();
+    await waitForMessages(1); // the real handshake's 'ready' message
+    final srcdocValue = view.iframe.srcdoc;
+    if (!srcdocValue.isA<JSString>()) fail('expected a string srcdoc');
+    final srcdoc = (srcdocValue as JSString).toDart;
+    final nonce = RegExp('stratum-bridge-handshake:([0-9a-f]{32})')
+        .firstMatch(srcdoc)!
+        .group(1)!;
+
+    final evilChannel = web.MessageChannel();
+    var attackerSawPost = false;
+    evilChannel.port1.onmessage = ((web.MessageEvent event) {
+      attackerSawPost = true;
+    }).toJS;
+    evilChannel.port1.start();
+    web.window.dispatchEvent(
+      web.MessageEvent(
+        'message',
+        web.MessageEventInit(
+          data: 'stratum-bridge-handshake:$nonce'.toJS,
+          origin: 'null',
+          source: view.iframe.contentWindow,
+          ports: [evilChannel.port2].toJS,
+        ),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    await view.postMessage('to-page');
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(attackerSawPost, isFalse);
   });
 
   test('StratumBridge.postMessage from our HTML reaches the listener '
@@ -183,8 +282,7 @@ void main() {
     );
   });
 
-  test('drops a direct postMessage and a synthetic null message, '
-      'keeps the bridge message', () async {
+  test('drops a direct postMessage, keeps the bridge message', () async {
     final viaBridge = Completer<void>();
     listener.onMessageCallback = (message) {
       if (message.data == 'via-bridge' && !viaBridge.isCompleted) {
@@ -201,7 +299,6 @@ void main() {
     );
     attach();
     await viaBridge.future.timeout(const Duration(seconds: 5));
-    dispatchMessage('spoofed'.toJS, origin: 'null');
     await Future<void>.delayed(const Duration(milliseconds: 300));
     expect(listener.messages, [
       const StratumWebViewMessage(data: 'via-bridge'),
@@ -371,15 +468,12 @@ location.href = 'data:text/html,' + encodeURIComponent(
   });
 
   test('stops delivering messages after dispose', () async {
-    await view.load(missingPage());
-    attach();
-    final frameWindow = view.iframe.contentWindow;
-    view.dispose();
-    dispatchMessage(
-      'late'.toJS,
-      origin: appOrigin.toString(),
-      source: frameWindow,
+    await loadBlobScript(
+      "setTimeout(function(){parent.postMessage('late','*');},50);",
     );
+    attach();
+    view.dispose();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     expect(listener.messages, isEmpty);
   });
 
@@ -471,15 +565,30 @@ location.href = 'data:text/html,' + encodeURIComponent(
 
   test('us03/fr01/e05: an outgoing URL page message arrives with its own '
       'origin after the view moved on, to HTML or to another URL', () async {
-    await view.load(missingPage());
+    // Each real page posts its own message from `beforeunload`, its last
+    // script run while still the page the frame shows: a real reproduction
+    // of an outgoing page's late message, in place of forging the event.
+    // `pagehide` and `unload` never deliver a `postMessage` sent from this
+    // frame's own navigation in this harness; `beforeunload` does.
+    await loadBlobScript(
+      "window.addEventListener('beforeunload',function(){"
+      "parent.postMessage('to html','*');});",
+    );
     attach();
+    // Each page's `beforeunload` listener must already be registered
+    // before the next navigation leaves it, so wait for that page's load.
+    await finishes(1);
     await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
-    dispatchMessage('to html'.toJS, origin: appOrigin.toString());
+    await finishes(2);
+    await loadBlobScript(
+      "window.addEventListener('beforeunload',function(){"
+      "parent.postMessage('to url','*');});",
+    );
+    await finishes(3);
     await view.load(
       StratumWebViewSource.url(appOrigin.replace(path: '/second')),
     );
-    dispatchMessage('to url'.toJS, origin: appOrigin.toString());
-    dispatchMessage('evil'.toJS, origin: 'https://evil.example.net');
+    await waitForMessages(2);
     expect(listener.messages, [
       StratumWebViewMessage(data: 'to html', origin: appOrigin),
       StratumWebViewMessage(data: 'to url', origin: appOrigin),
