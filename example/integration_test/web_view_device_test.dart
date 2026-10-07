@@ -390,6 +390,92 @@ void main() {
       expect(echoed, isTrue, reason: 'the page never echoed "ping"');
       expect(recorder.errors, isEmpty);
     });
+
+    testWidgets(
+      'us08/s13: the app HTML document and the app trade messages both '
+      'ways, the document in standards mode',
+      (tester) async {
+        // CO-01-02 US-03 FR-04 of the package docs: the document proves the
+        // per-load nonce, so its messages arrive with no origin and the
+        // app's send reaches it; US-02 FR-01 E02: the bootstrap goes after
+        // the doctype, so the document keeps standards mode.
+        final controller = StratumWebViewController();
+        final recorder = await _show(
+          tester,
+          const StratumWebViewSource.html(_htmlBridgePage),
+          controller: controller,
+          allowedOrigins: {server.origin},
+        );
+        final ready = await _pumpUntil(
+          tester,
+          () => recorder.messages.contains('ready:CSS1Compat'),
+        );
+        if (ready) await controller.postMessage('ping');
+        final echoed =
+            ready &&
+            await _pumpUntil(
+              tester,
+              () => recorder.messages.contains('echo:ping'),
+            );
+        recorder.logOrder('html round trip');
+        await _checkpoint(binding, tester, 'b_html');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(
+          ready,
+          isTrue,
+          reason:
+              'the HTML message "ready:CSS1Compat" never came: '
+              '${recorder.messages}',
+        );
+        expect(echoed, isTrue, reason: 'the HTML page never echoed "ping"');
+        expect(recorder.origins, everyElement(isNull));
+      },
+    );
+
+    testWidgets('us08/s14: a reload keeps the app HTML document connected', (
+      tester,
+    ) async {
+      // CO-01-02 US-03 FR-04 E04 of the package docs: the engine parses the
+      // same HTML string again, so the reloaded document carries the same
+      // nonce, its message arrives, and the app's send still reaches it.
+      final controller = StratumWebViewController();
+      final recorder = await _show(
+        tester,
+        const StratumWebViewSource.html(_htmlBridgePage),
+        controller: controller,
+        allowedOrigins: {server.origin},
+      );
+      int readyCount() =>
+          recorder.messages.where((data) => data.startsWith('ready:')).length;
+      final first = await _pumpUntil(tester, () => readyCount() == 1);
+      final mark = first
+          ? await _finishAfter(tester, recorder, controller.reload)
+          : null;
+      final again =
+          mark != null && await _pumpUntil(tester, () => readyCount() == 2);
+      if (again) await controller.postMessage('pong');
+      final echoed =
+          again &&
+          await _pumpUntil(
+            tester,
+            () => recorder.messages.contains('echo:pong'),
+          );
+      recorder.logOrder('html reload');
+      await _checkpoint(binding, tester, 'b_html_reload');
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+      expect(first, isTrue, reason: 'the HTML message "ready" never came');
+      expect(mark, isNotNull, reason: 'no onPageFinished after reload');
+      expect(
+        again,
+        isTrue,
+        reason:
+            'the reloaded HTML never sent "ready": this engine did not '
+            'keep the nonce on reload (UV-1)',
+      );
+      expect(echoed, isTrue, reason: 'the reloaded HTML never echoed "pong"');
+    });
   }, skip: kIsWeb);
 }
 
@@ -554,6 +640,23 @@ const _bridgeBody = '''
 </script>
 ''';
 
+/// An app HTML document with a doctype: it says `ready:` and its
+/// `document.compatMode` once loaded, and answers each app message with
+/// `echo:<data>` (FR-01 outputs `html round trip` and `html reload`).
+const _htmlBridgePage = '''
+<!doctype html>
+<html><body style="font-family: sans-serif"><h1>HTML bridge</h1>
+<script>
+  window.addEventListener('message', function (event) {
+    StratumBridge.postMessage('echo:' + event.data);
+  });
+  window.addEventListener('load', function () {
+    StratumBridge.postMessage('ready:' + document.compatMode);
+  });
+</script>
+</body></html>
+''';
+
 /// An address on a loopback port where nothing listens.
 Future<Uri> _closedPortPage() async {
   final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
@@ -568,6 +671,7 @@ class _Recorder {
   final finishes = <Uri?>[];
   final errors = <StratumWebViewError>[];
   final messages = <String>[];
+  final origins = <Uri?>[];
   final _events = <String>[];
   final _errorAt = <int>[];
 
@@ -592,6 +696,7 @@ class _Recorder {
 
   void onMessage(StratumWebViewMessage message) {
     messages.add(message.data);
+    origins.add(message.origin);
     _events.add('message ${message.data}');
   }
 
@@ -626,6 +731,19 @@ Future<_Recorder> _showPage(
   Uri page, {
   StratumWebViewController? controller,
   Set<Uri> allowedOrigins = const <Uri>{},
+}) => _show(
+  tester,
+  StratumWebViewSource.url(page),
+  controller: controller,
+  allowedOrigins: allowedOrigins,
+);
+
+/// Shows one StratumWebView on [source] that reports into a new recorder.
+Future<_Recorder> _show(
+  WidgetTester tester,
+  StratumWebViewSource source, {
+  StratumWebViewController? controller,
+  Set<Uri> allowedOrigins = const <Uri>{},
 }) async {
   final recorder = _Recorder();
   await tester.pumpWidget(
@@ -633,7 +751,7 @@ Future<_Recorder> _showPage(
       home: Scaffold(
         body: StratumWebView(
           controller: controller,
-          source: StratumWebViewSource.url(page),
+          source: source,
           allowedOrigins: allowedOrigins,
           onPageStarted: recorder.onStarted,
           onPageFinished: recorder.onFinished,
