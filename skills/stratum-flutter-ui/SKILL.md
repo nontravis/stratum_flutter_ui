@@ -268,4 +268,6 @@ scroll it, guarded so a text field inside keeps its own keys.
   defaults read, each problem with the code your app would report, and `warning:` lines (files the theme does not name,
   names that differ only in letter case) that never fail it. Exit 0 pass, 1 check failed, 64 usage, 66 a missing
   folder, zip file, or `--app-default` file, an `--out` that is not a folder, or a zip that fails to write. Names
-  starting with `.` and `__MACOSX/` stay out; a symbolic link or other special entry fails the pack.
+  starting with `.` and `__MACOSX/` stay out; a symbolic link or other special entry fails the pack. stratum_ui allows
+  only the google_fonts version its CLI family list came from, so the CLI and your app accept the same `Google/<Name>`
+  families.
