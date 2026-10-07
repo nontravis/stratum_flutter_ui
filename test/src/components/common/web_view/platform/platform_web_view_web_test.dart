@@ -69,6 +69,20 @@ void main() {
     }
   }
 
+  /// Waits until the frame's own browsing context shows `about:blank`, the
+  /// way [WebPlatformStratumWebView.dispose] leaves it: a `src`-attribute
+  /// `about:blank` inherits this test page's origin, so the frame stays
+  /// same-origin and script-capable after dispose.
+  Future<void> waitForFrameBlank() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (true) {
+      final href = view.iframe.contentWindow?.location.href;
+      if (href == 'about:blank') return;
+      if (DateTime.now().isAfter(deadline)) fail('frame never went blank');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
+
   /// Loads [script] as a real `<script>` run inside a `url` source page's
   /// own JavaScript realm.
   ///
@@ -190,19 +204,43 @@ void main() {
       // `isAllowedOrigin` itself is covered by origin_policy_test.dart; this
       // only proves the wiring drops a real message whose real origin is not
       // in the listener's allowlist, in place of a harness-unreachable origin.
+      // A raw listener is the positive control: it proves the frame's post
+      // actually arrived at `window`, so the tracked listener's empty result
+      // means the allowlist check ran and rejected it, not that nothing was
+      // ever sent.
       listener.allowedOrigins = {};
+      final arrived = Completer<void>();
+      final raw = ((web.MessageEvent event) {
+        final data = event.data;
+        if (data != null &&
+            data.isA<JSString>() &&
+            (data as JSString).toDart == 'from frame' &&
+            !arrived.isCompleted) {
+          arrived.complete();
+        }
+      }).toJS;
+      web.window.addEventListener('message', raw);
+      addTearDown(() => web.window.removeEventListener('message', raw));
       await loadBlobScript("parent.postMessage('from frame','*');");
       attach();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await arrived.future.timeout(const Duration(seconds: 5));
       expect(listener.messages, isEmpty);
     },
   );
 
   test('drops a real non-string message from the frame', () async {
-    await loadBlobScript('parent.postMessage(42,"*");');
+    // A trailing string sentinel is the positive control: posts to one
+    // target arrive in the order they were sent, so seeing `after` proves
+    // the handler already judged (and dropped) `42` first, instead of the
+    // frame never having posted at all within the wait.
+    await loadBlobScript(
+      "parent.postMessage(42,'*');parent.postMessage('after','*');",
+    );
     attach();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    expect(listener.messages, isEmpty);
+    await waitForMessages(1);
+    expect(listener.messages, [
+      StratumWebViewMessage(data: 'after', origin: appOrigin),
+    ]);
   });
 
   test('drops a real opaque-origin message while a URL is shown', () async {
@@ -228,9 +266,18 @@ void main() {
 
   test('us03/fr01/e13: a forged "null" handshake carrying the real nonce, '
       'with a real port, never adopts and never hijacks the bridge', () async {
+    // An echo listener proves the genuine bridge still round-trips after
+    // the forgery: a regression that closes the real port without adopting
+    // the forged one (a bridge DoS) would fail this, not just the attacker
+    // check below.
     await view.load(
       const StratumWebViewSource.html(
-        "<script>StratumBridge.postMessage('ready');</script>",
+        '<script>\n'
+        "window.addEventListener('message', function(e) {\n"
+        "StratumBridge.postMessage('echo:' + e.data);\n"
+        '});\n'
+        "StratumBridge.postMessage('ready');\n"
+        '</script>',
       ),
     );
     attach();
@@ -262,7 +309,11 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 100));
 
     await view.postMessage('to-page');
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await waitForMessages(2);
+    expect(listener.messages, [
+      const StratumWebViewMessage(data: 'ready'),
+      const StratumWebViewMessage(data: 'echo:to-page'),
+    ]);
     expect(attackerSawPost, isFalse);
   });
 
@@ -468,12 +519,35 @@ location.href = 'data:text/html,' + encodeURIComponent(
   });
 
   test('stops delivering messages after dispose', () async {
-    await loadBlobScript(
-      "setTimeout(function(){parent.postMessage('late','*');},50);",
-    );
+    // Builds a sender in the frame's own realm, after dispose, so a real
+    // message can still be posted while the view's own listener is gone:
+    // a positive control proves it arrives at `window` even though the
+    // disposed view never records it.
+    await view.load(missingPage());
     attach();
+    await finishes(1);
     view.dispose();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await waitForFrameBlank();
+
+    final arrived = Completer<void>();
+    final raw = ((web.MessageEvent event) {
+      final data = event.data;
+      if (data != null &&
+          data.isA<JSString>() &&
+          (data as JSString).toDart == 'late' &&
+          !arrived.isCompleted) {
+        arrived.complete();
+      }
+    }).toJS;
+    web.window.addEventListener('message', raw);
+    addTearDown(() => web.window.removeEventListener('message', raw));
+
+    final frameWindow = view.iframe.contentWindow! as JSObject;
+    final sender = (frameWindow['Function']! as JSFunction)
+        .callAsConstructor<JSFunction>("parent.postMessage('late','*')".toJS);
+    frameWindow.callMethod<JSAny?>('setTimeout'.toJS, sender, 0.toJS);
+
+    await arrived.future.timeout(const Duration(seconds: 5));
     expect(listener.messages, isEmpty);
   });
 
