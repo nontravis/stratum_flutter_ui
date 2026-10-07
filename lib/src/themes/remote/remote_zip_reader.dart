@@ -34,8 +34,8 @@ const int _endSearch = _endSize + 0xFFFF;
 /// - the entry count against the end record, then every local header
 ///   against its central header and no two entries sharing bytes
 ///   (`invalidArchive`);
-/// - every entry path and file type (`unsafeEntryPath`), the theme root
-///   (`missingThemeFile`);
+/// - every entry path, file type, and `/`-ending folder entry
+///   (`unsafeEntryPath`), the theme root (`missingThemeFile`);
 /// - each entry under the root inflated from its own span under one
 ///   running byte count that stops at [maxBytes] (`archiveTooLarge`), its
 ///   CRC-32 checked (`invalidArchive`).
@@ -52,9 +52,11 @@ Map<String, Uint8List> readRemoteZip(
   final end = _EndRecord.find(view);
   final entries = _walk(data, view, end, maxBytes, maxEntries);
   final spans = _locate(data, view, entries, end.directoryStart);
-  for (final entry in entries) {
+  for (final span in spans) {
+    final entry = span.entry;
     checkEntryPath(entry.name);
     checkEntryFileType(entry.name, externalAttributes: entry.attributes);
+    entry.checkFolderEntry(data, span.start);
   }
   final root = findThemeRoot(entries.map((entry) => entry.name));
   final files = <String, Uint8List>{};
@@ -334,6 +336,31 @@ final class _Entry {
         'are read',
       );
     }
+  }
+
+  /// Refuses an entry whose name ends in `/` unless it holds no bytes:
+  /// file type none or `S_IFDIR`, a declared extracted size of 0, and
+  /// compressed data that is either empty (compressed size 0) or the
+  /// 2-byte empty deflate stream `03 00` (method deflate, compressed
+  /// size 2), what Java's `ZipOutputStream` writes for a folder (FO-04
+  /// US-01 FR-02 E13), so no other bytes hide under a name the reader
+  /// skips. [data] and [start] are this entry's own span, from `_locate`.
+  void checkFolderEntry(Uint8List data, int start) {
+    if (!name.endsWith('/')) return;
+    final type = (attributes >> 16) & 0xF000;
+    final folder = type == 0 || type == 0x4000;
+    final noBytes =
+        compressedSize == 0 ||
+        (method == 8 &&
+            compressedSize == 2 &&
+            data[start] == 0x03 &&
+            data[start + 1] == 0x00);
+    if (folder && declaredSize == 0 && noBytes) return;
+    throw RemoteThemeFailure(
+      StratumRemoteThemeErrorCode.unsafeEntryPath,
+      '$label ends with "/" but is no folder entry with no bytes',
+      path: name,
+    );
   }
 
   /// Checks this entry's local header matches its central header and its

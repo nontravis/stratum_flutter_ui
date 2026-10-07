@@ -566,4 +566,66 @@ void main() {
       _fails(StratumRemoteThemeErrorCode.missingThemeFile),
     );
   });
+
+  group('r15 folder entries', () {
+    test('us01/fr02/e13: a folder entry with no bytes, typed none or '
+        'directory, is read past', () {
+      for (final attributes in [0, 0x41ED << 16]) {
+        final zip = buildZip([
+          ZipEntryFixture(
+            'brand/',
+            const [],
+            deflate: false,
+            attributes: attributes,
+          ),
+          ZipEntryFixture('brand/theme.yaml', yaml),
+        ]);
+        expect(_read(zip).keys, ['theme.yaml'], reason: '$attributes');
+      }
+    });
+
+    test('us01/fr02/e13, r15: a folder entry deflated to the 2-byte empty '
+        'stream, "03 00", is read past', () {
+      final zip = buildZip([
+        ZipEntryFixture('brand/', const []),
+        ZipEntryFixture('brand/theme.yaml', yaml),
+      ]);
+      expect(_read(zip).keys, ['theme.yaml']);
+    });
+
+    for (final (label, entry) in [
+      ('stored bytes', ZipEntryFixture('hidden/', [1, 2, 3], deflate: false)),
+      (
+        'bytes under a declared size of 0',
+        ZipEntryFixture('hidden/', [1, 2, 3], deflate: false, declaredSize: 0),
+      ),
+      (
+        'a regular file type and no bytes',
+        ZipEntryFixture(
+          'hidden/',
+          const [],
+          deflate: false,
+          attributes: 0x81A4 << 16,
+        ),
+      ),
+      (
+        'a deflated 2-byte stream other than the empty one',
+        ZipEntryFixture(
+          'hidden/',
+          const [],
+          method: 8,
+          body: const [0x01, 0x00],
+        ),
+      ),
+    ]) {
+      test('us01/s15, us01/fr02/e13, r15: a "/"-ending entry with $label is '
+          'unsafe_entry_path', () {
+        final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
+        expect(
+          () => _read(zip),
+          _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'hidden/'),
+        );
+      });
+    }
+  });
 }
