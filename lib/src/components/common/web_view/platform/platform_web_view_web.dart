@@ -52,7 +52,8 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   String? _htmlNonce;
   web.MessagePort? _bridgePort;
 
-  /// Whether a page start was reported that no frame `load` has finished.
+  /// Whether a page start was reported that no frame `load` has finished:
+  /// from a controller load until the frame's `load` for that entry.
   bool _pageStartOpen = false;
 
   /// The iframe that shows the page.
@@ -131,12 +132,14 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   Future<Uri?> currentUrl() async {
     final current = _history.current;
     if (current is! StratumWebViewUrlSource) return null;
+    // From the controller's load until the frame's `load` for that entry,
+    // the frame may still show the document it is leaving (US-04 FR-01
+    // E02): report the requested URL.
+    if (_pageStartOpen) return current.url;
     try {
       final href = _iframe.contentWindow?.location.href;
       final frameUrl = href == null ? null : Uri.tryParse(href);
-      // Before the requested page commits, a same-origin frame still shows
-      // its initial about:blank document; report the requested URL instead.
-      if (frameUrl != null && !frameUrl.isScheme('about')) return frameUrl;
+      if (frameUrl != null) return frameUrl;
     } on Object {
       // Cross-origin frame: the browser hides its location.
     }

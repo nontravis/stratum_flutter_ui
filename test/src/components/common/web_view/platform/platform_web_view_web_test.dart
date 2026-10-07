@@ -391,6 +391,29 @@ location.href = 'data:text/html,' + encodeURIComponent(
     },
   );
 
+  test('us04/fr01/e02: currentUrl reports the requested URL until the '
+      "frame's load for it, even while the frame shows the page it leaves, "
+      "then the frame's location", () async {
+    Future<void> finishes(int count) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (listener.pagesFinished.length < count) {
+        if (DateTime.now().isAfter(deadline)) fail('no frame load $count');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    }
+
+    final first = appOrigin.replace(path: '/missing');
+    final second = appOrigin.replace(path: '/missing', query: 'next=1');
+    await view.load(StratumWebViewSource.url(first));
+    attach();
+    await finishes(1);
+    expect(await view.currentUrl(), first);
+    await view.load(StratumWebViewSource.url(second));
+    expect(await view.currentUrl(), second);
+    await finishes(2);
+    expect(await view.currentUrl(), second);
+  });
+
   test('us03/fr01/e05: an outgoing URL page message arrives with its own '
       'origin after the view moved on, to HTML or to another URL', () async {
     await view.load(missingPage());
