@@ -20,6 +20,6 @@
 - Breaking: `google_fonts` is now pinned to exactly the version the `stratum_theme` CLI's family list was generated
   from (`>=9.0.0 <=9.0.0`); an app whose own `google_fonts` constraint excludes that version must widen it to allow
   it.
-- Breaking: `stratum_theme pack` and `check` now refuse a zip entry name holding a control character and a
-  `/`-ending entry that holds bytes; a zip an app already installed can now fail at preload with
-  `unsafe_entry_path`.
+- Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse a zip entry name holding a
+  control character and a `/`-ending entry that holds bytes; a zip an app already installed can now fail at preload
+  with `unsafe_entry_path`.
