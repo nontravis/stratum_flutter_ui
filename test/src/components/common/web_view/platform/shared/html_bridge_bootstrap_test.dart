@@ -234,21 +234,28 @@ void main() {
       );
     });
 
-    test('us03/fr04/e14: posts bye once the document root is replaced in '
-        'place, through an observer and a parentNode getter bound before '
-        'any page script', () {
+    test('us03/fr04/e14: posts bye once a record shows the document root '
+        'removed, even if put back, reading records through getters bound '
+        'before any page script', () {
       final html = inject('<p>Hi</p>');
       expect(
         html,
         contains(
           'var doc=document,root=doc.documentElement,\n'
-          'parentOf=Function.prototype.call.bind(\n'
-          "Object.getOwnPropertyDescriptor(Node.prototype,'parentNode').get);\n"
-          'new MutationObserver(function(){\n'
-          "if(parentOf(root)!==doc)s('bye',id);})\n"
+          'removedOf=Function.prototype.call.bind(\n'
+          'Object.getOwnPropertyDescriptor(\n'
+          "MutationRecord.prototype,'removedNodes').get),\n"
+          'countOf=Function.prototype.call.bind(\n'
+          'Object.getOwnPropertyDescriptor(\n'
+          "NodeList.prototype,'length').get);\n"
+          'new MutationObserver(function(rs){\n'
+          'for(var i=0;i<rs.length;i++){var n=removedOf(rs[i]);\n'
+          'for(var j=0;j<countOf(n);j++)\n'
+          "if(n[j]===root){s('bye',id);return;}}})\n"
           '.observe(doc,{childList:true});\n',
         ),
       );
+      expect(html, isNot(contains('parentNode')));
       expect(
         html.indexOf('new MutationObserver('),
         lessThan(html.indexOf("s('hello',id);\n})();")),

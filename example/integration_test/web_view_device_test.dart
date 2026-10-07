@@ -498,41 +498,98 @@ void main() {
       'allowlist, and the next send is refused',
       (tester) async {
         // CO-01-02 US-03 FR-04 E10 of the package docs: the document posts
-        // bye on pagehide, so the app withholds the token. The linked page
-        // copies the token from its fragment, as a stolen copy would, so only
-        // a bye that never arrived lets the send through (FR-02 E10).
-        final controller = StratumWebViewController();
-        final away = server.page('/token-copy');
-        final recorder = await _show(
+        // bye on pagehide, so the app withholds the token (FR-02 E10).
+        await _expectLinkAwayRefused(
+          binding,
           tester,
-          const StratumWebViewSource.html(_htmlLinkAwayPage),
-          controller: controller,
-          allowedOrigins: {Uri.parse('https://allowed.example')},
+          away: server.page('/token-copy'),
+          html: _htmlLinkAwayPage,
+          caseName: 'html link away',
+          checkpoint: 'b_html_link_away',
         );
-        final ready = await _pumpUntil(
+      },
+    );
+
+    testWidgets(
+      'us08/s16, us08/fr01/e10: the app HTML document reopens itself, puts '
+      'its root back, follows a link off the allowlist, and the next send is '
+      'refused',
+      (tester) async {
+        // CO-01-02 US-03 FR-04 E14 of the package docs: document.open() erases
+        // the pagehide hook, but the bootstrap's observer sees the root
+        // removed, even though the page puts it back, and posts bye at once.
+        await _expectLinkAwayRefused(
+          binding,
           tester,
-          () => recorder.messages.contains('ready:CSS1Compat'),
+          away: server.page('/token-copy'),
+          html: _htmlReopenLinkAwayPage,
+          caseName: 'html reopen link away',
+          checkpoint: 'b_html_reopen_link_away',
         );
-        if (ready) await controller.postMessage('go:$away');
-        final arrived =
-            ready &&
-            await _pumpUntil(
-              tester,
-              () => recorder.finishes.any((url) => url?.path == away.path),
-            );
-        if (arrived) {
-          await tester.pump(_settle);
-          await expectLater(controller.postMessage('ping'), throwsStateError);
-        }
-        recorder.logOrder('html link away');
-        await _checkpoint(binding, tester, 'b_html_link_away');
-        await tester.pumpWidget(const SizedBox());
-        controller.dispose();
-        expect(ready, isTrue, reason: 'the HTML message "ready" never came');
-        expect(arrived, isTrue, reason: 'the linked page never finished');
       },
     );
   }, skip: kIsWeb);
+}
+
+/// Shows [html], waits for its `ready:`, has it follow a link to [away] with
+/// its outbound token in the fragment, then expects the copy to have landed
+/// and the next send to be refused (FR-01 E09, E10).
+///
+/// [away] copies the token, as a stolen copy would, and reports
+/// `copied:true` in its title and fragment; only that positive control
+/// makes the refusal prove a revoked proof, not a token that never arrived.
+Future<void> _expectLinkAwayRefused(
+  IntegrationTestWidgetsFlutterBinding binding,
+  WidgetTester tester, {
+  required Uri away,
+  required String html,
+  required String caseName,
+  required String checkpoint,
+}) async {
+  final controller = StratumWebViewController();
+  final recorder = await _show(
+    tester,
+    StratumWebViewSource.html(html),
+    controller: controller,
+    allowedOrigins: {Uri.parse('https://allowed.example')},
+  );
+  final ready = await _pumpUntil(
+    tester,
+    () => recorder.messages.contains('ready:CSS1Compat'),
+  );
+  if (ready) await controller.postMessage('go:$away');
+  final arrived =
+      ready &&
+      await _pumpUntil(
+        tester,
+        () => recorder.finishes.any((url) => url?.path == away.path),
+      );
+  String? copied;
+  bool? refused;
+  if (arrived) {
+    await tester.pump(_settle);
+    copied = (await controller.currentUrl())?.fragment;
+    refused = await controller
+        .postMessage('ping')
+        .then<bool>(
+          (_) => false,
+          onError: (Object error) => error is StateError,
+        );
+  }
+  recorder.logOrder(caseName);
+  await _checkpoint(binding, tester, checkpoint);
+  await tester.pumpWidget(const SizedBox());
+  controller.dispose();
+  expect(ready, isTrue, reason: 'the HTML message "ready" never came');
+  expect(arrived, isTrue, reason: 'the linked page never finished');
+  expect(
+    copied,
+    'copied:true',
+    reason:
+        'the away page never received the token, so a refusal proves '
+        'nothing',
+  );
+  expect(refused, isTrue, reason: 'the send reached the away page: no bye');
 }
 
 /// Whether this run's engine is WebKit (iOS, macOS), which restores a
@@ -738,14 +795,42 @@ const _htmlLinkAwayPage = '''
 </body></html>
 ''';
 
+/// The [_htmlLinkAwayPage] document, but on `go:<url>` it first reopens
+/// itself and puts its own root element back, which erases its listeners,
+/// the bootstrap's `pagehide` hook included (FR-01 output
+/// `html reopen link away`).
+const _htmlReopenLinkAwayPage = '''
+<!doctype html>
+<html><body style="font-family: sans-serif"><h1>HTML reopen link away</h1>
+<script>
+  var root = document.documentElement;
+  window.addEventListener('message', function (event) {
+    if (String(event.data).indexOf('go:') !== 0) return;
+    var url = event.data.slice(3) + '#' + window.__stratumBridgeToken;
+    document.open();
+    document.appendChild(root);
+    location.href = url;
+  });
+  window.addEventListener('load', function () {
+    StratumBridge.postMessage('ready:' + document.compatMode);
+  });
+</script>
+</body></html>
+''';
+
 /// Defines the outbound token property from the fragment, as a page holding
-/// a stolen copy would (FR-01 output `html link away`).
+/// a stolen copy would, then shows `copied:true` in its title and fragment
+/// once a 32-character token arrived: the positive control of FR-01 outputs
+/// `html link away` and `html reopen link away`, which the app reads back
+/// through the current URL.
 const _tokenCopyBody = '''
 <h1>Token copy</h1>
 <script>
   Object.defineProperty(window, '__stratumBridgeToken', {
     value: location.hash.slice(1),
   });
+  document.title = 'copied:' + (location.hash.length === 33);
+  history.replaceState(null, '', '#' + document.title);
 </script>
 ''';
 
