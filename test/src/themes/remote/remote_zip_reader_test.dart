@@ -627,5 +627,17 @@ void main() {
         );
       });
     }
+
+    test('edge i1, us01/fr02/e13: a folder entry declaring bytes is '
+        'refused', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture('hidden/', const [], deflate: false, declaredSize: 5),
+      ]);
+      expect(
+        () => _read(zip),
+        _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'hidden/'),
+      );
+    });
   });
 }
