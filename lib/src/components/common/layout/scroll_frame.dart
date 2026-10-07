@@ -401,6 +401,15 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // An app-wide restyle of the ring (R8) changes the inherited
+    // StratumComponentDefaults this reads through focusBorderOutsideReach,
+    // which can move the window check's reach while the box holds focus.
+    if (_node?.hasPrimaryFocus ?? false) _placeRingAfterLayout();
+  }
+
+  @override
   void didChangeMetrics() {
     if (_node?.hasPrimaryFocus ?? false) _placeRingAfterLayout();
   }

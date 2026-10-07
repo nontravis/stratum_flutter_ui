@@ -74,10 +74,12 @@ enum StratumFocusBorderStyle {
 ///
 /// A `customStyle`, and an app-wide `StratumComponentDefaults` style for
 /// this type, restyle the shown looks only, and only their color, width,
-/// radius, and motion (R8): the ring always computes its own placement
-/// from [style], [insideEdge], and the gap against the resolved width, so
-/// no style layer moves it. [customColor], [width], and [gap] win over
-/// either layer. A state whose look is nothing still shows no ring.
+/// radius, and motion (R8), read from that style's border's top side only;
+/// a style whose border sets no top side keeps the default color and
+/// width. The ring always computes its own placement from [style],
+/// [insideEdge], and the gap against the resolved width, so no style
+/// layer moves it. [customColor], [width], and [gap] win over either
+/// layer. A state whose look is nothing still shows no ring.
 class StratumFocusBorder extends StratumStatefulWidget {
   const new({
     super.key,
@@ -159,9 +161,15 @@ class _StratumFocusBorderState extends State<StratumFocusBorder> {
       ),
     );
     final layerSide = resolved.border?.top ?? BorderSide.none;
+    // A layer border with no top side (BorderStyle.none) restyles nothing,
+    // so its color and width fall back to the package default rather than
+    // BorderSide.none's black, 0 px placeholder.
+    final layerSideSet = layerSide.style != BorderStyle.none;
     // The ring's own overrides win over either style layer (D7, R8).
-    final color = widget.customColor ?? layerSide.color;
-    final width = widget.width ?? layerSide.width;
+    final color =
+        widget.customColor ?? (layerSideSet ? layerSide.color : defaultColor);
+    final width =
+        widget.width ?? (layerSideSet ? layerSide.width : defaultWidth);
     final gap = widget.gap ?? _defaultGap;
     final side = BorderSide(
       color: color,

@@ -2418,6 +2418,47 @@ void main() {
     }, variant: TargetPlatformVariant.desktop());
 
     testWidgets(
+      'us07/fr03/e01: the window check re-runs when an app-wide restyle '
+      'changes while focused',
+      (tester) async {
+        _useTraditionalHighlight();
+        Widget host(double? width) => themedHost(
+          StratumComponentDefaults(
+            styles: width == null
+                ? const {}
+                : {
+                    StratumFocusBorder: WidgetStyle(
+                      border: Border.fromBorderSide(BorderSide(width: width)),
+                    ),
+                  },
+            child: const SizedBox(
+              width: 800 - 12,
+              height: 600 - 12,
+              child: ColumnLayout(
+                scroll: StratumScroll(),
+                children: [SizedBox(height: 2000)],
+              ),
+            ),
+          ),
+        );
+
+        // Margin 6: the default reach (gap 2 + width 3 = 5) fits outside.
+        await tester.pumpWidget(host(null));
+        _scrollFocusNode(tester).requestFocus();
+        await tester.pumpAndSettle();
+        expect(_ringInside(tester), isFalse);
+
+        // A width-8 restyle grows the reach to 10, past the 6 px margin,
+        // while the box still holds focus: no resize, no refocus.
+        await tester.pumpWidget(host(8));
+        await tester.pumpAndSettle();
+
+        expect(_ringInside(tester), isTrue);
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
+
+    testWidgets(
       'us07/fr03: an insideEdge flip slides the ring, not a snap, over the '
       "theme's fast level",
       (tester) async {

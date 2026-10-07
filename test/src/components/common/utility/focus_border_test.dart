@@ -423,6 +423,29 @@ void main() {
         expect(ring.outer, _rrect(-5, -5, 45, 25, 15));
       },
     );
+
+    testWidgets(
+      'us04/fr03/e14: a layer border with no top side keeps the default '
+      'color and width, not a black hairline',
+      (tester) async {
+        await tester.pumpWidget(
+          _ring(
+            state: FullWidgetState.focused,
+            defaults: const {
+              StratumFocusBorder: WidgetStyle(
+                border: Border(bottom: BorderSide(color: _red, width: 2)),
+              ),
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final ring = _painted(tester);
+        expect(ring.color, isSameColorAs(_colors.border.subtle.blue));
+        expect(ring.inner, _rrect(-2, -2, 42, 22, 12));
+        expect(ring.outer, _rrect(-5, -5, 45, 25, 15));
+      },
+    );
   });
 
   group('StratumFocusBorder motion', () {
