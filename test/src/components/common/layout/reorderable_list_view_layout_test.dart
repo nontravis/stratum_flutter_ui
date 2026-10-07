@@ -6077,6 +6077,44 @@ void main() {
     );
 
     testWidgets(
+      'us11/fr05/e08: two near moves staggered a frame apart each keep '
+      "their own widening and State, the second's ask outliving the "
+      "first's own removal",
+      (tester) async {
+        await _pumpScrolled(tester, list());
+        final stateA = _itemState(tester, 100);
+        await _focusItem(tester, 100);
+        final stateB = _itemState(tester, 105);
+        final focusB = stateB.node;
+
+        // Ask #1, queued now, for the frame this pump builds.
+        _harness(tester).move(100, 114);
+        // The app's own deferred call (FR-05 E08): item 105, a different
+        // item, takes focus and moves near too, but only once frame 1's
+        // post-frame batch runs, one frame after ask #1 was queued.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          focusB.requestFocus();
+          FocusManager.instance.applyFocusChangesIfNeeded();
+          _harness(tester).move(105, 119);
+        });
+        await tester.pump();
+
+        // Frame 1 consumed ask #1 alone: item 100 kept its State.
+        expect(_statesOf(tester, 100), contains(stateA));
+        await tester.pump();
+
+        // Frame 2 widens for ask #2 alone, queued after frame 1's own
+        // batch: item 105 keeps its State too, and ask #1's removal,
+        // scheduled a frame earlier, did not clear ask #2's own widening.
+        expect(_statesOf(tester, 105), contains(stateB));
+        await tester.pumpAndSettle();
+        expect(_statesOf(tester, 100), contains(stateA));
+        expect(_statesOf(tester, 105), contains(stateB));
+        expect(FocusManager.instance.primaryFocus, same(focusB));
+      },
+    );
+
+    testWidgets(
       's03/inv35: a rebuild of the scroll view alone after the frame that '
       'returns the cache extent lays out the base extent',
       (tester) async {
@@ -6519,9 +6557,10 @@ void main() {
         _harness(tester).move(_harness(tester).ids.indexOf(101), 160);
         await tester.pump();
 
-        // Item 101's own jump stays: the frame never reverts to item 100's
-        // origin of 4000, which would scroll item 101 back off screen.
-        expect(position.pixels, isNot(4000));
+        // Item 101's own jump stays, at its own estimate: the frame never
+        // reverts to item 100's origin of 4000, which would scroll item
+        // 101 back off screen.
+        expect(position.pixels, 6400.0);
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(other));
         expect(_statesOf(tester, 101), contains(otherState));
@@ -6562,11 +6601,57 @@ void main() {
         // own origin, the offset right after item 100's jump, where item
         // 100's slot is built; it then meets item 100 (focused) and stops,
         // never reaching item 100's own origin, 4000.
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 6000.0);
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(a));
         expect(_statesOf(tester, 100), contains(aState));
         expect(_builtInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e11: a far move of a third item the app focuses after two '
+      'earlier far moves in the same turn, with the app refocusing the '
+      'middle one, unwinds only the third move and stops there',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        final bState = _itemState(tester, 101);
+        await _focusItem(tester, 100);
+        final b = bState.node;
+        final c = _itemState(tester, 102).node;
+
+        // Three far moves run before any frame, each queuing an origin at
+        // the offset the one before it left: item 100's (origin 4000),
+        // item 101's (origin at item 100's landing), item 102's (origin at
+        // item 101's landing). The app then puts focus back on item 101,
+        // the middle move, before the frame runs.
+        _harness(tester).move(100, 150);
+        b.requestFocus();
+        FocusManager.instance.applyFocusChangesIfNeeded();
+        _harness(tester).move(_harness(tester).ids.indexOf(101), 160);
+        final afterSecondJump = position.pixels;
+        c.requestFocus();
+        FocusManager.instance.applyFocusChangesIfNeeded();
+        _harness(tester).move(_harness(tester).ids.indexOf(102), 170);
+        b.requestFocus();
+        FocusManager.instance.applyFocusChangesIfNeeded();
+        await tester.pump();
+
+        // The unwind meets item 102 first (unfocused) and returns to its
+        // own origin, item 101's own landing; it then meets item 101
+        // (focused) and stops there, never reaching item 100's jump or its
+        // own origin, 4000.
+        expect(position.pixels, afterSecondJump);
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(b));
+        expect(_statesOf(tester, 101), contains(bState));
+        expect(_builtInView(tester, 101), isTrue);
       },
     );
 
@@ -6664,6 +6749,46 @@ void main() {
         handle.dispose();
       },
     );
+
+    testWidgets('us11/fr03/e09: a focus the app moves in the turn of a far '
+        'screen-reader move stays, and the list returns to the offset before '
+        'the jump in the turn of the action', (tester) async {
+      final handle = tester.ensureSemantics();
+      // 200 px items with no cache extent: the sliver lays out 20 and 21
+      // at 4050 px, the built range the viewport itself, so the first
+      // built item has a semantics node, and one slot plus the margin
+      // past it exceeds the viewport, the far path the Alt+Down case
+      // above proves (D2).
+      final position = await _pumpScrolled(
+        tester,
+        _Harness(
+          count: 200,
+          heights: {for (var id = 0; id < 200; id++) id: 200},
+          scrollCacheExtent: const ScrollCacheExtent.pixels(0),
+        ),
+        offset: 4050,
+      );
+      await _focusItem(tester, 20);
+      final other = _itemState(tester, 21).node;
+      _harness(tester).onMove = (_, _) => other.requestFocus();
+
+      final node = tester.getSemantics(find.byKey(const ValueKey(20)));
+      node.owner!.performAction(
+        node.id,
+        SemanticsAction.customAction,
+        CustomSemanticsAction.getIdentifier(
+          const CustomSemanticsAction(label: 'Move up'),
+        ),
+      );
+      expect(position.pixels, isNot(4050));
+      await tester.pump();
+
+      expect(position.pixels, 4050);
+      await tester.pumpAndSettle();
+      expect(FocusManager.instance.primaryFocus, same(other));
+      expect(position.pixels, 4050);
+      handle.dispose();
+    });
 
     testWidgets(
       'us11/fr03/e09: a focus the app moves outside the list in the turn of '
