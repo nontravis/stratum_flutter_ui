@@ -101,4 +101,31 @@ void main() {
 
     expect(controller.themeIds, containsAll(['ocean', 'sunset']));
   });
+
+  testWidgets(
+    'the page scrolls instead of overflowing at a narrow width and a 200% '
+    'text scale',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 480);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      final controller = await _preload(tester);
+      await tester.pumpWidget(
+        RemoteThemeDemoApp(controller: controller, sunsetZip: _zip('sunset')),
+      );
+
+      await tester.tap(find.text('Install broken zip'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.textContaining(RegExp(r'^checksum_mismatch: .+')),
+        findsOneWidget,
+      );
+    },
+  );
 }
