@@ -40,20 +40,21 @@ const int _max32 = 0xFFFFFFFF;
 /// `readRemoteZip` and the install check refuse as "the zip is empty";
 /// that rule lives once, in the reader, not here.
 ///
-/// Throws [ArgumentError] on a key that is empty, ends in `/`, fails to
-/// round-trip through UTF-8, or encodes past 0xFFFF bytes; on more than
-/// 0xFFFF entries; or on any content length, packed length, header offset,
-/// or directory size past 0xFFFFFFFF. A key [checkEntryPath] refuses
-/// throws its own exception.
+/// Throws [RemoteThemeFailure] coded `unsafeEntryPath` on a key that is
+/// empty, ends in `/`, fails [checkEntryPath], or does not round-trip
+/// through UTF-8; coded `archiveTooLarge` on a name past 0xFFFF bytes,
+/// more than 0xFFFF entries, or any content length, packed length, header
+/// offset, or directory size past 0xFFFFFFFF — the same codes
+/// `readRemoteZip` throws, so one catch in `pack` reports either.
 Uint8List writeRemoteZip(Map<String, List<int>> files) {
   final names = [
     for (final name in files.keys) (name: name, bytes: _checkedNameBytes(name)),
   ]..sort((a, b) => _compareBytes(a.bytes, b.bytes));
   if (names.length > _max16) {
-    throw ArgumentError.value(
-      names.length,
-      'files.length',
-      'must not exceed $_max16 entries',
+    throw RemoteThemeFailure(
+      StratumRemoteThemeErrorCode.archiveTooLarge,
+      'the zip holds more than $_max16 entries',
+      measured: names.length,
     );
   }
   final out = BytesBuilder(copy: false);
@@ -127,42 +128,51 @@ Uint8List writeRemoteZip(Map<String, List<int>> files) {
   return out.takeBytes();
 }
 
-/// The UTF-8 bytes of entry [name]. Throws [ArgumentError] when [name] is
-/// empty, ends in `/`, fails to round-trip through UTF-8, or encodes past
-/// 0xFFFF bytes. Propagates whatever [checkEntryPath] throws on a [name]
-/// it refuses.
+/// The UTF-8 bytes of entry [name]. Throws [RemoteThemeFailure] coded
+/// `unsafeEntryPath` when [name] is empty, ends in `/`, fails
+/// [checkEntryPath] (propagated as is), or does not round-trip through
+/// UTF-8; coded `archiveTooLarge` when it encodes past 0xFFFF bytes.
 List<int> _checkedNameBytes(String name) {
   if (name.isEmpty || name.endsWith('/')) {
-    throw ArgumentError(
-      'files key "${escapeZipText(name)}" must not be empty or end with '
-      '"/"',
+    throw RemoteThemeFailure(
+      StratumRemoteThemeErrorCode.unsafeEntryPath,
+      'entry "${escapeZipText(name)}" is empty or ends with "/"',
+      path: name,
     );
   }
   checkEntryPath(name);
   final bytes = utf8.encode(name);
   if (utf8.decode(bytes) != name) {
-    throw ArgumentError(
-      'files key "${escapeZipText(name)}" does not round-trip through '
-      'UTF-8',
+    throw RemoteThemeFailure(
+      StratumRemoteThemeErrorCode.unsafeEntryPath,
+      'entry "${escapeZipText(name)}" does not round-trip through UTF-8',
+      path: name,
     );
   }
   if (bytes.length > _max16) {
-    throw ArgumentError(
-      'files key "${escapeZipText(name)}" encodes past $_max16 bytes',
+    throw RemoteThemeFailure(
+      StratumRemoteThemeErrorCode.archiveTooLarge,
+      'entry "${escapeZipText(name)}" encodes past $_max16 bytes',
+      measured: bytes.length,
     );
   }
   return bytes;
 }
 
-/// Throws [ArgumentError] naming [what] when [value] is past the zip
-/// format's 32-bit field limit, 0xFFFFFFFF.
+/// Throws [RemoteThemeFailure] coded `archiveTooLarge`, naming [what] in
+/// its message, when [value] is past the zip format's 32-bit field limit,
+/// 0xFFFFFFFF.
 ///
 /// Internal: not exported; [writeRemoteZip] calls this on every size and
 /// offset field it writes. Public only so a test reaches the boundary
 /// without allocating 4 GiB of real content.
 void checkRemoteZipFieldFits32(int value, String what) {
   if (value > _max32) {
-    throw ArgumentError('$what is $value, past the $_max32 zip limit');
+    throw RemoteThemeFailure(
+      StratumRemoteThemeErrorCode.archiveTooLarge,
+      '$what is $value, past the $_max32 zip limit',
+      measured: value,
+    );
   }
 }
 

@@ -23,6 +23,23 @@ const _sorted = [
   'é.txt',
 ];
 
+/// Matches a thrown [RemoteThemeFailure] coded [code], and [path] or
+/// [measured] when given.
+Matcher _failure(
+  StratumRemoteThemeErrorCode code, {
+  String? path,
+  int? measured,
+}) {
+  var matcher = isA<RemoteThemeFailure>().having((f) => f.code, 'code', code);
+  if (path != null) {
+    matcher = matcher.having((f) => f.path, 'path', path);
+  }
+  if (measured != null) {
+    matcher = matcher.having((f) => f.measured, 'measured', measured);
+  }
+  return throwsA(matcher);
+}
+
 void main() {
   group('us02/fr01, s03 packed zip: writeRemoteZip', () {
     test('us02/s2, us02/fr01/e05: the same files give the same bytes in any '
@@ -128,46 +145,57 @@ void main() {
   });
 
   group('writeRemoteZip refuses input the zip format cannot hold', () {
-    test('a key that is empty', () {
-      expect(() => writeRemoteZip({'': <int>[]}), throwsArgumentError);
+    test('a key that is empty, as unsafe_entry_path with the path', () {
+      expect(
+        () => writeRemoteZip({'': <int>[]}),
+        _failure(StratumRemoteThemeErrorCode.unsafeEntryPath, path: ''),
+      );
     });
 
     test('a key ending in "/", since readRemoteZip drops such an entry '
         'silently', () {
-      expect(() => writeRemoteZip({'images/': <int>[]}), throwsArgumentError);
+      expect(
+        () => writeRemoteZip({'images/': <int>[]}),
+        _failure(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'images/'),
+      );
     });
 
     test('a key that fails the entry path rule, propagating '
         "checkEntryPath's own exception", () {
       expect(
         () => writeRemoteZip({'../theme.yaml': <int>[]}),
-        throwsA(
-          isA<RemoteThemeFailure>().having(
-            (f) => f.code,
-            'code',
-            StratumRemoteThemeErrorCode.unsafeEntryPath,
-          ),
+        _failure(
+          StratumRemoteThemeErrorCode.unsafeEntryPath,
+          path: '../theme.yaml',
         ),
       );
     });
 
     test('a key whose UTF-8 does not round-trip, such as an unpaired '
         'surrogate', () {
+      const name = 'a\u{D800}.txt';
       expect(
-        () => writeRemoteZip({'a\u{D800}.txt': <int>[]}),
-        throwsArgumentError,
+        () => writeRemoteZip({name: <int>[]}),
+        _failure(StratumRemoteThemeErrorCode.unsafeEntryPath, path: name),
       );
     });
 
-    test('a name that encodes past 0xFFFF UTF-8 bytes', () {
-      expect(() => writeRemoteZip({'x' * 65536: <int>[]}), throwsArgumentError);
+    test('a name that encodes past 0xFFFF UTF-8 bytes, as '
+        'archive_too_large with the encoded length', () {
+      expect(
+        () => writeRemoteZip({'x' * 65536: <int>[]}),
+        _failure(StratumRemoteThemeErrorCode.archiveTooLarge, measured: 65536),
+      );
     });
 
-    test('more than 0xFFFF entries', () {
+    test('more than 0xFFFF entries, as archive_too_large with the count', () {
       final files = {
         for (var i = 0; i <= 0xFFFF; i++) 'f$i': <int>[1],
       };
-      expect(() => writeRemoteZip(files), throwsArgumentError);
+      expect(
+        () => writeRemoteZip(files),
+        _failure(StratumRemoteThemeErrorCode.archiveTooLarge, measured: 65536),
+      );
     });
 
     test("checkRemoteZipFieldFits32 refuses only past the format's 4 GiB "
@@ -178,7 +206,10 @@ void main() {
       );
       expect(
         () => checkRemoteZipFieldFits32(0x100000000, 'test'),
-        throwsArgumentError,
+        _failure(
+          StratumRemoteThemeErrorCode.archiveTooLarge,
+          measured: 0x100000000,
+        ),
       );
     });
   });
