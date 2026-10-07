@@ -6821,6 +6821,31 @@ void main() {
     );
 
     testWidgets(
+      'us11/fr03/e09: the app focuses a bare FocusScopeNode outside the '
+      'list in the turn of Alt+Down to a built slot, and that focus stays',
+      (tester) async {
+        final outsideScope = FocusScopeNode(debugLabel: 'outside scope');
+        addTearDown(outsideScope.dispose);
+        await tester.pumpWidget(
+          _app(
+            Column(
+              children: [
+                FocusScope(node: outsideScope, child: const SizedBox()),
+                const Expanded(child: _Harness(count: 5)),
+              ],
+            ),
+          ),
+        );
+        await _focusItem(tester, 2);
+        _harnessA(tester).onMove = (_, _) => outsideScope.requestFocus();
+
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+
+        expect(FocusManager.instance.primaryFocus, same(outsideScope));
+      },
+    );
+
+    testWidgets(
       'us11/fr03/e09: a focus the app moves outside the list in the turn of '
       'Alt+Down to a near unbuilt slot stays, and the list never pulls it '
       'back',
