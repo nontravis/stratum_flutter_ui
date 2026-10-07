@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/load_yaml_text.dart';
 
@@ -70,5 +72,19 @@ void main() {
 
       expect(error.message.codeUnits.any((unit) => unit < 0x20), isFalse);
     });
+  });
+
+  test('f1 (deferred minor 2), r9/fr03/e02: an unknown directive never prints '
+      "package:yaml's raw source line, control character included", () {
+    final prints = <String>[];
+
+    runZoned(
+      () => loadYamlText('%X \x1b]0;x\x07\n---\na: 1\n'),
+      zoneSpecification: ZoneSpecification(
+        print: (self, parent, zone, line) => prints.add(line),
+      ),
+    );
+
+    expect(prints, isEmpty);
   });
 }

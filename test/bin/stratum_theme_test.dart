@@ -1,6 +1,7 @@
 @TestOn('vm')
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -748,6 +749,32 @@ void main() {
         expect(line, matches(_printable));
       }
     });
+
+    test(
+      'f1 (deferred minor 2), r9/fr03/e02: a theme.yaml holding an unknown '
+      'directive, control character included, prints only the checksum',
+      () async {
+        final prints = <String>[];
+
+        final run = await runZoned(
+          () {
+            _zip('brand.zip', {
+              ..._theme(),
+              'theme.yaml':
+                  '%X \x1b]0;pwned\x07\n---\n${_theme()['theme.yaml']!}',
+            });
+            return _run(['check', 'brand.zip']);
+          },
+          zoneSpecification: ZoneSpecification(
+            print: (self, parent, zone, line) => prints.add(line),
+          ),
+        );
+
+        expect(prints, isEmpty);
+        expect(run.code, exitPass);
+        expect(run.out, startsWith('sha256:'));
+      },
+    );
 
     test(
       'us02/fr03/e09, r14, fix-1 sec f4 (type half): check of a folder, not a '

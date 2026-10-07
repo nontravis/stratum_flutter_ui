@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:yaml/yaml.dart';
 
@@ -5,11 +7,23 @@ import 'package:yaml/yaml.dart';
 /// failure package:yaml throws on hostile text into [YamlTextFailure]
 /// instead of an unhandled exception (FR-03 E09, s05 exit 66).
 ///
+/// Runs under a zone that drops every `print`: package:yaml's default
+/// `yamlWarningCallback` prints the raw source line of a spec-level
+/// warning (an unknown directive, an unsupported `%YAML` version), so an
+/// unfenced call lets a hostile document put a raw control character on
+/// this process's real stdout (sec f1/e02). The global `yamlWarningCallback`
+/// itself is never written: a zone keeps the drop local to this call.
+///
 /// Does not catch [StackOverflowError]: deep flow nesting is untested here
 /// and queued for the owner separately.
 YamlNode loadYamlText(String text) {
   try {
-    return loadYamlNode(text);
+    return runZoned(
+      () => loadYamlNode(text),
+      zoneSpecification: ZoneSpecification(
+        print: (self, parent, zone, line) {},
+      ),
+    );
   } on FormatException catch (error) {
     // `FormatException` also covers `YamlException`, whose `span` locates
     // the error when package:yaml found one.
