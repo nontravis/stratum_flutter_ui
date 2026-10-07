@@ -49,6 +49,16 @@ void main() {
 
   void fireFrameLoad() => view.iframe.dispatchEvent(web.Event('load'));
 
+  /// Waits until the frame has reported [count] finishes, so a test can act
+  /// right after the frame's `load` for an entry instead of racing it.
+  Future<void> finishes(int count) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (listener.pagesFinished.length < count) {
+      if (DateTime.now().isAfter(deadline)) fail('no frame load $count');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
+
   test(
     'us01/fr01: a controller load reports one start and one finish',
     () async {
@@ -394,14 +404,6 @@ location.href = 'data:text/html,' + encodeURIComponent(
   test('us04/fr01/e02: currentUrl reports the requested URL until the '
       "frame's load for it, even while the frame shows the page it leaves, "
       "then the frame's location", () async {
-    Future<void> finishes(int count) async {
-      final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (listener.pagesFinished.length < count) {
-        if (DateTime.now().isAfter(deadline)) fail('no frame load $count');
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      }
-    }
-
     final first = appOrigin.replace(path: '/missing');
     final second = appOrigin.replace(path: '/missing', query: 'next=1');
     await view.load(StratumWebViewSource.url(first));
@@ -417,14 +419,6 @@ location.href = 'data:text/html,' + encodeURIComponent(
   test('us04/fr01/e02: currentUrl reports the entry URL while a '
       "re-inserted view restarts that entry's navigation, not the "
       "restarted navigation's transient about:blank", () async {
-    Future<void> finishes(int count) async {
-      final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (listener.pagesFinished.length < count) {
-        if (DateTime.now().isAfter(deadline)) fail('no frame load $count');
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      }
-    }
-
     final url = appOrigin.replace(path: '/missing');
     await view.load(StratumWebViewSource.url(url));
     attach();
@@ -441,6 +435,20 @@ location.href = 'data:text/html,' + encodeURIComponent(
     expect(await view.currentUrl(), url);
     await finishes(2);
     expect(await view.currentUrl(), url);
+  });
+
+  test('us04/fr01/e03: once the frame is genuinely cross-origin, currentUrl '
+      'returns the last URL the controller loaded, read from the catch '
+      'branch its cross-origin location throws into', () async {
+    // A `data:` navigation (not `srcdoc`) gives the frame its own opaque
+    // origin, distinct from this test page's origin: reading its
+    // location then throws a SecurityError, the same as a real
+    // cross-origin site would (US-04 FR-01 E03).
+    final crossOrigin = Uri.parse('data:text/html,%3Cp%3EHi%3C%2Fp%3E');
+    await view.load(StratumWebViewSource.url(crossOrigin));
+    attach();
+    await finishes(1);
+    expect(await view.currentUrl(), crossOrigin);
   });
 
   test('us03/fr01/e05: an outgoing URL page message arrives with its own '
