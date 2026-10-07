@@ -105,13 +105,29 @@ void main() {
         ['images/logo.svg', 'images/😀.svg', 'theme.yaml'],
       );
     });
+
+    test('an empty files map gives the bare end record, which '
+        'readRemoteZip refuses as "the zip is empty", one place for that '
+        'rule', () {
+      expect(writeRemoteZip(const {}), hasLength(22));
+      expect(
+        () => readRemoteZip(
+          writeRemoteZip(const {}),
+          maxBytes: 20 * 1024 * 1024,
+          maxEntries: 200,
+        ),
+        throwsA(
+          isA<RemoteThemeFailure>().having(
+            (f) => f.code,
+            'code',
+            StratumRemoteThemeErrorCode.invalidArchive,
+          ),
+        ),
+      );
+    });
   });
 
   group('writeRemoteZip refuses input the zip format cannot hold', () {
-    test("an empty files map, matching readRemoteZip's own invariant", () {
-      expect(() => writeRemoteZip(const {}), throwsArgumentError);
-    });
-
     test('a key that is empty', () {
       expect(() => writeRemoteZip({'': <int>[]}), throwsArgumentError);
     });

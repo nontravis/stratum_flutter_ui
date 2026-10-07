@@ -36,17 +36,16 @@ const int _max32 = 0xFFFFFFFF;
 /// [remoteZipDeflateLevel] and dated 1980-01-01 00:00:00, with no extra
 /// field, no comment, and no folder entry. The same [files] always give the
 /// same bytes. `archive` supplies only `Deflate` and `getCrc32` (design
-/// S1).
+/// S1). An empty [files] gives the bare 22-byte end record, a zip
+/// `readRemoteZip` and the install check refuse as "the zip is empty";
+/// that rule lives once, in the reader, not here.
 ///
-/// Throws [ArgumentError] on a [files] the zip format cannot hold: empty;
-/// a key that is empty, ends in `/`, fails to round-trip through UTF-8, or
-/// encodes past 0xFFFF bytes; more than 0xFFFF entries; or any content
-/// length, packed length, header offset, or directory size past
-/// 0xFFFFFFFF. A key [checkEntryPath] refuses throws its own exception.
+/// Throws [ArgumentError] on a key that is empty, ends in `/`, fails to
+/// round-trip through UTF-8, or encodes past 0xFFFF bytes; on more than
+/// 0xFFFF entries; or on any content length, packed length, header offset,
+/// or directory size past 0xFFFFFFFF. A key [checkEntryPath] refuses
+/// throws its own exception.
 Uint8List writeRemoteZip(Map<String, List<int>> files) {
-  if (files.isEmpty) {
-    throw ArgumentError.value(files, 'files', 'must not be empty');
-  }
   final names = [
     for (final name in files.keys) (name: name, bytes: _checkedNameBytes(name)),
   ]..sort((a, b) => _compareBytes(a.bytes, b.bytes));
