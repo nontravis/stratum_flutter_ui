@@ -537,6 +537,14 @@ Future<ScrollPosition> _pumpScrolled(
   return position;
 }
 
+/// Presses [key] with Alt held and pumps no frame, so the move lands
+/// before the next frame.
+Future<void> _altNow(WidgetTester tester, LogicalKeyboardKey key) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+  await tester.sendKeyEvent(key);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+}
+
 void main() {
   group('ReorderableListViewLayout pointer', () {
     testWidgets('a drag on a handle reorders', (tester) async {
@@ -6072,6 +6080,245 @@ void main() {
         await tester.pump();
         expect(_laidOut(tester), returned);
       },
+    );
+  });
+
+  group('ReorderableListViewLayout build-ahead by key and screen reader', () {
+    // Alt+Up from the first laid-out item, 93, or Alt+Down from the last,
+    // 113, at 4000 px.
+    final edges = ValueVariant<String>({'Alt+Up from 93', 'Alt+Down from 113'});
+    testWidgets(
+      'us11/fr03/e09: Alt and an arrow to a near unbuilt slot builds ahead '
+      'with no scroll in the turn of the key and keeps State and focus',
+      (tester) async {
+        final up = edges.currentValue == 'Alt+Up from 93';
+        final id = up ? 93 : 113;
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 200),
+        );
+        final state = _itemState(tester, id);
+        final focused = await _focusItem(tester, id);
+
+        await _altNow(
+          tester,
+          up ? LogicalKeyboardKey.arrowUp : LogicalKeyboardKey.arrowDown,
+        );
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(_statesOf(tester, id), contains(state));
+        await tester.pump();
+        // The frame after the widened one lays out the base extent again.
+        expect(_laidOut(tester).count, lessThanOrEqualTo(22));
+        await tester.pumpAndSettle();
+        expect(_statesOf(tester, id), contains(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, id), isTrue);
+      },
+      variant: edges,
+    );
+
+    // With no cache extent the sliver lays out 100 to 107 at 4020 px.
+    final actions = ValueVariant<String>({'Move up', 'Move down'});
+    testWidgets(
+      'us11/fr03/e09: a screen-reader move of one slot to a near unbuilt '
+      'slot builds ahead with no scroll in the turn of the action and keeps '
+      'State and focus',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final up = actions.currentValue == 'Move up';
+        final id = up ? 100 : 107;
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(
+            count: 200,
+            scrollCacheExtent: ScrollCacheExtent.pixels(0),
+          ),
+          offset: 4020,
+        );
+        expect(_laidOut(tester), (first: 100, last: 107, count: 8));
+        final state = _itemState(tester, id);
+        final focused = await _focusItem(tester, id);
+
+        final node = tester.getSemantics(find.byKey(ValueKey(id)));
+        node.owner!.performAction(
+          node.id,
+          SemanticsAction.customAction,
+          CustomSemanticsAction.getIdentifier(
+            CustomSemanticsAction(label: actions.currentValue!),
+          ),
+        );
+        expect(position.pixels, 4020);
+        await tester.pump();
+
+        expect(_statesOf(tester, id), contains(state));
+        await tester.pumpAndSettle();
+        expect(_statesOf(tester, id), contains(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, id), isTrue);
+        handle.dispose();
+      },
+      variant: actions,
+    );
+
+    testWidgets(
+      'us11/fr03/e09: Alt and an arrow whose near test fails jumps in the '
+      'turn of the key and keeps State and focus',
+      (tester) async {
+        // 200 px items: one slot plus the margin, 400 px, exceeds the 300 px
+        // viewport. The sliver lays out 18 to 22 at 4000 px.
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            heights: {for (var id = 0; id < 200; id++) id: 200},
+          ),
+        );
+        expect(_laidOut(tester), (first: 18, last: 22, count: 5));
+        final state = _itemState(tester, 22);
+        final focused = await _focusItem(tester, 22);
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        expect(position.pixels, isNot(4000));
+        await tester.pump();
+
+        expect(_statesOf(tester, 22), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 22), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e09: Alt and an arrow past an unbuilt item taller than the '
+      'laid-out average falls back to the reach: State reset, focus on the '
+      'fresh item, the item in view',
+      (tester) async {
+        // Item 114 is 400 px, so after Alt+Down item 113 sits past the frame
+        // the 40 px average widens.
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 200, heights: {114: 400}),
+        );
+        final state = _itemState(tester, 113);
+        await _focusItem(tester, 113);
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        expect(position.pixels, 4000);
+        await tester.pumpAndSettle();
+
+        expect(_statesOf(tester, 113), isNot(contains(state)));
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 113');
+        expect(_builtInView(tester, 113), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e09: Alt and an arrow to an edge slot whose near test fails '
+      'jumps exactly to that edge in the turn of the key and keeps State and '
+      'focus',
+      (tester) async {
+        // Item 0 is 2000 px and the rest 200 px. At 2300 px the sliver lays
+        // out from slot 1, whose 200 px average puts slot 0 at 1800 px, short
+        // of the start, where the exact jump lands.
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            heights: {
+              for (var id = 0; id < 200; id++) id: id == 0 ? 2000 : 200,
+            },
+          ),
+          offset: 2300,
+        );
+        expect(_laidOut(tester).first, 1);
+        final state = _itemState(tester, 1);
+        final focused = await _focusItem(tester, 1);
+
+        await _altNow(tester, LogicalKeyboardKey.arrowUp);
+        expect(position.pixels, 0);
+        await tester.pump();
+
+        expect(_statesOf(tester, 1), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 1), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e09: when the reach after a far key move gives up, the list '
+      'returns to the offset before the jump in the turn of the key and hands '
+      'focus on from the slot the item left',
+      (tester) async {
+        // 200 px items and item 23 at 1200 px: the sliver lays out 18 to 22
+        // at 4000 px. Alt+Down on item 22 fails the near test, so the key's
+        // turn jumps by the 200 px average to 4600, where item 23, now in
+        // slot 22, leaves slot 23 at 5600, past the frame.
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            heights: {
+              for (var id = 0; id < 200; id++) id: id == 23 ? 1200 : 200,
+            },
+          ),
+        );
+        expect(_laidOut(tester), (first: 18, last: 22, count: 5));
+        await _focusItem(tester, 22);
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        final landing = position.pixels;
+        final moves = <double>[];
+        position.addListener(() => moves.add(position.pixels));
+        await tester.pumpAndSettle();
+
+        // The 200 px average still puts slot 23 at 4600, so each jump of the
+        // reach lands where the key's jump did and the reach gives up: the
+        // list's first move is back to 4000, and item 23, now in the slot
+        // item 22 left, takes focus.
+        expect(landing, 4600);
+        expect(moves.first, 4000);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 23');
+      },
+    );
+
+    // A later call of the key's turn: none, or an insert at index 0, before
+    // the slot the item leaves, which that slot follows.
+    final laterCall = ValueVariant<String>({'none', 'an insert before'});
+    testWidgets(
+      'us11/fr03/e09: when the reach after a key move gives up, focus goes on '
+      'from the slot the item left, as a later call of the turn moved it',
+      (tester) async {
+        // Item 112 is 400 px, laid out at 4000 px: after Alt+Down on item
+        // 111 it fills slot 111, so the moved item's slot, laid out before
+        // the move, lies past the frame. With the list held at 4000, each
+        // jump of the reach springs back and the reach gives up.
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            heights: const {112: 400},
+          ),
+        );
+        await _focusItem(tester, 111);
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        if (laterCall.currentValue != 'none') _harness(tester).insert(0, 500);
+        var springs = 0;
+        _pinScroll(tester, 4000, onSpringBack: () => springs += 1);
+        await tester.pumpAndSettle();
+
+        // Four jumps of the reach and the handoff's reveal sprang back. The
+        // item after the slot item 111 left is item 112, at index 111, or at
+        // 112 after the insert.
+        expect(position.pixels, 4000);
+        expect(springs, 5);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 112');
+      },
+      variant: laterCall,
     );
   });
 }
