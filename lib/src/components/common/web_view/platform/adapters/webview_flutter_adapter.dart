@@ -16,6 +16,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   new(this._listener)
     : _session = NativeBridgeSession(
         allowedOrigins: () => _listener.allowedOrigins,
+        namesSenders: true,
       ),
       _senderChannel = NativeSenderChannel.current {
     _ready = _configure();
@@ -44,7 +45,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
       _controller,
       _handleBridgeMessage,
     );
-    if (!attached) _session.markNoWebMessageListener();
+    if (!attached) _session.markBridgeUnsupported();
   }
 
   @override
@@ -107,14 +108,30 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     return url == null ? null : Uri.tryParse(url);
   }
 
+  /// Runs the dispatch script on the page shown; on Android, when that page
+  /// refuses, the token check then runs through the reply proxy of the
+  /// proving `hello`, so only that document can receive it (US-03 FR-02
+  /// E13). A first script with no answer ends the send.
   @override
   Future<void> postMessage(String data) async {
     await _ready;
     final script = _session.scriptForMessage(data);
+    final answer = await dispatchScriptAnswer(
+      _controller.runJavaScriptReturningResult(script),
+    );
+    final run = answer == false
+        ? _session.replyProxyScriptForMessage(data)
+        : null;
     _session.confirmDelivery(
-      await dispatchScriptAnswer(
-        _controller.runJavaScriptReturningResult(script),
-      ),
+      run == null
+          ? answer
+          : await dispatchScriptAnswer(
+              _senderChannel.runThroughReplyProxy(
+                _controller,
+                run.replyProxy,
+                run.script,
+              ),
+            ),
     );
   }
 

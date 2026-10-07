@@ -34,10 +34,11 @@ abstract interface class NativeSenderChannel {
   /// [controller] and sends every message it receives to [onMessage].
   ///
   /// Call it before the first load. Returns `false` when the platform cannot
-  /// name senders (an Android WebView without `WEB_MESSAGE_LISTENER`); then
-  /// no page gets the object. Throws a [PlatformException] when the platform
-  /// finds no web view for [controller], which means the view was used
-  /// before the platform created it.
+  /// carry the bridge (an Android WebView without `WEB_MESSAGE_LISTENER` or
+  /// `JS_INJECTION_IN_FRAME_AND_WORLD`); then no page gets the object.
+  /// Throws a [PlatformException] when the platform finds no web view for
+  /// [controller], which means the view was used before the platform
+  /// created it.
   Future<bool> attach(
     wf.WebViewController controller,
     NativeSenderListener onMessage,
@@ -45,14 +46,32 @@ abstract interface class NativeSenderChannel {
 
   /// Stops delivering messages of the platform view of [controller].
   Future<void> detach(wf.WebViewController controller);
+
+  /// Runs [script] through [replyProxy] on the platform view of
+  /// [controller] (Android), which runs it only in the document that sent
+  /// the message [replyProxy] came with, and returns whether the script
+  /// returned `true` (US-03 FR-02 E13).
+  ///
+  /// Throws a [PlatformException] when that document is gone
+  /// (`FRAME_DESTROYED`), the script fails, or another main-frame document
+  /// has posted since; may never complete for a document that is unloading.
+  Future<bool> runThroughReplyProxy(
+    wf.WebViewController controller,
+    BridgeReplyProxy replyProxy,
+    String script,
+  );
 }
 
 /// [NativeSenderChannel] over the `stratum_ui/web_view_bridge` method
 /// channel.
 ///
-/// Dart calls `attach` and `detach` with `{webViewId}`; the platform calls
-/// `message` with `{webViewId, data, origin, isMainFrame}`, where `origin`
-/// is the sender's origin, or `null` for an opaque origin.
+/// Dart calls `attach` and `detach` with `{webViewId}`, and
+/// `runThroughReplyProxy` with `{webViewId, replyProxy, script}`; the
+/// platform calls `message` with
+/// `{webViewId, data, origin, isMainFrame, replyProxy}`, where `origin` is
+/// the sender's origin, or `null` for an opaque origin, and `replyProxy` is
+/// the id Android gives the reply proxy of a main-frame sender, absent on
+/// iOS and macOS.
 final class MethodChannelNativeSenderChannel implements NativeSenderChannel {
   /// [webViewId] reads the platform view id of a controller; tests pass
   /// their own, because a fake platform controller has none.
@@ -91,8 +110,28 @@ final class MethodChannelNativeSenderChannel implements NativeSenderChannel {
     });
   }
 
+  @override
+  Future<bool> runThroughReplyProxy(
+    wf.WebViewController controller,
+    BridgeReplyProxy replyProxy,
+    String script,
+  ) async {
+    final delivered = await _channel.invokeMethod<bool>(
+      'runThroughReplyProxy',
+      <String, Object?>{
+        'webViewId': _webViewId(controller),
+        'replyProxy': replyProxy.id,
+        'script': script,
+      },
+    );
+    return delivered ?? false;
+  }
+
   /// Delivers a `message` call; a call with a missing or mistyped argument
   /// is dropped.
+  ///
+  /// An opaque origin crosses as `null`, also in the `"null"` form a
+  /// serialized opaque origin takes.
   Future<void> _handle(MethodCall call) async {
     if (call.method != 'message') return;
     final arguments = call.arguments;
@@ -101,13 +140,20 @@ final class MethodChannelNativeSenderChannel implements NativeSenderChannel {
     final data = arguments['data'];
     final origin = arguments['origin'];
     final isMainFrame = arguments['isMainFrame'];
+    final replyProxy = arguments['replyProxy'];
     if (id is! int || data is! String || isMainFrame is! bool) return;
     if (origin != null && origin is! String) return;
+    if (replyProxy != null && replyProxy is! int) return;
     _listeners[id]?.call(
       data,
       BridgeMessageSender(
-        origin: origin == null ? null : Uri.tryParse(origin as String),
+        origin: origin == null || origin == 'null'
+            ? null
+            : Uri.tryParse(origin as String),
         isMainFrame: isMainFrame,
+        replyProxy: replyProxy == null
+            ? null
+            : BridgeReplyProxy(replyProxy as int),
       ),
     );
   }

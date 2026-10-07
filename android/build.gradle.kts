@@ -53,6 +53,7 @@ kotlin {
 }
 
 dependencies {
-    // The same version webview_flutter_android 4.14.1 links.
-    implementation("androidx.webkit:webkit:1.15.0")
+    // 1.16.0 adds JavaScriptReplyProxy.executeJavaScript; Gradle resolves
+    // webview_flutter_android 4.14.1's 1.15.0 up to it.
+    implementation("androidx.webkit:webkit:1.16.0")
 }
