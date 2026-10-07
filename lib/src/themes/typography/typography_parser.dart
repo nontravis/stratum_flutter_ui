@@ -381,7 +381,7 @@ class _TypographyParser {
       final dimension = _reader.dimension(value, sizePath, required: true);
       if (dimension != null) scale[key] = dimension;
     }
-    return frozenMap(scale);
+    return Map.unmodifiable(scale);
   }
 
   Map<FontType, PlainTypeStyle> _types(
@@ -416,7 +416,7 @@ class _TypographyParser {
       if (type == FontType.table || seen.contains(type)) continue;
       _error(StratumThemeErrorCode.required, '$path.${type.name}', 'required');
     }
-    return frozenMap(types);
+    return Map.unmodifiable(types);
   }
 
   PlainTypeStyle? _typeStyle(Map<String, Object?> node, String path) {
@@ -473,7 +473,7 @@ class _TypographyParser {
         letterSpacing: letterSpacing ?? const StratumDimension.fixed(0),
       );
     }
-    return frozenMap(sizes);
+    return sizes;
   }
 
   int? _weight(Object? value, String path) {

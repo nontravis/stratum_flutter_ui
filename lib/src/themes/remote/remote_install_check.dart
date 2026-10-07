@@ -68,11 +68,12 @@ final class RemoteInstallCheck {
 }
 
 /// Runs install steps 1 to 10 of FO-04 on [theme] (s01 Install check), in
-/// Dart, Flutter-free once M2-T11 moves the curve map, for the installer
-/// and the `stratum_theme` CLI alike: the id rule, the checksum text, one
-/// private copy of the bytes and its SHA-256, the zip within its caps, the
-/// entry paths and file types, the theme root, the strict UTF-8 decode of
-/// `theme.yaml` and its stages 1 to 5 over [packageDefault] and
+/// Flutter-free Dart (the guard in
+/// `test/src/themes/flutter_free_imports_test.dart` proves it), for the
+/// installer and the `stratum_theme` CLI alike: the id rule, the checksum
+/// text, one private copy of the bytes and its SHA-256, the zip within its
+/// caps, the entry paths and file types, the theme root, the strict UTF-8
+/// decode of `theme.yaml` and its stages 1 to 5 over [packageDefault] and
 /// [appDefault] through [parseValues], then every font file and asset slot
 /// it names.
 ///

@@ -290,9 +290,7 @@ final class _Run {
   /// or a missing path — before any read, so a FIFO never blocks the run.
   Future<String?> check() async {
     final file = _resolve(_command.target);
-    if (FileSystemEntity.typeSync(file) != FileSystemEntityType.file) {
-      throw _NoInput('cannot read ${_shown(_command.target)}: not a file');
-    }
+    _requireRegularFile(file, _command.target);
     final Uint8List bytes;
     try {
       bytes = File(file).readAsBytesSync();
@@ -327,6 +325,7 @@ final class _Run {
     final appPath = named == null
         ? p.join(_cwd, 'assets', 'themes', 'default', 'theme.yaml')
         : _resolve(named);
+    if (named != null) _requireRegularFile(appPath, named);
     final readApp = named != null || FileSystemEntity.isFileSync(appPath);
     return (
       packagePath: packagePath,
@@ -390,6 +389,15 @@ final class _Run {
 
   String _resolve(String path) =>
       p.normalize(p.isAbsolute(path) ? path : p.join(_cwd, path));
+
+  /// Refuses an operator-named [path] — the `check` target or
+  /// `--app-default` — that is not a regular file, before any open, so a
+  /// FIFO never blocks the run and a device file never reads unbounded.
+  void _requireRegularFile(String path, String shown) {
+    if (FileSystemEntity.typeSync(path) != FileSystemEntityType.file) {
+      throw _NoInput('cannot read ${_shown(shown)}: not a file');
+    }
+  }
 
   String _readText(String path, String shown) {
     try {

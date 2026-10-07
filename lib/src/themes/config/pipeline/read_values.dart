@@ -154,7 +154,7 @@ final class _Read {
   /// `PlainThemeConfig` holds this once, un-wrapped by `frozenMap`:
   /// `convertThemeConfig` rebuilds it into a `StratumByWindowSize` map for
   /// the freezed model, so this copy carries no identity contract of its
-  /// own (plan perf finding, fix round 1).
+  /// own.
   Map<String, PlainByWindowSize> _tokens(Object? value, String group) {
     final tokens = value is Map<String, Object?>
         ? value

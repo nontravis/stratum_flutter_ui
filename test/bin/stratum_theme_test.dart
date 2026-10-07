@@ -262,7 +262,7 @@ void main() {
       expect(zip.readAsBytesSync(), isNot(first));
       expect(
         _app.listSync().map((entity) => p.basename(entity.path)),
-        isNot(contains(endsWith('.tmp'))),
+        isNot(contains(startsWith('.stratum_theme_'))),
       );
     });
 
@@ -282,7 +282,7 @@ void main() {
       );
       expect(
         _app.listSync().map((entity) => p.basename(entity.path)),
-        isNot(contains(endsWith('.tmp'))),
+        isNot(contains(startsWith('.stratum_theme_'))),
       );
     });
 
@@ -580,6 +580,19 @@ void main() {
       },
       skip: Platform.isWindows ? 'no FIFO on Windows' : false,
     );
+
+    test('fix-5 sec f4 (type half, --app-default): a FIFO --app-default exits '
+        '66 without blocking', () async {
+      _zip('brand.zip', _theme());
+      final fifo = p.join(_app.path, 'pipe');
+      expect(Process.runSync('mkfifo', [fifo]).exitCode, 0);
+      expect(FileSystemEntity.typeSync(fifo), FileSystemEntityType.pipe);
+
+      final run = await _run(['check', 'brand.zip', '--app-default', fifo]);
+
+      expect(run.code, exitNoInput);
+      expect(run.out, isEmpty);
+    }, skip: Platform.isWindows ? 'no FIFO on Windows' : false);
   });
 
   group('us02/fr03: usage errors and unreadable inputs', () {
