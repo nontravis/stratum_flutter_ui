@@ -53,6 +53,7 @@ class _Harness extends StatefulWidget {
     this.fillItems = false,
     this.onItemBuild,
     this.heights,
+    this.keepAliveIds,
     this.scrollCacheExtent,
   });
 
@@ -110,6 +111,9 @@ class _Harness extends StatefulWidget {
 
   /// The height of an item by id, where it is not 40.
   final Map<int, double>? heights;
+
+  /// The ids of the items that keep themselves alive off screen.
+  final Set<int>? keepAliveIds;
 
   /// The list's `scrollCacheExtent`; null keeps the default 250 px.
   final ScrollCacheExtent? scrollCacheExtent;
@@ -209,6 +213,7 @@ class _HarnessState extends State<_Harness> {
           paintLog: widget.paintLog,
           fill: widget.fillItems,
           height: widget.heights?[ids[index]] ?? 40,
+          keepAlive: widget.keepAliveIds?.contains(ids[index]) ?? false,
         );
       },
     );
@@ -228,6 +233,7 @@ class _Item extends StatefulWidget {
     this.paintLog,
     this.fill = false,
     this.height = 40,
+    this.keepAlive = false,
   });
 
   final int id;
@@ -249,14 +255,20 @@ class _Item extends StatefulWidget {
   /// The item's height; its width stays 40.
   final double height;
 
+  /// Whether the item keeps itself alive when it leaves the built range.
+  final bool keepAlive;
+
   @override
   State<_Item> createState() => _ItemState();
 }
 
-class _ItemState extends State<_Item> {
+class _ItemState extends State<_Item> with AutomaticKeepAliveClientMixin {
   late final node = FocusNode(debugLabel: 'item ${widget.id}');
   late final inner = FocusNode(debugLabel: 'inner ${widget.id}');
   bool expanded = false;
+
+  @override
+  bool get wantKeepAlive => widget.keepAlive;
 
   @override
   void dispose() {
@@ -267,6 +279,7 @@ class _ItemState extends State<_Item> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (widget.field) {
       return SizedBox(width: 40, height: 40, child: TextField(focusNode: node));
     }
@@ -6319,6 +6332,66 @@ void main() {
         expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 112');
       },
       variant: laterCall,
+    );
+  });
+
+  group('ReorderableListViewLayout build-ahead and kept-alive items', () {
+    // Item 50 keeps itself alive: shown once at 2000 px, it stays mounted
+    // after the list scrolls to 4000 px, outside the sliver's child list.
+    Future<ScrollPosition> pumpKeptAlive(WidgetTester tester) async {
+      final position = await _pumpScrolled(
+        tester,
+        _Harness(
+          count: 200,
+          itemsController: StratumReorderableItemsController(),
+          keepAliveIds: const {50},
+        ),
+        offset: 2000,
+      );
+      position.jumpTo(4000);
+      await tester.pump();
+      expect(_statesOf(tester, 50), hasLength(1));
+      expect(_laidOut(tester), (first: 93, last: 113, count: 21));
+      return position;
+    }
+
+    testWidgets(
+      'us11/fr05/e12: a kept-alive item never counts as built, so a far move '
+      'into its slot jumps in the call turn and keeps its State',
+      (tester) async {
+        final position = await pumpKeptAlive(tester);
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 50);
+        expect(position.pixels, isNot(4000));
+        await tester.pump();
+
+        expect(_statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e12: a kept-alive item never counts as built, so it never '
+      'stops a near move from building ahead',
+      (tester) async {
+        final position = await pumpKeptAlive(tester);
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // After the insert item 100 sits at index 101 and enters slot 114.
+        _harness(tester)
+          ..insert(70, 9000)
+          ..move(101, 113);
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(_statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
     );
   });
 }
