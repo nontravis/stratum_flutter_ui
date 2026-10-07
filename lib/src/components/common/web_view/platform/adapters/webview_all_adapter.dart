@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
@@ -16,6 +17,7 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   new(this._listener)
     : _session = NativeBridgeSession(
         allowedOrigins: () => _listener.allowedOrigins,
+        platform: defaultTargetPlatform,
       ),
       _controller = wa.PlatformWebViewController(
         const wa.PlatformWebViewControllerCreationParams(),
@@ -67,8 +69,7 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
         _session.willLoadUrl();
         await _controller.loadRequest(wa.LoadRequestParams(uri: url));
       case StratumWebViewHtmlSource(:final html):
-        _session.willLoadHtml();
-        await _controller.loadHtmlString(html);
+        await _controller.loadHtmlString(_session.willLoadHtml(html));
     }
   }
 
@@ -115,7 +116,12 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   @override
   Future<void> postMessage(String data) async {
     await _ready;
-    await _controller.runJavaScript(_session.scriptForMessage(data));
+    final script = _session.scriptForMessage(data);
+    _session.confirmDelivery(
+      await dispatchScriptAnswer(
+        _controller.runJavaScriptReturningResult(script),
+      ),
+    );
   }
 
   @override

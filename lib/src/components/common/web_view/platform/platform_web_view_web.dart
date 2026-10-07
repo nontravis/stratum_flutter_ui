@@ -52,7 +52,9 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   String? _htmlNonce;
   web.MessagePort? _bridgePort;
 
-  /// Whether a page start was reported that no frame `load` has finished.
+  /// Whether a page start was reported that no frame `load` has finished:
+  /// from a controller load, or a re-insertion that restarts a completed
+  /// entry's navigation, until the frame's `load` for that entry.
   bool _pageStartOpen = false;
 
   /// The iframe that shows the page.
@@ -65,13 +67,24 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   /// Flutter creates a fresh host each time the view is inserted into the
   /// page, so re-insertion always moves the iframe and discards its browsing
   /// context: `srcdoc` reloads, the bootstrap script runs again, and a new
-  /// handshake carrying the same nonce replaces the adopted port.
+  /// handshake carrying the same nonce replaces the adopted port. When that
+  /// restart lands on a completed entry (no load already open), reopen the
+  /// request-to-load window: otherwise `currentUrl()` would read the
+  /// restarted navigation's transient `about:blank` instead of the entry's
+  /// URL (US-04 FR-01 E02).
   @visibleForTesting
   void attachTo(web.HTMLElement host) {
     host.style
       ..width = '100%'
       ..height = '100%';
     host.appendChild(_iframe);
+    final current = _history.current;
+    if (current != null && !_pageStartOpen) {
+      _pageStartOpen = true;
+      _listener.onPageStarted(
+        current is StratumWebViewUrlSource ? current.url : null,
+      );
+    }
   }
 
   @override
@@ -131,12 +144,14 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   Future<Uri?> currentUrl() async {
     final current = _history.current;
     if (current is! StratumWebViewUrlSource) return null;
+    // From the controller's load until the frame's `load` for that entry,
+    // the frame may still show the document it is leaving (US-04 FR-01
+    // E02): report the requested URL.
+    if (_pageStartOpen) return current.url;
     try {
       final href = _iframe.contentWindow?.location.href;
       final frameUrl = href == null ? null : Uri.tryParse(href);
-      // Before the requested page commits, a same-origin frame still shows
-      // its initial about:blank document; report the requested URL instead.
-      if (frameUrl != null && !frameUrl.isScheme('about')) return frameUrl;
+      if (frameUrl != null) return frameUrl;
     } on Object {
       // Cross-origin frame: the browser hides its location.
     }
@@ -239,9 +254,8 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     if (current == null) return;
     final url = current is StratumWebViewUrlSource ? current.url : null;
     // The web has no start event of its own: a frame load that no `_show`
-    // started (a link inside the frame, or the reload when the view is
-    // inserted again) reports its start first, so every finish pairs with
-    // one start.
+    // or `attachTo` restart already opened (a link inside the frame)
+    // reports its start first, so every finish pairs with one start.
     if (!_pageStartOpen) _listener.onPageStarted(url);
     _pageStartOpen = false;
     _listener.onPageFinished(url);
@@ -256,9 +270,9 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
       _handleHandshake(event);
       return;
     }
-    // Messages must come from the content the controller shows now: after a
-    // switch to HTML, the outgoing URL page no longer speaks for the view.
-    if (_history.current is! StratumWebViewUrlSource) return;
+    // The origin names the page that sent the message, whatever entry the
+    // view shows now: an outgoing page may still speak before it unloads
+    // (US-03 FR-01 E05).
     final data = event.data;
     if (data == null || !data.isA<JSString>()) return;
     final text = (data as JSString).toDart;

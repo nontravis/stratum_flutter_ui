@@ -1,5 +1,11 @@
 import 'package:flutter/rendering.dart'
-    show ItemExtentBuilder, RenderAbstractViewport, ScrollCacheExtent;
+    show
+        CacheExtentStyle,
+        ItemExtentBuilder,
+        RenderAbstractViewport,
+        RenderSliverMultiBoxAdaptor,
+        ScrollCacheExtent,
+        ViewportOffset;
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
@@ -7,7 +13,7 @@ import 'package:stratum_ui/src/src.dart';
 
 /// A lazy list whose items the user reorders, inside a [WidgetStyle] box.
 ///
-/// Built on the widgets-level [ReorderableList]. Every item that
+/// Built on the widgets-level [SliverReorderableList]. Every item that
 /// [itemBuilder] returns carries a key. A long press anywhere on an item
 /// starts a drag when [longPressDrag] is true, on every platform; a handle
 /// that the item wraps in [ReorderableDragStartListener] starts one on
@@ -49,11 +55,14 @@ import 'package:stratum_ui/src/src.dart';
 /// State and focus.
 ///
 /// An insert or remove during a drag, through [itemsController] or not,
-/// ends the drag first: the dragged item goes back to its slot,
-/// [onReorderEnd] reports the index the drag started at, and
-/// [onReorderItem] does not fire. A drag that starts between an
-/// `insertItem` or `removeItem` call and the next frame ends the same way
-/// at once.
+/// and a `moveItem` call during one, end the drag first: the dragged item
+/// goes back to its slot, [onReorderEnd] reports the index the drag
+/// started at, and [onReorderItem] does not fire. A drag that starts
+/// between an `insertItem`, `removeItem`, or `moveItem` call, or a move
+/// the list reported through [onReorderItem], and the next frame ends the
+/// same way at once. A reorder key or a screen reader's move during a
+/// drag, or while a dropped item settles, ends it the same way before it
+/// moves.
 class ReorderableListViewLayout extends StatelessWidget {
   const new builder({
     super.key,
@@ -198,7 +207,7 @@ class StratumReorderableItemsController {
       'insertItem on a StratumReorderableItemsController attached to no '
       'ReorderableListViewLayout',
     );
-    _body?._insertItem(index);
+    _body?._insertItem(_DataIndex(index));
   }
 
   /// Shrinks and fades out the item the app removed from [index] of its
@@ -215,7 +224,7 @@ class StratumReorderableItemsController {
       'removeItem on a StratumReorderableItemsController attached to no '
       'ReorderableListViewLayout',
     );
-    _body?._removeItem(index, builder);
+    _body?._removeItem(_DataIndex(index), builder);
   }
 
   /// Moves the item the app moved from [from] to [to] of its data: its old
@@ -232,7 +241,7 @@ class StratumReorderableItemsController {
       'moveItem on a StratumReorderableItemsController attached to no '
       'ReorderableListViewLayout',
     );
-    _body?._moveItem(from, to);
+    _body?._moveItem(_DataIndex(from), _DataIndex(to));
   }
 
   void _attach(_ReorderableBodyState body) {
@@ -249,7 +258,8 @@ class StratumReorderableItemsController {
   }
 }
 
-/// The [ReorderableList], with the per-item wrappers and the reorder keys.
+/// The reorderable list, a [SliverReorderableList] in its own scroll view,
+/// with the per-item wrappers and the reorder keys.
 class _ReorderableBody extends StatefulWidget {
   const new({
     required this.layout,
@@ -268,11 +278,11 @@ class _ReorderableBody extends StatefulWidget {
 class _ReorderableBodyState extends State<_ReorderableBody>
     with TickerProviderStateMixin {
   /// The key node of each built item, by index.
-  final _itemNodes = <int, FocusNode>{};
+  final _itemNodes = <_FrameIndex, FocusNode>{};
 
   /// The widget [ReorderableListViewLayout.itemBuilder] last built for each
   /// built item, by index: the look a removed item keeps (E03).
-  final _itemLooks = <int, Widget>{};
+  final _itemLooks = <_FrameIndex, Widget>{};
 
   /// The theme's motion, read in [build]: the drag proxy mounts outside
   /// the themed subtree (spec section 9), so [_proxy] cannot read it from
@@ -284,10 +294,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// by each `insertItem` and `removeItem` since.
   late int _dataCount;
 
-  /// The `insertItem` and `removeItem` calls since the last build, in call
-  /// order: they map an index of the app's current data to the index the
-  /// item had at that build.
-  final _pending = <({bool insert, int index})>[];
+  /// The `insertItem`, `removeItem`, and `moveItem` calls since the last
+  /// build, and the moves the list reported through `onReorderItem`, in
+  /// call order: they map an index of the app's current data to the index
+  /// the item had at that build, and back. An insert has no `from`, a
+  /// remove no `to`, and a move both, in one entry, so both converters
+  /// follow the moved item; a move the list reported is `reported` (R6).
+  final _pending = <({_DataIndex? from, _DataIndex? to, bool reported})>[];
 
   /// The inserts since the last build, each at its index in the current
   /// data; the next build reads the inserted item's key.
@@ -301,7 +314,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Where a removed item that held primary focus left, as an index of the
   /// current data, until the frame after the call hands focus on (E04).
-  int? _handoffGap;
+  _DataIndex? _handoffGap;
 
   /// The key of the focused item a move's post-frame follow waits for; the
   /// build that settles the move records its slot in [_followAt] (FR-05
@@ -311,11 +324,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// Where a focused moved item left, as an index of the current data, until
   /// the frame after the move follows the item (FR-05 E04). Each call in the
   /// move's own turn shifts it, as it shifts [_handoffGap].
-  int? _followGap;
+  _DataIndex? _followGap;
 
   /// The slot the settling build gives [_followKey], re-derived by key, as
   /// [_returnAt] is for a returned item (FR-05 E04).
-  int? _followAt;
+  _FrameIndex? _followAt;
 
   /// The key of the removed item [_handoffGap] marks: an insert of the
   /// same key in that turn keeps focus with the item (E16 to E18).
@@ -323,7 +336,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Where an insert of this turn brought [_handoffKey] back, as an index
   /// of the current data, read by the build that settles the insert (E17).
-  int? _returnAt;
+  _FrameIndex? _returnAt;
 
   /// The index the drag in progress started at, from `onReorderStart` to
   /// `onReorderEnd`; null with no drag.
@@ -331,10 +344,26 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The SDK ends a drag without `onReorderEnd` on a canceled gesture and
   /// on a change of the item count it is given: the last pointer up clears
   /// it, and that change reports the end ([_reportCountEnd]).
-  int? _dragIndex;
+  _FrameIndex? _dragIndex;
 
-  /// The item count the last build gave [ReorderableList].
+  /// The item count the last build gave [SliverReorderableList].
   int? _listCount;
+
+  /// Where each key move, screen-reader move, or drop of this frame put its
+  /// item, as an index of the current data, until the frame after it
+  /// reveals the item: each call moves them, as it moves [_handoffGap].
+  final _moveTargets = <_MoveTarget>[];
+
+  /// The near slots focused moves asked the next frame to build ahead to,
+  /// each until that frame's post-frame callbacks have run (D1, D3); the
+  /// list's viewport alone listens to them.
+  final _aheadAsks = _AheadAsks();
+
+  /// The far moves of this turn that jumped for a focused item, each with
+  /// the item's key node and the offset before the jump, until the next
+  /// frame starts and reads whether the item still holds focus (R13).
+  final _farJumps =
+      <({FocusNode node, ({ScrollPosition position, double pixels}) origin})>[];
 
   /// Whether `onReorderStart` is running: the SDK sets the drag up only
   /// after it returns, so a cancel waits for a microtask.
@@ -358,17 +387,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The pointers down on the list; a drag needs one.
   var _pointersDown = 0;
 
-  /// Reaches [ReorderableListState.cancelReorder].
-  final _listKey = GlobalKey<ReorderableListState>();
+  /// Reaches [SliverReorderableListState.cancelReorder] and the list's
+  /// sliver ([_sliver]).
+  final _listKey = GlobalKey<SliverReorderableListState>();
 
   ReorderableListViewLayout get _layout => widget.layout;
-
-  /// Whether primary focus lies inside this list.
-  bool get _holdsFocus {
-    final primary = FocusManager.instance.primaryFocus;
-    return primary?.context?.findAncestorStateOfType<_ReorderableBodyState>() ==
-        this;
-  }
 
   @override
   void initState() {
@@ -406,21 +429,22 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void dispose() {
     _layout.itemsController?._detach(this);
     _resetMotion();
+    _aheadAsks.dispose();
     super.dispose();
   }
 
   /// [StratumReorderableItemsController.insertItem]: the app inserted an
   /// item at [index] of its data in this turn.
-  void _insertItem(int index) {
+  void _insertItem(_DataIndex index) {
     assert(
-      index >= 0 && index <= _dataCount,
+      index >= const _DataIndex(0) && index <= _dataEnd,
       'insertItem($index) is out of range: the data holds $_dataCount '
       'items',
     );
-    if (index < 0 || index > _dataCount) return;
+    if (index < const _DataIndex(0) || index > _dataEnd) return;
     _cancelDrag();
     _shiftForInsert(index);
-    _pending.add((insert: true, index: index));
+    _pending.add((from: null, to: index, reported: false));
     _dataCount += 1;
     final motion = _newMotion(value: 0);
     _pendingInserts.add(_PendingInsert(index, motion));
@@ -432,21 +456,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// [StratumReorderableItemsController.removeItem]: the app removed the
   /// item at [index] of its data in this turn.
-  void _removeItem(int index, WidgetBuilder? builder) {
+  void _removeItem(_DataIndex index, WidgetBuilder? builder) {
     assert(
-      index >= 0 && index < _dataCount,
+      index >= const _DataIndex(0) && index < _dataEnd,
       'removeItem($index) is out of range: the data holds $_dataCount '
       'items',
     );
-    if (index < 0 || index >= _dataCount) return;
+    if (index < const _DataIndex(0) || index >= _dataEnd) return;
     _cancelDrag();
-    final built = _builtIndexOf(index);
-    final node = built == null ? null : _itemNodes[built];
-    final look = built == null ? null : _itemLooks[built];
+    final built = _builtIndexOf(index, inPlace: true);
+    final node = built == null ? null : _nodeAt(built);
+    final look = built == null ? null : _lookAt(built);
     final focused = node?.hasFocus ?? false;
     final around = _takeExitsAround(index, look?.key);
     _shiftForRemove(index);
-    _pending.add((insert: false, index: index));
+    _pending.add((from: index, to: null, reported: false));
     _dataCount -= 1;
     if (focused && _handoffGap == null) {
       _handoffGap = index;
@@ -498,33 +522,34 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// [StratumReorderableItemsController.moveItem]: the app moved the item
-  /// at [from] of its data to [to] in this turn (FR-05). Booked as a remove
-  /// at [from] and an insert at [to], so the item's global key carries its
-  /// State into the new slot when the frame builds it.
-  void _moveItem(int from, int to) {
+  /// at [from] of its data to [to] in this turn (FR-05). Booked in
+  /// [_pending] as one move entry, which both converters follow, and as an
+  /// insert at [to] in [_pendingInserts], so the item's global key carries
+  /// its State into the new slot when the frame builds it.
+  void _moveItem(_DataIndex from, _DataIndex to) {
+    const first = _DataIndex(0);
     assert(
-      from >= 0 && from < _dataCount && to >= 0 && to < _dataCount,
+      from >= first && from < _dataEnd && to >= first && to < _dataEnd,
       'moveItem($from, $to) is out of range: the data holds $_dataCount '
       'items',
     );
-    if (from < 0 || from >= _dataCount || to < 0 || to >= _dataCount) {
+    if (from < first || from >= _dataEnd || to < first || to >= _dataEnd) {
       return;
     }
     if (from == to) return;
     _cancelDrag();
-    final built = _builtIndexOf(from);
-    final node = built == null ? null : _itemNodes[built];
-    final key = built == null ? null : _itemLooks[built]?.key;
+    final built = _builtIndexOf(from, inPlace: true);
+    final node = built == null ? null : _nodeAt(built);
+    final key = built == null ? null : _lookAt(built)?.key;
     final focused = node?.hasFocus ?? false;
     // A leaving item drawn beside the moved item would travel with it.
     if (built != null) _endExitsBeside(built);
-    // A focused item whose new slot is not built jumps there first, so the
-    // frame that moves it builds the slot and keeps its State (E04).
-    final origin = focused && node != null ? _jumpForMove(to, node) : null;
     final box = node?.context?.findRenderObject();
     final size = box is RenderBox && box.hasSize ? box.size : null;
     _shiftForRemove(from);
-    _pending.add((insert: false, index: from));
+    // A remove while the insert side below reads the data without the
+    // item, then one move entry.
+    _pending.add((from: from, to: null, reported: false));
     _dataCount -= 1;
     // The old slot closes as the item grows in; at once under reduced
     // motion or a fixed extent, where the item only fades in (E02).
@@ -535,7 +560,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _joinGap(from, [_startClosingGap(from, key, size)]);
     }
     _shiftForInsert(to);
-    _pending.add((insert: true, index: to));
+    _pending.last = (from: from, to: to, reported: false);
     _dataCount += 1;
     final motion = _newMotion(value: 0);
     _pendingInserts.add(_PendingInsert(to, motion));
@@ -547,8 +572,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       // this gap and the item's slot live in fields each call in this turn
       // shifts, and the build that settles the move re-reads the slot by
       // key, so the post-frame follow follows the data, not frozen indices.
+      // Set before the jump below: its scroll notifications may reach an
+      // app listener that calls the controller at once.
       _followKey = key;
       _followGap = from < to ? from : from + 1;
+      // A focused item whose new slot is not built has the next frame build
+      // ahead to a near slot, or jumps toward a far one first, so the frame
+      // that moves it builds the slot and keeps its State (E04). Asked after
+      // the booking, which starts the boxes that slot counts.
+      final origin = _buildAheadOrJump(to, node);
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _followMoved(node, key, origin),
       );
@@ -583,7 +615,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Starts the remove animation of the item that left at [gap], whose last
   /// look is [look]; the caller places the exit in [_exits].
-  _Exit _startExit(int gap, Widget look, WidgetBuilder? builder) {
+  _Exit _startExit(_DataIndex gap, Widget look, WidgetBuilder? builder) {
     final key = look.key!;
     // An item still growing in shrinks back from where it stands. Its
     // motion now runs in reverse, so the reveal that waited for its
@@ -605,7 +637,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// Starts the slot a moved item left at [gap]: an empty box of the
   /// item's [size] that closes over the `normal` level's forward duration,
   /// in step with the item growing into its new slot (FR-05).
-  _Exit _startClosingGap(int gap, Key key, Size size) {
+  _Exit _startClosingGap(_DataIndex gap, Key key, Size size) {
     final motion = _newMotion(value: 0);
     final exit =
         _Exit(
@@ -626,7 +658,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// [index] of the current data, whose key is [key]: those just before it
   /// and those just after it, each in the list's order.
   ({List<_Exit> before, List<_Exit> after}) _takeExitsAround(
-    int index,
+    _DataIndex index,
     Key? key,
   ) {
     final next = _builtKeyAt(index + 1);
@@ -645,7 +677,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Puts [exits], in the list's order, back in [_exits] at [gap] of the
   /// current data; the next build finds their host.
-  void _joinGap(int gap, List<_Exit> exits) {
+  void _joinGap(_DataIndex gap, List<_Exit> exits) {
     for (final exit in exits) {
       exit
         ..hostKey = null
@@ -671,31 +703,74 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// The index the item at [index] of the current data had at the last
-  /// build; null for an item inserted since.
-  int? _builtIndexOf(int index) {
-    var i = index;
+  /// build: a backward replay of [_pending]; null for an item inserted
+  /// since, and the index before the move for an item a move of this turn
+  /// moved. One of the two converters between the index spaces, with
+  /// [_dataIndexOf].
+  ///
+  /// With [inPlace], an item a `moveItem` call moved maps to null as an
+  /// inserted one does: the frame drew it elsewhere, not at this place of
+  /// the data. A call on it then starts no second exit, closing gap, or
+  /// follow, since the move's own closing gap and follow hold its old slot
+  /// and its focus (FR-05 E04), and the focus handoff passes over it. A
+  /// move the list reported has neither, so [inPlace] follows it (R6).
+  _FrameIndex? _builtIndexOf(_DataIndex index, {bool inPlace = false}) {
+    var i = index.value;
     for (final call in _pending.reversed) {
-      if (call.insert) {
-        if (i == call.index) return null;
-        if (i > call.index) i -= 1;
-      } else if (i >= call.index) {
-        i += 1;
+      final from = call.from?.value;
+      final to = call.to?.value;
+      if (i == to) {
+        if (from == null || (inPlace && !call.reported)) return null;
+        i = from;
+      } else {
+        if (to != null && i > to) i -= 1;
+        if (from != null && i >= from) i += 1;
       }
     }
-    return i;
+    return _FrameIndex(i);
   }
+
+  /// The index in the current data of the item the last build drew at
+  /// [index]: a forward replay of [_pending]; null for an item a remove of
+  /// this turn took out, and the new index for an item a move of this turn
+  /// moved. One of the two converters, with [_builtIndexOf].
+  _DataIndex? _dataIndexOf(_FrameIndex index) {
+    var i = index.value;
+    for (final call in _pending) {
+      final from = call.from?.value;
+      final to = call.to?.value;
+      if (i == from) {
+        if (to == null) return null;
+        i = to;
+      } else {
+        if (from != null && i > from) i -= 1;
+        if (to != null && i >= to) i += 1;
+      }
+    }
+    return _DataIndex(i);
+  }
+
+  /// One past the last index of the app's data: the bound of every index
+  /// of the current data.
+  _DataIndex get _dataEnd => _DataIndex(_dataCount);
+
+  /// The key node of the item the last build drew at [index].
+  FocusNode? _nodeAt(_FrameIndex index) => _itemNodes[index];
+
+  /// The look of the item the last build drew at [index].
+  Widget? _lookAt(_FrameIndex index) => _itemLooks[index];
 
   /// The key of the item at [index] of the current data as the last build
   /// drew it; null for an item inserted since, not built, or past the end.
-  Key? _builtKeyAt(int index) {
+  Key? _builtKeyAt(_DataIndex index) {
     final built = _builtIndexOf(index);
-    return built == null ? null : _itemLooks[built]?.key;
+    return built == null ? null : _lookAt(built)?.key;
   }
 
   /// Moves the pending indices past an insert at [index]. An insert at a
   /// removed item's gap lands after it, as in `AnimatedList`, whether the
   /// item left in this turn or an earlier one.
-  void _shiftForInsert(int index) {
+  void _shiftForInsert(_DataIndex index) {
     final host = _builtKeyAt(index);
     for (final exit in _exits) {
       final gap = exit.gap;
@@ -714,13 +789,22 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (handoff != null && handoff > index) _handoffGap = handoff + 1;
     final reachGap = _reachGap;
     if (reachGap != null && reachGap > index) _reachGap = reachGap + 1;
+    for (final held in _givenUpGaps) {
+      if (held.index > index) held.index += 1;
+    }
     final follow = _followGap;
     if (follow != null && follow > index) _followGap = follow + 1;
+    for (final target in _moveTargets) {
+      final at = target.index;
+      if (at != null && at >= index) target.index = at + 1;
+      final gap = target.gap;
+      if (gap != null && gap > index) target.gap = gap + 1;
+    }
   }
 
   /// Moves the pending indices past a remove at [index]; an insert of this
   /// turn that the remove takes back is dropped, never shown.
-  void _shiftForRemove(int index) {
+  void _shiftForRemove(_DataIndex index) {
     for (final exit in _exits) {
       final gap = exit.gap;
       if (gap != null && gap > index) exit.gap = gap - 1;
@@ -737,8 +821,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (handoff != null && handoff > index) _handoffGap = handoff - 1;
     final reachGap = _reachGap;
     if (reachGap != null && reachGap > index) _reachGap = reachGap - 1;
+    for (final held in _givenUpGaps) {
+      if (held.index > index) held.index -= 1;
+    }
     final follow = _followGap;
     if (follow != null && follow > index) _followGap = follow - 1;
+    for (final target in _moveTargets) {
+      final gap = target.gap;
+      if (gap != null && gap > index) target.gap = gap - 1;
+      final at = target.index;
+      if (at == null || at < index) continue;
+      // A call that takes the moved item out leaves nothing to reveal.
+      target.index = at == index ? null : at - 1;
+    }
   }
 
   /// Settles the calls since the last build against the app's new data:
@@ -750,7 +845,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (count != _dataCount) _resetMotion();
     _dataCount = count;
     _pending.clear();
-    Key? keyAt(int index) => layout.itemBuilder(context, index).key;
+    Key? keyAt(_DataIndex index) =>
+        layout.itemBuilder(context, index.value).key;
     final returning = <Key>{};
     for (final insert in _pendingInserts) {
       final key = keyAt(insert.index);
@@ -758,10 +854,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         insert.motion.dispose();
         continue;
       }
-      if (key == _handoffKey) _returnAt = insert.index;
+      // With [_pending] clear, the converter gives the index this build
+      // draws the item at: the frame index the post-frame readers take.
+      if (key == _handoffKey) _returnAt = _builtIndexOf(insert.index);
       // The follow's slot by the key the move's own insert carries, so a
       // second call in the move's turn cannot strand it on a stale index.
-      if (key == _followKey) _followAt = insert.index;
+      if (key == _followKey) _followAt = _builtIndexOf(insert.index);
       _incoming.remove(key)?.dispose();
       _incoming[key] = insert.motion;
       returning.add(key);
@@ -769,18 +867,22 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _pendingInserts.clear();
     // A move or replace with no call can put a leaving key back in view.
     if (_exits.any((exit) => exit.keepsState)) {
-      returning.addAll(_keysInView(keyAt, count));
+      returning.addAll(_keysInView(keyAt));
     }
     _yieldExitsTo(returning);
-    if (_fixedExtent) _dropEndExits(count);
+    if (_fixedExtent) _dropEndExits();
+    // This build draws every exit left, so none adds a box after it.
+    for (final exit in _exits) {
+      exit.fresh = false;
+    }
     if (count == 0) return;
     for (final exit in _exits) {
       final gap = exit.gap;
       if (gap == null) continue;
       exit
         ..gap = null
-        ..hostKey = keyAt(gap < count ? gap : count - 1)
-        ..before = gap < count;
+        ..hostKey = keyAt(gap < _dataEnd ? gap : _dataEnd - 1)
+        ..before = gap < _dataEnd;
     }
   }
 
@@ -804,23 +906,28 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The keys of the data's items from the first index the last build drew
   /// to its last, plus one per leaving item: a closing gap shows one more.
-  Set<Key> _keysInView(Key? Function(int index) keyAt, int count) {
-    var first = count;
-    var last = -1;
+  /// The sliver rebuilds its children by index number, so with [_pending]
+  /// clear the converter reads the last build's range in the new data.
+  Set<Key> _keysInView(Key? Function(_DataIndex index) keyAt) {
+    _FrameIndex? first;
+    _FrameIndex? last;
     for (final index in _itemLooks.keys) {
-      if (index < first) first = index;
-      if (index > last) last = index;
+      if (first == null || index < first) first = index;
+      if (last == null || index > last) last = index;
     }
-    last += _exits.length;
-    return {for (var i = first; i <= last && i < count; i++) ?keyAt(i)};
+    final start = first == null ? null : _dataIndexOf(first);
+    final end = last == null ? null : _dataIndexOf(last);
+    if (start == null || end == null) return {};
+    final stop = end + _exits.length;
+    return {for (var i = start; i <= stop && i < _dataEnd; i += 1) ?keyAt(i)};
   }
 
-  /// Ends at once each removed item past the last of the [count] items: a
+  /// Ends at once each removed item past the last item of the data: a
   /// fixed extent gives it no room and no item to fade over (E11).
-  void _dropEndExits(int count) {
+  void _dropEndExits() {
     _exits.removeWhere((exit) {
       final gap = exit.gap;
-      if (gap == null || gap < count) return false;
+      if (gap == null || gap < _dataEnd) return false;
       exit.motion.dispose();
       return true;
     });
@@ -842,19 +949,22 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _exits.clear();
   }
 
-  void _registerItem(int index, FocusNode node, Widget look) {
+  void _registerItem(_FrameIndex index, FocusNode node, Widget look) {
     _itemNodes[index] = node;
     _itemLooks[index] = look;
   }
 
-  void _unregisterItem(int index, FocusNode node) {
-    if (_itemNodes[index] != node) return;
+  void _unregisterItem(_FrameIndex index, FocusNode node) {
+    if (_nodeAt(index) != node) return;
     _itemNodes.remove(index);
     _itemLooks.remove(index);
   }
 
   /// The reorder keys of item [index], from the node of its [_ReorderKeys].
-  KeyEventResult _handleKey(int index, FocusNode node, KeyEvent event) {
+  /// They act at once, also between a call and its frame, and report
+  /// indices of the app's data (FR-02 E07); a move ends a drag or a
+  /// settling drop first (FR-02 E08).
+  KeyEventResult _handleKey(_FrameIndex index, FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final keyboard = HardwareKeyboard.instance;
     if (!keyboard.isAltPressed ||
@@ -864,64 +974,219 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         primaryFocusInEditableText()) {
       return KeyEventResult.ignored;
     }
-    final count = _layout.itemCount;
     final item = node.context;
     final position = item == null ? null : Scrollable.maybeOf(item)?.position;
-    if (count < 2 || item == null || position == null) {
-      return KeyEventResult.ignored;
-    }
+    if (item == null || position == null) return KeyEventResult.ignored;
     final key = event.logicalKey;
-    final int target;
+    final _MoveIntent intent;
     if (key == LogicalKeyboardKey.home) {
-      target = 0;
+      intent = _MoveIntent.start;
     } else if (key == LogicalKeyboardKey.end) {
-      target = count - 1;
+      intent = _MoveIntent.end;
     } else {
       final direction = arrowAlong(key, position.axis);
       if (direction == null) return KeyEventResult.ignored;
       // The slot on that side of the screen.
-      target = direction == position.axisDirection ? index + 1 : index - 1;
+      intent = direction == position.axisDirection
+          ? _MoveIntent.next
+          : _MoveIntent.previous;
     }
-    // A move past either end does nothing, but is handled: the browser
-    // never sees the key.
-    if (target < 0 || target >= count || target == index) {
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.home || key == LogicalKeyboardKey.end) {
-      _jumpTowards(target, item, position);
-    }
-    _endExitsBeside(index);
-    _layout.onReorderItem(index, target);
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _afterMove(target, byKey: true),
+    final from = _dataIndexOf(index);
+    // An item the app removed in this turn does not move (R2), even when
+    // fewer than two items are left (R8), nor does a move past either end;
+    // both are handled, so the browser never sees the key. Any other key
+    // in a list of fewer than two items is not handled (E02).
+    if (from == null) return KeyEventResult.handled;
+    if (_dataCount < 2) return KeyEventResult.ignored;
+    final target = _targetOf(from, intent);
+    if (target == null) return KeyEventResult.handled;
+    // A drag, or a drop still settling, ends first, as a call ends it
+    // (invariant 28): the move changes the data under it.
+    _cancelDrag();
+    _reportMove(
+      index,
+      from,
+      target,
+      intent: intent,
+      node: node,
+      edgeJump: intent == _MoveIntent.start || intent == _MoveIntent.end,
+      byKey: true,
     );
     return KeyEventResult.handled;
   }
 
-  /// The list's own moves: a drop and a screen reader's move actions. A
-  /// move to the first or last slot jumps there first when that slot is
-  /// not built, so the moved item keeps its State.
-  void _handleReorderItem(int from, int to) {
-    final item = _itemNodes[from]?.context;
-    final position = item == null ? null : Scrollable.maybeOf(item)?.position;
-    final edge = to == 0 || to == _layout.itemCount - 1;
-    if (item != null &&
-        position != null &&
-        edge &&
-        !_itemNodes.containsKey(to)) {
-      _jumpTowards(to, item, position);
-    }
-    _endExitsBeside(from);
-    _layout.onReorderItem(from, to);
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _afterMove(to, byKey: false),
+  /// The index of the app's data that [intent] moves the item at [from]
+  /// to: the one target path of the reorder keys and of a screen reader's
+  /// move actions (FR-02, FR-03 E07); null for a move past either end.
+  _DataIndex? _targetOf(_DataIndex from, _MoveIntent intent) {
+    const start = _DataIndex(0);
+    final last = _dataEnd - 1;
+    final target = switch (intent) {
+      _MoveIntent.start => start,
+      _MoveIntent.previous => from - 1,
+      _MoveIntent.next => from + 1,
+      _MoveIntent.end => last,
+    };
+    if (target < start || target > last || target == from) return null;
+    return target;
+  }
+
+  /// The intent of a screen reader's move action, decoded from the frame
+  /// indices the SDK reports: the start and the end first, so a move to the
+  /// first or last slot reads as one even from the slot next to it (R4).
+  _MoveIntent _intentOf(_FrameIndex from, _FrameIndex to) {
+    if (to == const _FrameIndex(0)) return _MoveIntent.start;
+    if (to == _FrameIndex((_listCount ?? 0) - 1)) return _MoveIntent.end;
+    return to < from ? _MoveIntent.previous : _MoveIntent.next;
+  }
+
+  /// The list's own moves: a drop and a screen reader's move actions, told
+  /// apart by drag state: the drag proxy holds the dropped item
+  /// ([_liftedKey]) until after the SDK reports the drop, so a report of
+  /// that item is the drop. A drop converts its frame indices, since a
+  /// call during a drag ends it first (invariant 28); a screen-reader move
+  /// is decoded into its intent and takes the reorder keys' target (R4),
+  /// so it acts at once, also between a call and its frame (FR-03 E07),
+  /// and ends a drag or a settling drop first, as a call does (FR-03 E08).
+  /// The start and end actions, once reported, jump there when that slot
+  /// is not built, so the moved item keeps its State; a step action that a
+  /// same-turn call shifts onto the data's first or last slot takes D1's
+  /// near and far paths instead (R12 inputs), not this exact jump.
+  void _handleReorderItem(int fromIndex, int toIndex) {
+    final index = _FrameIndex(fromIndex);
+    final drop = _liftedKey != null && _lookAt(index)?.key == _liftedKey;
+    final from = _dataIndexOf(index);
+    // An item the app removed in this turn does not move (R2).
+    if (from == null) return;
+    final to = _FrameIndex(toIndex);
+    final intent = drop ? null : _intentOf(index, to);
+    final target = intent == null ? _dataIndexOf(to) : _targetOf(from, intent);
+    if (target == null) return;
+    if (!drop) _cancelDrag();
+    // A drop reports no intent at all (null), and a drop's own edge jump
+    // stays untouched (D2); only a step intent (previous or next) is the
+    // one R12 inputs routes through the near and far paths instead.
+    final edgeAction =
+        intent != _MoveIntent.previous && intent != _MoveIntent.next;
+    final edge =
+        edgeAction && (target == const _DataIndex(0) || target == _dataEnd - 1);
+    _reportMove(
+      index,
+      from,
+      target,
+      intent: intent,
+      node: _nodeAt(index),
+      edgeJump: edge && _nodeAt(to) == null,
+      byKey: false,
     );
+  }
+
+  /// Books the move of the item the last build drew at [index], whose key
+  /// node is [node], from [from] to [to] of the current data, registers its
+  /// target, reports it through `onReorderItem`, and only then makes its
+  /// call-turn jump ([_readySlot]): that jump's scroll notifications reach
+  /// an app listener at once, so a call the listener makes moves the
+  /// target and sees the data after the move. With [edgeJump] the jump
+  /// goes to the edge [to] lies at.
+  void _reportMove(
+    _FrameIndex index,
+    _DataIndex from,
+    _DataIndex to, {
+    required _MoveIntent? intent,
+    required FocusNode? node,
+    required bool edgeJump,
+    required bool byKey,
+  }) {
+    final key = _lookAt(index)?.key;
+    _endExitsBeside(index);
+    _bookReportedMove(from, to);
+    final moved = _targetFor(intent, from, to, node, key);
+    _moveTargets.add(moved);
+    _layout.onReorderItem(from.value, to.value);
+    final toStart = to == const _DataIndex(0);
+    _readySlot(moved, node, edgeJump: edgeJump, toStart: toStart);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _afterMove(moved, byKey: byKey),
+    );
+  }
+
+  /// Books a move the list reports through `onReorderItem`, from [from] to
+  /// [to] of the current data, in [_pending] as one move entry, as
+  /// [_moveItem] books its own (R6): the inserts, leaving items, and gaps of
+  /// this turn follow the moved item, so a grow-in plays on its own item.
+  /// Bookkeeping only: the entry starts no grow-in and no closing gap. It
+  /// holds because the app moves the item in its data before the list's
+  /// next build, the contract of `onReorderItem`, and the build this asks
+  /// for settles it.
+  void _bookReportedMove(_DataIndex from, _DataIndex to) {
+    // The moved item's own grow-in, from a `moveItem` call of this turn,
+    // moves with it: the remove side would end it.
+    final own = [
+      for (final insert in _pendingInserts)
+        if (insert.index == from) insert,
+    ];
+    _pendingInserts.removeWhere(own.contains);
+    _shiftForRemove(from);
+    // A remove while the insert side reads the data without the item, then
+    // one move entry, as in [_moveItem].
+    _pending.add((from: from, to: null, reported: true));
+    _shiftForInsert(to);
+    _pending.last = (from: from, to: to, reported: true);
+    for (final insert in own) {
+      _pendingInserts.add(insert..index = to);
+    }
+    setState(() {});
+  }
+
+  /// The record the frame after a key or screen-reader move reads, for a
+  /// move booked from [from] to [to] of the current data. A one-slot move,
+  /// [intent] previous or next, of an item that holds focus, whose key
+  /// node is [node], keeps the item's [key] and the gap it left, for the
+  /// reach should the frame still not build its slot ([_reachStep]).
+  _MoveTarget _targetFor(
+    _MoveIntent? intent,
+    _DataIndex from,
+    _DataIndex to,
+    FocusNode? node,
+    Key? key,
+  ) {
+    final step = intent == _MoveIntent.previous || intent == _MoveIntent.next;
+    if (!step || node == null || key == null || !node.hasFocus) {
+      return _MoveTarget(to);
+    }
+    // The slot the item left, by the index of the item now after it.
+    return _MoveTarget(to, key: key, gap: from < to ? from : from + 1);
+  }
+
+  /// Makes the call-turn jump of the reported move [moved], whose item's
+  /// key node is [node], at the index the calls so far left its target at:
+  /// a focused one-slot move readies its slot as a move call does
+  /// ([_buildAheadOrJump], FR-03 E09) and keeps the offset before any jump
+  /// on [moved]; else, with [edgeJump], the list jumps to the start when
+  /// [toStart], else to the end, so the moved item keeps its State (FR-03
+  /// E02). A target a call took out readies nothing.
+  void _readySlot(
+    _MoveTarget moved,
+    FocusNode? node, {
+    required bool edgeJump,
+    required bool toStart,
+  }) {
+    final at = moved.index;
+    final item = node?.context;
+    if (at == null || node == null || item == null) return;
+    if (moved.key != null) {
+      moved.origin = _buildAheadOrJump(at, node);
+      return;
+    }
+    final position = Scrollable.maybeOf(item)?.position;
+    if (!edgeJump || position == null) return;
+    _jumpTowards(item, position, toStart: toStart);
   }
 
   /// Ends at once the removed items drawn in the slot of the built item at
   /// [index], which a reorder moves: they would travel with it.
-  void _endExitsBeside(int index) {
-    final key = _itemLooks[index]?.key;
+  void _endExitsBeside(_FrameIndex index) {
+    final key = _lookAt(index)?.key;
     if (key == null) return;
     final count = _exits.length;
     _exits.removeWhere((exit) {
@@ -932,12 +1197,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (_exits.length != count) setState(() {});
   }
 
-  /// Starts a drag, and ends it at once when it starts between a call and
-  /// the frame that settles the call: that frame would build a leaving
-  /// copy whose keys the drag proxy holds.
+  /// Starts a drag, and ends it at once when it starts between a call, or a
+  /// move the list reported (R6), and the frame that settles it: that frame
+  /// would build a leaving copy, or the dragged item at another index,
+  /// whose keys the drag proxy holds.
   void _handleReorderStart(int index) {
-    _dragIndex = index;
-    final box = _itemNodes[index]?.context?.findRenderObject();
+    final dragged = _FrameIndex(index);
+    _dragIndex = dragged;
+    final box = _nodeAt(dragged)?.context?.findRenderObject();
     _liftedSize = box is RenderBox && box.hasSize ? box.size : null;
     _inReorderStart = true;
     try {
@@ -953,8 +1220,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _layout.onReorderEnd?.call(index);
   }
 
-  /// Cancels a drag in progress before an insert or remove, or one that
-  /// starts before their frame (E06): the dragged item returns to its slot,
+  /// Cancels a drag in progress before an insert, remove, or move, a key
+  /// move or a screen-reader move among them, or one that starts before
+  /// their frame (E06): the dragged item returns to its slot,
   /// `onReorderEnd` fires with the index the drag started at, and
   /// `onReorderItem` does not fire. A dropped item still settling ends the
   /// same way, with no second `onReorderEnd`.
@@ -969,7 +1237,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     } else {
       _listKey.currentState?.cancelReorder();
     }
-    if (index != null) _layout.onReorderEnd?.call(index);
+    if (index != null) _layout.onReorderEnd?.call(index.value);
   }
 
   /// Reports the end of the drag that the SDK cancels, with no
@@ -981,7 +1249,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _dragIndex = null;
     // After the frame: the app may set state in onReorderEnd.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _layout.onReorderEnd?.call(index);
+      if (mounted) _layout.onReorderEnd?.call(index.value);
     });
   }
 
@@ -1003,11 +1271,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (_pointersDown == 0) _dragIndex = null;
   }
 
-  /// Jumps to the start for a move to slot 0, else to the end. The target
-  /// slot may not be built; the move needs it built in the frame that
-  /// moves the item.
-  void _jumpTowards(int target, BuildContext item, ScrollPosition position) {
-    if (target == 0) {
+  /// Jumps to the start when [toStart], else to the end. The target slot
+  /// may not be built; the move needs it built in the frame that moves the
+  /// item.
+  void _jumpTowards(
+    BuildContext item,
+    ScrollPosition position, {
+    required bool toStart,
+  }) {
+    if (toStart) {
       position.jumpTo(position.minScrollExtent);
     } else {
       jumpToEnd(
@@ -1020,33 +1292,105 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
   }
 
-  /// Reveals the item at [target] after a move, by the edge of each
-  /// viewport around it ([revealInViewports]). After a key move, when
-  /// focus has left the list, it moves to that item's first node in Tab
-  /// order.
-  void _afterMove(int target, {required bool byKey}) {
-    if (!mounted) return;
-    final node = _itemNodes[target];
-    if (node == null || node.context == null) return;
-    if (byKey && !_holdsFocus) firstTabStopIn(node)?.requestFocus();
+  /// Reveals the item at [moved]'s index after a move, by the edge of each
+  /// viewport around it ([revealInViewports]). The index is one of the
+  /// current data, converted when read, so a call made after the move, or
+  /// one the app defers to run earlier in the post-frame batch (FR-04
+  /// E15), cannot shift it (D7). After a key move, when no node holds
+  /// primary focus, it moves to that item's first node in Tab order, the
+  /// same rule [_followMoved] applies at this post-frame timing; a focus
+  /// the app moved to another node in the move's turn, a bare
+  /// [FocusScopeNode] included, stays there instead (R13). An item still
+  /// growing in before it pushes it past the edge it was revealed at, so
+  /// it is revealed again as each such grow-in ends (R10).
+  void _afterMove(_MoveTarget moved, {required bool byKey}) {
+    _moveTargets.remove(moved);
+    final index = moved.index;
+    if (!mounted || index == null) return;
+    final built = _builtIndexOf(index);
+    if (built == null) return;
+    final node = _nodeAt(built);
+    if (node == null || node.context == null) {
+      _reachStep(moved, built);
+      return;
+    }
+    final noFocusOwnerElsewhere = FocusManager.instance.primaryFocus == null;
+    if (byKey && noFocusOwnerElsewhere) firstTabStopIn(node)?.requestFocus();
     revealInViewports(node);
+    for (final MapEntry(key: at, value: look) in _itemLooks.entries) {
+      final motion = at < built ? _incoming[look.key] : null;
+      if (motion != null) _revealAfterGrowIn(node, motion, byKey: byKey);
+    }
+  }
+
+  /// The frame did not build the slot a focused one-slot move readied
+  /// ([_readySlot]), now [at]: the estimate missed, so the list reaches the
+  /// slot as a move call's follow does, with the gap the item left (FR-03
+  /// E09, FR-05 E04), unless a node holds primary focus, which the app
+  /// moved there in the move's turn (R13).
+  void _reachStep(_MoveTarget moved, _FrameIndex at) {
+    final key = moved.key;
+    final gap = moved.gap;
+    if (key == null || gap == null) return;
+    if (FocusManager.instance.primaryFocus != null) return;
+    _startReach(at, key, gap, origin: moved.origin);
+  }
+
+  /// Reveals the moved item whose key node is [node] again in the frame
+  /// [motion], the grow-in of an item before it, completes (R10): after a
+  /// key move only while the item keeps focus, as E16's second reveal.
+  /// Disposing [motion] before it completes drops the listener with it.
+  void _revealAfterGrowIn(
+    FocusNode node,
+    _ItemMotion motion, {
+    required bool byKey,
+  }) {
+    void grown(AnimationStatus status) {
+      if (!status.isCompleted) return;
+      motion.controller.removeStatusListener(grown);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // A FocusNode keeps its context once disposed: the item is live
+        // only while its node is registered.
+        if (!mounted || !_itemNodes.containsValue(node)) return;
+        if (!byKey || node.hasFocus) revealInViewports(node);
+      });
+    }
+
+    motion.controller.addStatusListener(grown);
   }
 
   /// Hands focus from a removed item to the first node of the item now at
   /// [gap], else of the item before it, else to the list's own Tab stop
-  /// (E04). Each target is revealed in every viewport around it, as
-  /// invariant 21 reveals every focus move.
-  void _handOffFocus(int gap) {
+  /// (E04). [gap] is an index of the current data, converted when read, so
+  /// a call that runs earlier in the post-frame batch cannot land focus one
+  /// item off; an item at the gap that the frame has not built, inserted
+  /// after the frame, is skipped (R3). Each target is revealed in every
+  /// viewport around it, as invariant 21 reveals every focus move.
+  void _handOffFocus(_DataIndex gap) {
     if (!mounted) return;
+    final next = _builtNear(gap, 1);
+    final previous = _builtNear(gap - 1, -1);
     final target =
-        (gap < _layout.itemCount ? _firstStopOf(gap) : null) ??
-        (gap > 0 ? _firstStopOf(gap - 1) : null);
+        (next == null ? null : _firstStopOf(next)) ??
+        (previous == null ? null : _firstStopOf(previous));
     if (target != null) {
       target.requestFocus();
       return;
     }
     final own = _ownTabStop();
     if (own != null) requestFocusInViewports(own);
+  }
+
+  /// The index in the last frame of the item nearest [index] of the
+  /// current data, from [index] on in the direction of [step], that the
+  /// frame drew at that place: an item inserted since the frame, or moved
+  /// there since, is skipped (R3). Null past either end of the data.
+  _FrameIndex? _builtNear(_DataIndex index, int step) {
+    for (var i = index; i >= const _DataIndex(0) && i < _dataEnd; i += step) {
+      final built = _builtIndexOf(i, inPlace: true);
+      if (built != null) return built;
+    }
+    return null;
   }
 
   /// Reveals the item whose key node is [node] by [revealInViewports],
@@ -1060,7 +1404,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       if (!status.isCompleted) return;
       motion.dropGrown();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && node.context != null && node.hasFocus) {
+        if (mounted && _itemNodes.containsValue(node) && node.hasFocus) {
           revealInViewports(node);
         }
       });
@@ -1083,7 +1427,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The gap of the reach in progress, as an index of the current data:
   /// each call moves it, as it moves [_handoffGap].
-  int? _reachGap;
+  _DataIndex? _reachGap;
+
+  /// The gap of each reach given up away from where it started, as an
+  /// index of the current data, until the frame after the list jumps back
+  /// hands focus on from it: each call moves them, as it moves
+  /// [_handoffGap] (D7).
+  final _givenUpGaps = <_HeldGap>[];
 
   /// Starts [_reach] in a microtask after this frame's post-frame
   /// callbacks. Flutter moves focus off the item's disposed node in its own
@@ -1092,9 +1442,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// [origin], when given, is the offset a failed reach returns to, in place
   /// of the one before its own first jump (R5 for moves).
   void _startReach(
-    int index,
+    _FrameIndex index,
     Key key,
-    int gap, {
+    _DataIndex gap, {
     ({ScrollPosition position, double pixels})? origin,
   }) {
     final token = Object();
@@ -1122,7 +1472,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// the reach's first jump.
   void _reach(
     Object token,
-    int index,
+    _FrameIndex index,
     Key key,
     FocusNode? settled,
     int frames,
@@ -1134,9 +1484,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _endReach();
       return;
     }
-    final node = _itemNodes[index];
+    final node = _nodeAt(index);
     if (node != null && node.context != null) {
-      if (_itemLooks[index]?.key != key) {
+      if (_lookAt(index)?.key != key) {
         _giveUpReach(origin);
         return;
       }
@@ -1145,7 +1495,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _revealReturned(node, key);
       return;
     }
-    final estimate = frames == 0 ? null : _estimateTowards(index);
+    final estimate = frames == 0 ? null : _estimateTowards(index.slot);
     if (estimate == null) {
       _giveUpReach(origin);
       return;
@@ -1166,11 +1516,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// Gives up a reach that did not reach its slot (R5): the list returns
   /// to [origin], the offset it held before the reach's first jump, so the
   /// gap's neighbors are built again, and after that frame it hands focus
-  /// on from the gap (E04), so focus is never lost. The offset returns on
-  /// the list's live [ScrollPosition]: the Scrollable may have replaced and
-  /// disposed [origin]'s position while the reach ran, a physics or
-  /// controller swap, and R5 saves the offset, never the position object,
-  /// so no position the Scrollable no longer holds takes a call.
+  /// on from the gap (E04), so focus is never lost. Until then the gap
+  /// waits in [_givenUpGaps], where a call made during the jump back or
+  /// earlier in the next post-frame batch moves it (D7). The offset
+  /// returns on the list's live [ScrollPosition]: the Scrollable may have
+  /// replaced and disposed [origin]'s position while the reach ran, a
+  /// physics or controller swap, and R5 saves the offset, never the
+  /// position object, so no position the Scrollable no longer holds takes
+  /// a call.
   void _giveUpReach(({ScrollPosition position, double pixels})? origin) {
     final gap = _reachGap;
     _endReach();
@@ -1178,11 +1531,18 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (origin != null) {
       final live = _livePositionOf(origin.position);
       if (live != null && live.pixels != origin.pixels) {
+        // Held before the jump: its scroll notifications may reach an app
+        // listener that calls the controller at once.
+        final held = _HeldGap(gap);
+        _givenUpGaps.add(held);
         live.jumpTo(
           origin.pixels.clamp(live.minScrollExtent, live.maxScrollExtent),
         );
         WidgetsBinding.instance
-          ..addPostFrameCallback((_) => _handOffFocus(gap))
+          ..addPostFrameCallback((_) {
+            _givenUpGaps.remove(held);
+            _handOffFocus(held.index);
+          })
           ..scheduleFrame();
         return;
       }
@@ -1201,62 +1561,244 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return scrollable?.position;
   }
 
-  /// The scroll offset that puts slot [index] at its viewport's leading
-  /// edge, estimated by the average extent of the built items, with the
-  /// position it applies to; null when no item is laid out. The offsets
-  /// come from [RenderAbstractViewport.getOffsetToReveal], so the estimate
-  /// follows a reversed, horizontal, or right-to-left axis.
-  ({ScrollPosition position, double offset})? _estimateTowards(int index) {
-    final boxes = <int, RenderBox>{
-      for (final entry in _itemNodes.entries)
-        if (entry.value.context?.findRenderObject() case final RenderBox box
+  /// The scroll offset that puts [slot] at its viewport's leading edge,
+  /// estimated by the average extent of the built items, with the position
+  /// it applies to; null when no item is laid out. The offsets come from
+  /// [RenderAbstractViewport.getOffsetToReveal], so the estimate follows a
+  /// reversed, horizontal, or right-to-left axis. Slots are the only
+  /// geometry: the sliver keeps each slot's offset by its number.
+  ({ScrollPosition position, double offset})? _estimateTowards(int slot) {
+    final boxes = <int, ({FocusNode node, RenderBox box})>{
+      for (final MapEntry(key: index, value: node) in _itemNodes.entries)
+        if (node.context?.findRenderObject() case final RenderBox box
             when box.attached && box.hasSize)
-          entry.key: box,
+          index.slot: (node: node, box: box),
     };
     if (boxes.isEmpty) return null;
-    final indices = boxes.keys.toList()..sort();
-    final first = indices.first;
-    final last = indices.last;
-    final position = Scrollable.maybeOf(_itemNodes[first]!.context!)?.position;
+    final slots = boxes.keys.toList()..sort();
+    final first = slots.first;
+    final last = slots.last;
+    final firstBox = boxes[first]!.box;
+    final context = boxes[first]!.node.context;
+    final position = context == null
+        ? null
+        : Scrollable.maybeOf(context)?.position;
     if (position == null) return null;
-    final viewport = RenderAbstractViewport.of(boxes[first]);
-    final from = viewport.getOffsetToReveal(boxes[first]!, 0).offset;
-    final to = viewport.getOffsetToReveal(boxes[last]!, 0).offset;
-    final size = boxes[first]!.size;
+    final viewport = RenderAbstractViewport.of(firstBox);
+    final from = viewport.getOffsetToReveal(firstBox, 0).offset;
+    final to = viewport.getOffsetToReveal(boxes[last]!.box, 0).offset;
+    final size = firstBox.size;
     final extent = last > first
         ? (to - from) / (last - first)
         : (_layout.scrollDirection == Axis.vertical ? size.height : size.width);
-    final offset = (from + (index - first) * extent).clamp(
+    final offset = (from + (slot - first) * extent).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
     );
     return (position: position, offset: offset);
   }
 
-  /// Jumps in a move's call turn toward slot [to] of the focused item
-  /// whose key node is [node], when that slot is not built: exactly to the
-  /// start or end for an edge slot, as a key move to either end does, else
-  /// by [_estimateTowards] (FR-05 E04). The item's key comes from its built
-  /// slot, so the list never calls `itemBuilder` here. Returns the offset
-  /// before the jump, where a failed reach returns (R5); null with no jump.
-  ({ScrollPosition position, double pixels})? _jumpForMove(
-    int to,
+  /// Readies the slot the focused item whose key node is [node] enters at
+  /// [to] of the current data for the next frame, when the last frame did
+  /// not lay that slot number out ([_enteredSlot], invariant 35): a near
+  /// slot ([_nearExtra]) has the next frame build ahead to it, with no
+  /// scroll in this turn ([_askAhead], D1); a farther one takes the jump of
+  /// [_jumpForMove]. The item's key comes from its built slot, so the list
+  /// never calls `itemBuilder` here. Returns the offset before the jump,
+  /// where a failed reach returns (R5); null with no jump.
+  ({ScrollPosition position, double pixels})? _buildAheadOrJump(
+    _DataIndex to,
     FocusNode node,
   ) {
-    final target = _builtIndexOf(to);
-    if (target != null && _itemNodes.containsKey(target)) return null;
+    final entered = _enteredSlot(to);
+    if (_builtSlot(entered)) return null;
     final item = node.context;
     final position = item == null ? null : Scrollable.maybeOf(item)?.position;
     if (item == null || position == null) return null;
+    final extra = _nearExtra(entered, position);
+    if (extra != null) {
+      _askAhead(node, _baseCacheExtent(position) + extra);
+      return null;
+    }
+    final origin = _jumpForMove(to, item, position);
+    if (origin != null) _watchFarJump(node, origin);
+    return origin;
+  }
+
+  /// Has the next frame, at its start, read whether the item whose key node
+  /// is [node] still holds focus after the turn of its far move's jump,
+  /// whose offset before the jump is [origin] (R13).
+  void _watchFarJump(
+    FocusNode node,
+    ({ScrollPosition position, double pixels}) origin,
+  ) {
+    if (_farJumps.isEmpty) {
+      WidgetsBinding.instance.scheduleFrameCallback((_) => _readFarJumps());
+    }
+    _farJumps.add((node: node, origin: origin));
+  }
+
+  /// At the start of the frame after far moves, before its build and its
+  /// layout: unwound newest first, an item that no longer holds focus
+  /// returns the list to its own origin, since the app moved focus off it
+  /// in the move's turn. The unwind stops at the first item that still
+  /// holds focus (R13): that item's own jump already left the list where
+  /// it belongs, and every older jump's origin is subsumed by it.
+  void _readFarJumps() {
+    final jumps = [..._farJumps];
+    _farJumps.clear();
+    if (!mounted) return;
+    for (final jump in jumps.reversed) {
+      if (jump.node.hasFocus) break;
+      final live = _livePositionOf(jump.origin.position);
+      live?.jumpTo(
+        jump.origin.pixels.clamp(live.minScrollExtent, live.maxScrollExtent),
+      );
+    }
+  }
+
+  /// The cache extent past the layout's own that builds [slot] in the next
+  /// frame, when [slot] is near: its distance in slots past the laid-out
+  /// range, on either side, plus a 1-slot margin, times the laid-out
+  /// children's average extent, fits within one viewport extent along the
+  /// main axis (D1). Null for a farther slot, or with nothing laid out.
+  double? _nearExtra(int slot, ScrollPosition position) {
+    final laid = _laidOut();
+    if (laid == null || !position.hasViewportDimension) return null;
+    final distance = slot > laid.last ? slot - laid.last : laid.first - slot;
+    final extra = (distance + 1) * laid.extent;
+    return extra <= position.viewportDimension ? extra : null;
+  }
+
+  /// The layout's `scrollCacheExtent` in pixels for [position]: a value
+  /// relative to the viewport converts first, so the build-ahead adds to
+  /// pixels (D7); none is Flutter's default.
+  double _baseCacheExtent(ScrollPosition position) {
+    final extent = _layout.scrollCacheExtent;
+    if (extent == null) return RenderAbstractViewport.defaultCacheExtent;
+    return switch (extent.style) {
+      CacheExtentStyle.pixel => extent.value,
+      CacheExtentStyle.viewport => extent.value * position.viewportDimension,
+    };
+  }
+
+  /// Has the next frame build with a cache extent of [cache] pixels on
+  /// both sides of the viewport, for the focused item whose key node is
+  /// [node] (D1), and returns to the layout's own extent once that frame's
+  /// post-frame callbacks, the item's reveal among them, have run (D3).
+  /// Each change rebuilds the viewport alone ([_ReorderScrollView]).
+  void _askAhead(FocusNode node, double cache) {
+    final ask = _AheadAsk(node, cache);
+    _aheadAsks.add(ask);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => scheduleMicrotask(() {
+        if (mounted) _aheadAsks.remove(ask);
+      }),
+    );
+  }
+
+  /// Jumps in a move's turn toward the slot the focused item [item] enters
+  /// at [to] of the current data, when that slot is not near: exactly to
+  /// the start or end for an edge slot, as a key move to either end does,
+  /// else by [_estimateTowards] at slot [to] (FR-05 E04). Returns the
+  /// offset before the jump, where a failed reach returns (R5); null with
+  /// no jump.
+  ({ScrollPosition position, double pixels})? _jumpForMove(
+    _DataIndex to,
+    BuildContext item,
+    ScrollPosition position,
+  ) {
     final origin = (position: position, pixels: position.pixels);
-    if (to == 0 || to == _dataCount - 1) {
-      _jumpTowards(to, item, position);
+    const start = _DataIndex(0);
+    if (to == start || to == _dataEnd - 1) {
+      _jumpTowards(item, position, toStart: to == start);
       return origin;
     }
-    final estimate = _estimateTowards(to);
+    final estimate = _estimateTowards(to.nextSlot);
     if (estimate == null) return null;
     estimate.position.jumpTo(estimate.offset);
     return origin;
+  }
+
+  /// Whether the last frame laid out [slot]: a question of geometry, so
+  /// it reads slot numbers, never an index converted between the spaces,
+  /// and the sliver's laid-out children ([_laidOut]), never [_itemNodes],
+  /// which keeps a kept-alive item's slot after it leaves (FR-05 E12).
+  bool _builtSlot(int slot) {
+    final laid = _laidOut();
+    return laid != null && slot >= laid.first && slot <= laid.last;
+  }
+
+  /// The first and last slot the list's sliver laid out in the last frame,
+  /// and their average extent along the main axis; null when it laid out
+  /// none. The sliver's child list holds only laid-out children: Flutter
+  /// moves a kept-alive child out of it into its keep-alive bucket
+  /// (`_destroyOrCacheChild`), so an item kept alive off screen never
+  /// counts (invariant 35).
+  ({int first, int last, double extent})? _laidOut() {
+    final sliver = _sliver();
+    final firstChild = sliver?.firstChild;
+    final lastChild = sliver?.lastChild;
+    if (sliver == null || firstChild == null || lastChild == null) {
+      return null;
+    }
+    final first = sliver.indexOf(firstChild);
+    final last = sliver.indexOf(lastChild);
+    final size = lastChild.size;
+    final lastExtent = sliver.constraints.axis == Axis.vertical
+        ? size.height
+        : size.width;
+    final start = sliver.childScrollOffset(firstChild) ?? 0;
+    final end = (sliver.childScrollOffset(lastChild) ?? 0) + lastExtent;
+    return (
+      first: first,
+      last: last,
+      extent: (end - start) / (last - first + 1),
+    );
+  }
+
+  /// The sliver that lays out this list's items: the render object of the
+  /// [SliverReorderableList] the list's key holds, so no item and no drag
+  /// proxy is asked.
+  RenderSliverMultiBoxAdaptor? _sliver() {
+    final sliver = _listKey.currentContext?.findRenderObject();
+    return sliver is RenderSliverMultiBoxAdaptor ? sliver : null;
+  }
+
+  /// The slot the item at [to] of the current data enters in the next
+  /// frame, for a move either way (invariant 35). The next frame anchors
+  /// its layout at the first slot the last frame built, so the count
+  /// starts there: that slot plus the boxes the next frame draws at full
+  /// extent from it through [to]. Those are the items before [to], save
+  /// an insert of this turn that grows in from 0 px, and each exit started
+  /// since the last build, the slot a move left or the leaving copy of a
+  /// built item, unless exits take no room. A box before that first slot
+  /// counts nothing, and a target before it enters a slot the last frame
+  /// did not build. Slots only, as [_builtSlot] reads them.
+  int _enteredSlot(_DataIndex to) {
+    final slot = to.nextSlot;
+    final built = _laidOut()?.first;
+    if (built == null || slot < built) return slot;
+    final first = built;
+    bool counts(int at) => at >= first && at <= slot;
+    var entered = slot;
+    // The built-in transition starts an insert at 0 px; a fixed extent,
+    // reduced motion, or a caller transition gives it its room.
+    if (_layout.itemTransitionBuilder == null &&
+        !_fixedExtent &&
+        !reducesMotion(context)) {
+      entered -= _pendingInserts.where((insert) {
+        final at = insert.index.nextSlot;
+        return at < slot && counts(at);
+      }).length;
+    }
+    if (!_exitsTakeNoExtent(context)) {
+      entered += _exits.where((exit) {
+        final gap = exit.gap;
+        return exit.fresh && gap != null && counts(gap.nextSlot);
+      }).length;
+    }
+    return entered;
   }
 
   /// After the frame that moved the focused item [key] (FR-05 E04): with
@@ -1302,8 +1844,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The first node in Tab order inside the built item at [index], revealed
   /// by [firstTabStopIn]; null when the item is not built or holds none.
-  FocusNode? _firstStopOf(int index) {
-    final node = _itemNodes[index];
+  FocusNode? _firstStopOf(_FrameIndex index) {
+    final node = _nodeAt(index);
     if (node == null || node.context == null) return null;
     return firstTabStopIn(node);
   }
@@ -1407,7 +1949,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       );
     }
     return _ReorderKeys(
-      index: index,
+      index: _FrameIndex(index),
       body: this,
       look: item,
       exiting: exiting,
@@ -1601,18 +2143,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       onPointerDown: (_) => _pointersDown += 1,
       onPointerUp: (_) => _handlePointerGone(),
       onPointerCancel: (_) => _handlePointerGone(),
-      child: ReorderableList(
-        key: _listKey,
-        itemBuilder: _buildItem,
-        itemCount: listCount,
-        onReorderItem: _handleReorderItem,
-        onReorderStart: _handleReorderStart,
-        onReorderEnd: _handleReorderEnd,
-        itemExtent: layout.itemExtent,
-        itemExtentBuilder: layout.itemExtentBuilder,
-        prototypeItem: layout.prototypeItem,
-        proxyDecorator: layout.dragStyle == null ? null : _proxy,
-        padding: widget.padding,
+      // The widgets `ReorderableList`'s own tree, built here so the key
+      // reaches the sliver (invariant 35) and the viewport alone follows
+      // the build-ahead (D3).
+      child: _ReorderScrollView(
+        aheadAsks: _aheadAsks,
         scrollDirection: layout.scrollDirection,
         reverse: layout.reverse,
         controller: widget.controller,
@@ -1624,7 +2159,24 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         keyboardDismissBehavior: layout.keyboardDismissBehavior,
         restorationId: layout.restorationId,
         clipBehavior: layout.clipBehavior,
-        autoScrollerVelocityScalar: layout.autoScrollerVelocityScalar,
+        slivers: [
+          SliverPadding(
+            padding: widget.padding ?? EdgeInsets.zero,
+            sliver: SliverReorderableList(
+              key: _listKey,
+              itemBuilder: _buildItem,
+              itemCount: listCount,
+              onReorderItem: _handleReorderItem,
+              onReorderStart: _handleReorderStart,
+              onReorderEnd: _handleReorderEnd,
+              itemExtent: layout.itemExtent,
+              itemExtentBuilder: layout.itemExtentBuilder,
+              prototypeItem: layout.prototypeItem,
+              proxyDecorator: layout.dragStyle == null ? null : _proxy,
+              autoScrollerVelocityScalar: layout.autoScrollerVelocityScalar,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1664,7 +2216,7 @@ class _ReorderKeys extends StatefulWidget {
     required this.child,
   });
 
-  final int index;
+  final _FrameIndex index;
   final _ReorderableBodyState body;
 
   /// The item as `itemBuilder` built it: the look it keeps when removed.
@@ -1842,7 +2394,7 @@ class _ItemMotion {
 class _PendingInsert {
   new(this.index, this.motion);
 
-  int index;
+  _DataIndex index;
   final _ItemMotion motion;
 }
 
@@ -1853,7 +2405,7 @@ class _Exit {
     required this.look,
     required this.builder,
     required this.motion,
-    required int this.gap,
+    required _DataIndex this.gap,
     this.closing = false,
   });
 
@@ -1873,7 +2425,7 @@ class _Exit {
 
   /// Where the item left, as an index of the current data: before the item
   /// at [gap]. Null once a build has found [hostKey].
-  int? gap;
+  _DataIndex? gap;
 
   /// The key of the item whose slot shows this one, [before] it or after.
   Key? hostKey;
@@ -1885,4 +2437,195 @@ class _Exit {
 
   /// The item's laid-out size at `removeItem`, which a fixed extent keeps.
   Size? size;
+
+  /// Whether the exit started after the last build, so the next frame
+  /// draws a box the last one did not (invariant 35).
+  bool fresh = true;
+}
+
+/// A position in the app's data after this turn's `insertItem`,
+/// `removeItem`, and `moveItem` calls and the moves the list reported
+/// through `onReorderItem`. It becomes a [_FrameIndex] only through
+/// `_builtIndexOf`; its `value` leaves it only in `_builtIndexOf` (its
+/// argument and the entries of `_pending`), in `_dataIndexOf` (the entries
+/// of `_pending`), in [nextSlot], and at `onReorderItem` and
+/// `itemBuilder`.
+extension type const _DataIndex(int value) {
+  /// The slot the item at this index takes in the next frame: the sliver
+  /// keeps each slot's offset by its number across a rebuild.
+  int get nextSlot => value;
+
+  bool operator <(_DataIndex other) => value < other.value;
+
+  bool operator <=(_DataIndex other) => value <= other.value;
+
+  bool operator >(_DataIndex other) => value > other.value;
+
+  bool operator >=(_DataIndex other) => value >= other.value;
+
+  _DataIndex operator +(int offset) => _DataIndex(value + offset);
+
+  _DataIndex operator -(int offset) => _DataIndex(value - offset);
+}
+
+/// A position in the frame the list last built: the keys of `_itemNodes`
+/// and `_itemLooks`, and the index the SDK reports. It becomes a
+/// [_DataIndex] only through `_dataIndexOf`; its `value` leaves it only
+/// there (its argument), in [slot], and at `onReorderEnd` for the
+/// `_dragIndex` of a drag the list ends (`_cancelDrag`,
+/// `_reportCountEnd`).
+extension type const _FrameIndex(int value) {
+  /// The slot this index held in the last frame.
+  int get slot => value;
+
+  bool operator <(_FrameIndex other) => value < other.value;
+
+  bool operator >(_FrameIndex other) => value > other.value;
+
+  _FrameIndex operator +(int offset) => _FrameIndex(value + offset);
+
+  _FrameIndex operator -(int offset) => _FrameIndex(value - offset);
+}
+
+/// What a reorder key or a screen reader's move action asks for: the four
+/// moves of FR-02 and FR-03 E03.
+enum _MoveIntent { start, previous, next, end }
+
+/// The index of the app's data a key move, a screen-reader move, or a drop
+/// put its item at, moved by each later call until the frame after the
+/// move reads it; null once a call takes the item out.
+class _MoveTarget {
+  new(this.index, {this.key, this.gap});
+
+  _DataIndex? index;
+
+  /// For a focused one-slot move (FR-03 E09): the item's key, which the
+  /// reach looks for.
+  final Key? key;
+
+  /// For a focused one-slot move: the gap the item left, before the item at
+  /// this index of the current data, moved by each later call as [index]
+  /// is; the reach hands focus on from it when it gives up.
+  _DataIndex? gap;
+
+  /// For a focused one-slot move that jumped in its turn: the offset before
+  /// the jump, where a reach that gives up returns (R5). Set by the jump,
+  /// which runs once the move is reported.
+  ({ScrollPosition position, double pixels})? origin;
+}
+
+/// The list's scroll view: a [CustomScrollView] whose viewport alone
+/// listens to [aheadAsks]. A build-ahead widens and returns the cache
+/// extent by rebuilding the viewport while the sliver widgets stay the
+/// same instances, so no item rebuilds, and every build of the viewport,
+/// a rebuild of the [Scrollable] alone among them, reads the asks as they
+/// stand (D3).
+class _ReorderScrollView extends CustomScrollView {
+  const new({
+    required this.aheadAsks,
+    super.scrollDirection,
+    super.reverse,
+    super.controller,
+    super.primary,
+    super.physics,
+    super.shrinkWrap,
+    super.scrollCacheExtent,
+    super.dragStartBehavior,
+    super.keyboardDismissBehavior,
+    super.restorationId,
+    super.clipBehavior,
+    super.slivers,
+  });
+
+  /// The near slots focused moves asked to build ahead to.
+  final _AheadAsks aheadAsks;
+
+  @override
+  Widget buildViewport(
+    BuildContext context,
+    ViewportOffset offset,
+    AxisDirection axisDirection,
+    List<Widget> slivers,
+  ) {
+    return ListenableBuilder(
+      listenable: aheadAsks,
+      builder: (context, _) {
+        final cache = aheadAsks.cache;
+        final extent = cache == null
+            ? scrollCacheExtent
+            : ScrollCacheExtent.pixels(cache);
+        if (shrinkWrap) {
+          return ShrinkWrappingViewport(
+            axisDirection: axisDirection,
+            offset: offset,
+            slivers: slivers,
+            paintOrder: paintOrder,
+            clipBehavior: clipBehavior,
+            scrollCacheExtent: extent,
+          );
+        }
+        return Viewport(
+          axisDirection: axisDirection,
+          offset: offset,
+          slivers: slivers,
+          scrollCacheExtent: extent,
+          center: center,
+          anchor: anchor,
+          clipBehavior: clipBehavior,
+          paintOrder: paintOrder,
+        );
+      },
+    );
+  }
+}
+
+/// The near slots focused moves asked the next frame to build ahead to,
+/// each until that frame's post-frame callbacks have run (D1, D3); each
+/// change notifies the list's viewport.
+class _AheadAsks extends ChangeNotifier {
+  final _asks = <_AheadAsk>[];
+
+  void add(_AheadAsk ask) {
+    _asks.add(ask);
+    notifyListeners();
+  }
+
+  void remove(_AheadAsk ask) {
+    if (_asks.remove(ask)) notifyListeners();
+  }
+
+  /// The cache extent in pixels the viewport builds with: the largest one
+  /// asked for whose item still holds focus, read as the viewport builds,
+  /// so an item the app took focus from in the move's turn counts as
+  /// unfocused and never builds ahead (R13); null keeps the layout's own
+  /// (D1).
+  double? get cache {
+    double? cache;
+    for (final ask in _asks) {
+      if (!ask.node.hasFocus) continue;
+      if (cache == null || ask.cache > cache) cache = ask.cache;
+    }
+    return cache;
+  }
+}
+
+/// A focused move's request that the next frame build ahead to the near
+/// slot it enters (D1).
+class _AheadAsk {
+  new(this.node, this.cache);
+
+  /// The moved item's key node.
+  final FocusNode node;
+
+  /// The cache extent in pixels the frame builds with on both sides of the
+  /// viewport: the layout's own plus the near slot's extra.
+  final double cache;
+}
+
+/// A gap of the app's data, before the item at [index], that a reader
+/// takes after a frame; moved by each later call until then.
+class _HeldGap {
+  new(this.index);
+
+  _DataIndex index;
 }

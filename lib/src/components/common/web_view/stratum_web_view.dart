@@ -22,11 +22,16 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 /// `StratumWebViewController.postMessage` delivers a `message` event to the
 /// page on every platform. The bridge stays off while [allowedOrigins] is
 /// empty, HTML content included: give HTML a non-empty [allowedOrigins]
-/// too. HTML content is trusted until the user navigates away from it. On
-/// native, navigating back or forward to that HTML afterward does not
-/// re-arm the bridge; call `loadHtml` again. On web, a strict app
-/// Content-Security-Policy without inline scripts blocks the bootstrap
-/// script and disables the HTML bridge; scripts that run in the app's own
+/// too. HTML content is trusted by a secret that its bootstrap script
+/// carries, new for every HTML load, never by the page address: a page the
+/// user reaches from that HTML never passes as it, and going back or
+/// forward to the HTML of the latest load brings the bridge back. A
+/// `postMessage` to HTML before its bootstrap connected the bridge throws a
+/// [StateError] on every platform, so wait for a first message from the
+/// page. On web, the app's own Content-Security-Policy without inline
+/// scripts blocks the bootstrap and keeps the HTML bridge closed; on
+/// native, a policy inside the document never reaches the bootstrap, so the
+/// HTML bridge always opens. On web, scripts that run in the app's own
 /// window are trusted regardless, since the handshake is visible there.
 ///
 /// **Limitations.**
@@ -39,15 +44,23 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 ///   always `null`; on native it is `about:blank`.
 /// * Linux: the page is a native GTK widget, so Flutter widgets cannot draw
 ///   above it, and scale or rotation transforms hide it.
-/// * Native: the bridge channel is visible to every frame of an allowed
-///   page. Allow only pages that embed no untrusted iframes. The page
-///   origin is inferred from navigation events (`onPageStarted`); on iOS
-///   and macOS that fires at the provisional start of a navigation, before
-///   the new page commits, so a disallowed page can still be running when
-///   its origin is recorded as allowed. [onError] may also report an HTTP
-///   error from an embedded iframe on iOS and macOS, not only the
-///   top-level page. Treat bridge messages as untrusted input, and use
-///   [onNavigationRequest] to prevent top-level navigation outside
+/// * Android, iOS, and macOS: the platform names the sender of each
+///   message, so only the top-level page's messages pass, each with its
+///   sender's origin, even one that arrives before [onPageStarted]. On
+///   Android the system WebView needs `WEB_MESSAGE_LISTENER` and
+///   `JS_INJECTION_IN_FRAME_AND_WORLD` support; without either the bridge
+///   stays off, and every `postMessage` throws a [StateError]. On Android a
+///   `postMessage` to HTML reaches only the document that connected the
+///   bridge; once that document leaves, the next one gets nothing and the
+///   send throws a [StateError]. [onError] may also report an HTTP error
+///   from an embedded iframe on iOS and macOS, not only the top-level page.
+/// * Windows and Linux: the bridge channel is visible to every frame of an
+///   allowed page, so allow only pages that embed no untrusted iframes. A
+///   message is credited to the page of the last [onPageStarted], so around
+///   a navigation it can carry the origin of the page before or after the
+///   one that sent it.
+/// * Every native platform: treat bridge messages as untrusted input, and
+///   use [onNavigationRequest] to prevent top-level navigation outside
 ///   [allowedOrigins] when a hard boundary is needed.
 /// * Android: the platform marks no main frame on an HTTP error, so an HTTP
 ///   error counts for the page whose start follows it. A sub-resource that

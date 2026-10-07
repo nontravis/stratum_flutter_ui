@@ -41,6 +41,14 @@ final class FakeWebviewAllController extends PlatformWebViewController {
   int reloadCount = 0;
   String? currentUrlValue;
 
+  /// What [runJavaScriptReturningResult] answers: the dispatch script's
+  /// boolean.
+  Object scriptResult = true;
+
+  /// When set, what [runJavaScriptReturningResult] answers instead of
+  /// [scriptResult]: a late answer or a platform error.
+  Future<Object> Function()? scriptAnswer;
+
   @override
   Future<void> loadRequest(LoadRequestParams params) async =>
       loadedUrls.add(params.uri);
@@ -52,6 +60,12 @@ final class FakeWebviewAllController extends PlatformWebViewController {
   @override
   Future<void> runJavaScript(String javaScript) async =>
       scripts.add(javaScript);
+
+  @override
+  Future<Object> runJavaScriptReturningResult(String javaScript) {
+    scripts.add(javaScript);
+    return scriptAnswer?.call() ?? Future.value(scriptResult);
+  }
 
   @override
   Future<void> setJavaScriptMode(JavaScriptMode javaScriptMode) async =>

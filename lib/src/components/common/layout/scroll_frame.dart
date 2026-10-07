@@ -1,5 +1,7 @@
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
+import 'package:stratum_ui/src/components/common/utility/focus_border.dart'
+    show focusBorderOutsideReach;
 import 'package:stratum_ui/src/src.dart';
 
 /// The scroll behavior for a layout scroll view at [context].
@@ -293,9 +295,6 @@ class ScrollFocus extends StatefulWidget {
 }
 
 class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
-  /// The width of [FocusSpread]'s ring.
-  static const _ringWidth = 4.0;
-
   /// The theme's motion, else the package default's (spec section 9): a
   /// [ScrollFocusMode.lines] key moves over `fast`, a page slides over
   /// `slow`, each on its level's curve; both jump when the app or the
@@ -402,6 +401,15 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // An app-wide restyle of the ring (R8) changes the inherited
+    // StratumComponentDefaults this reads through focusBorderOutsideReach,
+    // which can move the window check's reach while the box holds focus.
+    if (_node?.hasPrimaryFocus ?? false) _placeRingAfterLayout();
+  }
+
+  @override
   void didChangeMetrics() {
     if (_node?.hasPrimaryFocus ?? false) _placeRingAfterLayout();
   }
@@ -427,15 +435,15 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
     });
   }
 
-  /// Whether the ring around the box, [_ringWidth] wide, lies wholly inside
-  /// the window.
+  /// Whether the box grown by the ring's resolved gap and width,
+  /// [focusBorderOutsideReach], lies wholly inside the window (R8).
   bool _outerRingFits() {
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return true;
     final ring = MatrixUtils.transformRect(
       box.getTransformTo(null),
       Offset.zero & box.size,
-    ).inflate(_ringWidth);
+    ).inflate(focusBorderOutsideReach(context));
     final view = View.of(context);
     final window = view.physicalSize / view.devicePixelRatio;
     return ring.left >= 0 &&
@@ -743,11 +751,12 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
       onKeyEvent: _handleKey,
       child: result,
     );
-    // FocusSpread reads the theme; without one the viewport has no ring.
+    // StratumFocusBorder reads the theme; without one the viewport has no
+    // ring.
     if (StratumThemeApplication.maybeOf(context) != null) {
-      result = FocusSpread(
-        focus: _ringVisible,
-        inside: _ringInside,
+      result = StratumFocusBorder(
+        state: _ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
+        insideEdge: _ringInside,
         borderRadius: widget.borderRadius,
         child: result,
       );

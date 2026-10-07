@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from 6ffb8d1:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from f64627d:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
@@ -254,7 +254,7 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
       child: current,
     );
     if (blur != null) {
-      if (style.dropShadow != null) {
+      if (style.dropShadow?.isNotEmpty ?? false) {
         current = DecoratedBox(
           decoration: StyleDecoration(
             borderRadius: style.borderRadius,
@@ -323,8 +323,8 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
       style.backgroundColor != null ||
       style.backgroundGradient != null ||
       style.backgroundImage != null ||
-      style.dropShadow != null ||
-      style.innerShadow != null;
+      (style.dropShadow?.isNotEmpty ?? false) ||
+      (style.innerShadow?.isNotEmpty ?? false);
 
   static bool _hasForeground(WidgetStyle style) =>
       style.foregroundColor != null ||

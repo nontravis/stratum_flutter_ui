@@ -80,7 +80,8 @@ Widget semanticsWithoutHeading({
 ///
 /// * a flat overlay over [child]: the theme's `state.hover` color while
 ///   hovered and `state.press` while pressed;
-/// * a [FocusSpread] ring, shown per [focusType];
+/// * a [StratumFocusBorder] ring in its outside style, shown per
+///   [focusType];
 /// * a semantics node with a button role and a disabled flag;
 /// * the context-menu key and Shift+F10 for [onSecondaryTap], and a custom
 ///   semantics action for it, so keyboard and screen-reader users reach
@@ -485,8 +486,8 @@ class _StratumInkWellState extends State<StratumInkWell>
       child: result,
     );
     if (_hasRing) {
-      result = FocusSpread(
-        focus: _ringVisible,
+      result = StratumFocusBorder(
+        state: _ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
         borderRadius: widget.borderRadius,
         child: result,
       );

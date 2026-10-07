@@ -12,7 +12,11 @@ void main() {
 }
 
 class StratumWebViewExampleApp extends StatefulWidget {
-  const StratumWebViewExampleApp({super.key});
+  const StratumWebViewExampleApp({super.key, this.urlAddress});
+
+  /// Address the `URL` tab loads. Unset, it loads `https://flutter.dev`,
+  /// the shipped demo's address (F-01 US-01 FR-01 E05).
+  final Uri? urlAddress;
 
   @override
   State<StratumWebViewExampleApp> createState() =>
@@ -48,9 +52,13 @@ class _StratumWebViewExampleAppState extends State<StratumWebViewExampleApp> {
               ],
             ),
           ),
-          body: const TabBarView(
-            physics: NeverScrollableScrollPhysics(),
-            children: [_UrlTab(), _HtmlTab(), _BridgeTab()],
+          body: TabBarView(
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _UrlTab(urlAddress: widget.urlAddress),
+              const _HtmlTab(),
+              const _BridgeTab(),
+            ],
           ),
         ),
       ),
@@ -59,7 +67,9 @@ class _StratumWebViewExampleAppState extends State<StratumWebViewExampleApp> {
 }
 
 class _UrlTab extends StatefulWidget {
-  const _UrlTab();
+  const _UrlTab({this.urlAddress});
+
+  final Uri? urlAddress;
 
   @override
   State<_UrlTab> createState() => _UrlTabState();
@@ -69,6 +79,8 @@ class _UrlTabState extends State<_UrlTab> {
   final _controller = StratumWebViewController();
   var _loading = false;
   String? _error;
+
+  Uri get _address => widget.urlAddress ?? Uri.parse('https://flutter.dev');
 
   @override
   void dispose() {
@@ -108,7 +120,7 @@ class _UrlTabState extends State<_UrlTab> {
         Expanded(
           child: StratumWebView(
             controller: _controller,
-            source: StratumWebViewSource.url(Uri.parse('https://flutter.dev')),
+            source: StratumWebViewSource.url(_address),
             onPageStarted: (_) => _update(() {
               _loading = true;
               _error = null;

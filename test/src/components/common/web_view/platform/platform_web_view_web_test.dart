@@ -391,12 +391,73 @@ location.href = 'data:text/html,' + encodeURIComponent(
     },
   );
 
-  test('drops URL-origin messages once HTML is the current source', () async {
+  test('us04/fr01/e02: currentUrl reports the requested URL until the '
+      "frame's load for it, even while the frame shows the page it leaves, "
+      "then the frame's location", () async {
+    Future<void> finishes(int count) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (listener.pagesFinished.length < count) {
+        if (DateTime.now().isAfter(deadline)) fail('no frame load $count');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    }
+
+    final first = appOrigin.replace(path: '/missing');
+    final second = appOrigin.replace(path: '/missing', query: 'next=1');
+    await view.load(StratumWebViewSource.url(first));
+    attach();
+    await finishes(1);
+    expect(await view.currentUrl(), first);
+    await view.load(StratumWebViewSource.url(second));
+    expect(await view.currentUrl(), second);
+    await finishes(2);
+    expect(await view.currentUrl(), second);
+  });
+
+  test('us04/fr01/e02: currentUrl reports the entry URL while a '
+      "re-inserted view restarts that entry's navigation, not the "
+      "restarted navigation's transient about:blank", () async {
+    Future<void> finishes(int count) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (listener.pagesFinished.length < count) {
+        if (DateTime.now().isAfter(deadline)) fail('no frame load $count');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    }
+
+    final url = appOrigin.replace(path: '/missing');
+    await view.load(StratumWebViewSource.url(url));
+    attach();
+    await finishes(1);
+    expect(await view.currentUrl(), url);
+
+    view.iframe.remove();
+    final host = web.HTMLDivElement();
+    web.document.body!.appendChild(host);
+    // A tear-off of a JS interop member does not compile, so wrap it.
+    // ignore: unnecessary_lambdas
+    addTearDown(() => host.remove());
+    view.attachTo(host);
+    expect(await view.currentUrl(), url);
+    await finishes(2);
+    expect(await view.currentUrl(), url);
+  });
+
+  test('us03/fr01/e05: an outgoing URL page message arrives with its own '
+      'origin after the view moved on, to HTML or to another URL', () async {
     await view.load(missingPage());
     attach();
     await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
-    dispatchMessage('late'.toJS, origin: appOrigin.toString());
-    expect(listener.messages, isEmpty);
+    dispatchMessage('to html'.toJS, origin: appOrigin.toString());
+    await view.load(
+      StratumWebViewSource.url(appOrigin.replace(path: '/second')),
+    );
+    dispatchMessage('to url'.toJS, origin: appOrigin.toString());
+    dispatchMessage('evil'.toJS, origin: 'https://evil.example.net');
+    expect(listener.messages, [
+      StratumWebViewMessage(data: 'to html', origin: appOrigin),
+      StratumWebViewMessage(data: 'to url', origin: appOrigin),
+    ]);
   });
 
   test('a load started just before dispose leaves the frame blank', () async {

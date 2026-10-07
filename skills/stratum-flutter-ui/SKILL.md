@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, or typography.fonts files in theme.yaml.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge.
 ---
 
 # Stratum Flutter UI
@@ -102,9 +102,11 @@ scroll it, guarded so a text field inside keeps its own keys.
     ],
   )
   ```
-- **`ReorderableListViewLayout`** (`.builder` only) — a reorderable list on widgets `ReorderableList`, with a
+- **`ReorderableListViewLayout`** (`.builder` only) — a reorderable list on widgets `SliverReorderableList`, with a
   caller-placed drag handle or `longPressDrag`, `onReorderItem`, and `dragStyle` for the lifted item; each item keeps
-  its `State` and focus across a move through a global key that never uses the index.
+  its `State` and focus across a move through a global key that never uses the index. An item finds the list through
+  `SliverReorderableList.maybeOf(context)`, not `ReorderableList.maybeOf`.
+  A drag held near a viewport edge scrolls the list toward that edge; `autoScrollerVelocityScalar` scales its speed.
   Keyboard: Alt+arrow along the axis moves the focused item one slot, Alt+Home/Alt+End move it to either end; a move
   past either end is still handled, so it never reaches the browser (Chrome's Alt+Left/Alt+Right Back/Forward).
   Without dragging: dragging is the list's only pointer path, so the app adds one that needs no drag (WCAG 2.5.7),
@@ -133,19 +135,19 @@ scroll it, guarded so a text field inside keeps its own keys.
 
   Insert and remove: pass a `StratumReorderableItemsController` as `itemsController` (the scroll `controller` stays
   separate) and call `insertItem(index)` or `removeItem(index)` in the same turn as the data change, outside a build
-  and outside `onReorderItem`, `onReorderStart`, and `onReorderEnd`; from those, call after the frame.
+  and `onReorderItem`, `onReorderStart`, and `onReorderEnd`; from those, call after the frame.
   An added item grows and fades in over the theme's `normal` level, and a removed one shrinks and fades out in the
   look it had, unless `removeItem`'s `builder` gives it another; `itemTransitionBuilder(context, animation, child)`
-  replaces the size and fade both ways. Without `builder`, a removed item's leaving copy ends at once if its key
-  comes back; pass `builder` to keep that copy fading on its own look instead. The leaving item keeps its State and
-  still rebuilds, so an item that reads its data through `context` (a `watch` or `select` by id or index, a provider
-  family) needs a `builder` that captures that data. Under reduced motion, or with `itemExtent`, `itemExtentBuilder`,
-  or `prototypeItem`, the size jumps and the fade plays. Focus on a removed item moves to the next item, else the
-  previous one, else the list's own Tab stop when the list is focusable, unless the app moves focus itself in the
-  same turn; a focused item the app removes and inserts back with its key in the same turn keeps focus instead, and
-  the list scrolls to it and shows it. A reorder of a leaving item's neighbor ends that leaving item. An insert or
-  remove during a drag, or an item-count change, ends the drag first with `onReorderEnd` at its start index and no
-  `onReorderItem`.
+  replaces the size and fade both ways. Without `builder`, a removed item's leaving copy ends at once if its key comes
+  back; a `builder` keeps it fading on its own look. The leaving item keeps its State and rebuilds, so an item reading
+  its data through `context` (a `watch` or `select` by id or index, a provider family) needs a `builder` capturing that
+  data. Under reduced motion, or with `itemExtent`, `itemExtentBuilder`, or `prototypeItem`, the size jumps and the fade
+  plays. Focus on a removed item moves to the next item, else the previous, else the list's Tab stop when the list is
+  focusable, unless the app moves focus in the same turn; a focused item the app removes and inserts back with its key
+  in the same turn keeps focus instead, and the list scrolls to it and shows it. A reorder of a leaving item's neighbor
+  ends that leaving item. An `insertItem`, `removeItem`, `moveItem`, key or screen-reader move, or item-count change
+  during a drag ends it first with `onReorderEnd` at its start index and no `onReorderItem`; key and screen-reader moves
+  then report their own.
 
   ```dart
   final itemsController = StratumReorderableItemsController();
@@ -164,9 +166,10 @@ scroll it, guarded so a text field inside keeps its own keys.
   Move: call `moveItem(from, to)` in the same turn as moving the item in the data, where `to` is the index the item
   ends at, as `onReorderItem` reports it. The old slot closes while the item grows and fades into its new one over the
   theme's `normal` level (under reduced motion or a fixed extent the slot closes at once and the item only fades in);
-  the item keeps its State and focus, a focused item shows on screen even when its new slot is far off screen, and
-  `onReorderItem` does not fire. Prefer it to `removeItem` plus `insertItem`, which keeps the item's State only when
-  the list has built its new slot. The Move up and Move down buttons above can call it.
+  the item keeps its State and focus, and a focused item shows on screen even when its new slot is far off screen,
+  unless the app moves focus in the same turn: that focus stays, and the item keeps its State only when the list has
+  built its new slot. `onReorderItem` does not fire. Prefer it to `removeItem` plus `insertItem`, which keeps the
+  item's State only when the list has built its new slot. The Move up and Move down buttons above can call it.
 
   ```dart
   void moveTask(int from, int to) {
@@ -187,6 +190,26 @@ scroll it, guarded so a text field inside keeps its own keys.
   rest), returning `SizedBox`, `Gap`, or `EdgeInsets` in steps from 1 to 72 px.
 - **`SpaceDirectional`** — the same steps as `EdgeInsetsDirectional`, so start and end mirror under
   `TextDirection.rtl`.
+
+## Focus ring
+
+- **`StratumFocusBorder`** — the Figma `FocusBorder` ring around one `child`. `StratumInkWell`, and so every
+  `interaction`, and every focusable scroll view already draw it; wrap a widget yourself only when it takes focus or
+  hover without them. Key parameters: `style` (`StratumFocusBorderStyle.outside`, the default, for every interaction
+  the user does not type into; `.inside` for form fields), `state` (`FullWidgetState.focused`, `.hovered`, or
+  `.normal`, resolved from focus and hover alone: a field in error that holds focus still passes `focused`, and any
+  other value shows no ring), `borderRadius` (the child's own radius), `insideEdge` (an outside ring on the child's
+  inner edge, for a box whose ring around it would leave the window), and per-ring `customColor`, `width`, and `gap`.
+  Look: outside, 3 px in `border.subtle.blue` after a 2 px gap, only when focused; inside, `border.default.normal`
+  on the inner edge, 3 px when hovered and 2 px when focused. It fades over the theme's `fast` level, shows at once
+  under reduced motion, and never changes the child's layout size. Its colors stay below the 3:1 contrast of WCAG
+  1.4.11 by design; pass `customColor` where an app needs that ratio.
+- **`FocusSpread`** — deprecated in 1.1.0, and removed after one minor version: it builds `StratumFocusBorder`, so
+  it already draws the new look. Its `color` now colors only the ring, as `customColor`, and no longer fills the
+  box; a box that needs a fill takes it from its own style. Replace `FocusSpread(focus: f, color: c, inside: i,
+  borderRadius: r, child: x)` with `StratumFocusBorder(state: f ? FullWidgetState.focused : FullWidgetState.normal,
+  customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
+  took effect.
 
 ## Themes
 
@@ -280,3 +303,21 @@ scroll it, guarded so a text field inside keeps its own keys.
   stratum_ui allows only the google_fonts version its CLI family list came from, so the CLI and your app accept the same
   `Google/<Name>` families. When `pub get` reports a google_fonts conflict, let your own google_fonts constraint allow
   the version stratum_ui's `pubspec.yaml` names.
+
+## Web view
+
+- **`StratumWebView`** — shows a URL page or the app's own HTML (`StratumWebViewSource.url`, `.html`) on Android,
+  iOS, macOS, Windows, Linux, and the web, driven by an optional `StratumWebViewController`.
+  Bridge: list the page origins you trust in `allowedOrigins` (empty closes the bridge, HTML included). A page calls
+  `StratumBridge.postMessage(data)`; `onMessage` gets the text and the origin of the page that sent it, `null` for
+  your HTML; answer with `controller.postMessage(data)`. Your HTML connects its bridge when its bootstrap script
+  runs: a `postMessage` before that throws `StateError` on every platform, so wait for the page's first message
+  instead of sending right after `loadHtml`. On iOS and macOS a `reload()` of your HTML shows an empty page and the
+  bridge stays closed until the next `loadHtml`.
+  Native code: the package ships Android (Kotlin, AndroidX WebKit) and iOS and macOS (Swift) code that names the
+  sender of each page message, so only the top-level page's messages pass, even one sent before `onPageStarted`; an
+  app needs no setup of its own. On Android a system WebView without `WEB_MESSAGE_LISTENER` or
+  `JS_INJECTION_IN_FRAME_AND_WORLD` keeps the bridge off, and every `postMessage` throws `StateError`. On Android a
+  send to your HTML reaches only the document that connected the bridge; once that document leaves, the next one
+  gets nothing and the send throws `StateError`. On Windows and Linux every frame of an allowed page can send,
+  credited to the page of the last `onPageStarted`.
