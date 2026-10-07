@@ -6091,11 +6091,16 @@ void main() {
         _harness(tester).move(100, 114);
         // The app's own deferred call (FR-05 E08): item 105, a different
         // item, takes focus and moves near too, but only once frame 1's
-        // post-frame batch runs, one frame after ask #1 was queued.
+        // post-frame batch runs, one frame after ask #1 was queued. Item
+        // 100's own move already shifted the ids, so item 105 now sits one
+        // data slot earlier; its target, 121, is near frame 1's widened
+        // range but past frame 2's own base range, so dropping ask #1's
+        // removal into clearing every ask (a mutation probe) makes this
+        // pin fail, proving ask #2 is the only thing that builds it ahead.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           focusB.requestFocus();
           FocusManager.instance.applyFocusChangesIfNeeded();
-          _harness(tester).move(105, 119);
+          _harness(tester).move(_harness(tester).ids.indexOf(105), 121);
         });
         await tester.pump();
 
