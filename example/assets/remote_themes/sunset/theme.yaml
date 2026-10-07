@@ -1,0 +1,8 @@
+$schema: stratum-theme/v1.0.0
+name: Sunset
+assets:
+  loading: images/sun.svg
+palette:
+  brand:
+    500: "#EA580C"
+    600: "#C2410C"

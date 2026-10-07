@@ -1,0 +1,8 @@
+$schema: stratum-theme/v1.0.0
+name: Ocean
+assets:
+  loading: images/wave.svg
+palette:
+  brand:
+    500: "#0E7490"
+    600: "#155E75"

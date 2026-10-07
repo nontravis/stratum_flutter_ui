@@ -73,6 +73,7 @@ flutter:
     - assets/google_fonts/geistmono/
     - assets/google_fonts/robotomono/
     - assets/google_fonts/kanit/
+    - assets/remote_themes/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
