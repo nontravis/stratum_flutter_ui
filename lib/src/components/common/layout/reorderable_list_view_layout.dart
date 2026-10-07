@@ -393,13 +393,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   ReorderableListViewLayout get _layout => widget.layout;
 
-  /// Whether primary focus lies inside this list.
-  bool get _holdsFocus {
-    final primary = FocusManager.instance.primaryFocus;
-    return primary?.context?.findAncestorStateOfType<_ReorderableBodyState>() ==
-        this;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -1262,10 +1255,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// viewport around it ([revealInViewports]). The index is one of the
   /// current data, converted when read, so a call made after the move, or
   /// one the app defers to run earlier in the post-frame batch (FR-04
-  /// E15), cannot shift it (D7). After a key move, when focus has left the
-  /// list, it moves to that item's first node in Tab order. An item still
-  /// growing in before it pushes it past the edge it was revealed at, so it
-  /// is revealed again as each such grow-in ends (R10).
+  /// E15), cannot shift it (D7). After a key move, when no node, or only a
+  /// scope, holds primary focus, it moves to that item's first node in Tab
+  /// order; a focus the app moves to another node in the move's turn stays
+  /// there instead (R13), the same distinction [_reach] and [_followMoved]
+  /// make. An item still growing in before it pushes it past the edge it
+  /// was revealed at, so it is revealed again as each such grow-in ends
+  /// (R10).
   void _afterMove(_MoveTarget moved, {required bool byKey}) {
     _moveTargets.remove(moved);
     final index = moved.index;
@@ -1277,7 +1273,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _reachStep(moved, built);
       return;
     }
-    if (byKey && !_holdsFocus) firstTabStopIn(node)?.requestFocus();
+    final primary = FocusManager.instance.primaryFocus;
+    final noFocusOwnerElsewhere = primary == null || primary is FocusScopeNode;
+    if (byKey && noFocusOwnerElsewhere) firstTabStopIn(node)?.requestFocus();
     revealInViewports(node);
     for (final MapEntry(key: at, value: look) in _itemLooks.entries) {
       final motion = at < built ? _incoming[look.key] : null;

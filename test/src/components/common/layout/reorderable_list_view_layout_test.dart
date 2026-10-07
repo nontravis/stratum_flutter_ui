@@ -6628,5 +6628,66 @@ void main() {
         handle.dispose();
       },
     );
+
+    testWidgets(
+      'us11/fr03/e09: a focus the app moves outside the list in the turn of '
+      'Alt+Down to a built slot stays, and the list never pulls it back',
+      (tester) async {
+        final outside = FocusNode(debugLabel: 'outside');
+        addTearDown(outside.dispose);
+        await tester.pumpWidget(
+          _app(
+            Column(
+              children: [
+                Focus(focusNode: outside, child: const SizedBox()),
+                const Expanded(child: _Harness(count: 5)),
+              ],
+            ),
+          ),
+        );
+        await _focusItem(tester, 2);
+        _harnessA(tester).onMove = (_, _) => outside.requestFocus();
+
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+
+        expect(FocusManager.instance.primaryFocus, same(outside));
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e09: a focus the app moves outside the list in the turn of '
+      'Alt+Down to a near unbuilt slot stays, and the list never pulls it '
+      'back',
+      (tester) async {
+        final outside = FocusNode(debugLabel: 'outside');
+        addTearDown(outside.dispose);
+        await tester.pumpWidget(
+          _app(
+            Column(
+              children: [
+                Focus(focusNode: outside, child: const SizedBox()),
+                const Expanded(child: _Harness(count: 200)),
+              ],
+            ),
+          ),
+        );
+        final position =
+            tester.state<ScrollableState>(find.byType(Scrollable)).position
+              ..jumpTo(4000);
+        await tester.pump();
+        final state = _itemState(tester, 113);
+        await _focusItem(tester, 113);
+        _harnessA(tester).onMove = (_, _) => outside.requestFocus();
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(_statesOf(tester, 113), isNot(contains(state)));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(outside));
+        expect(position.pixels, 4000);
+      },
+    );
   });
 }
