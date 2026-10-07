@@ -22,11 +22,16 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 /// `StratumWebViewController.postMessage` delivers a `message` event to the
 /// page on every platform. The bridge stays off while [allowedOrigins] is
 /// empty, HTML content included: give HTML a non-empty [allowedOrigins]
-/// too. HTML content is trusted until the user navigates away from it. On
-/// native, navigating back or forward to that HTML afterward does not
-/// re-arm the bridge; call `loadHtml` again. On web, a strict app
-/// Content-Security-Policy without inline scripts blocks the bootstrap
-/// script and disables the HTML bridge; scripts that run in the app's own
+/// too. HTML content is trusted by a secret that its bootstrap script
+/// carries, new for every HTML load, never by the page address: a page the
+/// user reaches from that HTML never passes as it, and going back or
+/// forward to the HTML of the latest load brings the bridge back. A
+/// `postMessage` to HTML before its bootstrap connected the bridge throws a
+/// [StateError] on every platform, so wait for a first message from the
+/// page. On web, the app's own Content-Security-Policy without inline
+/// scripts blocks the bootstrap and keeps the HTML bridge closed; on
+/// native, a policy inside the document never reaches the bootstrap, so the
+/// HTML bridge always opens. On web, scripts that run in the app's own
 /// window are trusted regardless, since the handshake is visible there.
 ///
 /// **Limitations.**
