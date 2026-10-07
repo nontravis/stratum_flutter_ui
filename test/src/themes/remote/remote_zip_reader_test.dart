@@ -288,6 +288,30 @@ void main() {
     expect(_unread(zip), ['.DS_Store', 'images/.DS_Store']);
   });
 
+  test('minor6 edge, us02/fr03/e13, r15: a .DS_Store three folders deep is '
+      'unread', () {
+    final zip = buildZip([
+      ZipEntryFixture('brand/', const [], deflate: false),
+      ZipEntryFixture('brand/theme.yaml', yaml),
+      ZipEntryFixture('brand/sub/sub2/.DS_Store', [9]),
+    ]);
+
+    expect(_read(zip).keys, ['theme.yaml']);
+    expect(_unread(zip), ['brand/sub/sub2/.DS_Store']);
+  });
+
+  test('minor6 edge, us02/fr03/e13, r15: a folder entry inside the theme '
+      'root is neither unread nor a file', () {
+    final zip = buildZip([
+      ZipEntryFixture('brand/', const [], deflate: false),
+      ZipEntryFixture('brand/theme.yaml', yaml),
+      ZipEntryFixture('brand/images/', const [], deflate: false),
+    ]);
+
+    expect(_read(zip).keys, ['theme.yaml']);
+    expect(_unread(zip), isEmpty);
+  });
+
   test('us01/fr02: an unreadable zip and a cap fault give invalid_archive '
       'first', () {
     final zip = buildZip([

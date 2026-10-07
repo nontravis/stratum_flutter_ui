@@ -209,5 +209,43 @@ void main() {
         'warning: "brand/.DS_Store" $unread',
       ]);
     });
+
+    test('minor6 edge, us02/fr03/e13: an unread entry is never also an '
+        'unnamed-file warning', () async {
+      final bytes = buildZip([
+        ZipEntryFixture('brand/', const [], deflate: false),
+        ZipEntryFixture('brand/theme.yaml', utf8.encode('$remoteSchemaLine\n')),
+        ZipEntryFixture('README.html', [1]),
+      ]);
+      final check = await _check(
+        StratumRemoteTheme(
+          id: 'brand',
+          bytes: bytes,
+          checksum: checksumOf(bytes),
+        ),
+      );
+
+      const unread = 'is in the zip, but the app install never reads it';
+      expect(cliWarnings(check), ['warning: "README.html" $unread']);
+    });
+
+    test('minor6 edge, us02/fr03/e13: _unreadWarning escapes a non-ASCII '
+        'letter and a quote in the path', () async {
+      final bytes = buildZip([
+        ZipEntryFixture('brand/', const [], deflate: false),
+        ZipEntryFixture('brand/theme.yaml', utf8.encode('$remoteSchemaLine\n')),
+        ZipEntryFixture('a"é.html', [1]),
+      ]);
+      final check = await _check(
+        StratumRemoteTheme(
+          id: 'brand',
+          bytes: bytes,
+          checksum: checksumOf(bytes),
+        ),
+      );
+
+      const unread = 'is in the zip, but the app install never reads it';
+      expect(cliWarnings(check), ['warning: "a\\u0022\\u00e9.html" $unread']);
+    });
   });
 }
