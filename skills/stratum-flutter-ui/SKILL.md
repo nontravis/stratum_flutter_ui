@@ -102,9 +102,11 @@ scroll it, guarded so a text field inside keeps its own keys.
     ],
   )
   ```
-- **`ReorderableListViewLayout`** (`.builder` only) — a reorderable list on widgets `ReorderableList`, with a
+- **`ReorderableListViewLayout`** (`.builder` only) — a reorderable list on widgets `SliverReorderableList`, with a
   caller-placed drag handle or `longPressDrag`, `onReorderItem`, and `dragStyle` for the lifted item; each item keeps
-  its `State` and focus across a move through a global key that never uses the index.
+  its `State` and focus across a move through a global key that never uses the index. An item finds the list through
+  `SliverReorderableList.maybeOf(context)`, not `ReorderableList.maybeOf`.
+  A drag held near a viewport edge scrolls the list toward that edge; `autoScrollerVelocityScalar` scales its speed.
   Keyboard: Alt+arrow along the axis moves the focused item one slot, Alt+Home/Alt+End move it to either end; a move
   past either end is still handled, so it never reaches the browser (Chrome's Alt+Left/Alt+Right Back/Forward).
   Without dragging: dragging is the list's only pointer path, so the app adds one that needs no drag (WCAG 2.5.7),

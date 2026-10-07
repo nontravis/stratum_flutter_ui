@@ -1,5 +1,9 @@
 import 'package:flutter/rendering.dart'
-    show ItemExtentBuilder, RenderAbstractViewport, ScrollCacheExtent;
+    show
+        ItemExtentBuilder,
+        RenderAbstractViewport,
+        RenderSliverMultiBoxAdaptor,
+        ScrollCacheExtent;
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
@@ -7,7 +11,7 @@ import 'package:stratum_ui/src/src.dart';
 
 /// A lazy list whose items the user reorders, inside a [WidgetStyle] box.
 ///
-/// Built on the widgets-level [ReorderableList]. Every item that
+/// Built on the widgets-level [SliverReorderableList]. Every item that
 /// [itemBuilder] returns carries a key. A long press anywhere on an item
 /// starts a drag when [longPressDrag] is true, on every platform; a handle
 /// that the item wraps in [ReorderableDragStartListener] starts one on
@@ -252,7 +256,8 @@ class StratumReorderableItemsController {
   }
 }
 
-/// The [ReorderableList], with the per-item wrappers and the reorder keys.
+/// The reorderable list, a [SliverReorderableList] in its own scroll view,
+/// with the per-item wrappers and the reorder keys.
 class _ReorderableBody extends StatefulWidget {
   const new({
     required this.layout,
@@ -339,7 +344,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// it, and that change reports the end ([_reportCountEnd]).
   _FrameIndex? _dragIndex;
 
-  /// The item count the last build gave [ReorderableList].
+  /// The item count the last build gave [SliverReorderableList].
   int? _listCount;
 
   /// Where each key move, screen-reader move, or drop of this frame put its
@@ -369,8 +374,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The pointers down on the list; a drag needs one.
   var _pointersDown = 0;
 
-  /// Reaches [ReorderableListState.cancelReorder].
-  final _listKey = GlobalKey<ReorderableListState>();
+  /// Reaches [SliverReorderableListState.cancelReorder] and the list's
+  /// sliver ([_sliver]).
+  final _listKey = GlobalKey<SliverReorderableListState>();
 
   ReorderableListViewLayout get _layout => widget.layout;
 
@@ -1514,10 +1520,50 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return origin;
   }
 
-  /// Whether the last frame built [slot]: a question of geometry, so it
-  /// reads slot numbers, never an index converted between the spaces.
-  bool _builtSlot(int slot) =>
-      _itemNodes.keys.any((index) => index.slot == slot);
+  /// Whether the last frame laid out [slot]: a question of geometry, so
+  /// it reads slot numbers, never an index converted between the spaces,
+  /// and the sliver's laid-out children ([_laidOut]), never [_itemNodes],
+  /// which keeps a kept-alive item's slot after it leaves (FR-05 E12).
+  bool _builtSlot(int slot) {
+    final laid = _laidOut();
+    return laid != null && slot >= laid.first && slot <= laid.last;
+  }
+
+  /// The first and last slot the list's sliver laid out in the last frame,
+  /// and their average extent along the main axis; null when it laid out
+  /// none. The sliver's child list holds only laid-out children: Flutter
+  /// moves a kept-alive child out of it into its keep-alive bucket
+  /// (`_destroyOrCacheChild`), so an item kept alive off screen never
+  /// counts (invariant 35).
+  ({int first, int last, double extent})? _laidOut() {
+    final sliver = _sliver();
+    final firstChild = sliver?.firstChild;
+    final lastChild = sliver?.lastChild;
+    if (sliver == null || firstChild == null || lastChild == null) {
+      return null;
+    }
+    final first = sliver.indexOf(firstChild);
+    final last = sliver.indexOf(lastChild);
+    final size = lastChild.size;
+    final lastExtent = sliver.constraints.axis == Axis.vertical
+        ? size.height
+        : size.width;
+    final start = sliver.childScrollOffset(firstChild) ?? 0;
+    final end = (sliver.childScrollOffset(lastChild) ?? 0) + lastExtent;
+    return (
+      first: first,
+      last: last,
+      extent: (end - start) / (last - first + 1),
+    );
+  }
+
+  /// The sliver that lays out this list's items: the render object of the
+  /// [SliverReorderableList] the list's key holds, so no item and no drag
+  /// proxy is asked.
+  RenderSliverMultiBoxAdaptor? _sliver() {
+    final sliver = _listKey.currentContext?.findRenderObject();
+    return sliver is RenderSliverMultiBoxAdaptor ? sliver : null;
+  }
 
   /// The slot the item at [to] of the current data enters in the next
   /// frame, for a move either way (invariant 35). The next frame anchors
@@ -1531,10 +1577,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// did not build. Slots only, as [_builtSlot] reads them.
   int _enteredSlot(_DataIndex to) {
     final slot = to.nextSlot;
-    int? built;
-    for (final index in _itemNodes.keys) {
-      if (built == null || index.slot < built) built = index.slot;
-    }
+    final built = _laidOut()?.first;
     if (built == null || slot < built) return slot;
     final first = built;
     bool counts(int at) => at >= first && at <= slot;
@@ -1900,18 +1943,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       onPointerDown: (_) => _pointersDown += 1,
       onPointerUp: (_) => _handlePointerGone(),
       onPointerCancel: (_) => _handlePointerGone(),
-      child: ReorderableList(
-        key: _listKey,
-        itemBuilder: _buildItem,
-        itemCount: listCount,
-        onReorderItem: _handleReorderItem,
-        onReorderStart: _handleReorderStart,
-        onReorderEnd: _handleReorderEnd,
-        itemExtent: layout.itemExtent,
-        itemExtentBuilder: layout.itemExtentBuilder,
-        prototypeItem: layout.prototypeItem,
-        proxyDecorator: layout.dragStyle == null ? null : _proxy,
-        padding: widget.padding,
+      // The widgets `ReorderableList`'s own tree, built here so the key
+      // reaches the sliver (invariant 35).
+      child: CustomScrollView(
         scrollDirection: layout.scrollDirection,
         reverse: layout.reverse,
         controller: widget.controller,
@@ -1923,7 +1957,24 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         keyboardDismissBehavior: layout.keyboardDismissBehavior,
         restorationId: layout.restorationId,
         clipBehavior: layout.clipBehavior,
-        autoScrollerVelocityScalar: layout.autoScrollerVelocityScalar,
+        slivers: [
+          SliverPadding(
+            padding: widget.padding ?? EdgeInsets.zero,
+            sliver: SliverReorderableList(
+              key: _listKey,
+              itemBuilder: _buildItem,
+              itemCount: listCount,
+              onReorderItem: _handleReorderItem,
+              onReorderStart: _handleReorderStart,
+              onReorderEnd: _handleReorderEnd,
+              itemExtent: layout.itemExtent,
+              itemExtentBuilder: layout.itemExtentBuilder,
+              prototypeItem: layout.prototypeItem,
+              proxyDecorator: layout.dragStyle == null ? null : _proxy,
+              autoScrollerVelocityScalar: layout.autoScrollerVelocityScalar,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1326,7 +1326,7 @@ void main() {
         expect(_offsetBetween(tester, 0, 1), 80);
         expect(
           find.descendant(
-            of: find.byType(ReorderableList),
+            of: find.byType(SliverReorderableList),
             matching: find.byType(SizeTransition),
           ),
           findsNothing,
@@ -1361,7 +1361,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           find.descendant(
-            of: find.byType(ReorderableList),
+            of: find.byType(SliverReorderableList),
             matching: find.byType(SizeTransition),
           ),
           findsNothing,
@@ -1594,7 +1594,7 @@ void main() {
       expect(_offsetBetween(tester, 9, 0), 40);
       expect(
         find.descendant(
-          of: find.byType(ReorderableList),
+          of: find.byType(SliverReorderableList),
           matching: find.byType(SizeTransition),
         ),
         findsNothing,
@@ -1900,7 +1900,7 @@ void main() {
         );
         final mid = Curves.easeInOutSine.transform(0.5);
         Finder inList(Type type) => find.descendant(
-          of: find.byType(ReorderableList),
+          of: find.byType(SliverReorderableList),
           matching: find.byType(type),
         );
 
@@ -3914,7 +3914,7 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.byType(ReorderableList),
+          of: find.byType(SliverReorderableList),
           matching: find.byType(FadeTransition),
         ),
         findsNothing,
@@ -4034,7 +4034,7 @@ void main() {
         await tester.pump();
         expect(
           find.descendant(
-            of: find.byType(ReorderableList),
+            of: find.byType(SliverReorderableList),
             matching: find.byType(SizeTransition),
           ),
           findsNothing,
@@ -4065,7 +4065,7 @@ void main() {
         expect(_opacity(tester, 2), 0);
         expect(
           find.descendant(
-            of: find.byType(ReorderableList),
+            of: find.byType(SliverReorderableList),
             matching: find.byType(SizeTransition),
           ),
           findsNothing,
