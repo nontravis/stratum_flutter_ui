@@ -302,6 +302,114 @@ void main() {
       expect(missing.code, exitNoInput);
       expect(missing.err.single, startsWith('cannot write to "nowhere"'));
     });
+
+    for (final (label, files) in [
+      ('an empty folder', <String, String>{}),
+      ('a folder holding only hidden names', {'.DS_Store': 'x'}),
+    ]) {
+      test('fix-1 edge critical: pack of $label fails as invalid_archive, '
+          'with no stack trace', () async {
+        _folder('brand', files);
+
+        final run = await _run(['pack', 'brand']);
+
+        expect(run.code, exitFailed);
+        expect(run.out, isEmpty);
+        expect(run.err, contains('invalid_archive: the zip is empty'));
+        expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
+      });
+    }
+
+    test(
+      'fix-1 sec f2: a POSIX file name holding a backslash fails as '
+      'unsafe_entry_path from the writer, not left as a stack trace',
+      () async {
+        final root = _folder('brand', _theme());
+        File(p.join(root, 'images', r'a\b.svg')).writeAsStringSync(_svg);
+
+        final run = await _run(['pack', 'brand']);
+
+        expect(run.code, exitFailed);
+        expect(run.out, isEmpty);
+        expect(
+          run.err.single,
+          r'unsafe_entry_path: entry "images/a\u005cb.svg" is no canonical '
+          'relative path',
+        );
+      },
+      skip: Platform.isWindows
+          ? 'no backslash in a POSIX file name on Windows'
+          : false,
+    );
+
+    test('fix-1 edge important: --out the same folder being packed excludes '
+        'its own last zip, so repeated packs give the same bytes', () async {
+      _folder('brand', _theme());
+
+      final first = await _run(['pack', 'brand', '--out', 'brand']);
+      final second = await _run(['pack', 'brand', '--out', 'brand']);
+
+      expect(first.code, exitPass);
+      expect(second.code, exitPass);
+      expect(second.out, first.out);
+      expect(
+        File(p.join(_app.path, 'brand', 'brand.zip')).readAsBytesSync(),
+        writeRemoteZip({
+          for (final MapEntry(:key, :value) in _theme().entries)
+            key: utf8.encode(value),
+        }),
+      );
+    });
+
+    test('fix-1 sec f1: a planted link at the old predictable temp name is '
+        'never opened, so the victim it points to is unchanged', () async {
+      _folder('brand', _theme());
+      final out = _folder('out', {});
+      final victim = File(p.join(out, 'victim.txt'))
+        ..writeAsStringSync('precious');
+      Link(p.join(out, 'brand.zip.$pid.tmp')).createSync(victim.path);
+
+      final run = await _run(['pack', 'brand', '--out', 'out']);
+
+      expect(run.code, exitPass);
+      expect(victim.readAsStringSync(), 'precious');
+      expect(
+        Directory(out)
+            .listSync()
+            .map((entity) => p.basename(entity.path))
+            .where((name) => name.startsWith('.stratum_theme_')),
+        isEmpty,
+      );
+    });
+
+    test('coverage: a folder path holding a space and a non-ASCII letter '
+        'packs normally', () async {
+      _folder('bra nd é', _theme());
+
+      final run = await _run(['pack', 'bra nd é', '--id', 'brand']);
+
+      expect(run.code, exitPass);
+      expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isTrue);
+    });
+
+    test('coverage: on-disk case twins warn, through the real walk, not only '
+        'the writer', () async {
+      final root = _folder('brand', _theme());
+      File(p.join(root, 'A.svg')).writeAsStringSync(_svg);
+      File(p.join(root, 'a.svg')).writeAsStringSync(_svg);
+      final twins = Directory(root)
+          .listSync()
+          .where((entity) => p.basename(entity.path).toLowerCase() == 'a.svg');
+      if (twins.length < 2) return;
+
+      final run = await _run(['pack', 'brand']);
+
+      expect(run.code, exitPass);
+      expect(
+        run.err,
+        contains('warning: "A.svg" and "a.svg" differ only in letter case'),
+      );
+    });
   });
 
   group('us02/fr02: check', () {
@@ -416,6 +524,30 @@ void main() {
         expect(line, matches(_printable));
       }
     });
+
+    test('fix-1 sec f4 (type half): check of a folder, not a file, exits '
+        '66 before any read', () async {
+      final folder = _folder('brand', {});
+
+      final run = await _run(['check', folder]);
+
+      expect(run.code, exitNoInput);
+      expect(run.out, isEmpty);
+    });
+
+    test(
+      'fix-1 sec f4 (type half): check of a FIFO exits 66 without blocking',
+      () async {
+        final fifo = p.join(_app.path, 'pipe');
+        Process.runSync('mkfifo', [fifo]);
+
+        final run = await _run(['check', fifo]);
+
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+      },
+      skip: Platform.isWindows ? 'no FIFO on Windows' : false,
+    );
   });
 
   group('us02/fr03: usage errors and unreadable inputs', () {

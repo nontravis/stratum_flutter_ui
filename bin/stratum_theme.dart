@@ -227,10 +227,11 @@ final class _Run {
   final String? _packageRoot;
 
   /// FR-01: reads the folder and the defaults, takes the id, collects the
-  /// files, builds the zip, checks the built bytes, and writes
-  /// `<out>/<id>.zip` only once the check passes. Returns the checksum, or
-  /// null after a failure it printed; throws [_NoInput] for an input it
-  /// cannot read.
+  /// files below its own resolved output path, builds the zip, checks the
+  /// built bytes, and writes `<out>/<id>.zip` only once the check passes.
+  /// Returns the checksum, or null after a failure it printed — the id
+  /// check, the walk, and the writer each print `<code.key>: <message>`
+  /// the same way; throws [_NoInput] for an input it cannot read.
   Future<String?> pack() async {
     final folder = _resolve(_command.target);
     if (!FileSystemEntity.isDirectorySync(folder)) {
@@ -251,9 +252,18 @@ final class _Run {
       _err.writeln('${failure.code.key}: ${failure.message}');
       return null;
     }
+    final String outputPath;
+    try {
+      outputPath = p.join(
+        Directory(outFolder).resolveSymbolicLinksSync(),
+        '$id.zip',
+      );
+    } on FileSystemException catch (error) {
+      throw _NoInput('cannot write to ${_shown(outName)}: ${error.message}');
+    }
     final Map<String, List<int>> files;
     try {
-      files = _collect(folder);
+      files = _collect(folder, skip: outputPath);
     } on _Unsafe catch (unsafe) {
       _err.writeln(
         '${StratumRemoteThemeErrorCode.unsafeEntryPath.key}: '
@@ -261,17 +271,28 @@ final class _Run {
       );
       return null;
     }
-    final bytes = writeRemoteZip(files);
+    final Uint8List bytes;
+    try {
+      bytes = writeRemoteZip(files);
+    } on RemoteThemeFailure catch (failure) {
+      _err.writeln('${failure.code.key}: ${failure.message}');
+      return null;
+    }
     final checksum = _checksumOf(bytes);
     if (!await _check(id, bytes, checksum, defaults)) return null;
-    _write(p.join(outFolder, '$id.zip'), bytes);
+    _write(outputPath, bytes);
     return checksum;
   }
 
   /// FR-02: reads the zip file and the defaults and checks the zip; returns
-  /// its checksum, or null after a failure it printed.
+  /// its checksum, or null after a failure it printed. Throws [_NoInput]
+  /// for a target that is not a regular file — a folder, a FIFO, a socket,
+  /// or a missing path — before any read, so a FIFO never blocks the run.
   Future<String?> check() async {
     final file = _resolve(_command.target);
+    if (FileSystemEntity.typeSync(file) != FileSystemEntityType.file) {
+      throw _NoInput('cannot read ${_shown(_command.target)}: not a file');
+    }
     final Uint8List bytes;
     try {
       bytes = File(file).readAsBytesSync();
@@ -378,53 +399,65 @@ final class _Run {
     }
   }
 
-  /// Writes [bytes] to [path] through a temporary file in the same folder,
-  /// so a failed write leaves no partial zip and an earlier zip stays whole
-  /// until the new one replaces it (plan D-l).
+  /// Writes [bytes] to [path] through a private temporary folder beside it
+  /// (`mkdtemp`, mode 0700), so a failed write leaves no partial zip, an
+  /// earlier zip stays whole until the new one replaces it (plan D-l), and
+  /// no name a planted link could guess is ever opened for writing.
   void _write(String path, Uint8List bytes) {
-    final temporary = File('$path.$pid.tmp');
+    final scratch = Directory(p.dirname(path))
+        .createTempSync('.stratum_theme_');
     try {
-      temporary
+      File(p.join(scratch.path, 'theme.zip'))
         ..writeAsBytesSync(bytes, flush: true)
         ..renameSync(path);
     } on FileSystemException catch (error) {
-      if (temporary.existsSync()) temporary.deleteSync();
       throw _NoInput('cannot write ${_shown(path)}: ${error.message}');
+    } finally {
+      if (scratch.existsSync()) scratch.deleteSync(recursive: true);
     }
   }
 
   /// Every file under [root] by its path below it, `/` between segments,
-  /// leaving out each name that starts with `.` and each `__MACOSX` folder
-  /// with everything under them (FR-01 E02); throws [_Unsafe] naming the
-  /// first symbolic link or other entry that is neither a file nor a
-  /// folder (FR-01 E03, plan D-d), never reading it, and [_NoInput] for a
-  /// folder or file it cannot read.
-  static Map<String, List<int>> _collect(String root) {
+  /// leaving out each name that starts with `.`, each `__MACOSX` folder
+  /// with everything under them (FR-01 E02), and the one file whose
+  /// canonical path is [skip] — the pack's own resolved output zip, so
+  /// packing into (or over) the folder it walks never sweeps a last run's
+  /// zip back in; throws [_Unsafe] naming the first symbolic link or other
+  /// entry that is neither a file nor a folder (FR-01 E03, plan D-d), never
+  /// reading it, and [_NoInput] for a folder or file it cannot read.
+  static Map<String, List<int>> _collect(String root, {required String skip}) {
     final files = <String, List<int>>{};
-    void walk(String folder, String prefix) {
-      for (final child in Directory(folder).listSync(followLinks: false)) {
-        final name = p.basename(child.path);
-        final type = FileSystemEntity.typeSync(child.path, followLinks: false);
-        final isFolder = type == FileSystemEntityType.directory;
-        if (name.startsWith('.') || (isFolder && name == '__MACOSX')) continue;
-        final relative = prefix.isEmpty ? name : '$prefix/$name';
-        if (isFolder) {
-          walk(child.path, relative);
-        } else if (type == FileSystemEntityType.file) {
-          files[relative] = File(child.path).readAsBytesSync();
-        } else {
-          final kind = type == FileSystemEntityType.link
-              ? 'a symbolic link'
-              : 'neither a file nor a folder';
-          throw _Unsafe(
-            '"${escapeZipText(relative)}" is $kind, which the app install '
-            'refuses as a zip entry',
+    try {
+      final canonicalRoot = Directory(root).resolveSymbolicLinksSync();
+      void walk(String folder, String prefix) {
+        for (final child in Directory(folder).listSync(followLinks: false)) {
+          final name = p.basename(child.path);
+          final type = FileSystemEntity.typeSync(
+            child.path,
+            followLinks: false,
           );
+          final isFolder = type == FileSystemEntityType.directory;
+          if (name.startsWith('.') || (isFolder && name == '__MACOSX')) {
+            continue;
+          }
+          final relative = prefix.isEmpty ? name : '$prefix/$name';
+          if (isFolder) {
+            walk(child.path, relative);
+          } else if (type == FileSystemEntityType.file) {
+            if (p.join(canonicalRoot, relative) == skip) continue;
+            files[relative] = File(child.path).readAsBytesSync();
+          } else {
+            final kind = type == FileSystemEntityType.link
+                ? 'a symbolic link'
+                : 'neither a file nor a folder';
+            throw _Unsafe(
+              '"${escapeZipText(relative)}" is $kind, which the app '
+              'install refuses as a zip entry',
+            );
+          }
         }
       }
-    }
 
-    try {
       walk(root, '');
     } on FileSystemException catch (error) {
       throw _NoInput(
