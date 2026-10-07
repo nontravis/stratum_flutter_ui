@@ -53,11 +53,18 @@ void main() {
 
   for (final unit in [0x00, 0x09, 0x0A, 0x0D, 0x1B, 0x1F, 0x7F]) {
     final hex = unit.toRadixString(16).padLeft(4, '0');
-    final path = 'images/a${String.fromCharCode(unit)}b.png';
-    test('us01/s15, us01/fr02/e14, r15: U+$hex in a path is '
-        'unsafe_entry_path with the path', () {
-      expect(() => checkEntryPath(path), _unsafe(path));
-    });
+    final char = String.fromCharCode(unit);
+    for (final (label, path) in [
+      ('the first segment', 'ima${char}ges/sub/file.png'),
+      ('a middle segment', 'images/s${char}ub/file.png'),
+      ('the last segment', 'images/sub/fi${char}le.png'),
+      ('a segment alone', 'images/$char/file.png'),
+    ]) {
+      test('us01/s15, us01/fr02/e14, r15: U+$hex in $label is '
+          'unsafe_entry_path with the path', () {
+        expect(() => checkEntryPath(path), _unsafe(path));
+      });
+    }
   }
 
   test('us01/fr02/e14, r15: printable and non-ASCII text stays safe, a C1 '
