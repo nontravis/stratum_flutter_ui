@@ -76,9 +76,12 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
     controller.removeScriptMessageHandler(forName: Self.bridgeName)
     let handler = BridgeMessageHandler(id: id, channel: channel)
     controller.add(handler, name: Self.bridgeName)
-    controller.addUserScript(
-      WKUserScript(
-        source: Self.aliasSource, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+    // The alias outlives detach, so a second attach adds no duplicate.
+    if !controller.userScripts.contains(where: { $0.source == Self.aliasSource }) {
+      controller.addUserScript(
+        WKUserScript(
+          source: Self.aliasSource, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+    }
     handlers[id] = handler
   }
 
@@ -104,11 +107,29 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
       guard let registry = pluginRegistry() else { return nil }
       let source: AnyObject = registry
     #endif
-    guard let method = class_getClassMethod(api, selector) else { return nil }
+    guard let method = class_getClassMethod(api, selector), Self.matchesLookup(method) else {
+      return nil
+    }
     typealias Lookup =
-      @convention(c) (AnyClass, Selector, Int64, AnyObject) -> Unmanaged<WKWebView>?
+      @convention(c) (AnyClass, Selector, Int64, AnyObject) -> Unmanaged<AnyObject>?
     let lookup = unsafeBitCast(method_getImplementation(method), to: Lookup.self)
-    return lookup(api, selector, id, source)?.takeUnretainedValue()
+    return lookup(api, selector, id, source)?.takeUnretainedValue() as? WKWebView
+  }
+
+  /// Whether `method` has the C shape `Lookup` casts it to: it returns an
+  /// object and takes an `Int64` and an object after `self` and `_cmd`. A
+  /// plugin release that changes the signature then fails closed as a
+  /// missing web view instead of calling through a mismatched pointer.
+  private static func matchesLookup(_ method: Method) -> Bool {
+    func encoding(_ copy: UnsafeMutablePointer<CChar>?) -> String? {
+      guard let copy else { return nil }
+      defer { free(copy) }
+      return String(cString: copy)
+    }
+    return method_getNumberOfArguments(method) == 4
+      && encoding(method_copyReturnType(method)) == "@"
+      && encoding(method_copyArgumentType(method, 2)) == "q"
+      && encoding(method_copyArgumentType(method, 3)) == "@"
   }
 
   #if os(macOS)
@@ -152,10 +173,12 @@ private final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
   }
 
   /// The serialized origin, as `location.origin` reads it, or `nil` for an
-  /// opaque origin, which has no host.
+  /// opaque origin, which has no host. An IPv6 host gets its brackets only
+  /// when WebKit reports it without them.
   private static func origin(of origin: WKSecurityOrigin) -> String? {
     guard !origin.host.isEmpty else { return nil }
-    let host = origin.host.contains(":") ? "[\(origin.host)]" : origin.host
+    let host =
+      origin.host.contains(":") && !origin.host.hasPrefix("[") ? "[\(origin.host)]" : origin.host
     return origin.port == 0
       ? "\(origin.protocol)://\(host)" : "\(origin.protocol)://\(host):\(origin.port)"
   }
