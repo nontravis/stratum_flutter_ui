@@ -295,3 +295,5 @@ scroll it, guarded so a text field inside keeps its own keys.
   send to your HTML reaches only the document that connected the bridge; once that document leaves, the next one
   gets nothing and the send throws `StateError`. On Windows and Linux every frame of an allowed page can send,
   credited to the page of the last `onPageStarted`.
+  Web: `onMessage`'s origin names the page that sent the message, even a URL page the view has moved away from, and
+  `currentUrl()` reports the requested URL until the frame finishes loading it.
