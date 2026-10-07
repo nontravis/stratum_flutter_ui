@@ -47,6 +47,19 @@ const int _secretLength = 32;
 /// lowercase hex.
 final RegExp _documentIdShape = RegExp(r'^[0-9a-f]{32}$');
 
+/// The sender a platform names for one bridge message: Android through its
+/// web message listener, iOS and macOS through `WKScriptMessage.frameInfo`.
+final class BridgeMessageSender {
+  const new({required this.origin, required this.isMainFrame});
+
+  /// The origin of the document that sent the message, or `null` when that
+  /// origin is opaque.
+  final Uri? origin;
+
+  /// Whether the main frame sent the message.
+  final bool isMainFrame;
+}
+
 /// Bridge and error rules shared by the native adapters.
 ///
 /// Adapters report platform events here and ask whether a message may pass.
