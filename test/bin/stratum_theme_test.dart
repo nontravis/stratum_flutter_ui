@@ -61,6 +61,15 @@ Map<String, String> _theme([String body = '']) => {
   'images/logo.svg': _svg,
 };
 
+/// Writes the app project's `pubspec.yaml` with [assets] as its
+/// `flutter: assets:` items.
+void _pubspec(List<String> assets) {
+  File(p.join(_app.path, 'pubspec.yaml')).writeAsStringSync(
+    'name: app\nflutter:\n  assets:\n'
+    '${[for (final asset in assets) '    - $asset\n'].join()}',
+  );
+}
+
 /// [files], path to text, as a zip at [name] in the app project.
 String _zip(String name, Map<String, String> files) {
   final path = p.join(_app.path, name);
@@ -473,11 +482,12 @@ void main() {
       );
     });
 
-    test("us02/s7, us02/fr02/e01: the app project's default theme is read "
-        'too, and the defaults line names both', () async {
+    test("us02/s7, us02/fr02/e01, r13: the app project's listed default "
+        'theme is read too, and the defaults line names both', () async {
       _folder('assets/themes/default', {
         'theme.yaml': '$_schema\nspace:\n  nope: 4',
       });
+      _pubspec(['assets/themes/default/']);
       _zip('brand.zip', _theme());
 
       final run = await _run(['check', 'brand.zip']);
@@ -514,6 +524,93 @@ void main() {
 
       expect(run.code, exitPass);
       expect(run.err.first, endsWith('(package)'));
+    });
+
+    test('us02/fr02/e01, r13: a file item of flutter: assets: lists the app '
+        'default too', () async {
+      _folder('assets/themes/default', {
+        'theme.yaml': '$_schema\nspace:\n  nope: 4',
+      });
+      _pubspec(['assets/themes/default/theme.yaml']);
+      _zip('brand.zip', _theme());
+
+      final run = await _run(['check', 'brand.zip']);
+
+      expect(run.code, exitFailed);
+      expect(run.err.first, contains('(app)'));
+      expect(run.err, isNot(contains(appDefaultUnlistedWarning)));
+    });
+
+    for (final (label, assets) in [
+      ('a parent folder item', ['assets/themes/']),
+      ('no item', <String>[]),
+    ]) {
+      test('us02/s13, us02/fr02/e10, us02/fr03/e12, r13: an app default '
+          'under $label is not read, and a warning follows the defaults '
+          'line', () async {
+        _folder('assets/themes/default', {
+          'theme.yaml': '$_schema\nspace:\n  nope: 4',
+        });
+        _pubspec(assets);
+        _zip('brand.zip', _theme());
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitPass);
+        expect(run.err.first, endsWith('(package)'));
+        expect(run.err[1], appDefaultUnlistedWarning);
+      });
+    }
+
+    test('us02/fr02/e10, us02/fr03/e12, r13: a project with no pubspec.yaml '
+        'lists nothing, and the warning prints on a failing check '
+        'too', () async {
+      _folder('assets/themes/default', {'theme.yaml': _schema});
+      _zip('brand.zip', {'theme.yaml': _theme()['theme.yaml']!});
+
+      final run = await _run(['check', 'brand.zip']);
+
+      expect(run.code, exitFailed);
+      expect(run.err.first, endsWith('(package)'));
+      expect(run.err[1], appDefaultUnlistedWarning);
+      expect(run.err.last, startsWith('missing_entry: '));
+    });
+
+    for (final (label, makePubspec) in [
+      (
+        'not yaml',
+        () =>
+            File(p.join(_app.path, 'pubspec.yaml'))
+                .writeAsStringSync('flutter: [\n'),
+      ),
+      (
+        'a folder',
+        () => Directory(p.join(_app.path, 'pubspec.yaml')).createSync(),
+      ),
+    ]) {
+      test('us02/fr03/e09, r13: a pubspec.yaml that is $label exits 66 when '
+          'the project holds its own default theme', () async {
+        _folder('assets/themes/default', {'theme.yaml': _schema});
+        makePubspec();
+        _zip('brand.zip', _theme());
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+        expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
+      });
+    }
+
+    test('r13: a project with no default theme never reads its '
+        'pubspec.yaml', () async {
+      File(p.join(_app.path, 'pubspec.yaml')).writeAsStringSync('flutter: [\n');
+      _zip('brand.zip', _theme());
+
+      final run = await _run(['check', 'brand.zip']);
+
+      expect(run.code, exitPass);
+      expect(run.err, isNot(contains(appDefaultUnlistedWarning)));
     });
 
     test('us02/s6, us02/fr02/e08, us02/fr03/e06: twin names pass with one '

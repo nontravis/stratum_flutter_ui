@@ -23,6 +23,7 @@ import 'package:stratum_ui/src/themes/remote/remote_install_check.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 import 'package:stratum_ui/src/themes/remote/remote_zip_writer.dart';
+import 'package:yaml/yaml.dart';
 
 /// The run passed.
 const exitPass = 0;
@@ -46,6 +47,22 @@ usage: dart run stratum_ui:stratum_theme <command> <file> [options]
                      [--max-bytes <n>] [--max-entries <n>]
   check <file.zip>   [--id <id>] [--app-default <path>]
                      [--max-bytes <n>] [--max-entries <n>]''';
+
+/// The app project's own default theme file as a `flutter: assets:` item
+/// names it (FO-04 s03 App default).
+const _appDefaultAsset = 'assets/themes/default/theme.yaml';
+
+/// The folder item of `flutter: assets:` that covers [_appDefaultAsset]: a
+/// folder item ends in `/` and covers only the files directly inside it.
+const _appDefaultFolder = 'assets/themes/default/';
+
+/// The warning a run that reaches the check prints right after the
+/// defaults line when the app project holds its own default theme file
+/// that its `pubspec.yaml` does not list (FR-03 E12).
+const appDefaultUnlistedWarning =
+    'warning: $_appDefaultAsset is not listed under flutter: assets: in '
+    'pubspec.yaml, so the app does not read it and the zip is read over the '
+    'package default only';
 
 Future<void> main(List<String> args) async {
   exitCode = await runStratumTheme(
@@ -208,6 +225,7 @@ typedef _Defaults = ({
   StratumThemeSource package,
   String? appPath,
   StratumThemeSource? app,
+  bool appUnlisted,
 });
 
 /// One run of a parsed command.
@@ -307,8 +325,9 @@ final class _Run {
 
   /// The package default, and the app default: `--app-default`, else the
   /// app project's `assets/themes/default/theme.yaml` when it holds one
-  /// (FR-02 E01 to E03), with the ids and folders the controller gives
-  /// them.
+  /// that its `pubspec.yaml` lists under `flutter: assets:` (FR-02 E01 to
+  /// E03, E10), with the ids and folders the controller gives them;
+  /// `appUnlisted` when the project holds that file unlisted (FR-03 E12).
   _Defaults _readDefaults() {
     final root = _packageRoot;
     if (root == null) {
@@ -322,11 +341,18 @@ final class _Run {
       'theme.yaml',
     );
     final named = _command.appDefault;
-    final appPath = named == null
-        ? p.join(_cwd, 'assets', 'themes', 'default', 'theme.yaml')
-        : _resolve(named);
-    if (named != null) _requireRegularFile(appPath, named);
-    final readApp = named != null || FileSystemEntity.isFileSync(appPath);
+    final String? appPath;
+    var appUnlisted = false;
+    if (named != null) {
+      appPath = _resolve(named);
+      _requireRegularFile(appPath, named);
+    } else {
+      final project = p.join(_cwd, 'assets', 'themes', 'default', 'theme.yaml');
+      final held = FileSystemEntity.isFileSync(project);
+      final listed = held && _listsAppDefault();
+      appUnlisted = held && !listed;
+      appPath = listed ? project : null;
+    }
     return (
       packagePath: packagePath,
       package: StratumThemeSource(
@@ -334,15 +360,40 @@ final class _Run {
         folder: 'packages/stratum_ui/assets/themes/default',
         yaml: _readText(packagePath, packagePath),
       ),
-      appPath: readApp ? appPath : null,
-      app: readApp
-          ? StratumThemeSource(
+      appPath: appPath,
+      app: appPath == null
+          ? null
+          : StratumThemeSource(
               id: 'default',
               folder: 'assets/themes/default',
               yaml: _readText(appPath, named ?? appPath),
-            )
-          : null,
+            ),
+      appUnlisted: appUnlisted,
     );
+  }
+
+  /// Whether the app project's `pubspec.yaml` holds a `flutter: assets:`
+  /// item that covers the app default, the file's own path or its
+  /// folder's, as the app's asset manifest takes them (s03 App default);
+  /// false with no pubspec. Throws [_NoInput] for a pubspec that is not a
+  /// regular file, cannot be read, or is not yaml (FR-03 E09).
+  bool _listsAppDefault() {
+    final path = p.join(_cwd, 'pubspec.yaml');
+    if (FileSystemEntity.typeSync(path) == FileSystemEntityType.notFound) {
+      return false;
+    }
+    _requireRegularFile(path, 'pubspec.yaml');
+    final Object? pubspec;
+    try {
+      pubspec = loadYaml(_readText(path, 'pubspec.yaml'));
+    } on YamlException catch (error) {
+      throw _NoInput('cannot read "pubspec.yaml": ${error.message}');
+    }
+    final Object? flutter = pubspec is Map ? pubspec['flutter'] : null;
+    final Object? assets = flutter is Map ? flutter['assets'] : null;
+    return assets is List &&
+        (assets.contains(_appDefaultAsset) ||
+            assets.contains(_appDefaultFolder));
   }
 
   /// Prints the defaults line, runs the app's install check on [bytes] as
@@ -361,6 +412,7 @@ final class _Run {
         appDefault: defaults.appPath,
       ),
     );
+    if (defaults.appUnlisted) _err.writeln(appDefaultUnlistedWarning);
     try {
       final result = await checkRemoteInstall(
         StratumRemoteTheme(

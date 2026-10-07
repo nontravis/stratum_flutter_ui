@@ -263,11 +263,13 @@ scroll it, guarded so a text field inside keeps its own keys.
   `<id>.zip` (the id is the folder name, or `--id`; `--out <folder>` to write elsewhere) and prints `sha256:<hex>`, the
   checksum your API serves; the same folder always packs to the same bytes. `dart run stratum_ui:stratum_theme check
   <file.zip>` runs your app's own install checks on a zip, over the package default and your
-  `assets/themes/default/theme.yaml` when you have one (`--app-default <path>` for another file); pass `--max-bytes` and
+  `assets/themes/default/theme.yaml` when your `pubspec.yaml` lists it under `flutter: assets:`, as the file or as
+  `assets/themes/default/` (`assets/themes/` does not cover it), the way your app reads it; a file you hold but do not
+  list is not read and prints a `warning:`. `--app-default <path>` names another file; pass `--max-bytes` and
   `--max-entries` when your app raises a cap. A run that passes prints only the checksum on stdout; stderr names the
   defaults read, each problem with the code your app would report, and `warning:` lines (files the theme does not name,
-  names that differ only in letter case) that never fail it. Exit 0 pass, 1 check failed, 64 usage, 66 a missing
-  folder, zip file, or `--app-default` file, an `--out` that is not a folder, or a zip that fails to write. Names
-  starting with `.` and `__MACOSX/` stay out; a symbolic link or other special entry fails the pack. stratum_ui allows
-  only the google_fonts version its CLI family list came from, so the CLI and your app accept the same `Google/<Name>`
-  families.
+  names that differ only in letter case) that never fail it. Exit 0 pass, 1 check failed, 64 usage, 66 a missing folder,
+  zip file, `--app-default` file, or `pubspec.yaml` that is not a regular file or not yaml, an `--out` that is not a
+  folder, or a zip that fails to write. Names starting with `.` and `__MACOSX/` stay out; a symbolic link or other
+  special entry fails the pack. stratum_ui allows only the google_fonts version its CLI family list came from, so the
+  CLI and your app accept the same `Google/<Name>` families.
