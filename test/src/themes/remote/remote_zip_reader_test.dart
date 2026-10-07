@@ -190,6 +190,18 @@ void main() {
     );
   });
 
+  test('us01/fr02/e14: a central-header name holding a raw control byte '
+      'is unsafe_entry_path before the theme root search', () {
+    final zip = buildZip([
+      ZipEntryFixture('theme.yaml', yaml),
+      ZipEntryFixture('\x01evil.txt', [1]),
+    ]);
+    expect(
+      () => _read(zip),
+      _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: '\x01evil.txt'),
+    );
+  });
+
   test('us01/fr02/e01: a symbolic link entry is unsafe_entry_path', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml),
