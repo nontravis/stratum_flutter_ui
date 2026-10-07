@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 import 'package:stratum_ui/src/themes/remote/remote_zip_reader.dart';
 import 'package:stratum_ui/src/themes/remote/remote_zip_writer.dart';
 
@@ -87,6 +88,82 @@ void main() {
         at += 46 + nameLength;
       }
       expect(names, _sorted);
+    });
+
+    test('s03 packed zip: a name past U+FFFF sorts by its 4-byte UTF-8 '
+        'lead, not a UTF-16 code-unit compare', () {
+      final zip = ZipDecoder().decodeBytes(
+        writeRemoteZip(const {
+          'images/logo.svg': <int>[],
+          'images/😀.svg': <int>[],
+          'theme.yaml': <int>[],
+        }),
+      );
+
+      expect(
+        [for (final file in zip.files) file.name],
+        ['images/logo.svg', 'images/😀.svg', 'theme.yaml'],
+      );
+    });
+  });
+
+  group('writeRemoteZip refuses input the zip format cannot hold', () {
+    test("an empty files map, matching readRemoteZip's own invariant", () {
+      expect(() => writeRemoteZip(const {}), throwsArgumentError);
+    });
+
+    test('a key that is empty', () {
+      expect(() => writeRemoteZip({'': <int>[]}), throwsArgumentError);
+    });
+
+    test('a key ending in "/", since readRemoteZip drops such an entry '
+        'silently', () {
+      expect(() => writeRemoteZip({'images/': <int>[]}), throwsArgumentError);
+    });
+
+    test('a key that fails the entry path rule, propagating '
+        "checkEntryPath's own exception", () {
+      expect(
+        () => writeRemoteZip({'../theme.yaml': <int>[]}),
+        throwsA(
+          isA<RemoteThemeFailure>().having(
+            (f) => f.code,
+            'code',
+            StratumRemoteThemeErrorCode.unsafeEntryPath,
+          ),
+        ),
+      );
+    });
+
+    test('a key whose UTF-8 does not round-trip, such as an unpaired '
+        'surrogate', () {
+      expect(
+        () => writeRemoteZip({'a\u{D800}.txt': <int>[]}),
+        throwsArgumentError,
+      );
+    });
+
+    test('a name that encodes past 0xFFFF UTF-8 bytes', () {
+      expect(() => writeRemoteZip({'x' * 65536: <int>[]}), throwsArgumentError);
+    });
+
+    test('more than 0xFFFF entries', () {
+      final files = {
+        for (var i = 0; i <= 0xFFFF; i++) 'f$i': <int>[1],
+      };
+      expect(() => writeRemoteZip(files), throwsArgumentError);
+    });
+
+    test("checkRemoteZipFieldFits32 refuses only past the format's 4 GiB "
+        'field limit, reached without allocating 4 GiB', () {
+      expect(
+        () => checkRemoteZipFieldFits32(0xFFFFFFFF, 'test'),
+        returnsNormally,
+      );
+      expect(
+        () => checkRemoteZipFieldFits32(0x100000000, 'test'),
+        throwsArgumentError,
+      );
     });
   });
 }
