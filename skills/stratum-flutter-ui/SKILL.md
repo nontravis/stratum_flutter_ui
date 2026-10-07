@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, or typography.fonts files in theme.yaml.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge.
 ---
 
 # Stratum Flutter UI
@@ -254,3 +254,14 @@ scroll it, guarded so a text field inside keeps its own keys.
   `StratumRemoteThemeException` with a `code` (`StratumRemoteThemeErrorCode`), `themeFormat` carrying the FO-01 report
   in `formatException`. Its `path` field is entry text straight from the zip: escape it before your app logs or shows
   it, since a hostile zip crafts it.
+
+## Web view
+
+- **`StratumWebView`** — shows a URL page or the app's own HTML (`StratumWebViewSource.url`, `.html`) on Android,
+  iOS, macOS, Windows, Linux, and the web, driven by an optional `StratumWebViewController`.
+  Bridge: list the page origins you trust in `allowedOrigins` (empty closes the bridge, HTML included). A page calls
+  `StratumBridge.postMessage(data)`; `onMessage` gets the text and the origin of the page that sent it, `null` for
+  your HTML; answer with `controller.postMessage(data)`. Your HTML connects its bridge when its bootstrap script
+  runs: a `postMessage` before that throws `StateError` on every platform, so wait for the page's first message
+  instead of sending right after `loadHtml`. On iOS and macOS a `reload()` of your HTML shows an empty page and the
+  bridge stays closed until the next `loadHtml`.

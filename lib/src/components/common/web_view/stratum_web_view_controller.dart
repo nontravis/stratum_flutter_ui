@@ -118,8 +118,13 @@ final class StratumWebViewController {
 
   /// Sends [data] to the page as a `message` event.
   ///
-  /// Throws a [StateError] when `StratumWebView.allowedOrigins` is empty or
-  /// the current page is not an allowed destination. On web, a message sent
+  /// Throws a [StateError] when `StratumWebView.allowedOrigins` is empty,
+  /// when the current page is not an allowed destination, or when HTML the
+  /// controller loaded has not connected the bridge yet: wait for a first
+  /// message from the page, so `await loadHtml(html)` followed at once by
+  /// `postMessage` throws. On native the page itself checks that it may
+  /// receive the message, or that check gives no answer within five
+  /// seconds; either way the error names no origin. On web, a message sent
   /// to HTML content after the user navigated away from it is dropped
   /// without an error: the browser gives no signal that the page left.
   Future<void> postMessage(String data) async {
