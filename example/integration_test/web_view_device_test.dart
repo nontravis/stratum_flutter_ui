@@ -433,49 +433,68 @@ void main() {
       },
     );
 
-    testWidgets('us08/s14: a reload keeps the app HTML document connected', (
-      tester,
-    ) async {
-      // CO-01-02 US-03 FR-04 E04 of the package docs: the engine parses the
-      // same HTML string again, so the reloaded document carries the same
-      // nonce, its message arrives, and the app's send still reaches it.
-      final controller = StratumWebViewController();
-      final recorder = await _show(
-        tester,
-        const StratumWebViewSource.html(_htmlBridgePage),
-        controller: controller,
-        allowedOrigins: {server.origin},
-      );
-      int readyCount() =>
-          recorder.messages.where((data) => data.startsWith('ready:')).length;
-      final first = await _pumpUntil(tester, () => readyCount() == 1);
-      final mark = first
-          ? await _finishAfter(tester, recorder, controller.reload)
-          : null;
-      final again =
-          mark != null && await _pumpUntil(tester, () => readyCount() == 2);
-      if (again) await controller.postMessage('pong');
-      final echoed =
-          again &&
-          await _pumpUntil(
-            tester,
-            () => recorder.messages.contains('echo:pong'),
+    testWidgets(
+      'us08/s14: a reload keeps the app HTML document connected on Android; '
+      'on iOS and macOS the reloaded page is empty and the bridge stays '
+      'closed',
+      (tester) async {
+        // CO-01-02 US-03 FR-04 E04 of the package docs: Android parses the
+        // same HTML string again, so the reloaded document carries the same
+        // nonce; WebKit reloads an empty page, which carries none, so it
+        // never says ready and a send throws.
+        final controller = StratumWebViewController();
+        final recorder = await _show(
+          tester,
+          const StratumWebViewSource.html(_htmlBridgePage),
+          controller: controller,
+          allowedOrigins: {server.origin},
+        );
+        int readyCount() =>
+            recorder.messages.where((data) => data.startsWith('ready:')).length;
+        final first = await _pumpUntil(tester, () => readyCount() == 1);
+        final mark = first
+            ? await _finishAfter(tester, recorder, controller.reload)
+            : null;
+        if (_reloadKeepsHtml()) {
+          final again =
+              mark != null && await _pumpUntil(tester, () => readyCount() == 2);
+          if (again) await controller.postMessage('pong');
+          final echoed =
+              again &&
+              await _pumpUntil(
+                tester,
+                () => recorder.messages.contains('echo:pong'),
+              );
+          recorder.logOrder('html reload');
+          await _checkpoint(binding, tester, 'b_html_reload');
+          await tester.pumpWidget(const SizedBox());
+          controller.dispose();
+          expect(first, isTrue, reason: 'the HTML message "ready" never came');
+          expect(mark, isNotNull, reason: 'no onPageFinished after reload');
+          expect(
+            again,
+            isTrue,
+            reason:
+                'the reloaded HTML never sent "ready": this engine did '
+                'not keep the nonce on reload (UV-1)',
           );
-      recorder.logOrder('html reload');
-      await _checkpoint(binding, tester, 'b_html_reload');
-      await tester.pumpWidget(const SizedBox());
-      controller.dispose();
-      expect(first, isTrue, reason: 'the HTML message "ready" never came');
-      expect(mark, isNotNull, reason: 'no onPageFinished after reload');
-      expect(
-        again,
-        isTrue,
-        reason:
-            'the reloaded HTML never sent "ready": this engine did not '
-            'keep the nonce on reload (UV-1)',
-      );
-      expect(echoed, isTrue, reason: 'the reloaded HTML never echoed "pong"');
-    });
+          expect(echoed, isTrue, reason: 'the reloaded HTML never echoed');
+        } else {
+          final refused = mark != null;
+          if (refused) {
+            await expectLater(controller.postMessage('pong'), throwsStateError);
+          }
+          recorder.logOrder('html reload');
+          await _checkpoint(binding, tester, 'b_html_reload');
+          await tester.pumpWidget(const SizedBox());
+          controller.dispose();
+          expect(first, isTrue, reason: 'the HTML message "ready" never came');
+          expect(mark, isNotNull, reason: 'no onPageFinished after reload');
+          expect(readyCount(), 1, reason: 'the empty reloaded page spoke');
+          expect(recorder.messages, isNot(contains('echo:pong')));
+        }
+      },
+    );
   }, skip: kIsWeb);
 }
 
@@ -489,6 +508,11 @@ bool _isWebKit() =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS);
+
+/// Whether a `reload` of the app's HTML keeps the document on this engine
+/// (US-08 scenario 14): Android parses the same HTML string again; WebKit
+/// (iOS, macOS) reloads an empty page.
+bool _reloadKeepsHtml() => !_isWebKit();
 
 /// Asserts the either-outcome contract of one WebKit history move (US-08
 /// scenario 11): WebKit either restores the entry from its back-forward
