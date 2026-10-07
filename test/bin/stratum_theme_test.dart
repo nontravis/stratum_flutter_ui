@@ -356,6 +356,23 @@ void main() {
           : false,
     );
 
+    test('edge i1, us02/fr01/e10: a POSIX file name holding a control '
+        'character fails as unsafe_entry_path from the writer, not left as '
+        'a stack trace', () async {
+      final root = _folder('brand', _theme());
+      File(p.join(root, 'images', 'a\u0001b.svg')).writeAsStringSync(_svg);
+
+      final run = await _run(['pack', 'brand']);
+
+      expect(run.code, exitFailed);
+      expect(run.out, isEmpty);
+      expect(
+        run.err.single,
+        r'unsafe_entry_path: entry "images/a\u0001b.svg" is no canonical '
+        'relative path',
+      );
+    });
+
     test('fix-1 edge important: --out the same folder being packed excludes '
         'its own last zip, so repeated packs give the same bytes', () async {
       _folder('brand', _theme());
