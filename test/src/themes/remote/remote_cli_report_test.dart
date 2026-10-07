@@ -148,8 +148,8 @@ void main() {
         remoteTheme(
           'brand',
           files: {
-            'a\x1b[2J\nb.svg': [1],
-            'A\x1b[2J\nB.svg': [2],
+            'a\u202Ebé.svg': [1],
+            'A\u202EBé.svg': [2],
           },
         ),
       );

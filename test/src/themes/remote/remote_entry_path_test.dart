@@ -51,6 +51,29 @@ void main() {
     });
   }
 
+  for (final unit in [0x00, 0x09, 0x0A, 0x0D, 0x1B, 0x1F, 0x7F]) {
+    final hex = unit.toRadixString(16).padLeft(4, '0');
+    final path = 'images/a${String.fromCharCode(unit)}b.png';
+    test('us01/s15, us01/fr02/e14, r15: U+$hex in a path is '
+        'unsafe_entry_path with the path', () {
+      expect(() => checkEntryPath(path), _unsafe(path));
+    });
+  }
+
+  test('us01/fr02/e14, r15: printable and non-ASCII text stays safe, a C1 '
+      'control and a format character included', () {
+    for (final path in [
+      'images/a b.png',
+      'images/~.png',
+      'images/é.png',
+      'images/a\u0080b.png',
+      'images/a\u202Eb.png',
+      'fonts/ไทย.ttf',
+    ]) {
+      expect(() => checkEntryPath(path), returnsNormally, reason: path);
+    }
+  });
+
   for (final type in [0, 0x8000, 0x4000]) {
     test('us01/fr02: file type 0x${type.toRadixString(16)} is safe', () {
       expect(

@@ -212,5 +212,14 @@ void main() {
         ),
       );
     });
+
+    test('us02/fr01/e10, r15: a key holding a control character, through '
+        "checkEntryPath's own exception", () {
+      const name = 'images/a\nb.svg';
+      expect(
+        () => writeRemoteZip({name: <int>[]}),
+        _failure(StratumRemoteThemeErrorCode.unsafeEntryPath, path: name),
+      );
+    });
   });
 }
