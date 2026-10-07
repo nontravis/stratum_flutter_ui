@@ -39,7 +39,10 @@ void main() {
           path: 'theme/b.svg',
         ),
       );
-      expect(asset.toString(), 'StratumThemeAsset(kind: svg, path: theme/a.svg)');
+      expect(
+        asset.toString(),
+        'StratumThemeAsset(kind: svg, path: theme/a.svg)',
+      );
     });
 
     test('StratumSchemaVersion gains copyWith and keeps its text', () {
