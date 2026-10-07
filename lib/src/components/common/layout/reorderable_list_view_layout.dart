@@ -359,6 +359,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// list's viewport alone listens to them.
   final _aheadAsks = _AheadAsks();
 
+  /// The far moves of this turn that jumped for a focused item, each with
+  /// the item's key node and the offset before the jump, until the next
+  /// frame starts and reads whether the item still holds focus (R13).
+  final _farJumps =
+      <({FocusNode node, ({ScrollPosition position, double pixels}) origin})>[];
+
   /// Whether `onReorderStart` is running: the SDK sets the drag up only
   /// after it returns, so a cancel waits for a microtask.
   var _inReorderStart = false;
@@ -1523,7 +1529,41 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _askAhead(node, _baseCacheExtent(position) + extra);
       return null;
     }
-    return _jumpForMove(to, item, position);
+    final origin = _jumpForMove(to, item, position);
+    if (origin != null) _watchFarJump(node, origin);
+    return origin;
+  }
+
+  /// Has the next frame, at its start, read whether the item whose key node
+  /// is [node] still holds focus after the turn of its far move's jump,
+  /// whose offset before the jump is [origin] (R13).
+  void _watchFarJump(
+    FocusNode node,
+    ({ScrollPosition position, double pixels}) origin,
+  ) {
+    if (_farJumps.isEmpty) {
+      WidgetsBinding.instance.scheduleFrameCallback((_) => _readFarJumps());
+    }
+    _farJumps.add((node: node, origin: origin));
+  }
+
+  /// At the start of the frame after far moves, before its build and its
+  /// layout: a moved item that no longer holds focus, since the app moved
+  /// focus to another node in the move's turn, counts as unfocused, so the
+  /// list returns to the offset it held before the call-turn jump, and the
+  /// frame lays out the app's focused node where the app left it (R13).
+  /// The first jump's offset is the one before them all.
+  void _readFarJumps() {
+    final jumps = [..._farJumps];
+    _farJumps.clear();
+    if (!mounted) return;
+    for (final jump in jumps.reversed) {
+      if (jump.node.hasFocus) continue;
+      final live = _livePositionOf(jump.origin.position);
+      live?.jumpTo(
+        jump.origin.pixels.clamp(live.minScrollExtent, live.maxScrollExtent),
+      );
+    }
   }
 
   /// The cache extent past the layout's own that builds [slot] in the next
@@ -2450,10 +2490,14 @@ class _AheadAsks extends ChangeNotifier {
   }
 
   /// The cache extent in pixels the viewport builds with: the largest one
-  /// asked for; null keeps the layout's own (D1).
+  /// asked for whose item still holds focus, read as the viewport builds,
+  /// so an item the app took focus from in the move's turn counts as
+  /// unfocused and never builds ahead (R13); null keeps the layout's own
+  /// (D1).
   double? get cache {
     double? cache;
     for (final ask in _asks) {
+      if (!ask.node.hasFocus) continue;
       if (cache == null || ask.cache > cache) cache = ask.cache;
     }
     return cache;
