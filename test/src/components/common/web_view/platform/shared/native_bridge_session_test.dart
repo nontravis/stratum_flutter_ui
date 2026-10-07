@@ -795,7 +795,7 @@ void main() {
     setUp(() {
       webKit = NativeBridgeSession(
         allowedOrigins: () => allowed,
-        platform: TargetPlatform.android,
+        platform: TargetPlatform.iOS,
         namesSenders: true,
       );
     });
