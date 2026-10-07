@@ -69,7 +69,10 @@ List<String> cliWarnings(RemoteInstallCheck check) {
 /// Every two [names] next to each other in a group of names equal when
 /// letter case is ignored (s03 Twin names; plan D-h, case only), each
 /// group in the order of [names], so a group of n names gives n - 1 pairs
-/// and the output grows linearly (FR-03 E06).
+/// and the output grows linearly (FR-03 E06). Groups by
+/// `name.toUpperCase().toLowerCase()`, which also catches `ſ`/`s`, `µ`/`μ`,
+/// `ς`/`σ`, and `ı`/`I` as twins, and over-warns on `ß`/`ss`, which is
+/// harmless for a warning — still case only, no NFC (D-h).
 List<(String, String)> twinNames(List<String> names) {
   final groups = <String, List<String>>{};
   for (final name in names) {
