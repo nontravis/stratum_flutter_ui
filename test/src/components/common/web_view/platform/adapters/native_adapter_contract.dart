@@ -30,7 +30,15 @@ abstract interface class NativeAdapterHarness {
   void startPage(String url);
   void finishPage(String url);
   void changeUrl(String? url);
-  void sendBridgeMessage(String message);
+
+  /// Sends [message] as the document at [senderUrl] would; a platform that
+  /// names no sender (Windows, Linux) ignores [senderUrl] and
+  /// [isMainFrame].
+  void sendBridgeMessage(
+    String message, {
+    required String senderUrl,
+    bool isMainFrame = true,
+  });
   Future<bool> requestNavigation(String url, {required bool isMainFrame});
   void failResource({
     required int code,
@@ -60,9 +68,8 @@ void runNativeAdapterContract(
       await pumpEventQueue();
     });
 
-    test('enables JavaScript and registers the bridge channel', () {
+    test('enables JavaScript', () {
       expect(harness.javaScriptEnabledStates, [true]);
-      expect(harness.channelNames, contains('StratumBridge'));
     });
 
     test('loads URL and HTML sources', () async {
@@ -77,7 +84,7 @@ void runNativeAdapterContract(
       await adapter.load(StratumWebViewSource.url(appPage));
       harness
         ..startPage(appPage.toString())
-        ..sendBridgeMessage('hello');
+        ..sendBridgeMessage('hello', senderUrl: appPage.toString());
       expect(listener.messages, [
         StratumWebViewMessage(data: 'hello', origin: appOrigin),
       ]);
@@ -87,7 +94,7 @@ void runNativeAdapterContract(
       await adapter.load(StratumWebViewSource.url(appPage));
       harness
         ..startPage('https://evil.example.net/')
-        ..sendBridgeMessage('hello');
+        ..sendBridgeMessage('hello', senderUrl: 'https://evil.example.net/');
       expect(listener.messages, isEmpty);
     });
 
@@ -96,7 +103,7 @@ void runNativeAdapterContract(
       harness
         ..startPage(appPage.toString())
         ..changeUrl('https://evil.example.net/')
-        ..sendBridgeMessage('hello');
+        ..sendBridgeMessage('hello', senderUrl: 'https://evil.example.net/');
       expect(listener.messages, isEmpty);
     });
 
@@ -107,14 +114,29 @@ void runNativeAdapterContract(
       final nonce = nonceIn(html);
       expect(html, endsWith('})();</script><p>Hi</p>'));
       harness
-        ..sendBridgeMessage(envelope(nonce, 'message', 'before hello'))
-        ..sendBridgeMessage(envelope(nonce, 'hello', documentA))
-        ..sendBridgeMessage(envelope(nonce, 'message', 'early'))
+        ..sendBridgeMessage(
+          envelope(nonce, 'message', 'before hello'),
+          senderUrl: 'about:blank',
+        )
+        ..sendBridgeMessage(
+          envelope(nonce, 'hello', documentA),
+          senderUrl: 'about:blank',
+        )
+        ..sendBridgeMessage(
+          envelope(nonce, 'message', 'early'),
+          senderUrl: 'about:blank',
+        )
         ..startPage('about:blank')
-        ..sendBridgeMessage(envelope(nonce, 'message', 'from html'))
-        ..sendBridgeMessage('untagged')
+        ..sendBridgeMessage(
+          envelope(nonce, 'message', 'from html'),
+          senderUrl: 'about:blank',
+        )
+        ..sendBridgeMessage('untagged', senderUrl: 'about:blank')
         ..startPage('https://evil.example.net/')
-        ..sendBridgeMessage(envelope('0' * 32, 'message', 'spoofed'));
+        ..sendBridgeMessage(
+          envelope('0' * 32, 'message', 'spoofed'),
+          senderUrl: 'https://evil.example.net/',
+        );
       expect(listener.messages, [
         const StratumWebViewMessage(data: 'early'),
         const StratumWebViewMessage(data: 'from html'),
@@ -128,14 +150,29 @@ void runNativeAdapterContract(
       final nonce = nonceIn(html);
       harness
         ..startPage('about:blank')
-        ..sendBridgeMessage(envelope(nonce, 'hello', documentA));
+        ..sendBridgeMessage(
+          envelope(nonce, 'hello', documentA),
+          senderUrl: 'about:blank',
+        );
       await adapter.reload();
       harness
-        ..sendBridgeMessage(envelope(nonce, 'bye', documentA))
+        ..sendBridgeMessage(
+          envelope(nonce, 'bye', documentA),
+          senderUrl: 'about:blank',
+        )
         ..startPage('about:blank')
-        ..sendBridgeMessage(envelope(nonce, 'message', 'between'))
-        ..sendBridgeMessage(envelope(nonce, 'hello', documentB))
-        ..sendBridgeMessage(envelope(nonce, 'message', 'after'));
+        ..sendBridgeMessage(
+          envelope(nonce, 'message', 'between'),
+          senderUrl: 'about:blank',
+        )
+        ..sendBridgeMessage(
+          envelope(nonce, 'hello', documentB),
+          senderUrl: 'about:blank',
+        )
+        ..sendBridgeMessage(
+          envelope(nonce, 'message', 'after'),
+          senderUrl: 'about:blank',
+        );
       expect(harness.reloadCount, 1);
       expect(listener.messages, [const StratumWebViewMessage(data: 'after')]);
     });
@@ -145,8 +182,14 @@ void runNativeAdapterContract(
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
       final nonce = nonceIn(harness.loadedHtml.single);
       harness
-        ..sendBridgeMessage(envelope(nonce, 'hello', documentA))
-        ..sendBridgeMessage(envelope(nonce, 'bye', documentA))
+        ..sendBridgeMessage(
+          envelope(nonce, 'hello', documentA),
+          senderUrl: 'about:blank',
+        )
+        ..sendBridgeMessage(
+          envelope(nonce, 'bye', documentA),
+          senderUrl: 'about:blank',
+        )
         ..startPage(appPage.toString());
       await adapter.postMessage('ping');
       expect(harness.scripts, [
@@ -179,7 +222,10 @@ void runNativeAdapterContract(
         'with its outbound token', () async {
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
       final html = harness.loadedHtml.single;
-      harness.sendBridgeMessage(envelope(nonceIn(html), 'hello', documentA));
+      harness.sendBridgeMessage(
+        envelope(nonceIn(html), 'hello', documentA),
+        senderUrl: 'about:blank',
+      );
       await adapter.postMessage('ping');
       expect(harness.scripts.single, contains("t==='${tokenIn(html)}'"));
       expect(listener.messages, isEmpty);

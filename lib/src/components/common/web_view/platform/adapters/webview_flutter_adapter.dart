@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/adapters/native_sender_channel.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
@@ -8,16 +9,21 @@ import 'package:webview_flutter/webview_flutter.dart' as wf;
 
 /// [PlatformStratumWebView] for Android, iOS, and macOS, backed by
 /// `webview_flutter`.
+///
+/// Page messages arrive through the [NativeSenderChannel], which names each
+/// message's sender, never through a `webview_flutter` JavaScript channel.
 final class WebviewFlutterAdapter implements PlatformStratumWebView {
   new(this._listener)
     : _session = NativeBridgeSession(
         allowedOrigins: () => _listener.allowedOrigins,
-      ) {
+      ),
+      _senderChannel = NativeSenderChannel.current {
     _ready = _configure();
   }
 
   final PlatformStratumWebViewListener _listener;
   final NativeBridgeSession _session;
+  final NativeSenderChannel _senderChannel;
   final wf.WebViewController _controller = wf.WebViewController();
   late final Future<void> _ready;
 
@@ -33,10 +39,12 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
         onHttpError: _handleHttpError,
       ),
     );
-    await _controller.addJavaScriptChannel(
-      bridgeChannelName,
-      onMessageReceived: (message) => _handleBridgeMessage(message.message),
+    // After two platform round trips, so the platform view exists.
+    final attached = await _senderChannel.attach(
+      _controller,
+      _handleBridgeMessage,
     );
+    if (!attached) _session.markNoWebMessageListener();
   }
 
   @override
@@ -127,6 +135,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
 
   Future<void> _disposeLoad() async {
     await _ready;
+    await _senderChannel.detach(_controller);
     await _controller.loadRequest(Uri.parse('about:blank'));
   }
 
@@ -156,8 +165,8 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     _listener.onPageFinished(Uri.tryParse(url));
   }
 
-  void _handleBridgeMessage(String data) {
-    final message = _session.acceptMessage(data);
+  void _handleBridgeMessage(String data, BridgeMessageSender sender) {
+    final message = _session.acceptMessage(data, sender: sender);
     if (message != null) _listener.onMessage(message);
   }
 

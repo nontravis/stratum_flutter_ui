@@ -78,6 +78,14 @@ final class NativeBridgeSession {
   /// `bye` envelope move it, never a page start.
   _Proof _proof = const _NoNonce();
 
+  /// Whether the platform view has no web message listener, which keeps
+  /// the bridge off (Android without `WEB_MESSAGE_LISTENER`).
+  bool _noWebMessageListener = false;
+
+  /// Call when the platform view cannot name message senders: every page
+  /// message drops, and every send throws (US-03 FR-01 E11, FR-02 E11).
+  void markNoWebMessageListener() => _noWebMessageListener = true;
+
   /// Whether a main-frame page start has had neither a page finish nor a
   /// new page start since, so a finish still pairs with it.
   bool _pageStartOpen = false;
@@ -189,16 +197,25 @@ final class NativeBridgeSession {
 
   /// Returns the message to deliver for [data], or `null` to drop it.
   ///
+  /// [sender] is the sender the platform names (Android, iOS, macOS): only
+  /// main-frame messages pass, and an untagged message is judged by the
+  /// sender's origin. Without [sender] (Windows, Linux) an untagged message
+  /// is judged by the origin of the tracked page at receipt.
   /// A message that carries [nativeBridgeEnvelopeTag] is judged only by its
-  /// nonce and the proof; any other message only by the origin of the
-  /// tracked page, so a host-less page never passes as the app's HTML. No
-  /// page start, URL, or arrival order decides HTML trust.
-  StratumWebViewMessage? acceptMessage(String data) {
+  /// nonce and the proof, so a host-less page never passes as the app's
+  /// HTML. No page start, URL, or arrival order decides HTML trust.
+  StratumWebViewMessage? acceptMessage(
+    String data, {
+    BridgeMessageSender? sender,
+  }) {
+    if (_noWebMessageListener) return null;
+    if (sender != null && !sender.isMainFrame) return null;
     if (data.startsWith(nativeBridgeEnvelopeTag)) {
       return _receiveEnvelope(data.substring(nativeBridgeEnvelopeTag.length));
     }
-    if (!isAllowedOrigin(_pageUrl, _allowedOrigins())) return null;
-    return StratumWebViewMessage(data: data, origin: originOf(_pageUrl));
+    final origin = sender == null ? _pageUrl : sender.origin;
+    if (!isAllowedOrigin(origin, _allowedOrigins())) return null;
+    return StratumWebViewMessage(data: data, origin: originOf(origin));
   }
 
   /// Applies an envelope body with the current nonce to the proof and
@@ -251,9 +268,16 @@ final class NativeBridgeSession {
   /// The script carries the outbound token only while the proof is proven;
   /// once revoked, or with no current nonce, only allowed origins pass.
   ///
-  /// Throws a [StateError] while the current HTML load has not proven its
-  /// nonce, whatever page shows (US-03 FR-02 E04).
+  /// Throws a [StateError] when the platform view has no web message
+  /// listener (US-03 FR-02 E11), and while the current HTML load has not
+  /// proven its nonce, whatever page shows (US-03 FR-02 E04).
   String scriptForMessage(String data) {
+    if (_noWebMessageListener) {
+      throw StateError(
+        'The bridge is disabled because the WebView has no '
+        'WEB_MESSAGE_LISTENER support.',
+      );
+    }
     final proof = _proof;
     if (proof is _Minted) {
       throw StateError('The HTML page has not connected the bridge yet.');

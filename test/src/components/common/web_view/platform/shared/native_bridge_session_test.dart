@@ -66,6 +66,93 @@ void main() {
     });
   });
 
+  group('messages with a sender the platform names', () {
+    BridgeMessageSender from(String url, {bool isMainFrame = true}) =>
+        BridgeMessageSender(origin: Uri.parse(url), isMainFrame: isMainFrame);
+
+    test('us03/fr01/e10: the sender origin decides, before any page start '
+        'and against the last one', () {
+      expect(
+        session.acceptMessage(
+          'ready',
+          sender: from('https://app.example.com/home'),
+        ),
+        StratumWebViewMessage(data: 'ready', origin: appOrigin),
+      );
+      session.didStartPage('https://app.example.com/home');
+      expect(
+        session.acceptMessage('x', sender: from('https://evil.example.net/')),
+        isNull,
+      );
+    });
+
+    test('us03/fr01/e06, us03/fr04/e09: a sub-frame message is dropped, a '
+        'tagged one with the current nonce included', () {
+      final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
+      // M1-T2b ties a tagged message to a proven document: a main-frame
+      // hello proves the nonce before this test judges a main-frame
+      // message by it.
+      session.acceptMessage(
+        envelope(nonce, 'hello', documentA),
+        sender: from('about:blank'),
+      );
+      expect(
+        session.acceptMessage(
+          'x',
+          sender: from('https://app.example.com/', isMainFrame: false),
+        ),
+        isNull,
+      );
+      expect(
+        session.acceptMessage(
+          envelope(nonce, 'message', 'x'),
+          sender: from('about:blank', isMainFrame: false),
+        ),
+        isNull,
+      );
+      expect(
+        session.acceptMessage(
+          envelope(nonce, 'message', 'x'),
+          sender: from('about:blank'),
+        ),
+        const StratumWebViewMessage(data: 'x'),
+      );
+    });
+
+    test('us03/fr01/e12: a tagged message from an allowed sender is judged '
+        'only by its nonce', () {
+      expect(
+        session.acceptMessage(
+          envelope('a' * 32, 'message', 'x'),
+          sender: from('https://app.example.com/'),
+        ),
+        isNull,
+      );
+    });
+
+    test('us03/fr01/e11, us03/fr02/e11: without a web message listener every '
+        'message drops and every send throws naming the limit', () {
+      final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
+      session.markNoWebMessageListener();
+      expect(
+        session.acceptMessage('x', sender: from('https://app.example.com/')),
+        isNull,
+      );
+      expect(session.acceptMessage(envelope(nonce, 'hello')), isNull);
+      expect(
+        () => session.scriptForMessage('ping'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The bridge is disabled because the WebView has no '
+                'WEB_MESSAGE_LISTENER support.',
+          ),
+        ),
+      );
+    });
+  });
+
   group('messages from loaded HTML', () {
     test('us03/fr04: a message with the current nonce, once a hello proves '
         'it, reaches the app with no origin and without its envelope', () {
