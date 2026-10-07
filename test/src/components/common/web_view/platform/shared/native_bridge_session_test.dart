@@ -613,6 +613,7 @@ void main() {
       android = NativeBridgeSession(
         allowedOrigins: () => allowed,
         namesSenders: true,
+        bindsSendsToDocument: true,
       );
     });
 
@@ -632,12 +633,13 @@ void main() {
         'the allowlist-only script, and the token check runs through the '
         'reply proxy of the proving hello', () {
       final html = android.willLoadHtml('<p>Hi</p>');
+      final nonce = nonceIn(html);
       android.acceptMessage(
-        envelope(nonceIn(html), 'hello', documentA),
+        envelope(nonce, 'hello', documentA),
         sender: sentBy(proxyA),
       );
       expect(android.scriptForMessage('ping'), allowlistOnly('ping'));
-      expect(android.replyProxyScriptForMessage('ping'), (
+      expect(android.replyProxyScriptForMessage('ping', loadNonce: nonce), (
         replyProxy: proxyA,
         script: tokenOnly('ping', html),
       ));
@@ -661,7 +663,12 @@ void main() {
           envelope(nonce, 'bye', documentA),
           sender: sentBy(proxyA),
         );
-      expect(android.replyProxyScriptForMessage('ping')?.replyProxy, proxyB);
+      expect(
+        android
+            .replyProxyScriptForMessage('ping', loadNonce: nonce)
+            ?.replyProxy,
+        proxyB,
+      );
     });
 
     test('us03/fr04/e15: a message other than the accepted hello never '
@@ -679,7 +686,12 @@ void main() {
           envelope('a' * 32, 'hello', documentB),
           sender: sentBy(proxyB),
         );
-      expect(android.replyProxyScriptForMessage('ping')?.replyProxy, proxyA);
+      expect(
+        android
+            .replyProxyScriptForMessage('ping', loadNonce: nonce)
+            ?.replyProxy,
+        proxyA,
+      );
     });
 
     test('us03/fr04/e10, us03/fr02/e13: a bye that arrives revokes the '
@@ -696,37 +708,102 @@ void main() {
           sender: sentBy(proxyA),
         );
       expect(android.scriptForMessage('ping'), allowlistOnly('ping'));
-      expect(android.replyProxyScriptForMessage('ping'), isNull);
+      expect(
+        android.replyProxyScriptForMessage('ping', loadNonce: nonce),
+        isNull,
+      );
     });
 
     test('us03/fr02/e13: nothing runs through a reply proxy with no current '
         'nonce, before the proof, or after loadUrl or dispose', () {
-      expect(android.replyProxyScriptForMessage('ping'), isNull);
+      expect(
+        android.replyProxyScriptForMessage('ping', loadNonce: null),
+        isNull,
+      );
       for (final revoke in <void Function()>[
         android.willLoadUrl,
         android.willDispose,
       ]) {
         final nonce = nonceIn(android.willLoadHtml('<p>Hi</p>'));
-        expect(android.replyProxyScriptForMessage('ping'), isNull);
+        expect(
+          android.replyProxyScriptForMessage('ping', loadNonce: nonce),
+          isNull,
+        );
         android.acceptMessage(
           envelope(nonce, 'hello', documentA),
           sender: sentBy(proxyA),
         );
-        expect(android.replyProxyScriptForMessage('ping'), isNotNull);
+        expect(
+          android.replyProxyScriptForMessage('ping', loadNonce: nonce),
+          isNotNull,
+        );
         revoke();
-        expect(android.replyProxyScriptForMessage('ping'), isNull);
+        expect(
+          android.replyProxyScriptForMessage('ping', loadNonce: nonce),
+          isNull,
+        );
       }
     });
 
-    test('us03/fr02/e03: iOS and macOS, whose senders hand no reply proxy, '
-        'keep the token check on the page shown', () {
+    test('B1 us03/fr02/e13: a reply-proxy run binds to the load the send '
+        'began under; a hello of a later loadHtml that proves while the '
+        "first script is pending does not get the earlier load's send", () {
+      final nonceA = nonceIn(android.willLoadHtml('<p>A</p>'));
+      android.acceptMessage(
+        envelope(nonceA, 'hello', documentA),
+        sender: sentBy(proxyA),
+      );
+      // The first script runs late: a second loadHtml commits and proves
+      // before the reply-proxy run is asked for.
+      final nonceB = nonceIn(android.willLoadHtml('<p>B</p>'));
+      android.acceptMessage(
+        envelope(nonceB, 'hello', documentB),
+        sender: sentBy(proxyB),
+      );
+      expect(
+        android.replyProxyScriptForMessage('ping', loadNonce: nonceA),
+        isNull,
+      );
+    });
+
+    test('B2 us03/fr02/e04, us03/fr04/e15: a hello with no reply proxy '
+        'proves nothing instead of being inferred as a non-Android sender, '
+        'so a send still throws unproven', () {
       final html = android.willLoadHtml('<p>Hi</p>');
       android.acceptMessage(
         envelope(nonceIn(html), 'hello', documentA),
         sender: const BridgeMessageSender(origin: null, isMainFrame: true),
       );
-      expect(android.scriptForMessage('ping'), contains(tokenIn(html)));
-      expect(android.replyProxyScriptForMessage('ping'), isNull);
+      expect(
+        () => android.scriptForMessage('ping'),
+        throwsA(isA<StateError>()),
+      );
+    });
+  });
+
+  group('WebKit senders with no reply proxy', () {
+    late NativeBridgeSession webKit;
+
+    setUp(() {
+      webKit = NativeBridgeSession(
+        allowedOrigins: () => allowed,
+        namesSenders: true,
+      );
+    });
+
+    test('us03/fr02/e03: iOS and macOS, whose senders hand no reply proxy, '
+        'keep the token check on the page shown', () {
+      final html = webKit.willLoadHtml('<p>Hi</p>');
+      final nonce = nonceIn(html);
+      webKit.acceptMessage(
+        envelope(nonce, 'hello', documentA),
+        sender: const BridgeMessageSender(origin: null, isMainFrame: true),
+      );
+      expect(webKit.scriptForMessage('ping'), contains(tokenIn(html)));
+      expect(
+        webKit.replyProxyScriptForMessage('ping', loadNonce: nonce),
+        isNull,
+      );
     });
   });
 

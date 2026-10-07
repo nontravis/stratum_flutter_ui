@@ -79,14 +79,26 @@ final class NativeBridgeSession {
   /// [namesSenders] is whether the platform names the sender of every page
   /// message (Android, iOS, macOS); then a message without one drops,
   /// instead of being judged by the tracked page (Windows, Linux).
-  new({required Set<Uri> Function() allowedOrigins, bool namesSenders = false})
-    : _allowedOrigins = allowedOrigins,
-      _namesSenders = namesSenders;
+  ///
+  /// [bindsSendsToDocument] is whether the platform can run a send through
+  /// the reply proxy of the document that sent a `hello` (Android only), a
+  /// platform fact the caller passes instead of one this class infers from
+  /// whether a `hello` happened to carry a reply proxy. With it set, a
+  /// `hello` with no reply proxy proves nothing, and [scriptForMessage]
+  /// never puts the token on the page shown.
+  new({
+    required Set<Uri> Function() allowedOrigins,
+    bool namesSenders = false,
+    bool bindsSendsToDocument = false,
+  }) : _allowedOrigins = allowedOrigins,
+       _namesSenders = namesSenders,
+       _bindsSendsToDocument = bindsSendsToDocument;
 
   static final Random _random = Random.secure();
 
   final Set<Uri> Function() _allowedOrigins;
   final bool _namesSenders;
+  final bool _bindsSendsToDocument;
   Uri? _pageUrl;
 
   /// The native HTML proof (US-03 FR-04, `s03_domain.md` `## Lifecycle`).
@@ -244,7 +256,10 @@ final class NativeBridgeSession {
   /// returns the `message` it delivers; drops everything else, fail closed.
   ///
   /// - `hello` with a well-formed document id proves the nonce for that id
-  ///   and records the [replyProxy] that came with it (FR-04 E15).
+  ///   and records the [replyProxy] that came with it (FR-04 E15). On a
+  ///   platform that [_bindsSendsToDocument], a `hello` with no reply proxy
+  ///   proves nothing instead, so a send still throws unproven rather than
+  ///   trusting the page shown with the token (B2).
   /// - `bye` revokes only a proof whose id it carries (FR-04 E10).
   /// - `message` passes only while proven.
   StratumWebViewMessage? _receiveEnvelope(
@@ -254,7 +269,9 @@ final class NativeBridgeSession {
     final proof = _proof;
     if (proof is! _Load) return null;
     switch (_openEnvelope(body, proof.nonce)) {
-      case ('hello', final id) when _documentIdShape.hasMatch(id):
+      case ('hello', final id)
+          when _documentIdShape.hasMatch(id) &&
+              (!_bindsSendsToDocument || replyProxy != null):
         _proof = _Proven(proof.nonce, proof.token, id, replyProxy);
       case ('bye', final id) when proof is _Proven && id == proof.documentId:
         _proof = _Revoked(proof.nonce, proof.token);
@@ -292,9 +309,10 @@ final class NativeBridgeSession {
   /// shows, which checks inside the page whether it may receive it.
   ///
   /// The script carries the outbound token only while the proof is proven
-  /// by a `hello` with no reply proxy (iOS, macOS, Windows, Linux); once
-  /// revoked, with no current nonce, or on Android, only allowed origins
-  /// pass, and on Android [replyProxyScriptForMessage] then reaches the
+  /// by a `hello` with no reply proxy, on a platform that does not
+  /// [_bindsSendsToDocument] (iOS, macOS, Windows, Linux); once revoked,
+  /// with no current nonce, or on a platform that does, only allowed
+  /// origins pass, and there [replyProxyScriptForMessage] then reaches the
   /// proving document (US-03 FR-02 E13).
   ///
   /// Throws a [StateError] when the platform view lacks a feature the
@@ -313,26 +331,45 @@ final class NativeBridgeSession {
     }
     return buildMessageDispatchScript(
       data,
-      token: proof is _Proven && proof.replyProxy == null ? proof.token : null,
+      token:
+          !_bindsSendsToDocument && proof is _Proven && proof.replyProxy == null
+          ? proof.token
+          : null,
       allowedOrigins: _allowedOrigins(),
     );
+  }
+
+  /// The nonce of the current HTML load, or `null` while none is current.
+  ///
+  /// Read it right after [scriptForMessage] returns and pass it to
+  /// [replyProxyScriptForMessage], so a reply-proxy run binds to the load
+  /// the send began under, not to whichever load is current once the first
+  /// script answers (B1).
+  String? get currentLoadNonce {
+    final proof = _proof;
+    return proof is _Load ? proof.nonce : null;
   }
 
   /// Returns the token check of [data] and the reply proxy to run it
   /// through, for a send whose [scriptForMessage] script the page shown
   /// refused; `null` when no send goes further.
   ///
-  /// Only a proof that a `hello` with a reply proxy holds right now has one
-  /// (Android): the platform runs that script only in the document that
-  /// sent the `hello`, so neither its `bye` nor a page start decides
-  /// delivery, and no other document ever gets the token (US-03 FR-02 E13,
-  /// FR-04 E15). Ask after the first script answers, so a `bye` that
-  /// arrived meanwhile stops the run.
+  /// Only a proof that a `hello` with a reply proxy holds right now, of the
+  /// same load as [loadNonce], has one (Android): the platform runs that
+  /// script only in the document that sent the `hello`, so neither its
+  /// `bye` nor a page start decides delivery, and no other document ever
+  /// gets the token (US-03 FR-02 E13, FR-04 E15). [loadNonce] is
+  /// [currentLoadNonce] read when [scriptForMessage] built the first
+  /// script; a later `loadHtml` that proves while that script is pending
+  /// gets nothing, even though it is proven once this runs (B1). Ask after
+  /// the first script answers, so a `bye` that arrived meanwhile stops the
+  /// run.
   ({BridgeReplyProxy replyProxy, String script})? replyProxyScriptForMessage(
-    String data,
-  ) {
+    String data, {
+    required String? loadNonce,
+  }) {
     final proof = _proof;
-    if (proof is! _Proven) return null;
+    if (proof is! _Proven || proof.nonce != loadNonce) return null;
     final replyProxy = proof.replyProxy;
     if (replyProxy == null) return null;
     return (

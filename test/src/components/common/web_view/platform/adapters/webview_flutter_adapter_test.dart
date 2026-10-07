@@ -266,6 +266,23 @@ void main() {
       await expectLater(adapter.postMessage('ping'), throwsA(unallowedPage));
       expect(harness.sender.proxyRuns, isEmpty);
     });
+
+    test('B1 us03/fr02/e13: a later loadHtml that proves while the first '
+        "script is pending does not get the earlier load's send through "
+        'the reply proxy', () async {
+      const laterProxy = BridgeReplyProxy(9);
+      harness.scriptAnswer = () async {
+        await adapter.load(const StratumWebViewSource.html('<p>Later</p>'));
+        harness.sender.send(
+          envelope(nonceIn(harness.loadedHtml.last), 'hello', documentB),
+          senderUrl: 'about:blank',
+          replyProxy: laterProxy,
+        );
+        return false;
+      };
+      await expectLater(adapter.postMessage('ping'), throwsA(unallowedPage));
+      expect(harness.sender.proxyRuns, isEmpty);
+    });
   });
 
   test('drops the iOS/macOS cancelled-navigation error (-999)', () async {

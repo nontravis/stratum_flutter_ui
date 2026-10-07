@@ -6,6 +6,7 @@ import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 import 'package:webview_flutter/webview_flutter.dart' as wf;
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 /// [PlatformStratumWebView] for Android, iOS, and macOS, backed by
 /// `webview_flutter`.
@@ -13,17 +14,20 @@ import 'package:webview_flutter/webview_flutter.dart' as wf;
 /// Page messages arrive through the [NativeSenderChannel], which names each
 /// message's sender, never through a `webview_flutter` JavaScript channel.
 final class WebviewFlutterAdapter implements PlatformStratumWebView {
-  new(this._listener)
-    : _session = NativeBridgeSession(
-        allowedOrigins: () => _listener.allowedOrigins,
-        namesSenders: true,
-      ),
-      _senderChannel = NativeSenderChannel.current {
+  new(this._listener) : _senderChannel = NativeSenderChannel.current {
+    // _controller's field initializer has already run by now, so its
+    // platform is ready to name here (the fact behind B2, instead of
+    // inferring it from whether a hello happens to carry a reply proxy).
+    _session = NativeBridgeSession(
+      allowedOrigins: () => _listener.allowedOrigins,
+      namesSenders: true,
+      bindsSendsToDocument: _controller.platform is AndroidWebViewController,
+    );
     _ready = _configure();
   }
 
   final PlatformStratumWebViewListener _listener;
-  final NativeBridgeSession _session;
+  late final NativeBridgeSession _session;
   final NativeSenderChannel _senderChannel;
   final wf.WebViewController _controller = wf.WebViewController();
   late final Future<void> _ready;
@@ -112,15 +116,22 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   /// refuses, the token check then runs through the reply proxy of the
   /// proving `hello`, so only that document can receive it (US-03 FR-02
   /// E13). A first script with no answer ends the send.
+  ///
+  /// The reply-proxy run is bound to the load the first script was built
+  /// for, by the nonce [NativeBridgeSession.currentLoadNonce] reads right
+  /// after [NativeBridgeSession.scriptForMessage] returns: a later
+  /// `loadHtml` that proves while the first script is still pending does
+  /// not receive this send (B1).
   @override
   Future<void> postMessage(String data) async {
     await _ready;
     final script = _session.scriptForMessage(data);
+    final loadNonce = _session.currentLoadNonce;
     final answer = await dispatchScriptAnswer(
       _controller.runJavaScriptReturningResult(script),
     );
     final run = answer == false
-        ? _session.replyProxyScriptForMessage(data)
+        ? _session.replyProxyScriptForMessage(data, loadNonce: loadNonce)
         : null;
     _session.confirmDelivery(
       run == null
