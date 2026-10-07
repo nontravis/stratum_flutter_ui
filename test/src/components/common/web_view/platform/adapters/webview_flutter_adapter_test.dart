@@ -10,6 +10,13 @@ import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
+// The internal pigeon-generated file, not the public barrel: its
+// `PigeonOverrides` is the package's own seam for standing in for the
+// native WebView, WebChromeClient, and WebSettings in a host-side test
+// (see webview_flutter_android's own android_webview_controller_test.dart).
+import 'package:webview_flutter_android/src/android_webkit.g.dart'
+    as android_webview;
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 
 import '../../fakes/fake_native_sender_channel.dart';
@@ -286,6 +293,62 @@ void main() {
     });
   });
 
+  group('WebviewFlutterAdapter B2 Android controller binding', () {
+    final appOrigin = Uri.parse('https://app.example.com');
+
+    test('B2: wired to a real Android controller, a hello with no reply proxy '
+        'proves nothing, so postMessage throws unproven instead of trusting '
+        'the page shown with the token', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      // Stands in for the native WebView and WebChromeClient the real
+      // AndroidWebViewController constructor builds, through the
+      // package's own testing seam, so building it sends nothing over a
+      // platform channel.
+      android_webview.PigeonOverrides.webView_new = ({onScrollChanged}) =>
+          _FakeAndroidWebView();
+      android_webview.PigeonOverrides.webChromeClient_new = ({
+        onProgressChanged,
+        required onShowFileChooser,
+        onPermissionRequest,
+        onShowCustomView,
+        onHideCustomView,
+        onGeolocationPermissionsShowPrompt,
+        onGeolocationPermissionsHidePrompt,
+        onConsoleMessage,
+        onJsAlert,
+        required onJsConfirm,
+        onJsPrompt,
+      }) => _FakeWebChromeClient();
+      addTearDown(android_webview.PigeonOverrides.pigeon_reset);
+
+      final platform = _RecordingAndroidPlatform();
+      WebViewPlatform.instance = platform;
+      final sender = FakeNativeSenderChannel();
+      debugNativeSenderChannel = sender;
+      addTearDown(() => debugNativeSenderChannel = null);
+      final listener = RecordingListener(allowedOrigins: {appOrigin});
+      final adapter = WebviewFlutterAdapter(listener);
+      await pumpEventQueue();
+
+      await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      final html = platform.controller.loadedHtml.single;
+      sender.send(
+        envelope(nonceIn(html), 'hello', documentA),
+        senderUrl: 'about:blank',
+      );
+      await expectLater(
+        adapter.postMessage('ping'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The HTML page has not connected the bridge yet.',
+          ),
+        ),
+      );
+    });
+  });
+
   for (final (platform, reported) in [
     (TargetPlatform.iOS, false),
     (TargetPlatform.macOS, false),
@@ -313,6 +376,121 @@ void main() {
       },
     );
   }
+}
+
+/// Stands in for [_FakeAndroidWebView.settings], so every setter the real
+/// `AndroidWebViewController` constructor calls on it reaches no platform
+/// channel.
+final class _FakeAndroidWebSettings extends android_webview.WebSettings {
+  new() : super.pigeon_detached();
+
+  @override
+  Future<void> setDomStorageEnabled(bool flag) async {}
+
+  @override
+  Future<void> setJavaScriptCanOpenWindowsAutomatically(bool flag) async {}
+
+  @override
+  Future<void> setSupportMultipleWindows(bool support) async {}
+
+  @override
+  Future<void> setLoadWithOverviewMode(bool overview) async {}
+
+  @override
+  Future<void> setUseWideViewPort(bool use) async {}
+
+  @override
+  Future<void> setDisplayZoomControls(bool enabled) async {}
+
+  @override
+  Future<void> setBuiltInZoomControls(bool enabled) async {}
+}
+
+/// Stands in for the native WebView [AndroidWebViewController]'s own
+/// constructor builds (`android_webview.WebView(...)`), so that eager build,
+/// not any call [_RecordingAndroidWebViewController] overrides, reaches no
+/// platform channel.
+final class _FakeAndroidWebView extends android_webview.WebView {
+  new() : super.pigeon_detached();
+
+  final android_webview.WebSettings _settings = _FakeAndroidWebSettings();
+
+  @override
+  android_webview.WebSettings get settings => _settings;
+
+  @override
+  Future<void> setWebChromeClient(
+    android_webview.WebChromeClient? client,
+  ) async {}
+}
+
+/// Stands in for the native WebChromeClient [AndroidWebViewController]'s own
+/// constructor builds; never exercised, because [_FakeAndroidWebView]
+/// ignores the client it is handed.
+final class _FakeWebChromeClient extends android_webview.WebChromeClient {
+  new()
+    : super.pigeon_detached(
+        onShowFileChooser: (_, _, _) async => <String>[],
+        onJsConfirm: (_, _, _, _) async => false,
+      );
+}
+
+/// Stands in for `WebStorage.instance`, so building the creation params
+/// reaches no platform channel either.
+final class _FakeWebStorage extends android_webview.WebStorage {
+  new() : super.pigeon_detached();
+}
+
+/// A real [AndroidWebViewController], so `WebviewFlutterAdapter`'s B2 check
+/// (`_controller.platform is AndroidWebViewController`) sees the type the
+/// production code tests for, not a fake that stands in for it; every
+/// native-facing call it makes is overridden to record instead of reaching a
+/// platform channel.
+final class _RecordingAndroidWebViewController
+    extends AndroidWebViewController {
+  new(super.params);
+
+  final List<String> loadedHtml = [];
+
+  @override
+  Future<void> loadHtmlString(String html, {String? baseUrl}) async {
+    loadedHtml.add(html);
+  }
+
+  @override
+  Future<void> setJavaScriptMode(JavaScriptMode javaScriptMode) async {}
+
+  @override
+  Future<void> setPlatformNavigationDelegate(
+    PlatformNavigationDelegate handler,
+  ) async {}
+
+  @override
+  Future<Object> runJavaScriptReturningResult(String javaScript) async => true;
+}
+
+/// Creates the one [_RecordingAndroidWebViewController] `webview_flutter`
+/// builds, and a generic fake navigation delegate, so the controller
+/// `WebviewFlutterAdapter` wires up is a genuine Android type with no
+/// platform channel calls underneath.
+final class _RecordingAndroidPlatform extends WebViewPlatform {
+  late final _RecordingAndroidWebViewController controller;
+
+  @override
+  PlatformWebViewController createPlatformWebViewController(
+    PlatformWebViewControllerCreationParams params,
+  ) {
+    return controller = _RecordingAndroidWebViewController(
+      AndroidWebViewControllerCreationParams(
+        androidWebStorage: _FakeWebStorage(),
+      ),
+    );
+  }
+
+  @override
+  PlatformNavigationDelegate createPlatformNavigationDelegate(
+    PlatformNavigationDelegateCreationParams params,
+  ) => FakeWebViewFlutterNavigationDelegate(params);
 }
 
 final class _Harness implements NativeAdapterHarness {
