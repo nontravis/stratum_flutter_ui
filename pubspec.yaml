@@ -72,6 +72,11 @@ flutter_gen:
 
 # The following section is specific to Flutter packages.
 flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.stratum.stratum_ui
+        pluginClass: StratumUiPlugin
   uses-material-design: true
   generate: true
 
