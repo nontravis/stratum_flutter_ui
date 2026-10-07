@@ -455,22 +455,29 @@ void main() {
         final mark = first
             ? await _finishAfter(tester, recorder, controller.reload)
             : null;
-        if (_reloadKeepsHtml()) {
-          final again =
+        final keepsHtml = _reloadKeepsHtml();
+        var again = false;
+        var echoed = false;
+        if (keepsHtml) {
+          again =
               mark != null && await _pumpUntil(tester, () => readyCount() == 2);
           if (again) await controller.postMessage('pong');
-          final echoed =
+          echoed =
               again &&
               await _pumpUntil(
                 tester,
                 () => recorder.messages.contains('echo:pong'),
               );
-          recorder.logOrder('html reload');
-          await _checkpoint(binding, tester, 'b_html_reload');
-          await tester.pumpWidget(const SizedBox());
-          controller.dispose();
-          expect(first, isTrue, reason: 'the HTML message "ready" never came');
-          expect(mark, isNotNull, reason: 'no onPageFinished after reload');
+        } else if (mark != null) {
+          await expectLater(controller.postMessage('pong'), throwsStateError);
+        }
+        recorder.logOrder('html reload');
+        await _checkpoint(binding, tester, 'b_html_reload');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(first, isTrue, reason: 'the HTML message "ready" never came');
+        expect(mark, isNotNull, reason: 'no onPageFinished after reload');
+        if (keepsHtml) {
           expect(
             again,
             isTrue,
@@ -480,16 +487,6 @@ void main() {
           );
           expect(echoed, isTrue, reason: 'the reloaded HTML never echoed');
         } else {
-          final refused = mark != null;
-          if (refused) {
-            await expectLater(controller.postMessage('pong'), throwsStateError);
-          }
-          recorder.logOrder('html reload');
-          await _checkpoint(binding, tester, 'b_html_reload');
-          await tester.pumpWidget(const SizedBox());
-          controller.dispose();
-          expect(first, isTrue, reason: 'the HTML message "ready" never came');
-          expect(mark, isNotNull, reason: 'no onPageFinished after reload');
           expect(readyCount(), 1, reason: 'the empty reloaded page spoke');
           expect(recorder.messages, isNot(contains('echo:pong')));
         }
