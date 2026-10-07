@@ -804,6 +804,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     for (final target in _moveTargets) {
       final at = target.index;
       if (at != null && at >= index) target.index = at + 1;
+      final gap = target.gap;
+      if (gap != null && gap > index) target.gap = gap + 1;
     }
   }
 
@@ -832,6 +834,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final follow = _followGap;
     if (follow != null && follow > index) _followGap = follow - 1;
     for (final target in _moveTargets) {
+      final gap = target.gap;
+      if (gap != null && gap > index) target.gap = gap - 1;
       final at = target.index;
       if (at == null || at < index) continue;
       // A call that takes the moved item out leaves nothing to reveal.
@@ -1011,7 +1015,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     _endExitsBeside(index);
     _bookReportedMove(from, target);
-    final moved = _MoveTarget(target);
+    final moved = _readyStep(intent, from, target, node, _lookAt(index)?.key);
     _moveTargets.add(moved);
     _layout.onReorderItem(from.value, target.value);
     WidgetsBinding.instance.addPostFrameCallback(
@@ -1062,9 +1066,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // An item the app removed in this turn does not move (R2).
     if (from == null) return;
     final to = _FrameIndex(toIndex);
-    final target = drop
-        ? _dataIndexOf(to)
-        : _targetOf(from, _intentOf(index, to));
+    final intent = drop ? null : _intentOf(index, to);
+    final target = intent == null ? _dataIndexOf(to) : _targetOf(from, intent);
     if (target == null) return;
     if (!drop) _cancelDrag();
     final item = _nodeAt(index)?.context;
@@ -1076,7 +1079,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     _endExitsBeside(index);
     _bookReportedMove(from, target);
-    final moved = _MoveTarget(target);
+    final moved = _readyStep(
+      intent,
+      from,
+      target,
+      _nodeAt(index),
+      _lookAt(index)?.key,
+    );
     _moveTargets.add(moved);
     _layout.onReorderItem(from.value, target.value);
     WidgetsBinding.instance.addPostFrameCallback(
@@ -1110,6 +1119,34 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _pendingInserts.add(insert..index = to);
     }
     setState(() {});
+  }
+
+  /// The record the frame after a key or screen-reader move reads, for a
+  /// move booked from [from] to [to] of the current data. A one-slot move,
+  /// [intent] previous or next, of an item that holds focus, whose key
+  /// node is [node], readies its slot as a move call does
+  /// ([_buildAheadOrJump], FR-03 E09), and keeps the item's [key], the gap
+  /// it left, and the offset before any jump, for the reach should the
+  /// frame still not build that slot ([_reachStep]).
+  _MoveTarget _readyStep(
+    _MoveIntent? intent,
+    _DataIndex from,
+    _DataIndex to,
+    FocusNode? node,
+    Key? key,
+  ) {
+    final step = intent == _MoveIntent.previous || intent == _MoveIntent.next;
+    if (!step || node == null || key == null || !node.hasFocus) {
+      return _MoveTarget(to);
+    }
+    final origin = _buildAheadOrJump(to, node);
+    return _MoveTarget(
+      to,
+      key: key,
+      // The slot the item left, by the index of the item now after it.
+      gap: from < to ? from : from + 1,
+      origin: origin,
+    );
   }
 
   /// Ends at once the removed items drawn in the slot of the built item at
@@ -1236,13 +1273,29 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final built = _builtIndexOf(index);
     if (built == null) return;
     final node = _nodeAt(built);
-    if (node == null || node.context == null) return;
+    if (node == null || node.context == null) {
+      _reachStep(moved, built);
+      return;
+    }
     if (byKey && !_holdsFocus) firstTabStopIn(node)?.requestFocus();
     revealInViewports(node);
     for (final MapEntry(key: at, value: look) in _itemLooks.entries) {
       final motion = at < built ? _incoming[look.key] : null;
       if (motion != null) _revealAfterGrowIn(node, motion, byKey: byKey);
     }
+  }
+
+  /// The frame did not build the slot a focused one-slot move readied
+  /// ([_readyStep]), now [at]: the estimate missed, so the list reaches the
+  /// slot as a move call's follow does, with the gap the item left (FR-03
+  /// E09, FR-05 E04), unless a node holds primary focus, which the app
+  /// moved there in the move's turn (R13).
+  void _reachStep(_MoveTarget moved, _FrameIndex at) {
+    final key = moved.key;
+    final gap = moved.gap;
+    if (key == null || gap == null) return;
+    if (FocusManager.instance.primaryFocus != null) return;
+    _startReach(at, key, gap, origin: moved.origin);
   }
 
   /// Reveals the moved item whose key node is [node] again in the frame
@@ -2404,9 +2457,22 @@ enum _MoveIntent { start, previous, next, end }
 /// put its item at, moved by each later call until the frame after the
 /// move reads it; null once a call takes the item out.
 class _MoveTarget {
-  new(this.index);
+  new(this.index, {this.key, this.gap, this.origin});
 
   _DataIndex? index;
+
+  /// For a focused one-slot move (FR-03 E09): the item's key, which the
+  /// reach looks for.
+  final Key? key;
+
+  /// For a focused one-slot move: the gap the item left, before the item at
+  /// this index of the current data, moved by each later call as [index]
+  /// is; the reach hands focus on from it when it gives up.
+  _DataIndex? gap;
+
+  /// For a focused one-slot move that jumped in its turn: the offset before
+  /// the jump, where a reach that gives up returns (R5).
+  final ({ScrollPosition position, double pixels})? origin;
 }
 
 /// The list's scroll view: a [CustomScrollView] whose viewport alone
