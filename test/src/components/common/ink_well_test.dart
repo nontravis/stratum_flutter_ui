@@ -555,6 +555,23 @@ void main() {
       expect(node.hasFocus, isFalse);
     });
 
+    testWidgets('unmounting while the ring is mid-fade throws nothing', (
+      tester,
+    ) async {
+      _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+      final node = _node();
+      await tester.pumpWidget(
+        themedHost(StratumInkWell(onTap: _noop, focusNode: node, child: _box)),
+      );
+      node.requestFocus();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+
+      await tester.pumpWidget(themedHost(_box));
+
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('focusedVisible shows the ring only in traditional mode', (
       tester,
     ) async {

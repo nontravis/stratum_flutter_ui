@@ -1836,9 +1836,7 @@ void main() {
       expect(card.hasPrimaryFocus, isTrue);
       final rect = card.rect;
       final inRow = tester.getRect(rowScrollable());
-      final inPage = tester.getRect(
-        find.byType(SingleChildScrollView).first,
-      );
+      final inPage = tester.getRect(find.byType(SingleChildScrollView).first);
       expect(
         rect.left >= inRow.left - 0.5 &&
             rect.right <= inRow.right + 0.5 &&
@@ -2207,8 +2205,14 @@ void main() {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  FocusScope(node: first, child: list(holds: !moved)),
-                  FocusScope(node: second, child: list(holds: moved)),
+                  FocusScope(
+                    node: first,
+                    child: list(holds: !moved),
+                  ),
+                  FocusScope(
+                    node: second,
+                    child: list(holds: moved),
+                  ),
                 ],
               ),
             ),
@@ -2375,6 +2379,70 @@ void main() {
 
           expect(_ringInside(tester), inside, reason: 'margin $margin');
         }
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
+
+    testWidgets('us07/fr03/e01: a restyled width moves the window check', (
+      tester,
+    ) async {
+      _useTraditionalHighlight();
+      // Default 2 px gap + a 5 px restyled width = reach 7: a 7 px margin
+      // holds it, a 6 px margin does not.
+      for (final (margin, inside) in [(7.0, false), (6.0, true)]) {
+        await tester.pumpWidget(
+          themedHost(
+            StratumComponentDefaults(
+              styles: const {
+                StratumFocusBorder: WidgetStyle(
+                  border: Border.fromBorderSide(BorderSide(width: 5)),
+                ),
+              },
+              child: SizedBox(
+                key: ValueKey(margin),
+                width: 800 - 2 * margin,
+                height: 600 - 2 * margin,
+                child: const ColumnLayout(
+                  scroll: StratumScroll(),
+                  children: [SizedBox(height: 2000)],
+                ),
+              ),
+            ),
+          ),
+        );
+        _scrollFocusNode(tester).requestFocus();
+        await tester.pumpAndSettle();
+
+        expect(_ringInside(tester), inside, reason: 'margin $margin');
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets(
+      'us07/fr03: an insideEdge flip slides the ring, not a snap, over the '
+      "theme's fast level",
+      (tester) async {
+        _useTraditionalHighlight();
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(themedHost(smallBox));
+        _scrollFocusNode(tester).requestFocus();
+        await tester.pumpAndSettle();
+        expect(_ringInside(tester), isFalse);
+        final outsideAlign = _visibleRing(tester)!.strokeAlign;
+
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(200, 300);
+        // One frame runs the resized layout and schedules the ring check;
+        // a second applies it and starts the fade over the fast level.
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 60));
+
+        final mid = _visibleRing(tester)!.strokeAlign;
+        expect(mid, lessThan(outsideAlign));
+        expect(mid, greaterThan(BorderSide.strokeAlignInside));
+
+        await tester.pumpAndSettle();
+        expect(_ringInside(tester), isTrue);
       },
       variant: TargetPlatformVariant.desktop(),
     );

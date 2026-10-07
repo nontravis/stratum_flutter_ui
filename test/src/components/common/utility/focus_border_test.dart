@@ -127,8 +127,15 @@ Future<void> _expectShownLooksOnly(
         continue;
       }
       expect(ring.color, isSameColorAs(_red), reason: why);
-      expect(ring.outer, _rrect(0, 0, 40, 20, 10), reason: why);
-      expect(ring.inner, _rrect(5, 5, 35, 15, 5), reason: why);
+      if (style == StratumFocusBorderStyle.outside) {
+        // The restyle moves color and width only (R8): the outside ring
+        // still sits after the default 2 px gap, at the restyled width.
+        expect(ring.inner, _rrect(-2, -2, 42, 22, 12), reason: why);
+        expect(ring.outer, _rrect(-7, -7, 47, 27, 17), reason: why);
+      } else {
+        expect(ring.outer, _rrect(0, 0, 40, 20, 10), reason: why);
+        expect(ring.inner, _rrect(5, 5, 35, 15, 5), reason: why);
+      }
     }
   }
 }
@@ -296,9 +303,39 @@ void main() {
       },
     );
 
-    test('us07/fr03/e01: an outside ring reaches its gap plus its width', () {
-      expect(focusBorderOutsideReach, 5);
-    });
+    testWidgets(
+      'us07/fr03/e01: an outside ring reaches its gap plus its width, the '
+      "app-wide default's after a restyle",
+      (tester) async {
+        double? reach;
+        await tester.pumpWidget(
+          Builder(
+            builder: (context) {
+              reach = focusBorderOutsideReach(context);
+              return const SizedBox();
+            },
+          ),
+        );
+        expect(reach, 5);
+
+        await tester.pumpWidget(
+          StratumComponentDefaults(
+            styles: const {
+              StratumFocusBorder: WidgetStyle(
+                border: Border.fromBorderSide(BorderSide(width: 7)),
+              ),
+            },
+            child: Builder(
+              builder: (context) {
+                reach = focusBorderOutsideReach(context);
+                return const SizedBox();
+              },
+            ),
+          ),
+        );
+        expect(reach, 9);
+      },
+    );
 
     testWidgets(
       "us04/fr03/e13: a caller's customStyle restyles only the shown looks; "
@@ -324,6 +361,66 @@ void main() {
             defaults: const {StratumFocusBorder: _redStyle},
           ),
         );
+      },
+    );
+
+    testWidgets(
+      'us04/fr03/e14: an app-wide default restyles width, but insideEdge '
+      'still places the ring on the inner edge',
+      (tester) async {
+        await tester.pumpWidget(
+          _ring(
+            state: FullWidgetState.focused,
+            insideEdge: true,
+            defaults: const {StratumFocusBorder: _redStyle},
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final ring = _painted(tester);
+        expect(ring.color, isSameColorAs(_red));
+        expect(ring.outer, _rrect(0, 0, 40, 20, 10));
+        expect(ring.inner, _rrect(5, 5, 35, 15, 5));
+      },
+    );
+
+    testWidgets(
+      'us04/fr03/e14: a customStyle restyles color and width, but the '
+      'outside ring still computes its placement after the gap',
+      (tester) async {
+        await tester.pumpWidget(
+          _ring(state: FullWidgetState.focused, customStyle: _redStyle),
+        );
+        await tester.pumpAndSettle();
+
+        final ring = _painted(tester);
+        expect(ring.color, isSameColorAs(_red));
+        expect(ring.inner, _rrect(-2, -2, 42, 22, 12));
+        expect(ring.outer, _rrect(-7, -7, 47, 27, 17));
+      },
+    );
+
+    testWidgets(
+      "us04/fr03/e14: the ring's own customColor, width, and gap win over "
+      'either style layer',
+      (tester) async {
+        const blue = Color(0xFF0000FF);
+        await tester.pumpWidget(
+          _ring(
+            state: FullWidgetState.focused,
+            customColor: blue,
+            width: 4,
+            gap: 1,
+            customStyle: _redStyle,
+            defaults: const {StratumFocusBorder: _redStyle},
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final ring = _painted(tester);
+        expect(ring.color, isSameColorAs(blue));
+        expect(ring.inner, _rrect(-1, -1, 41, 21, 11));
+        expect(ring.outer, _rrect(-5, -5, 45, 25, 15));
       },
     );
   });
@@ -387,6 +484,25 @@ void main() {
         },
       );
     }
+
+    testWidgets(
+      'us04/fr03: a state flip before the fade settles continues smoothly '
+      'from the live value, not a restart',
+      (tester) async {
+        await tester.pumpWidget(_ring());
+        await tester.pumpWidget(_ring(state: FullWidgetState.focused));
+        await tester.pump(const Duration(milliseconds: 60));
+        final rising = _painted(tester).color.a;
+        expect(rising, greaterThan(0));
+        expect(rising, lessThan(1));
+
+        await tester.pumpWidget(_ring());
+        expect(_painted(tester).color.a, moreOrLessEquals(rising));
+
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(_painted(tester).color.a, lessThan(rising));
+      },
+    );
   });
 
   group('StratumFocusBorder layout', () {
@@ -480,5 +596,36 @@ void main() {
         },
       );
     }
+
+    testWidgets(
+      'us04/nf01: swapping the theme while focused lerps the ring color, '
+      'not a pop',
+      (tester) async {
+        final light = defaultThemeSet.light;
+        final dark = defaultThemeSet.dark!;
+        await tester.pumpWidget(
+          _ring(state: FullWidgetState.focused, theme: light),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          _painted(tester).color,
+          isSameColorAs(light.color.border.subtle.blue),
+        );
+
+        await tester.pumpWidget(
+          _ring(state: FullWidgetState.focused, theme: dark),
+        );
+        await tester.pump(const Duration(milliseconds: 60));
+        final mid = _painted(tester).color;
+        expect(mid, isNot(isSameColorAs(light.color.border.subtle.blue)));
+        expect(mid, isNot(isSameColorAs(dark.color.border.subtle.blue)));
+
+        await tester.pumpAndSettle();
+        expect(
+          _painted(tester).color,
+          isSameColorAs(dark.color.border.subtle.blue),
+        );
+      },
+    );
   });
 }

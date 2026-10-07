@@ -426,15 +426,15 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
     });
   }
 
-  /// Whether the box grown by the ring's gap and width,
-  /// [focusBorderOutsideReach], lies wholly inside the window.
+  /// Whether the box grown by the ring's resolved gap and width,
+  /// [focusBorderOutsideReach], lies wholly inside the window (R8).
   bool _outerRingFits() {
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return true;
     final ring = MatrixUtils.transformRect(
       box.getTransformTo(null),
       Offset.zero & box.size,
-    ).inflate(focusBorderOutsideReach);
+    ).inflate(focusBorderOutsideReach(context));
     final view = View.of(context);
     final window = view.physicalSize / view.devicePixelRatio;
     return ring.left >= 0 &&

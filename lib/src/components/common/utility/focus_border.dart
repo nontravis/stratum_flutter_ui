@@ -12,12 +12,19 @@ const double _defaultWidth = 3;
 /// null.
 const double _insideFocusedWidth = 2;
 
-/// How far an outside ring with the default gap and width reaches past
-/// its child's edge.
+/// How far an outside-style [StratumFocusBorder] at [context] reaches
+/// past its child's edge, with no per-instance override: the app-wide
+/// `StratumComponentDefaults` style for [StratumFocusBorder] restyles the
+/// width (R8); the gap stays the package default, since `ScrollFocus`'s
+/// own ring takes no per-instance `gap` of its own.
 ///
 /// Not exported: `utility/utility.dart` hides it, and `scroll_frame.dart`
 /// imports this file by path for the window check of its ring.
-const double focusBorderOutsideReach = _defaultGap + _defaultWidth;
+double focusBorderOutsideReach(BuildContext context) {
+  final layer = StratumComponentDefaults.styleOf(context, StratumFocusBorder);
+  final width = layer?.border?.top.width ?? _defaultWidth;
+  return _defaultGap + width;
+}
 
 /// The look of a [StratumFocusBorder], picked by component kind.
 enum StratumFocusBorderStyle {
@@ -66,9 +73,11 @@ enum StratumFocusBorderStyle {
 /// motion is reduced, and never changes [child]'s layout size.
 ///
 /// A `customStyle`, and an app-wide `StratumComponentDefaults` style for
-/// this type, restyle the shown looks only: their border, radius, or motion
-/// replaces the ring's, and the ring paints that border's top side all
-/// around. A state whose look is nothing still shows no ring.
+/// this type, restyle the shown looks only, and only their color, width,
+/// radius, and motion (R8): the ring always computes its own placement
+/// from [style], [insideEdge], and the gap against the resolved width, so
+/// no style layer moves it. [customColor], [width], and [gap] win over
+/// either layer. A state whose look is nothing still shows no ring.
 class StratumFocusBorder extends StratumStatefulWidget {
   const new({
     super.key,
@@ -130,34 +139,40 @@ class _StratumFocusBorderState extends State<StratumFocusBorder> {
     final focused = widget.state == FullWidgetState.focused;
     final hovered = widget.state == FullWidgetState.hovered;
     final shows = focused || (hovered && !outside);
-    final color =
-        widget.customColor ??
-        (outside
-            ? theme.color.border.subtle.blue
-            : theme.color.border.defaults.normal);
-    final width =
-        widget.width ??
-        (focused && !outside ? _insideFocusedWidth : _defaultWidth);
-    final gap = widget.gap ?? _defaultGap;
-    final shown = widget.resolveStyle(
+    final defaultColor = outside
+        ? theme.color.border.subtle.blue
+        : theme.color.border.defaults.normal;
+    final defaultWidth = focused && !outside
+        ? _insideFocusedWidth
+        : _defaultWidth;
+    // Resolve the style layers first (R8): a layer restyles color, width,
+    // radius and motion only. Placement is never read from a layer's
+    // border; it is always computed below, against the resolved width.
+    final resolved = widget.resolveStyle(
       context,
       WidgetStyle(
         border: Border.fromBorderSide(
-          BorderSide(
-            color: color,
-            width: width,
-            // Around the child the stroke starts after the gap: its inner
-            // edge lies [gap] outside the child's edge.
-            strokeAlign: outside && !widget.insideEdge
-                ? BorderSide.strokeAlignOutside + 2 * gap / width
-                : BorderSide.strokeAlignInside,
-          ),
+          BorderSide(color: defaultColor, width: defaultWidth),
         ),
         borderRadius: widget.borderRadius ?? BorderRadius.zero,
         animationStyle: theme.animation.fast,
       ),
     );
-    final side = shown.border?.top ?? BorderSide.none;
+    final layerSide = resolved.border?.top ?? BorderSide.none;
+    // The ring's own overrides win over either style layer (D7, R8).
+    final color = widget.customColor ?? layerSide.color;
+    final width = widget.width ?? layerSide.width;
+    final gap = widget.gap ?? _defaultGap;
+    final side = BorderSide(
+      color: color,
+      width: width,
+      // Around the child the stroke starts after the gap: its inner
+      // edge lies [gap] outside the child's edge.
+      strokeAlign: outside && !widget.insideEdge
+          ? BorderSide.strokeAlignOutside + 2 * gap / width
+          : BorderSide.strokeAlignInside,
+    );
+    final shown = resolved.copyWith(border: Border.fromBorderSide(side));
     final look = shows
         ? shown
         : shown.copyWith(
