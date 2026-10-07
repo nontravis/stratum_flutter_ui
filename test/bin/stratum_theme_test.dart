@@ -14,6 +14,11 @@ import '../../bin/stratum_theme.dart';
 const _schema = r'$schema: stratum-theme/v1.0.0';
 const _svg = '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>';
 
+/// Whether this process runs as root, which ignores a folder's own write
+/// permission bit (fix-2 n1).
+bool get _isRoot =>
+    Process.runSync('id', ['-u']).stdout.toString().trim() == '0';
+
 /// The app project of one test: a fresh temporary folder.
 late Directory _app;
 
@@ -382,6 +387,32 @@ void main() {
       );
     });
 
+    test(
+      'fix-2 n1: an unwritable --out exits 66, not an unhandled exception',
+      () async {
+        _folder('brand', _theme());
+        final out = _folder('ro', {});
+        Process.runSync('chmod', ['0555', out]);
+        addTearDown(() => Process.runSync('chmod', ['0755', out]));
+
+        final run = await _run(['pack', 'brand', '--out', 'ro']);
+
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+        expect(run.err.last, startsWith('cannot write '));
+        expect(
+          Directory(out)
+              .listSync()
+              .map((entity) => p.basename(entity.path))
+              .where((name) => name.startsWith('.stratum_theme_')),
+          isEmpty,
+        );
+      },
+      skip: Platform.isWindows || _isRoot
+          ? 'needs a non-root POSIX --out owner'
+          : false,
+    );
+
     test('coverage: a folder path holding a space and a non-ASCII letter '
         'packs normally', () async {
       _folder('bra nd é', _theme());
@@ -539,7 +570,8 @@ void main() {
       'fix-1 sec f4 (type half): check of a FIFO exits 66 without blocking',
       () async {
         final fifo = p.join(_app.path, 'pipe');
-        Process.runSync('mkfifo', [fifo]);
+        expect(Process.runSync('mkfifo', [fifo]).exitCode, 0);
+        expect(FileSystemEntity.typeSync(fifo), FileSystemEntityType.pipe);
 
         final run = await _run(['check', fifo]);
 

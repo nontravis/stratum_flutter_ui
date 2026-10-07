@@ -402,18 +402,26 @@ final class _Run {
   /// Writes [bytes] to [path] through a private temporary folder beside it
   /// (`mkdtemp`, mode 0700), so a failed write leaves no partial zip, an
   /// earlier zip stays whole until the new one replaces it (plan D-l), and
-  /// no name a planted link could guess is ever opened for writing.
+  /// no name a planted link could guess is ever opened for writing. Making
+  /// that folder is part of the write: an unwritable `--out` fails the same
+  /// way a failed write does, never as an unhandled exception.
   void _write(String path, Uint8List bytes) {
-    final scratch = Directory(p.dirname(path))
-        .createTempSync('.stratum_theme_');
+    Directory? scratch;
     try {
+      scratch = Directory(p.dirname(path)).createTempSync('.stratum_theme_');
       File(p.join(scratch.path, 'theme.zip'))
         ..writeAsBytesSync(bytes, flush: true)
         ..renameSync(path);
     } on FileSystemException catch (error) {
       throw _NoInput('cannot write ${_shown(path)}: ${error.message}');
     } finally {
-      if (scratch.existsSync()) scratch.deleteSync(recursive: true);
+      try {
+        if (scratch != null && scratch.existsSync()) {
+          scratch.deleteSync(recursive: true);
+        }
+      } on FileSystemException {
+        // A leftover dot-folder here is harmless: _collect skips it.
+      }
     }
   }
 
