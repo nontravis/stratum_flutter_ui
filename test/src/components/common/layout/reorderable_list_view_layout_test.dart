@@ -1,5 +1,9 @@
 import 'package:flutter/rendering.dart'
-    show ItemExtentBuilder, SliverLayoutDimensions;
+    show
+        ItemExtentBuilder,
+        RenderSliverMultiBoxAdaptor,
+        ScrollCacheExtent,
+        SliverLayoutDimensions;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -48,6 +52,8 @@ class _Harness extends StatefulWidget {
     this.prototypeItem,
     this.fillItems = false,
     this.onItemBuild,
+    this.heights,
+    this.scrollCacheExtent,
   });
 
   final int count;
@@ -101,6 +107,12 @@ class _Harness extends StatefulWidget {
 
   /// Runs each time the list calls `itemBuilder`, with the context it gets.
   final void Function(BuildContext context)? onItemBuild;
+
+  /// The height of an item by id, where it is not 40.
+  final Map<int, double>? heights;
+
+  /// The list's `scrollCacheExtent`; null keeps the default 250 px.
+  final ScrollCacheExtent? scrollCacheExtent;
 
   @override
   State<_Harness> createState() => _HarnessState();
@@ -172,6 +184,7 @@ class _HarnessState extends State<_Harness> {
       reverse: widget.reverse,
       itemExtentBuilder: widget.itemExtentBuilder,
       prototypeItem: widget.prototypeItem,
+      scrollCacheExtent: widget.scrollCacheExtent,
       onReorderStart: (index) {
         starts.add(index);
         onStart?.call(index);
@@ -195,14 +208,15 @@ class _HarnessState extends State<_Harness> {
           inner: innerShown && widget.innerAt == ids[index],
           paintLog: widget.paintLog,
           fill: widget.fillItems,
+          height: widget.heights?[ids[index]] ?? 40,
         );
       },
     );
   }
 }
 
-/// A 40 px item with a focus node labeled `item <id>` and an `expanded`
-/// flag that lives in its State.
+/// A 40 px item, or one [height] px tall, with a focus node labeled
+/// `item <id>` and an `expanded` flag that lives in its State.
 class _Item extends StatefulWidget {
   const new({
     super.key,
@@ -213,6 +227,7 @@ class _Item extends StatefulWidget {
     this.inner = false,
     this.paintLog,
     this.fill = false,
+    this.height = 40,
   });
 
   final int id;
@@ -230,6 +245,9 @@ class _Item extends StatefulWidget {
   /// Whether the item stretches its box across the slot, so it needs a
   /// bounded main axis.
   final bool fill;
+
+  /// The item's height; its width stays 40.
+  final double height;
 
   @override
   State<_Item> createState() => _ItemState();
@@ -252,7 +270,11 @@ class _ItemState extends State<_Item> {
     if (widget.field) {
       return SizedBox(width: 40, height: 40, child: TextField(focusNode: node));
     }
-    final label = SizedBox(width: 40, height: 40, child: Text('${widget.id}'));
+    final label = SizedBox(
+      width: 40,
+      height: widget.height,
+      child: Text('${widget.id}'),
+    );
     Widget item = Focus(
       focusNode: node,
       child: widget.inner
@@ -464,6 +486,55 @@ Duration _halfForward(StratumThemeData theme) =>
 Duration _halfReverse(StratumThemeData theme) {
   final normal = theme.animation.normal;
   return (normal.reverseDuration ?? normal.duration ?? Duration.zero) ~/ 2;
+}
+
+/// The first and last slot the list's sliver laid out in the last frame,
+/// and how many it laid out; a kept-alive item sits outside that list.
+({int first, int last, int count}) _laidOut(WidgetTester tester) {
+  final sliver = tester.renderObject<RenderSliverMultiBoxAdaptor>(
+    find.byWidgetPredicate(
+      (widget) => widget is SliverMultiBoxAdaptorWidget,
+      skipOffstage: false,
+    ),
+  );
+  var first = -1;
+  var last = -1;
+  var count = 0;
+  for (
+    var child = sliver.firstChild;
+    child != null;
+    child = sliver.childAfter(child)
+  ) {
+    final index = sliver.indexOf(child);
+    if (count == 0) first = index;
+    last = index;
+    count += 1;
+  }
+  return (first: first, last: last, count: count);
+}
+
+/// The States of item [id] the list holds, laid out or kept alive.
+List<_ItemState> _statesOf(WidgetTester tester, int id) => tester
+    .stateList<_ItemState>(find.byKey(ValueKey(id), skipOffstage: false))
+    .toList();
+
+/// Whether item [id] is built and lies wholly inside the list's viewport.
+bool _builtInView(WidgetTester tester, int id) =>
+    find.byKey(ValueKey(id)).evaluate().isNotEmpty && _itemInView(tester, id);
+
+/// Pumps [harness] in [_app] and scrolls its list to [offset].
+Future<ScrollPosition> _pumpScrolled(
+  WidgetTester tester,
+  _Harness harness, {
+  double offset = 4000,
+  TextDirection textDirection = TextDirection.ltr,
+}) async {
+  await tester.pumpWidget(_app(harness, textDirection: textDirection));
+  final position =
+      tester.state<ScrollableState>(find.byType(Scrollable)).position
+        ..jumpTo(offset);
+  await tester.pump();
+  return position;
 }
 
 void main() {
@@ -5681,6 +5752,325 @@ void main() {
         expect(springs, 4);
         expect(harness.ids[harness.ids.indexOf(99) + 1], 101);
         expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 101');
+      },
+    );
+  });
+
+  group('ReorderableListViewLayout build-ahead of moveItem', () {
+    // 200 items of 40 px in a 300 px viewport at 4000 px, with the default
+    // 250 px cache extent: the sliver lays out slots 93 to 113. A move down
+    // enters the slot after its target, since its closing slot counts one.
+    _Harness list({
+      Map<int, double>? heights,
+      double? itemExtent,
+      ScrollCacheExtent? scrollCacheExtent,
+      Axis axis = Axis.vertical,
+      bool reverse = false,
+    }) => _Harness(
+      count: 200,
+      itemsController: StratumReorderableItemsController(),
+      heights: heights,
+      itemExtent: itemExtent,
+      scrollCacheExtent: scrollCacheExtent,
+      axis: axis,
+      reverse: reverse,
+    );
+
+    // Slots past the last laid-out one that item 100 enters.
+    final pastLast = ValueVariant<int>({1, 2, 5});
+    testWidgets(
+      'us11/fr05/e04: a focused move to a near slot past the last laid-out '
+      'one builds ahead with no call-turn scroll and keeps State and focus',
+      (tester) async {
+        final position = await _pumpScrolled(tester, list());
+        expect(_laidOut(tester), (first: 93, last: 113, count: 21));
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+        final k = pastLast.currentValue!;
+
+        _harness(tester).move(100, 112 + k);
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(_laidOut(tester).last, greaterThanOrEqualTo(113 + k));
+        expect(_statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(_statesOf(tester, 100), contains(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 100), isTrue);
+      },
+      variant: pastLast,
+    );
+
+    // Slots before the first laid-out one that item 100 enters.
+    final beforeFirst = ValueVariant<int>({1, 2});
+    testWidgets('us11/fr05/e04: a focused move to a near slot before the first '
+        'laid-out one builds ahead with no call-turn scroll and keeps State '
+        'and focus', (tester) async {
+      final position = await _pumpScrolled(tester, list());
+      final state = _itemState(tester, 100);
+      final focused = await _focusItem(tester, 100);
+      final d = beforeFirst.currentValue!;
+
+      _harness(tester).move(100, 93 - d);
+      expect(position.pixels, 4000);
+      await tester.pump();
+
+      expect(_laidOut(tester).first, lessThanOrEqualTo(93 - d));
+      expect(_statesOf(tester, 100), contains(state));
+      await tester.pumpAndSettle();
+      expect(_statesOf(tester, 100), contains(state));
+      expect(FocusManager.instance.primaryFocus, same(focused));
+      expect(_builtInView(tester, 100), isTrue);
+    }, variant: beforeFirst);
+
+    // (k + 1) x 40 px past one 300 px viewport: k = 7 is the first far one.
+    final farPast = ValueVariant<int>({7, 10, 30});
+    testWidgets(
+      'us11/fr05/e04: a focused move to a slot whose distance plus one slot '
+      'exceeds one viewport jumps in the call turn and keeps State and focus',
+      (tester) async {
+        final position = await _pumpScrolled(tester, list());
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 112 + farPast.currentValue!);
+        expect(position.pixels, isNot(4000));
+        await tester.pump();
+
+        expect(_statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 100), isTrue);
+      },
+      variant: farPast,
+    );
+
+    testWidgets(
+      'us11/fr05/e04: a near move whose unbuilt items run taller than the '
+      'laid-out average falls back to the reach: State reset, focus on the '
+      'fresh item, the item in view',
+      (tester) async {
+        // Items 114 and 115 are 200 px, so slot 117, which item 100 enters,
+        // lies past the frame that the 40 px average widens.
+        final position = await _pumpScrolled(
+          tester,
+          list(heights: const {114: 200, 115: 200}),
+        );
+        final state = _itemState(tester, 100);
+        await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 116);
+        expect(position.pixels, 4000);
+        await tester.pumpAndSettle();
+
+        expect(_statesOf(tester, 100), isNot(contains(state)));
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 100');
+        expect(_builtInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: under a fixed item extent the estimate is exact, so '
+      'the same tall items never make a near move miss',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          list(heights: const {114: 200, 115: 200}, itemExtent: 40),
+        );
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // No closing slot under a fixed extent: item 100 enters slot 116.
+        _harness(tester).move(100, 116);
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(_statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      's03/inv35: a same-turn removeItem and insertItem of one key before a '
+      'focused near move costs one widened frame and no call-turn scroll',
+      (tester) async {
+        final position = await _pumpScrolled(tester, list());
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // The leaving copy of item 95 over-counts one box: the entered-slot
+        // count reads 114 where the frame puts item 100 at 113.
+        _harness(tester)
+          ..remove(95)
+          ..insert(95, 95)
+          ..move(100, 113);
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(_statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
+    testWidgets(
+      's03/inv35: when two average extents exceed one viewport, the same-turn '
+      'remove and insert over-count can still make one far-path jump, with '
+      'State and focus kept',
+      (tester) async {
+        // 200 px items: the sliver lays out 18 to 22 at 4000 px, and one slot
+        // plus the margin, 400 px, exceeds the 300 px viewport.
+        final position = await _pumpScrolled(
+          tester,
+          list(heights: {for (var id = 0; id < 200; id++) id: 200}),
+        );
+        expect(_laidOut(tester), (first: 18, last: 22, count: 5));
+        final state = _itemState(tester, 20);
+        final focused = await _focusItem(tester, 20);
+
+        // Item 20 enters slot 22, which the frame laid out, but the leaving
+        // copy of item 19 over-counts one box and reads slot 23.
+        _harness(tester)
+          ..remove(19)
+          ..insert(19, 19)
+          ..move(20, 22);
+        expect(position.pixels, isNot(4000));
+        await tester.pump();
+
+        expect(_statesOf(tester, 20), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: a viewport-relative scrollCacheExtent converts to '
+      'pixels before the build-ahead adds to it',
+      (tester) async {
+        // Half a 300 px viewport, 150 px: the sliver lays out 96 to 111.
+        final position = await _pumpScrolled(
+          tester,
+          list(scrollCacheExtent: const ScrollCacheExtent.viewport(0.5)),
+        );
+        expect(_laidOut(tester), (first: 96, last: 111, count: 16));
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // Item 100 enters slot 113, 2 slots past 111.
+        _harness(tester).move(100, 112);
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(_statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+    );
+
+    final axes = ValueVariant<String>({
+      'horizontal',
+      'reversed',
+      'right-to-left',
+    });
+    testWidgets(
+      'us11/fr05/e04: a focused move past the last laid-out slot builds '
+      'ahead with no call-turn scroll on a horizontal, reversed, or '
+      'right-to-left list',
+      (tester) async {
+        final variant = axes.currentValue!;
+        final position = await _pumpScrolled(
+          tester,
+          list(
+            axis: variant == 'reversed' ? Axis.vertical : Axis.horizontal,
+            reverse: variant == 'reversed',
+          ),
+          textDirection: variant == 'right-to-left'
+              ? TextDirection.rtl
+              : TextDirection.ltr,
+        );
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // Item 100 enters the slot after the last laid-out one.
+        _harness(tester).move(100, _laidOut(tester).last);
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(_statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 100), isTrue);
+      },
+      variant: axes,
+    );
+
+    final motion = ValueVariant<String>({'motion', 'reduced motion'});
+    testWidgets(
+      's03/inv35: the frame after the widened one lays out the base cache '
+      'extent again and calls itemBuilder only for the items it adds',
+      (tester) async {
+        if (motion.currentValue == 'reduced motion') {
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(disableAnimations: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+        }
+        var builds = 0;
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            onItemBuild: (_) => builds += 1,
+          ),
+        );
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 114);
+        expect(position.pixels, 4000);
+        await tester.pump();
+        final widened = _laidOut(tester);
+        expect(widened.count, greaterThan(21));
+        expect(_statesOf(tester, 100), contains(state));
+
+        builds = 0;
+        await tester.pump();
+        final returned = _laidOut(tester);
+        final added = {
+          for (var i = returned.first; i <= returned.last; i++) i,
+        }.difference({for (var i = widened.first; i <= widened.last; i++) i});
+        expect(returned.count, lessThan(widened.count));
+        expect(builds, added.length);
+        expect(_statesOf(tester, 100), contains(state));
+        await tester.pumpAndSettle();
+        expect(_statesOf(tester, 100), contains(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+      },
+      variant: motion,
+    );
+
+    testWidgets(
+      's03/inv35: a rebuild of the scroll view alone after the frame that '
+      'returns the cache extent lays out the base extent',
+      (tester) async {
+        await _pumpScrolled(tester, list());
+        await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 114);
+        await tester.pump();
+        await tester.pump();
+        final returned = _laidOut(tester);
+
+        // A rebuild of the Scrollable alone, as a dependency it reads makes.
+        // ignore: invalid_use_of_protected_member
+        tester.state<ScrollableState>(find.byType(Scrollable)).setState(() {});
+        await tester.pump();
+        expect(_laidOut(tester), returned);
       },
     );
   });
