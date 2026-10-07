@@ -185,8 +185,8 @@ void main() {
       expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
     });
 
-    test('us02/s10, us02/fr01/e01: a folder named default fails as '
-        'invalid_id before the check, and nothing is written', () async {
+    test('us02/s10, us02/fr01/e01, us02/fr03/e14: a folder named default fails '
+        'as invalid_id before the check, and nothing is written', () async {
       _folder('default', _theme());
 
       final run = await _run(['pack', 'default']);
@@ -335,7 +335,8 @@ void main() {
     }
 
     test(
-      'fix-1 sec f2: a POSIX file name holding a backslash fails as '
+      'us02/fr01/e10, us02/fr03/e14, r14, fix-1 sec f2: a POSIX file name '
+      'holding a backslash fails as '
       'unsafe_entry_path from the writer, not left as a stack trace',
       () async {
         final root = _folder('brand', _theme());
@@ -373,24 +374,28 @@ void main() {
       );
     });
 
-    test('fix-1 edge important: --out the same folder being packed excludes '
-        'its own last zip, so repeated packs give the same bytes', () async {
-      _folder('brand', _theme());
+    test(
+      'us02/fr01/e09, r14, fix-1 edge important: --out the same folder being '
+      'packed excludes its own last zip, so repeated packs give the same '
+      'bytes',
+      () async {
+        _folder('brand', _theme());
 
-      final first = await _run(['pack', 'brand', '--out', 'brand']);
-      final second = await _run(['pack', 'brand', '--out', 'brand']);
+        final first = await _run(['pack', 'brand', '--out', 'brand']);
+        final second = await _run(['pack', 'brand', '--out', 'brand']);
 
-      expect(first.code, exitPass);
-      expect(second.code, exitPass);
-      expect(second.out, first.out);
-      expect(
-        File(p.join(_app.path, 'brand', 'brand.zip')).readAsBytesSync(),
-        writeRemoteZip({
-          for (final MapEntry(:key, :value) in _theme().entries)
-            key: utf8.encode(value),
-        }),
-      );
-    });
+        expect(first.code, exitPass);
+        expect(second.code, exitPass);
+        expect(second.out, first.out);
+        expect(
+          File(p.join(_app.path, 'brand', 'brand.zip')).readAsBytesSync(),
+          writeRemoteZip({
+            for (final MapEntry(:key, :value) in _theme().entries)
+              key: utf8.encode(value),
+          }),
+        );
+      },
+    );
 
     test('fix-1 sec f1: a planted link at the old predictable temp name is '
         'never opened, so the victim it points to is unchanged', () async {
@@ -744,18 +749,23 @@ void main() {
       }
     });
 
-    test('fix-1 sec f4 (type half): check of a folder, not a file, exits '
-        '66 before any read', () async {
-      final folder = _folder('brand', {});
+    test(
+      'us02/fr03/e09, r14, fix-1 sec f4 (type half): check of a folder, not a '
+      'file, exits '
+      '66 before any read',
+      () async {
+        final folder = _folder('brand', {});
 
-      final run = await _run(['check', folder]);
+        final run = await _run(['check', folder]);
 
-      expect(run.code, exitNoInput);
-      expect(run.out, isEmpty);
-    });
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+      },
+    );
 
     test(
-      'fix-1 sec f4 (type half): check of a FIFO exits 66 without blocking',
+      'us02/fr03/e09, r14, fix-1 sec f4 (type half): check of a FIFO exits 66 '
+      'without blocking',
       () async {
         final fifo = p.join(_app.path, 'pipe');
         expect(Process.runSync('mkfifo', [fifo]).exitCode, 0);
@@ -769,7 +779,8 @@ void main() {
       skip: Platform.isWindows ? 'no FIFO on Windows' : false,
     );
 
-    test('fix-5 sec f4 (type half, --app-default): a FIFO --app-default exits '
+    test('us02/fr03/e09, r14, fix-5 sec f4 (type half, --app-default): a FIFO '
+        '--app-default exits '
         '66 without blocking', () async {
       _zip('brand.zip', _theme());
       final fifo = p.join(_app.path, 'pipe');
@@ -829,5 +840,25 @@ void main() {
         }
       },
     );
+
+    test('us02/fr03/e09, r14: a stratum_ui package that cannot be found, or '
+        'whose default theme cannot be read, exits 66', () async {
+      _zip('brand.zip', _theme());
+      final empty = _folder('nopackage', {});
+
+      for (final root in [null, empty]) {
+        final err = StringBuffer();
+        final code = await runStratumTheme(
+          ['check', 'brand.zip'],
+          out: StringBuffer(),
+          err: err,
+          workingDirectory: _app.path,
+          packageRoot: root,
+        );
+
+        expect(code, exitNoInput, reason: '$root');
+        expect(err.toString(), startsWith('cannot '), reason: '$root');
+      }
+    });
   });
 }
