@@ -256,9 +256,9 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
       _handleHandshake(event);
       return;
     }
-    // Messages must come from the content the controller shows now: after a
-    // switch to HTML, the outgoing URL page no longer speaks for the view.
-    if (_history.current is! StratumWebViewUrlSource) return;
+    // The origin names the page that sent the message, whatever entry the
+    // view shows now: an outgoing page may still speak before it unloads
+    // (US-03 FR-01 E05).
     final data = event.data;
     if (data == null || !data.isA<JSString>()) return;
     final text = (data as JSString).toDart;

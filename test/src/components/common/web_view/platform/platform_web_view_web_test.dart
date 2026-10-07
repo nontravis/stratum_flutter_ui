@@ -391,12 +391,21 @@ location.href = 'data:text/html,' + encodeURIComponent(
     },
   );
 
-  test('drops URL-origin messages once HTML is the current source', () async {
+  test('us03/fr01/e05: an outgoing URL page message arrives with its own '
+      'origin after the view moved on, to HTML or to another URL', () async {
     await view.load(missingPage());
     attach();
     await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
-    dispatchMessage('late'.toJS, origin: appOrigin.toString());
-    expect(listener.messages, isEmpty);
+    dispatchMessage('to html'.toJS, origin: appOrigin.toString());
+    await view.load(
+      StratumWebViewSource.url(appOrigin.replace(path: '/second')),
+    );
+    dispatchMessage('to url'.toJS, origin: appOrigin.toString());
+    dispatchMessage('evil'.toJS, origin: 'https://evil.example.net');
+    expect(listener.messages, [
+      StratumWebViewMessage(data: 'to html', origin: appOrigin),
+      StratumWebViewMessage(data: 'to url', origin: appOrigin),
+    ]);
   });
 
   test('a load started just before dispose leaves the frame blank', () async {
