@@ -5931,6 +5931,7 @@ void main() {
         expect(position.pixels, 4000);
         await tester.pump();
 
+        expect(_laidOut(tester).count, greaterThan(21));
         expect(_statesOf(tester, 100), contains(state));
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(focused));
