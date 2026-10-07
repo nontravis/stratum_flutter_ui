@@ -2388,14 +2388,18 @@ void main() {
     ) async {
       _useTraditionalHighlight();
       // Default 2 px gap + a 5 px restyled width = reach 7: a 7 px margin
-      // holds it, a 6 px margin does not.
+      // holds it, a 6 px margin does not. The layer sets both color and
+      // width, since a layer border side sets the two together.
+      const layerColor = Color(0xFF00FF00);
       for (final (margin, inside) in [(7.0, false), (6.0, true)]) {
         await tester.pumpWidget(
           themedHost(
             StratumComponentDefaults(
               styles: const {
                 StratumFocusBorder: WidgetStyle(
-                  border: Border.fromBorderSide(BorderSide(width: 5)),
+                  border: Border.fromBorderSide(
+                    BorderSide(color: layerColor, width: 5),
+                  ),
                 ),
               },
               child: SizedBox(
@@ -2414,6 +2418,11 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(_ringInside(tester), inside, reason: 'margin $margin');
+        expect(
+          _visibleRing(tester)!.color,
+          isSameColorAs(layerColor),
+          reason: 'margin $margin',
+        );
       }
     }, variant: TargetPlatformVariant.desktop());
 

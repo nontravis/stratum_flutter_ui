@@ -446,6 +446,32 @@ void main() {
         expect(ring.outer, _rrect(-5, -5, 45, 25, 15));
       },
     );
+
+    testWidgets(
+      'us04/fr03/e14: a layer border side with color and width paints '
+      'exactly that color and width',
+      (tester) async {
+        const green = Color(0xFF00FF00);
+        await tester.pumpWidget(
+          _ring(
+            state: FullWidgetState.focused,
+            defaults: const {
+              StratumFocusBorder: WidgetStyle(
+                border: Border.fromBorderSide(
+                  BorderSide(color: green, width: 6),
+                ),
+              ),
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final ring = _painted(tester);
+        expect(ring.color, isSameColorAs(green));
+        expect(ring.inner, _rrect(-2, -2, 42, 22, 12));
+        expect(ring.outer, _rrect(-8, -8, 48, 28, 18));
+      },
+    );
   });
 
   group('StratumFocusBorder motion', () {

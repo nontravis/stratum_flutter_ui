@@ -74,11 +74,14 @@ enum StratumFocusBorderStyle {
 ///
 /// A `customStyle`, and an app-wide `StratumComponentDefaults` style for
 /// this type, restyle the shown looks only, and only their color, width,
-/// radius, and motion (R8), read from that style's border's top side only;
-/// a style whose border sets no top side keeps the default color and
-/// width. The ring always computes its own placement from [style],
-/// [insideEdge], and the gap against the resolved width, so no style
-/// layer moves it. [customColor], [width], and [gap] win over either
+/// radius, and motion (R8), read from that style's border's top side only.
+/// The side sets color and width together, as one `BorderSide`: a side
+/// that sets only one takes Flutter's own default for the other, not the
+/// ring's; a border with no top side (`BorderStyle.none`) restyles
+/// nothing, and the ring keeps its default color and width. The ring
+/// always computes its own placement from [style], [insideEdge], and the
+/// gap against the resolved width, so no style layer moves it.
+/// [customColor], [width], and [gap] win over either
 /// layer. A state whose look is nothing still shows no ring.
 class StratumFocusBorder extends StratumStatefulWidget {
   const new({
