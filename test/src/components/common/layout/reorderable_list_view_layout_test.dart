@@ -6262,6 +6262,42 @@ void main() {
     );
 
     testWidgets(
+      'us11/fr03/e09: a screen-reader step action a same-turn removeItem '
+      'shifts to data slot 0 does not edge-jump in the turn of the action',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        // With no cache extent the built range is the viewport exactly, so
+        // scrolling to item 2's own top excludes slots 0 and 1 from it.
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            scrollCacheExtent: const ScrollCacheExtent.pixels(0),
+            itemsController: StratumReorderableItemsController(),
+          ),
+          offset: 90,
+        );
+        expect(_laidOut(tester).first, 2);
+
+        // Same turn: removing data slot 0 shifts item 2 to data slot 1, so
+        // its "Move up" (a step, not a start action by D2's own reading of
+        // the frame indices) targets data slot 0.
+        _harness(tester).remove(0);
+        final node = tester.getSemantics(find.byKey(const ValueKey(2)));
+        node.owner!.performAction(
+          node.id,
+          SemanticsAction.customAction,
+          CustomSemanticsAction.getIdentifier(
+            const CustomSemanticsAction(label: 'Move up'),
+          ),
+        );
+
+        expect(position.pixels, 90);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
       'us11/fr03/e09: when the reach after a far key move gives up, the list '
       'returns to the offset before the jump in the turn of the key and hands '
       'focus on from the slot the item left',

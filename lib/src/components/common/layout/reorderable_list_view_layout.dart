@@ -1050,8 +1050,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// is decoded into its intent and takes the reorder keys' target (R4),
   /// so it acts at once, also between a call and its frame (FR-03 E07),
   /// and ends a drag or a settling drop first, as a call does (FR-03 E08).
-  /// A move to the first or last slot jumps there first when that slot is
-  /// not built, so the moved item keeps its State.
+  /// The start and end actions jump there first when that slot is not
+  /// built, so the moved item keeps its State; a step action that a
+  /// same-turn call shifts onto the data's first or last slot takes D1's
+  /// near and far paths instead (R12 inputs), not this exact jump.
   void _handleReorderItem(int fromIndex, int toIndex) {
     final index = _FrameIndex(fromIndex);
     final drop = _liftedKey != null && _lookAt(index)?.key == _liftedKey;
@@ -1066,7 +1068,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final item = _nodeAt(index)?.context;
     final position = item == null ? null : Scrollable.maybeOf(item)?.position;
     const start = _DataIndex(0);
-    final edge = target == start || target == _dataEnd - 1;
+    final edgeAction = intent == _MoveIntent.start || intent == _MoveIntent.end;
+    final edge = edgeAction && (target == start || target == _dataEnd - 1);
     if (item != null && position != null && edge && _nodeAt(to) == null) {
       _jumpTowards(item, position, toStart: target == start);
     }
