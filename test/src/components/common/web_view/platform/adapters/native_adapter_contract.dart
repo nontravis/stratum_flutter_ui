@@ -264,6 +264,19 @@ void runNativeAdapterContract(
       }
     });
 
+    test('us03/fr02/e12: an error that is neither a timeout nor a platform '
+        'error propagates unchanged', () async {
+      await adapter.load(StratumWebViewSource.url(appPage));
+      harness
+        ..startPage(appPage.toString())
+        ..scriptAnswer = () =>
+            Future<Object>.error(MissingPluginException('no plugin'));
+      await expectLater(
+        adapter.postMessage('ping'),
+        throwsA(isA<MissingPluginException>()),
+      );
+    });
+
     test('asks the listener about main-frame navigation', () async {
       listener.decision = StratumNavigationDecision.prevent;
       final allowed = await harness.requestNavigation(

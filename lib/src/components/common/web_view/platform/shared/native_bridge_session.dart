@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/services.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
@@ -14,6 +16,29 @@ const int _maxCandidates = 16;
 /// The longest a native `postMessage` waits for the dispatch script's
 /// answer; no answer in time counts as a refused send (US-03 FR-02 E12).
 const Duration dispatchScriptTimeout = Duration(seconds: 5);
+
+/// Returns the dispatch script's answer from [evaluation], or `null` when
+/// none comes within [dispatchScriptTimeout] or the platform reports an
+/// error; [NativeBridgeSession.confirmDelivery] turns `null` into the
+/// unallowed-page [StateError] (US-03 FR-02 E12).
+///
+/// The wait ends, not the script, so a page busy past the timeout may still
+/// receive the message. Any other error propagates.
+Future<Object?> dispatchScriptAnswer(Future<Object> evaluation) async {
+  try {
+    return await evaluation.timeout(dispatchScriptTimeout);
+  } on TimeoutException {
+    return null;
+  } on PlatformException {
+    return null;
+    // WebKit, Windows, and Linux reject a `null` script result with an
+    // ArgumentError, and Windows and Linux report a script that throws as
+    // `null`, so this Error is the platform's error signal, not a bug.
+    // ignore: avoid_catching_errors
+  } on ArgumentError {
+    return null;
+  }
+}
 
 /// Length of a hex-encoded 16-byte secret.
 const int _secretLength = 32;

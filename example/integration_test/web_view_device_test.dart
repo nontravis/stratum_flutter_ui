@@ -492,6 +492,46 @@ void main() {
         }
       },
     );
+
+    testWidgets(
+      'us08/s15, us08/fr01/e09: the app HTML document follows a link off the '
+      'allowlist, and the next send is refused',
+      (tester) async {
+        // CO-01-02 US-03 FR-04 E10 of the package docs: the document posts
+        // bye on pagehide, so the app withholds the token. The linked page
+        // copies the token from its fragment, as a stolen copy would, so only
+        // a bye that never arrived lets the send through (FR-02 E10).
+        final controller = StratumWebViewController();
+        final away = server.page('/token-copy');
+        final recorder = await _show(
+          tester,
+          const StratumWebViewSource.html(_htmlLinkAwayPage),
+          controller: controller,
+          allowedOrigins: {Uri.parse('https://allowed.example')},
+        );
+        final ready = await _pumpUntil(
+          tester,
+          () => recorder.messages.contains('ready:CSS1Compat'),
+        );
+        if (ready) await controller.postMessage('go:$away');
+        final arrived =
+            ready &&
+            await _pumpUntil(
+              tester,
+              () => recorder.finishes.any((url) => url?.path == away.path),
+            );
+        if (arrived) {
+          await tester.pump(_settle);
+          await expectLater(controller.postMessage('ping'), throwsStateError);
+        }
+        recorder.logOrder('html link away');
+        await _checkpoint(binding, tester, 'b_html_link_away');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(ready, isTrue, reason: 'the HTML message "ready" never came');
+        expect(arrived, isTrue, reason: 'the linked page never finished');
+      },
+    );
   }, skip: kIsWeb);
 }
 
@@ -627,6 +667,8 @@ class _PageServer {
         );
       case '/bridge':
         _writePage(response, HttpStatus.ok, _bridgeBody);
+      case '/token-copy':
+        _writePage(response, HttpStatus.ok, _tokenCopyBody);
       default:
         // '/missing', '/gone', '/missing.png', and any favicon request.
         _writePage(response, HttpStatus.notFound, '<h1>Not found</h1>');
@@ -676,6 +718,35 @@ const _htmlBridgePage = '''
   });
 </script>
 </body></html>
+''';
+
+/// An app HTML document that says `ready:` and its `document.compatMode`
+/// once loaded, and on the app message `go:<url>` follows a link to that URL
+/// with its outbound token in the fragment (FR-01 output `html link away`).
+const _htmlLinkAwayPage = '''
+<!doctype html>
+<html><body style="font-family: sans-serif"><h1>HTML link away</h1>
+<script>
+  window.addEventListener('message', function (event) {
+    if (String(event.data).indexOf('go:') !== 0) return;
+    location.href = event.data.slice(3) + '#' + window.__stratumBridgeToken;
+  });
+  window.addEventListener('load', function () {
+    StratumBridge.postMessage('ready:' + document.compatMode);
+  });
+</script>
+</body></html>
+''';
+
+/// Defines the outbound token property from the fragment, as a page holding
+/// a stolen copy would (FR-01 output `html link away`).
+const _tokenCopyBody = '''
+<h1>Token copy</h1>
+<script>
+  Object.defineProperty(window, '__stratumBridgeToken', {
+    value: location.hash.slice(1),
+  });
+</script>
 ''';
 
 /// An address on a loopback port where nothing listens.

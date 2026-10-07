@@ -234,6 +234,27 @@ void main() {
       );
     });
 
+    test('us03/fr04/e14: posts bye once the document root is replaced in '
+        'place, through an observer and a parentNode getter bound before '
+        'any page script', () {
+      final html = inject('<p>Hi</p>');
+      expect(
+        html,
+        contains(
+          'var doc=document,root=doc.documentElement,\n'
+          'parentOf=Function.prototype.call.bind(\n'
+          "Object.getOwnPropertyDescriptor(Node.prototype,'parentNode').get);\n"
+          'new MutationObserver(function(){\n'
+          "if(parentOf(root)!==doc)s('bye',id);})\n"
+          '.observe(doc,{childList:true});\n',
+        ),
+      );
+      expect(
+        html.indexOf('new MutationObserver('),
+        lessThan(html.indexOf("s('hello',id);\n})();")),
+      );
+    });
+
     test('us03/fr04/e03: posts hello again with the same document id on a '
         'pageshow that restores the document from the back-forward '
         'cache', () {

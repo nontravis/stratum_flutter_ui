@@ -58,9 +58,10 @@ String injectBridgeBootstrap(String html, String nonce) {
 /// wrapper that sends each message as an envelope carrying [nonce] (see
 /// [nativeBridgeEnvelopeTag]). It draws a document id of 16 random bytes in
 /// lowercase hex, posts `hello` with it to prove [nonce] for this document,
-/// `bye` on `pagehide`, and `hello` again on a `pageshow` that restores the
-/// document from the back-forward cache (E03, E10, E11). No envelope
-/// carries [token]. Without the platform object the bridge stays closed.
+/// `bye` on `pagehide` or once a page script replaces the document root in
+/// place, and `hello` again on a `pageshow` that restores the document from
+/// the back-forward cache (E03, E10, E11, E14). No envelope carries
+/// [token]. Without the platform object the bridge stays closed.
 ///
 /// Returns [html] with the script placed by [placeBridgeBootstrap].
 String injectNativeBridgeBootstrap(
@@ -88,6 +89,12 @@ String injectNativeBridgeBootstrap(
       "s('bye',id);},true);\n"
       "window.addEventListener('pageshow',function(v){\n"
       "if(v.persisted)s('hello',id);},true);\n"
+      'var doc=document,root=doc.documentElement,\n'
+      'parentOf=Function.prototype.call.bind(\n'
+      "Object.getOwnPropertyDescriptor(Node.prototype,'parentNode').get);\n"
+      'new MutationObserver(function(){\n'
+      "if(parentOf(root)!==doc)s('bye',id);})\n"
+      '.observe(doc,{childList:true});\n'
       "s('hello',id);\n"
       '})();</script>';
   return placeBridgeBootstrap(html, script);

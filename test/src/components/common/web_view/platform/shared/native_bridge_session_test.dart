@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
@@ -493,6 +496,50 @@ void main() {
           reason: '$result',
         );
       }
+    });
+  });
+
+  group('dispatchScriptAnswer', () {
+    test('us03/fr02/e03: passes the dispatch script answer through', () async {
+      expect(await dispatchScriptAnswer(Future<Object>.value(true)), isTrue);
+      expect(await dispatchScriptAnswer(Future<Object>.value(false)), isFalse);
+    });
+
+    test('us03/fr02/e12: no answer within 5 seconds counts as none', () {
+      fakeAsync((async) {
+        Object? answer = 'pending';
+        unawaited(
+          dispatchScriptAnswer(Completer<Object>().future)
+              .then((value) => answer = value),
+        );
+        async.elapse(const Duration(milliseconds: 4999));
+        expect(answer, 'pending');
+        async.elapse(const Duration(milliseconds: 1));
+        expect(answer, isNull);
+      });
+    });
+
+    test('us03/fr02/e12: a platform error, or the null result a platform '
+        'rejects, counts as none', () async {
+      for (final error in <Object>[
+        PlatformException(code: 'evaluateJavaScript'),
+        ArgumentError('The JavaScript returned `null` or `undefined`.'),
+      ]) {
+        expect(
+          await dispatchScriptAnswer(Future<Object>.error(error)),
+          isNull,
+          reason: '$error',
+        );
+      }
+    });
+
+    test('us03/fr02/e12: any other error propagates unchanged', () async {
+      await expectLater(
+        dispatchScriptAnswer(
+          Future<Object>.error(MissingPluginException('no plugin')),
+        ),
+        throwsA(isA<MissingPluginException>()),
+      );
     });
   });
 
