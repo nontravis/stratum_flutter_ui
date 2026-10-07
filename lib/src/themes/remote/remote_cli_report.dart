@@ -18,7 +18,9 @@ String cliDefaultsLine({required String packageDefault, String? appDefault}) =>
 /// zip and theme text is already escaped (FR-03 E02); a `theme_format`
 /// failure gives one line per problem of its FO-01 report, with the
 /// source, the position, the escaped yaml path, the message, and the FO-01
-/// code (FR-03 E03).
+/// code (FR-03 E03). Relies on every FO-01 path, message, and source
+/// reaching `toString()` holding no line break: `escapeZipText` escapes
+/// them first (preflight D4).
 List<String> cliProblemLines(StratumRemoteThemeException error) {
   final report = error.formatException;
   if (report == null) return ['${error.code.key}: ${error.message}'];
@@ -56,12 +58,14 @@ List<String> cliWarnings(RemoteInstallCheck check) {
 
 /// Every pair of [names] that are equal when letter case is ignored (s03
 /// Twin names; plan D-h, case only), each pair once, in the order of
-/// [names]. Groups by the lower-case name, so a zip of many entries costs
-/// no pairwise compare.
+/// [names]. Groups by `name.toUpperCase().toLowerCase()`, so a zip of many
+/// entries costs no pairwise compare; this also catches `ſ`/`s`, `µ`/`μ`,
+/// `ς`/`σ`, and `ı`/`I` as twins, and over-warns on `ß`/`ss`, which is
+/// harmless for a warning — still case only, no NFC (D-h).
 List<(String, String)> twinNames(List<String> names) {
   final groups = <String, List<String>>{};
   for (final name in names) {
-    (groups[name.toLowerCase()] ??= []).add(name);
+    (groups[name.toUpperCase().toLowerCase()] ??= []).add(name);
   }
   return [
     for (final group in groups.values)

@@ -110,5 +110,69 @@ void main() {
       expect(twinNames(['A', 'B', 'a', 'b']), [('A', 'a'), ('B', 'b')]);
       expect(twinNames(['a', 'b']), isEmpty);
     });
+
+    test('sec f3 note: three case variants of one name give all three '
+        'pairs, in first-occurrence order', () {
+      expect(twinNames(['AB', 'Ab', 'ab']), [
+        ('AB', 'Ab'),
+        ('AB', 'ab'),
+        ('Ab', 'ab'),
+      ]);
+    });
+
+    test('sec f2: a long s and a plain s are twins', () {
+      expect(twinNames(['ſ', 's']), [('ſ', 's')]);
+    });
+
+    test('edge: Theme.yaml beside theme.yaml is both an unnamed file and '
+        'a twin', () async {
+      final check = await _check(
+        remoteTheme(
+          'brand',
+          files: {
+            'Theme.yaml': [1],
+          },
+        ),
+      );
+
+      const notNamed = 'is in the zip, but the theme file does not name it';
+      expect(cliWarnings(check), [
+        'warning: "Theme.yaml" $notNamed',
+        'warning: "Theme.yaml" and "theme.yaml" differ only in letter case',
+      ]);
+    });
+
+    test('d4, sec f4: hostile zip-supplied names and yaml text reach the '
+        'CLI escaped', () async {
+      final check = await _check(
+        remoteTheme(
+          'brand',
+          files: {
+            'a\x1b[2J\nb.svg': [1],
+            'A\x1b[2J\nB.svg': [2],
+          },
+        ),
+      );
+      for (final line in cliWarnings(check)) {
+        expect(line.codeUnits.every((u) => u >= 0x20 && u <= 0x7E), isTrue);
+      }
+
+      try {
+        await _check(
+          remoteTheme(
+            'brand',
+            body: 'space:\n  "a\\e[2J\\nforged: x [unknown_key]": 1\n  b: 2',
+          ),
+        );
+        fail('the zip passed');
+      } on StratumRemoteThemeException catch (error) {
+        final lines = cliProblemLines(error);
+
+        expect(lines, hasLength(error.formatException!.errors.length));
+        for (final line in lines) {
+          expect(line.codeUnits.every((u) => u >= 0x20 && u <= 0x7E), isTrue);
+        }
+      }
+    });
   });
 }
