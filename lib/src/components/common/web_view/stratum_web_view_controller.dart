@@ -119,14 +119,18 @@ final class StratumWebViewController {
   /// Sends [data] to the page as a `message` event.
   ///
   /// Throws a [StateError] when `StratumWebView.allowedOrigins` is empty,
-  /// when the current page is not an allowed destination, or when HTML the
-  /// controller loaded has not connected the bridge yet: wait for a first
-  /// message from the page, so `await loadHtml(html)` followed at once by
-  /// `postMessage` throws. On native the page itself checks that it may
-  /// receive the message, or that check gives no answer within five
-  /// seconds; either way the error names no origin. On web, a message sent
-  /// to HTML content after the user navigated away from it is dropped
-  /// without an error: the browser gives no signal that the page left.
+  /// when the current page is not an allowed destination, on Android when
+  /// the system WebView has no `WEB_MESSAGE_LISTENER` or
+  /// `JS_INJECTION_IN_FRAME_AND_WORLD` support, or when HTML the controller
+  /// loaded has not connected the bridge yet: wait for a first message from
+  /// the page, so `await loadHtml(html)` followed at once by `postMessage`
+  /// throws. On native the page itself checks that it may receive the
+  /// message, or that check gives no answer within five seconds; either way
+  /// the error names no origin. On Android a send to HTML reaches only the
+  /// document that connected the bridge; once that document leaves, the
+  /// next one gets nothing and the send throws. On web, a message sent to
+  /// HTML content after the user navigated away from it is dropped without
+  /// an error: the browser gives no signal that the page left.
   Future<void> postMessage(String data) async {
     _ensureActive();
     if (_configuration.allowedOrigins.isEmpty) {

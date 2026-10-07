@@ -285,3 +285,10 @@ scroll it, guarded so a text field inside keeps its own keys.
   runs: a `postMessage` before that throws `StateError` on every platform, so wait for the page's first message
   instead of sending right after `loadHtml`. On iOS and macOS a `reload()` of your HTML shows an empty page and the
   bridge stays closed until the next `loadHtml`.
+  Native code: the package ships Android (Kotlin, AndroidX WebKit) and iOS and macOS (Swift) code that names the
+  sender of each page message, so only the top-level page's messages pass, even one sent before `onPageStarted`; an
+  app needs no setup of its own. On Android a system WebView without `WEB_MESSAGE_LISTENER` or
+  `JS_INJECTION_IN_FRAME_AND_WORLD` keeps the bridge off, and every `postMessage` throws `StateError`. On Android a
+  send to your HTML reaches only the document that connected the bridge; once that document leaves, the next one
+  gets nothing and the send throws `StateError`. On Windows and Linux every frame of an allowed page can send,
+  credited to the page of the last `onPageStarted`.
