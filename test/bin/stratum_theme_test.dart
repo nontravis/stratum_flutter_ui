@@ -625,6 +625,22 @@ void main() {
       });
     }
 
+    test('us02/fr03/e09, fix-a minor3: a pubspec.yaml holding a yaml syntax '
+        'error names the line and column', () async {
+      _folder('assets/themes/default', {'theme.yaml': _schema});
+      File(p.join(_app.path, 'pubspec.yaml')).writeAsStringSync('a: 1\nb: [\n');
+      _zip('brand.zip', _theme());
+
+      final run = await _run(['check', 'brand.zip']);
+
+      expect(run.code, exitNoInput);
+      expect(run.out, isEmpty);
+      expect(
+        run.err.last,
+        'cannot read "pubspec.yaml":3:1: Expected node content.',
+      );
+    });
+
     for (final (label, body) in [
       ('a malformed percent escape in a tag', 'x: !<%ZZ> y'),
       ('a percent escape that decodes to invalid utf-8', 'x: !<%FF> y'),

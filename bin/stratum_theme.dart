@@ -388,7 +388,9 @@ final class _Run {
     try {
       pubspec = loadYamlText(_readText(path, 'pubspec.yaml')).value;
     } on YamlTextFailure catch (failure) {
-      throw _NoInput('cannot read "pubspec.yaml": ${failure.message}');
+      final at = failure.at;
+      final position = at == null ? '' : ':${at.line}:${at.column}';
+      throw _NoInput('cannot read "pubspec.yaml"$position: ${failure.message}');
     }
     final Object? flutter = pubspec is Map ? pubspec['flutter'] : null;
     final Object? assets = flutter is Map ? flutter['assets'] : null;
