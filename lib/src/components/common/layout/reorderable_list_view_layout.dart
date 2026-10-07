@@ -1003,16 +1003,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // A drag, or a drop still settling, ends first, as a call ends it
     // (invariant 28): the move changes the data under it.
     _cancelDrag();
-    if (intent == _MoveIntent.start || intent == _MoveIntent.end) {
-      _jumpTowards(item, position, toStart: intent == _MoveIntent.start);
-    }
-    _endExitsBeside(index);
-    _bookReportedMove(from, target);
-    final moved = _readyStep(intent, from, target, node, _lookAt(index)?.key);
-    _moveTargets.add(moved);
-    _layout.onReorderItem(from.value, target.value);
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _afterMove(moved, byKey: true),
+    _reportMove(
+      index,
+      from,
+      target,
+      intent: intent,
+      node: node,
+      edgeJump: intent == _MoveIntent.start || intent == _MoveIntent.end,
+      byKey: true,
     );
     return KeyEventResult.handled;
   }
@@ -1050,8 +1048,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// is decoded into its intent and takes the reorder keys' target (R4),
   /// so it acts at once, also between a call and its frame (FR-03 E07),
   /// and ends a drag or a settling drop first, as a call does (FR-03 E08).
-  /// The start and end actions jump there first when that slot is not
-  /// built, so the moved item keeps its State; a step action that a
+  /// The start and end actions, once reported, jump there when that slot
+  /// is not built, so the moved item keeps its State; a step action that a
   /// same-turn call shifts onto the data's first or last slot takes D1's
   /// near and far paths instead (R12 inputs), not this exact jump.
   void _handleReorderItem(int fromIndex, int toIndex) {
@@ -1065,31 +1063,50 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final target = intent == null ? _dataIndexOf(to) : _targetOf(from, intent);
     if (target == null) return;
     if (!drop) _cancelDrag();
-    final item = _nodeAt(index)?.context;
-    final position = item == null ? null : Scrollable.maybeOf(item)?.position;
-    const start = _DataIndex(0);
     // A drop reports no intent at all (null), and a drop's own edge jump
     // stays untouched (D2); only a step intent (previous or next) is the
     // one R12 inputs routes through the near and far paths instead.
     final edgeAction =
         intent != _MoveIntent.previous && intent != _MoveIntent.next;
-    final edge = edgeAction && (target == start || target == _dataEnd - 1);
-    if (item != null && position != null && edge && _nodeAt(to) == null) {
-      _jumpTowards(item, position, toStart: target == start);
-    }
-    _endExitsBeside(index);
-    _bookReportedMove(from, target);
-    final moved = _readyStep(
-      intent,
+    final edge =
+        edgeAction && (target == const _DataIndex(0) || target == _dataEnd - 1);
+    _reportMove(
+      index,
       from,
       target,
-      _nodeAt(index),
-      _lookAt(index)?.key,
+      intent: intent,
+      node: _nodeAt(index),
+      edgeJump: edge && _nodeAt(to) == null,
+      byKey: false,
     );
+  }
+
+  /// Books the move of the item the last build drew at [index], whose key
+  /// node is [node], from [from] to [to] of the current data, registers its
+  /// target, reports it through `onReorderItem`, and only then makes its
+  /// call-turn jump ([_readySlot]): that jump's scroll notifications reach
+  /// an app listener at once, so a call the listener makes moves the
+  /// target and sees the data after the move. With [edgeJump] the jump
+  /// goes to the edge [to] lies at.
+  void _reportMove(
+    _FrameIndex index,
+    _DataIndex from,
+    _DataIndex to, {
+    required _MoveIntent? intent,
+    required FocusNode? node,
+    required bool edgeJump,
+    required bool byKey,
+  }) {
+    final key = _lookAt(index)?.key;
+    _endExitsBeside(index);
+    _bookReportedMove(from, to);
+    final moved = _targetFor(intent, from, to, node, key);
     _moveTargets.add(moved);
-    _layout.onReorderItem(from.value, target.value);
+    _layout.onReorderItem(from.value, to.value);
+    final toStart = to == const _DataIndex(0);
+    _readySlot(moved, node, edgeJump: edgeJump, toStart: toStart);
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _afterMove(moved, byKey: false),
+      (_) => _afterMove(moved, byKey: byKey),
     );
   }
 
@@ -1124,11 +1141,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The record the frame after a key or screen-reader move reads, for a
   /// move booked from [from] to [to] of the current data. A one-slot move,
   /// [intent] previous or next, of an item that holds focus, whose key
-  /// node is [node], readies its slot as a move call does
-  /// ([_buildAheadOrJump], FR-03 E09), and keeps the item's [key], the gap
-  /// it left, and the offset before any jump, for the reach should the
-  /// frame still not build that slot ([_reachStep]).
-  _MoveTarget _readyStep(
+  /// node is [node], keeps the item's [key] and the gap it left, for the
+  /// reach should the frame still not build its slot ([_reachStep]).
+  _MoveTarget _targetFor(
     _MoveIntent? intent,
     _DataIndex from,
     _DataIndex to,
@@ -1139,14 +1154,33 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (!step || node == null || key == null || !node.hasFocus) {
       return _MoveTarget(to);
     }
-    final origin = _buildAheadOrJump(to, node);
-    return _MoveTarget(
-      to,
-      key: key,
-      // The slot the item left, by the index of the item now after it.
-      gap: from < to ? from : from + 1,
-      origin: origin,
-    );
+    // The slot the item left, by the index of the item now after it.
+    return _MoveTarget(to, key: key, gap: from < to ? from : from + 1);
+  }
+
+  /// Makes the call-turn jump of the reported move [moved], whose item's
+  /// key node is [node], at the index the calls so far left its target at:
+  /// a focused one-slot move readies its slot as a move call does
+  /// ([_buildAheadOrJump], FR-03 E09) and keeps the offset before any jump
+  /// on [moved]; else, with [edgeJump], the list jumps to the start when
+  /// [toStart], else to the end, so the moved item keeps its State (FR-03
+  /// E02). A target a call took out readies nothing.
+  void _readySlot(
+    _MoveTarget moved,
+    FocusNode? node, {
+    required bool edgeJump,
+    required bool toStart,
+  }) {
+    final at = moved.index;
+    final item = node?.context;
+    if (at == null || node == null || item == null) return;
+    if (moved.key != null) {
+      moved.origin = _buildAheadOrJump(at, node);
+      return;
+    }
+    final position = Scrollable.maybeOf(item)?.position;
+    if (!edgeJump || position == null) return;
+    _jumpTowards(item, position, toStart: toStart);
   }
 
   /// Ends at once the removed items drawn in the slot of the built item at
@@ -1290,7 +1324,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// The frame did not build the slot a focused one-slot move readied
-  /// ([_readyStep]), now [at]: the estimate missed, so the list reaches the
+  /// ([_readySlot]), now [at]: the estimate missed, so the list reaches the
   /// slot as a move call's follow does, with the gap the item left (FR-03
   /// E09, FR-05 E04), unless a node holds primary focus, which the app
   /// moved there in the move's turn (R13).
@@ -2461,7 +2495,7 @@ enum _MoveIntent { start, previous, next, end }
 /// put its item at, moved by each later call until the frame after the
 /// move reads it; null once a call takes the item out.
 class _MoveTarget {
-  new(this.index, {this.key, this.gap, this.origin});
+  new(this.index, {this.key, this.gap});
 
   _DataIndex? index;
 
@@ -2475,8 +2509,9 @@ class _MoveTarget {
   _DataIndex? gap;
 
   /// For a focused one-slot move that jumped in its turn: the offset before
-  /// the jump, where a reach that gives up returns (R5).
-  final ({ScrollPosition position, double pixels})? origin;
+  /// the jump, where a reach that gives up returns (R5). Set by the jump,
+  /// which runs once the move is reported.
+  ({ScrollPosition position, double pixels})? origin;
 }
 
 /// The list's scroll view: a [CustomScrollView] whose viewport alone

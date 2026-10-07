@@ -6415,6 +6415,137 @@ void main() {
     );
   });
 
+  group('ReorderableListViewLayout key and screen-reader moves and an app '
+      'scroll listener', () {
+    // The app's listener on the list's scroll position inserts item 900 at
+    // index 0, through the controller and its data, on the first
+    // notification it gets: the one the move's call-turn jump sends.
+    void insertOnFirstScroll(WidgetTester tester, ScrollPosition position) {
+      final harness = _harness(tester);
+      var inserted = false;
+      position.addListener(() {
+        if (inserted) return;
+        inserted = true;
+        harness.insert(0, 900);
+      });
+    }
+
+    // 200 px items with no cache extent: the sliver lays out 19 to 21 at
+    // 4000 px, and one slot plus the margin, 400 px, exceeds the 300 px
+    // viewport, so a one-slot move of item 21 down jumps in its turn.
+    Future<ScrollPosition> pumpTall(WidgetTester tester) async {
+      final position = await _pumpScrolled(
+        tester,
+        _Harness(
+          count: 200,
+          itemsController: StratumReorderableItemsController(),
+          scrollCacheExtent: const ScrollCacheExtent.pixels(0),
+          heights: {for (var id = 0; id < 200; id++) id: 200},
+        ),
+      );
+      expect(_laidOut(tester), (first: 19, last: 21, count: 3));
+      return position;
+    }
+
+    testWidgets(
+      'us11/fr03/e02: an app insert from the scroll listener of the jump of '
+      'Alt+Home lands the moved item right after the inserted one, with its '
+      'State and focus',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+        insertOnFirstScroll(tester, position);
+
+        await _altNow(tester, LogicalKeyboardKey.home);
+        await tester.pumpAndSettle();
+
+        expect(_harness(tester).ids.take(3), [900, 100, 0]);
+        expect(_statesOf(tester, 100), contains(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e02: an app insert from the scroll listener of the jump of '
+      'a "Move to the start" action lands the moved item right after the '
+      'inserted one, with its State and focus',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+        insertOnFirstScroll(tester, position);
+
+        await _moveAction(tester, 100, 'Move to the start');
+
+        expect(_harness(tester).ids.take(3), [900, 100, 0]);
+        expect(_statesOf(tester, 100), contains(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 100), isTrue);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e09, s03/inv35: an app insert from the scroll listener of '
+      'the far jump of Alt+Down lands the moved item right after the item it '
+      'passed, with its State and focus',
+      (tester) async {
+        final position = await pumpTall(tester);
+        final state = _itemState(tester, 21);
+        final focused = await _focusItem(tester, 21);
+        insertOnFirstScroll(tester, position);
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+
+        final ids = _harness(tester).ids;
+        expect(ids.first, 900);
+        expect(ids.sublist(22, 25), [22, 21, 23]);
+        expect(_statesOf(tester, 21), contains(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 21), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e09, s03/inv35: an app insert from the scroll listener of '
+      'the far jump of a "Move down" action lands the moved item right after '
+      'the item it passed, with its State and focus',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final position = await pumpTall(tester);
+        final state = _itemState(tester, 21);
+        final focused = await _focusItem(tester, 21);
+        insertOnFirstScroll(tester, position);
+
+        await _moveAction(tester, 21, 'Move down');
+
+        final ids = _harness(tester).ids;
+        expect(ids.first, 900);
+        expect(ids.sublist(22, 25), [22, 21, 23]);
+        expect(_statesOf(tester, 21), contains(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 21), isTrue);
+        handle.dispose();
+      },
+    );
+  });
+
   group('ReorderableListViewLayout build-ahead and kept-alive items', () {
     // Item 50 keeps itself alive: shown once at 2000 px, it stays mounted
     // after the list scrolls to 4000 px, outside the sliver's child list.
