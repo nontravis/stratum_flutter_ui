@@ -23,19 +23,38 @@ const _settle = Duration(seconds: 2);
 /// The URL tab prints a failed load as `<type>: <description>`.
 final _errorLine = RegExp(r'^(network|http): ');
 
-/// Walks the web view demo on every target (group A) and, on native
-/// targets, drives StratumWebView against a local page server (group B).
-/// F-01 US-08 FR-01 of `example/docs/`.
+/// Walks the web view demo on every target (group A), with the `URL` tab
+/// pointed at a local page server on Android, iOS, and macOS, and, on those
+/// same native targets, drives StratumWebView against that server directly
+/// (group B). F-01 US-08 FR-01 of `example/docs/`.
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized()
     ..framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+  // Starts before group A on Android, iOS, and macOS, so the URL tab never
+  // reaches a public test service (FR-01 E02); group B, native only, reuses
+  // this same server instead of starting a second one. On the web, where
+  // there is no dart:io, this never runs and group A keeps
+  // https://flutter.dev.
+  late _PageServer server;
+
+  setUpAll(() async {
+    if (!kIsWeb) server = await _PageServer.start();
+  });
+  tearDownAll(() {
+    if (!kIsWeb) server.close();
+  });
 
   group('group A, the demo tabs', () {
     testWidgets(
       'us08/s1, us08/s8, us08/fr01, us08/fr01/e06: the URL, HTML, and '
       'Bridge tabs show their content',
       (tester) async {
-        await tester.pumpWidget(const StratumWebViewExampleApp());
+        await tester.pumpWidget(
+          StratumWebViewExampleApp(
+            urlAddress: kIsWeb ? null : server.page('/ok'),
+          ),
+        );
 
         // The URL tab shows a spinner from onPageStarted to onPageFinished,
         // and an error line from onError. On the web the page starts at
@@ -61,12 +80,12 @@ void main() {
         expect(
           started,
           isTrue,
-          reason: 'the URL tab never started loading https://flutter.dev',
+          reason: 'the URL tab never started loading its address',
         );
         expect(
           loaded,
           isTrue,
-          reason: 'the URL tab never finished loading https://flutter.dev',
+          reason: 'the URL tab never finished loading its address',
         );
         expect(find.textContaining(_errorLine), findsNothing);
         expect(find.byType(StratumWebView), findsOneWidget);
@@ -93,11 +112,6 @@ void main() {
 
   group('us08/s7, us08/fr01/e01, us08/fr01/e02, us08/fr01/e03, '
       'us08/fr01/e05: group B, native only', () {
-    late _PageServer server;
-
-    setUpAll(() async => server = await _PageServer.start());
-    tearDownAll(() => server.close());
-
     testWidgets(
       'us08/s2, us08/fr01: a 200 page starts and finishes with no error',
       (tester) async {
