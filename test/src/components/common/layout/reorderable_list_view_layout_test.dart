@@ -6454,6 +6454,45 @@ void main() {
     );
 
     testWidgets(
+      'us11/fr05/e11: a far move of a second item the app focuses in the '
+      "same turn as a first item's far move keeps the second item's own "
+      "jump, not the first's offset",
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        await _focusItem(tester, 100);
+        final otherState = _itemState(tester, 101);
+        final other = otherState.node;
+
+        // Both far moves run before any frame: the first (item 100) queues
+        // its own origin, 4000; the app then focuses item 101 and moves it
+        // far too, queuing an origin that is already item 100's jumped
+        // offset, not 4000.
+        _harness(tester).move(100, 150);
+        other.requestFocus();
+        // The app's own focus change lands in the focus tree before the
+        // next moveItem call reads hasFocus, as it would after a real
+        // frame's focus-change pass.
+        FocusManager.instance.applyFocusChangesIfNeeded();
+        _harness(tester).move(_harness(tester).ids.indexOf(101), 160);
+        await tester.pump();
+
+        // Item 101's own jump stays: the frame never reverts to item 100's
+        // origin of 4000, which would scroll item 101 back off screen.
+        expect(position.pixels, isNot(4000));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(other));
+        expect(_statesOf(tester, 101), contains(otherState));
+        expect(_builtInView(tester, 101), isTrue);
+      },
+    );
+
+    testWidgets(
       'us11/fr03/e09: a focus the app moves in the turn of Alt+Down to a '
       'near unbuilt slot stays, and the moved item does not build ahead',
       (tester) async {

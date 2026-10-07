@@ -1601,22 +1601,23 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// At the start of the frame after far moves, before its build and its
-  /// layout: a moved item that no longer holds focus, since the app moved
-  /// focus to another node in the move's turn, counts as unfocused, so the
-  /// list returns to the offset it held before the call-turn jump, and the
-  /// frame lays out the app's focused node where the app left it (R13).
-  /// The first jump's offset is the one before them all.
+  /// layout: when none of the moved items still holds focus, since the app
+  /// moved focus off every one of them in the move's turn, the list returns
+  /// to the offset it held before the first jump (R13). When one does, that
+  /// item's own jump already left the list where it belongs, and every
+  /// older jump's offset is subsumed by it, so the list stays put.
   void _readFarJumps() {
     final jumps = [..._farJumps];
     _farJumps.clear();
     if (!mounted) return;
     for (final jump in jumps.reversed) {
-      if (jump.node.hasFocus) continue;
-      final live = _livePositionOf(jump.origin.position);
-      live?.jumpTo(
-        jump.origin.pixels.clamp(live.minScrollExtent, live.maxScrollExtent),
-      );
+      if (jump.node.hasFocus) return;
     }
+    final origin = jumps.first.origin;
+    final live = _livePositionOf(origin.position);
+    live?.jumpTo(
+      origin.pixels.clamp(live.minScrollExtent, live.maxScrollExtent),
+    );
   }
 
   /// The cache extent past the layout's own that builds [slot] in the next
