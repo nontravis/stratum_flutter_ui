@@ -16,3 +16,4 @@
   `StratumDimension.parse` now escape non-ASCII text taken from the zip or the yaml. A test asserting on one of these
   messages with raw non-ASCII characters needs the escaped form instead.
 - `copyWith` is now generated on all fifteen theme models, and `StratumNamedCurve.names` lists every curve name.
+- Fixed: a theme yaml with a malformed tag %-escape now reports a yaml syntax error instead of throwing.

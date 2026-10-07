@@ -1,5 +1,5 @@
-import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/load_yaml_text.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/config/schema_version.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
@@ -23,32 +23,14 @@ List<YamlMap> loadThemes(List<StratumThemeSource> sources, ThemeErrors errors) {
 YamlMap? _load(String yaml, int source, ThemeErrors errors) {
   final YamlNode root;
   try {
-    root = loadYamlNode(yaml);
-  } on YamlException catch (error) {
-    final start = error.span?.start;
+    root = loadYamlText(yaml);
+  } on YamlTextFailure catch (failure) {
     errors.add(
       StratumThemeErrorCode.yamlSyntax,
       '',
-      escapeZipText(error.message),
+      failure.message,
       source: source,
-      at: start == null
-          ? null
-          : (line: start.line + 1, column: start.column + 1),
-    );
-    return null;
-  }
-  // package:yaml's leaky ArgumentError below is untrusted-input text, not a
-  // programming bug; see the WORKAROUND on the next line.
-  // ignore: avoid_catching_errors
-  on ArgumentError {
-    // WORKAROUND: package:yaml throws ArgumentError, not YamlException, for a
-    // malformed %-escape in a tag; remove once package:yaml reports it as
-    // YamlException.
-    errors.add(
-      StratumThemeErrorCode.yamlSyntax,
-      '',
-      'invalid percent escape in a tag',
-      source: source,
+      at: failure.at,
     );
     return null;
   }

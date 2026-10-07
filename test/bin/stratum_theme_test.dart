@@ -602,6 +602,56 @@ void main() {
       });
     }
 
+    for (final (label, body) in [
+      ('a malformed percent escape in a tag', 'x: !<%ZZ> y'),
+      ('a percent escape that decodes to invalid utf-8', 'x: !<%FF> y'),
+    ]) {
+      test('sec f1, us02/fr03/e09: a pubspec.yaml holding $label exits 66, '
+          'not an unhandled exception', () async {
+        _folder('assets/themes/default', {'theme.yaml': _schema});
+        File(p.join(_app.path, 'pubspec.yaml')).writeAsStringSync(body);
+        _zip('brand.zip', _theme());
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+        expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
+        expect(run.err, isNot(contains(contains('Unhandled exception'))));
+      });
+    }
+
+    test('sec f1, us02/fr03/e09: a pubspec.yaml whose tag forges a control '
+        'sequence exits 66 with printable-only stderr', () async {
+      _folder('assets/themes/default', {'theme.yaml': _schema});
+      File(p.join(_app.path, 'pubspec.yaml'))
+          .writeAsStringSync('x: !!foo%1B%5D0%3Bpwned%07 y');
+      _zip('brand.zip', _theme());
+
+      final run = await _run(['check', 'brand.zip']);
+
+      expect(run.code, exitNoInput);
+      expect(run.out, isEmpty);
+      expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
+      for (final line in run.err) {
+        expect(line, matches(_printable));
+      }
+    });
+
+    test('sec f3, us02/fr03/e09: a pubspec.yaml that is a dangling symbolic '
+        'link exits 66 when the project holds its own default theme', () async {
+      _folder('assets/themes/default', {'theme.yaml': _schema});
+      Link(p.join(_app.path, 'pubspec.yaml'))
+          .createSync(p.join(_app.path, 'nowhere.yaml'));
+      _zip('brand.zip', _theme());
+
+      final run = await _run(['check', 'brand.zip']);
+
+      expect(run.code, exitNoInput);
+      expect(run.out, isEmpty);
+      expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
+    });
+
     test('r13: a project with no default theme never reads its '
         'pubspec.yaml', () async {
       File(p.join(_app.path, 'pubspec.yaml')).writeAsStringSync('flutter: [\n');

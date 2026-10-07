@@ -96,5 +96,14 @@ void main() {
       expect(error.code, StratumThemeErrorCode.yamlSyntax);
       expect(error.message, 'invalid percent escape in a tag');
     });
+
+    test('sec f1, us02/fr03/e09: a percent escape that decodes to invalid '
+        'utf-8 in a tag is one yaml_syntax error, not a thrown '
+        'FormatException', () {
+      final error = _report('name: !<%FF> x').errors.single;
+
+      expect(error.code, StratumThemeErrorCode.yamlSyntax);
+      expect(error.message, isNot(contains('Unhandled')));
+    });
   });
 }

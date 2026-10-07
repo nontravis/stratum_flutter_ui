@@ -14,6 +14,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
+import 'package:stratum_ui/src/themes/config/pipeline/load_yaml_text.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/parse_values.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
 import 'package:stratum_ui/src/themes/remote/generated/google_font_names.g.dart';
@@ -23,7 +24,6 @@ import 'package:stratum_ui/src/themes/remote/remote_install_check.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 import 'package:stratum_ui/src/themes/remote/remote_zip_writer.dart';
-import 'package:yaml/yaml.dart';
 
 /// The run passed.
 const exitPass = 0;
@@ -379,15 +379,16 @@ final class _Run {
   /// regular file, cannot be read, or is not yaml (FR-03 E09).
   bool _listsAppDefault() {
     final path = p.join(_cwd, 'pubspec.yaml');
-    if (FileSystemEntity.typeSync(path) == FileSystemEntityType.notFound) {
+    if (FileSystemEntity.typeSync(path, followLinks: false) ==
+        FileSystemEntityType.notFound) {
       return false;
     }
     _requireRegularFile(path, 'pubspec.yaml');
     final Object? pubspec;
     try {
-      pubspec = loadYaml(_readText(path, 'pubspec.yaml'));
-    } on YamlException catch (error) {
-      throw _NoInput('cannot read "pubspec.yaml": ${error.message}');
+      pubspec = loadYamlText(_readText(path, 'pubspec.yaml')).value;
+    } on YamlTextFailure catch (failure) {
+      throw _NoInput('cannot read "pubspec.yaml": ${failure.message}');
     }
     final Object? flutter = pubspec is Map ? pubspec['flutter'] : null;
     final Object? assets = flutter is Map ? flutter['assets'] : null;
