@@ -6448,7 +6448,7 @@ void main() {
     }
 
     testWidgets(
-      'us11/fr03/e02: an app insert from the scroll listener of the jump of '
+      'us11/fr03/e10: an app insert from the scroll listener of the jump of '
       'Alt+Home lands the moved item right after the inserted one, with its '
       'State and focus',
       (tester) async {
@@ -6474,7 +6474,7 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr03/e02: an app insert from the scroll listener of the jump of '
+      'us11/fr03/e10: an app insert from the scroll listener of the jump of '
       'a "Move to the start" action lands the moved item right after the '
       'inserted one, with its State and focus',
       (tester) async {
@@ -6501,8 +6501,8 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr03/e09, s03/inv35: an app insert from the scroll listener of '
-      'the far jump of Alt+Down lands the moved item right after the item it '
+      'us11/fr03/e10: an app insert from the scroll listener of the far '
+      'jump of Alt+Down lands the moved item right after the item it '
       'passed, with its State and focus',
       (tester) async {
         final position = await pumpTall(tester);
@@ -6523,8 +6523,8 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr03/e09, s03/inv35: an app insert from the scroll listener of '
-      'the far jump of a "Move down" action lands the moved item right after '
+      'us11/fr03/e10: an app insert from the scroll listener of the far '
+      'jump of a "Move down" action lands the moved item right after '
       'the item it passed, with its State and focus',
       (tester) async {
         final handle = tester.ensureSemantics();
@@ -6542,6 +6542,31 @@ void main() {
         expect(FocusManager.instance.primaryFocus, same(focused));
         expect(_builtInView(tester, 21), isTrue);
         handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e02: an app that takes the moved item out of the data and '
+      'the controller from onReorderItem of Alt+End makes no call-turn '
+      'jump and throws nothing after the frame',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        await _focusItem(tester, 100);
+        final harness = _harness(tester)
+          ..onMove = (_, to) => _harness(tester).remove(to);
+
+        await _altNow(tester, LogicalKeyboardKey.end);
+
+        expect(position.pixels, 4000);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(harness.ids.contains(100), isFalse);
       },
     );
   });
