@@ -6394,4 +6394,158 @@ void main() {
       },
     );
   });
+
+  group('ReorderableListViewLayout build-ahead and a focus the app moves', () {
+    testWidgets(
+      'us11/fr05/e11: a focus the app moves in the turn of a near move '
+      'stays, and the moved item does not build ahead',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        final state = _itemState(tester, 100);
+        await _focusItem(tester, 100);
+        final other = _itemState(tester, 101).node;
+
+        _harness(tester).move(100, 114);
+        other.requestFocus();
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        // Counted as unfocused, item 100 keeps no State in slot 115.
+        expect(_laidOut(tester).last, lessThanOrEqualTo(113));
+        expect(_statesOf(tester, 100), isNot(contains(state)));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(other));
+        expect(_builtInView(tester, 101), isTrue);
+        expect(position.pixels, 4000);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e11: a focus the app moves in the turn of a far move stays, '
+      'and the list returns to the offset before the call-turn jump',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        await _focusItem(tester, 100);
+        final other = _itemState(tester, 101).node;
+
+        _harness(tester).move(100, 150);
+        other.requestFocus();
+        expect(position.pixels, isNot(4000));
+        await tester.pump();
+
+        expect(position.pixels, 4000);
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(other));
+        expect(_builtInView(tester, 101), isTrue);
+        expect(position.pixels, 4000);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e09: a focus the app moves in the turn of Alt+Down to a '
+      'near unbuilt slot stays, and the moved item does not build ahead',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 200),
+        );
+        final state = _itemState(tester, 113);
+        await _focusItem(tester, 113);
+        final other = _itemState(tester, 101).node;
+        _harness(tester).onMove = (_, _) => other.requestFocus();
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(_statesOf(tester, 113), isNot(contains(state)));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(other));
+        expect(_builtInView(tester, 101), isTrue);
+        expect(position.pixels, 4000);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e09: a focus the app moves in the turn of a far Alt+Down '
+      'stays, and the list returns to the offset before the jump in the turn '
+      'of the key',
+      (tester) async {
+        // 200 px items: the sliver lays out 18 to 22 at 4000 px, and one slot
+        // plus the margin exceeds the viewport, so Alt+Down on 22 jumps.
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            heights: {for (var id = 0; id < 200; id++) id: 200},
+          ),
+        );
+        await _focusItem(tester, 22);
+        final other = _itemState(tester, 20).node;
+        _harness(tester).onMove = (_, _) => other.requestFocus();
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        expect(position.pixels, isNot(4000));
+        await tester.pump();
+
+        expect(position.pixels, 4000);
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(other));
+        expect(_builtInView(tester, 20), isTrue);
+        expect(position.pixels, 4000);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e09: a focus the app moves in the turn of a screen-reader '
+      'move to a near unbuilt slot stays, and the moved item does not build '
+      'ahead',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        // With no cache extent the sliver lays out 100 to 107 at 4020 px.
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(
+            count: 200,
+            scrollCacheExtent: ScrollCacheExtent.pixels(0),
+          ),
+          offset: 4020,
+        );
+        final state = _itemState(tester, 107);
+        await _focusItem(tester, 107);
+        final other = _itemState(tester, 101).node;
+        _harness(tester).onMove = (_, _) => other.requestFocus();
+
+        final node = tester.getSemantics(find.byKey(const ValueKey(107)));
+        node.owner!.performAction(
+          node.id,
+          SemanticsAction.customAction,
+          CustomSemanticsAction.getIdentifier(
+            const CustomSemanticsAction(label: 'Move down'),
+          ),
+        );
+        expect(position.pixels, 4020);
+        await tester.pump();
+
+        expect(_statesOf(tester, 107), isNot(contains(state)));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(other));
+        expect(_builtInView(tester, 101), isTrue);
+        expect(position.pixels, 4020);
+        handle.dispose();
+      },
+    );
+  });
 }
