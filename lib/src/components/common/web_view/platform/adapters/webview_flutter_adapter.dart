@@ -103,9 +103,21 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   Future<void> postMessage(String data) async {
     await _ready;
     final script = _session.scriptForMessage(data);
-    _session.confirmDelivery(
-      await _controller.runJavaScriptReturningResult(script),
-    );
+    _session.confirmDelivery(await _answerOf(script));
+  }
+
+  /// Runs [script] and returns its answer, or `null` when the page gives
+  /// none within [dispatchScriptTimeout] or the platform fails while it
+  /// runs: the session then throws the unallowed-page `StateError`, so a
+  /// send never hangs on a page getter (US-03 FR-02 E12).
+  Future<Object?> _answerOf(String script) async {
+    try {
+      return await _controller
+          .runJavaScriptReturningResult(script)
+          .timeout(dispatchScriptTimeout);
+    } on Object {
+      return null;
+    }
   }
 
   @override

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
@@ -62,10 +64,12 @@ void main() {
   });
 
   group('messages from loaded HTML', () {
-    test('us03/fr04: a message with the current nonce reaches the app with '
-        'no origin and without its envelope', () {
+    test('us03/fr04: a message with the current nonce, once a hello proves '
+        'it, reaches the app with no origin and without its envelope', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
-      session.didStartPage('about:blank');
+      session
+        ..acceptMessage(envelope(nonce, 'hello', documentA))
+        ..didStartPage('about:blank');
       expect(
         session.acceptMessage(envelope(nonce, 'message', 'hi:there')),
         const StratumWebViewMessage(data: 'hi:there'),
@@ -75,7 +79,10 @@ void main() {
     test('us03/fr04/e01: page starts, finishes, and URL changes in any '
         'order neither grant nor end trust', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
-      // A message that beats the HTML's own page start (F1's order).
+      session.didStartPage('about:blank');
+      expect(session.acceptMessage(envelope(nonce, 'message', 'a')), isNull);
+      // A hello and a message that beat the HTML's own page start.
+      session.acceptMessage(envelope(nonce, 'hello', documentA));
       expect(session.acceptMessage(envelope(nonce, 'message', 'a')), isNotNull);
       session
         ..didStartPage('https://evil.example.net/')
@@ -109,27 +116,60 @@ void main() {
       final current = nonceIn(session.willLoadHtml('<p>Two</p>'));
       session
         ..didStartPage('about:blank')
-        // A link away, then the controller's goBack.
+        ..acceptMessage(envelope(current, 'hello', documentA))
+        // A link away, then the controller's goBack to a parsed-again
+        // document.
+        ..acceptMessage(envelope(current, 'bye', documentA))
         ..didStartPage('https://app.example.com/linked')
         ..willNavigate()
         ..didStartPage('about:blank');
+      expect(
+        session.acceptMessage(envelope(older, 'hello', documentB)),
+        isNull,
+      );
       expect(session.acceptMessage(envelope(older, 'message', 'x')), isNull);
+      session.acceptMessage(envelope(current, 'hello', documentB));
       expect(
         session.acceptMessage(envelope(current, 'message', 'x')),
         const StratumWebViewMessage(data: 'x'),
       );
     });
 
-    test('us03/fr04/e04: a reload keeps the nonce and the proof', () {
+    test('us03/fr04/e03: a document restored from the back-forward cache '
+        'proves the nonce again with the same document id', () {
       final html = session.willLoadHtml('<p>Hi</p>');
+      final nonce = nonceIn(html);
       session
-        ..acceptMessage(envelope(nonceIn(html), 'hello'))
+        ..acceptMessage(envelope(nonce, 'hello', documentA))
+        ..acceptMessage(envelope(nonce, 'bye', documentA))
+        ..acceptMessage(envelope(nonce, 'hello', documentA));
+      expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
+      expect(session.acceptMessage(envelope(nonce, 'message', 'x')), isNotNull);
+      session.acceptMessage(envelope(nonce, 'bye', documentA));
+      expect(session.scriptForMessage('ping'), isNot(contains(tokenIn(html))));
+    });
+
+    test("us03/fr04/e04: a reload keeps the nonce; the old document's bye "
+        "and the reloaded document's hello move the proof", () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      final nonce = nonceIn(html);
+      session
+        ..acceptMessage(envelope(nonce, 'hello', documentA))
         ..willReload()
+        ..acceptMessage(envelope(nonce, 'bye', documentA))
         ..didStartPage('about:blank');
+      // A send between that bye and that hello carries no token.
       expect(
-        session.acceptMessage(envelope(nonceIn(html), 'message', 'x')),
-        isNotNull,
+        session.scriptForMessage('ping'),
+        buildMessageDispatchScript(
+          'ping',
+          token: null,
+          allowedOrigins: allowed,
+        ),
       );
+      expect(session.acceptMessage(envelope(nonce, 'message', 'x')), isNull);
+      session.acceptMessage(envelope(nonce, 'hello', documentB));
+      expect(session.acceptMessage(envelope(nonce, 'message', 'x')), isNotNull);
       expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
     });
 
@@ -141,13 +181,13 @@ void main() {
         tag,
         '$tag$nonce',
         '$tag$nonce:',
-        '$tag$nonce:message',
-        '${tag}x$nonce:message:hi',
-        '$tag$nonce:ping:hi',
-        '$tag$nonce:hello:x',
-        '$tag${nonce.toUpperCase()}:hello:',
-        '$tag${'0' * 32}:hello:',
-        '$tag${nonce.substring(1)}:hello:',
+        '$tag$nonce:hello',
+        '${tag}x$nonce:hello:$documentA',
+        '$tag$nonce:ping:$documentA',
+        '$tag$nonce:Hello:$documentA',
+        '$tag${nonce.toUpperCase()}:hello:$documentA',
+        '$tag${'0' * 32}:hello:$documentA',
+        '$tag${nonce.substring(1)}:hello:$documentA',
       ]) {
         expect(session.acceptMessage(bad), isNull, reason: bad);
       }
@@ -156,6 +196,134 @@ void main() {
         throwsA(isA<StateError>()),
         reason: 'no envelope above may prove the nonce',
       );
+    });
+
+    test('us03/fr04: a hello or bye whose document id is not 32 lowercase '
+        'hex characters is dropped', () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      final nonce = nonceIn(html);
+      final badIds = [
+        '',
+        documentA.substring(1),
+        '${documentA}0',
+        documentA.toUpperCase(),
+        '${documentA.substring(1)}g',
+        '${documentA.substring(1)}\n',
+        '$documentA\n',
+        '$documentA:x',
+      ];
+      for (final id in badIds) {
+        expect(session.acceptMessage(envelope(nonce, 'hello', id)), isNull);
+        expect(
+          () => session.scriptForMessage('ping'),
+          throwsA(isA<StateError>()),
+          reason: 'hello ${jsonEncode(id)}',
+        );
+      }
+      session.acceptMessage(envelope(nonce, 'hello', documentA));
+      for (final id in badIds) {
+        expect(session.acceptMessage(envelope(nonce, 'bye', id)), isNull);
+        expect(
+          session.scriptForMessage('ping'),
+          contains(tokenIn(html)),
+          reason: 'bye ${jsonEncode(id)}',
+        );
+      }
+    });
+
+    test('us03/fr04: while minted, a message or a bye is dropped and only a '
+        'hello proves the nonce', () {
+      final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
+      expect(session.acceptMessage(envelope(nonce, 'message', 'x')), isNull);
+      expect(session.acceptMessage(envelope(nonce, 'bye', documentA)), isNull);
+      expect(
+        () => session.scriptForMessage('ping'),
+        throwsA(isA<StateError>()),
+      );
+      session.acceptMessage(envelope(nonce, 'hello', documentA));
+      expect(session.acceptMessage(envelope(nonce, 'message', 'x')), isNotNull);
+    });
+
+    test("us03/fr04/e10, us03/fr02/e04, us03/fr02/e10: the proving document's "
+        'bye revokes the proof: the token is withheld, sends run the '
+        'allowlist-only script, and messages drop', () {
+      final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
+      session
+        ..acceptMessage(envelope(nonce, 'hello', documentA))
+        ..acceptMessage(envelope(nonce, 'bye', documentA));
+      expect(
+        session.scriptForMessage('ping'),
+        buildMessageDispatchScript(
+          'ping',
+          token: null,
+          allowedOrigins: allowed,
+        ),
+      );
+      expect(session.acceptMessage(envelope(nonce, 'message', 'x')), isNull);
+    });
+
+    test('us03/fr04/e10: a hello with another document id replaces the id, '
+        "so an older document's late bye never ends the newer proof", () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      final nonce = nonceIn(html);
+      session
+        ..acceptMessage(envelope(nonce, 'hello', documentA))
+        ..acceptMessage(envelope(nonce, 'hello', documentB))
+        ..acceptMessage(envelope(nonce, 'bye', documentA));
+      expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
+      expect(session.acceptMessage(envelope(nonce, 'message', 'x')), isNotNull);
+      session.acceptMessage(envelope(nonce, 'bye', documentB));
+      expect(session.scriptForMessage('ping'), isNot(contains(tokenIn(html))));
+    });
+
+    test('us03/fr04/e10: while revoked, any bye changes nothing and a hello '
+        'with the current nonce proves it again', () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      final nonce = nonceIn(html);
+      session
+        ..acceptMessage(envelope(nonce, 'hello', documentA))
+        ..acceptMessage(envelope(nonce, 'bye', documentA))
+        ..acceptMessage(envelope(nonce, 'bye', documentA))
+        ..acceptMessage(envelope(nonce, 'bye', documentB));
+      expect(session.scriptForMessage('ping'), isNot(contains(tokenIn(html))));
+      session.acceptMessage(envelope(nonce, 'hello', documentB));
+      expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
+      expect(session.acceptMessage(envelope(nonce, 'message', 'x')), isNotNull);
+    });
+
+    test('us03/fr04/e10: a hello or a bye with the nonce of an older '
+        'loadHtml moves nothing', () {
+      final older = nonceIn(session.willLoadHtml('<p>One</p>'));
+      final current = session.willLoadHtml('<p>Two</p>');
+      session.acceptMessage(envelope(older, 'hello', documentA));
+      expect(
+        () => session.scriptForMessage('ping'),
+        throwsA(isA<StateError>()),
+      );
+      session
+        ..acceptMessage(envelope(nonceIn(current), 'hello', documentA))
+        ..acceptMessage(envelope(older, 'bye', documentA));
+      expect(session.scriptForMessage('ping'), contains(tokenIn(current)));
+    });
+
+    test('us03/fr04: a loadHtml from any proof state mints a new nonce, so '
+        'sends throw until its own hello', () {
+      for (final kinds in [
+        <String>[],
+        ['hello'],
+        ['hello', 'bye'],
+      ]) {
+        final older = nonceIn(session.willLoadHtml('<p>One</p>'));
+        for (final kind in kinds) {
+          session.acceptMessage(envelope(older, kind, documentA));
+        }
+        session.willLoadHtml('<p>Two</p>');
+        expect(
+          () => session.scriptForMessage('ping'),
+          throwsA(isA<StateError>()),
+          reason: '$kinds',
+        );
+      }
     });
 
     test('us03/fr04/e06, us03/fr01/e12: a tagged message is judged only by '
@@ -171,28 +339,42 @@ void main() {
         'start, and a URL change keep the proof', () {
       final html = session.willLoadHtml('<p>Hi</p>');
       session
-        ..acceptMessage(envelope(nonceIn(html), 'hello'))
+        ..acceptMessage(envelope(nonceIn(html), 'hello', documentA))
         ..didStartPage('about:blank')
         ..didStartPage('https://app.example.com/next')
         ..didChangeUrl(null);
       expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
     });
 
-    test('us03/fr04: loadUrl and dispose revoke the nonce and the token', () {
+    test('us03/fr04: loadUrl and dispose revoke the nonce and the token from '
+        'every proof state', () {
       for (final revoke in <void Function()>[
         session.willLoadUrl,
         session.willDispose,
       ]) {
-        final html = session.willLoadHtml('<p>Hi</p>');
-        session
-          ..acceptMessage(envelope(nonceIn(html), 'hello'))
-          ..didStartPage('about:blank');
-        revoke();
-        expect(
-          session.acceptMessage(envelope(nonceIn(html), 'message', 'x')),
-          isNull,
-        );
-        expect(session.scriptForMessage('ping'), isNot(contains('t===')));
+        for (final kinds in [
+          <String>[],
+          ['hello'],
+          ['hello', 'bye'],
+        ]) {
+          final html = session.willLoadHtml('<p>Hi</p>');
+          final nonce = nonceIn(html);
+          for (final kind in kinds) {
+            session.acceptMessage(envelope(nonce, kind, documentA));
+          }
+          revoke();
+          session.acceptMessage(envelope(nonce, 'hello', documentA));
+          expect(
+            session.acceptMessage(envelope(nonce, 'message', 'x')),
+            isNull,
+            reason: '$kinds',
+          );
+          expect(
+            session.scriptForMessage('ping'),
+            isNot(contains('t===')),
+            reason: '$kinds',
+          );
+        }
       }
     });
 
@@ -216,12 +398,7 @@ void main() {
         'text', () {
       final html = session.willLoadHtml('<p>Hi</p>');
       final secrets = [nonceIn(html), tokenIn(html)];
-      final message = session.acceptMessage(
-        envelope(nonceIn(html), 'message', 'x'),
-      )!;
       for (final secret in secrets) {
-        expect(message.data, isNot(contains(secret)));
-        expect('$message', isNot(contains(secret)));
         expect(
           () => session.scriptForMessage('ping'),
           throwsA(
@@ -233,10 +410,19 @@ void main() {
           ),
         );
       }
+      session.acceptMessage(envelope(nonceIn(html), 'hello', documentA));
+      final message = session.acceptMessage(
+        envelope(nonceIn(html), 'message', 'x'),
+      )!;
+      for (final secret in secrets) {
+        expect(message.data, isNot(contains(secret)));
+        expect('$message', isNot(contains(secret)));
+      }
     });
 
     test('Q9-OQ-A3: a message has no size limit', () {
       final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
+      session.acceptMessage(envelope(nonce, 'hello', documentA));
       final big = 'x' * (1 << 20);
       expect(session.acceptMessage(envelope(nonce, 'message', big))?.data, big);
     });
@@ -264,7 +450,7 @@ void main() {
     test('us03/fr02/e03: after the proof the script carries the outbound '
         'token and never the inbound nonce', () {
       final html = session.willLoadHtml('<p>Hi</p>');
-      session.acceptMessage(envelope(nonceIn(html), 'hello'));
+      session.acceptMessage(envelope(nonceIn(html), 'hello', documentA));
       final script = session.scriptForMessage('ping');
       expect(script, contains("t==='${tokenIn(html)}'"));
       expect(script, isNot(contains(nonceIn(html))));

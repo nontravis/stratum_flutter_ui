@@ -11,8 +11,16 @@ const String bridgeChannelName = 'StratumBridge';
 /// The most HTTP error candidates one session holds.
 const int _maxCandidates = 16;
 
+/// The longest a native `postMessage` waits for the dispatch script's
+/// answer; no answer in time counts as a refused send (US-03 FR-02 E12).
+const Duration dispatchScriptTimeout = Duration(seconds: 5);
+
 /// Length of a hex-encoded 16-byte secret.
 const int _secretLength = 32;
+
+/// The only document id shape a `hello` or `bye` may carry: 16 bytes in
+/// lowercase hex.
+final RegExp _documentIdShape = RegExp(r'^[0-9a-f]{32}$');
 
 /// Bridge and error rules shared by the native adapters.
 ///
@@ -27,16 +35,10 @@ final class NativeBridgeSession {
   final Set<Uri> Function() _allowedOrigins;
   Uri? _pageUrl;
 
-  /// The inbound nonce of the current `loadHtml`, or `null` when no HTML
-  /// load is current (US-03 FR-04).
-  String? _inboundNonce;
-
-  /// The outbound token minted beside [_inboundNonce].
-  String? _outboundToken;
-
-  /// Whether a `hello` envelope proved [_inboundNonce]. Only [willLoadHtml],
-  /// [willLoadUrl], and [willDispose] clear it, never a page start.
-  bool _proven = false;
+  /// The native HTML proof (US-03 FR-04, `s03_domain.md` `## Lifecycle`).
+  /// Only [willLoadHtml], [willLoadUrl], [willDispose], and a `hello` or
+  /// `bye` envelope move it, never a page start.
+  _Proof _proof = const _NoNonce();
 
   /// Whether a main-frame page start has had neither a page finish nor a
   /// new page start since, so a finish still pairs with it.
@@ -53,7 +55,7 @@ final class NativeBridgeSession {
   /// Call right before the adapter loads a URL: revokes the nonce.
   void willLoadUrl() {
     _beginNavigation();
-    _revokeNonce();
+    _proof = const _NoNonce();
   }
 
   /// Call right before the adapter's own `goBack` or `goForward`.
@@ -70,33 +72,30 @@ final class NativeBridgeSession {
   /// Mints a fresh inbound nonce and an independent outbound token, 16
   /// bytes each from `Random.secure()`, and places the native bootstrap
   /// that carries them in the returned HTML, the only place they travel.
-  /// The nonce of an earlier load stops counting at once.
+  /// The nonce of an earlier load stops counting at once, and sends throw
+  /// until a `hello` proves the new one.
   String willLoadHtml(String html) {
     _beginNavigation();
-    final nonce = _mintSecret();
-    final token = _mintSecret();
-    _inboundNonce = nonce;
-    _outboundToken = token;
-    _proven = false;
-    return injectNativeBridgeBootstrap(html, nonce: nonce, token: token);
+    final minted = _Minted(_mintSecret(), _mintSecret());
+    _proof = minted;
+    return injectNativeBridgeBootstrap(
+      html,
+      nonce: minted.nonce,
+      token: minted.token,
+    );
   }
 
   /// Call right before the adapter reloads the current page.
   ///
-  /// The platform parses the same HTML string again, so the nonce stays.
+  /// The platform parses the same HTML string again, so the nonce stays;
+  /// the old document's `bye` and the new document's `hello` move the proof.
   void willReload() => _beginNavigation();
 
   /// Call right before the adapter is disposed; every candidate is
   /// discarded and the nonce is revoked.
   void willDispose() {
     _candidates.clear();
-    _revokeNonce();
-  }
-
-  void _revokeNonce() {
-    _inboundNonce = null;
-    _outboundToken = null;
-    _proven = false;
+    _proof = const _NoNonce();
   }
 
   String _mintSecret() => [
@@ -153,38 +152,48 @@ final class NativeBridgeSession {
   /// Returns the message to deliver for [data], or `null` to drop it.
   ///
   /// A message that carries [nativeBridgeEnvelopeTag] is judged only by its
-  /// nonce; any other message only by the origin of the tracked page, so a
-  /// host-less page never passes as the app's HTML. No page start, URL, or
-  /// arrival order decides HTML trust.
+  /// nonce and the proof; any other message only by the origin of the
+  /// tracked page, so a host-less page never passes as the app's HTML. No
+  /// page start, URL, or arrival order decides HTML trust.
   StratumWebViewMessage? acceptMessage(String data) {
     if (data.startsWith(nativeBridgeEnvelopeTag)) {
-      return _openEnvelope(data.substring(nativeBridgeEnvelopeTag.length));
+      return _receiveEnvelope(data.substring(nativeBridgeEnvelopeTag.length));
     }
     if (!isAllowedOrigin(_pageUrl, _allowedOrigins())) return null;
     return StratumWebViewMessage(data: data, origin: originOf(_pageUrl));
   }
 
-  /// Parses `<nonce>:<kind>:<data>` totally and fails closed: a missing
-  /// field, an unknown kind, a `hello` that carries data, or a nonce other
-  /// than the current one drops the envelope with no side effect.
-  StratumWebViewMessage? _openEnvelope(String body) {
-    final nonce = _inboundNonce;
-    if (nonce == null || body.length <= _secretLength) return null;
-    if (body[_secretLength] != ':') return null;
+  /// Applies an envelope body with the current nonce to the proof and
+  /// returns the `message` it delivers; drops everything else, fail closed.
+  ///
+  /// - `hello` with a well-formed document id proves the nonce for that id.
+  /// - `bye` revokes only a proof whose id it carries (FR-04 E10).
+  /// - `message` passes only while proven.
+  StratumWebViewMessage? _receiveEnvelope(String body) {
+    final proof = _proof;
+    if (proof is! _Load) return null;
+    switch (_openEnvelope(body, proof.nonce)) {
+      case ('hello', final id) when _documentIdShape.hasMatch(id):
+        _proof = _Proven(proof.nonce, proof.token, id);
+      case ('bye', final id) when proof is _Proven && id == proof.documentId:
+        _proof = _Revoked(proof.nonce, proof.token);
+      case ('message', final data) when proof is _Proven:
+        return StratumWebViewMessage(data: data);
+    }
+    return null;
+  }
+
+  /// Splits `<nonce>:<kind>:<data>` into kind and data, or returns `null`
+  /// when a field is missing or the envelope does not carry [nonce].
+  static (String, String)? _openEnvelope(String body, String nonce) {
+    if (body.length <= _secretLength || body[_secretLength] != ':') {
+      return null;
+    }
     if (!_sameSecret(body.substring(0, _secretLength), nonce)) return null;
     final rest = body.substring(_secretLength + 1);
     final kindEnd = rest.indexOf(':');
     if (kindEnd < 0) return null;
-    final payload = rest.substring(kindEnd + 1);
-    switch (rest.substring(0, kindEnd)) {
-      case 'hello' when payload.isEmpty:
-        _proven = true;
-        return null;
-      case 'message':
-        return StratumWebViewMessage(data: payload);
-      default:
-        return null;
-    }
+    return (rest.substring(0, kindEnd), rest.substring(kindEnd + 1));
   }
 
   /// Compares two secrets of equal length in time that does not depend on
@@ -201,15 +210,19 @@ final class NativeBridgeSession {
   /// Returns the one dispatch script that delivers [data] to the page the
   /// view shows, which checks inside the page whether it may receive it.
   ///
+  /// The script carries the outbound token only while the proof is proven;
+  /// once revoked, or with no current nonce, only allowed origins pass.
+  ///
   /// Throws a [StateError] while the current HTML load has not proven its
   /// nonce, whatever page shows (US-03 FR-02 E04).
   String scriptForMessage(String data) {
-    if (_inboundNonce != null && !_proven) {
+    final proof = _proof;
+    if (proof is _Minted) {
       throw StateError('The HTML page has not connected the bridge yet.');
     }
     return buildMessageDispatchScript(
       data,
-      token: _proven ? _outboundToken : null,
+      token: proof is _Proven ? proof.token : null,
       allowedOrigins: _allowedOrigins(),
     );
   }
@@ -277,6 +290,42 @@ final class NativeBridgeSession {
     }
     return null;
   }
+}
+
+/// Where the native HTML proof stands (`s03_domain.md` `## Lifecycle`).
+sealed class _Proof {
+  const new();
+}
+
+/// No `loadHtml` is current, so every tagged message is dropped.
+final class _NoNonce extends _Proof {
+  const new();
+}
+
+/// A proof state of the current `loadHtml`, holding its two secrets.
+sealed class _Load extends _Proof {
+  const new(this.nonce, this.token);
+
+  final String nonce;
+  final String token;
+}
+
+/// Minted by `loadHtml`: no `hello` has proven [nonce] yet.
+final class _Minted extends _Load {
+  const new(super.nonce, super.token);
+}
+
+/// Proven by the `hello` of the document with [documentId].
+final class _Proven extends _Load {
+  const new(super.nonce, super.token, this.documentId);
+
+  final String documentId;
+}
+
+/// Revoked by the proving document's `bye`: [token] is withheld until a
+/// `hello` proves [nonce] again.
+final class _Revoked extends _Load {
+  const new(super.nonce, super.token);
 }
 
 /// [url] in the form a platform reports it: no fragment, and `/` for the

@@ -71,6 +71,10 @@ final class _Harness implements NativeAdapterHarness {
   set scriptResult(Object value) => _controller.scriptResult = value;
 
   @override
+  set scriptAnswer(Future<Object> Function() answer) =>
+      _controller.scriptAnswer = answer;
+
+  @override
   void setCurrentUrl(String? url) => _controller.currentUrlValue = url;
 
   @override

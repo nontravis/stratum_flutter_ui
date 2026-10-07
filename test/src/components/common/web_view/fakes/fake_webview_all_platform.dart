@@ -45,6 +45,10 @@ final class FakeWebviewAllController extends PlatformWebViewController {
   /// boolean.
   Object scriptResult = true;
 
+  /// When set, what [runJavaScriptReturningResult] answers instead of
+  /// [scriptResult]: a late answer or a platform error.
+  Future<Object> Function()? scriptAnswer;
+
   @override
   Future<void> loadRequest(LoadRequestParams params) async =>
       loadedUrls.add(params.uri);
@@ -58,9 +62,9 @@ final class FakeWebviewAllController extends PlatformWebViewController {
       scripts.add(javaScript);
 
   @override
-  Future<Object> runJavaScriptReturningResult(String javaScript) async {
+  Future<Object> runJavaScriptReturningResult(String javaScript) {
     scripts.add(javaScript);
-    return scriptResult;
+    return scriptAnswer?.call() ?? Future.value(scriptResult);
   }
 
   @override

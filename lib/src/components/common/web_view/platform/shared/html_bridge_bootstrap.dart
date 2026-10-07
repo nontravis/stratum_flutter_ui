@@ -1,9 +1,10 @@
 /// Prefix of every native bridge envelope: the version tag.
 ///
 /// An envelope reads `<tag><inbound nonce>:<kind>:<data>`, where the nonce is
-/// 32 lowercase hex characters and the kind is `hello` (with empty data) or
-/// `message`. A page message that starts with this tag is judged only by its
-/// nonce (US-03 FR-04, `event_bridge_messages.md` `## Native envelope`).
+/// 32 lowercase hex characters and the kind is `hello` or `bye` (data: the
+/// document id) or `message`. A page message that starts with this tag is
+/// judged only by its nonce (US-03 FR-04, `event_bridge_messages.md`
+/// `## Native envelope`).
 const String nativeBridgeEnvelopeTag = 'stratum-bridge-envelope:1:';
 
 /// Name of the window property where the native bootstrap keeps the
@@ -50,13 +51,16 @@ String injectBridgeBootstrap(String html, String nonce) {
 /// Builds the bootstrap script injected into HTML that a native adapter
 /// loads (US-03 FR-04).
 ///
-/// The script captures the platform's `StratumBridge` object in a closure,
-/// keeps [token] in the [nativeBridgeTokenProperty] window property, replaces
-/// `window.StratumBridge` with a frozen wrapper that sends every message as
-/// an envelope carrying [nonce] (see [nativeBridgeEnvelopeTag]), and posts a
-/// `hello` envelope that proves [nonce] to the app. The envelope never
-/// carries [token]. When the platform object is missing, the script does
-/// nothing, and the bridge stays closed.
+/// Before any page script runs, the script removes its own element, binds
+/// the platform sender and `String` once, keeps [token] in the
+/// [nativeBridgeTokenProperty] window property, and defines
+/// `window.StratumBridge` as a frozen, non-writable, non-configurable
+/// wrapper that sends each message as an envelope carrying [nonce] (see
+/// [nativeBridgeEnvelopeTag]). It draws a document id of 16 random bytes in
+/// lowercase hex, posts `hello` with it to prove [nonce] for this document,
+/// `bye` on `pagehide`, and `hello` again on a `pageshow` that restores the
+/// document from the back-forward cache (E03, E10, E11). No envelope
+/// carries [token]. Without the platform object the bridge stays closed.
 ///
 /// Returns [html] with the script placed by [placeBridgeBootstrap].
 String injectNativeBridgeBootstrap(
@@ -66,17 +70,25 @@ String injectNativeBridgeBootstrap(
 }) {
   final script =
       "<script>(function(){'use strict';\n"
+      'var e=document.currentScript;if(e)e.remove();\n'
       'var b=window.StratumBridge;\n'
       "if(!b||typeof b.postMessage!=='function')return;\n"
-      'var p=b.postMessage;\n'
+      'var send=b.postMessage.bind(b),S=String;\n'
       'function s(k,d){\n'
-      "p.call(b,'$nativeBridgeEnvelopeTag$nonce:'+k+':'+d);}\n"
+      "send('$nativeBridgeEnvelopeTag$nonce:'+k+':'+d);}\n"
+      "var a=crypto.getRandomValues(new Uint8Array(16)),id='';\n"
+      'for(var i=0;i<16;i++)id+=(a[i]|256).toString(16).slice(1);\n'
       "Object.defineProperty(window,'$nativeBridgeTokenProperty',\n"
       "{value:'$token'});\n"
       "Object.defineProperty(window,'StratumBridge',\n"
       '{value:Object.freeze({postMessage:function(d){\n'
-      "s('message',String(d));}}),enumerable:true});\n"
-      "s('hello','');\n"
+      "s('message',S(d));}}),\n"
+      'enumerable:true,writable:false,configurable:false});\n'
+      "window.addEventListener('pagehide',function(){\n"
+      "s('bye',id);},true);\n"
+      "window.addEventListener('pageshow',function(v){\n"
+      "if(v.persisted)s('hello',id);},true);\n"
+      "s('hello',id);\n"
       '})();</script>';
   return placeBridgeBootstrap(html, script);
 }
@@ -88,16 +100,21 @@ String injectNativeBridgeBootstrap(
 ///
 /// One placement serves the web and native bootstraps (US-03 FR-03 E04): a
 /// script before the doctype would put a top-level native document in
-/// quirks mode.
+/// quirks mode. Each comment ends where the HTML tokenizer ends it, so
+/// markup after an early end keeps a later doctype from leading (FR-04 E12).
 String placeBridgeBootstrap(String html, String script) {
-  // Each comment must end at its first `-->`. Letting `.*?` run on to a
-  // later `-->` gives n comments 2^(n-1) ways to match, which backtracks
-  // exponentially when no doctype follows and lets a "comment" swallow the
-  // markup between two real comments.
-  final match = RegExp(
-    r'^(?:\s|<!--(?:(?!-->)[\s\S])*-->)*<!doctype[^>]*>',
-    caseSensitive: false,
-  ).firstMatch(html);
+  final match = _leadingDoctype.firstMatch(html);
   if (match == null) return '$script$html';
   return html.replaceRange(match.end, match.end, script);
 }
+
+/// Whitespace and comments, then a doctype, from the start of the HTML.
+///
+/// A comment ends at once as `<!-->` or `<!--->`, else at its first `-->`
+/// or `--!>`, as in the HTML tokenizer. A pattern that ends one later lets
+/// it swallow a page script that runs before the bootstrap, and letting
+/// `.*?` run on to a later end backtracks exponentially with no doctype.
+final RegExp _leadingDoctype = RegExp(
+  r'^(?:\s|<!--(?:-?>|(?!-?>)(?:(?!--!?>)[\s\S])*--!?>))*<!doctype[^>]*>',
+  caseSensitive: false,
+);
