@@ -22,6 +22,16 @@ const _zip64LocatorSize = 20;
 /// An end record and the longest comment it may carry.
 const int _endSearch = _endSize + 0xFFFF;
 
+/// What [readRemoteZip] returns: `files`, each file under the theme root
+/// by its path relative to that root, and `unread`, the zip path of every
+/// entry the install never reads, in central directory order: each entry
+/// under `__MACOSX/`, each `.DS_Store`, and each loose file at the zip top
+/// beside a theme root folder (FO-04 s03 CLI warning).
+typedef RemoteZipContents = ({
+  Map<String, Uint8List> files,
+  List<String> unread,
+});
+
 /// Reads a verified theme zip into memory, writing no file (FO-04 US-01
 /// FR-02), parsing the container itself; `archive` supplies only `Inflate`
 /// and `getCrc32`.
@@ -40,9 +50,10 @@ const int _endSearch = _endSize + 0xFFFF;
 ///   running byte count that stops at [maxBytes] (`archiveTooLarge`), its
 ///   CRC-32 checked (`invalidArchive`).
 ///
-/// Never writes into [bytes]. Returns each file under the theme root by
-/// its path relative to that root.
-Map<String, Uint8List> readRemoteZip(
+/// Never writes into [bytes]. Returns the files under the theme root by
+/// their path relative to that root, and the entries it never reads
+/// ([RemoteZipContents]).
+RemoteZipContents readRemoteZip(
   List<int> bytes, {
   required int maxBytes,
   required int maxEntries,
@@ -60,17 +71,21 @@ Map<String, Uint8List> readRemoteZip(
   }
   final root = findThemeRoot(entries.map((entry) => entry.name));
   final files = <String, Uint8List>{};
+  final unread = <String>[];
   var total = 0;
   for (final span in spans) {
     final name = span.entry.name;
-    if (name.endsWith('/') || isIgnoredEntry(name) || !name.startsWith(root)) {
+    final folder = name.endsWith('/');
+    if (isIgnoredEntry(name) || (!folder && !name.startsWith(root))) {
+      unread.add(name);
       continue;
     }
+    if (folder) continue;
     final content = _inflate(data, span, total, maxBytes);
     total += content.length;
     files[name.substring(root.length)] = content;
   }
-  return files;
+  return (files: files, unread: unread);
 }
 
 // MARK: - Central directory

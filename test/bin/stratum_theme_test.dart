@@ -696,6 +696,30 @@ void main() {
       );
     });
 
+    test('us02/s14, us02/fr03/e13, r15: check warns on every entry the '
+        'install never reads, and passes', () async {
+      _zip('brand.zip', {
+        for (final MapEntry(:key, :value) in _theme().entries)
+          'brand/$key': value,
+        'README.html': 'x',
+        '__MACOSX/brand/._theme.yaml': 'x',
+        'brand/.DS_Store': 'x',
+      });
+
+      final run = await _run(['check', 'brand.zip']);
+
+      const unread = 'is in the zip, but the app install never reads it';
+      expect(run.code, exitPass);
+      expect(
+        run.err,
+        containsAllInOrder([
+          'warning: "README.html" $unread',
+          'warning: "__MACOSX/brand/._theme.yaml" $unread',
+          'warning: "brand/.DS_Store" $unread',
+        ]),
+      );
+    });
+
     test('us02/fr03/e02, fo01 us02/fr01/e05: a problem holding theme text '
         'prints escaped, with no raw control or non-ASCII byte', () async {
       _zip('brand.zip', {

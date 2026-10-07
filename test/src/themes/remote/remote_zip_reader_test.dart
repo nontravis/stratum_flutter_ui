@@ -13,7 +13,10 @@ Map<String, Uint8List> _read(
   Uint8List zip, {
   int maxBytes = 20 * _mb,
   int maxEntries = 200,
-}) => readRemoteZip(zip, maxBytes: maxBytes, maxEntries: maxEntries);
+}) => readRemoteZip(zip, maxBytes: maxBytes, maxEntries: maxEntries).files;
+
+List<String> _unread(Uint8List zip) =>
+    readRemoteZip(zip, maxBytes: 20 * _mb, maxEntries: 200).unread;
 
 Matcher _fails(
   StratumRemoteThemeErrorCode code, {
@@ -237,6 +240,40 @@ void main() {
       ZipEntryFixture('brand/theme.yaml', yaml),
     ]);
     expect(_read(zip).keys, ['theme.yaml']);
+  });
+
+  test('us02/fr03/e13, r15: the reader names every entry under a root '
+      'folder that it never reads', () {
+    final zip = buildZip([
+      ZipEntryFixture('brand/', const [], deflate: false),
+      ZipEntryFixture('brand/theme.yaml', yaml),
+      ZipEntryFixture('__MACOSX/', const [], deflate: false),
+      ZipEntryFixture('__MACOSX/brand/._theme.yaml', [9]),
+      ZipEntryFixture('brand/.DS_Store', [9]),
+      ZipEntryFixture('README.md', [1]),
+      ZipEntryFixture('other/', const [], deflate: false),
+    ]);
+
+    expect(_read(zip).keys, ['theme.yaml']);
+    expect(_unread(zip), [
+      '__MACOSX/',
+      '__MACOSX/brand/._theme.yaml',
+      'brand/.DS_Store',
+      'README.md',
+    ]);
+  });
+
+  test('us02/fr03/e13, r15: a zip-root theme leaves only the ignored '
+      'entries unread', () {
+    final zip = buildZip([
+      ZipEntryFixture('theme.yaml', yaml),
+      ZipEntryFixture('.DS_Store', [9]),
+      ZipEntryFixture('images/.DS_Store', [9]),
+      ZipEntryFixture('images/a.svg', [1]),
+    ]);
+
+    expect(_read(zip).keys, ['theme.yaml', 'images/a.svg']);
+    expect(_unread(zip), ['.DS_Store', 'images/.DS_Store']);
   });
 
   test('us01/fr02: an unreadable zip and a cap fault give invalid_archive '

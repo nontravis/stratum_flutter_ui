@@ -42,26 +42,34 @@ String _twinWarning(String first, String second) =>
     'warning: "${escapeZipText(first)}" and "${escapeZipText(second)}" '
     'differ only in letter case';
 
+/// Warns that [name], a zip path, is in the zip, but the install never
+/// reads it (FR-03 E13).
+String _unreadWarning(String name) =>
+    'warning: "${escapeZipText(name)}" is in the zip, but the app install '
+    'never reads it';
+
 /// The warnings of a zip that passed the check, each starting with
-/// `warning:` and never failing the run (FR-03 E05, E06): every file,
+/// `warning:` and never failing the run (FR-03 E05, E06, E13): every file,
 /// `theme.yaml` aside, that the theme file names neither as a font file nor
-/// as an asset slot, in name order, then every pair of twin names.
+/// as an asset slot, in name order; then every entry the install never
+/// reads, by its zip path, in name order; then every two twin names next
+/// to each other.
 List<String> cliWarnings(RemoteInstallCheck check) {
   final names = check.entries.keys.toList()..sort();
+  final unread = [...check.unreadEntries]..sort();
   return [
     for (final name in names)
       if (name != 'theme.yaml' && !check.namedFiles.contains(name))
         _unnamedWarning(name),
+    for (final name in unread) _unreadWarning(name),
     for (final (first, second) in twinNames(names)) _twinWarning(first, second),
   ];
 }
 
-/// Every pair of [names] that are equal when letter case is ignored (s03
-/// Twin names; plan D-h, case only), each pair once, in the order of
-/// [names]. Groups by `name.toUpperCase().toLowerCase()`, so a zip of many
-/// entries costs no pairwise compare; this also catches `ſ`/`s`, `µ`/`μ`,
-/// `ς`/`σ`, and `ı`/`I` as twins, and over-warns on `ß`/`ss`, which is
-/// harmless for a warning — still case only, no NFC (D-h).
+/// Every two [names] next to each other in a group of names equal when
+/// letter case is ignored (s03 Twin names; plan D-h, case only), each
+/// group in the order of [names], so a group of n names gives n - 1 pairs
+/// and the output grows linearly (FR-03 E06).
 List<(String, String)> twinNames(List<String> names) {
   final groups = <String, List<String>>{};
   for (final name in names) {
@@ -69,7 +77,6 @@ List<(String, String)> twinNames(List<String> names) {
   }
   return [
     for (final group in groups.values)
-      for (var i = 0; i < group.length; i++)
-        for (var j = i + 1; j < group.length; j++) (group[i], group[j]),
+      for (var i = 1; i < group.length; i++) (group[i - 1], group[i]),
   ];
 }

@@ -42,6 +42,7 @@ final class RemoteInstallCheck {
     required this.values,
     required this.entries,
     required this.namedFiles,
+    required this.unreadEntries,
   });
 
   final String id;
@@ -59,6 +60,12 @@ final class RemoteInstallCheck {
   /// Every path, relative to the theme root, that the zip's own theme file
   /// names as a font file or an asset slot.
   final Set<String> namedFiles;
+
+  /// The zip path of every entry the install never reads: each entry under
+  /// `__MACOSX/`, each `.DS_Store`, and each loose file at the zip top
+  /// beside a theme root folder (FO-04 s03 CLI warning), in central
+  /// directory order.
+  final List<String> unreadEntries;
 
   /// The overlay folder, `stratum-remote/<id>/<generation>`.
   String get folder => remoteFolderOf(id, generation);
@@ -87,7 +94,7 @@ Future<RemoteInstallCheck> checkRemoteInstall(
   required ThemeValuesParser parseValues,
   required int Function() nextGeneration,
 }) async {
-  final Map<String, Uint8List> entries;
+  final RemoteZipContents read;
   try {
     checkRemoteThemeId(theme.id);
     checkChecksumText(theme.checksum);
@@ -95,7 +102,7 @@ Future<RemoteInstallCheck> checkRemoteInstall(
     // bytes hashed and the app's buffer is never written.
     final bytes = Uint8List.fromList(theme.bytes);
     verifyChecksum(theme.checksum, bytes);
-    entries = readRemoteZip(
+    read = readRemoteZip(
       bytes,
       maxBytes: theme.maxBytes,
       maxEntries: theme.maxEntries,
@@ -103,6 +110,7 @@ Future<RemoteInstallCheck> checkRemoteInstall(
   } on RemoteThemeFailure catch (failure) {
     throw _exception(theme.id, failure);
   }
+  final entries = read.files;
   final generation = nextGeneration();
   final folder = remoteFolderOf(theme.id, generation);
   final sourceId = remoteSourceIdOf(theme.id, generation);
@@ -143,6 +151,7 @@ Future<RemoteInstallCheck> checkRemoteInstall(
     values: values,
     entries: entries,
     namedFiles: {...named},
+    unreadEntries: read.unread,
   );
 }
 

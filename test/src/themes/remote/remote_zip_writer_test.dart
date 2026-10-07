@@ -56,7 +56,7 @@ void main() {
         writeRemoteZip(_files),
         maxBytes: 20 * 1024 * 1024,
         maxEntries: 200,
-      );
+      ).files;
 
       expect(read.keys.toSet(), _files.keys.toSet());
       for (final MapEntry(:key, :value) in _files.entries) {

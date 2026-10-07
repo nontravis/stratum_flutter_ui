@@ -6,6 +6,7 @@ import 'package:stratum_ui/src/themes/remote/remote_cli_report.dart';
 import 'package:stratum_ui/src/themes/remote/remote_install_check.dart';
 
 import 'remote_fakes.dart';
+import 'remote_test_zip.dart';
 
 Future<PlainThemeConfig> _inline(
   StratumThemeSource base,
@@ -111,13 +112,22 @@ void main() {
       expect(twinNames(['a', 'b']), isEmpty);
     });
 
-    test('sec f3 note: three case variants of one name give all three '
-        'pairs, in first-occurrence order', () {
-      expect(twinNames(['AB', 'Ab', 'ab']), [
-        ('AB', 'Ab'),
-        ('AB', 'ab'),
-        ('Ab', 'ab'),
-      ]);
+    test('us02/fr03/e06, r15, sec f3: three case variants of one name give '
+        'the two neighbor pairs, in name order', () {
+      expect(twinNames(['AB', 'Ab', 'ab']), [('AB', 'Ab'), ('Ab', 'ab')]);
+    });
+
+    test('us02/fr03/e06, r15, sec f3: n case variants of one name give '
+        'n - 1 pairs, so the output grows linearly', () {
+      final names = [
+        for (var bits = 0; bits < 200; bits++)
+          String.fromCharCodes([
+            for (var i = 0; i < 8; i++)
+              if ((bits >> i).isOdd) 0x41 else 0x61,
+          ]),
+      ]..sort();
+
+      expect(twinNames(names), hasLength(199));
     });
 
     test('sec f2: a long s and a plain s are twins', () {
@@ -173,6 +183,31 @@ void main() {
           expect(line.codeUnits.every((u) => u >= 0x20 && u <= 0x7E), isTrue);
         }
       }
+    });
+
+    test('us02/s14, us02/fr03/e13, r15: every entry the install never reads '
+        'is a warning, by its zip path, in name order', () async {
+      final bytes = buildZip([
+        ZipEntryFixture('brand/', const [], deflate: false),
+        ZipEntryFixture('brand/theme.yaml', utf8.encode('$remoteSchemaLine\n')),
+        ZipEntryFixture('README.html', [1]),
+        ZipEntryFixture('__MACOSX/brand/._theme.yaml', [2]),
+        ZipEntryFixture('brand/.DS_Store', [3]),
+      ]);
+      final check = await _check(
+        StratumRemoteTheme(
+          id: 'brand',
+          bytes: bytes,
+          checksum: checksumOf(bytes),
+        ),
+      );
+
+      const unread = 'is in the zip, but the app install never reads it';
+      expect(cliWarnings(check), [
+        'warning: "README.html" $unread',
+        'warning: "__MACOSX/brand/._theme.yaml" $unread',
+        'warning: "brand/.DS_Store" $unread',
+      ]);
     });
   });
 }
