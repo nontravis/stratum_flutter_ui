@@ -7,7 +7,12 @@ import 'package:stratum_ui/src/components/common/web_view/platform/shared/messag
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
-/// Name of the JavaScript channel that pages call on native platforms.
+/// Name of the JavaScript channel pages call on Windows and Linux
+/// (`webview_all_adapter.dart`).
+///
+/// Android and macOS/iOS hard-code the same literal instead of reading this
+/// constant — `StratumUiPlugin.kt`'s `BRIDGE`, `StratumUiPlugin.swift`'s
+/// `bridgeName` — so a rename here must be mirrored there by hand.
 const String bridgeChannelName = 'StratumBridge';
 
 /// The most HTTP error candidates one session holds.
