@@ -76,6 +76,10 @@ final class StratumWebViewController {
   }
 
   /// Reloads the current page.
+  ///
+  /// On iOS and macOS a reload of HTML that the controller loaded shows an
+  /// empty page, because WebKit reloads `about:blank`, so the bridge stays
+  /// closed until the next [loadHtml].
   Future<void> reload() async {
     _ensureActive();
     await _platform.reload();

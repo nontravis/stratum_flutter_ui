@@ -390,7 +390,206 @@ void main() {
       expect(echoed, isTrue, reason: 'the page never echoed "ping"');
       expect(recorder.errors, isEmpty);
     });
+
+    testWidgets(
+      'us08/s13: the app HTML document and the app trade messages both '
+      'ways, the document in standards mode',
+      (tester) async {
+        // CO-01-02 US-03 FR-04 of the package docs: the document proves the
+        // per-load nonce, so its messages arrive with no origin and the
+        // app's send reaches it; US-02 FR-01 E02: the bootstrap goes after
+        // the doctype, so the document keeps standards mode.
+        final controller = StratumWebViewController();
+        final recorder = await _show(
+          tester,
+          const StratumWebViewSource.html(_htmlBridgePage),
+          controller: controller,
+          allowedOrigins: {server.origin},
+        );
+        final ready = await _pumpUntil(
+          tester,
+          () => recorder.messages.contains('ready:CSS1Compat'),
+        );
+        if (ready) await controller.postMessage('ping');
+        final echoed =
+            ready &&
+            await _pumpUntil(
+              tester,
+              () => recorder.messages.contains('echo:ping'),
+            );
+        recorder.logOrder('html round trip');
+        await _checkpoint(binding, tester, 'b_html');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(
+          ready,
+          isTrue,
+          reason:
+              'the HTML message "ready:CSS1Compat" never came: '
+              '${recorder.messages}',
+        );
+        expect(echoed, isTrue, reason: 'the HTML page never echoed "ping"');
+        expect(recorder.origins, everyElement(isNull));
+      },
+    );
+
+    testWidgets(
+      'us08/s14: a reload keeps the app HTML document connected on Android; '
+      'on iOS and macOS the reloaded page is empty and the bridge stays '
+      'closed',
+      (tester) async {
+        // CO-01-02 US-03 FR-04 E04 of the package docs: Android parses the
+        // same HTML string again, so the reloaded document carries the same
+        // nonce; WebKit reloads an empty page, which carries none, so it
+        // never says ready and a send throws.
+        final controller = StratumWebViewController();
+        final recorder = await _show(
+          tester,
+          const StratumWebViewSource.html(_htmlBridgePage),
+          controller: controller,
+          allowedOrigins: {server.origin},
+        );
+        int readyCount() =>
+            recorder.messages.where((data) => data.startsWith('ready:')).length;
+        final first = await _pumpUntil(tester, () => readyCount() == 1);
+        final mark = first
+            ? await _finishAfter(tester, recorder, controller.reload)
+            : null;
+        final keepsHtml = _reloadKeepsHtml();
+        var again = false;
+        var echoed = false;
+        if (keepsHtml) {
+          again =
+              mark != null && await _pumpUntil(tester, () => readyCount() == 2);
+          if (again) await controller.postMessage('pong');
+          echoed =
+              again &&
+              await _pumpUntil(
+                tester,
+                () => recorder.messages.contains('echo:pong'),
+              );
+        } else if (mark != null) {
+          await expectLater(controller.postMessage('pong'), throwsStateError);
+        }
+        recorder.logOrder('html reload');
+        await _checkpoint(binding, tester, 'b_html_reload');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(first, isTrue, reason: 'the HTML message "ready" never came');
+        expect(mark, isNotNull, reason: 'no onPageFinished after reload');
+        if (keepsHtml) {
+          expect(
+            again,
+            isTrue,
+            reason:
+                'the reloaded HTML never sent "ready": this engine did '
+                'not keep the nonce on reload (UV-1)',
+          );
+          expect(echoed, isTrue, reason: 'the reloaded HTML never echoed');
+        } else {
+          expect(readyCount(), 1, reason: 'the empty reloaded page spoke');
+          expect(recorder.messages, isNot(contains('echo:pong')));
+        }
+      },
+    );
+
+    testWidgets(
+      'us08/s15, us08/fr01/e09: the app HTML document follows a link off the '
+      'allowlist, and the next send is refused',
+      (tester) async {
+        // CO-01-02 US-03 FR-04 E10 of the package docs: the document posts
+        // bye on pagehide, so the app withholds the token (FR-02 E10).
+        await _expectLinkAwayRefused(
+          binding,
+          tester,
+          away: server.page('/token-copy'),
+          html: _htmlLinkAwayPage,
+          caseName: 'html link away',
+          checkpoint: 'b_html_link_away',
+        );
+      },
+    );
+
+    testWidgets(
+      'us08/s16, us08/fr01/e10: the app HTML document reopens itself, puts '
+      'its root back, follows a link off the allowlist, and the next send is '
+      'refused',
+      (tester) async {
+        // CO-01-02 US-03 FR-04 E14 of the package docs: document.open() erases
+        // the pagehide hook, but the bootstrap's observer sees the root
+        // removed, even though the page puts it back, and posts bye at once.
+        await _expectLinkAwayRefused(
+          binding,
+          tester,
+          away: server.page('/token-copy'),
+          html: _htmlReopenLinkAwayPage,
+          caseName: 'html reopen link away',
+          checkpoint: 'b_html_reopen_link_away',
+        );
+      },
+    );
   }, skip: kIsWeb);
+}
+
+/// Shows [html], waits for its `ready:`, has it follow a link to [away] with
+/// its outbound token in the fragment, then expects the copy to have landed
+/// and the next send to be refused (FR-01 E09, E10).
+///
+/// [away] copies the token, as a stolen copy would, and reports
+/// `copied:true` in its title and fragment; only that positive control
+/// makes the refusal prove a revoked proof, not a token that never arrived.
+Future<void> _expectLinkAwayRefused(
+  IntegrationTestWidgetsFlutterBinding binding,
+  WidgetTester tester, {
+  required Uri away,
+  required String html,
+  required String caseName,
+  required String checkpoint,
+}) async {
+  final controller = StratumWebViewController();
+  final recorder = await _show(
+    tester,
+    StratumWebViewSource.html(html),
+    controller: controller,
+    allowedOrigins: {Uri.parse('https://allowed.example')},
+  );
+  final ready = await _pumpUntil(
+    tester,
+    () => recorder.messages.contains('ready:CSS1Compat'),
+  );
+  if (ready) await controller.postMessage('go:$away');
+  final arrived =
+      ready &&
+      await _pumpUntil(
+        tester,
+        () => recorder.finishes.any((url) => url?.path == away.path),
+      );
+  String? copied;
+  bool? refused;
+  if (arrived) {
+    await tester.pump(_settle);
+    copied = (await controller.currentUrl())?.fragment;
+    refused = await controller
+        .postMessage('ping')
+        .then<bool>(
+          (_) => false,
+          onError: (Object error) => error is StateError,
+        );
+  }
+  recorder.logOrder(caseName);
+  await _checkpoint(binding, tester, checkpoint);
+  await tester.pumpWidget(const SizedBox());
+  controller.dispose();
+  expect(ready, isTrue, reason: 'the HTML message "ready" never came');
+  expect(arrived, isTrue, reason: 'the linked page never finished');
+  expect(
+    copied,
+    'copied:true',
+    reason:
+        'the away page never received the token, so a refusal proves '
+        'nothing',
+  );
+  expect(refused, isTrue, reason: 'the send reached the away page: no bye');
 }
 
 /// Whether this run's engine is WebKit (iOS, macOS), which restores a
@@ -403,6 +602,11 @@ bool _isWebKit() =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS);
+
+/// Whether a `reload` of the app's HTML keeps the document on this engine
+/// (US-08 scenario 14): Android parses the same HTML string again; WebKit
+/// (iOS, macOS) reloads an empty page.
+bool _reloadKeepsHtml() => !_isWebKit();
 
 /// Asserts the either-outcome contract of one WebKit history move (US-08
 /// scenario 11): WebKit either restores the entry from its back-forward
@@ -520,6 +724,8 @@ class _PageServer {
         );
       case '/bridge':
         _writePage(response, HttpStatus.ok, _bridgeBody);
+      case '/token-copy':
+        _writePage(response, HttpStatus.ok, _tokenCopyBody);
       default:
         // '/missing', '/gone', '/missing.png', and any favicon request.
         _writePage(response, HttpStatus.notFound, '<h1>Not found</h1>');
@@ -554,6 +760,80 @@ const _bridgeBody = '''
 </script>
 ''';
 
+/// An app HTML document with a doctype: it says `ready:` and its
+/// `document.compatMode` once loaded, and answers each app message with
+/// `echo:<data>` (FR-01 outputs `html round trip` and `html reload`).
+const _htmlBridgePage = '''
+<!doctype html>
+<html><body style="font-family: sans-serif"><h1>HTML bridge</h1>
+<script>
+  window.addEventListener('message', function (event) {
+    StratumBridge.postMessage('echo:' + event.data);
+  });
+  window.addEventListener('load', function () {
+    StratumBridge.postMessage('ready:' + document.compatMode);
+  });
+</script>
+</body></html>
+''';
+
+/// An app HTML document that says `ready:` and its `document.compatMode`
+/// once loaded, and on the app message `go:<url>` follows a link to that URL
+/// with its outbound token in the fragment (FR-01 output `html link away`).
+const _htmlLinkAwayPage = '''
+<!doctype html>
+<html><body style="font-family: sans-serif"><h1>HTML link away</h1>
+<script>
+  window.addEventListener('message', function (event) {
+    if (String(event.data).indexOf('go:') !== 0) return;
+    location.href = event.data.slice(3) + '#' + window.__stratumBridgeToken;
+  });
+  window.addEventListener('load', function () {
+    StratumBridge.postMessage('ready:' + document.compatMode);
+  });
+</script>
+</body></html>
+''';
+
+/// The [_htmlLinkAwayPage] document, but on `go:<url>` it first reopens
+/// itself and puts its own root element back, which erases its listeners,
+/// the bootstrap's `pagehide` hook included (FR-01 output
+/// `html reopen link away`).
+const _htmlReopenLinkAwayPage = '''
+<!doctype html>
+<html><body style="font-family: sans-serif"><h1>HTML reopen link away</h1>
+<script>
+  var root = document.documentElement;
+  window.addEventListener('message', function (event) {
+    if (String(event.data).indexOf('go:') !== 0) return;
+    var url = event.data.slice(3) + '#' + window.__stratumBridgeToken;
+    document.open();
+    document.appendChild(root);
+    location.href = url;
+  });
+  window.addEventListener('load', function () {
+    StratumBridge.postMessage('ready:' + document.compatMode);
+  });
+</script>
+</body></html>
+''';
+
+/// Defines the outbound token property from the fragment, as a page holding
+/// a stolen copy would, then shows `copied:true` in its title and fragment
+/// once a 32-character token arrived: the positive control of FR-01 outputs
+/// `html link away` and `html reopen link away`, which the app reads back
+/// through the current URL.
+const _tokenCopyBody = '''
+<h1>Token copy</h1>
+<script>
+  Object.defineProperty(window, '__stratumBridgeToken', {
+    value: location.hash.slice(1),
+  });
+  document.title = 'copied:' + (location.hash.length === 33);
+  history.replaceState(null, '', '#' + document.title);
+</script>
+''';
+
 /// An address on a loopback port where nothing listens.
 Future<Uri> _closedPortPage() async {
   final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
@@ -568,6 +848,7 @@ class _Recorder {
   final finishes = <Uri?>[];
   final errors = <StratumWebViewError>[];
   final messages = <String>[];
+  final origins = <Uri?>[];
   final _events = <String>[];
   final _errorAt = <int>[];
 
@@ -592,6 +873,7 @@ class _Recorder {
 
   void onMessage(StratumWebViewMessage message) {
     messages.add(message.data);
+    origins.add(message.origin);
     _events.add('message ${message.data}');
   }
 
@@ -626,6 +908,19 @@ Future<_Recorder> _showPage(
   Uri page, {
   StratumWebViewController? controller,
   Set<Uri> allowedOrigins = const <Uri>{},
+}) => _show(
+  tester,
+  StratumWebViewSource.url(page),
+  controller: controller,
+  allowedOrigins: allowedOrigins,
+);
+
+/// Shows one StratumWebView on [source] that reports into a new recorder.
+Future<_Recorder> _show(
+  WidgetTester tester,
+  StratumWebViewSource source, {
+  StratumWebViewController? controller,
+  Set<Uri> allowedOrigins = const <Uri>{},
 }) async {
   final recorder = _Recorder();
   await tester.pumpWidget(
@@ -633,7 +928,7 @@ Future<_Recorder> _showPage(
       home: Scaffold(
         body: StratumWebView(
           controller: controller,
-          source: StratumWebViewSource.url(page),
+          source: source,
           allowedOrigins: allowedOrigins,
           onPageStarted: recorder.onStarted,
           onPageFinished: recorder.onFinished,
