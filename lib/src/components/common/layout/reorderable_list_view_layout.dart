@@ -1068,7 +1068,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final item = _nodeAt(index)?.context;
     final position = item == null ? null : Scrollable.maybeOf(item)?.position;
     const start = _DataIndex(0);
-    final edgeAction = intent == _MoveIntent.start || intent == _MoveIntent.end;
+    // A drop reports no intent at all (null), and a drop's own edge jump
+    // stays untouched (D2); only a step intent (previous or next) is the
+    // one R12 inputs routes through the near and far paths instead.
+    final edgeAction =
+        intent != _MoveIntent.previous && intent != _MoveIntent.next;
     final edge = edgeAction && (target == start || target == _dataEnd - 1);
     if (item != null && position != null && edge && _nodeAt(to) == null) {
       _jumpTowards(item, position, toStart: target == start);
