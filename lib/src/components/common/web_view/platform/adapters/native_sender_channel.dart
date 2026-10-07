@@ -35,7 +35,9 @@ abstract interface class NativeSenderChannel {
   ///
   /// Call it before the first load. Returns `false` when the platform cannot
   /// name senders (an Android WebView without `WEB_MESSAGE_LISTENER`); then
-  /// no page gets the object.
+  /// no page gets the object. Throws a [PlatformException] when the platform
+  /// finds no web view for [controller], which means the view was used
+  /// before the platform created it.
   Future<bool> attach(
     wf.WebViewController controller,
     NativeSenderListener onMessage,
