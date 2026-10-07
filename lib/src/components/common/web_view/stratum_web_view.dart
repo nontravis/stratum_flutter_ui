@@ -41,7 +41,9 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 ///   can navigate the whole app window after a click. Many sites refuse to
 ///   be framed; offer an "open in new tab" fallback. Flutter overlays
 ///   drawn above the view need `PointerInterceptor`. An HTML page's URL is
-///   always `null`; on native it is `about:blank`.
+///   always `null`; on native it is `about:blank`. A URL page that the view
+///   has moved away from can still deliver a message, with its own allowed
+///   origin, until it unloads.
 /// * Linux: the page is a native GTK widget, so Flutter widgets cannot draw
 ///   above it, and scale or rotation transforms hide it.
 /// * Android, iOS, and macOS: the platform names the sender of each
@@ -113,6 +115,9 @@ class StratumWebView extends StatefulWidget {
   final bool javaScriptEnabled;
 
   /// Receives messages from allowed pages and from loaded HTML.
+  ///
+  /// A message's origin names the page that sent it, `null` for loaded
+  /// HTML; it says nothing about the page the view shows now.
   final ValueChanged<StratumWebViewMessage>? onMessage;
 
   ///========== Navigation ==========///

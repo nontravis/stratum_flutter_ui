@@ -109,8 +109,12 @@ final class StratumWebViewController {
     return _platform.canGoForward();
   }
 
-  /// URL of the current page. On web, a cross-origin page reports the last
-  /// URL the controller loaded.
+  /// URL of the current page.
+  ///
+  /// On web, from a load the controller starts until the frame finishes
+  /// loading it, this is the URL the controller requested; after that, a
+  /// same-origin page reports the frame's location, and a cross-origin page
+  /// the last URL the controller loaded.
   Future<Uri?> currentUrl() async {
     _ensureActive();
     return _platform.currentUrl();
