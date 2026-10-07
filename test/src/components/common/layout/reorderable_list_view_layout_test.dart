@@ -742,6 +742,73 @@ void main() {
         expect(state.expanded, isTrue);
       },
     );
+
+    // Item 3 of the view, lifted by its center and held 10 px inside the
+    // bottom edge at 0 px, or the top edge after a scroll to 800 px.
+    final viewportEdges = ValueVariant<String>({'bottom edge', 'top edge'});
+    testWidgets(
+      'us11/fr01/e08: a drag held near a viewport edge scrolls the list '
+      'toward that edge, farther under a larger autoScrollerVelocityScalar',
+      (tester) async {
+        final bottom = viewportEdges.currentValue == 'bottom edge';
+        final start = bottom ? 0.0 : 800.0;
+
+        // Pumps a fresh list at [start], holds the drag for 500 ms, and
+        // returns how far the list scrolled toward the edge.
+        Future<double> scrolledToward(double? scalar) async {
+          final ids = [for (var i = 0; i < 50; i++) i];
+          await tester.pumpWidget(
+            _app(
+              StatefulBuilder(
+                builder: (context, setState) =>
+                    ReorderableListViewLayout.builder(
+                      key: ValueKey(scalar),
+                      itemCount: ids.length,
+                      autoScrollerVelocityScalar: scalar,
+                      onReorderItem: (from, to) =>
+                          setState(() => ids.insert(to, ids.removeAt(from))),
+                      itemBuilder: (context, index) => _Item(
+                        key: ValueKey(ids[index]),
+                        id: ids[index],
+                        index: index,
+                      ),
+                    ),
+              ),
+            ),
+          );
+          final position =
+              tester.state<ScrollableState>(find.byType(Scrollable)).position
+                ..jumpTo(start);
+          await tester.pump();
+          final view = tester.getRect(find.byType(Scrollable));
+          final from = tester.getCenter(find.byKey(ValueKey(start ~/ 40 + 3)));
+          final gesture = await tester.startGesture(from);
+          await tester.pump(
+            kLongPressTimeout + const Duration(milliseconds: 50),
+          );
+          // The lifted item, 40 px tall, passes the edge by 10 px.
+          await gesture.moveTo(
+            Offset(from.dx, bottom ? view.bottom - 10 : view.top + 10),
+          );
+          for (var i = 0; i < 50; i++) {
+            await tester.pump(const Duration(milliseconds: 10));
+          }
+          final scrolled = bottom
+              ? position.pixels - start
+              : start - position.pixels;
+          await gesture.up();
+          await tester.pumpAndSettle();
+          return scrolled;
+        }
+
+        // Flutter's default scalar, 50, then twice it.
+        final base = await scrolledToward(null);
+        final doubled = await scrolledToward(100);
+        expect(base, greaterThan(0));
+        expect(doubled, greaterThan(base));
+      },
+      variant: viewportEdges,
+    );
   });
 
   group('ReorderableListViewLayout keys', () {
@@ -4601,20 +4668,21 @@ void main() {
 
     testWidgets(
       'us11/fr05/e04: a focused move down past the built slots after an '
-      'insertItem in the same turn jumps first and keeps its State',
+      'insertItem in the same turn builds ahead with no call-turn scroll and '
+      'keeps its State',
       (tester) async {
         final position = await pumpAt4000(tester);
         final state = _itemState(tester, 100);
         final focused = await _focusItem(tester, 100);
 
         // After three inserts item 100 sits at index 103; slot 116, the slot
-        // it enters, is past the built 93 to 113.
+        // it enters, is 3 slots past the built 93 to 113: near.
         _harness(tester)
           ..insert(0, 1000)
           ..insert(0, 1001)
           ..insert(0, 1002)
           ..move(103, 115);
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 4000);
         await tester.pump();
 
         expect(statesOf(tester, 100), contains(state));
@@ -4645,8 +4713,9 @@ void main() {
     });
 
     testWidgets(
-      'us11/fr05/e04: a focused move down to the last built slot jumps '
-      'first, since the item enters the slot after it, and keeps its State',
+      'us11/fr05/e04: a focused move down to the last built slot builds '
+      'ahead with no call-turn scroll, since the item enters the slot after '
+      'it, and keeps its State',
       (tester) async {
         final position = await pumpAt4000(tester);
         final state = _itemState(tester, 100);
@@ -4654,7 +4723,7 @@ void main() {
 
         // A move down to 113 enters slot 114, which the frame did not build.
         _harness(tester).move(100, 113);
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 4000);
         await tester.pump();
 
         expect(statesOf(tester, 100), contains(state));
@@ -5205,7 +5274,8 @@ void main() {
     });
     testWidgets(
       's03/inv35: a focused move down past the leaving copy of a built item '
-      'removed in the same turn jumps first and keeps its State',
+      'removed in the same turn builds ahead with no call-turn scroll and '
+      'keeps its State',
       (tester) async {
         final position = await pumpAt4000(tester);
         final state = _itemState(tester, 100);
@@ -5219,7 +5289,7 @@ void main() {
         _harness(tester)
           ..remove(built ? 95 : 10)
           ..move(99, 112);
-        expect(position.pixels, built ? isNot(4000) : 4000);
+        expect(position.pixels, 4000);
         await tester.pump();
 
         expect(statesOf(tester, 100), contains(state));
@@ -5269,7 +5339,8 @@ void main() {
 
     testWidgets(
       's03/inv35: a focused move up past the leaving copy of a built item '
-      'removed in the same turn jumps first and keeps its State',
+      'removed in the same turn builds ahead with no call-turn scroll and '
+      'keeps its State',
       (tester) async {
         final position = await pumpAt4000(tester);
         final state = _itemState(tester, 106);
@@ -5284,7 +5355,7 @@ void main() {
           harness.insert(0, id);
         }
         harness.move(114, 113);
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 4000);
         await tester.pump();
 
         expect(statesOf(tester, 106), contains(state));
@@ -5295,8 +5366,8 @@ void main() {
 
     testWidgets(
       's03/inv35: a focused move up to a slot before the first one the frame '
-      'built jumps first and keeps its State, though a leaving copy sits '
-      'before the target',
+      'built builds ahead with no call-turn scroll and keeps its State, '
+      'though a leaving copy sits before the target',
       (tester) async {
         final position = await pumpAt4000(tester);
         final state = _itemState(tester, 100);
@@ -5310,7 +5381,7 @@ void main() {
           ..remove(93)
           ..remove(10)
           ..move(98, 92);
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 4000);
         await tester.pump();
 
         expect(statesOf(tester, 100), contains(state));
