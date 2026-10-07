@@ -55,8 +55,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
         _session.willLoadUrl();
         await _controller.loadRequest(url);
       case StratumWebViewHtmlSource(:final html):
-        _session.willLoadHtml();
-        await _controller.loadHtmlString(html);
+        await _controller.loadHtmlString(_session.willLoadHtml(html));
     }
   }
 
@@ -103,7 +102,10 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   @override
   Future<void> postMessage(String data) async {
     await _ready;
-    await _controller.runJavaScript(_session.scriptForMessage(data));
+    final script = _session.scriptForMessage(data);
+    _session.confirmDelivery(
+      await _controller.runJavaScriptReturningResult(script),
+    );
   }
 
   @override

@@ -41,6 +41,10 @@ final class FakeWebViewFlutterController extends PlatformWebViewController {
   int reloadCount = 0;
   String? currentUrlValue;
 
+  /// What [runJavaScriptReturningResult] answers: the dispatch script's
+  /// boolean.
+  Object scriptResult = true;
+
   @override
   Future<void> loadRequest(LoadRequestParams params) async =>
       loadedUrls.add(params.uri);
@@ -52,6 +56,12 @@ final class FakeWebViewFlutterController extends PlatformWebViewController {
   @override
   Future<void> runJavaScript(String javaScript) async =>
       scripts.add(javaScript);
+
+  @override
+  Future<Object> runJavaScriptReturningResult(String javaScript) async {
+    scripts.add(javaScript);
+    return scriptResult;
+  }
 
   @override
   Future<void> setJavaScriptMode(JavaScriptMode javaScriptMode) async =>

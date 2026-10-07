@@ -1,7 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
+
+import '../../fakes/native_bridge_envelope.dart';
+
+const String tag = nativeBridgeEnvelopeTag;
 
 void main() {
   final appOrigin = Uri.parse('https://app.example.com');
@@ -57,150 +62,251 @@ void main() {
   });
 
   group('messages from loaded HTML', () {
-    test('accepts messages without an origin', () {
-      session
-        ..willLoadHtml()
-        ..didStartPage('about:blank');
-      expect(
-        session.acceptMessage('hi'),
-        const StratumWebViewMessage(data: 'hi'),
-      );
-    });
-
-    test('drops messages after the page navigates away', () {
-      session
-        ..willLoadHtml()
-        ..didStartPage('about:blank')
-        ..didStartPage('https://evil.example.net/');
-      expect(session.acceptMessage('hi'), isNull);
-    });
-
-    test('reload keeps the HTML trusted', () {
-      session
-        ..willLoadHtml()
-        ..didStartPage('about:blank')
-        ..willReload()
-        ..didStartPage('about:blank');
-      expect(session.acceptMessage('hi'), isNotNull);
-    });
-
-    test('switching from HTML to a URL ends HTML trust at once', () {
-      session
-        ..willLoadHtml()
-        ..didStartPage('about:blank')
-        ..willLoadUrl();
-      expect(session.acceptMessage('hi'), isNull);
-      expect(() => session.scriptForMessage('hi'), throwsStateError);
-    });
-
-    test('reload after navigating away does not restore trust', () {
-      session
-        ..willLoadHtml()
-        ..didStartPage('about:blank')
-        ..didStartPage('https://evil.example.net/')
-        ..willReload()
-        ..didStartPage('https://evil.example.net/');
-      expect(session.acceptMessage('hi'), isNull);
-    });
-
-    test('does not trust a foreign page still shown during an html switch', () {
-      session
-        ..willLoadUrl()
-        ..didStartPage('https://evil.example.net/')
-        ..willLoadHtml();
-      expect(session.acceptMessage('hi'), isNull);
-      expect(() => session.scriptForMessage('hi'), throwsStateError);
+    test('us03/fr04: a message with the current nonce reaches the app with '
+        'no origin and without its envelope', () {
+      final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
       session.didStartPage('about:blank');
       expect(
-        session.acceptMessage('hi'),
-        const StratumWebViewMessage(data: 'hi'),
+        session.acceptMessage(envelope(nonce, 'message', 'hi:there')),
+        const StratumWebViewMessage(data: 'hi:there'),
       );
     });
 
-    test('a late report of a foreign page after reload is not our html', () {
+    test('us03/fr04/e01: page starts, finishes, and URL changes in any '
+        'order neither grant nor end trust', () {
+      final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
+      // A message that beats the HTML's own page start (F1's order).
+      expect(session.acceptMessage(envelope(nonce, 'message', 'a')), isNotNull);
       session
-        ..willLoadHtml()
+        ..didStartPage('https://evil.example.net/')
         ..didStartPage('about:blank')
-        ..willReload()
-        ..didStartPage('https://evil.example.net/');
+        ..didChangeUrl(null);
+      expect(session.didFinishPage(), isTrue);
+      expect(session.acceptMessage(envelope(nonce, 'message', 'b')), isNotNull);
+      // The page the HTML replaced cannot know the nonce.
+      expect(session.acceptMessage('untagged'), isNull);
+    });
+
+    test('us03/fr04/e02: a null, empty, unparsable, or blob: page URL never '
+        'passes an untagged message as own HTML', () {
+      session.willLoadHtml('<p>Hi</p>');
+      for (final url in [
+        'about:blank',
+        '',
+        'http://[::1',
+        'blob:https://evil.example.net/0b5c',
+      ]) {
+        session.didStartPage(url);
+        expect(session.acceptMessage('hi'), isNull, reason: url);
+      }
+      session.didChangeUrl(null);
       expect(session.acceptMessage('hi'), isNull);
     });
 
-    test('a late start of a superseded URL does not take the html slot', () {
+    test('us03/fr04/e03: back or forward to the current HTML entry passes; '
+        'an older loadHtml stays off', () {
+      final older = nonceIn(session.willLoadHtml('<p>One</p>'));
+      final current = nonceIn(session.willLoadHtml('<p>Two</p>'));
       session
-        ..willLoadUrl()
-        ..willLoadHtml()
-        ..didStartPage('https://app.example.com/a')
+        ..didStartPage('about:blank')
+        // A link away, then the controller's goBack.
+        ..didStartPage('https://app.example.com/linked')
+        ..willNavigate()
         ..didStartPage('about:blank');
+      expect(session.acceptMessage(envelope(older, 'message', 'x')), isNull);
       expect(
-        session.acceptMessage('hi'),
-        const StratumWebViewMessage(data: 'hi'),
+        session.acceptMessage(envelope(current, 'message', 'x')),
+        const StratumWebViewMessage(data: 'x'),
       );
     });
 
-    test(
-      'an unknown URL during an html switch does not trust the old page',
-      () {
+    test('us03/fr04/e04: a reload keeps the nonce and the proof', () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      session
+        ..acceptMessage(envelope(nonceIn(html), 'hello'))
+        ..willReload()
+        ..didStartPage('about:blank');
+      expect(
+        session.acceptMessage(envelope(nonceIn(html), 'message', 'x')),
+        isNotNull,
+      );
+      expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
+    });
+
+    test('us03/fr04/e05: a malformed envelope, an unknown kind, a missing '
+        'field, or a stale or forged nonce is dropped with no side '
+        'effect', () {
+      final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
+      for (final bad in [
+        tag,
+        '$tag$nonce',
+        '$tag$nonce:',
+        '$tag$nonce:message',
+        '${tag}x$nonce:message:hi',
+        '$tag$nonce:ping:hi',
+        '$tag$nonce:hello:x',
+        '$tag${nonce.toUpperCase()}:hello:',
+        '$tag${'0' * 32}:hello:',
+        '$tag${nonce.substring(1)}:hello:',
+      ]) {
+        expect(session.acceptMessage(bad), isNull, reason: bad);
+      }
+      expect(
+        () => session.scriptForMessage('ping'),
+        throwsA(isA<StateError>()),
+        reason: 'no envelope above may prove the nonce',
+      );
+    });
+
+    test('us03/fr04/e06, us03/fr01/e12: a tagged message is judged only by '
+        'its nonce, so an allowed page that sends one is dropped', () {
+      session
+        ..willLoadUrl()
+        ..didStartPage('https://app.example.com/home');
+      expect(session.acceptMessage(envelope('a' * 32, 'message', 'x')), isNull);
+      expect(session.acceptMessage('untagged'), isNotNull);
+    });
+
+    test('us03/fr04/e08: a hello before the HTML page start, a later page '
+        'start, and a URL change keep the proof', () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      session
+        ..acceptMessage(envelope(nonceIn(html), 'hello'))
+        ..didStartPage('about:blank')
+        ..didStartPage('https://app.example.com/next')
+        ..didChangeUrl(null);
+      expect(session.scriptForMessage('ping'), contains(tokenIn(html)));
+    });
+
+    test('us03/fr04: loadUrl and dispose revoke the nonce and the token', () {
+      for (final revoke in <void Function()>[
+        session.willLoadUrl,
+        session.willDispose,
+      ]) {
+        final html = session.willLoadHtml('<p>Hi</p>');
         session
-          ..willLoadUrl()
-          ..didStartPage('https://evil.example.net/')
-          ..willLoadHtml()
-          ..didChangeUrl(null);
-        expect(session.acceptMessage('hi'), isNull);
-        expect(() => session.scriptForMessage('hi'), throwsStateError);
-        session.didStartPage('about:blank');
+          ..acceptMessage(envelope(nonceIn(html), 'hello'))
+          ..didStartPage('about:blank');
+        revoke();
         expect(
-          session.acceptMessage('hi'),
-          const StratumWebViewMessage(data: 'hi'),
+          session.acceptMessage(envelope(nonceIn(html), 'message', 'x')),
+          isNull,
         );
-      },
-    );
+        expect(session.scriptForMessage('ping'), isNot(contains('t===')));
+      }
+    });
+
+    test('nf01/NFR-Sec03: every loadHtml of every session mints a fresh '
+        'inbound nonce and an independent outbound token', () {
+      final other = NativeBridgeSession(allowedOrigins: () => allowed);
+      final secrets = [
+        for (final html in [
+          session.willLoadHtml('<p>1</p>'),
+          session.willLoadHtml('<p>2</p>'),
+          other.willLoadHtml('<p>1</p>'),
+        ]) ...[nonceIn(html), tokenIn(html)],
+      ];
+      expect(secrets.toSet(), hasLength(6));
+      for (final secret in secrets) {
+        expect(secret, matches(RegExp(r'^[0-9a-f]{32}$')));
+      }
+    });
+
+    test('nf01/NFR-Sec03: no secret reaches a delivered message or an error '
+        'text', () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      final secrets = [nonceIn(html), tokenIn(html)];
+      final message = session.acceptMessage(
+        envelope(nonceIn(html), 'message', 'x'),
+      )!;
+      for (final secret in secrets) {
+        expect(message.data, isNot(contains(secret)));
+        expect('$message', isNot(contains(secret)));
+        expect(
+          () => session.scriptForMessage('ping'),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              isNot(contains(secret)),
+            ),
+          ),
+        );
+      }
+    });
+
+    test('Q9-OQ-A3: a message has no size limit', () {
+      final nonce = nonceIn(session.willLoadHtml('<p>Hi</p>'));
+      final big = 'x' * (1 << 20);
+      expect(session.acceptMessage(envelope(nonce, 'message', big))?.data, big);
+    });
   });
 
   group('scriptForMessage', () {
-    test('builds the dispatch script for an allowed page', () {
+    test('us03/fr02/e04: an HTML load not yet proven throws, whatever page '
+        'shows', () {
+      session
+        ..willLoadUrl()
+        ..didStartPage('https://app.example.com/home')
+        ..willLoadHtml('<p>Hi</p>');
+      final unproven = throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'The HTML page has not connected the bridge yet.',
+        ),
+      );
+      expect(() => session.scriptForMessage('ping'), unproven);
+      session.didStartPage('https://app.example.com/home');
+      expect(() => session.scriptForMessage('ping'), unproven);
+    });
+
+    test('us03/fr02/e03: after the proof the script carries the outbound '
+        'token and never the inbound nonce', () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      session.acceptMessage(envelope(nonceIn(html), 'hello'));
+      final script = session.scriptForMessage('ping');
+      expect(script, contains("t==='${tokenIn(html)}'"));
+      expect(script, isNot(contains(nonceIn(html))));
+    });
+
+    test('us03/fr02/e10: with no current nonce the script checks the '
+        'allowed origins only, read at send time', () {
       session
         ..willLoadUrl()
         ..didStartPage('https://app.example.com/');
+      allowed = {appOrigin, Uri.parse('https://other.example.net')};
       expect(
         session.scriptForMessage('ping'),
-        buildMessageDispatchScript('ping'),
-      );
-    });
-
-    test('refuses a page outside the allowlist', () {
-      session
-        ..willLoadUrl()
-        ..didStartPage('https://evil.example.net/');
-      expect(() => session.scriptForMessage('ping'), throwsStateError);
-    });
-
-    test('refusal error names the origin, not the full URL', () {
-      session
-        ..willLoadUrl()
-        ..didStartPage('https://evil.example.net/path?x=secret#tok');
-      expect(
-        () => session.scriptForMessage('ping'),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            'The current page (https://evil.example.net) is not an '
-                'allowed message destination.',
-          ),
+        buildMessageDispatchScript(
+          'ping',
+          token: null,
+          allowedOrigins: allowed,
         ),
       );
     });
 
-    test('refuses to build a script before any page', () {
-      expect(() => session.scriptForMessage('ping'), throwsStateError);
+    test('us03/fr02/e10: before any page the script still runs, and the '
+        'page decides', () {
+      expect(session.scriptForMessage('ping'), isNotEmpty);
     });
 
-    test('allows loaded HTML', () {
-      session
-        ..willLoadHtml()
-        ..didStartPage('about:blank');
-      expect(session.scriptForMessage('ping'), isNotEmpty);
+    test('us03/fr02/e03: confirmDelivery accepts true and throws a '
+        'StateError naming no origin for anything else', () {
+      session.confirmDelivery(true);
+      for (final result in <Object?>[false, 'true', 1, null, '']) {
+        expect(
+          () => session.confirmDelivery(result),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'The current page is not an allowed message destination.',
+            ),
+          ),
+          reason: '$result',
+        );
+      }
     });
   });
 
@@ -358,7 +464,7 @@ void main() {
       final page = Uri.parse('https://app.example.com/missing');
       for (final begin in <void Function()>[
         session.willLoadUrl,
-        session.willLoadHtml,
+        () => session.willLoadHtml('<p>Hi</p>'),
         session.willReload,
         session.willNavigate,
         session.didAllowNavigation,
@@ -461,7 +567,7 @@ void main() {
       final page = Uri.parse('https://app.example.com/flip');
       for (final begin in <void Function()>[
         session.willLoadUrl,
-        session.willLoadHtml,
+        () => session.willLoadHtml('<p>Hi</p>'),
         session.willReload,
         session.willNavigate,
       ]) {

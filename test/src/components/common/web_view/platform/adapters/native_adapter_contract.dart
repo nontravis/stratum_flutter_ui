@@ -3,6 +3,7 @@ import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
+import '../../fakes/native_bridge_envelope.dart';
 import '../../fakes/recording_listener.dart';
 
 /// Drives one native adapter through its fake platform.
@@ -14,6 +15,9 @@ abstract interface class NativeAdapterHarness {
   List<bool> get javaScriptEnabledStates;
   Set<String> get channelNames;
   int get reloadCount;
+
+  /// What the platform answers for the next dispatch script.
+  set scriptResult(Object value);
   void setCurrentUrl(String? url);
   void startPage(String url);
   void finishPage(String url);
@@ -57,7 +61,8 @@ void runNativeAdapterContract(
       await adapter.load(StratumWebViewSource.url(appPage));
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
       expect(harness.loadedUrls, [appPage]);
-      expect(harness.loadedHtml, ['<p>Hi</p>']);
+      expect(harness.loadedHtml.single, startsWith('<script>'));
+      expect(harness.loadedHtml.single, endsWith('</script><p>Hi</p>'));
     });
 
     test('accepts a message from an allowed page', () async {
@@ -87,47 +92,93 @@ void runNativeAdapterContract(
       expect(listener.messages, isEmpty);
     });
 
-    test('trusts loaded HTML until the page navigates away', () async {
+    test('us03/fr04: loads HTML with the native bootstrap and delivers only '
+        'messages that carry its nonce, whenever they arrive', () async {
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      final html = harness.loadedHtml.single;
+      expect(html, endsWith('})();</script><p>Hi</p>'));
       harness
+        ..sendBridgeMessage(envelope(nonceIn(html), 'message', 'early'))
         ..startPage('about:blank')
-        ..sendBridgeMessage('from html')
+        ..sendBridgeMessage(envelope(nonceIn(html), 'message', 'from html'))
+        ..sendBridgeMessage('untagged')
         ..startPage('https://evil.example.net/')
-        ..sendBridgeMessage('spoofed');
+        ..sendBridgeMessage(envelope('0' * 32, 'message', 'spoofed'));
       expect(listener.messages, [
+        const StratumWebViewMessage(data: 'early'),
         const StratumWebViewMessage(data: 'from html'),
       ]);
     });
 
-    test('reloading HTML keeps the bridge open', () async {
+    test('us03/fr04/e04: reloading HTML keeps its nonce', () async {
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      final html = harness.loadedHtml.single;
       harness.startPage('about:blank');
       await adapter.reload();
       harness
         ..startPage('about:blank')
-        ..sendBridgeMessage('after reload');
+        ..sendBridgeMessage(envelope(nonceIn(html), 'message', 'after'));
       expect(harness.reloadCount, 1);
-      expect(listener.messages, [
-        const StratumWebViewMessage(data: 'after reload'),
-      ]);
+      expect(listener.messages, [const StratumWebViewMessage(data: 'after')]);
     });
 
-    test('posts a message to an allowed page', () async {
-      await adapter.load(StratumWebViewSource.url(appPage));
-      harness.startPage(appPage.toString());
-      await adapter.postMessage('ping');
-      expect(harness.scripts, [buildMessageDispatchScript('ping')]);
-    });
-
-    test('refuses to post to a page outside the allowlist', () async {
-      await adapter.load(StratumWebViewSource.url(appPage));
-      harness.startPage('https://evil.example.net/');
-      await expectLater(adapter.postMessage('ping'), throwsStateError);
+    test('us03/fr02/e04: a send to HTML before its hello throws and runs no '
+        'script', () async {
+      await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      harness.startPage('about:blank');
+      await expectLater(
+        adapter.postMessage('ping'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The HTML page has not connected the bridge yet.',
+          ),
+        ),
+      );
       expect(harness.scripts, isEmpty);
     });
 
-    test('refuses to post before any page starts', () async {
-      await expectLater(adapter.postMessage('ping'), throwsStateError);
+    test('us03/fr02/e03: after its hello, HTML gets the dispatch script '
+        'with its outbound token', () async {
+      await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      final html = harness.loadedHtml.single;
+      harness.sendBridgeMessage(envelope(nonceIn(html), 'hello'));
+      await adapter.postMessage('ping');
+      expect(harness.scripts.single, contains("t==='${tokenIn(html)}'"));
+      expect(listener.messages, isEmpty);
+    });
+
+    test('us03/fr02/e10: posts the dispatch script to a URL page', () async {
+      await adapter.load(StratumWebViewSource.url(appPage));
+      harness.startPage(appPage.toString());
+      await adapter.postMessage('ping');
+      expect(harness.scripts, [
+        buildMessageDispatchScript(
+          'ping',
+          token: null,
+          allowedOrigins: {appOrigin},
+        ),
+      ]);
+    });
+
+    test('us03/fr02/e03: a send the page refuses throws a StateError that '
+        'names no origin', () async {
+      await adapter.load(StratumWebViewSource.url(appPage));
+      harness
+        ..startPage('https://evil.example.net/path?x=secret')
+        ..scriptResult = false;
+      await expectLater(
+        adapter.postMessage('ping'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The current page is not an allowed message destination.',
+          ),
+        ),
+      );
+      expect(harness.scripts, hasLength(1));
     });
 
     test('asks the listener about main-frame navigation', () async {

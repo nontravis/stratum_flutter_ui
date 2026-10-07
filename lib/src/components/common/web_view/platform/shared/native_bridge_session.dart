@@ -1,4 +1,6 @@
-import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_frame_guard.dart';
+import 'dart:math';
+
+import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
@@ -9,6 +11,9 @@ const String bridgeChannelName = 'StratumBridge';
 /// The most HTTP error candidates one session holds.
 const int _maxCandidates = 16;
 
+/// Length of a hex-encoded 16-byte secret.
+const int _secretLength = 32;
+
 /// Bridge and error rules shared by the native adapters.
 ///
 /// Adapters report platform events here and ask whether a message may pass.
@@ -17,10 +22,21 @@ final class NativeBridgeSession {
   new({required Set<Uri> Function() allowedOrigins})
     : _allowedOrigins = allowedOrigins;
 
+  static final Random _random = Random.secure();
+
   final Set<Uri> Function() _allowedOrigins;
-  final HtmlFrameGuard _guard = HtmlFrameGuard();
   Uri? _pageUrl;
-  bool _pageUrlUnknown = false;
+
+  /// The inbound nonce of the current `loadHtml`, or `null` when no HTML
+  /// load is current (US-03 FR-04).
+  String? _inboundNonce;
+
+  /// The outbound token minted beside [_inboundNonce].
+  String? _outboundToken;
+
+  /// Whether a `hello` envelope proved [_inboundNonce]. Only [willLoadHtml],
+  /// [willLoadUrl], and [willDispose] clear it, never a page start.
+  bool _proven = false;
 
   /// Whether a main-frame page start has had neither a page finish nor a
   /// new page start since, so a finish still pairs with it.
@@ -34,10 +50,10 @@ final class NativeBridgeSession {
   /// by [_comparable] URL, oldest first.
   final Map<Uri, StratumWebViewError> _candidates = {};
 
-  /// Call right before the adapter loads a URL.
+  /// Call right before the adapter loads a URL: revokes the nonce.
   void willLoadUrl() {
     _beginNavigation();
-    _guard.expectNavigation();
+    _revokeNonce();
   }
 
   /// Call right before the adapter's own `goBack` or `goForward`.
@@ -49,22 +65,44 @@ final class NativeBridgeSession {
   /// load's own finish still pairs with it.
   void didAllowNavigation() => _candidates.clear();
 
-  /// Call right before the adapter loads an HTML string.
-  void willLoadHtml() {
+  /// Call right before the adapter loads [html]; returns the HTML to load.
+  ///
+  /// Mints a fresh inbound nonce and an independent outbound token, 16
+  /// bytes each from `Random.secure()`, and places the native bootstrap
+  /// that carries them in the returned HTML, the only place they travel.
+  /// The nonce of an earlier load stops counting at once.
+  String willLoadHtml(String html) {
     _beginNavigation();
-    _guard.expectOwnHtml();
+    final nonce = _mintSecret();
+    final token = _mintSecret();
+    _inboundNonce = nonce;
+    _outboundToken = token;
+    _proven = false;
+    return injectNativeBridgeBootstrap(html, nonce: nonce, token: token);
   }
 
   /// Call right before the adapter reloads the current page.
-  void willReload() {
-    _beginNavigation();
-    // The guard only reports own HTML after an HTML load or reload.
-    if (_guard.isShowingOwnHtml) _guard.expectOwnHtml();
-  }
+  ///
+  /// The platform parses the same HTML string again, so the nonce stays.
+  void willReload() => _beginNavigation();
 
   /// Call right before the adapter is disposed; every candidate is
-  /// discarded.
-  void willDispose() => _candidates.clear();
+  /// discarded and the nonce is revoked.
+  void willDispose() {
+    _candidates.clear();
+    _revokeNonce();
+  }
+
+  void _revokeNonce() {
+    _inboundNonce = null;
+    _outboundToken = null;
+    _proven = false;
+  }
+
+  String _mintSecret() => [
+    for (var i = 0; i < _secretLength ~/ 2; i++)
+      _random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+  ].join();
 
   /// A controller action begins a navigation: every candidate is discarded,
   /// and the at-once error eligibility of the tracked page ends, because
@@ -85,16 +123,8 @@ final class NativeBridgeSession {
   StratumWebViewError? didStartPage(String url) {
     final pageUrl = Uri.tryParse(url);
     _pageUrl = pageUrl;
-    _pageUrlUnknown = false;
     _pageStartOpen = true;
     _atOnceErrorOpen = true;
-    // While our HTML is still loading, a page with a real origin is the late
-    // start of the load it superseded, never our HTML (which reports a
-    // host-less URL). Letting it count would use up the HTML's first-load
-    // slot, and our HTML's own start would then read as navigating away.
-    if (!_guard.isAwaitingLoad || originOf(pageUrl) == null) {
-      _guard.didLoadFrame();
-    }
     final started = _comparable(pageUrl);
     final candidate = started == null ? null : _candidates[started];
     _candidates.clear();
@@ -116,44 +146,81 @@ final class NativeBridgeSession {
   }
 
   /// Call when the platform reports a URL change without a page load.
-  ///
-  /// A `null` URL means the platform does not know the page, not that the
-  /// page is our HTML, so it denies HTML trust until the next [didStartPage].
   void didChangeUrl(String? url) {
     _pageUrl = url == null ? null : Uri.tryParse(url);
-    _pageUrlUnknown = url == null;
   }
 
-  /// Whether the tracked page is still the controller's own HTML.
-  ///
-  /// The guard alone is not enough: between [willLoadHtml] and the HTML's
-  /// first [didStartPage], the previous page is still live and the guard
-  /// already reports `awaitingLoad`. A page with a real origin is never our
-  /// HTML, so this also requires [_pageUrl] to be host-less (the adapters
-  /// load HTML without a base URL, so our HTML reports `about:blank`).
-  bool get _isTrustedHtml =>
-      _guard.isShowingOwnHtml && !_pageUrlUnknown && originOf(_pageUrl) == null;
-
   /// Returns the message to deliver for [data], or `null` to drop it.
+  ///
+  /// A message that carries [nativeBridgeEnvelopeTag] is judged only by its
+  /// nonce; any other message only by the origin of the tracked page, so a
+  /// host-less page never passes as the app's HTML. No page start, URL, or
+  /// arrival order decides HTML trust.
   StratumWebViewMessage? acceptMessage(String data) {
-    if (_isTrustedHtml) return StratumWebViewMessage(data: data);
+    if (data.startsWith(nativeBridgeEnvelopeTag)) {
+      return _openEnvelope(data.substring(nativeBridgeEnvelopeTag.length));
+    }
     if (!isAllowedOrigin(_pageUrl, _allowedOrigins())) return null;
     return StratumWebViewMessage(data: data, origin: originOf(_pageUrl));
   }
 
-  /// Returns the script that delivers [data] to the current page.
-  ///
-  /// Throws a [StateError] when the current page may not receive messages.
-  String scriptForMessage(String data) {
-    final allowed =
-        _isTrustedHtml || isAllowedOrigin(_pageUrl, _allowedOrigins());
-    if (!allowed) {
-      throw StateError(
-        'The current page (${originOf(_pageUrl)}) is not an allowed '
-        'message destination.',
-      );
+  /// Parses `<nonce>:<kind>:<data>` totally and fails closed: a missing
+  /// field, an unknown kind, a `hello` that carries data, or a nonce other
+  /// than the current one drops the envelope with no side effect.
+  StratumWebViewMessage? _openEnvelope(String body) {
+    final nonce = _inboundNonce;
+    if (nonce == null || body.length <= _secretLength) return null;
+    if (body[_secretLength] != ':') return null;
+    if (!_sameSecret(body.substring(0, _secretLength), nonce)) return null;
+    final rest = body.substring(_secretLength + 1);
+    final kindEnd = rest.indexOf(':');
+    if (kindEnd < 0) return null;
+    final payload = rest.substring(kindEnd + 1);
+    switch (rest.substring(0, kindEnd)) {
+      case 'hello' when payload.isEmpty:
+        _proven = true;
+        return null;
+      case 'message':
+        return StratumWebViewMessage(data: payload);
+      default:
+        return null;
     }
-    return buildMessageDispatchScript(data);
+  }
+
+  /// Compares two secrets of equal length in time that does not depend on
+  /// where they differ.
+  static bool _sameSecret(String a, String b) {
+    if (a.length != b.length) return false;
+    var difference = 0;
+    for (var i = 0; i < a.length; i++) {
+      difference |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
+    }
+    return difference == 0;
+  }
+
+  /// Returns the one dispatch script that delivers [data] to the page the
+  /// view shows, which checks inside the page whether it may receive it.
+  ///
+  /// Throws a [StateError] while the current HTML load has not proven its
+  /// nonce, whatever page shows (US-03 FR-02 E04).
+  String scriptForMessage(String data) {
+    if (_inboundNonce != null && !_proven) {
+      throw StateError('The HTML page has not connected the bridge yet.');
+    }
+    return buildMessageDispatchScript(
+      data,
+      token: _proven ? _outboundToken : null,
+      allowedOrigins: _allowedOrigins(),
+    );
+  }
+
+  /// Turns the dispatch script's [result] into the send's outcome: `true`
+  /// means the page received the message; anything else throws a
+  /// [StateError] that names no origin, because the page reports only a
+  /// boolean (US-03 FR-02 E03).
+  void confirmDelivery(Object? result) {
+    if (result == true) return;
+    throw StateError('The current page is not an allowed message destination.');
   }
 
   /// Maps a platform resource error, or returns `null` for a sub-frame error.

@@ -47,6 +47,9 @@ final class _Harness implements NativeAdapterHarness {
   int get reloadCount => _controller.reloadCount;
 
   @override
+  set scriptResult(Object value) => _controller.scriptResult = value;
+
+  @override
   void setCurrentUrl(String? url) => _controller.currentUrlValue = url;
 
   @override
