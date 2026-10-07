@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/adapters/native_sender_channel.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
@@ -20,6 +21,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     // inferring it from whether a hello happens to carry a reply proxy).
     _session = NativeBridgeSession(
       allowedOrigins: () => _listener.allowedOrigins,
+      platform: defaultTargetPlatform,
       namesSenders: true,
       bindsSendsToDocument: _controller.platform is AndroidWebViewController,
     );
@@ -199,12 +201,6 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   }
 
   void _handleResourceError(wf.WebResourceError error) {
-    // WebKit (iOS, macOS) reports NSURLErrorCancelled (-999) whenever a
-    // navigation is superseded by another one in flight, for example a
-    // second link tap or a `source` change during a load. It is not a
-    // failure of the page that ends up loading, so it is dropped here.
-    // Android's error codes range -1..-16 and cannot collide with it.
-    if (error.errorCode == -999) return;
     final mapped = _session.networkError(
       code: error.errorCode,
       description: error.description,

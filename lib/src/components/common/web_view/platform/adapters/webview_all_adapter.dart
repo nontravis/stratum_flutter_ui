@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
@@ -16,6 +17,7 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   new(this._listener)
     : _session = NativeBridgeSession(
         allowedOrigins: () => _listener.allowedOrigins,
+        platform: defaultTargetPlatform,
       ),
       _controller = wa.PlatformWebViewController(
         const wa.PlatformWebViewControllerCreationParams(),

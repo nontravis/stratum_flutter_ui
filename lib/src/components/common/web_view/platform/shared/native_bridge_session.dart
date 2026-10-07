@@ -45,6 +45,17 @@ Future<Object?> dispatchScriptAnswer(Future<Object> evaluation) async {
 /// Length of a hex-encoded 16-byte secret.
 const int _secretLength = 32;
 
+/// Resource error codes that report a navigation a newer one replaced, per
+/// platform (`s03_domain.md` invariant 10): `NSURLErrorCancelled` on WebKit,
+/// and the index of `WebErrorStatusOperationCanceled`, which
+/// `webview_all_windows` reports with type `unknown`, on WebView2. Linux
+/// emits no cancelled load, and Android has no cancel code.
+const Map<TargetPlatform, Set<int>> _cancelCodes = {
+  TargetPlatform.iOS: {-999},
+  TargetPlatform.macOS: {-999},
+  TargetPlatform.windows: {14},
+};
+
 /// The only document id shape a `hello` or `bye` may carry: 16 bytes in
 /// lowercase hex.
 final RegExp _documentIdShape = RegExp(r'^[0-9a-f]{32}$');
@@ -86,17 +97,22 @@ final class NativeBridgeSession {
   /// whether a `hello` happened to carry a reply proxy. With it set, a
   /// `hello` with no reply proxy proves nothing, and [scriptForMessage]
   /// never puts the token on the page shown.
+  ///
+  /// [platform] picks the row of the cancel-code table.
   new({
     required Set<Uri> Function() allowedOrigins,
+    required TargetPlatform platform,
     bool namesSenders = false,
     bool bindsSendsToDocument = false,
   }) : _allowedOrigins = allowedOrigins,
+       _platform = platform,
        _namesSenders = namesSenders,
        _bindsSendsToDocument = bindsSendsToDocument;
 
   static final Random _random = Random.secure();
 
   final Set<Uri> Function() _allowedOrigins;
+  final TargetPlatform _platform;
   final bool _namesSenders;
   final bool _bindsSendsToDocument;
   Uri? _pageUrl;
@@ -391,7 +407,9 @@ final class NativeBridgeSession {
     throw StateError('The current page is not an allowed message destination.');
   }
 
-  /// Maps a platform resource error, or returns `null` for a sub-frame error.
+  /// Maps a platform resource error, or returns `null` for a sub-frame error
+  /// or a cancelled navigation, one that a newer navigation replaced while
+  /// in flight (US-01 FR-02 E04).
   StratumWebViewError? networkError({
     required int code,
     required String description,
@@ -399,6 +417,7 @@ final class NativeBridgeSession {
     required String? url,
   }) {
     if (!(isForMainFrame ?? true)) return null;
+    if (_cancelCodes[_platform]?.contains(code) ?? false) return null;
     return StratumWebViewError(
       type: StratumWebViewErrorType.network,
       description: description,

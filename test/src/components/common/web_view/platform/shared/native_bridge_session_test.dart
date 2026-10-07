@@ -20,7 +20,10 @@ void main() {
 
   setUp(() {
     allowed = {appOrigin};
-    session = NativeBridgeSession(allowedOrigins: () => allowed);
+    session = NativeBridgeSession(
+      allowedOrigins: () => allowed,
+      platform: TargetPlatform.android,
+    );
   });
 
   group('messages from URL pages', () {
@@ -157,6 +160,7 @@ void main() {
         'message without one drops, never judged by the tracked page', () {
       final named = NativeBridgeSession(
         allowedOrigins: () => allowed,
+        platform: TargetPlatform.android,
         namesSenders: true,
       );
       final nonce = nonceIn(named.willLoadHtml('<p>Hi</p>'));
@@ -488,7 +492,10 @@ void main() {
 
     test('nf01/NFR-Sec03: every loadHtml of every session mints a fresh '
         'inbound nonce and an independent outbound token', () {
-      final other = NativeBridgeSession(allowedOrigins: () => allowed);
+      final other = NativeBridgeSession(
+        allowedOrigins: () => allowed,
+        platform: TargetPlatform.android,
+      );
       final secrets = [
         for (final html in [
           session.willLoadHtml('<p>1</p>'),
@@ -612,6 +619,7 @@ void main() {
     setUp(() {
       android = NativeBridgeSession(
         allowedOrigins: () => allowed,
+        platform: TargetPlatform.android,
         namesSenders: true,
         bindsSendsToDocument: true,
       );
@@ -787,6 +795,7 @@ void main() {
     setUp(() {
       webKit = NativeBridgeSession(
         allowedOrigins: () => allowed,
+        platform: TargetPlatform.android,
         namesSenders: true,
       );
     });
@@ -900,6 +909,32 @@ void main() {
       );
       expect(error?.description, 'HTTP error');
       expect(error?.code, isNull);
+    });
+
+    test('us01/fr02/e04: drops a cancelled navigation through the '
+        'cancel-code table of its platform', () {
+      for (final (platform, code, dropped) in [
+        (TargetPlatform.iOS, -999, true),
+        (TargetPlatform.macOS, -999, true),
+        (TargetPlatform.windows, 14, true),
+        (TargetPlatform.windows, -999, false),
+        (TargetPlatform.linux, 14, false),
+        (TargetPlatform.android, -999, false),
+        (TargetPlatform.android, 14, false),
+        (TargetPlatform.iOS, 14, false),
+      ]) {
+        final mapped =
+            NativeBridgeSession(
+              allowedOrigins: () => allowed,
+              platform: platform,
+            ).networkError(
+              code: code,
+              description: 'cancelled',
+              isForMainFrame: true,
+              url: 'https://app.example.com/',
+            );
+        expect(mapped == null, dropped, reason: '${platform.name} $code');
+      }
     });
 
     test('drops sub-frame network errors', () {

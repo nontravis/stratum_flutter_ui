@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/adapters/native_sender_channel.dart';
@@ -285,23 +286,33 @@ void main() {
     });
   });
 
-  test('drops the iOS/macOS cancelled-navigation error (-999)', () async {
-    final harness = _Harness();
-    final listener = RecordingListener(
-      allowedOrigins: {Uri.parse('https://app.example.com')},
+  for (final (platform, reported) in [
+    (TargetPlatform.iOS, false),
+    (TargetPlatform.macOS, false),
+    (TargetPlatform.android, true),
+  ]) {
+    test(
+      'us01/fr02/e04: a -999 resource error on ${platform.name} is '
+      '${reported ? 'reported' : 'dropped as a cancelled navigation'}',
+      () async {
+        debugDefaultTargetPlatformOverride = platform;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final harness = _Harness();
+        final listener = RecordingListener(
+          allowedOrigins: {Uri.parse('https://app.example.com')},
+        );
+        harness.createAdapter(listener);
+        await pumpEventQueue();
+        harness.failResource(
+          code: -999,
+          description: 'cancelled',
+          isForMainFrame: true,
+          url: 'https://app.example.com/',
+        );
+        expect(listener.errors, hasLength(reported ? 1 : 0));
+      },
     );
-    harness.createAdapter(listener);
-    await pumpEventQueue();
-
-    harness.failResource(
-      code: -999,
-      description: 'cancelled',
-      isForMainFrame: true,
-      url: 'https://app.example.com/',
-    );
-
-    expect(listener.errors, isEmpty);
-  });
+  }
 }
 
 final class _Harness implements NativeAdapterHarness {

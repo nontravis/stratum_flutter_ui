@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/adapters/webview_all_adapter.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
@@ -10,6 +11,33 @@ import 'native_adapter_contract.dart';
 
 void main() {
   runNativeAdapterContract('WebviewAllAdapter', _Harness.new);
+
+  for (final (platform, reported) in [
+    (TargetPlatform.windows, false),
+    (TargetPlatform.linux, true),
+  ]) {
+    test(
+      'us01/fr02/e04: a resource error with code 14 on ${platform.name} '
+      'is ${reported ? 'reported' : 'dropped as a cancelled navigation'}',
+      () async {
+        debugDefaultTargetPlatformOverride = platform;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final harness = _Harness();
+        final listener = RecordingListener(
+          allowedOrigins: {Uri.parse('https://app.example.com')},
+        );
+        harness.createAdapter(listener);
+        await pumpEventQueue();
+        harness.failResource(
+          code: 14,
+          description: 'The operation was canceled.',
+          isForMainFrame: true,
+          url: 'https://app.example.com/',
+        );
+        expect(listener.errors, hasLength(reported ? 1 : 0));
+      },
+    );
+  }
 
   group('WebviewAllAdapter JavaScript channel', () {
     final appOrigin = Uri.parse('https://app.example.com');
