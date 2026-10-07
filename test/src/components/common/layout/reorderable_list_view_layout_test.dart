@@ -6494,6 +6494,47 @@ void main() {
     );
 
     testWidgets(
+      'us11/fr05/e11: a far move of a first item the app refocuses after a '
+      "second item's far move in the same turn returns to the second's "
+      'origin, where the first is built',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        final aState = _itemState(tester, 100);
+        final a = await _focusItem(tester, 100);
+        final b = _itemState(tester, 101).node;
+
+        // Both far moves run before any frame: the first (item 100) queues
+        // its own origin, 4000; the app then focuses item 101 and moves it
+        // far too, queuing an origin that is already item 100's jumped
+        // offset. The app then puts focus back on item 100 before the
+        // frame runs, so the unwind must stop there instead of at 101.
+        _harness(tester).move(100, 150);
+        b.requestFocus();
+        FocusManager.instance.applyFocusChangesIfNeeded();
+        _harness(tester).move(_harness(tester).ids.indexOf(101), 160);
+        a.requestFocus();
+        FocusManager.instance.applyFocusChangesIfNeeded();
+        await tester.pump();
+
+        // The unwind meets item 101 first (unfocused) and returns to its
+        // own origin, the offset right after item 100's jump, where item
+        // 100's slot is built; it then meets item 100 (focused) and stops,
+        // never reaching item 100's own origin, 4000.
+        expect(position.pixels, isNot(4000));
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, same(a));
+        expect(_statesOf(tester, 100), contains(aState));
+        expect(_builtInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
       'us11/fr03/e09: a focus the app moves in the turn of Alt+Down to a '
       'near unbuilt slot stays, and the moved item does not build ahead',
       (tester) async {
