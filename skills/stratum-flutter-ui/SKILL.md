@@ -259,3 +259,13 @@ scroll it, guarded so a text field inside keeps its own keys.
   in `formatException`. Its `path` field is entry text straight from the zip: escape it before your app logs or shows
   it, since a hostile zip crafts it. `StratumThemeFormatException` and each `StratumThemeFormatError` print their
   yaml paths and messages escaped, but an error's `path` field is the raw yaml path: escape it the same way.
+- **Pack and check a theme zip** — from your app project, `dart run stratum_ui:stratum_theme pack <folder>` writes
+  `<id>.zip` (the id is the folder name, or `--id`; `--out <folder>` to write elsewhere) and prints `sha256:<hex>`, the
+  checksum your API serves; the same folder always packs to the same bytes. `dart run stratum_ui:stratum_theme check
+  <file.zip>` runs your app's own install checks on a zip, over the package default and your
+  `assets/themes/default/theme.yaml` when you have one (`--app-default <path>` for another file); pass `--max-bytes` and
+  `--max-entries` when your app raises a cap. A run that passes prints only the checksum on stdout; stderr names the
+  defaults read, each problem with the code your app would report, and `warning:` lines (files the theme does not name,
+  names that differ only in letter case) that never fail it. Exit 0 pass, 1 check failed, 64 usage, 66 a missing
+  folder, zip file, or `--app-default` file, an `--out` that is not a folder, or a zip that fails to write. Names
+  starting with `.` and `__MACOSX/` stay out; a symbolic link or other special entry fails the pack.
