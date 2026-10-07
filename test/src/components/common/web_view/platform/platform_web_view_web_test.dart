@@ -451,6 +451,24 @@ location.href = 'data:text/html,' + encodeURIComponent(
     expect(await view.currentUrl(), crossOrigin);
   });
 
+  test("sec-m3 F1: a same-origin outgoing page's late load, arriving after "
+      "a newer entry's own load began, is ignored: currentUrl keeps "
+      'reporting the entry the controller requested', () async {
+    final a = appOrigin.replace(path: '/missing');
+    final b = appOrigin.replace(path: '/missing', query: 'next=1');
+    await view.load(StratumWebViewSource.url(a));
+    attach();
+    await finishes(1);
+    expect(await view.currentUrl(), a);
+
+    await view.load(StratumWebViewSource.url(b));
+    // A's own in-flight load fires only now, after b's navigation began:
+    // the frame has not yet committed b, so its document is still a's.
+    fireFrameLoad();
+    expect(listener.pagesFinished, [a]);
+    expect(await view.currentUrl(), b);
+  });
+
   test('us03/fr01/e05: an outgoing URL page message arrives with its own '
       'origin after the view moved on, to HTML or to another URL', () async {
     await view.load(missingPage());

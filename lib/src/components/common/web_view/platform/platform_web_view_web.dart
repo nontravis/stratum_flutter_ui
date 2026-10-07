@@ -57,6 +57,14 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   /// entry's navigation, until the frame's `load` for that entry.
   bool _pageStartOpen = false;
 
+  /// The document the frame showed before the current entry started, or
+  /// `null` for a cross-origin or disconnected frame.
+  ///
+  /// A same-origin outgoing page may fire its own `load` after a newer
+  /// entry starts (sec-m3 F1); [_handleLoad] drops a `load` while the frame
+  /// still shows this document, since it belongs to the page being left.
+  web.Document? _leavingDocument;
+
   /// The iframe that shows the page.
   @visibleForTesting
   web.HTMLIFrameElement get iframe => _iframe;
@@ -205,6 +213,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   }
 
   void _show(StratumWebViewSource source) {
+    _leavingDocument = _iframe.contentDocument;
     _applySandbox(source);
     _closeBridgePort();
     _pageStartOpen = true;
@@ -250,6 +259,11 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
 
   void _handleLoad(web.Event event) {
     if (_disposed) return;
+    final leaving = _leavingDocument;
+    if (leaving != null && _iframe.contentDocument == leaving) {
+      // Belongs to the document being left, not the new entry; ignore it.
+      return;
+    }
     final current = _history.current;
     if (current == null) return;
     final url = current is StratumWebViewUrlSource ? current.url : null;
