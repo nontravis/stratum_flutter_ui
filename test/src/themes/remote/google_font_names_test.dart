@@ -25,12 +25,26 @@ String _quote(String name) {
 /// `.dart_tool/package_config.json`.
 String _resolvedGoogleFontsVersion() {
   final config = File('.dart_tool/package_config.json').absolute;
+  if (!config.existsSync()) {
+    fail('${config.path} is missing: run flutter pub get first');
+  }
   final json = jsonDecode(config.readAsStringSync()) as Map<String, Object?>;
   final packages = (json['packages']! as List<Object?>)
       .cast<Map<String, Object?>>();
-  final rootUri =
-      packages.singleWhere((p) => p['name'] == 'google_fonts')['rootUri']!
-          as String;
+  Map<String, Object?>? package;
+  for (final entry in packages) {
+    if (entry['name'] == 'google_fonts') {
+      package = entry;
+      break;
+    }
+  }
+  if (package == null) {
+    fail(
+      'google_fonts is missing from ${config.path}: run flutter pub get '
+      'first',
+    );
+  }
+  final rootUri = package['rootUri']! as String;
   final root = config.uri.resolve(
     rootUri.endsWith('/') ? rootUri : '$rootUri/',
   );
@@ -84,7 +98,7 @@ void main() {
       googleFontNamesVersion,
       reason: 'regenerate: see the header of $_path',
     );
-  });
+  }, skip: _update ? 'regenerating the list' : false);
 
   test('r12, s03/inv17: pubspec.yaml allows only the recorded google_fonts '
       'version', () {
@@ -96,5 +110,5 @@ void main() {
       dependencies['google_fonts'],
       '>=$googleFontNamesVersion <=$googleFontNamesVersion',
     );
-  });
+  }, skip: _update ? 'regenerating the list' : false);
 }
