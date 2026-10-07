@@ -43,7 +43,8 @@ class RemoteThemeBundle extends AssetBundle {
   /// Whether [folder] is in memory.
   bool holds(String folder) => _folders.containsKey(folder);
 
-  /// Drops every folder.
+  /// Replaces `AssetBundle.clear`, which empties a bundle's cache: this
+  /// bundle drops every installed folder and its entries from memory.
   @override
   void clear() => _folders.clear();
 

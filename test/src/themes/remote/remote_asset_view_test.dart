@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart' show AssetLottie, LottieBuilder;
 import 'package:stratum_ui/src/src.dart';
 
 import 'remote_fakes.dart';
@@ -44,6 +45,7 @@ void main() {
   Future<StratumThemeController> controllerOn(
     WidgetTester tester,
     String id, {
+    String slot = 'loading',
     String loading = 'images/loading.png',
     List<int> loadingBytes = const [1, 2],
   }) async {
@@ -58,7 +60,7 @@ void main() {
       await c.install(
         remoteTheme(
           'brand',
-          body: 'assets:\n  loading: $loading',
+          body: 'assets:\n  $slot: $loading',
           files: {loading: loadingBytes},
         ),
       );
@@ -141,5 +143,49 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const ValueKey('placeholder')), findsOneWidget);
+  });
+
+  testWidgets('q11/minor4: a remote splash-screen slot reads through the '
+      'overlay bundle', (tester) async {
+    final controller = await controllerOn(
+      tester,
+      'brand',
+      slot: 'splash-screen',
+      loading: 'images/splash.png',
+    );
+    await tester.pumpWidget(
+      _host(
+        const StratumThemeAssetView.splashScreen(placeholder: _placeholder),
+        controller: controller,
+      ),
+    );
+
+    final image = tester.widget<Image>(find.byType(Image)).image as AssetImage;
+    expect(image.assetName, 'stratum-remote/brand/1/images/splash.png');
+    expect(image.bundle, same(controller.remoteBundle));
+  });
+
+  testWidgets('q11/minor4: a remote Lottie slot reads through the overlay '
+      'bundle', (tester) async {
+    final controller = await controllerOn(
+      tester,
+      'brand',
+      loading: 'anim/loading.json',
+      loadingBytes: utf8.encode(
+        '{"v":"5.7.4","fr":30,"ip":0,"op":1,"w":4,"h":4,"layers":[]}',
+      ),
+    );
+    await tester.pumpWidget(
+      _host(
+        const StratumThemeAssetView.loading(placeholder: _placeholder),
+        controller: controller,
+      ),
+    );
+
+    final lottie =
+        tester.widget<LottieBuilder>(find.byType(LottieBuilder)).lottie
+            as AssetLottie;
+    expect(lottie.assetName, 'stratum-remote/brand/1/anim/loading.json');
+    expect(lottie.bundle, same(controller.remoteBundle));
   });
 }
