@@ -1,3 +1,16 @@
+/// Prefix of every native bridge envelope: the version tag.
+///
+/// An envelope reads `<tag><inbound nonce>:<kind>:<data>`, where the nonce is
+/// 32 lowercase hex characters and the kind is `hello` (with empty data) or
+/// `message`. A page message that starts with this tag is judged only by its
+/// nonce (US-03 FR-04, `event_bridge_messages.md` `## Native envelope`).
+const String nativeBridgeEnvelopeTag = 'stratum-bridge-envelope:1:';
+
+/// Name of the window property where the native bootstrap keeps the
+/// outbound token; the dispatch script compares it with `===` against the
+/// literal it carries.
+const String nativeBridgeTokenProperty = '__stratumBridgeToken';
+
 /// Builds the bootstrap script injected into HTML content rendered on web.
 ///
 /// The web implementation renders HTML in a `srcdoc` iframe with an opaque
@@ -14,10 +27,7 @@
 /// nonce — never obtains a working bridge, even if it forges the
 /// `stratum-bridge-handshake:` prefix.
 ///
-/// Returns [html] with the script inserted right after a leading
-/// `<!DOCTYPE ...>` declaration (matched case-insensitively, allowing
-/// leading whitespace and HTML comments before it), or prepended when
-/// [html] has none.
+/// Returns [html] with the script placed by [placeBridgeBootstrap].
 String injectBridgeBootstrap(String html, String nonce) {
   // Each piece below ends with an explicit `\n`. A blank line between
   // statements is valid, whitespace-insensitive JavaScript, and it gives
@@ -34,6 +44,52 @@ String injectBridgeBootstrap(String html, String nonce) {
       "parent.postMessage('stratum-bridge-handshake:$nonce',\n"
       "'*',[c.port2]);\n"
       '})();</script>';
+  return placeBridgeBootstrap(html, script);
+}
+
+/// Builds the bootstrap script injected into HTML that a native adapter
+/// loads (US-03 FR-04).
+///
+/// The script captures the platform's `StratumBridge` object in a closure,
+/// keeps [token] in the [nativeBridgeTokenProperty] window property, replaces
+/// `window.StratumBridge` with a frozen wrapper that sends every message as
+/// an envelope carrying [nonce] (see [nativeBridgeEnvelopeTag]), and posts a
+/// `hello` envelope that proves [nonce] to the app. The envelope never
+/// carries [token]. When the platform object is missing, the script does
+/// nothing, and the bridge stays closed.
+///
+/// Returns [html] with the script placed by [placeBridgeBootstrap].
+String injectNativeBridgeBootstrap(
+  String html, {
+  required String nonce,
+  required String token,
+}) {
+  final script =
+      "<script>(function(){'use strict';\n"
+      'var b=window.StratumBridge;\n'
+      "if(!b||typeof b.postMessage!=='function')return;\n"
+      'var p=b.postMessage;\n'
+      'function s(k,d){\n'
+      "p.call(b,'$nativeBridgeEnvelopeTag$nonce:'+k+':'+d);}\n"
+      "Object.defineProperty(window,'$nativeBridgeTokenProperty',\n"
+      "{value:'$token'});\n"
+      "Object.defineProperty(window,'StratumBridge',\n"
+      '{value:Object.freeze({postMessage:function(d){\n'
+      "s('message',String(d));}}),enumerable:true});\n"
+      "s('hello','');\n"
+      '})();</script>';
+  return placeBridgeBootstrap(html, script);
+}
+
+/// Places [script] before any page script of [html]: right after a leading
+/// `<!DOCTYPE ...>` declaration (matched case-insensitively, allowing
+/// leading whitespace and HTML comments before it), or first when [html]
+/// has none.
+///
+/// One placement serves the web and native bootstraps (US-03 FR-03 E04): a
+/// script before the doctype would put a top-level native document in
+/// quirks mode.
+String placeBridgeBootstrap(String html, String script) {
   // Each comment must end at its first `-->`. Letting `.*?` run on to a
   // later `-->` gives n comments 2^(n-1) ways to match, which backtracks
   // exponentially when no doctype follows and lets a "comment" swallow the
