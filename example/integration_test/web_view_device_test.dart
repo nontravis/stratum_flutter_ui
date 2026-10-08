@@ -33,9 +33,10 @@ void main() {
 
   // Starts before group A on Android, iOS, and macOS, so the URL tab never
   // reaches a public test service (FR-01 E02); group B, native only, reuses
-  // this same server instead of starting a second one. On the web, where
-  // there is no dart:io, this never runs and group A keeps
-  // https://flutter.dev.
+  // this same server instead of starting a second one, except the
+  // `us08/s17` case, which starts a second server, on another ephemeral
+  // port, for page B's origin. On the web, where there is no dart:io, this
+  // never runs and group A keeps https://flutter.dev.
   late _PageServer server;
 
   setUpAll(() async {
@@ -542,6 +543,83 @@ void main() {
         );
       },
     );
+
+    testWidgets(
+      'us08/s17, us08/fr01/e11: a reply after the web view moves from page '
+      'A to page B of another allowed origin throws, and page B receives '
+      'nothing',
+      (tester) async {
+        // CO-01-02 US-03 FR-05 E03 of the package docs: a reply reaches only
+        // the message's sender, by origin for a URL page.
+        final partner = await _PageServer.start();
+        addTearDown(partner.close);
+        final controller = StratumWebViewController();
+        final recorder = await _showPage(
+          tester,
+          server.page('/bridge'),
+          controller: controller,
+          allowedOrigins: {server.origin, partner.origin},
+        );
+        StratumWebViewMessage? readyFrom(_PageServer from) {
+          for (final message in recorder.received) {
+            if (message.data == 'ready' &&
+                message.origin?.port == from.origin.port) {
+              return message;
+            }
+          }
+          return null;
+        }
+
+        final readyA = await _pumpUntil(
+          tester,
+          () => readyFrom(server) != null,
+        );
+        if (readyA) await controller.loadUrl(partner.page('/bridge'));
+        final readyB =
+            readyA &&
+            await _pumpUntil(tester, () => readyFrom(partner) != null);
+        Object? refusal;
+        if (readyB) {
+          try {
+            await controller.reply(readyFrom(server)!, 'late');
+          } on StateError catch (error) {
+            refusal = error;
+          }
+        }
+        if (readyB) await controller.reply(readyFrom(partner)!, 'control');
+        final controlled =
+            readyB &&
+            await _pumpUntil(
+              tester,
+              () => recorder.messages.contains('echo:control'),
+            );
+        await tester.pump(_settle);
+        recorder.logOrder('reply after a move');
+        await _checkpoint(binding, tester, 'b_reply_after_move');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(readyA, isTrue, reason: 'page A never said "ready"');
+        expect(readyB, isTrue, reason: 'page B never said "ready"');
+        expect(
+          refusal,
+          isA<StateError>(),
+          reason: 'the reply to page A reached somewhere after the move',
+        );
+        expect(
+          controlled,
+          isTrue,
+          reason:
+              'page B never echoed "control": it was not listening, so its '
+              'silence below proves nothing',
+        );
+        expect(
+          recorder.messages,
+          isNot(contains('echo:late')),
+          reason: 'page B echoed the refused reply to page A',
+        );
+        expect(recorder.errors, isEmpty);
+      },
+    );
   }, skip: kIsWeb);
 }
 
@@ -863,6 +941,7 @@ class _Recorder {
   final errors = <StratumWebViewError>[];
   final messages = <String>[];
   final origins = <Uri?>[];
+  final received = <StratumWebViewMessage>[];
   final _events = <String>[];
   final _errorAt = <int>[];
 
@@ -888,6 +967,7 @@ class _Recorder {
   void onMessage(StratumWebViewMessage message) {
     messages.add(message.data);
     origins.add(message.origin);
+    received.add(message);
     _events.add('message ${message.data}');
   }
 
