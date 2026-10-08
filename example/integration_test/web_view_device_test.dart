@@ -432,6 +432,16 @@ void main() {
               tester,
               () => recorder.messages.contains('echo:ping'),
             );
+        // A reply to the `ready` message itself, so the native own-HTML
+        // reply script (US-03 FR-05 E06) runs on a real engine, not only
+        // compared against its own generated output (R-a).
+        if (echoed) await controller.reply(recorder.received.first, 'pong');
+        final replied =
+            echoed &&
+            await _pumpUntil(
+              tester,
+              () => recorder.messages.contains('echo:pong'),
+            );
         recorder.logOrder('html round trip');
         await _checkpoint(binding, tester, 'b_html');
         await tester.pumpWidget(const SizedBox());
@@ -444,6 +454,7 @@ void main() {
               '${recorder.messages}',
         );
         expect(echoed, isTrue, reason: 'the HTML page never echoed "ping"');
+        expect(replied, isTrue, reason: 'the HTML page never echoed "pong"');
         expect(recorder.origins, everyElement(isNull));
       },
     );
