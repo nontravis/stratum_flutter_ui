@@ -36,3 +36,10 @@
   descriptor stands for aside; an extra field that is not whole records or holds a ZIP64 or Info-ZIP Unicode Path
   record; a data descriptor on a stored entry, or of another length or value; and a byte after the end record's
   comment. Zips from Finder, Info-ZIP `zip`, and Java's `ZipOutputStream` install as before.
+- Breaking: every theme yaml file, bundled, the app's own, or in a remote zip, now fails as `yaml_syntax` at the
+  offending character, before the yaml package reads it, when it holds a YAML anchor, alias, or tag (`&a`, `*a`, `!x`,
+  `!!x`), uses a collection or an explicit `?` key as a mapping key (`[a]: x`, `{a: 1}: x`, `? a`), nests more than 64
+  collections, block or flow, or is longer than 1 MiB (1,048,576 UTF-16 code units). Write each value out, or refer to
+  a token with a quoted `"{group.path}"` alias, and write each key as a plain or quoted value. A malformed tag now
+  reports `no anchor, alias, or tag; refer to a token with "{path}" instead` at its `!`, in place of `invalid percent
+  escape in a tag`.

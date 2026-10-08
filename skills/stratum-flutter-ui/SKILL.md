@@ -252,6 +252,10 @@ scroll it, guarded so a text field inside keeps its own keys.
   alphabetical), and an app `default` folder layers over the package default. An `initialThemeId` that names no
   theme starts on `default` and calls `onThemeChanged('default')`, so the app overwrites its saved id; a theme file
   with problems throws `StratumThemeFormatException`.
+  A theme file, bundled or in a zip, holds no YAML anchor, alias, or tag (`&a`, `*a`, `!x`), no mapping key that is a
+  collection or an explicit `?` key (`[a]: x`, `{a: 1}: x`, `? a`), nests at most 64 collections, and stays within
+  1 MiB; past that it fails as `yaml_syntax` at the offending character, so write each value out, refer to a token
+  with a quoted `"{group.path}"` alias, and write each key as a plain or quoted value.
   `switchTo(id)` completes after the new theme is active, keeps the current theme on screen while it loads and when
   it fails, throws `StratumThemeNotFoundException` for an unknown id, and lets the latest of overlapping switches
   win. For the active id it does nothing, unless a newer install of that id is registered and not yet on screen:
