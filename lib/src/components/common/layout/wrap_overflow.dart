@@ -725,7 +725,8 @@ class _RenderWrapOverflow extends RenderBox
   /// Whether the last [configure] changed `maxRuns` or `maxChildren`.
   bool _limitsChanged = false;
 
-  /// The ends of the size move under way.
+  /// The ends of the size move under way; null once a layout ends it, so a
+  /// non-null [_from] marks a move a [detach] may have stopped.
   Size? _from;
   Size? _to;
 
@@ -754,6 +755,9 @@ class _RenderWrapOverflow extends RenderBox
     }
     _duration = widget.duration;
     _curve = widget.curve;
+    // Reduced motion that turns on mid-move ends the move in this layout
+    // (NFR-U03).
+    if (_duration == Duration.zero) _controller.stop();
     markNeedsLayout();
   }
 
@@ -789,15 +793,21 @@ class _RenderWrapOverflow extends RenderBox
     }
   }
 
+  /// Lays out again when [detach] stopped a size move, so the move ends at
+  /// its target size in the next layout, as `RenderAnimatedSize.attach`
+  /// resumes one (`rendering/animated_size.dart`, Flutter 3.47.3).
   @override
   void attach(PipelineOwner owner) {
     super.attach(owner);
     _overflow?.attach(owner);
     _probe?.attach(owner);
+    if (_from != null) markNeedsLayout();
   }
 
+  /// Stops a size move, so no ticker marks a detached frame dirty.
   @override
   void detach() {
+    _controller.stop();
     super.detach();
     _overflow?.detach();
     _probe?.detach();
@@ -1052,12 +1062,9 @@ class _RenderWrapOverflow extends RenderBox
   /// [target] at once.
   Size _animatedSize(Size target) {
     _lastValue = _controller.value;
-    final limitsChanged = _limitsChanged;
+    final starts = _startsMove(target);
     _limitsChanged = false;
-    if (limitsChanged &&
-        hasSize &&
-        size != target &&
-        _duration > Duration.zero) {
+    if (starts) {
       _from = size;
       _to = target;
       _controller.duration = _duration;
@@ -1067,13 +1074,28 @@ class _RenderWrapOverflow extends RenderBox
       _controller.forward(from: 0);
       return constraints.constrain(size);
     }
-    final from = _from;
-    if (_controller.isAnimating && from != null && target == _to) {
-      final t = _curve.transform(_controller.value);
-      return constraints.constrain(Size.lerp(from, target, t)!);
+    final shown = _movingSize(target, constraints);
+    if (shown == null) {
+      _controller.stop();
+      _from = null;
+      _to = null;
     }
-    _controller.stop();
-    return target;
+    return shown ?? target;
+  }
+
+  /// Whether a layout to [target] starts a size move: a limit changed
+  /// since the last layout, the size changes, and motion is not reduced.
+  bool _startsMove(Size target) =>
+      _limitsChanged && hasSize && size != target && _duration > Duration.zero;
+
+  /// The size the move under way shows under [constraints] while its end
+  /// is still [target]; null when no move is under way or it ends.
+  /// Writes no state, so [computeDryLayout] shares it.
+  Size? _movingSize(Size target, BoxConstraints constraints) {
+    final from = _from;
+    if (!_controller.isAnimating || from == null || target != _to) return null;
+    final t = _curve.transform(_controller.value);
+    return constraints.constrain(Size.lerp(from, target, t)!);
   }
 
   /// `RenderWrap._positionChildren` (`rendering/wrap.dart:772-839`): walks
@@ -1125,6 +1147,9 @@ class _RenderWrapOverflow extends RenderBox
     }
   }
 
+  /// The size a layout under [constraints] gives the frame, mid-move too,
+  /// as `RenderAnimatedSize.computeDryLayout` reads its move
+  /// (`rendering/animated_size.dart`, Flutter 3.47.3).
   @override
   Size computeDryLayout(covariant BoxConstraints constraints) {
     final childConstraints = _childConstraints(constraints);
@@ -1133,7 +1158,9 @@ class _RenderWrapOverflow extends RenderBox
         child.getDryLayout(childConstraints),
     ];
     final cut = _cutOf(sizes, constraints);
-    return constraints.constrain(_extentOf(_runsOf(cut, sizes, null)));
+    final target = constraints.constrain(_extentOf(_runsOf(cut, sizes, null)));
+    if (_startsMove(target)) return constraints.constrain(size);
+    return _movingSize(target, constraints) ?? target;
   }
 
   /// `RenderWrap.computeDryBaseline` (`rendering/wrap.dart:617-648`): the

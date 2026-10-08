@@ -1574,6 +1574,76 @@ void main() {
         expect(tester.takeException(), isNull, reason: 'collapse end');
       },
     );
+
+    testWidgets(
+      "us14/fr04: a parent's dry layout mid-move returns the size the frame "
+      'laid out',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Expandable()));
+        await tester.tap(find.text('+4'));
+        await tester.pump();
+        final wrap = tester.renderObject<RenderBox>(
+          find.byType(WrapOverflowFrame),
+        );
+        expect(wrap.getDryLayout(wrap.constraints), wrap.size, reason: 'start');
+
+        await tester.pump(const Duration(microseconds: 62500));
+        expect(wrap.size.height, moreOrLessEquals(46 + 26 * _mid));
+        expect(wrap.getDryLayout(wrap.constraints), wrap.size, reason: 'mid');
+      },
+    );
+
+    testWidgets(
+      'us14/s6, NFR-U03: reduced motion that turns on mid-move shows the '
+      'full size in that frame',
+      (tester) async {
+        Widget host({required bool reduce}) => MediaQuery(
+          data: MediaQueryData.fromView(tester.view)
+              .copyWith(disableAnimations: reduce),
+          child: themedHost(const _Expandable()),
+        );
+        await tester.pumpWidget(host(reduce: false));
+        await tester.tap(find.text('+4'));
+        await tester.pump();
+        await tester.pump(const Duration(microseconds: 62500));
+        expect(_height(tester), moreOrLessEquals(46 + 26 * _mid));
+
+        await tester.pumpWidget(host(reduce: true));
+
+        expect(_height(tester), 72);
+        expect(tester.binding.transientCallbackCount, 0);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04: a wrap a GlobalKey moves mid-move shows its full size in '
+      'that frame, with no ticker left running',
+      (tester) async {
+        final key = GlobalKey();
+        Widget host({required bool padded}) => themedHost(
+          padded
+              ? Padding(
+                  padding: EdgeInsets.zero,
+                  child: _Expandable(key: key),
+                )
+              : _Expandable(key: key),
+        );
+        await tester.pumpWidget(host(padded: false));
+        await tester.tap(find.text('+4'));
+        await tester.pump();
+        await tester.pump(const Duration(microseconds: 62500));
+        expect(_height(tester), moreOrLessEquals(46 + 26 * _mid));
+        final wrap = tester.renderObject(find.byType(WrapOverflowFrame));
+
+        await tester.pumpWidget(host(padded: true));
+
+        // The same render object, detached and attached again.
+        expect(tester.renderObject(find.byType(WrapOverflowFrame)), same(wrap));
+        expect(_height(tester), 72);
+        expect(tester.binding.transientCallbackCount, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }
 
