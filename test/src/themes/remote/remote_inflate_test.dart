@@ -177,9 +177,9 @@ void _overSubscribedEmptyBlock(_Bits bits, {required bool last}) {
 /// tables (the code-length, length, and distance codes): 92 bits, 11.5
 /// bytes (review m3-t7c security, worst per byte). One literal length
 /// code (symbol 0) and the end-of-block code (symbol 256) at length 1,
-/// both distance codes at length 1, each pair filling its table; the
-/// block's only content bit decodes to the end-of-block code.
-void _maxFillBlock(_Bits bits, {required bool last}) {
+/// both distance codes at length 1, each pair filling its table; then
+/// [literals] literal zero bytes, one bit each, and the end-of-block code.
+void _maxFillBlock(_Bits bits, {required bool last, int literals = 0}) {
   bits
     ..put(last ? 1 : 0, 1)
     ..put(2, 2)
@@ -200,8 +200,11 @@ void _maxFillBlock(_Bits bits, {required bool last}) {
     ..put(117 - 11, 7) // code lengths 139 to 255 zero
     ..code(0, 1) // length code 256 (end-of-block) = 1
     ..code(0, 1) // distance code 0 = 1
-    ..code(0, 1) // distance code 1 = 1
-    ..code(1, 1); // the block's content: one bit, the end-of-block code
+    ..code(0, 1); // distance code 1 = 1
+  for (var i = 0; i < literals; i++) {
+    bits.code(0, 1); // literal 0
+  }
+  bits.code(1, 1); // the end-of-block code
 }
 
 Matcher _refused(String reason) => throwsA(
@@ -489,7 +492,8 @@ void main() {
     });
   });
 
-  group('rz11 (m3-t7 security I2): the cost stays linear in the stream', () {
+  group('rz11, rz13 (m3-t7 security I2, m3-t7c security Important 1): the '
+      'cost stays in proportion to the output', () {
     test('1,000 over-subscribed empty dynamic blocks, which archive 4.3.0 '
         'read for about 5 s, are refused in under 1 s', () {
       final bits = _Bits();
@@ -504,14 +508,9 @@ void main() {
       expect(clock.elapsedMilliseconds, lessThan(1000));
     });
 
-    // VM only: flutter test runs Chrome through the debug compiler, whose
-    // speed is no measure of the web build's. 100,000 max-fill blocks, 1.15
-    // MB, are the worst valid stream per byte (review m3-t7c security), so
-    // they bound the linear cost tighter than a cheaper block would; the
-    // budget stays generous for a loaded machine (uptime recorded in the
-    // task report).
     test('100,000 max-fill dynamic blocks, each three full 512-entry root '
-        'tables, the worst per-byte cost, inflate in under 6 s', () {
+        'tables and no output, which took about 0.4 s a megabyte, are '
+        'refused at the 17th block in under 50 ms', () {
       final bits = _Bits();
       for (var i = 0; i < 100000; i++) {
         _maxFillBlock(bits, last: false);
@@ -520,8 +519,134 @@ void main() {
       final stream = bits.done();
       final clock = Stopwatch()..start();
 
-      expect(_inflate(stream), small);
-      expect(clock.elapsedMilliseconds, lessThan(6000));
+      expect(
+        () => _inflate(stream),
+        _refused('starts more than 16 Huffman blocks'),
+      );
+      expect(clock.elapsedMilliseconds, lessThan(50));
+    });
+
+    // VM only: flutter test runs Chrome through the debug compiler, whose
+    // speed is no measure of the web build's. Max-fill blocks that each pay
+    // for themselves with 520 literal bytes are the costliest stream per
+    // output byte the bound admits (amend-rz12 measure: 273 to 289 ms AOT);
+    // the budget stays generous for a loaded machine.
+    test('40,000 max-fill dynamic blocks, each paying with 520 output '
+        'bytes, 20.8 MB, inflate in under 3 s', () {
+      final bits = _Bits();
+      for (var i = 0; i < 40000; i++) {
+        _maxFillBlock(bits, last: false, literals: 520);
+      }
+      bits.stored(const [], last: true);
+      final stream = bits.done();
+      final clock = Stopwatch()..start();
+
+      expect(_inflate(stream, limit: 1 << 25), hasLength(40000 * 520));
+      expect(clock.elapsedMilliseconds, lessThan(3000));
     }, testOn: 'vm');
+  });
+
+  group('us01/fr02/e10, rz13: at most 16 Huffman blocks plus one per 512 '
+      'output bytes', () {
+    Uint8List emptyFixed(int count, {List<int> before = const []}) {
+      final bits = _Bits();
+      if (before.isNotEmpty) bits.stored(before, last: false);
+      for (var i = 0; i < count; i++) {
+        bits
+          ..put(i == count - 1 ? 1 : 0, 1)
+          ..put(1, 2)
+          ..code(0, 7);
+      }
+      return bits.done();
+    }
+
+    test('16 empty Huffman blocks inflate, and the 17th is refused before '
+        'its header is read', () {
+      expect(_inflate(emptyFixed(16)), isEmpty);
+      expect(
+        () => _inflate(emptyFixed(17)),
+        _refused('starts more than 16 Huffman blocks plus one per 512 bytes'),
+      );
+    });
+
+    test('512 bytes of output pay for a 17th block, and the 18th is '
+        'refused; 511 bytes pay for none', () {
+      final paid = Uint8List(512);
+      expect(_inflate(emptyFixed(17, before: paid)), paid);
+      expect(
+        () => _inflate(emptyFixed(18, before: paid)),
+        _refused('starts more than 16 Huffman blocks'),
+      );
+      expect(
+        () => _inflate(emptyFixed(17, before: Uint8List(511))),
+        _refused('starts more than 16 Huffman blocks'),
+      );
+    });
+
+    test('dynamic and fixed blocks count alike; stored blocks do not', () {
+      Uint8List mixed({required bool extra}) {
+        final bits = _Bits();
+        for (var i = 0; i < 8; i++) {
+          _completeEmptyBlock(bits, last: false);
+          bits
+            ..put(0, 1)
+            ..put(1, 2)
+            ..code(0, 7);
+          for (var k = 0; k < 10; k++) {
+            bits.stored(const [], last: false);
+          }
+        }
+        if (extra) {
+          bits
+            ..put(0, 1)
+            ..put(1, 2)
+            ..code(0, 7);
+        }
+        bits.stored(const [], last: true);
+        return bits.done();
+      }
+
+      expect(_inflate(mixed(extra: false)), isEmpty);
+      expect(
+        () => _inflate(mixed(extra: true)),
+        _refused('starts more than 16 Huffman blocks'),
+      );
+    });
+
+    for (final level in [1, 6, 9]) {
+      test("archive's Deflate at level $level of 1 MiB of text, which "
+          'zip tools write one Huffman block per 21,845 bytes or more, '
+          'round-trips', () {
+        final data = Uint8List.fromList([
+          for (var i = 0; i < 1 << 20; i++) text[i % text.length],
+        ]);
+        expect(_inflate(Deflate(data, level: level).getBytes()), data);
+      });
+    }
+
+    test('a stream flushed every 4 KiB, one Huffman block and one empty '
+        'stored block per 4,096 bytes as zlib writes it, inflates', () {
+      final bits = _Bits();
+      for (var at = 0; at < noise.length; at += 4096) {
+        final end = at + 4096 < noise.length ? at + 4096 : noise.length;
+        final chunk = noise.sublist(at, end);
+        bits
+          ..put(0, 1)
+          ..put(1, 2);
+        for (final byte in chunk) {
+          if (byte < 144) {
+            bits.code(0x30 + byte, 8);
+          } else {
+            bits.code(0x190 + byte - 144, 9);
+          }
+        }
+        bits
+          ..code(0, 7)
+          ..stored(const [], last: false);
+      }
+      bits.stored(const [], last: true);
+
+      expect(_inflate(bits.done()), noise);
+    });
   });
 }

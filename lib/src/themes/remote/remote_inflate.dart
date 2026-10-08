@@ -90,10 +90,13 @@ final class InflateFailure implements Exception {
 /// length before it or past the code count, or no end-of-block code; an
 /// over-subscribed Huffman code, and an incomplete one but a single code
 /// of length 1; a symbol or a distance out of range; input that ends
-/// before the final block; and a byte after the final block. Builds each
-/// Huffman table in time linear in its symbol count plus a fixed 512-entry
-/// lookup, so a stream costs time linear in its bytes and its output,
-/// whatever codes it holds.
+/// before the final block; and a byte after the final block. Beyond zlib,
+/// refuses a stream that starts more Huffman blocks, dynamic or fixed,
+/// than [_freeHuffmanBlocks] plus one per [_outputPerHuffmanBlock] bytes
+/// of its output so far (design Z5, RZ13). Builds each Huffman table in
+/// time linear in its symbol count plus a fixed 512-entry lookup, so a
+/// stream costs time in proportion to its output, plus a few nanoseconds
+/// per input byte of its stored blocks, whatever codes it holds.
 ///
 /// Writes into a buffer of [sizeHint] bytes, at most [limit], grown up to
 /// [limit]; throws [InflateLimitReached] before a write that would take
@@ -106,6 +109,16 @@ Uint8List inflateRaw(
 
 /// The bits of the root lookup of a [_Huffman] table.
 const _rootBits = 9;
+
+/// The Huffman blocks, dynamic or fixed, a stream may start before its
+/// output pays for more (design Z5, RZ13).
+const int _freeHuffmanBlocks = 16;
+
+/// The output bytes that pay for one more Huffman block (design Z5, RZ13):
+/// the zip tools measured write one per 21,845 bytes or more, and a zlib
+/// stream flushed every 4 KiB one per 3,855, so 512 leaves that stream 8
+/// times the room it needs.
+const int _outputPerHuffmanBlock = 512;
 
 /// One Huffman code in canonical form (`count`, `symbol`, as zlib's puff
 /// keeps it) with a root lookup of [_rootBits] bits for its short codes.
@@ -224,6 +237,7 @@ final class _Inflater {
   var _at = 0;
   var _bits = 0;
   var _bitCount = 0;
+  var _huffmanBlocks = 0;
 
   Uint8List run() {
     var last = false;
@@ -233,8 +247,10 @@ final class _Inflater {
         case 0:
           _stored();
         case 1:
+          _startHuffmanBlock();
           _codes(_fixedLengths, _fixedDistances);
         case 2:
+          _startHuffmanBlock();
           _dynamic();
         default:
           throw const InflateFailure(
@@ -295,6 +311,22 @@ final class _Inflater {
       value <<= 1;
     }
     throw const InflateFailure('uses a code its block does not define');
+  }
+
+  /// Counts one more Huffman block, dynamic or fixed, before its header is
+  /// read, refusing it once the stream has started [_freeHuffmanBlocks]
+  /// plus one per [_outputPerHuffmanBlock] bytes of its output so far
+  /// (design Z5, RZ13), so a stream that builds tables and writes little
+  /// is refused before its cost outgrows its output.
+  void _startHuffmanBlock() {
+    if (_huffmanBlocks >=
+        _freeHuffmanBlocks + _length ~/ _outputPerHuffmanBlock) {
+      throw const InflateFailure(
+        'starts more than 16 Huffman blocks plus one per 512 bytes of its '
+        'output',
+      );
+    }
+    _huffmanBlocks++;
   }
 
   void _stored() {

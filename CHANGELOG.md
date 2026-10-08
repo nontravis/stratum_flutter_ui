@@ -72,3 +72,7 @@
   carries the setuid, setgid, or sticky bit, and one with any MS-DOS attribute bit but read-only, archive, the
   0x4000 and 0x8000 markers, and the folder bit on a name ending in `/`, such as the volume-label bit for which
   UnZip skips the entry.
+- Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse as `invalid_archive`
+  (`unsafe_entry_path` for a folder entry) a deflate stream that starts more Huffman blocks, dynamic or fixed, than 16
+  plus one per 512 bytes of its output, which no common zip tool writes, so a hostile stream costs time in proportion
+  to its output rather than its size.
