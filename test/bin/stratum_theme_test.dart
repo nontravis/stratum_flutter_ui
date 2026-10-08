@@ -729,6 +729,90 @@ void main() {
       }
     });
 
+    group('r16 (t25), rz1: hostile pubspec.yaml files', () {
+      setUp(() {
+        _folder('assets/themes/default', {'theme.yaml': _schema});
+        _zip('brand.zip', _theme());
+      });
+
+      String pubspecPath() => p.join(_app.path, 'pubspec.yaml');
+
+      test('us02/fr03/e09: flow nesting 100,000 deep exits 66 at line 1, '
+          'column 65', () async {
+        File(pubspecPath()).writeAsStringSync('[' * 100000);
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+        expect(
+          run.err.last,
+          'cannot read "pubspec.yaml":1:65: nesting deeper than 64',
+        );
+      });
+
+      test('us02/fr03/e09: a mapping key built from aliases 40 deep exits 66 '
+          'at its first anchor', () async {
+        File(pubspecPath()).writeAsStringSync(
+          [
+            'a0: &a0 [x, x]',
+            for (var d = 1; d <= 40; d++)
+              'a$d: &a$d [*a${d - 1}, *a${d - 1}]',
+            '? *a40',
+            ': v',
+          ].join('\n'),
+        );
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(
+          run.err.last,
+          'cannot read "pubspec.yaml":1:5: no anchor, alias, or tag; refer '
+          'to a token with "{path}" instead',
+        );
+      });
+
+      test('us02/fr03/e09: a 200 MB pubspec.yaml exits 66 by its length, '
+          'before any read', () async {
+        File(pubspecPath()).openSync(mode: FileMode.write)
+          ..truncateSync(200 * 1024 * 1024)
+          ..closeSync();
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(
+          run.err.last,
+          'cannot read "pubspec.yaml": text longer than 1 MiB',
+        );
+      });
+
+      String padded(int bytes) {
+        const head =
+            'name: app\nflutter:\n  assets:\n    - assets/themes/default/\n';
+        return '$head#${'x' * (bytes - head.length - 2)}\n';
+      }
+
+      test('us02/fr03/e09, g1: a pubspec.yaml of exactly 1,048,576 bytes is '
+          'read, and one more byte exits 66', () async {
+        File(pubspecPath()).writeAsStringSync(padded(1048576));
+        final read = await _run(['check', 'brand.zip']);
+
+        expect(read.code, exitPass);
+        expect(read.err.first, contains('(app)'));
+
+        File(pubspecPath()).writeAsStringSync(padded(1048577));
+        final refused = await _run(['check', 'brand.zip']);
+
+        expect(refused.code, exitNoInput);
+        expect(
+          refused.err.last,
+          'cannot read "pubspec.yaml": text longer than 1 MiB',
+        );
+      });
+    });
+
     test('sec f3, us02/fr03/e09: a pubspec.yaml that is a dangling symbolic '
         'link exits 66 when the project holds its own default theme', () async {
       _folder('assets/themes/default', {'theme.yaml': _schema});

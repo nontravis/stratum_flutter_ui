@@ -49,3 +49,7 @@
   a token with a quoted `"{group.path}"` alias, and write each key as a plain or quoted value. A malformed tag now
   reports `no anchor, alias, or tag; refer to a token with "{path}" instead` at its `!`, in place of `invalid percent
   escape in a tag`.
+- Breaking: `stratum_theme` now exits 66 with `cannot read "pubspec.yaml": text longer than 1 MiB` when the app
+  project's `pubspec.yaml` is longer than 1 MiB (1,048,576 bytes), checked by its length before the file is read, and
+  exits 66 when the yaml check refuses the file, as it refuses a theme file: an anchor, alias, or tag, a collection or
+  an explicit `?` key as a mapping key, or nesting past 64.

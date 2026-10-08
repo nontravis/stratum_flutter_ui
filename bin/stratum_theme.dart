@@ -376,7 +376,9 @@ final class _Run {
   /// item that covers the app default, the file's own path or its
   /// folder's, as the app's asset manifest takes them (s03 App default);
   /// false with no pubspec. Throws [_NoInput] for a pubspec that is not a
-  /// regular file, cannot be read, or is not yaml (FR-03 E09).
+  /// regular file, is longer than 1,048,576 bytes, refused by its length
+  /// before any read, cannot be read, or is not yaml, the yaml gate's
+  /// refusals included (FR-03 E09).
   bool _listsAppDefault() {
     final path = p.join(_cwd, 'pubspec.yaml');
     if (FileSystemEntity.typeSync(path, followLinks: false) ==
@@ -384,6 +386,15 @@ final class _Run {
       return false;
     }
     _requireRegularFile(path, 'pubspec.yaml');
+    final int length;
+    try {
+      length = File(path).lengthSync();
+    } on FileSystemException catch (error) {
+      throw _NoInput('cannot read "pubspec.yaml": ${error.message}');
+    }
+    if (length > yamlTextMaxUnits) {
+      throw const _NoInput('cannot read "pubspec.yaml": $yamlSizeMessage');
+    }
     final Object? pubspec;
     try {
       pubspec = loadYamlText(_readText(path, 'pubspec.yaml')).value;
