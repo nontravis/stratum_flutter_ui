@@ -306,4 +306,51 @@ void main() {
 
     expect(prints, isEmpty);
   });
+
+  group('fo01 us01/fr01/e07, rz5, g5: the walk after package:yaml', () {
+    test('a node reached twice, which only an alias makes, is refused', () {
+      expect(
+        () => checkYamlTree(loadYamlNode('a: &x [1]\nb: *x')),
+        throwsA(
+          isA<YamlTextFailure>().having(
+            (f) => f.message,
+            'message',
+            yamlPropertyMessage,
+          ),
+        ),
+      );
+    });
+
+    test('64 nested collections pass, and 65 refuse at the 65th', () {
+      expect(
+        () => checkYamlTree(loadYamlNode('${'[' * 64}${']' * 64}')),
+        returnsNormally,
+      );
+      expect(
+        () => checkYamlTree(loadYamlNode('${'[' * 65}${']' * 65}')),
+        throwsA(
+          isA<YamlTextFailure>()
+              .having((f) => f.message, 'message', yamlDepthMessage)
+              .having((f) => f.at, 'at', (line: 1, column: 65)),
+        ),
+      );
+    });
+
+    test('g9, rz7: a mapping whose key node is a collection is refused at '
+        'the key', () {
+      for (final (text, at) in [
+        ('? [1]\n: v', (line: 1, column: 3)),
+        ('{[1]: v}', (line: 1, column: 2)),
+      ]) {
+        expect(
+          () => checkYamlTree(loadYamlNode(text)),
+          throwsA(
+            isA<YamlTextFailure>()
+                .having((f) => f.message, 'message', yamlKeyMessage)
+                .having((f) => f.at, 'at', at),
+          ),
+        );
+      }
+    });
+  });
 }

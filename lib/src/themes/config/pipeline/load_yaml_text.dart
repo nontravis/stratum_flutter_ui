@@ -71,11 +71,12 @@ const _bom = 0xFEFF;
 /// document put a raw control character on this process's real stdout
 /// (sec f1/e02); the global callback itself is never written.
 /// [StackOverflowError] is not caught: the depth cap leaves it
-/// unreachable.
+/// unreachable. Then [checkYamlTree] walks the loaded tree.
 YamlNode loadYamlText(String text) {
   checkYamlGate(text);
+  final YamlNode root;
   try {
-    return runZoned(
+    root = runZoned(
       () => loadYamlNode(text),
       zoneSpecification: ZoneSpecification(
         print: (self, parent, zone, line) {},
@@ -92,6 +93,46 @@ YamlNode loadYamlText(String text) {
           : (line: start.line + 1, column: start.column + 1),
     );
   }
+  checkYamlTree(root);
+  return root;
+}
+
+/// Refuses a loaded tree (design G5 and G9, defence in depth behind
+/// [checkYamlGate]): a node reached twice, which only an alias makes; a
+/// mapping whose key node is a collection; and a collection nested deeper
+/// than [yamlMaxDepth]. Walks with its own stack, so no depth can
+/// overflow the call stack. Throws [YamlTextFailure] at the node's span.
+void checkYamlTree(YamlNode root) {
+  final seen = Set<YamlNode>.identity();
+  final pending = <(YamlNode, int)>[(root, 0)];
+  while (pending.isNotEmpty) {
+    final (node, above) = pending.removeLast();
+    if (!seen.add(node)) throw _nodeFailure(node, yamlPropertyMessage);
+    final depth = node is YamlScalar ? above : above + 1;
+    if (depth > yamlMaxDepth) throw _nodeFailure(node, yamlDepthMessage);
+    if (node is YamlMap) {
+      for (final MapEntry(:key, :value) in node.nodes.entries) {
+        if (key is YamlNode) {
+          if (key is! YamlScalar) throw _nodeFailure(key, yamlKeyMessage);
+          pending.add((key, depth));
+        }
+        pending.add((value, depth));
+      }
+    } else if (node is YamlList) {
+      for (final child in node.nodes) {
+        pending.add((child, depth));
+      }
+    }
+  }
+}
+
+/// [message] at [node]'s span start, 1-based.
+YamlTextFailure _nodeFailure(YamlNode node, String message) {
+  final start = node.span.start;
+  return YamlTextFailure(
+    message,
+    at: (line: start.line + 1, column: start.column + 1),
+  );
 }
 
 /// Refuses [text] before package:yaml reads it (FO-01 US-01 FR-01 E07,
