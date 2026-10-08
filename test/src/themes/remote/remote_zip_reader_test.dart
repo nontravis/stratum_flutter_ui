@@ -969,16 +969,79 @@ void main() {
       expect(_read(zip).keys, ['theme.yaml']);
     });
 
-    test('us01/fr02/e02, rz3: an extra record the install does not know, '
-        'local and central, and an end record comment are ignored', () {
+    String hex4(int id) => '0x${id.toRadixString(16).padLeft(4, '0')}';
+
+    for (final id in [0x000a, 0x5455, 0x5855, 0x7875, 0xcafe]) {
+      test('us01/fr02/e02, rz3, rz9: an extra record of the allowed id '
+          '${hex4(id)}, local and central, and an end record comment '
+          'install', () {
+        final record = [id & 0xFF, id >> 8, 0x01, 0x00, 0x00];
+        final zip = buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            localExtra: record,
+            centralExtra: record,
+          ),
+        ], comment: utf8.encode('note'));
+
+        expect(_read(zip).keys, ['theme.yaml']);
+      });
+    }
+
+    for (final (label, where, id) in [
+      ("libarchive's 'xl' file-type record", 'local', 0x6c78),
+      ("libarchive's 'xl' file-type record", 'central', 0x6c78),
+      ('a record of id 0', 'local', 0x0000),
+      ('a WinZip AES record', 'central', 0x9901),
+    ]) {
+      test('us01/fr02/e02, rz9 (m3-t6 security): $label, ${hex4(id)}, in '
+          'the $where extra field is invalid_archive', () {
+        final record = [id & 0xFF, id >> 8, 0x01, 0x00, 0x00];
+        final zip = buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            localExtra: where == 'local' ? record : const [],
+            centralExtra: where == 'central' ? record : const [],
+          ),
+        ]);
+
+        expect(
+          () => _read(zip),
+          _fails(
+            StratumRemoteThemeErrorCode.invalidArchive,
+            message: contains('holds a record of id ${hex4(id)}'),
+          ),
+        );
+      });
+    }
+
+    test('us01/fr02/e01, rz9 (m3-t6 security): an entry named theme.yaml '
+        'with the MS-DOS folder attribute, made on FAT, is '
+        'unsafe_entry_path', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml, madeBy: 0x0014, attributes: 0x10),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'theme.yaml'),
+      );
+    });
+
+    test('us01/fr02/e13, rz9: a folder entry with the MS-DOS folder '
+        'attribute, as Info-ZIP writes it, installs', () {
       final zip = buildZip([
         ZipEntryFixture(
-          'theme.yaml',
-          yaml,
-          localExtra: const [0x55, 0x54, 0x01, 0x00, 0x00],
-          centralExtra: const [0x55, 0x54, 0x01, 0x00, 0x00],
+          'brand/',
+          const [],
+          deflate: false,
+          madeBy: 0x031E,
+          attributes: (0x41ED << 16) | 0x10,
         ),
-      ], comment: utf8.encode('note'));
+        ZipEntryFixture('brand/theme.yaml', yaml),
+      ]);
 
       expect(_read(zip).keys, ['theme.yaml']);
     });

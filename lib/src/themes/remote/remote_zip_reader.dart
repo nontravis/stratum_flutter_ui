@@ -148,8 +148,8 @@ List<_Entry> _walk(
 
 /// Checks the container after the central walk (FO-04 US-01 FR-02 E02,
 /// design Z1 to Z4): each local header equals its central header, every
-/// extra field is a whole run of records with no ZIP64 or Info-ZIP
-/// Unicode Path record, a data descriptor sits only where flags bit 3
+/// extra field is a whole run of records of the ids the install allows,
+/// a data descriptor sits only where flags bit 3
 /// puts one and equals the directory, and the entries' spans lie back to
 /// back from offset 0 to the central directory, which ends where the end
 /// record starts, with no byte after the end record's comment. Returns
@@ -263,6 +263,12 @@ RemoteThemeFailure _invalid(String message) =>
 int _u16(ByteData view, int at) => view.getUint16(at, Endian.little);
 
 int _u32(ByteData view, int at) => view.getUint32(at, Endian.little);
+
+/// The extra-field record ids the install allows (design Z3, RZ9): NTFS
+/// times (0x000a), the extended timestamp (0x5455), Info-ZIP's old Unix
+/// record, which Finder writes (0x5855), Info-ZIP's Unix owner ids
+/// (0x7875), and the jar marker (0xcafe).
+const _allowedExtraIds = {0x000a, 0x5455, 0x5855, 0x7875, 0xcafe};
 
 /// An entry with the first byte of its data.
 typedef _Span = ({_Entry entry, int start});
@@ -546,8 +552,10 @@ final class _Entry {
 
   /// Checks the [where] extra field of [length] bytes at [at] is a run of
   /// whole records, a 2-byte id, a 2-byte length, and that many bytes,
-  /// holding no ZIP64 record (0x0001) and no Info-ZIP Unicode Path record
-  /// (0x7075); every other record is ignored (design Z3).
+  /// each of an id in [_allowedExtraIds] (design Z3, RZ9), so a ZIP64
+  /// record (0x0001), an Info-ZIP Unicode Path record (0x7075), and a
+  /// record that tells another tool a file type, such as libarchive's
+  /// 0x6c78, are refused.
   void _checkExtra(ByteData view, int at, int length, String where) {
     final end = at + length;
     var i = at;
@@ -559,10 +567,11 @@ final class _Entry {
         );
       }
       final id = _u16(view, i);
-      if (id == 0x0001 || id == 0x7075) {
+      if (!_allowedExtraIds.contains(id)) {
         throw _invalid(
-          'the $where extra field of $label holds a '
-          '${id == 0x0001 ? 'ZIP64' : 'Info-ZIP Unicode Path'} record',
+          'the $where extra field of $label holds a record of id '
+          '0x${id.toRadixString(16).padLeft(4, '0')}, which the install '
+          'does not read',
         );
       }
       i += 4 + _u16(view, i + 2);

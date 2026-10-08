@@ -118,6 +118,36 @@ void main() {
     });
   }
 
+  for (final (path, attributes) in [
+    ('theme.yaml', 0x10),
+    ('theme.yaml', (0x81A4 << 16) | 0x10),
+    ('a', 0x31),
+  ]) {
+    test('us01/fr02/e01, rz9 (m3-t6 security): the MS-DOS folder attribute '
+        'on "$path", attributes 0x${attributes.toRadixString(16)}, is '
+        'unsafe_entry_path, whatever host', () {
+      expect(
+        () => checkEntryFileType(path, externalAttributes: attributes),
+        _unsafe(path),
+      );
+    });
+  }
+
+  for (final (path, attributes) in [
+    ('a/', 0x10),
+    ('a/', (0x41ED << 16) | 0x10),
+    ('a', 0x20),
+    ('a', (0x81A4 << 16) | 0x01),
+  ]) {
+    test('us01/fr02, rz9: attributes 0x${attributes.toRadixString(16)} on '
+        '"$path" are safe', () {
+      expect(
+        () => checkEntryFileType(path, externalAttributes: attributes),
+        returnsNormally,
+      );
+    });
+  }
+
   for (final type in [0xA000, 0x1000, 0x2000, 0x6000, 0xC000]) {
     test('us01/fr02/e01: file type 0x${type.toRadixString(16)} is '
         'unsafe_entry_path, whatever host', () {

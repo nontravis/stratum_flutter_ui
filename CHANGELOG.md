@@ -53,3 +53,7 @@
   project's `pubspec.yaml` is longer than 1 MiB (1,048,576 bytes), checked by its length before the file is read, and
   exits 66 when the yaml check refuses the file, as it refuses a theme file: an anchor, alias, or tag, a collection or
   an explicit `?` key as a mapping key, or nesting past 64.
+- Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse a zip entry whose extra field
+  holds a record of any id but 0x000a (NTFS times), 0x5455 and 0x5855 (timestamps), 0x7875 (Unix owner ids), and
+  0xcafe (the jar marker), the ones Finder, Info-ZIP, Java, and `tar` write, as `invalid_archive`, and an entry that
+  carries the MS-DOS folder attribute on a name that does not end in `/` as `unsafe_entry_path`.

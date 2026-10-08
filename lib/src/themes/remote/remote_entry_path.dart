@@ -49,11 +49,22 @@ void checkEntryPath(String path) {
 /// [externalAttributes] masked by `0xF000`, whatever host made the zip
 /// (FO-04 US-01 FR-02 E01, E13): none or `S_IFDIR` (`0x4000`) on a path
 /// ending in `/`, none or `S_IFREG` (`0x8000`) on any other, so a symbolic
-/// link, and a folder type on a file's name, are refused. Throws
+/// link, and a folder type on a file's name, are refused. The MS-DOS
+/// folder attribute, bit `0x10` of the low byte, is refused on a path not
+/// ending in `/` whatever the host byte says, since a tool such as
+/// libarchive reads it as a folder (design Z6, RZ9). Throws
 /// `RemoteThemeFailure` `unsafeEntryPath` with the path.
 void checkEntryFileType(String path, {required int externalAttributes}) {
   final type = (externalAttributes >> 16) & 0xF000;
   final folder = path.endsWith('/');
+  if (!folder && externalAttributes & 0x10 != 0) {
+    throw RemoteThemeFailure(
+      StratumRemoteThemeErrorCode.unsafeEntryPath,
+      'entry "${escapeZipText(path)}" carries the MS-DOS folder attribute, '
+      'not a file',
+      path: path,
+    );
+  }
   if (type == 0 || type == (folder ? 0x4000 : 0x8000)) return;
   throw RemoteThemeFailure(
     StratumRemoteThemeErrorCode.unsafeEntryPath,
