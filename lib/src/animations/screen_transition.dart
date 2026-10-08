@@ -113,7 +113,7 @@ Widget buildScreenTransition<T>(
         position: Tween<Offset>(
           begin: const Offset(1, 0),
           end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: resolved)),
+        ).animate(curved),
         child: child,
       );
 
@@ -123,7 +123,7 @@ Widget buildScreenTransition<T>(
         position: Tween<Offset>(
           begin: const Offset(-1, 0),
           end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: resolved)),
+        ).animate(curved),
         child: child,
       );
 
@@ -133,7 +133,7 @@ Widget buildScreenTransition<T>(
         position: Tween<Offset>(
           begin: const Offset(0, -1),
           end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: resolved)),
+        ).animate(curved),
         child: child,
       );
 
@@ -143,7 +143,7 @@ Widget buildScreenTransition<T>(
         position: Tween<Offset>(
           begin: const Offset(0, 1),
           end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: resolved)),
+        ).animate(curved),
         child: child,
       );
 
@@ -151,9 +151,8 @@ Widget buildScreenTransition<T>(
       if (reduced) return child;
       return ScaleTransition(
         alignment: alignment!,
-        scale: CurvedAnimation(
-          parent: animation,
-          curve: Interval(0.00, 0.50, curve: resolved),
+        scale: animation.drive(
+          CurveTween(curve: Interval(0.00, 0.50, curve: resolved)),
         ),
         child: child,
       );
@@ -174,10 +173,7 @@ Widget buildScreenTransition<T>(
       if (reduced) return child;
       return Align(
         alignment: alignment!,
-        child: SizeTransition(
-          sizeFactor: CurvedAnimation(parent: animation, curve: resolved),
-          child: child,
-        ),
+        child: SizeTransition(sizeFactor: curved, child: child),
       );
 
     case ScreenTransitionType.rightToLeftWithFade:
@@ -188,7 +184,7 @@ Widget buildScreenTransition<T>(
         position: Tween<Offset>(
           begin: const Offset(1.0, 0.0),
           end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: resolved)),
+        ).animate(curved),
         child: FadeTransition(
           opacity: curved,
           child: SlideTransition(
@@ -209,7 +205,7 @@ Widget buildScreenTransition<T>(
         position: Tween<Offset>(
           begin: const Offset(-1.0, 0.0),
           end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: resolved)),
+        ).animate(curved),
         child: FadeTransition(
           opacity: curved,
           child: SlideTransition(
@@ -249,14 +245,14 @@ Widget buildScreenTransition<T>(
             position: Tween<Offset>(
               begin: Offset.zero,
               end: const Offset(-1.0, 0.0),
-            ).animate(CurvedAnimation(parent: animation, curve: resolved)),
+            ).animate(curved),
             child: childCurrent,
           ),
           SlideTransition(
             position: Tween<Offset>(
               begin: const Offset(1.0, 0.0),
               end: Offset.zero,
-            ).animate(CurvedAnimation(parent: animation, curve: resolved)),
+            ).animate(curved),
             child: child,
           ),
         ],
@@ -288,14 +284,14 @@ Widget buildScreenTransition<T>(
             position: Tween<Offset>(
               begin: const Offset(-1.0, 0.0),
               end: Offset.zero,
-            ).animate(CurvedAnimation(parent: animation, curve: resolved)),
+            ).animate(curved),
             child: child,
           ),
           SlideTransition(
             position: Tween<Offset>(
               begin: Offset.zero,
               end: const Offset(1.0, 0.0),
-            ).animate(CurvedAnimation(parent: animation, curve: resolved)),
+            ).animate(curved),
             child: childCurrent,
           ),
         ],
@@ -311,13 +307,17 @@ Widget buildScreenTransition<T>(
             ? child
             : FadeTransition(opacity: curved, child: child);
       }
+      // A pop gesture in progress drives the builder's own linear tracking
+      // (cupertino/route.dart:238-240); a caller curve only applies once
+      // the gesture, if any, is done.
+      final callerCurved = curve != null && !route.popGestureInProgress;
       return builder.buildTransitions<T>(
         route,
         context,
-        curve == null ? animation : animation.drive(CurveTween(curve: curve)),
-        curve == null
-            ? secondaryAnimation
-            : secondaryAnimation.drive(CurveTween(curve: curve)),
+        callerCurved ? animation.drive(CurveTween(curve: curve)) : animation,
+        callerCurved
+            ? secondaryAnimation.drive(CurveTween(curve: curve))
+            : secondaryAnimation,
         child,
       );
     case ScreenTransitionType.none:
@@ -370,12 +370,12 @@ Widget _joinedOnSecondary({
   position: Tween<Offset>(
     begin: Offset.zero,
     end: outgoing,
-  ).animate(CurvedAnimation(parent: secondaryAnimation, curve: curve)),
+  ).animate(secondaryAnimation.drive(CurveTween(curve: curve))),
   child: SlideTransition(
     position: Tween<Offset>(
       begin: incoming,
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: animation, curve: curve)),
+    ).animate(animation.drive(CurveTween(curve: curve))),
     child: child,
   ),
 );

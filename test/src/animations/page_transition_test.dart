@@ -606,6 +606,24 @@ void main() {
     );
   });
 
+  testWidgets('review-m1-t4 important-1: a caller curve steps aside for a '
+      'Cupertino pop gesture already in progress', (tester) async {
+    final route = await _push(
+      tester,
+      type: ScreenTransitionType.cupertino,
+      curve: Curves.easeIn,
+      child: const SizedBox(key: ValueKey('page')),
+    );
+    route.navigator!.didStartUserGesture();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    final slide = tester.widget<SlideTransition>(
+      find.ancestor(of: _page, matching: find.byType(SlideTransition)).first,
+    );
+    expect(slide.position.value.dx, closeTo(0.5, 1e-9));
+    route.navigator!.didStopUserGesture();
+  });
+
   group('us05/fr01: the seven types of the theme era', () {
     testWidgets('platform shows the Cupertino slide on iOS and takes its '
         'durations', (tester) async {
@@ -637,6 +655,7 @@ void main() {
       tester,
     ) async {
       final route = await _push(tester, type: ScreenTransitionType.platform);
+      await _settleHeroOffstage(tester);
 
       expect(find.byType(CupertinoPageTransition), findsNothing);
       expect(
