@@ -189,7 +189,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
           );
         }
         final port = _bridge?.port;
-        if (port == null) {
+        if (port == null || !_iframe.isConnected) {
           throw StateError('The HTML page has not connected the bridge yet.');
         }
         port.postMessage(data.toJS);
@@ -218,7 +218,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     PlatformHtmlDocumentSender document,
     String data,
   ) async {
-    if (!identical(document, _bridge)) {
+    if (!identical(document, _bridge) || !_iframe.isConnected) {
       throw StateError('The HTML document that sent the message is gone.');
     }
     (document as _WebHtmlDocumentSender).port.postMessage(data.toJS);

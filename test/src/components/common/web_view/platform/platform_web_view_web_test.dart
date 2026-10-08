@@ -560,6 +560,35 @@ location.href = 'data:text/html,' + encodeURIComponent(
   });
 
   test(
+    'us03/fr05/e06: a reply throws once the view leaves the tree, with no '
+    're-insertion',
+    () async {
+      await view.load(
+        const StratumWebViewSource.html(
+          "<script>StratumBridge.postMessage('ready');</script>",
+        ),
+      );
+      attach();
+      await waitForMessages(1);
+      final first = listener.senders.last as PlatformHtmlDocumentSender;
+
+      view.iframe.remove();
+      // No re-insertion follows: `attachTo` never runs, so only the
+      // disconnected iframe itself can close this window (US-03 FR-05 E06).
+      await expectLater(
+        view.replyToDocument(first, 'late'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The HTML document that sent the message is gone.',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
     'us03/fr05/e06: a reply throws once a load leaves the HTML entry',
     () async {
       await view.load(
