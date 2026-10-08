@@ -11,8 +11,10 @@ void main() {
     'assets/themes/default/theme.yaml',
     'example/assets/remote_themes/ocean/theme.yaml',
     'example/assets/remote_themes/sunset/theme.yaml',
+    'pubspec.yaml',
+    'example/pubspec.yaml',
   ]) {
-    test('fo01 us01/fr01/e07, g4: the committed theme file $path passes the '
+    test('fo01 us01/fr01/e07, g4, g10: the committed file $path passes the '
         'gate', () {
       expect(
         () => checkYamlGate(File(path).readAsStringSync()),

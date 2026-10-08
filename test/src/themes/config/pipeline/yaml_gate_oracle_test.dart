@@ -11,22 +11,27 @@ import 'package:yaml/yaml.dart' show ScalarStyle, YamlException;
 
 /// What package:yaml's own parser reads in [text]: whether any event is
 /// an alias or carries an anchor or a tag, whether a collection starts in
-/// a mapping's key position (design G9), and the deepest nesting it
-/// opens, stopping past 200; null when it refuses the text. An error
+/// a mapping's key position (design G9), the deepest nesting it opens,
+/// stopping past 200, and the keys it reads, in all and in the fullest
+/// mapping (design G10); null when it refuses the text. An error
 /// other than [YamlException], such as the `ArgumentError` a malformed
 /// tag throws, counts as a property read. package:yaml gives every quoted
 /// or block scalar the non-specific tag `!` itself (`parser.dart:314`), so
 /// such a tag counts only when the text writes it, where the event's span
 /// then starts.
-({bool properties, bool collectionKey, int depth})? _oracle(String text) {
+({bool properties, bool collectionKey, int depth, int keys, int mostKeys})?
+_oracle(String text) {
   final parser = Parser(text);
   // Per open collection: whether it is a mapping, and how many nodes it
   // has started, so an even count in a mapping is a key position.
   final mappings = <bool>[];
   final nodes = <int>[];
+  final mappingKeys = <int>[];
   var deepest = 0;
   var properties = false;
   var collectionKey = false;
+  var keys = 0;
+  var mostKeys = 0;
   try {
     while (!parser.isDone && deepest <= 200) {
       final event = parser.parse();
@@ -50,6 +55,10 @@ import 'package:yaml/yaml.dart' show ScalarStyle, YamlException;
         if (collection && mappings.last && nodes.last.isEven) {
           collectionKey = true;
         }
+        if (mappings.last && nodes.last.isEven) {
+          keys++;
+          if (++mappingKeys.last > mostKeys) mostKeys = mappingKeys.last;
+        }
         nodes.last++;
       }
       switch (type) {
@@ -58,10 +67,12 @@ import 'package:yaml/yaml.dart' show ScalarStyle, YamlException;
         case EventType.sequenceStart || EventType.mappingStart:
           mappings.add(type == EventType.mappingStart);
           nodes.add(0);
+          mappingKeys.add(0);
           if (mappings.length > deepest) deepest = mappings.length;
         case EventType.sequenceEnd || EventType.mappingEnd:
           mappings.removeLast();
           nodes.removeLast();
+          mappingKeys.removeLast();
         case EventType.streamStart ||
             EventType.streamEnd ||
             EventType.documentStart ||
@@ -72,31 +83,51 @@ import 'package:yaml/yaml.dart' show ScalarStyle, YamlException;
   } on YamlException {
     return null;
   } on Object {
-    return (properties: true, collectionKey: collectionKey, depth: deepest);
+    return (
+      properties: true,
+      collectionKey: collectionKey,
+      depth: deepest,
+      keys: keys,
+      mostKeys: mostKeys,
+    );
   }
-  return (properties: properties, collectionKey: collectionKey, depth: deepest);
+  return (
+    properties: properties,
+    collectionKey: collectionKey,
+    depth: deepest,
+    keys: keys,
+    mostKeys: mostKeys,
+  );
 }
 
-bool _passes(String text) {
+/// The keys the gate counted in [text], or null when it refuses [text].
+({int keys, int mostKeys})? _passes(String text) {
   try {
-    checkYamlGate(text);
-    return true;
+    return checkYamlGate(text);
   } on YamlTextFailure {
-    return false;
+    return null;
   }
 }
 
 /// Expects, once for every [text], refused ones included (ruling C-8), the
 /// gate's verdict to be sound: the gate refuses [text], or package:yaml
-/// refuses it too, or reads in it no property, no collection key, and no
-/// nesting past 64.
+/// refuses it too, or reads in it no property, no collection key, no
+/// nesting past 64, and no more keys, in all or in its fullest mapping,
+/// than the gate counted (design G10).
 void _expectSound(String text) {
-  final read = _passes(text) ? _oracle(text) : null;
+  final gate = _passes(text);
+  final read = gate == null ? null : _oracle(text);
   expect(
     read == null ||
-        (!read.properties && !read.collectionKey && read.depth <= 64),
+        (!read.properties &&
+            !read.collectionKey &&
+            read.depth <= 64 &&
+            read.keys <= gate!.keys &&
+            read.mostKeys <= gate.mostKeys),
     isTrue,
-    reason: '${jsonEncode(text)} passes the gate; package:yaml reads $read',
+    reason:
+        '${jsonEncode(text)} passes the gate counting $gate; package:yaml '
+        'reads $read',
   );
 }
 
@@ -111,6 +142,10 @@ const _fragments = <String>[
   // without ":", so random concatenation can land a collection right
   // after a flow mapping's "{" or ",", the shape the old gate missed.
   '{a}', '{a}, ', '{a:b}', '{a:b}, ', '[a]', '[a], ',
+  // Key positions for the key count (G10): entries of a flow mapping with
+  // and without ":", JSON-style values, and single-pair mappings in a flow
+  // sequence.
+  '{a, b}', '"k":1', '[k: 1]', 'k: v\n', '- k: v\n',
   // A byte-order mark starting a later line (C1 round 2): package:yaml
   // allows it there too, a shape plain '\n' and '\u{FEFF}' fragments
   // rarely land adjacent.
@@ -207,6 +242,18 @@ void main() {
         // own first character, so one can hide a collection key the
         // same way.
         '{\n\u{FEFF}{a}}',
+        // G10: keys the count must never miss, in block and flow
+        // context, JSON style, in a flow sequence, and after the lock.
+        'a: 1\nb: 2\nc:\n  d: 3\n  e: 4\nf: 5',
+        '- a: 1\n  b: 2\n- c: 3',
+        'k:\n- a: 1\n  b: 2\nm: 3',
+        '{"a":1,"b":2,"c":{"d":3}}',
+        '[a: 1, b: 2, "c":3, {d: 4}]',
+        '{a, b, c: 1, ? d}',
+        'a: 1\n...\nb: 2\nc: {d: 3, e: 4}\nf: 5',
+        'x: 1\n: y\na: 1\nb: 2\nc: 3',
+        'a: b\n  c\nd: e',
+        '"a": 1\n\'b\': 2\nc d: 3',
       ].forEach(_expectSound);
     });
 

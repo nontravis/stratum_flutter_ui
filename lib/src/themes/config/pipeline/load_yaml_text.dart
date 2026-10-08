@@ -11,6 +11,14 @@ const int yamlTextMaxUnits = 1048576;
 /// flow, the root collection counting as 1 (FO-01 US-01 FR-01 E07).
 const int yamlMaxDepth = 64;
 
+/// The most keys one mapping may hold (FO-01 US-01 FR-01 E07, design
+/// G10).
+const int yamlMaxMappingKeys = 256;
+
+/// The most keys a yaml text may hold over all its mappings (FO-01 US-01
+/// FR-01 E07, design G10).
+const int yamlMaxKeys = 2048;
+
 /// The message of a refused anchor, alias, or tag (FO-01 US-01 FR-01 E07).
 const yamlPropertyMessage =
     'no anchor, alias, or tag; refer to a token with "{path}" instead';
@@ -26,6 +34,11 @@ const yamlSizeMessage = 'text longer than 1 MiB';
 const yamlKeyMessage =
     'a mapping key is a collection or an explicit "?" key; write it as a '
     'plain or quoted value';
+
+/// The message of a mapping past [yamlMaxMappingKeys] keys or a text past
+/// [yamlMaxKeys] keys (FO-01 US-01 FR-01 E07, design G10).
+const yamlKeyCountMessage =
+    'more than 256 keys in one mapping, or more than 2,048 in the text';
 
 /// The message of a byte-order mark anywhere but the text's first
 /// character (FO-01 US-01 FR-01 E07, design G4; security review round 2
@@ -103,21 +116,28 @@ YamlNode loadYamlText(String text) {
   return root;
 }
 
-/// Refuses a loaded tree (design G5 and G9, defence in depth behind
+/// Refuses a loaded tree (design G5, G9, and G10, defence in depth behind
 /// [checkYamlGate]): a node reached twice, which only an alias makes; a
-/// mapping whose key node is a collection; and a collection nested deeper
-/// than [yamlMaxDepth]. Walks with its own stack, so no depth can
-/// overflow the call stack. Throws [YamlTextFailure] at the node's span.
+/// mapping whose key node is a collection; a collection nested deeper
+/// than [yamlMaxDepth]; and a mapping past [yamlMaxMappingKeys] keys, or
+/// a tree past [yamlMaxKeys] keys, at the key that passes the cap in the
+/// walk's order. Walks with its own stack, so no depth can overflow the
+/// call stack. Throws [YamlTextFailure] at the node's span.
 void checkYamlTree(YamlNode root) {
   final seen = Set<YamlNode>.identity();
   final pending = <(YamlNode, int)>[(root, 0)];
+  var keys = 0;
   while (pending.isNotEmpty) {
     final (node, above) = pending.removeLast();
     if (!seen.add(node)) throw _nodeFailure(node, yamlPropertyMessage);
     final depth = node is YamlScalar ? above : above + 1;
     if (depth > yamlMaxDepth) throw _nodeFailure(node, yamlDepthMessage);
     if (node is YamlMap) {
+      var inMapping = 0;
       for (final MapEntry(:key, :value) in node.nodes.entries) {
+        if (++inMapping > yamlMaxMappingKeys || ++keys > yamlMaxKeys) {
+          throw _nodeFailure(key is YamlNode ? key : node, yamlKeyCountMessage);
+        }
         if (key is YamlNode) {
           if (key is! YamlScalar) throw _nodeFailure(key, yamlKeyMessage);
           pending.add((key, depth));
@@ -142,21 +162,26 @@ YamlTextFailure _nodeFailure(YamlNode node, String message) {
 }
 
 /// Refuses [text] before package:yaml reads it (FO-01 US-01 FR-01 E07,
-/// design G1 to G4, G9): a text longer than [yamlTextMaxUnits] code
+/// design G1 to G4, G9, G10): a text longer than [yamlTextMaxUnits] code
 /// units; a YAML anchor, alias, or tag where package:yaml could start a
 /// token, outside a comment; a mapping key that is a collection or an
 /// explicit `?` key; a byte-order mark anywhere but the first character;
-/// and nesting deeper than [yamlMaxDepth]. One linear pass that errs
-/// toward refusing: it never passes a text in which package:yaml 3.1.4
-/// reads an anchor, an alias, a tag, or a collection as a mapping key, or
-/// nests past 64, and may refuse a text package:yaml would read. Throws
+/// nesting deeper than [yamlMaxDepth]; and a key past
+/// [yamlMaxMappingKeys] in one mapping or past [yamlMaxKeys] in the text.
+/// One linear pass that errs toward refusing: it never passes a text in
+/// which package:yaml 3.1.4 reads an anchor, an alias, a tag, or a
+/// collection as a mapping key, nests past 64, or reads more keys than
+/// the caps, and may refuse a text package:yaml would read. Throws
 /// [YamlTextFailure] at the first offending character, with its 1-based
-/// line and column and the message of its rule.
-void checkYamlGate(String text) {
+/// line and column and the message of its rule. Returns the keys the pass
+/// counted, in the text and in the fullest mapping, which never fall
+/// short of the keys package:yaml reads (the oracle test compares them).
+({int keys, int mostKeys}) checkYamlGate(String text) {
   if (text.length > yamlTextMaxUnits) {
     throw _refusal(text, yamlTextMaxUnits, yamlSizeMessage);
   }
-  _YamlGate(text).run();
+  final gate = _YamlGate(text)..run();
+  return (keys: gate.keys, mostKeys: gate.mostKeys);
 }
 
 /// [message] at the code unit [index] of [text], its line and column
@@ -223,6 +248,10 @@ final class _YamlGate {
   final _indentless = <bool>[];
   var _indentlessCount = 0;
 
+  /// The keys counted in each open block collection, innermost last; a
+  /// sequence's stays 0 (design G10).
+  final _blockKeys = <int>[];
+
   /// The index of the `[` or `{` of each open flow collection, innermost
   /// last.
   final _flowStarts = <int>[];
@@ -230,6 +259,18 @@ final class _YamlGate {
   /// Whether each open flow collection, innermost last, is a mapping
   /// (`{`) rather than a sequence (`[`).
   final _flowMaps = <bool>[];
+
+  /// The keys counted in each open flow collection, innermost last: one
+  /// at a mapping's `{` and one at each `,` directly in it (design G10).
+  final _flowKeyCounts = <int>[];
+
+  /// The keys counted after the lock, all in one bucket that starts at
+  /// the fullest mapping open when the lock fell (design G10).
+  var _lockedKeys = 0;
+
+  /// The keys counted in the whole text, and in the fullest mapping.
+  int keys = 0;
+  int mostKeys = 0;
 
   /// Whether the next node of each open flow collection, innermost last,
   /// sits in key position: right after its `{` or a `,`, until a `:`
@@ -502,7 +543,9 @@ final class _YamlGate {
           _flowMaps.add(unit == _openCurly);
           _flowKeys.add(true);
           _flowStarts.add(i);
+          _flowKeyCounts.add(0);
           _check(i);
+          if (unit == _openCurly) _countFlowKey(i);
           _afterScalar = false;
           _flowEnd = -1;
           i++;
@@ -511,11 +554,13 @@ final class _YamlGate {
           _flowMaps.removeLast();
           _flowKeys.removeLast();
           _flowEnd = _flowStarts.removeLast();
+          _flowKeyCounts.removeLast();
           _afterScalar = true;
           i++;
           continue;
         case _comma:
           if (_flowKeys.isNotEmpty) _flowKeys[_flowKeys.length - 1] = true;
+          if (_flowMaps.isNotEmpty && _flowMaps.last) _countFlowKey(i);
           _afterScalar = false;
           _flowEnd = -1;
           i++;
@@ -533,6 +578,9 @@ final class _YamlGate {
             when _flow > 0 && (_afterScalar || !_plainSafeAt(i + 1, end)):
           if (_flowEnd >= 0) throw _Breach(_flowEnd, yamlKeyMessage);
           if (_flowKeys.isNotEmpty) _flowKeys[_flowKeys.length - 1] = false;
+          // design G10: a `key: value` pair in a flow sequence is a mapping
+          // of its own, holding one key.
+          if (!_flowMaps.last) _countKey(i, 1);
           _afterScalar = false;
           i++;
           continue;
@@ -745,12 +793,14 @@ final class _YamlGate {
       _indentless[_indentless.length - 1] = false;
       _indentlessCount--;
     }
+    _countKey(index, ++_blockKeys[_blockKeys.length - 1]);
   }
 
   void _push(int column, int index, {required bool mapping}) {
     _columns.add(column);
     _mappings.add(mapping);
     _indentless.add(false);
+    _blockKeys.add(0);
     _check(index);
   }
 
@@ -758,6 +808,22 @@ final class _YamlGate {
     if (_indentless.removeLast()) _indentlessCount--;
     _columns.removeLast();
     _mappings.removeLast();
+    _blockKeys.removeLast();
+  }
+
+  void _countFlowKey(int index) {
+    final last = _flowKeyCounts.length - 1;
+    _countKey(index, ++_flowKeyCounts[last]);
+  }
+
+  /// Counts one key at [index], the [inMapping]th of its mapping (design
+  /// G10), refusing the first key past either cap.
+  void _countKey(int index, int inMapping) {
+    keys++;
+    if (inMapping > mostKeys) mostKeys = inMapping;
+    if (inMapping > yamlMaxMappingKeys || keys > yamlMaxKeys) {
+      throw _Breach(index, yamlKeyCountMessage);
+    }
   }
 
   void _check(int index) {
@@ -768,6 +834,9 @@ final class _YamlGate {
 
   void _lock(int from, int start, int end) {
     _locked = true;
+    for (final count in [..._blockKeys, ..._flowKeyCounts]) {
+      if (count > _lockedKeys) _lockedKeys = count;
+    }
     _lockedLine(start, end, from);
   }
 
@@ -816,6 +885,10 @@ final class _YamlGate {
       if (opens) {
         _lockedCount++;
         _check(i);
+      }
+      // design G10: every `:`, `,`, and `{` may start or end a key.
+      if (unit == _colon || unit == _comma || unit == _openCurly) {
+        _countKey(i, ++_lockedKeys);
       }
       _lockedLast = unit;
     }

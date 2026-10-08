@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/load_yaml_text.dart';
-import 'package:yaml/yaml.dart' show loadYamlNode;
+import 'package:yaml/yaml.dart' show YamlMap, loadYamlNode;
 
 YamlTextFailure _gateFailure(String text) {
   try {
@@ -12,6 +12,22 @@ YamlTextFailure _gateFailure(String text) {
   }
   fail('checkYamlGate passed');
 }
+
+/// [n] keys in one block mapping, one a line.
+String _blockKeys(int n) => [for (var k = 0; k < n; k++) 'k$k: 1'].join('\n');
+
+/// [n] keys in one flow mapping on one line.
+String _flowKeys(int n) =>
+    '{${[for (var k = 0; k < n; k++) 'k$k: 1'].join(', ')}}';
+
+/// [maps] root keys, each holding a block mapping of [n] keys, whose key
+/// [key] writes; [maps] * ([n] + 1) keys in all.
+String _nestedKeys(int maps, int n, [Object Function(int)? key]) => [
+  for (var m = 0; m < maps; m++) ...[
+    'm$m:',
+    for (var k = 0; k < n; k++) '  ${key?.call(m * n + k + 1) ?? 'k$k'}: 1',
+  ],
+].join('\n');
 
 /// [n] nested block mappings, one key a line, each one column deeper.
 String _blockMappings(int n) =>
@@ -390,6 +406,70 @@ void main() {
     expect(prints, isEmpty);
   });
 
+  group('fo01 us01/fr01/e07, rz10, g10: the key caps', () {
+    test('256 keys in one block mapping pass, and the 257th is refused at '
+        'its first character', () {
+      expect(() => checkYamlGate(_blockKeys(256)), returnsNormally);
+      final failure = _gateFailure(_blockKeys(257));
+
+      expect(failure.message, yamlKeyCountMessage);
+      expect(failure.at, (line: 257, column: 1));
+    });
+
+    test('256 keys in one flow mapping pass, and the 257th is refused at '
+        'the "," before it', () {
+      expect(() => checkYamlGate(_flowKeys(256)), returnsNormally);
+      final text = _flowKeys(257);
+      final failure = _gateFailure(text);
+
+      expect(failure.message, yamlKeyCountMessage);
+      expect(failure.at, (line: 1, column: text.indexOf(', k256') + 1));
+    });
+
+    test('2,048 keys in all pass, and the 2,049th is refused at its first '
+        'character', () {
+      expect(() => checkYamlGate(_nestedKeys(8, 255)), returnsNormally);
+      final failure = _gateFailure('${_nestedKeys(8, 255)}\nlast: 1');
+
+      expect(failure.message, yamlKeyCountMessage);
+      expect(failure.at, (line: 2049, column: 1));
+    });
+
+    test('each key: value pair in a flow sequence counts as one key', () {
+      final text = '[${[for (var k = 0; k < 2049; k++) 'k$k: 1'].join(', ')}]';
+      final failure = _gateFailure(text);
+
+      expect(failure.message, yamlKeyCountMessage);
+      expect(failure.at, (line: 1, column: text.indexOf(': 1]') + 1));
+    });
+
+    test('after the lock, every ":", ",", and "{" counts into one bucket '
+        'that starts at the fullest open mapping', () {
+      // ": x" has no key on its line, which the model does not read, so
+      // the pass locks there with 250 keys counted in the open mapping.
+      String locked(int more) => [
+        _blockKeys(250),
+        ': x',
+        for (var k = 0; k < more; k++) 'j$k: 1',
+      ].join('\n');
+
+      expect(() => checkYamlGate(locked(5)), returnsNormally);
+      final failure = _gateFailure(locked(6));
+      expect(failure.message, yamlKeyCountMessage);
+      expect(failure.at, (line: 257, column: 3));
+    });
+
+    test('rz10 (m4-t8 security C2): 2,040 integer keys that share one VM '
+        'hash, 255 to a mapping under 8 root keys, pass the gate and load', () {
+      int colliding(int k) => k * 4294967297;
+
+      expect({
+        for (var k = 1; k <= 2040; k++) colliding(k).hashCode,
+      }, hasLength(1));
+      expect(loadYamlText(_nestedKeys(8, 255, colliding)), isA<YamlMap>());
+    }, testOn: 'vm');
+  });
+
   group('fo01 us01/fr01/e07, rz5, g5: the walk after package:yaml', () {
     test('a node reached twice, which only an alias makes, is refused', () {
       expect(
@@ -416,6 +496,40 @@ void main() {
               .having((f) => f.message, 'message', yamlDepthMessage)
               .having((f) => f.at, 'at', (line: 1, column: 65)),
         ),
+      );
+    });
+
+    test('g10, rz10: a mapping of 256 keys passes, the 257th key is '
+        'refused, and so is a tree of 2,049 keys', () {
+      expect(
+        () => checkYamlTree(loadYamlNode(_blockKeys(256))),
+        returnsNormally,
+      );
+      expect(
+        () => checkYamlTree(loadYamlNode(_blockKeys(257))),
+        throwsA(
+          isA<YamlTextFailure>()
+              .having((f) => f.message, 'message', yamlKeyCountMessage)
+              .having((f) => f.at, 'at', (line: 257, column: 1)),
+        ),
+      );
+      expect(
+        () => checkYamlTree(loadYamlNode('${_nestedKeys(8, 255)}\nlast: 1')),
+        throwsA(
+          isA<YamlTextFailure>().having(
+            (f) => f.message,
+            'message',
+            yamlKeyCountMessage,
+          ),
+        ),
+      );
+    });
+
+    test('m4-t9 review: two null siblings and two "1" siblings, equal but '
+        'distinct scalar nodes, do not read as a node reached twice', () {
+      expect(
+        () => checkYamlTree(loadYamlNode('a: null\nb: null\nc: 1\nd: 1')),
+        returnsNormally,
       );
     });
 

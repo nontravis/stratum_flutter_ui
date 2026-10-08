@@ -57,3 +57,6 @@
   holds a record of any id but 0x000a (NTFS times), 0x5455 and 0x5855 (timestamps), 0x7875 (Unix owner ids), and
   0xcafe (the jar marker), the ones Finder, Info-ZIP, Java, and `tar` write, as `invalid_archive`, and an entry that
   carries the MS-DOS folder attribute on a name that does not end in `/` as `unsafe_entry_path`.
+- Breaking: a theme yaml file, bundled, the app's own, or in a remote zip, now fails as `yaml_syntax` with `more than
+  256 keys in one mapping, or more than 2,048 in the text` at the first key past either cap, before the yaml package
+  reads it; `stratum_theme` exits 66 on such a `pubspec.yaml`. Split a larger mapping into nested groups.
