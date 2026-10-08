@@ -149,6 +149,31 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     );
   }
 
+  /// Runs the token-and-id dispatch script that
+  /// [NativeBridgeSession.scriptForReply] builds for [document], on the
+  /// page shown, or, on Android, through the reply proxy of that document's
+  /// `hello` (US-03 FR-05 E08, E09).
+  @override
+  Future<void> replyToDocument(
+    PlatformHtmlDocumentSender document,
+    String data,
+  ) async {
+    await _ready;
+    final run = _session.scriptForReply(data, document);
+    final replyProxy = run.replyProxy;
+    _session.confirmDelivery(
+      await dispatchScriptAnswer(
+        replyProxy == null
+            ? _controller.runJavaScriptReturningResult(run.script)
+            : _senderChannel.runThroughReplyProxy(
+                _controller,
+                replyProxy,
+                run.script,
+              ),
+      ),
+    );
+  }
+
   @override
   Widget buildView(BuildContext context) =>
       wf.WebViewWidget(controller: _controller);

@@ -291,6 +291,45 @@ void main() {
       expect(harness.sender.proxyRuns, isEmpty);
     });
 
+    test('us03/fr05/e08, us03/fr04/e15: a reply to own HTML runs only '
+        "through the reply proxy of the sending document's hello", () async {
+      harness.sender.send(
+        messageEnvelope(nonceIn(html), 'm'),
+        senderUrl: 'about:blank',
+        replyProxy: proxy,
+      );
+      final sender = listener.senders.last as PlatformHtmlDocumentSender;
+      await adapter.replyToDocument(sender, 'pong');
+      expect(harness.scripts, isEmpty);
+      expect(harness.sender.proxyRuns, [
+        (
+          replyProxy: proxy,
+          script: buildMessageDispatchScript(
+            'pong',
+            token: tokenIn(html),
+            documentId: documentA,
+            allowedOrigins: const <Uri>[],
+          ),
+        ),
+      ]);
+    });
+
+    test('us03/fr05/e08: FRAME_DESTROYED or another error from that reply '
+        'proxy throws', () async {
+      harness.sender.send(
+        messageEnvelope(nonceIn(html), 'm'),
+        senderUrl: 'about:blank',
+        replyProxy: proxy,
+      );
+      final sender = listener.senders.last as PlatformHtmlDocumentSender;
+      harness.sender.proxyAnswer = () =>
+          Future.error(PlatformException(code: 'frame-destroyed'));
+      await expectLater(
+        adapter.replyToDocument(sender, 'pong'),
+        throwsA(unallowedPage),
+      );
+    });
+
     test('B1 us03/fr02/e13: a later loadHtml that proves while the first '
         "script is pending does not get the earlier load's send through "
         'the reply proxy', () async {

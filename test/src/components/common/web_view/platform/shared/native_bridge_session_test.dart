@@ -747,6 +747,123 @@ void main() {
     });
   });
 
+  group('replies to own HTML', () {
+    PlatformHtmlDocumentSender proveA(NativeBridgeSession s, String html) {
+      final nonce = nonceIn(html);
+      s.acceptMessage(envelope(nonce, 'hello', documentA));
+      return s.acceptMessage(messageEnvelope(nonce, 'm'))!.sender
+          as PlatformHtmlDocumentSender;
+    }
+
+    final gone = throwsA(
+      isA<StateError>().having(
+        (error) => error.message,
+        'message',
+        'The HTML document that sent the message is gone.',
+      ),
+    );
+
+    test('us03/fr05/e08: a reply to the proving document gets the '
+        'token-and-id script and, off Android, no reply proxy', () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      final sender = proveA(session, html);
+      final reply = session.scriptForReply('pong', sender);
+      expect(
+        reply.script,
+        buildMessageDispatchScript(
+          'pong',
+          token: tokenIn(html),
+          documentId: documentA,
+          allowedOrigins: const <Uri>[],
+        ),
+      );
+      expect(reply.replyProxy, isNull);
+    });
+
+    test('us03/fr05/e08: once the proof leaves the sending document, the '
+        'reply throws', () {
+      for (final (reason, leave)
+          in <
+            (String, void Function(NativeBridgeSession session, String html))
+          >[
+            (
+              'bye',
+              (s, html) =>
+                  s.acceptMessage(envelope(nonceIn(html), 'bye', documentA)),
+            ),
+            (
+              'hello documentB',
+              (s, html) =>
+                  s.acceptMessage(envelope(nonceIn(html), 'hello', documentB)),
+            ),
+            ('willLoadHtml', (s, html) => s.willLoadHtml('<p>Two</p>')),
+            ('willLoadUrl', (s, html) => s.willLoadUrl()),
+            ('willDispose', (s, html) => s.willDispose()),
+          ]) {
+        final fresh = NativeBridgeSession(
+          allowedOrigins: () => allowed,
+          platform: TargetPlatform.android,
+        );
+        final html = fresh.willLoadHtml('<p>Hi</p>');
+        final sender = proveA(fresh, html);
+        leave(fresh, html);
+        expect(
+          () => fresh.scriptForReply('pong', sender),
+          gone,
+          reason: reason,
+        );
+      }
+    });
+
+    test('us03/fr05/e09: messages from two documents in any order; each '
+        'reply binds to its own document', () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      final nonce = nonceIn(html);
+      session.acceptMessage(envelope(nonce, 'hello', documentA));
+      final a1 =
+          session.acceptMessage(messageEnvelope(nonce, 'a1'))!.sender
+              as PlatformHtmlDocumentSender;
+      // A reload: B's hello replaces the proof; on Android A's bye can be
+      // lost.
+      session.acceptMessage(envelope(nonce, 'hello', documentB));
+      final a2 =
+          session.acceptMessage(messageEnvelope(nonce, 'a2'))!.sender
+              as PlatformHtmlDocumentSender;
+      final b1 =
+          session
+                  .acceptMessage(
+                    messageEnvelope(nonce, 'b1', document: documentB),
+                  )!
+                  .sender
+              as PlatformHtmlDocumentSender;
+      expect(() => session.scriptForReply('pong', a1), gone);
+      expect(() => session.scriptForReply('pong', a2), gone);
+      expect(
+        session.scriptForReply('pong', b1).script,
+        contains("d==='$documentB'"),
+      );
+    });
+
+    test('us03/fr02/e11: a reply while the bridge features are missing '
+        'throws the bridge-disabled StateError', () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      final sender = proveA(session, html);
+      session.markBridgeUnsupported();
+      expect(
+        () => session.scriptForReply('pong', sender),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The bridge is disabled because the WebView lacks '
+                'WEB_MESSAGE_LISTENER or JS_INJECTION_IN_FRAME_AND_WORLD '
+                'support.',
+          ),
+        ),
+      );
+    });
+  });
+
   group('Android reply proxy', () {
     const proxyA = BridgeReplyProxy(1);
     const proxyB = BridgeReplyProxy(2);
@@ -907,6 +1024,35 @@ void main() {
       expect(
         android.replyProxyScriptForMessage('ping', loadNonce: nonceA),
         isNull,
+      );
+    });
+
+    test('us03/fr05/e08, us03/fr04/e15: on Android the reply runs through '
+        "the reply proxy of that document's hello", () {
+      final html = android.willLoadHtml('<p>Hi</p>');
+      final nonce = nonceIn(html);
+      android.acceptMessage(
+        envelope(nonce, 'hello', documentA),
+        sender: sentBy(proxyA),
+      );
+      final sender =
+          android
+                  .acceptMessage(
+                    messageEnvelope(nonce, 'm'),
+                    sender: sentBy(proxyA),
+                  )!
+                  .sender
+              as PlatformHtmlDocumentSender;
+      final reply = android.scriptForReply('pong', sender);
+      expect(reply.replyProxy, proxyA);
+      expect(
+        reply.script,
+        buildMessageDispatchScript(
+          'pong',
+          token: tokenIn(html),
+          documentId: documentA,
+          allowedOrigins: const <Uri>[],
+        ),
       );
     });
 

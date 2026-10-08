@@ -448,6 +448,45 @@ final class NativeBridgeSession {
     );
   }
 
+  /// Returns the dispatch script that delivers [data] to [document], the
+  /// document of the app's HTML that sent the message a reply targets, and
+  /// the reply proxy to run it through on Android, `null` elsewhere.
+  ///
+  /// The reply reaches only the document whose message named it, while that
+  /// document holds the proof; on Android only through its `hello`'s reply
+  /// proxy (US-03 FR-05 E08, E09; R2).
+  ///
+  /// Throws a [StateError] when the platform view lacks a feature the
+  /// bridge needs (US-03 FR-02 E11), and the gone-document [StateError]
+  /// unless [document] is the one the current proof was proven by.
+  ({String script, BridgeReplyProxy? replyProxy}) scriptForReply(
+    String data,
+    PlatformHtmlDocumentSender document,
+  ) {
+    if (_bridgeUnsupported) {
+      throw StateError(
+        'The bridge is disabled because the WebView lacks '
+        'WEB_MESSAGE_LISTENER or JS_INJECTION_IN_FRAME_AND_WORLD support.',
+      );
+    }
+    final proof = _proof;
+    if (proof is! _Proven ||
+        document is! NativeHtmlDocumentSender ||
+        proof.nonce != document.loadNonce ||
+        proof.documentId != document.documentId) {
+      throw StateError('The HTML document that sent the message is gone.');
+    }
+    return (
+      script: buildMessageDispatchScript(
+        data,
+        token: proof.token,
+        documentId: document.documentId,
+        allowedOrigins: const <Uri>[],
+      ),
+      replyProxy: proof.replyProxy,
+    );
+  }
+
   /// Turns the dispatch script's [result] into the send's outcome: `true`
   /// means the page received the message; anything else throws a
   /// [StateError] that names no origin, because the page reports only a

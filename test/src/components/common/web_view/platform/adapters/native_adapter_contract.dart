@@ -69,6 +69,132 @@ void runNativeAdapterContract(
       await pumpEventQueue();
     });
 
+    /// Loads own HTML, proves it with a `hello` of [documentA] from
+    /// `about:blank`, then delivers a `message` from that document, and
+    /// returns the html and the sender a reply targets.
+    Future<(String, PlatformHtmlDocumentSender)> proveOwnHtml() async {
+      await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      final html = harness.loadedHtml.single;
+      final nonce = nonceIn(html);
+      harness
+        ..sendBridgeMessage(
+          envelope(nonce, 'hello', documentA),
+          senderUrl: 'about:blank',
+        )
+        ..sendBridgeMessage(
+          messageEnvelope(nonce, 'm'),
+          senderUrl: 'about:blank',
+        );
+      return (html, listener.senders.last as PlatformHtmlDocumentSender);
+    }
+
+    test('us03/fr05/e08: a reply to own HTML runs the token-and-id script '
+        'on the page shown, and a refusal throws', () async {
+      final (html, sender) = await proveOwnHtml();
+      harness.scriptResult = true;
+      await adapter.replyToDocument(sender, 'pong');
+      expect(
+        harness.scripts.last,
+        buildMessageDispatchScript(
+          'pong',
+          token: tokenIn(html),
+          documentId: documentA,
+          allowedOrigins: const <Uri>[],
+        ),
+      );
+      harness.scriptResult = false;
+      await expectLater(
+        adapter.replyToDocument(sender, 'pong'),
+        throwsA(_unallowedPage),
+      );
+    });
+
+    test("us03/fr05/e08: a reply after the sending document's bye throws "
+        'and runs no script', () async {
+      final (html, sender) = await proveOwnHtml();
+      harness.sendBridgeMessage(
+        envelope(nonceIn(html), 'bye', documentA),
+        senderUrl: 'about:blank',
+      );
+      final before = harness.scripts.length;
+      await expectLater(
+        adapter.replyToDocument(sender, 'pong'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The HTML document that sent the message is gone.',
+          ),
+        ),
+      );
+      expect(harness.scripts, hasLength(before));
+    });
+
+    test('us03/fr05/e11: a reply script with no answer within 5 seconds, '
+        'or a platform error, throws the StateError naming no origin', () {
+      fakeAsync((async) {
+        final zonedHarness = createHarness();
+        final zonedAdapter = zonedHarness.createAdapter(listener);
+        unawaited(
+          zonedAdapter.load(const StratumWebViewSource.html('<p>Hi</p>')),
+        );
+        async.flushMicrotasks();
+        final zonedHtml = zonedHarness.loadedHtml.single;
+        final zonedNonce = nonceIn(zonedHtml);
+        zonedHarness
+          ..sendBridgeMessage(
+            envelope(zonedNonce, 'hello', documentA),
+            senderUrl: 'about:blank',
+          )
+          ..sendBridgeMessage(
+            messageEnvelope(zonedNonce, 'm'),
+            senderUrl: 'about:blank',
+          );
+        final zonedSender = listener.senders.last as PlatformHtmlDocumentSender;
+        zonedHarness.scriptAnswer = () => Completer<Object>().future;
+        Object? failure;
+        unawaited(
+          zonedAdapter
+              .replyToDocument(zonedSender, 'pong')
+              .then((_) {}, onError: (Object error) => failure = error),
+        );
+        async.elapse(const Duration(milliseconds: 4999));
+        expect(failure, isNull);
+        async.elapse(const Duration(milliseconds: 1));
+        expect(failure, _unallowedPage);
+      });
+      fakeAsync((async) {
+        final zonedHarness = createHarness();
+        final zonedAdapter = zonedHarness.createAdapter(listener);
+        unawaited(
+          zonedAdapter.load(const StratumWebViewSource.html('<p>Hi</p>')),
+        );
+        async.flushMicrotasks();
+        final zonedHtml = zonedHarness.loadedHtml.single;
+        final zonedNonce = nonceIn(zonedHtml);
+        zonedHarness
+          ..sendBridgeMessage(
+            envelope(zonedNonce, 'hello', documentA),
+            senderUrl: 'about:blank',
+          )
+          ..sendBridgeMessage(
+            messageEnvelope(zonedNonce, 'm'),
+            senderUrl: 'about:blank',
+          );
+        final zonedSender = listener.senders.last as PlatformHtmlDocumentSender;
+        zonedHarness.scriptAnswer = () =>
+            Future<Object>.error(PlatformException(code: 'evaluateJavaScript'));
+        Object? failure;
+        unawaited(
+          zonedAdapter
+              .replyToDocument(zonedSender, 'pong')
+              .then((_) {}, onError: (Object error) => failure = error),
+        );
+        async.flushMicrotasks();
+        expect(failure, _unallowedPage);
+      });
+    });
+
     test('enables JavaScript', () {
       expect(harness.javaScriptEnabledStates, [true]);
     });

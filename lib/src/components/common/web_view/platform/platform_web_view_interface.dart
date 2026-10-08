@@ -81,6 +81,17 @@ abstract interface class PlatformStratumWebView {
   /// Throws a [StateError] when the current page may not receive messages.
   Future<void> postMessage(String data, {Uri? targetOrigin});
 
+  /// Sends [data] as a `message` event to [document], the document of the
+  /// app's HTML that sent a message this view delivered, and to no other
+  /// document (US-03 FR-05).
+  ///
+  /// Throws a [StateError] when that document is gone, or when the page
+  /// refuses.
+  Future<void> replyToDocument(
+    PlatformHtmlDocumentSender document,
+    String data,
+  );
+
   /// Builds the widget that displays the page.
   Widget buildView(BuildContext context);
 

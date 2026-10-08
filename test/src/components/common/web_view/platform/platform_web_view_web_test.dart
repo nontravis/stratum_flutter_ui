@@ -501,6 +501,105 @@ location.href = 'data:text/html,' + encodeURIComponent(
     );
   });
 
+  test('us03/fr05/e06: a reply reaches the render whose port carried the '
+      "message, and throws once a re-insertion's handshake replaced that "
+      'port', () async {
+    await view.load(
+      const StratumWebViewSource.html(
+        '<script>\n'
+        "window.addEventListener('message', function(e) {\n"
+        "StratumBridge.postMessage('echo:' + e.data);\n"
+        '});\n'
+        "StratumBridge.postMessage('ready');\n"
+        '</script>',
+      ),
+    );
+    attach();
+    await waitForMessages(1);
+    final first = listener.senders.last as PlatformHtmlDocumentSender;
+    await view.replyToDocument(first, 'ping');
+    await waitForMessages(2);
+    expect(listener.messages.last.data, 'echo:ping');
+
+    view.iframe.remove();
+    final host = web.HTMLDivElement();
+    web.document.body!.appendChild(host);
+    // A tear-off of a JS interop member does not compile, so wrap it.
+    // ignore: unnecessary_lambdas
+    addTearDown(() => host.remove());
+    view.attachTo(host);
+    await waitForMessages(3);
+    final second = listener.senders.last as PlatformHtmlDocumentSender;
+
+    await expectLater(
+      view.replyToDocument(first, 'late'),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'The HTML document that sent the message is gone.',
+        ),
+      ),
+    );
+    await view.replyToDocument(second, 'pong');
+    await waitForMessages(4);
+    expect(listener.messages.last.data, 'echo:pong');
+  });
+
+  test(
+    'us03/fr05/e06: a reply throws once a load leaves the HTML entry',
+    () async {
+      await view.load(
+        const StratumWebViewSource.html(
+          "<script>StratumBridge.postMessage('ready');</script>",
+        ),
+      );
+      attach();
+      await waitForMessages(1);
+      final first = listener.senders.last as PlatformHtmlDocumentSender;
+      await view.load(missingPage());
+      await expectLater(
+        view.replyToDocument(first, 'x'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The HTML document that sent the message is gone.',
+          ),
+        ),
+      );
+    },
+  );
+
+  test('us03/fr05/e07: after a link away inside the frame, a reply '
+      'resolves and nothing arrives', () async {
+    await view.load(
+      const StratumWebViewSource.html(
+        '<script>\n'
+        "window.addEventListener('message', function(e) {\n"
+        "if (e.data === 'go') {\n"
+        "location.href = 'data:text/html,<p>away</p>';\n"
+        '} else {\n'
+        "StratumBridge.postMessage('echo:' + e.data);\n"
+        '}\n'
+        '});\n'
+        "StratumBridge.postMessage('ready');\n"
+        '</script>',
+      ),
+    );
+    attach();
+    await waitForMessages(1);
+    final sender = listener.senders.last as PlatformHtmlDocumentSender;
+    await view.replyToDocument(sender, 'go');
+    await finishes(2);
+    await view.replyToDocument(sender, 'late');
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(
+      listener.messages.any((message) => message.data == 'echo:late'),
+      isFalse,
+    );
+  });
+
   test('posts to the current URL origin and refuses others', () async {
     await view.load(missingPage());
     attach();

@@ -207,6 +207,20 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     }
   }
 
+  /// After a link away inside the frame the port stays adopted and the
+  /// browser gives no signal, so the reply resolves and is dropped (FR-05
+  /// E07).
+  @override
+  Future<void> replyToDocument(
+    PlatformHtmlDocumentSender document,
+    String data,
+  ) async {
+    if (!identical(document, _bridge)) {
+      throw StateError('The HTML document that sent the message is gone.');
+    }
+    (document as _WebHtmlDocumentSender).port.postMessage(data.toJS);
+  }
+
   @override
   Widget buildView(BuildContext context) => HtmlElementView.fromTagName(
     // A per-instance factory registered with `platformViewRegistry` could

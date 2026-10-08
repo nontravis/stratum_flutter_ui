@@ -12,6 +12,11 @@ const String nativeBridgeEnvelopeTag = 'stratum-bridge-envelope:1:';
 /// literal it carries.
 const String nativeBridgeTokenProperty = '__stratumBridgeToken';
 
+/// Name of the window property where the native bootstrap keeps its
+/// document id, non-writable and non-configurable; a reply's dispatch
+/// script compares it (US-03 FR-05 E08).
+const String nativeBridgeDocumentProperty = '__stratumBridgeDocument';
+
 /// Builds the bootstrap script injected into HTML content rendered on web.
 ///
 /// The web implementation renders HTML in a `srcdoc` iframe with an opaque
@@ -63,7 +68,8 @@ String injectBridgeBootstrap(String html, String nonce) {
 /// restores the document from the back-forward cache (E03, E10, E11, E14).
 /// Every `message` envelope carries the document id before the text. No
 /// envelope carries [token]. Without the platform object the bridge stays
-/// closed.
+/// closed. It keeps the document id in [nativeBridgeDocumentProperty] too,
+/// for a reply's dispatch script to compare.
 ///
 /// Returns [html] with the script placed by [placeBridgeBootstrap].
 String injectNativeBridgeBootstrap(
@@ -81,6 +87,8 @@ String injectNativeBridgeBootstrap(
       "send('$nativeBridgeEnvelopeTag$nonce:'+k+':'+d);}\n"
       "var a=crypto.getRandomValues(new Uint8Array(16)),id='';\n"
       'for(var i=0;i<16;i++)id+=(a[i]|256).toString(16).slice(1);\n'
+      "Object.defineProperty(window,'$nativeBridgeDocumentProperty',\n"
+      '{value:id});\n'
       "Object.defineProperty(window,'$nativeBridgeTokenProperty',\n"
       "{value:'$token'});\n"
       "Object.defineProperty(window,'StratumBridge',\n"

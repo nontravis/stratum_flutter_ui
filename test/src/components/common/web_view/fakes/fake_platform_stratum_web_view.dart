@@ -21,6 +21,7 @@ final class FakePlatformStratumWebView implements PlatformStratumWebView {
   final List<bool> javaScriptChanges = [];
   final List<String> sentMessages = [];
   final List<Uri?> sentTargets = [];
+  final List<(PlatformHtmlDocumentSender, String)> documentReplies = [];
   int reloadCount = 0;
   int backCount = 0;
   int forwardCount = 0;
@@ -28,6 +29,7 @@ final class FakePlatformStratumWebView implements PlatformStratumWebView {
   bool canGoForwardValue = false;
   Uri? currentUrlValue;
   StateError? postMessageError;
+  StateError? replyError;
   bool disposed = false;
 
   @override
@@ -61,6 +63,16 @@ final class FakePlatformStratumWebView implements PlatformStratumWebView {
     if (error != null) throw error;
     sentMessages.add(data);
     sentTargets.add(targetOrigin);
+  }
+
+  @override
+  Future<void> replyToDocument(
+    PlatformHtmlDocumentSender document,
+    String data,
+  ) async {
+    final error = replyError;
+    if (error != null) throw error;
+    documentReplies.add((document, data));
   }
 
   @override

@@ -216,6 +216,30 @@ void main() {
       );
     });
 
+    test('us03/fr05/e08: keeps its document id in its own window property '
+        'once drawn, before StratumBridge exists', () {
+      final html = inject('<p>Hi</p>');
+      final afterLoop = html.indexOf(
+        'for(var i=0;i<16;i++)id+=(a[i]|256).toString(16).slice(1);',
+      );
+      final beforeBridge = html.indexOf(
+        "Object.defineProperty(window,'StratumBridge',",
+      );
+      expect(
+        html,
+        contains(
+          "Object.defineProperty(window,'$nativeBridgeDocumentProperty',\n"
+          '{value:id});\n',
+        ),
+      );
+      expect(
+        html.indexOf(
+          "Object.defineProperty(window,'$nativeBridgeDocumentProperty',",
+        ),
+        allOf(greaterThan(afterLoop), lessThan(beforeBridge)),
+      );
+    });
+
     test('us03/fr04: draws a 16-byte document id from crypto.getRandomValues '
         'in lowercase hex and posts hello with it last', () {
       final html = inject('<p>Hi</p>');

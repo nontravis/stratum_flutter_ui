@@ -124,6 +124,24 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
     );
   }
 
+  /// Runs the token-and-id dispatch script that
+  /// [NativeBridgeSession.scriptForReply] builds for [document], on the
+  /// page shown; this session never binds sends to a document, so no reply
+  /// proxy ever applies (US-03 FR-05 E08, E09).
+  @override
+  Future<void> replyToDocument(
+    PlatformHtmlDocumentSender document,
+    String data,
+  ) async {
+    await _ready;
+    final run = _session.scriptForReply(data, document);
+    _session.confirmDelivery(
+      await dispatchScriptAnswer(
+        _controller.runJavaScriptReturningResult(run.script),
+      ),
+    );
+  }
+
   @override
   Widget buildView(BuildContext context) => wa.PlatformWebViewWidget(
     wa.PlatformWebViewWidgetCreationParams(controller: _controller),
