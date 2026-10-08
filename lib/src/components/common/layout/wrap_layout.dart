@@ -107,6 +107,13 @@ class WrapLayout extends BoxLayout {
   /// switching both limits between null and a value keeps the children's
   /// State; with it null, that switch remounts them, as a [focusGroup]
   /// switch does.
+  ///
+  /// Expand or collapse by changing [maxRuns] or [maxChildren]: the size
+  /// moves from the old to the new size over the theme's default level
+  /// (`fast`, 125 ms in the package default) on the theme's `standard`
+  /// curve, with the content clipped to it, and changes at once under
+  /// reduced motion. Children an expand shows appear at once; a change of
+  /// constraints, children, or [gap] lays out at once.
   final Widget Function(BuildContext context, int hiddenCount)? overflowBuilder;
   final List<Widget> children;
 

@@ -40,6 +40,8 @@ Each entry: usage, key parameters, keyboard behavior.
   and take no paint, hits, focus, or semantics, their tickers stopped. With `overflowBuilder` set, switching both limits
   to null keeps the children's `State`; without it the switch remounts them. A limit or `overflowBuilder` with `scroll`
   fails an assertion.
+  Expand or collapse by changing the limits: the size moves over the theme's default level (`fast`, 125 ms in the
+  package default) on the `standard` curve, clipped, and changes at once under reduced motion.
   Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`; Tab and the group's arrows skip hidden children,
   and End lands on the last item in reading order, the "+N" child in a horizontal, downward wrap. When a collapse hides
   the focused child, or a collapse or rebuild replaces the focused "+N" child with a new one, focus moves after the

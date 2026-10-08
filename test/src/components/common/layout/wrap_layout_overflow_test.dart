@@ -3,6 +3,8 @@ import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/wrap_overflow.dart';
 import 'package:stratum_ui/src/src.dart';
 
+import '../fakes/fake_stratum_theme.dart';
+
 /// [child] at the top left of the view, [width] wide.
 Widget _host(
   Widget child, {
@@ -248,6 +250,13 @@ List<String> _readOut(WidgetTester tester) => [
   for (final node in tester.semantics.simulatedAccessibilityTraversal())
     if (node.label.isNotEmpty) node.label,
 ];
+
+/// The height of the one wrap on screen.
+double _height(WidgetTester tester) =>
+    tester.getSize(find.byType(WrapLayout)).height;
+
+/// [Curves.easeInOutSine] at half time: the midpoint of a size move.
+final double _mid = Curves.easeInOutSine.transform(0.5);
 
 void main() {
   group('WrapLayout overflow (US-14)', () {
@@ -1280,4 +1289,340 @@ void main() {
       },
     );
   });
+
+  group('WrapLayout expand and collapse (US-14 FR-04)', () {
+    _ExpandableState expandable(WidgetTester tester) =>
+        tester.state<_ExpandableState>(find.byType(_Expandable));
+
+    testWidgets(
+      'us14/s4, us14/fr04, s03/inv40: tapping "+4" grows the wrap to its '
+      "full size over 125 ms in the package's default theme",
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Expandable()));
+        expect(_height(tester), 46);
+
+        await tester.tap(find.text('+4'));
+        await tester.pump();
+        expect(_height(tester), 46);
+        expect(_shownTags(), [for (var i = 0; i < 12; i++) i]);
+
+        await tester.pump(const Duration(microseconds: 62500));
+        expect(_height(tester), moreOrLessEquals(46 + 26 * _mid));
+
+        await tester.pump(const Duration(microseconds: 62500));
+        expect(_height(tester), 72);
+      },
+    );
+
+    testWidgets("s03/inv40: the size moves over the theme's default level", (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        themedHost(
+          const _Expandable(),
+          theme: motionTheme(fast: const Duration(milliseconds: 80)),
+        ),
+      );
+
+      await tester.tap(find.text('+4'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(_height(tester), moreOrLessEquals(46 + 26 * _mid));
+
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(_height(tester), 72);
+    });
+
+    testWidgets(
+      'us14/fr04, s03/inv40: a collapse shrinks the size the same way',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Expandable()));
+        expandable(tester).set(expanded: true);
+        await tester.pumpAndSettle();
+        expect(_height(tester), 72);
+
+        expandable(tester).set(expanded: false);
+        await tester.pump();
+        expect(_height(tester), 72);
+        expect(_shownTags(), [0, 1, 2, 3, 4, 5, 6, 7]);
+
+        await tester.pump(const Duration(microseconds: 62500));
+        expect(_height(tester), moreOrLessEquals(72 - 26 * _mid));
+        await tester.pump(const Duration(microseconds: 62500));
+        expect(_height(tester), 46);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04: the content clips to the animating size, and only while '
+      'it moves',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Expandable()));
+        await tester.tap(find.text('+4'));
+        await tester.pump();
+        await tester.pump(const Duration(microseconds: 62500));
+
+        final wrap = tester.renderObject(find.byType(WrapOverflowFrame));
+        expect(
+          wrap,
+          paints..clipRect(rect: Rect.fromLTWH(0, 0, 230, _height(tester))),
+        );
+
+        await tester.pumpAndSettle();
+        expect(wrap, isNot(paints..clipRect()));
+      },
+    );
+
+    for (final (name, features, disable) in const [
+      (
+        'the platform reduce-motion flag',
+        FakeAccessibilityFeatures(reduceMotion: true),
+        false,
+      ),
+      ("the app's disableAnimations", FakeAccessibilityFeatures(), true),
+    ]) {
+      testWidgets(
+        'us14/s6, us14/fr04: under $name an expand shows every tag at its '
+        'full size at once',
+        (tester) async {
+          tester.platformDispatcher.accessibilityFeaturesTestValue = features;
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+          await tester.pumpWidget(
+            MediaQuery(
+              data: MediaQueryData.fromView(tester.view)
+                  .copyWith(disableAnimations: disable),
+              child: themedHost(const _Expandable()),
+            ),
+          );
+
+          await tester.tap(find.text('+4'));
+          await tester.pump();
+
+          expect(_height(tester), 72);
+          expect(_shownTags(), [for (var i = 0; i < 12; i++) i]);
+        },
+      );
+    }
+
+    testWidgets(
+      'us14/fr04/e01: a change of constraints, children, or gap lays out at '
+      'the new size at once, also mid-move',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Expandable()));
+        expandable(tester).set(expanded: true);
+        await tester.pumpAndSettle();
+        expect(_height(tester), 72);
+
+        await tester.pumpWidget(themedHost(const _Expandable(width: 130)));
+        expect(_height(tester), 150);
+        await tester.pumpWidget(
+          themedHost(const _Expandable(width: 130, count: 16)),
+        );
+        expect(_height(tester), 202);
+        await tester.pumpWidget(
+          themedHost(const _Expandable(width: 130, count: 16, runGap: 10)),
+        );
+        expect(_height(tester), 230);
+        await tester.pumpWidget(
+          themedHost(
+            const _Expandable(width: 130, count: 16, runGap: 10, gap: 0),
+          ),
+        );
+        expect(_height(tester), 170);
+
+        expandable(tester).set(expanded: false);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 30));
+        await tester.pumpWidget(themedHost(const _Expandable(count: 16)));
+        expect(_height(tester), 46);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04/e02: children an expand shows appear at once, with no fade',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Expandable()));
+        await tester.tap(find.text('+4'));
+        await tester.pump();
+
+        final tag = find.byKey(const ValueKey('tag 8'));
+        final wrap = tester.renderObject(find.byType(WrapOverflowFrame));
+        expect(tag, findsOneWidget);
+        expect(wrap.paintsChild(tester.renderObject(tag)), isTrue);
+        for (final fade in [FadeTransition, Opacity, AnimatedOpacity]) {
+          expect(
+            find.descendant(
+              of: find.byType(WrapOverflowFrame),
+              matching: find.byType(fade),
+            ),
+            findsNothing,
+            reason: '$fade',
+          );
+        }
+      },
+    );
+
+    testWidgets(
+      'us14/fr04/e03: with overflowBuilder set, both limits switching '
+      "between null and a value animate the size and keep the children's "
+      'State',
+      (tester) async {
+        Widget build(int? maxRuns) => themedHost(
+          SizedBox(
+            width: 230,
+            child: _wrap(maxRuns: maxRuns, children: _chips(12)),
+          ),
+        );
+        await tester.pumpWidget(build(2));
+        final chip = tester.state(find.byKey(const ValueKey('chip 0')));
+
+        await tester.pumpWidget(build(null));
+        expect(_height(tester), 46);
+        await tester.pump(const Duration(microseconds: 62500));
+        expect(_height(tester), moreOrLessEquals(46 + 26 * _mid));
+        await tester.pumpAndSettle();
+        expect(_height(tester), 72);
+        expect(tester.state(find.byKey(const ValueKey('chip 0'))), same(chip));
+      },
+    );
+
+    testWidgets(
+      'us14/fr04/e04: with no overflowBuilder, both limits switching between '
+      'null and a value remount the children with no animation',
+      (tester) async {
+        Widget build(int? maxRuns) => themedHost(
+          SizedBox(
+            width: 230,
+            child: _wrap(
+              maxRuns: maxRuns,
+              overflowBuilder: null,
+              children: _chips(12),
+            ),
+          ),
+        );
+        await tester.pumpWidget(build(2));
+        final chip = tester.state(find.byKey(const ValueKey('chip 0')));
+        expect(_height(tester), 46);
+
+        await tester.pumpWidget(build(null));
+
+        expect(_height(tester), 72);
+        expect(
+          tester.state(find.byKey(const ValueKey('chip 0'))),
+          isNot(same(chip)),
+        );
+      },
+    );
+
+    testWidgets(
+      'us14/fr04/e05: a bare wrap and a styled wrap move their size the same '
+      'way',
+      (tester) async {
+        for (final style in [null, const WidgetStyle()]) {
+          // A new key per style gives each pass a collapsed wrap.
+          await tester.pumpWidget(
+            themedHost(_Expandable(key: ValueKey(style), style: style)),
+          );
+          await tester.tap(find.text('+4'));
+          await tester.pump();
+          await tester.pump(const Duration(microseconds: 62500));
+
+          expect(
+            _height(tester),
+            moreOrLessEquals(46 + 26 * _mid),
+            reason: 'style $style',
+          );
+          await tester.pumpAndSettle();
+        }
+      },
+    );
+
+    testWidgets(
+      'a collapse during an expand moves on from the size shown now',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Expandable()));
+        await tester.tap(find.text('+4'));
+        await tester.pump();
+        await tester.pump(const Duration(microseconds: 62500));
+        final shown = _height(tester);
+
+        expandable(tester).set(expanded: false);
+        await tester.pump();
+        expect(_height(tester), moreOrLessEquals(shown));
+
+        await tester.pump(const Duration(milliseconds: 125));
+        expect(_height(tester), 46);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04: an animated limit change lays out with no FlutterError',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Expandable()));
+        await tester.tap(find.text('+4'));
+        for (var frame = 0; frame < 10; frame++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          expect(tester.takeException(), isNull, reason: 'expand $frame');
+        }
+
+        expandable(tester).set(expanded: false);
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: 'collapse start');
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'collapse end');
+      },
+    );
+  });
+}
+
+/// [count] tags in a wrap [width] wide, cut to two runs until the "+N"
+/// child is tapped or [_ExpandableState.set] lifts the limit.
+class _Expandable extends StatefulWidget {
+  const new({
+    super.key,
+    this.width = 230,
+    this.gap = 10,
+    this.runGap = 6,
+    this.count = 12,
+    this.style,
+  });
+
+  final double width;
+  final double gap;
+  final double runGap;
+  final int count;
+  final WidgetStyle? style;
+
+  @override
+  State<_Expandable> createState() => _ExpandableState();
+}
+
+class _ExpandableState extends State<_Expandable> {
+  bool expanded = false;
+
+  void set({required bool expanded}) =>
+      setState(() => this.expanded = expanded);
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: widget.width,
+        child: WrapLayout(
+          style: widget.style,
+          gap: widget.gap,
+          runGap: widget.runGap,
+          maxRuns: expanded ? null : 2,
+          overflowBuilder: (context, count) => GestureDetector(
+            onTap: () => set(expanded: true),
+            child: _more(context, count),
+          ),
+          children: _tags(widget.count),
+        ),
+      ),
+    );
+  }
 }

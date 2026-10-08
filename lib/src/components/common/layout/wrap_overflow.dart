@@ -18,6 +18,7 @@ import 'package:flutter/rendering.dart'
 import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/wrap_cut.dart';
+import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The content of a [WrapLayout] in overflow mode (s03 invariants 36 to
@@ -78,7 +79,8 @@ class WrapOverflowFrame extends StatefulWidget {
   State<WrapOverflowFrame> createState() => _WrapOverflowFrameState();
 }
 
-class _WrapOverflowFrameState extends State<WrapOverflowFrame> {
+class _WrapOverflowFrameState extends State<WrapOverflowFrame>
+    with SingleTickerProviderStateMixin {
   /// Takes focus when no node can after a collapse hides the focused child
   /// (US-14 FR-03 E06) or an expand removes the focused overflow child
   /// (owner ruling R5); skipped by Tab, so the next Tab moves on from the
@@ -93,6 +95,10 @@ class _WrapOverflowFrameState extends State<WrapOverflowFrame> {
 
   @override
   Widget build(BuildContext context) {
+    final motion =
+        (StratumThemeApplication.maybeOf(context)?.animation ??
+                StratumAnimation.packageDefault)
+            .defaultStyle;
     return Focus(
       focusNode: _wrapNode,
       includeSemantics: false,
@@ -100,6 +106,11 @@ class _WrapOverflowFrameState extends State<WrapOverflowFrame> {
         frame: widget,
         textDirection: widget.textDirection ?? Directionality.maybeOf(context),
         wrapNode: _wrapNode,
+        vsync: this,
+        duration: reducesMotion(context)
+            ? Duration.zero
+            : motion.duration ?? Duration.zero,
+        curve: motion.curve ?? Curves.easeInOutSine,
       ),
     );
   }
@@ -112,6 +123,9 @@ class _WrapOverflow extends RenderObjectWidget {
     required this.frame,
     required this.textDirection,
     required this.wrapNode,
+    required this.vsync,
+    required this.duration,
+    required this.curve,
   });
 
   final WrapOverflowFrame frame;
@@ -120,6 +134,12 @@ class _WrapOverflow extends RenderObjectWidget {
   /// The wrap's own node, which takes focus when no node after a collapse
   /// or an expand can.
   final FocusNode wrapNode;
+  final TickerProvider vsync;
+
+  /// How long a size move takes: the theme's default level, zero under
+  /// reduced motion.
+  final Duration duration;
+  final Curve curve;
 
   @override
   RenderObjectElement createElement() => _WrapOverflowElement(this);
@@ -684,17 +704,56 @@ class _RenderWrapOverflow extends RenderBox
         RenderObjectWithLayoutCallbackMixin {
   new(_WrapOverflow widget)
     : _frame = widget.frame,
-      _textDirection = widget.textDirection;
+      _textDirection = widget.textDirection,
+      _vsync = widget.vsync,
+      _duration = widget.duration,
+      _curve = widget.curve,
+      _controller = AnimationController(vsync: widget.vsync) {
+    _controller.addListener(_tick);
+  }
 
   /// Builds the children during layout; null once unmounted.
   _WrapOverflowElement? element;
 
   WrapOverflowFrame _frame;
   TextDirection? _textDirection;
+  TickerProvider _vsync;
+  final AnimationController _controller;
+  Duration _duration;
+  Curve _curve;
+
+  /// Whether the last [configure] changed `maxRuns` or `maxChildren`.
+  bool _limitsChanged = false;
+
+  /// The ends of the size move under way.
+  Size? _from;
+  Size? _to;
+
+  /// The controller value the last layout read. A tick that moves past it
+  /// lays the frame out again; the restart inside layout sets it first, so
+  /// its own notification does not re-dirty the layout that is running
+  /// (`RenderAnimatedSize._lastValue`, `rendering/animated_size.dart:90-91,
+  /// 309-311`, Flutter 3.47.3).
+  double? _lastValue;
+
+  void _tick() {
+    if (_controller.value != _lastValue) markNeedsLayout();
+  }
 
   void configure(_WrapOverflow widget) {
-    _frame = widget.frame;
+    final frame = widget.frame;
+    if (frame.maxRuns != _frame.maxRuns ||
+        frame.maxChildren != _frame.maxChildren) {
+      _limitsChanged = true;
+    }
+    _frame = frame;
     _textDirection = widget.textDirection;
+    if (widget.vsync != _vsync) {
+      _vsync = widget.vsync;
+      _controller.resync(widget.vsync);
+    }
+    _duration = widget.duration;
+    _curve = widget.curve;
     markNeedsLayout();
   }
 
@@ -780,6 +839,7 @@ class _RenderWrapOverflow extends RenderBox
 
   @override
   void dispose() {
+    _controller.dispose();
     _clipLayer.layer = null;
     super.dispose();
   }
@@ -963,7 +1023,7 @@ class _RenderWrapOverflow extends RenderBox
     ], overflow?.size);
     final content = _extentOf(runs);
     final box = constraints.constrain(content);
-    size = box;
+    size = _animatedSize(box);
     _hasVisualOverflow =
         box.width < content.width || box.height < content.height;
     RenderBox itemAt(int item) => item < 0 ? overflow! : children[item];
@@ -983,6 +1043,37 @@ class _RenderWrapOverflow extends RenderBox
     ) {
       (itemAt(item).parentData! as _WrapOverflowParentData).offset = offset;
     });
+  }
+
+  /// The size to show for the laid-out [target] (s03 invariant 40): a
+  /// `maxRuns` or `maxChildren` change starts a move from the size shown
+  /// now to [target] over the theme's default level on its `standard`
+  /// curve; under reduced motion, or on any other change, the frame shows
+  /// [target] at once.
+  Size _animatedSize(Size target) {
+    _lastValue = _controller.value;
+    final limitsChanged = _limitsChanged;
+    _limitsChanged = false;
+    if (limitsChanged &&
+        hasSize &&
+        size != target &&
+        _duration > Duration.zero) {
+      _from = size;
+      _to = target;
+      _controller.duration = _duration;
+      // Set before the restart: forward(from: 0) notifies at once, inside
+      // this layout, and _tick must not mark it dirty.
+      _lastValue = 0;
+      _controller.forward(from: 0);
+      return constraints.constrain(size);
+    }
+    final from = _from;
+    if (_controller.isAnimating && from != null && target == _to) {
+      final t = _curve.transform(_controller.value);
+      return constraints.constrain(Size.lerp(from, target, t)!);
+    }
+    _controller.stop();
+    return target;
   }
 
   /// `RenderWrap._positionChildren` (`rendering/wrap.dart:772-839`): walks
@@ -1154,10 +1245,15 @@ class _RenderWrapOverflow extends RenderBox
     return false;
   }
 
-  /// The clip of the content: [WrapOverflowFrame.clipBehavior] when the
-  /// content overflows, as [Wrap] clips; null paints with no clip.
+  /// The clip of the content: the animating size while it moves (US-14
+  /// FR-04), with [Clip.hardEdge] when [WrapOverflowFrame.clipBehavior] is
+  /// none; else [WrapOverflowFrame.clipBehavior] when the content
+  /// overflows, as [Wrap] clips; null paints with no clip.
   Clip? get _clip {
     final clip = _frame.clipBehavior;
+    if (_controller.isAnimating) {
+      return clip == Clip.none ? Clip.hardEdge : clip;
+    }
     return _hasVisualOverflow && clip != Clip.none ? clip : null;
   }
 
