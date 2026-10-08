@@ -179,6 +179,20 @@ void main() {
       expect(failure.message, yamlPropertyMessage);
       expect(failure.at, (line: 1, column: 12));
     });
+
+    for (final (text, at) in [
+      ('name: "*.yaml"', (line: 1, column: 8)),
+      ('note: *word*', (line: 1, column: 7)),
+      ('x: &word', (line: 1, column: 4)),
+    ]) {
+      test('g4: "$text" refuses a "*" or "&" with no trailing blank, an '
+          'over-refusal the gate allows (main: no gate change)', () {
+        final failure = _gateFailure(text);
+
+        expect(failure.message, yamlPropertyMessage);
+        expect(failure.at, at);
+      });
+    }
   });
 
   group('fo01 us01/fr01/e07, rz7, g9: mapping keys that are collections', () {
@@ -197,6 +211,11 @@ void main() {
       ('- ? a\n  : x', (line: 1, column: 3)),
       ('{? a : x}', (line: 1, column: 2)),
       ('[? a]', (line: 1, column: 2)),
+      ('{{a}}', (line: 1, column: 2)),
+      ('{[a]}', (line: 1, column: 2)),
+      ('{a, [b]}', (line: 1, column: 5)),
+      ('x: {{a}}', (line: 1, column: 5)),
+      ('{a,\n [b]}', (line: 2, column: 2)),
     ]) {
       test('"${text.replaceAll('\n', r'\n')}" is refused at the first '
           'character of its key, never reaching package:yaml', () {
@@ -216,6 +235,10 @@ void main() {
       '- [a, b]\n- {c: d}',
       'a: what?',
       'a: x ? y',
+      '{a: [b]}',
+      '{a: {b: c}}',
+      '[{a: b}]',
+      '[[a]]',
     ]) {
       test('"${text.replaceAll('\n', r'\n')}" uses no collection as a key '
           'and loads', () {
@@ -225,7 +248,8 @@ void main() {
 
     test('rz7 (rca-s5): one key chain 16 mappings deep, 92 bytes, which '
         'package:yaml 3.1.4 hashes in time exponential in its depth, is '
-        'refused fast at its innermost key', () {
+        'refused fast at the outermost key, the first collection key the '
+        'linear scan reaches (c1 fix: no longer at the innermost "}:")', () {
       var key = '{a0: 1}';
       for (var d = 1; d < 16; d++) {
         key = '{$key: $d}';
@@ -240,10 +264,27 @@ void main() {
         throwsA(
           isA<YamlTextFailure>()
               .having((f) => f.message, 'message', yamlKeyMessage)
-              .having((f) => f.at, 'at', (line: 1, column: 16)),
+              .having((f) => f.at, 'at', (line: 1, column: 2)),
         ),
       );
       expect(watch.elapsedMilliseconds, lessThan(1000));
+    });
+
+    test('c1 (critical): a flow mapping whose entry holds no ":", `{a}`, '
+        'nests a collection key just as `{a: b}` does for package:yaml '
+        '(parser.dart FLOW_MAPPING_EMPTY_VALUE); a chain of "{" 16 then 64 '
+        'deep, "a", then as many "}" is refused fast at the second "{", '
+        'never at a depth proportional to the chain', () {
+      for (final n in [16, 64]) {
+        final text = '${'{' * n}a${'}' * n}';
+
+        final watch = Stopwatch()..start();
+        final failure = _gateFailure(text);
+        expect(watch.elapsedMilliseconds, lessThan(1000), reason: '$n');
+
+        expect(failure.message, yamlKeyMessage, reason: '$n');
+        expect(failure.at, (line: 1, column: 2), reason: '$n');
+      }
     });
   });
 

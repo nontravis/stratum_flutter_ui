@@ -107,6 +107,10 @@ const _fragments = <String>[
   '|', '>', '|-', '>+2', '&a', '*a', '!x', '!!str', '!<x>', '& ', '* ',
   '! ', '&', '*', '!', '---', '...', '%TAG ! x', '%YAML 1.2',
   '"{a}"', '"a #b"', "'q'", 'x "y', "y' z", '\u{FEFF}', '@', '`',
+  // Flow-mapping entry positions (M1, C1): a whole entry with and
+  // without ":", so random concatenation can land a collection right
+  // after a flow mapping's "{" or ",", the shape the old gate missed.
+  '{a}', '{a}, ', '{a:b}', '{a:b}, ', '[a]', '[a], ',
 ];
 
 const _noise = <String>[
@@ -188,6 +192,12 @@ void main() {
         'a: 1\n: b\n[c]: d',
         'a: 1\n: b\n? c\n: d',
         'a: 1\n...\n{[x]: y}: z',
+        // C1: a flow-mapping entry with no ":" reads as a key with an
+        // empty value (FLOW_MAPPING_EMPTY_VALUE), so a nested collection
+        // right after "{" or "," is a collection key the old gate missed.
+        '{{a}}',
+        '{[a]}',
+        '{a, [b]}',
       ].forEach(_expectSound);
     });
 

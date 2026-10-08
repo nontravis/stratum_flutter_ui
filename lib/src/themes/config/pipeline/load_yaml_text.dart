@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:source_span/source_span.dart';
 import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:yaml/yaml.dart';
 
@@ -83,9 +84,11 @@ YamlNode loadYamlText(String text) {
       ),
     );
   } on FormatException catch (error) {
-    // `FormatException` also covers `YamlException`, whose `span` locates
-    // the error when package:yaml found one.
-    final start = error is YamlException ? error.span?.start : null;
+    // `FormatException` also covers `YamlException` and
+    // `StringScannerException`, both `SourceSpanFormatException`s, whose
+    // `span` locates the error when package:yaml found one, and is null
+    // otherwise.
+    final start = error is SourceSpanFormatException ? error.span?.start : null;
     throw YamlTextFailure(
       escapeZipText(error.message),
       at: start == null
@@ -220,9 +223,24 @@ final class _YamlGate {
   /// last.
   final _flowStarts = <int>[];
 
+  /// Whether each open flow collection, innermost last, is a mapping
+  /// (`{`) rather than a sequence (`[`).
+  final _flowMaps = <bool>[];
+
+  /// Whether the next node of each open flow collection, innermost last,
+  /// sits in key position: right after its `{` or a `,`, until a `:`
+  /// value indicator (design G9). Unused for a sequence.
+  final _flowKeys = <bool>[];
+
   /// The `[` or `{` of the flow collection that closed last, while only
   /// blanks, comments, and line breaks followed it; else -1.
   var _flowEnd = -1;
+
+  /// The last significant character seen after the lock: refuses a `[`
+  /// or `{` right after a `{` or `,` the same way the unlocked path does
+  /// (design G9), since the locked model no longer tracks which open
+  /// collection is a mapping.
+  var _lockedLast = -1;
 
   /// The last `]` or `}` after the lock, while only blanks, comments, and
   /// line breaks followed it; else -1.
@@ -451,7 +469,15 @@ final class _YamlGate {
       }
       switch (unit) {
         case _openSquare || _openCurly:
-          if (_flow == 0) _flowKeyColumn = column;
+          if (_flow == 0) {
+            _flowKeyColumn = column;
+          } else if (_flowMaps.last && _flowKeys.last) {
+            // design G9: this collection opens in its parent flow
+            // mapping's key position (right after `{` or `,`).
+            throw _Breach(i, yamlKeyMessage);
+          }
+          _flowMaps.add(unit == _openCurly);
+          _flowKeys.add(true);
           _flowStarts.add(i);
           _check(i);
           _afterScalar = false;
@@ -459,11 +485,14 @@ final class _YamlGate {
           i++;
           continue;
         case _closeSquare || _closeCurly:
+          _flowMaps.removeLast();
+          _flowKeys.removeLast();
           _flowEnd = _flowStarts.removeLast();
           _afterScalar = true;
           i++;
           continue;
         case _comma:
+          if (_flowKeys.isNotEmpty) _flowKeys[_flowKeys.length - 1] = true;
           _afterScalar = false;
           _flowEnd = -1;
           i++;
@@ -480,6 +509,7 @@ final class _YamlGate {
         case _colon
             when _flow > 0 && (_afterScalar || !_plainSafeAt(i + 1, end)):
           if (_flowEnd >= 0) throw _Breach(_flowEnd, yamlKeyMessage);
+          if (_flowKeys.isNotEmpty) _flowKeys[_flowKeys.length - 1] = false;
           _afterScalar = false;
           i++;
           continue;
@@ -722,9 +752,12 @@ final class _YamlGate {
   /// token when [from] is the line's start, and one for each `- `, `? `,
   /// `: `, `[`, and `{` outside the comment [_commentAt] proves. The
   /// collection-key rule still refuses, its context unknown: a `?` at a
-  /// token start that may read as a key, at the `?`, and a `:` after a `]`
-  /// or `}` with only blanks, comments, and line breaks between, at that
-  /// `]` or `}` (design G9).
+  /// token start that may read as a key, at the `?`; a `:` after a `]` or
+  /// `}` with only blanks, comments, and line breaks between, at that `]`
+  /// or `}`; and a `[` or `{` whose last significant character is `{` or
+  /// `,`, at that `[` or `{`, since the locked model no longer tracks
+  /// which open collection is a mapping and errs toward refusing (design
+  /// G9, G4).
   void _lockedLine(int start, int end, int from) {
     final stop = _commentAt(start, end);
     var i = from;
@@ -748,6 +781,10 @@ final class _YamlGate {
           _keyIndicatorAt(i, end)) {
         throw _Breach(i, yamlKeyMessage);
       }
+      if ((unit == _openSquare || unit == _openCurly) &&
+          (_lockedLast == _openCurly || _lockedLast == _comma)) {
+        throw _Breach(i, yamlKeyMessage);
+      }
       final opens =
           unit == _openSquare ||
           unit == _openCurly ||
@@ -757,6 +794,7 @@ final class _YamlGate {
         _lockedCount++;
         _check(i);
       }
+      _lockedLast = unit;
     }
   }
 
