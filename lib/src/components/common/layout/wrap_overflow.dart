@@ -850,6 +850,20 @@ class _RenderWrapOverflow extends RenderBox
   /// [markNeedsLayout] outside it marks the parent and clears this.
   bool _owesParentMark = false;
 
+  /// Whether [_changeChildren] runs a change that records the marks that
+  /// reach the frame meanwhile in [_childChanged].
+  bool _childrenChanging = false;
+
+  /// Whether a child the layout callback rebuilt or flipped marked the
+  /// frame in this layout; [_reconcileAfterFrame] reads and clears it.
+  bool _childChanged = false;
+
+  /// Whether [_reconcileAfterFrame] has a post-frame mark scheduled.
+  bool _reconcileScheduled = false;
+
+  /// Whether this layout is the one that post-frame mark asked for.
+  bool _reconciling = false;
+
   /// [RenderBox.markNeedsLayout] calls this when its dry-layout,
   /// intrinsic, and baseline caches held a read, as it empties them, so
   /// the parent that read them lays out again (`rendering/box.dart:
@@ -874,17 +888,63 @@ class _RenderWrapOverflow extends RenderBox
   /// [RenderBox.markNeedsLayout] would with the caches still held, so an
   /// intrinsic parent such as [IntrinsicHeight] measures the frame again
   /// on the next limit change instead of laying it out alone under the
-  /// old size.
+  /// old size. Inside [performLayout] it only records, in [_childChanged],
+  /// a mark from a child [_changeChildren] rebuilds or flips.
   ///
   /// [scheduleLayoutCallback] reaches [RenderBox.markNeedsLayout] past
   /// this override and leaves the read owed: the parent would measure the
-  /// children before the layout callback rebuilds them.
+  /// children before the layout callback rebuilds them, so
+  /// [_reconcileAfterFrame] marks it once they are built.
   @override
   void markNeedsLayout() {
     super.markNeedsLayout();
-    if (_inLayout || !_owesParentMark || parent == null) return;
+    if (_inLayout) {
+      if (_childrenChanging) _childChanged = true;
+      return;
+    }
+    if (!_owesParentMark || parent == null) return;
     _owesParentMark = false;
     markParentNeedsLayout();
+  }
+
+  /// Runs [change], a rebuild or a flip of the children inside the layout
+  /// callback, recording in [_childChanged] a mark that reaches the frame
+  /// meanwhile when [record].
+  void _changeChildren(VoidCallback change, {bool record = true}) {
+    _childrenChanging = record;
+    try {
+      change();
+    } finally {
+      _childrenChanging = false;
+    }
+  }
+
+  /// Marks the parent after the frame when a child this layout rebuilt or
+  /// flipped marked the frame ([_childChanged]) while a parent's read is
+  /// owed ([_owesParentMark]): the parent measured the frame over the
+  /// child before it changed, and no mark inside the layout reaches it.
+  /// The post-frame [markNeedsLayout] replays the owed read, so the
+  /// parent measures again over the built children one frame later.
+  ///
+  /// Nothing loops: the cut's builds of the probe and the overflow child,
+  /// run in every layout and left out of the intrinsic sizes, never
+  /// record (a dirty descendant of the overflow child rebuilt in the
+  /// layout callback records once, as a child does); the layout that mark
+  /// asks for rebuilds nothing unless a new change made it dirty, and its
+  /// flips, which follow from the parent's new read, do not record either
+  /// ([_cutAndApply]).
+  void _reconcileAfterFrame() {
+    final changed = _childChanged;
+    _childChanged = false;
+    _reconciling = false;
+    if (!changed || !_owesParentMark || _reconcileScheduled) return;
+    _reconcileScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _reconcileScheduled = false;
+      if (!attached || !_owesParentMark) return;
+      _reconciling = true;
+      markNeedsLayout();
+    }, debugLabel: 'WrapOverflowFrame reconcile');
   }
 
   /// The children the last layout showed, then the overflow child.
@@ -917,6 +977,7 @@ class _RenderWrapOverflow extends RenderBox
     super.detach();
     _overflow?.detach();
     _probe?.detach();
+    _reconciling = false;
   }
 
   @override
@@ -1034,11 +1095,12 @@ class _RenderWrapOverflow extends RenderBox
     } finally {
       _inLayout = false;
     }
+    _reconcileAfterFrame();
   }
 
   /// Builds and measures the children, cuts them, and places the cut.
   void _layOut() {
-    runLayoutCallback();
+    _changeChildren(runLayoutCallback);
     final childConstraints = _childConstraints(constraints);
     var measured = _measure(childConstraints);
     var cut = _cutAndApply(measured.sizes, childConstraints);
@@ -1092,9 +1154,11 @@ class _RenderWrapOverflow extends RenderBox
       } else {
         element.buildOverflow(sizes.length - cut.shown, element._probeWidget);
       }
-      element
-        ..applyCut(cut.shown)
-        ..dropProbe();
+      // A flip in the layout a post-frame mark asked for follows from the
+      // parent's new read; recording it could flip a child back and forth
+      // with each new read.
+      _changeChildren(() => element.applyCut(cut.shown), record: !_reconciling);
+      element.dropProbe();
     });
     return cut;
   }

@@ -1710,9 +1710,9 @@ void main() {
         await tester.pumpWidget(build(2));
         expect(_height(tester), 46);
 
-        // Tag 11 is hidden: its own setState rebuilds it inside the
-        // wrap's layout, where its new height empties the wrap's
-        // intrinsic cache without reaching IntrinsicHeight.
+        // The first layout's probe adopt already owes IntrinsicHeight a
+        // mark. Tag 11 is hidden: its own setState rebuilds it inside a
+        // layout of the wrap alone, which must keep that mark owed.
         tester
             .state<_GrowingTagState>(
               find.byType(_GrowingTag, skipOffstage: false),
@@ -1749,12 +1749,16 @@ void main() {
             ),
           ),
         );
-        // The first cut hides tag 4, which takes its 40 px ColoredBox
-        // inside the wrap's layout, emptying the wrap's intrinsic cache
-        // without reaching IntrinsicHeight.
+        // The first layout's probe adopt already owes IntrinsicHeight a
+        // mark; its cut also hides tag 4, which takes its 40 px
+        // ColoredBox inside that layout, and the mark must stay owed.
         await tester.pumpWidget(build(1));
         expect(_height(tester), 20);
         expect(_shownTags(), [0, 1, 2, 3]);
+        // The flip measures IntrinsicHeight again, once, at the same size.
+        await tester.pump();
+        expect(_height(tester), 20);
+        expect(tester.binding.hasScheduledFrame, isFalse);
 
         await tester.pumpWidget(build(2));
         await tester.pumpAndSettle();
@@ -1762,6 +1766,42 @@ void main() {
         // Shown, tag 4 takes its 30 px SizedBox and fits in the first run.
         expect(_height(tester), 46);
         expect(_shownTags(), [for (var i = 0; i < 9; i++) i]);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04: under IntrinsicHeight a shown child that grows by its own '
+      'setState lays the ancestor out to its new size in the next frame, '
+      'then schedules no more frames',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              width: 230,
+              child: IntrinsicHeight(
+                child: _wrap(
+                  maxRuns: 2,
+                  children: [_GrowingTag(0), ..._tags(12).skip(1)],
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(_height(tester), 46);
+
+        // Tag 0 rebuilds inside the wrap's layout, after IntrinsicHeight
+        // measured it at its old height.
+        tester.state<_GrowingTagState>(find.byType(_GrowingTag)).grow(40);
+        await tester.pump();
+        await tester.pump();
+
+        // The first run as high as tag 0.
+        expect(_height(tester), 40 + 6 + 20);
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        await tester.pump(const Duration(seconds: 1));
+        expect(_height(tester), 40 + 6 + 20);
+        expect(tester.binding.hasScheduledFrame, isFalse);
         expect(tester.takeException(), isNull);
       },
     );
