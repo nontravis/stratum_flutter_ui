@@ -16,6 +16,7 @@ import 'package:flutter/rendering.dart'
         RenderObjectVisitor,
         RenderObjectWithLayoutCallbackMixin;
 import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
+import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/wrap_cut.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -78,11 +79,28 @@ class WrapOverflowFrame extends StatefulWidget {
 }
 
 class _WrapOverflowFrameState extends State<WrapOverflowFrame> {
+  /// Takes focus when no node can after a collapse hides the focused child
+  /// (US-14 FR-03 E06) or an expand removes the focused overflow child
+  /// (owner ruling R5); skipped by Tab, so the next Tab moves on from the
+  /// wrap's place.
+  final _wrapNode = FocusNode(debugLabel: 'WrapLayout', skipTraversal: true);
+
+  @override
+  void dispose() {
+    _wrapNode.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return _WrapOverflow(
-      frame: widget,
-      textDirection: widget.textDirection ?? Directionality.maybeOf(context),
+    return Focus(
+      focusNode: _wrapNode,
+      includeSemantics: false,
+      child: _WrapOverflow(
+        frame: widget,
+        textDirection: widget.textDirection ?? Directionality.maybeOf(context),
+        wrapNode: _wrapNode,
+      ),
     );
   }
 }
@@ -90,10 +108,18 @@ class _WrapOverflowFrameState extends State<WrapOverflowFrame> {
 /// The render widget of [WrapOverflowFrame]; [_WrapOverflowElement]
 /// builds its children.
 class _WrapOverflow extends RenderObjectWidget {
-  const new({required this.frame, required this.textDirection});
+  const new({
+    required this.frame,
+    required this.textDirection,
+    required this.wrapNode,
+  });
 
   final WrapOverflowFrame frame;
   final TextDirection? textDirection;
+
+  /// The wrap's own node, which takes focus when no node after a collapse
+  /// or an expand can.
+  final FocusNode wrapNode;
 
   @override
   RenderObjectElement createElement() => _WrapOverflowElement(this);
@@ -137,6 +163,7 @@ class _WrapOverflowElement extends RenderObjectElement {
       super.renderObject as _RenderWrapOverflow;
 
   WrapOverflowFrame get _frame => (widget as _WrapOverflow).frame;
+  FocusNode get _wrapNode => (widget as _WrapOverflow).wrapNode;
 
   List<Element> _children = const [];
   Element? _overflow;
@@ -158,6 +185,11 @@ class _WrapOverflowElement extends RenderObjectElement {
 
   /// How many children the last cut showed; null before the first cut.
   int? _shown;
+
+  /// Whether an update of the overflow child in this layout dropped the
+  /// focus it held, by removing it or building it anew (owner ruling R5);
+  /// [handOffFocus] hands focus on and clears it.
+  bool _overflowHeldFocus = false;
 
   @override
   BuildScope get buildScope => _buildScope;
@@ -226,8 +258,11 @@ class _WrapOverflowElement extends RenderObjectElement {
   /// [_WrapSlotState] holds, whatever index the build gives it, so only
   /// [applyCut] flips it, in the layout of the new cut. A new slot starts
   /// hidden at an index the last cut hides and shown otherwise (shown for
-  /// all before the first cut): it holds no focus yet and its tickers
-  /// have not fired, and this layout's cut flips it if the guess is wrong.
+  /// all before the first cut): its tickers have not fired under the wrap,
+  /// and this layout's cut flips it if the guess is wrong. A child keyed
+  /// by a [GlobalKey] that moves in from elsewhere can arrive holding
+  /// focus, which a slot seeded hidden never drops, since no flip runs for
+  /// it; [handOffFocus] hands that focus on too.
   List<Element> _buildChildren(List<Element> old) {
     assert(
       !debugChildrenHaveDuplicateKeys(widget, _frame.children),
@@ -257,10 +292,11 @@ class _WrapOverflowElement extends RenderObjectElement {
       (slot as StatefulElement).state as _WrapSlotState;
 
   /// The node that marks the subtree of the child in [slot].
-  // Read by the focus handoff after a collapse or an expand (US-14 FR-03
-  // E01 to E03), which applyCut gains next.
-  // ignore: unused_element
   static FocusNode _nodeOf(Element slot) => _stateOf(slot).node;
+
+  /// Whether primary focus sits in the child in [slot]; false for null.
+  static bool _holdsFocus(Element? slot) =>
+      slot != null && _nodeOf(slot).hasFocus;
 
   @override
   void visitChildren(ElementVisitor visitor) {
@@ -322,6 +358,9 @@ class _WrapOverflowElement extends RenderObjectElement {
       probeKeys = _debugGlobalKeysOf(_probe);
       return true;
     }(), 'debug-only: collects the GlobalKeys the probe holds');
+    // Removing the overflow child, or building it anew, drops the focus it
+    // holds (owner ruling R5); compare where focus sits before and after.
+    final held = _holdsFocus(_overflow);
     owner!.buildScope(this, () {
       _overflow = updateChild(
         _overflow,
@@ -331,6 +370,7 @@ class _WrapOverflowElement extends RenderObjectElement {
         _overflowSlot,
       );
     });
+    if (held && !_holdsFocus(_overflow)) _overflowHeldFocus = true;
     assert(() {
       final key = _debugGlobalKeysOf(_overflow)
           .where(probeKeys.contains)
@@ -434,8 +474,9 @@ class _WrapOverflowElement extends RenderObjectElement {
 
   /// Shows the first [shown] children and hides the rest, inside the
   /// render object's layout, so a child the cut hides stops ticking and
-  /// leaves focus in the frame of the cut (s03 invariant 39). The one
-  /// place a built child's flag flips.
+  /// leaves focus in the frame of the cut (s03 invariant 39), which
+  /// [handOffFocus] then hands on. The one place a built child's flag
+  /// flips.
   void applyCut(int shown) {
     _shown = shown;
     owner!.buildScope(this, () {
@@ -446,6 +487,60 @@ class _WrapOverflowElement extends RenderObjectElement {
         slot.hidden = hidden;
       }
     });
+  }
+
+  /// Hands focus on after the frame when this layout dropped it (s03
+  /// invariant 39); the render object calls it once per layout, after its
+  /// last cut, with the count the previous layout showed in
+  /// [shownBefore].
+  ///
+  /// Reads where primary focus sits, not which slots flipped: a slot this
+  /// cut hid still holds primary focus here, since the focus manager
+  /// applies the unfocus after the frame, and a slot seeded hidden never
+  /// flips at all ([_buildChildren]).
+  void handOffFocus(int? shownBefore) {
+    final shown = _shown!;
+    if (_overflowHeldFocus) {
+      _overflowHeldFocus = false;
+      final first = shownBefore != null && shownBefore < shown
+          ? shownBefore
+          : null;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _handOffToShown(first),
+      );
+      return;
+    }
+    if (!_wrapNode.hasFocus) return;
+    for (var i = shown; i < _children.length; i++) {
+      if (!_holdsFocus(_children[i])) continue;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handOff());
+      return;
+    }
+  }
+
+  /// Focuses the first Tab stop of the overflow child, else of the last
+  /// shown child, else the wrap's own node (US-14 FR-03 E01, E06), as
+  /// `IndexedStackLayout` hands focus after a switch.
+  void _handOff() {
+    if (!mounted) return;
+    final overflow = _overflow;
+    final shown = _shown ?? _children.length;
+    final target =
+        (overflow == null ? null : firstTabStopIn(_nodeOf(overflow))) ??
+        (shown == 0 ? null : firstTabStopIn(_nodeOf(_children[shown - 1])));
+    (target ?? _wrapNode).requestFocus();
+  }
+
+  /// Focuses the first Tab stop of the child at [index], the first child
+  /// an expand shows, else the wrap's own node (owner ruling R5), as
+  /// US-09 FR-02 hands focus to the incoming child, after the frame whose
+  /// expand dropped the focus of the overflow child.
+  void _handOffToShown(int? index) {
+    if (!mounted) return;
+    final target = index == null || index >= _children.length
+        ? null
+        : firstTabStopIn(_nodeOf(_children[index]));
+    (target ?? _wrapNode).requestFocus();
   }
 
   @override
@@ -742,6 +837,7 @@ class _RenderWrapOverflow extends RenderBox
   @override
   void performLayout() {
     runLayoutCallback();
+    final shownBefore = element!._shown;
     final childConstraints = _childConstraints(constraints);
     var measured = _measure(childConstraints);
     var cut = _cutAndApply(measured.sizes, childConstraints);
@@ -756,6 +852,7 @@ class _RenderWrapOverflow extends RenderBox
       now = _measure(childConstraints);
       if (!now.matches(measured)) _debugReportUnsettledCut();
     }
+    element!.handOffFocus(shownBefore);
     final overflowRun = cut.overflowRun;
     if (overflowRun != null) {
       _overflow!.layout(childConstraints, parentUsesSize: true);

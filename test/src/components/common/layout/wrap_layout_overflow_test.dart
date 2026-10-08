@@ -876,4 +876,332 @@ void main() {
       );
     });
   });
+
+  group('WrapLayout focus after a limit change (US-14 FR-03, R5, R6)', () {
+    /// Twelve tags on [nodes], tag 9 always focusable, cut to [maxRuns].
+    Widget build(
+      int? maxRuns,
+      List<FocusNode> nodes, {
+      Widget Function(BuildContext, int) overflowBuilder = _focusMore,
+      bool focusableTags = true,
+    }) {
+      return _wrap(
+        maxRuns: maxRuns,
+        overflowBuilder: overflowBuilder,
+        children: [
+          for (var i = 0; i < 12; i++)
+            if (focusableTags || i == 9) _focusTag(i, nodes[i]) else _tag(i),
+        ],
+      );
+    }
+
+    List<FocusNode> twelve() => [for (var i = 0; i < 12; i++) _node('tag $i')];
+
+    testWidgets(
+      'us14/s10, us14/fr03/e01, s03/inv39: focus on a tag a collapse hides '
+      'moves to the "+N" item after the frame',
+      (tester) async {
+        final nodes = twelve();
+        await tester.pumpWidget(_host(build(null, nodes)));
+        nodes[9].requestFocus();
+        await tester.pump();
+        expect(_focused(), 'tag 9');
+
+        await tester.pumpWidget(_host(build(2, nodes)));
+        await tester.pump();
+
+        expect(_focused(), '+N');
+      },
+    );
+
+    testWidgets(
+      'us14/fr03/e01: with no focusable "+N" item, focus moves to the '
+      "last shown child's first node",
+      (tester) async {
+        final nodes = twelve();
+        await tester.pumpWidget(
+          _host(build(null, nodes, overflowBuilder: _more)),
+        );
+        nodes[9].requestFocus();
+        await tester.pump();
+
+        await tester.pumpWidget(_host(build(2, nodes, overflowBuilder: _more)));
+        await tester.pump();
+
+        expect(_focused(), 'tag 7');
+      },
+    );
+
+    testWidgets(
+      "us14/fr03/e06: with neither node focusable, focus moves to the wrap's "
+      'own node, and Tab moves on from there',
+      (tester) async {
+        final nodes = twelve();
+        final before = _node('before');
+        Widget host(int? maxRuns) => _keyboardHost(
+          before: before,
+          after: _node('after'),
+          build(maxRuns, nodes, overflowBuilder: _more, focusableTags: false),
+        );
+        await tester.pumpWidget(host(null));
+        nodes[9].requestFocus();
+        await tester.pump();
+
+        await tester.pumpWidget(host(2));
+        await tester.pump();
+        expect(_focused(), 'WrapLayout');
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(_focused(), 'after');
+      },
+    );
+
+    testWidgets('us14/fr03: focus outside the hidden children stays put', (
+      tester,
+    ) async {
+      final nodes = twelve();
+      await tester.pumpWidget(_host(build(null, nodes)));
+      nodes[1].requestFocus();
+      await tester.pump();
+
+      await tester.pumpWidget(_host(build(2, nodes)));
+      await tester.pump();
+
+      expect(_focused(), 'tag 1');
+    });
+
+    testWidgets(
+      'us14/fr03/e01, s03/inv39: a focused child keyed by a GlobalKey that '
+      'moves into the wrap past the cut hands focus on after the frame',
+      (tester) async {
+        final nodes = twelve();
+        final moved = _node('moved');
+        final key = GlobalKey();
+        // The moved child arrives in a new slot seeded hidden, so no flip
+        // of the cut ever drops its focus.
+        Widget host({required bool inside}) {
+          final child = Focus(
+            key: key,
+            focusNode: moved,
+            child: const SizedBox(width: 40, height: 20),
+          );
+          return _host(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _wrap(
+                  maxChildren: 8,
+                  overflowBuilder: _focusMore,
+                  children: [
+                    for (final (i, node) in nodes.indexed) _focusTag(i, node),
+                    if (inside) child,
+                  ],
+                ),
+                if (!inside) child,
+              ],
+            ),
+          );
+        }
+
+        await tester.pumpWidget(host(inside: false));
+        moved.requestFocus();
+        await tester.pump();
+        expect(_focused(), 'moved');
+
+        await tester.pumpWidget(host(inside: true));
+        await tester.pump();
+
+        expect(find.byKey(key), findsNothing);
+        expect(_focused(), '+N');
+      },
+    );
+
+    testWidgets(
+      'us14/s8, us14/fr03/e03: End in a wrap focus group moves to "+4", '
+      'left to right and right to left',
+      (tester) async {
+        final nodes = twelve();
+        for (final textDirection in TextDirection.values) {
+          await tester.pumpWidget(
+            _host(
+              textDirection: textDirection,
+              _wrap(
+                maxRuns: 2,
+                focusGroup: const StratumFocusGroup(),
+                overflowBuilder: _focusMore,
+                children: [
+                  for (final (i, node) in nodes.indexed) _focusTag(i, node),
+                ],
+              ),
+            ),
+          );
+          nodes[0].requestFocus();
+          await tester.pump();
+
+          await tester.sendKeyEvent(LogicalKeyboardKey.end);
+          await tester.pump();
+
+          expect(_focused(), '+N', reason: '$textDirection');
+        }
+      },
+    );
+
+    testWidgets(
+      'us14/fr03/e02, us06/fr01: in a wrap focus group the arrow keys skip '
+      'hidden children',
+      (tester) async {
+        final nodes = twelve();
+        await tester.pumpWidget(
+          _host(
+            _wrap(
+              maxRuns: 2,
+              focusGroup: const StratumFocusGroup(),
+              overflowBuilder: _focusMore,
+              children: [
+                for (final (i, node) in nodes.indexed) _focusTag(i, node),
+              ],
+            ),
+          ),
+        );
+        Future<String?> press(
+          LogicalKeyboardKey key, {
+          required int from,
+        }) async {
+          nodes[from].requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(key);
+          await tester.pump();
+          return _focused();
+        }
+
+        expect(await press(LogicalKeyboardKey.arrowRight, from: 7), '+N');
+        expect(await press(LogicalKeyboardKey.arrowDown, from: 0), 'tag 4');
+        expect(await press(LogicalKeyboardKey.arrowDown, from: 4), 'tag 4');
+      },
+    );
+
+    testWidgets(
+      'us14/fr03/e03, r6: under verticalDirection up, End follows reading '
+      'order to the last item of the bottom run',
+      (tester) async {
+        final nodes = twelve();
+        await tester.pumpWidget(
+          _host(
+            WrapLayout(
+              gap: 10,
+              runGap: 6,
+              verticalDirection: VerticalDirection.up,
+              maxRuns: 2,
+              focusGroup: const StratumFocusGroup(),
+              overflowBuilder: _focusMore,
+              children: [
+                for (final (i, node) in nodes.indexed) _focusTag(i, node),
+              ],
+            ),
+          ),
+        );
+        nodes[4].requestFocus();
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        await tester.pump();
+
+        expect(_focused(), 'tag 3');
+      },
+    );
+
+    /// Focuses the "+N" child's own node, which its [Focus] creates.
+    Future<void> focusMore(WidgetTester tester) async {
+      Focus.of(tester.element(find.byKey(const ValueKey('more'))))
+          .requestFocus();
+      await tester.pump();
+      expect(_focused(), '+N');
+    }
+
+    testWidgets(
+      'r5: focus on "+N" moves to the first child the expand shows, after '
+      'the frame',
+      (tester) async {
+        final nodes = twelve();
+        await tester.pumpWidget(_host(build(2, nodes)));
+        await focusMore(tester);
+
+        await tester.pumpWidget(_host(build(null, nodes)));
+        await tester.pump();
+
+        expect(_focused(), 'tag 8');
+      },
+    );
+
+    testWidgets(
+      'r5: with no focusable node in the first child the expand shows, '
+      "focus moves to the wrap's own node",
+      (tester) async {
+        final nodes = twelve();
+        await tester.pumpWidget(_host(build(2, nodes, focusableTags: false)));
+        await focusMore(tester);
+
+        await tester.pumpWidget(
+          _host(build(null, nodes, focusableTags: false)),
+        );
+        await tester.pump();
+
+        expect(_focused(), 'WrapLayout');
+      },
+    );
+
+    testWidgets('r5: an expand that keeps the "+N" child keeps its focus', (
+      tester,
+    ) async {
+      final nodes = [for (var i = 0; i < 16; i++) _node('tag $i')];
+      Widget wrap(int maxRuns) => _host(
+        _wrap(
+          maxRuns: maxRuns,
+          overflowBuilder: _focusMore,
+          children: [for (final (i, node) in nodes.indexed) _focusTag(i, node)],
+        ),
+      );
+      await tester.pumpWidget(wrap(2));
+      expect(find.text('+8'), findsOneWidget);
+      await focusMore(tester);
+
+      await tester.pumpWidget(wrap(3));
+      await tester.pump();
+
+      expect(find.text('+4'), findsOneWidget);
+      expect(_focused(), '+N');
+    });
+
+    testWidgets(
+      'r5: an expand that rebuilds the focused "+N" as a new child moves '
+      'focus to the first child the expand shows',
+      (tester) async {
+        final nodes = [for (var i = 0; i < 16; i++) _node('tag $i')];
+        // Keyed by its count, the "+N" child is a new element at each count.
+        Widget more(BuildContext context, int count) => Focus(
+          key: ValueKey(count),
+          debugLabel: '+N',
+          child: _more(context, count),
+        );
+        Widget wrap(int maxRuns) => _host(
+          _wrap(
+            maxRuns: maxRuns,
+            overflowBuilder: more,
+            children: [
+              for (final (i, node) in nodes.indexed) _focusTag(i, node),
+            ],
+          ),
+        );
+        await tester.pumpWidget(wrap(2));
+        await focusMore(tester);
+
+        await tester.pumpWidget(wrap(3));
+        await tester.pump();
+
+        expect(find.text('+4'), findsOneWidget);
+        expect(_focused(), 'tag 8');
+      },
+    );
+  });
 }

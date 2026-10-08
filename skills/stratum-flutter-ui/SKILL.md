@@ -40,7 +40,11 @@ Each entry: usage, key parameters, keyboard behavior.
   and take no paint, hits, focus, or semantics, their tickers stopped. With `overflowBuilder` set, switching both limits
   to null keeps the children's `State`; without it the switch remounts them. A limit or `overflowBuilder` with `scroll`
   fails an assertion.
-  Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`.
+  Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`; Tab and the group's arrows skip hidden children,
+  and End lands on the last item in reading order, the "+N" child in a downward wrap. When a collapse hides the
+  focused child, focus moves after the frame to the "+N" child, else to the last shown child, else to the wrap's own
+  node, which is not a Tab stop; when an expand removes the focused "+N" child, focus moves to the first child the
+  expand shows, else to the wrap's own node.
 
 ## Scroll views
 
