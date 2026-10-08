@@ -1,3 +1,4 @@
+import 'package:stratum_ui/src/animations/theme_transitions.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The five duration levels of `animation.duration` (spec G5).
@@ -55,13 +56,15 @@ class StratumAnimation extends StratumMotionLevels {
     required super.verySlow,
     required this.appear,
     required this.defaultLevel,
+    this.transition = StratumThemeTransitions.platform,
   });
 
   /// Each level: forward the level's duration, reverse that duration times
   /// `reverseRatio` rounded to whole microseconds, both on the `standard`
   /// curve. [appear]: the same durations, forward on `enter`, reverse on
   /// `exit`. Throws an [ArgumentError] when [config] lacks a level, a
-  /// curve role, or names an unknown default level.
+  /// curve role, or a window size's transition, or names an unknown default
+  /// level or transition type.
   factory fromConfig(StratumAnimationConfig config) {
     Curve curve(String role) =>
         (config.curves[role] ??
@@ -74,6 +77,22 @@ class StratumAnimation extends StratumMotionLevels {
     final standard = curve('standard');
     final enter = curve('enter');
     final exit = curve('exit');
+    ScreenTransitionType transition(WindowSize size) {
+      final name =
+          config.transitions[size.name] ??
+          (throw ArgumentError.value(
+            size.name,
+            'windowSize',
+            'no transition for this window size in the animation config',
+          ));
+      return ScreenTransitionType.values.asNameMap()[name] ??
+          (throw ArgumentError.value(
+            name,
+            'transition',
+            'not a page transition type',
+          ));
+    }
+
     AnimationStyle style(StratumMotionLevel level, Curve forward, Curve back) {
       final duration =
           config.durations[level.name] ??
@@ -115,6 +134,13 @@ class StratumAnimation extends StratumMotionLevels {
             'defaultLevel',
             'not a motion level',
           )),
+      transition: StratumThemeTransitions(
+        watch: transition(WindowSize.watch),
+        mobile: transition(WindowSize.mobile),
+        tablet: transition(WindowSize.tablet),
+        desktop: transition(WindowSize.desktop),
+        bigDesktop: transition(WindowSize.bigDesktop),
+      ),
     );
   }
 
@@ -185,6 +211,7 @@ class StratumAnimation extends StratumMotionLevels {
       ),
     ),
     defaultLevel: StratumMotionLevel.fast,
+    transition: StratumThemeTransitions.platform,
   );
 
   /// `StratumTheme.of(context).animation`: the yaml values, unchanged
@@ -199,6 +226,11 @@ class StratumAnimation extends StratumMotionLevels {
   /// The level `duration.default` names.
   final StratumMotionLevel defaultLevel;
 
+  /// The page transition type the theme names for each window size,
+  /// `animation.transition` (FO-05 US-05 FR-04): `platform` for every
+  /// window size in the package default.
+  final StratumThemeTransitions transition;
+
   /// The `default` level: `fast` in the package default.
   AnimationStyle get defaultStyle => this[defaultLevel];
 
@@ -207,8 +239,10 @@ class StratumAnimation extends StratumMotionLevels {
       super == other &&
       other is StratumAnimation &&
       other.appear == appear &&
-      other.defaultLevel == defaultLevel;
+      other.defaultLevel == defaultLevel &&
+      other.transition == transition;
 
   @override
-  int get hashCode => Object.hash(super.hashCode, appear, defaultLevel);
+  int get hashCode =>
+      Object.hash(super.hashCode, appear, defaultLevel, transition);
 }
