@@ -54,6 +54,11 @@ void main() {
         'color:\n  highContrastLight:\n    brand:\n      pressed: "#000000"',
         'color.highContrastLight.brand.pressed',
       ),
+      (
+        'a sixth window size under animation.transition',
+        'animation:\n  transition:\n    phablet: fade',
+        'animation.transition.phablet',
+      ),
     ];
     for (final (name, body, path) in cases) {
       test('reports $name', () {

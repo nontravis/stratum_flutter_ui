@@ -88,6 +88,12 @@ animation:
     slow: 300
     verySlow: 400
   reverseDuration: 64%
+  transition:
+    watch: platform
+    mobile: platform
+    tablet: platform
+    desktop: platform
+    bigDesktop: platform
   curve:
     standard: easeInOutSine
     enter: easeOut

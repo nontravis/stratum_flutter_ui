@@ -20,7 +20,11 @@ mixin _$StratumAnimationConfig {
  Map<String, Duration> get durations;/// `animation.duration.default`, a key of [durations].
  String get defaultLevel;/// `animation.reverseDuration` as a ratio: 0.64 for `64%`.
  double get reverseRatio;/// `animation.curve`: `standard`, `enter`, `exit`.
- Map<String, StratumCurve> get curves;
+ Map<String, StratumCurve> get curves;/// `animation.transition`: window size name to page transition type
+/// name, one for each of `watch`, `mobile`, `tablet`, `desktop`, and
+/// `bigDesktop`. A config built by hand that sets none names
+/// `platform` for all five, as the package default does.
+ Map<String, String> get transitions;
 /// Create a copy of StratumAnimationConfig
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -32,20 +36,20 @@ $StratumAnimationConfigCopyWith<StratumAnimationConfig> get copyWith => _$Stratu
 @override
 bool operator ==(Object other) {
   final _this = this as StratumAnimationConfig;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is StratumAnimationConfig&&const DeepCollectionEquality().equals(other.durations, _this.durations)&&(identical(other.defaultLevel, _this.defaultLevel) || other.defaultLevel == _this.defaultLevel)&&(identical(other.reverseRatio, _this.reverseRatio) || other.reverseRatio == _this.reverseRatio)&&const DeepCollectionEquality().equals(other.curves, _this.curves));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StratumAnimationConfig&&const DeepCollectionEquality().equals(other.durations, _this.durations)&&(identical(other.defaultLevel, _this.defaultLevel) || other.defaultLevel == _this.defaultLevel)&&(identical(other.reverseRatio, _this.reverseRatio) || other.reverseRatio == _this.reverseRatio)&&const DeepCollectionEquality().equals(other.curves, _this.curves)&&const DeepCollectionEquality().equals(other.transitions, _this.transitions));
 }
 
 
 @override
 int get hashCode {
   final _this = this as StratumAnimationConfig;
-  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.durations),_this.defaultLevel,_this.reverseRatio,const DeepCollectionEquality().hash(_this.curves));
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.durations),_this.defaultLevel,_this.reverseRatio,const DeepCollectionEquality().hash(_this.curves),const DeepCollectionEquality().hash(_this.transitions));
 }
 
 @override
 String toString() {
   final _this = this as StratumAnimationConfig;
-  return 'StratumAnimationConfig(durations: ${_this.durations}, defaultLevel: ${_this.defaultLevel}, reverseRatio: ${_this.reverseRatio}, curves: ${_this.curves})';
+  return 'StratumAnimationConfig(durations: ${_this.durations}, defaultLevel: ${_this.defaultLevel}, reverseRatio: ${_this.reverseRatio}, curves: ${_this.curves}, transitions: ${_this.transitions})';
 }
 
 
@@ -56,7 +60,7 @@ abstract mixin class $StratumAnimationConfigCopyWith<$Res>  {
   factory $StratumAnimationConfigCopyWith(StratumAnimationConfig value, $Res Function(StratumAnimationConfig) _then) = _$StratumAnimationConfigCopyWithImpl;
 @useResult
 $Res call({
- Map<String, Duration> durations, String defaultLevel, double reverseRatio, Map<String, StratumCurve> curves
+ Map<String, Duration> durations, String defaultLevel, double reverseRatio, Map<String, StratumCurve> curves, Map<String, String> transitions
 });
 
 
@@ -73,13 +77,14 @@ class _$StratumAnimationConfigCopyWithImpl<$Res>
 
 /// Create a copy of StratumAnimationConfig
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? durations = null,Object? defaultLevel = null,Object? reverseRatio = null,Object? curves = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? durations = null,Object? defaultLevel = null,Object? reverseRatio = null,Object? curves = null,Object? transitions = null,}) {
   return _then(StratumAnimationConfig(
 durations: null == durations ? _self.durations : durations // ignore: cast_nullable_to_non_nullable
 as Map<String, Duration>,defaultLevel: null == defaultLevel ? _self.defaultLevel : defaultLevel // ignore: cast_nullable_to_non_nullable
 as String,reverseRatio: null == reverseRatio ? _self.reverseRatio : reverseRatio // ignore: cast_nullable_to_non_nullable
 as double,curves: null == curves ? _self.curves : curves // ignore: cast_nullable_to_non_nullable
-as Map<String, StratumCurve>,
+as Map<String, StratumCurve>,transitions: null == transitions ? _self.transitions : transitions // ignore: cast_nullable_to_non_nullable
+as Map<String, String>,
   ));
 }
 
@@ -91,7 +96,7 @@ as Map<String, StratumCurve>,
 
 
 class _StratumAnimationConfig implements StratumAnimationConfig {
-  const _StratumAnimationConfig({required  Map<String, Duration> durations, required this.defaultLevel, required this.reverseRatio, required  Map<String, StratumCurve> curves}): _durations = durations,_curves = curves;
+  const _StratumAnimationConfig({required  Map<String, Duration> durations, required this.defaultLevel, required this.reverseRatio, required  Map<String, StratumCurve> curves,  Map<String, String> transitions = const <String, String>{'watch' : 'platform', 'mobile' : 'platform', 'tablet' : 'platform', 'desktop' : 'platform', 'bigDesktop' : 'platform'}}): _durations = durations,_curves = curves,_transitions = transitions;
   
 
 /// Level name to forward duration: the levels of `animation.duration`
@@ -118,6 +123,21 @@ class _StratumAnimationConfig implements StratumAnimationConfig {
   return EqualUnmodifiableMapView(_curves);
 }
 
+/// `animation.transition`: window size name to page transition type
+/// name, one for each of `watch`, `mobile`, `tablet`, `desktop`, and
+/// `bigDesktop`. A config built by hand that sets none names
+/// `platform` for all five, as the package default does.
+ final  Map<String, String> _transitions;
+/// `animation.transition`: window size name to page transition type
+/// name, one for each of `watch`, `mobile`, `tablet`, `desktop`, and
+/// `bigDesktop`. A config built by hand that sets none names
+/// `platform` for all five, as the package default does.
+@override@JsonKey() Map<String, String> get transitions {
+  if (_transitions is EqualUnmodifiableMapView) return _transitions;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_transitions);
+}
+
 
 /// Create a copy of StratumAnimationConfig
 /// with the given fields replaced by the non-null parameter values.
@@ -129,18 +149,18 @@ _$StratumAnimationConfigCopyWith<_StratumAnimationConfig> get copyWith => __$Str
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _StratumAnimationConfig&&const DeepCollectionEquality().equals(other.durations, _durations)&&(identical(other.defaultLevel, defaultLevel) || other.defaultLevel == defaultLevel)&&(identical(other.reverseRatio, reverseRatio) || other.reverseRatio == reverseRatio)&&const DeepCollectionEquality().equals(other.curves, _curves));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _StratumAnimationConfig&&const DeepCollectionEquality().equals(other.durations, _durations)&&(identical(other.defaultLevel, defaultLevel) || other.defaultLevel == defaultLevel)&&(identical(other.reverseRatio, reverseRatio) || other.reverseRatio == reverseRatio)&&const DeepCollectionEquality().equals(other.curves, _curves)&&const DeepCollectionEquality().equals(other.transitions, _transitions));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_durations),defaultLevel,reverseRatio,const DeepCollectionEquality().hash(_curves));
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_durations),defaultLevel,reverseRatio,const DeepCollectionEquality().hash(_curves),const DeepCollectionEquality().hash(_transitions));
 }
 
 @override
 String toString() {
-    return 'StratumAnimationConfig(durations: $durations, defaultLevel: $defaultLevel, reverseRatio: $reverseRatio, curves: $curves)';
+    return 'StratumAnimationConfig(durations: $durations, defaultLevel: $defaultLevel, reverseRatio: $reverseRatio, curves: $curves, transitions: $transitions)';
 }
 
 
@@ -151,7 +171,7 @@ abstract mixin class _$StratumAnimationConfigCopyWith<$Res> implements $StratumA
   factory _$StratumAnimationConfigCopyWith(_StratumAnimationConfig value, $Res Function(_StratumAnimationConfig) _then) = __$StratumAnimationConfigCopyWithImpl;
 @override @useResult
 $Res call({
- Map<String, Duration> durations, String defaultLevel, double reverseRatio, Map<String, StratumCurve> curves
+ Map<String, Duration> durations, String defaultLevel, double reverseRatio, Map<String, StratumCurve> curves, Map<String, String> transitions
 });
 
 
@@ -168,13 +188,14 @@ class __$StratumAnimationConfigCopyWithImpl<$Res>
 
 /// Create a copy of StratumAnimationConfig
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? durations = null,Object? defaultLevel = null,Object? reverseRatio = null,Object? curves = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? durations = null,Object? defaultLevel = null,Object? reverseRatio = null,Object? curves = null,Object? transitions = null,}) {
   return _then(_StratumAnimationConfig(
 durations: null == durations ? _self._durations : durations // ignore: cast_nullable_to_non_nullable
 as Map<String, Duration>,defaultLevel: null == defaultLevel ? _self.defaultLevel : defaultLevel // ignore: cast_nullable_to_non_nullable
 as String,reverseRatio: null == reverseRatio ? _self.reverseRatio : reverseRatio // ignore: cast_nullable_to_non_nullable
 as double,curves: null == curves ? _self._curves : curves // ignore: cast_nullable_to_non_nullable
-as Map<String, StratumCurve>,
+as Map<String, StratumCurve>,transitions: null == transitions ? _self._transitions : transitions // ignore: cast_nullable_to_non_nullable
+as Map<String, String>,
   ));
 }
 
