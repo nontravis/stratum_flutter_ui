@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
 
+import '../../fakes/native_bridge_envelope.dart';
+
 final Uri _app = Uri.parse('https://app.example.com');
 
 String _script(String data, {String? token, Set<Uri>? origins}) =>
@@ -76,6 +78,32 @@ void main() {
 
   test('us03/fr02/e10: without a token only the origin branch runs', () {
     expect(_script('x'), isNot(contains('t===')));
+  });
+
+  test('us03/fr05/e08: a reply script admits only the document with the '
+      'sending id, by token and id together', () {
+    final script = buildMessageDispatchScript(
+      'secret-data',
+      token: 'tok',
+      documentId: documentA,
+      allowedOrigins: const <Uri>[],
+    );
+    final guard = script.indexOf('if(!(');
+    final returnFalse = script.indexOf('return false;');
+    expect(
+      script.substring(guard, returnFalse),
+      contains("t==='tok'&&d==='$documentA'"),
+    );
+    expect(script, contains('d=window.$nativeBridgeDocumentProperty;'));
+    expect(script.indexOf('secret-data'), greaterThan(returnFalse));
+  });
+
+  test('us03/fr02/e03: a send without a document id reads no document '
+      'property', () {
+    final script = _script('x', token: 'tok');
+    expect(script, isNot(contains('nativeBridgeDocumentProperty')));
+    expect(script, isNot(contains(nativeBridgeDocumentProperty)));
+    expect(script, startsWith("(function(){'use strict';var t,o;"));
   });
 
   test('us03/fr02/e03: an entry with no host is left out, and no branch '

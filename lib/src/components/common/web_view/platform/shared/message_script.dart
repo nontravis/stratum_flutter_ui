@@ -20,11 +20,21 @@ import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin
 /// escaped too, because engines older than ES2019 reject them inside string
 /// literals. `</script>` needs no escaping: native platforms evaluate the
 /// script directly, without an HTML parser.
+///
+/// With [documentId] the script admits only the document of the current
+/// load whose bootstrap drew that id (US-03 FR-05 E08); both values are 32
+/// lowercase hex characters, checked before they reach here, so they need
+/// no escaping.
 String buildMessageDispatchScript(
   String data, {
   required String? token,
   required Iterable<Uri> allowedOrigins,
+  String? documentId,
 }) {
+  assert(
+    documentId == null || token != null,
+    'a document check needs the token',
+  );
   final literal = jsonEncode(data)
       .replaceAll('\u2028', r'\u2028')
       .replaceAll('\u2029', r'\u2029');
@@ -33,14 +43,18 @@ String buildMessageDispatchScript(
       if (originOf(entry) case final origin?) origin.toString(),
   };
   final checks = [
-    if (token != null) "t==='$token'",
+    if (token != null && documentId == null) "t==='$token'",
+    if (token != null && documentId != null) "t==='$token'&&d==='$documentId'",
     for (final origin in origins) 'o===${jsonEncode(origin)}',
   ];
   final guard = checks.isEmpty ? 'false' : checks.join('||');
   return [
-    "(function(){'use strict';var t,o;",
+    if (documentId == null) "(function(){'use strict';var t,o;",
+    if (documentId != null) "(function(){'use strict';var t,o,d;",
     'try{t=window.$nativeBridgeTokenProperty;}catch(e){}',
     'try{o=window.location.origin;}catch(e){}',
+    if (documentId != null)
+      'try{d=window.$nativeBridgeDocumentProperty;}catch(e){}',
     'if(!($guard))return false;',
     'window.dispatchEvent(new MessageEvent("message",{data:$literal}));',
     'return true;})()',

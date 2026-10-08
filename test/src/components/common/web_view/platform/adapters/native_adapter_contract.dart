@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 import '../../fakes/native_bridge_envelope.dart';
@@ -68,6 +69,150 @@ void runNativeAdapterContract(
       await pumpEventQueue();
     });
 
+    /// Loads own HTML, proves it with a `hello` of [documentA] from
+    /// `about:blank`, then delivers a `message` from that document, and
+    /// returns the html and the sender a reply targets.
+    Future<(String, PlatformHtmlDocumentSender)> proveOwnHtml() async {
+      await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      final html = harness.loadedHtml.single;
+      final nonce = nonceIn(html);
+      harness
+        ..sendBridgeMessage(
+          envelope(nonce, 'hello', documentA),
+          senderUrl: 'about:blank',
+        )
+        ..sendBridgeMessage(
+          messageEnvelope(nonce, 'm'),
+          senderUrl: 'about:blank',
+        );
+      return (html, listener.senders.last as PlatformHtmlDocumentSender);
+    }
+
+    test('us03/fr05/e08: a reply to own HTML runs the token-and-id script '
+        'on the page shown, and a refusal throws', () async {
+      final (html, sender) = await proveOwnHtml();
+      harness.scriptResult = true;
+      await adapter.replyToDocument(sender, 'pong');
+      expect(
+        harness.scripts.last,
+        buildMessageDispatchScript(
+          'pong',
+          token: tokenIn(html),
+          documentId: documentA,
+          allowedOrigins: const <Uri>[],
+        ),
+      );
+      harness.scriptResult = false;
+      await expectLater(
+        adapter.replyToDocument(sender, 'pong'),
+        throwsA(_unallowedPage),
+      );
+    });
+
+    test("us03/fr05/e08: a reply after the sending document's bye throws "
+        'and runs no script', () async {
+      final (html, sender) = await proveOwnHtml();
+      harness.sendBridgeMessage(
+        envelope(nonceIn(html), 'bye', documentA),
+        senderUrl: 'about:blank',
+      );
+      final before = harness.scripts.length;
+      await expectLater(
+        adapter.replyToDocument(sender, 'pong'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The HTML document that sent the message is gone.',
+          ),
+        ),
+      );
+      expect(harness.scripts, hasLength(before));
+    });
+
+    test('us03/fr02/e16: a named send to own HTML throws, because own HTML '
+        'has no origin and never matches a targetOrigin', () async {
+      await proveOwnHtml();
+      harness.scriptResult = false;
+      await expectLater(
+        adapter.postMessage('x', targetOrigin: appOrigin),
+        throwsA(_unallowedPage),
+      );
+      expect(
+        harness.scripts.last,
+        buildMessageDispatchScript(
+          'x',
+          token: null,
+          allowedOrigins: [appOrigin],
+        ),
+      );
+    });
+
+    test('us03/fr05/e11: a reply script with no answer within 5 seconds, '
+        'or a platform error, throws the StateError naming no origin', () {
+      fakeAsync((async) {
+        final zonedHarness = createHarness();
+        final zonedAdapter = zonedHarness.createAdapter(listener);
+        unawaited(
+          zonedAdapter.load(const StratumWebViewSource.html('<p>Hi</p>')),
+        );
+        async.flushMicrotasks();
+        final zonedHtml = zonedHarness.loadedHtml.single;
+        final zonedNonce = nonceIn(zonedHtml);
+        zonedHarness
+          ..sendBridgeMessage(
+            envelope(zonedNonce, 'hello', documentA),
+            senderUrl: 'about:blank',
+          )
+          ..sendBridgeMessage(
+            messageEnvelope(zonedNonce, 'm'),
+            senderUrl: 'about:blank',
+          );
+        final zonedSender = listener.senders.last as PlatformHtmlDocumentSender;
+        zonedHarness.scriptAnswer = () => Completer<Object>().future;
+        Object? failure;
+        unawaited(
+          zonedAdapter
+              .replyToDocument(zonedSender, 'pong')
+              .then((_) {}, onError: (Object error) => failure = error),
+        );
+        async.elapse(const Duration(milliseconds: 4999));
+        expect(failure, isNull);
+        async.elapse(const Duration(milliseconds: 1));
+        expect(failure, _unallowedPage);
+      });
+      fakeAsync((async) {
+        final zonedHarness = createHarness();
+        final zonedAdapter = zonedHarness.createAdapter(listener);
+        unawaited(
+          zonedAdapter.load(const StratumWebViewSource.html('<p>Hi</p>')),
+        );
+        async.flushMicrotasks();
+        final zonedHtml = zonedHarness.loadedHtml.single;
+        final zonedNonce = nonceIn(zonedHtml);
+        zonedHarness
+          ..sendBridgeMessage(
+            envelope(zonedNonce, 'hello', documentA),
+            senderUrl: 'about:blank',
+          )
+          ..sendBridgeMessage(
+            messageEnvelope(zonedNonce, 'm'),
+            senderUrl: 'about:blank',
+          );
+        final zonedSender = listener.senders.last as PlatformHtmlDocumentSender;
+        zonedHarness.scriptAnswer = () =>
+            Future<Object>.error(PlatformException(code: 'evaluateJavaScript'));
+        Object? failure;
+        unawaited(
+          zonedAdapter
+              .replyToDocument(zonedSender, 'pong')
+              .then((_) {}, onError: (Object error) => failure = error),
+        );
+        async.flushMicrotasks();
+        expect(failure, _unallowedPage);
+      });
+    });
+
     test('enables JavaScript', () {
       expect(harness.javaScriptEnabledStates, [true]);
     });
@@ -88,6 +233,41 @@ void runNativeAdapterContract(
       expect(listener.messages, [
         StratumWebViewMessage(data: 'hello', origin: appOrigin),
       ]);
+    });
+
+    test('us03/fr05: every delivered message reaches the listener with its '
+        'sender', () async {
+      await adapter.load(StratumWebViewSource.url(appPage));
+      harness
+        ..startPage(appPage.toString())
+        ..sendBridgeMessage('hello', senderUrl: appPage.toString());
+      expect(
+        listener.senders.single,
+        isA<PlatformUrlPageSender>().having(
+          (sender) => sender.origin,
+          'origin',
+          appOrigin,
+        ),
+      );
+      await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      final nonce = nonceIn(harness.loadedHtml.last);
+      harness
+        ..sendBridgeMessage(
+          envelope(nonce, 'hello', documentA),
+          senderUrl: 'about:blank',
+        )
+        ..sendBridgeMessage(
+          messageEnvelope(nonce, 'm', document: documentB),
+          senderUrl: 'about:blank',
+        );
+      expect(
+        listener.senders.last,
+        isA<NativeHtmlDocumentSender>().having(
+          (sender) => sender.documentId,
+          'documentId',
+          documentB,
+        ),
+      );
     });
 
     test('drops a message from a page outside the allowlist', () async {
@@ -115,7 +295,7 @@ void runNativeAdapterContract(
       expect(html, endsWith('})();</script><p>Hi</p>'));
       harness
         ..sendBridgeMessage(
-          envelope(nonce, 'message', 'before hello'),
+          messageEnvelope(nonce, 'before hello'),
           senderUrl: 'about:blank',
         )
         ..sendBridgeMessage(
@@ -123,18 +303,18 @@ void runNativeAdapterContract(
           senderUrl: 'about:blank',
         )
         ..sendBridgeMessage(
-          envelope(nonce, 'message', 'early'),
+          messageEnvelope(nonce, 'early'),
           senderUrl: 'about:blank',
         )
         ..startPage('about:blank')
         ..sendBridgeMessage(
-          envelope(nonce, 'message', 'from html'),
+          messageEnvelope(nonce, 'from html'),
           senderUrl: 'about:blank',
         )
         ..sendBridgeMessage('untagged', senderUrl: 'about:blank')
         ..startPage('https://evil.example.net/')
         ..sendBridgeMessage(
-          envelope('0' * 32, 'message', 'spoofed'),
+          messageEnvelope('0' * 32, 'spoofed'),
           senderUrl: 'https://evil.example.net/',
         );
       expect(listener.messages, [
@@ -162,7 +342,7 @@ void runNativeAdapterContract(
         )
         ..startPage('about:blank')
         ..sendBridgeMessage(
-          envelope(nonce, 'message', 'between'),
+          messageEnvelope(nonce, 'between'),
           senderUrl: 'about:blank',
         )
         ..sendBridgeMessage(
@@ -170,7 +350,7 @@ void runNativeAdapterContract(
           senderUrl: 'about:blank',
         )
         ..sendBridgeMessage(
-          envelope(nonce, 'message', 'after'),
+          messageEnvelope(nonce, 'after'),
           senderUrl: 'about:blank',
         );
       expect(harness.reloadCount, 1);
@@ -243,6 +423,42 @@ void runNativeAdapterContract(
         ),
       ]);
     });
+
+    test(
+      'us03/fr02/e17, nf01/NFR-Sec02: a named send runs the one-target '
+      'script, and a refusal throws the StateError naming no origin',
+      () async {
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness
+          ..startPage(appPage.toString())
+          ..scriptResult = false;
+        final partner = Uri.parse('https://partner.example.net');
+        listener.allowedOrigins = {appOrigin, partner};
+        await expectLater(
+          adapter.postMessage('x', targetOrigin: partner),
+          throwsA(_unallowedPage),
+        );
+        expect(
+          harness.scripts.last,
+          buildMessageDispatchScript(
+            'x',
+            token: null,
+            allowedOrigins: [partner],
+          ),
+        );
+      },
+    );
+
+    test(
+      'us03/fr02/e18: a named send the page shown accepts resolves',
+      () async {
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness
+          ..startPage(appPage.toString())
+          ..scriptResult = true;
+        await adapter.postMessage('x', targetOrigin: appOrigin);
+      },
+    );
 
     test('us03/fr02/e03: a send the page refuses throws a StateError that '
         'names no origin', () async {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/services.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
@@ -61,8 +62,8 @@ const Map<TargetPlatform, Set<int>> _cancelCodes = {
   TargetPlatform.windows: {14},
 };
 
-/// The only document id shape a `hello` or `bye` may carry: 16 bytes in
-/// lowercase hex.
+/// The only document id shape a `hello`, `bye`, or `message` envelope may
+/// carry: 16 bytes in lowercase hex.
 final RegExp _documentIdShape = RegExp(r'^[0-9a-f]{32}$');
 
 /// Android's handle on the `JavaScriptReplyProxy` of the document that sent
@@ -85,6 +86,26 @@ final class BridgeMessageSender {
   /// The reply proxy of the sending document on Android, which names one
   /// for every main-frame message; `null` on iOS and macOS.
   final BridgeReplyProxy? replyProxy;
+}
+
+/// A message [NativeBridgeSession.acceptMessage] accepted, with the sender
+/// a reply targets.
+typedef AcceptedMessage = ({
+  StratumWebViewMessage message,
+  PlatformMessageSender sender,
+});
+
+/// A document of the app's own HTML, named by the native bootstrap's
+/// envelope (US-03 FR-05 E09).
+final class NativeHtmlDocumentSender extends PlatformHtmlDocumentSender {
+  const new({required this.loadNonce, required this.documentId});
+
+  /// The inbound nonce of the load whose envelope carried the message.
+  final String loadNonce;
+
+  /// The id the sending document's `hello` carries, 32 lowercase hex
+  /// characters.
+  final String documentId;
 }
 
 /// Bridge and error rules shared by the native adapters.
@@ -246,7 +267,8 @@ final class NativeBridgeSession {
     _pageUrl = url == null ? null : Uri.tryParse(url);
   }
 
-  /// Returns the message to deliver for [data], or `null` to drop it.
+  /// Returns the message to deliver for [data] and its sender, or `null` to
+  /// drop it.
   ///
   /// [sender] is the sender the platform names (Android, iOS, macOS): only
   /// main-frame messages pass, and an untagged message is judged by the
@@ -256,10 +278,7 @@ final class NativeBridgeSession {
   /// A message that carries [nativeBridgeEnvelopeTag] is judged only by its
   /// nonce and the proof, so a host-less page never passes as the app's
   /// HTML. No page start, URL, or arrival order decides HTML trust.
-  StratumWebViewMessage? acceptMessage(
-    String data, {
-    BridgeMessageSender? sender,
-  }) {
+  AcceptedMessage? acceptMessage(String data, {BridgeMessageSender? sender}) {
     if (_bridgeUnsupported) return null;
     if (sender == null ? _namesSenders : !sender.isMainFrame) return null;
     if (data.startsWith(nativeBridgeEnvelopeTag)) {
@@ -268,13 +287,17 @@ final class NativeBridgeSession {
         sender?.replyProxy,
       );
     }
-    final origin = sender == null ? _pageUrl : sender.origin;
+    final origin = originOf(sender == null ? _pageUrl : sender.origin);
     if (!isAllowedOrigin(origin, _allowedOrigins())) return null;
-    return StratumWebViewMessage(data: data, origin: originOf(origin));
+    return (
+      message: StratumWebViewMessage(data: data, origin: origin),
+      sender: PlatformUrlPageSender(origin!),
+    );
   }
 
   /// Applies an envelope body with the current nonce to the proof and
-  /// returns the `message` it delivers; drops everything else, fail closed.
+  /// returns the `message` it delivers and its sender; drops everything
+  /// else, fail closed.
   ///
   /// - `hello` with a well-formed document id proves the nonce for that id
   ///   and records the [replyProxy] that came with it (FR-04 E15). On a
@@ -282,11 +305,9 @@ final class NativeBridgeSession {
   ///   proves nothing instead, so a send still throws unproven rather than
   ///   trusting the page shown with the token (B2).
   /// - `bye` revokes only a proof whose id it carries (FR-04 E10).
-  /// - `message` passes only while proven.
-  StratumWebViewMessage? _receiveEnvelope(
-    String body,
-    BridgeReplyProxy? replyProxy,
-  ) {
+  /// - `message` passes only while proven, and only while its own document
+  ///   id is 32 lowercase hex characters (FR-04 E05).
+  AcceptedMessage? _receiveEnvelope(String body, BridgeReplyProxy? replyProxy) {
     final proof = _proof;
     if (proof is! _Load) return null;
     switch (_openEnvelope(body, proof.nonce)) {
@@ -296,8 +317,20 @@ final class NativeBridgeSession {
         _proof = _Proven(proof.nonce, proof.token, id, replyProxy);
       case ('bye', final id) when proof is _Proven && id == proof.documentId:
         _proof = _Revoked(proof.nonce, proof.token);
-      case ('message', final data) when proof is _Proven:
-        return StratumWebViewMessage(data: data);
+      case ('message', final body) when proof is _Proven:
+        final id = body.length > _secretLength && body[_secretLength] == ':'
+            ? body.substring(0, _secretLength)
+            : null;
+        if (id == null || !_documentIdShape.hasMatch(id)) return null;
+        return (
+          message: StratumWebViewMessage(
+            data: body.substring(_secretLength + 1),
+          ),
+          sender: NativeHtmlDocumentSender(
+            loadNonce: proof.nonce,
+            documentId: id,
+          ),
+        );
     }
     return null;
   }
@@ -339,7 +372,16 @@ final class NativeBridgeSession {
   /// Throws a [StateError] when the platform view lacks a feature the
   /// bridge needs (US-03 FR-02 E11), and while the current HTML load has
   /// not proven its nonce, whatever page shows (US-03 FR-02 E04).
-  String scriptForMessage(String data) {
+  ///
+  /// With [targetOrigin], the page's own `location.origin` is compared
+  /// against that one origin instead of the whole allowlist, and the
+  /// script never carries the token, so the app's HTML never passes it
+  /// (US-03 FR-02 E16, E17). [targetOrigin] is re-checked against
+  /// [_allowedOrigins] here, right before the script is built, the way the
+  /// web re-checks at post time: a caller awaits a platform round trip
+  /// between its own allowlist check and this call, and the allowlist can
+  /// change in that window (US-03 FR-02 E15, NFR-Sec02).
+  String scriptForMessage(String data, {Uri? targetOrigin}) {
     if (_bridgeUnsupported) {
       throw StateError(
         'The bridge is disabled because the WebView lacks '
@@ -349,6 +391,18 @@ final class NativeBridgeSession {
     final proof = _proof;
     if (proof is _Minted) {
       throw StateError('The HTML page has not connected the bridge yet.');
+    }
+    if (targetOrigin != null) {
+      if (!isAllowedOrigin(targetOrigin, _allowedOrigins())) {
+        throw StateError(
+          'targetOrigin $targetOrigin is not an allowed message destination.',
+        );
+      }
+      return buildMessageDispatchScript(
+        data,
+        token: null,
+        allowedOrigins: [targetOrigin],
+      );
     }
     return buildMessageDispatchScript(
       data,
@@ -400,6 +454,45 @@ final class NativeBridgeSession {
         token: proof.token,
         allowedOrigins: const <Uri>[],
       ),
+    );
+  }
+
+  /// Returns the dispatch script that delivers [data] to [document], the
+  /// document of the app's HTML that sent the message a reply targets, and
+  /// the reply proxy to run it through on Android, `null` elsewhere.
+  ///
+  /// The reply reaches only the document whose message named it, while that
+  /// document holds the proof; on Android only through its `hello`'s reply
+  /// proxy (US-03 FR-05 E08, E09; R2).
+  ///
+  /// Throws a [StateError] when the platform view lacks a feature the
+  /// bridge needs (US-03 FR-02 E11), and the gone-document [StateError]
+  /// unless [document] is the one the current proof was proven by.
+  ({String script, BridgeReplyProxy? replyProxy}) scriptForReply(
+    String data,
+    PlatformHtmlDocumentSender document,
+  ) {
+    if (_bridgeUnsupported) {
+      throw StateError(
+        'The bridge is disabled because the WebView lacks '
+        'WEB_MESSAGE_LISTENER or JS_INJECTION_IN_FRAME_AND_WORLD support.',
+      );
+    }
+    final proof = _proof;
+    if (proof is! _Proven ||
+        document is! NativeHtmlDocumentSender ||
+        proof.nonce != document.loadNonce ||
+        proof.documentId != document.documentId) {
+      throw StateError('The HTML document that sent the message is gone.');
+    }
+    return (
+      script: buildMessageDispatchScript(
+        data,
+        token: proof.token,
+        documentId: document.documentId,
+        allowedOrigins: const <Uri>[],
+      ),
+      replyProxy: proof.replyProxy,
     );
   }
 

@@ -50,7 +50,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   bool _javaScriptEnabled = true;
   bool _disposed = false;
   String? _htmlNonce;
-  web.MessagePort? _bridgePort;
+  _WebHtmlDocumentSender? _bridge;
 
   /// Whether a page start was reported that no frame `load` has finished:
   /// from a controller load, or a re-insertion that restarts a completed
@@ -75,13 +75,16 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   /// Flutter creates a fresh host each time the view is inserted into the
   /// page, so re-insertion always moves the iframe and discards its browsing
   /// context: `srcdoc` reloads, the bootstrap script runs again, and a new
-  /// handshake carrying the same nonce replaces the adopted port. When that
-  /// restart lands on a completed entry (no load already open), reopen the
-  /// request-to-load window: otherwise `currentUrl()` would read the
-  /// restarted navigation's transient `about:blank` instead of the entry's
-  /// URL (US-04 FR-01 E02).
+  /// handshake carrying the same nonce replaces the adopted port. The old
+  /// port is closed here, before the move, so a reply to the document being
+  /// discarded throws at once instead of resolving into a dead port (US-03
+  /// FR-05 E06). When that restart lands on a completed entry (no load
+  /// already open), reopen the request-to-load window: otherwise
+  /// `currentUrl()` would read the restarted navigation's transient
+  /// `about:blank` instead of the entry's URL (US-04 FR-01 E02).
   @visibleForTesting
   void attachTo(web.HTMLElement host) {
+    _closeBridgePort();
     host.style
       ..width = '100%'
       ..height = '100%';
@@ -166,16 +169,27 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     return current.url;
   }
 
+  /// With [targetOrigin], the view throws when the app's own HTML is shown
+  /// (it has no origin to compare) or when the current entry's origin is
+  /// not [targetOrigin] (US-03 FR-02 E16, E17). The post still carries the
+  /// current entry's own origin as the browser's `targetOrigin`, which
+  /// drops the message when the frame changed origin after this check
+  /// (US-03 FR-02 E17).
   @override
-  Future<void> postMessage(String data) async {
+  Future<void> postMessage(String data, {Uri? targetOrigin}) async {
     final current = _history.current;
     if (current == null) {
       throw StateError('The web view has no page to receive messages.');
     }
     switch (current) {
       case StratumWebViewHtmlSource():
-        final port = _bridgePort;
-        if (port == null) {
+        if (targetOrigin != null) {
+          throw StateError(
+            "The app's HTML has no origin to match targetOrigin.",
+          );
+        }
+        final port = _bridge?.port;
+        if (port == null || !_iframe.isConnected) {
           throw StateError('The HTML page has not connected the bridge yet.');
         }
         port.postMessage(data.toJS);
@@ -187,8 +201,27 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
             !isAllowedOrigin(origin, _listener.allowedOrigins)) {
           throw StateError('$origin is not an allowed message destination.');
         }
+        if (targetOrigin != null && origin != originOf(targetOrigin)) {
+          throw StateError(
+            'The current page is not the named message destination.',
+          );
+        }
         frameWindow.postMessage(data.toJS, origin.toString().toJS);
     }
+  }
+
+  /// After a link away inside the frame the port stays adopted and the
+  /// browser gives no signal, so the reply resolves and is dropped (FR-05
+  /// E07).
+  @override
+  Future<void> replyToDocument(
+    PlatformHtmlDocumentSender document,
+    String data,
+  ) async {
+    if (!identical(document, _bridge) || !_iframe.isConnected) {
+      throw StateError('The HTML document that sent the message is gone.');
+    }
+    (document as _WebHtmlDocumentSender).port.postMessage(data.toJS);
   }
 
   @override
@@ -248,8 +281,8 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   }
 
   void _closeBridgePort() {
-    _bridgePort?.close();
-    _bridgePort = null;
+    _bridge?.port.close();
+    _bridge = null;
   }
 
   String _generateNonce() {
@@ -303,6 +336,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     if (!isAllowedOrigin(origin, _listener.allowedOrigins)) return;
     _listener.onMessage(
       StratumWebViewMessage(data: text, origin: originOf(origin)),
+      PlatformUrlPageSender(originOf(origin)!),
     );
   }
 
@@ -323,14 +357,33 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     final ports = event.ports.toDart;
     if (ports.length != 1) return;
     _closeBridgePort();
-    final port = ports.first..onmessage = _handlePortMessage.toJS;
-    _bridgePort = port;
+    final sender = _WebHtmlDocumentSender(ports.first);
+    sender.port.onmessage = ((web.MessageEvent event) => _handlePortMessage(
+      sender,
+      event,
+    )).toJS;
+    _bridge = sender;
   }
 
-  void _handlePortMessage(web.MessageEvent event) {
+  void _handlePortMessage(
+    _WebHtmlDocumentSender sender,
+    web.MessageEvent event,
+  ) {
     if (_disposed) return;
     final data = event.data;
     if (data == null || !data.isA<JSString>()) return;
-    _listener.onMessage(StratumWebViewMessage(data: (data as JSString).toDart));
+    _listener.onMessage(
+      StratumWebViewMessage(data: (data as JSString).toDart),
+      sender,
+    );
   }
+}
+
+/// One document of the app's own HTML, bound to the [port] its handshake's
+/// adopted channel carries (US-03 FR-05 E06).
+final class _WebHtmlDocumentSender extends PlatformHtmlDocumentSender {
+  new(this.port);
+
+  /// The port adopted from the document's handshake.
+  final web.MessagePort port;
 }

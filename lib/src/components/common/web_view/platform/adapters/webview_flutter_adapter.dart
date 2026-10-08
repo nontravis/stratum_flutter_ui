@@ -123,16 +123,17 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   /// for, by the nonce [NativeBridgeSession.currentLoadNonce] reads right
   /// after [NativeBridgeSession.scriptForMessage] returns: a later
   /// `loadHtml` that proves while the first script is still pending does
-  /// not receive this send (B1).
+  /// not receive this send (B1). A named send never runs the token check
+  /// through the reply proxy (US-03 FR-02 E17).
   @override
-  Future<void> postMessage(String data) async {
+  Future<void> postMessage(String data, {Uri? targetOrigin}) async {
     await _ready;
-    final script = _session.scriptForMessage(data);
+    final script = _session.scriptForMessage(data, targetOrigin: targetOrigin);
     final loadNonce = _session.currentLoadNonce;
     final answer = await dispatchScriptAnswer(
       _controller.runJavaScriptReturningResult(script),
     );
-    final run = answer == false
+    final run = answer == false && targetOrigin == null
         ? _session.replyProxyScriptForMessage(data, loadNonce: loadNonce)
         : null;
     _session.confirmDelivery(
@@ -145,6 +146,31 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
                 run.script,
               ),
             ),
+    );
+  }
+
+  /// Runs the token-and-id dispatch script that
+  /// [NativeBridgeSession.scriptForReply] builds for [document], on the
+  /// page shown, or, on Android, through the reply proxy of that document's
+  /// `hello` (US-03 FR-05 E08, E09).
+  @override
+  Future<void> replyToDocument(
+    PlatformHtmlDocumentSender document,
+    String data,
+  ) async {
+    await _ready;
+    final run = _session.scriptForReply(data, document);
+    final replyProxy = run.replyProxy;
+    _session.confirmDelivery(
+      await dispatchScriptAnswer(
+        replyProxy == null
+            ? _controller.runJavaScriptReturningResult(run.script)
+            : _senderChannel.runThroughReplyProxy(
+                _controller,
+                replyProxy,
+                run.script,
+              ),
+      ),
     );
   }
 
@@ -196,8 +222,10 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   }
 
   void _handleBridgeMessage(String data, BridgeMessageSender sender) {
-    final message = _session.acceptMessage(data, sender: sender);
-    if (message != null) _listener.onMessage(message);
+    final accepted = _session.acceptMessage(data, sender: sender);
+    if (accepted != null) {
+      _listener.onMessage(accepted.message, accepted.sender);
+    }
   }
 
   void _handleResourceError(wf.WebResourceError error) {

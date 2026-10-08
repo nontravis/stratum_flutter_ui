@@ -53,6 +53,9 @@ final class StratumWebViewHtmlSource extends StratumWebViewSource {
 }
 
 /// A message that the page sent through the bridge.
+///
+/// Answer it with `StratumWebViewController.reply`; only the controller
+/// that delivered it accepts it.
 @immutable
 final class StratumWebViewMessage {
   const new({required this.data, this.origin});
@@ -60,8 +63,9 @@ final class StratumWebViewMessage {
   /// Message payload. Encode structured data yourself, for example as JSON.
   final String data;
 
-  /// Origin of the page that sent the message, or `null` for HTML content
-  /// loaded from a [StratumWebViewHtmlSource].
+  /// Origin of the page that sent the message, which can differ from the
+  /// page shown now, or `null` for HTML content loaded from a
+  /// [StratumWebViewHtmlSource].
   final Uri? origin;
 
   @override

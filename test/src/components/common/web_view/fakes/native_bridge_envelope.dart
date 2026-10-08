@@ -20,3 +20,11 @@ const String documentB = 'ffeeddccbbaa99887766554433221100';
 /// the bootstrap's wrapper sends it.
 String envelope(String nonce, String kind, [String data = '']) =>
     '$nativeBridgeEnvelopeTag$nonce:$kind:$data';
+
+/// A native `message` envelope that carries [nonce], the id of the
+/// [document] that sent it, and [data], as the bootstrap's wrapper sends it.
+String messageEnvelope(
+  String nonce,
+  String data, {
+  String document = documentA,
+}) => envelope(nonce, 'message', '$document:$data');

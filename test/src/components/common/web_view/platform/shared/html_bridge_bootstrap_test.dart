@@ -190,10 +190,17 @@ void main() {
         html,
         contains("send('$nativeBridgeEnvelopeTag$nonce:'+k+':'+d);"),
       );
-      expect(html, contains("s('message',S(d));"));
+      expect(html, contains("s('message',id+':'+S(d));"));
       expect(html, isNot(contains('.call(')));
       expect(html, isNot(contains('.apply(')));
       expect(RegExp(r'\bString\b').allMatches(html), hasLength(1));
+    });
+
+    test("us03/fr04: every message envelope carries the sending document's "
+        'id before its text', () {
+      final html = inject('<p>Hi</p>');
+      expect(html, contains("s('message',id+':'+S(d));"));
+      expect(html, isNot(contains("s('message',S(d));")));
     });
 
     test('us03/fr04/e11: defines StratumBridge as a frozen envelope sender, '
@@ -203,9 +210,33 @@ void main() {
         contains(
           "Object.defineProperty(window,'StratumBridge',\n"
           '{value:Object.freeze({postMessage:function(d){\n'
-          "s('message',S(d));}}),\n"
+          "s('message',id+':'+S(d));}}),\n"
           'enumerable:true,writable:false,configurable:false});',
         ),
+      );
+    });
+
+    test('us03/fr05/e08: keeps its document id in its own window property '
+        'once drawn, before StratumBridge exists', () {
+      final html = inject('<p>Hi</p>');
+      final afterLoop = html.indexOf(
+        'for(var i=0;i<16;i++)id+=(a[i]|256).toString(16).slice(1);',
+      );
+      final beforeBridge = html.indexOf(
+        "Object.defineProperty(window,'StratumBridge',",
+      );
+      expect(
+        html,
+        contains(
+          "Object.defineProperty(window,'$nativeBridgeDocumentProperty',\n"
+          '{value:id});\n',
+        ),
+      );
+      expect(
+        html.indexOf(
+          "Object.defineProperty(window,'$nativeBridgeDocumentProperty',",
+        ),
+        allOf(greaterThan(afterLoop), lessThan(beforeBridge)),
       );
     });
 
