@@ -90,6 +90,16 @@ class _StratumTransitionPageRoute<T> extends PageRoute<T> {
     joinOnSecondary: true,
   );
 
+  /// The transition the route below leaves by (US-05 FR-01; style s03
+  /// invariant 21), by the one function every route of US-05 shares.
+  @override
+  DelegatedTransitionBuilder? get delegatedTransition =>
+      delegatedScreenTransition(
+        _page.type,
+        platformOf(navigator?.context),
+        joinOnSecondary: true,
+      );
+
   @override
   String get debugLabel => '${super.debugLabel}(${_page.name})';
 }

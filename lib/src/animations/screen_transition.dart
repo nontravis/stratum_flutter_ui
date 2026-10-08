@@ -315,17 +315,12 @@ Widget buildScreenTransition<T>(
             ? child
             : FadeTransition(opacity: curved, child: child);
       }
-      // A pop gesture in progress drives the builder's own linear tracking
-      // (cupertino/route.dart:238-240); a caller curve only applies once
-      // the gesture, if any, is done.
-      final callerCurved = curve != null && !route.popGestureInProgress;
+      final gesture = route.popGestureInProgress;
       return builder.buildTransitions<T>(
         route,
         context,
-        callerCurved ? animation.drive(CurveTween(curve: curve)) : animation,
-        callerCurved
-            ? secondaryAnimation.drive(CurveTween(curve: curve))
-            : secondaryAnimation,
+        _onCallerCurve(animation, curve, gesture: gesture),
+        _onCallerCurve(secondaryAnimation, curve, gesture: gesture),
         child,
       );
     case ScreenTransitionType.none:
@@ -363,6 +358,97 @@ Widget buildScreenTransition<T>(
       );
   }
 }
+
+/// The transition a route of [type] hands the route below it, so the page
+/// below leaves in step with [type]'s page coming in, for every route of
+/// US-05 (FR-01; style s03 invariant 21).
+///
+/// For `platform` and `cupertino` it is the Flutter builder's own on
+/// [platform], which may itself be null. For `fadeThrough`, the shared-axis
+/// types, and, on a route that joins on its secondary animation
+/// ([joinOnSecondary], as in [buildScreenTransition]), the joined types, it
+/// draws the outgoing half of [buildScreenTransition] on the page below,
+/// on [curve], else the theme's `standard` curve. Every other type gets
+/// null, so a route below that moves only for its own kind, such as a
+/// [MaterialPageRoute], stays still.
+///
+/// A page never moves twice: Flutter holds the secondary animation of the
+/// page below's own transition while this one runs, and
+/// [kAlwaysCompleteAnimation] keeps the incoming half out of this one.
+/// Under reduced motion ([reducesMotion]) the page below stays still.
+DelegatedTransitionBuilder? delegatedScreenTransition(
+  ScreenTransitionType type,
+  TargetPlatform platform, {
+  Curve? curve,
+  bool joinOnSecondary = false,
+}) => switch (type) {
+  ScreenTransitionType.platform || ScreenTransitionType.cupertino =>
+    _flutterDelegate(flutterTransitionsBuilder(type, platform)!, curve),
+  ScreenTransitionType.rightToLeftJoined ||
+  ScreenTransitionType.leftToRightJoined when !joinOnSecondary => null,
+  ScreenTransitionType.rightToLeftJoined ||
+  ScreenTransitionType.leftToRightJoined ||
+  ScreenTransitionType.fadeThrough ||
+  ScreenTransitionType.sharedAxisHorizontal ||
+  ScreenTransitionType.sharedAxisVertical ||
+  ScreenTransitionType.sharedAxisScaled => _outgoingHalf(type, curve),
+  _ => null,
+};
+
+/// [builder]'s own delegated transition, null when it has none, with the
+/// caller's [curve] as in [buildScreenTransition].
+DelegatedTransitionBuilder? _flutterDelegate(
+  PageTransitionsBuilder builder,
+  Curve? curve,
+) {
+  final flutter = builder.delegatedTransition;
+  if (flutter == null) return null;
+  return (context, animation, secondaryAnimation, allowSnapshotting, child) {
+    if (reducesMotion(context)) return null;
+    final gesture = ModalRoute.of(context)?.popGestureInProgress ?? false;
+    return flutter(
+      context,
+      animation,
+      _onCallerCurve(secondaryAnimation, curve, gesture: gesture),
+      allowSnapshotting,
+      child,
+    );
+  };
+}
+
+/// [type]'s outgoing half on the page below: [buildScreenTransition] of
+/// that page's own route, held complete, leaving by its secondary animation.
+DelegatedTransitionBuilder _outgoingHalf(
+  ScreenTransitionType type,
+  Curve? curve,
+) => (context, animation, secondaryAnimation, allowSnapshotting, child) {
+  final route = ModalRoute.of(context);
+  if (route is! PageRoute<Object?> || child == null || reducesMotion(context)) {
+    return null;
+  }
+  return buildScreenTransition<Object?>(
+    type,
+    route: route,
+    context: context,
+    animation: kAlwaysCompleteAnimation,
+    secondaryAnimation: secondaryAnimation,
+    child: child,
+    standard: curveOf(slowOf(context)),
+    curve: curve,
+    joinOnSecondary: true,
+  );
+};
+
+/// [animation] on the caller's [curve], else unchanged: with no caller
+/// curve, or while a pop [gesture] drives the Flutter builder's own linear
+/// tracking (cupertino/route.dart:238-240).
+Animation<double> _onCallerCurve(
+  Animation<double> animation,
+  Curve? curve, {
+  required bool gesture,
+}) => curve == null || gesture
+    ? animation
+    : animation.drive(CurveTween(curve: curve));
 
 /// A joined slide for a route with no current page: this route's page
 /// comes in from [incoming] by [animation] and leaves toward [outgoing] by

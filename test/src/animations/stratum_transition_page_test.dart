@@ -152,6 +152,84 @@ void main() {
     });
   });
 
+  group('us05/fr01: the page below a new page', () {
+    /// The left edge of the page keyed [key].
+    double dxOf(WidgetTester tester, String key) =>
+        tester.getTopLeft(find.byKey(ValueKey(key))).dx;
+
+    testWidgets('cupertino parallaxes a MaterialPage out', (tester) async {
+      await _open(tester, fadeTheme, ScreenTransitionType.cupertino);
+
+      expect(dxOf(tester, 'home'), lessThan(0));
+    });
+
+    testWidgets('rightToLeftJoined slides a MaterialPage out joined to it', (
+      tester,
+    ) async {
+      await _open(tester, fadeTheme, ScreenTransitionType.rightToLeftJoined);
+
+      expect(dxOf(tester, 'home'), lessThan(0));
+      expect(
+        dxOf(tester, 'home'),
+        closeTo(dxOf(tester, 'page') - tester.getSize(_page).width, 1e-6),
+      );
+    });
+
+    testWidgets('a joined page over a joined page moves it once', (
+      tester,
+    ) async {
+      const lower = StratumTransitionPage<void>(
+        key: ValueKey('lowerPage'),
+        type: ScreenTransitionType.rightToLeftJoined,
+        child: SizedBox(key: ValueKey('lower')),
+      );
+      await tester.pumpWidget(_app(fadeTheme, const [_home, lower]));
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(
+        _app(fadeTheme, [
+          _home,
+          lower,
+          _next(ScreenTransitionType.rightToLeftJoined),
+        ]),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(dxOf(tester, 'lower'), lessThan(0));
+      expect(
+        dxOf(tester, 'lower'),
+        closeTo(dxOf(tester, 'page') - tester.getSize(_page).width, 1e-6),
+      );
+    });
+
+    testWidgets("a MaterialPage moves a joined page out by the theme's "
+        'joined type', (tester) async {
+      final joinedTheme = motionTheme(
+        transitions: transitionsOf(ScreenTransitionType.rightToLeftJoined),
+      );
+      final pages = [_home, _next(ScreenTransitionType.rightToLeftJoined)];
+      await tester.pumpWidget(_app(joinedTheme, pages));
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(
+        _app(joinedTheme, [
+          ...pages,
+          const MaterialPage<void>(
+            key: ValueKey('upperPage'),
+            child: SizedBox(key: ValueKey('upper')),
+          ),
+        ]),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(dxOf(tester, 'page'), lessThan(0));
+      expect(
+        dxOf(tester, 'page'),
+        closeTo(dxOf(tester, 'upper') - tester.getSize(_page).width, 1e-6),
+      );
+    });
+  });
+
   test('the page keeps its type and child', () {
     final page = _next(ScreenTransitionType.cupertino);
 

@@ -811,6 +811,48 @@ void main() {
     }
   });
 
+  group('us05/fr01: the Material home below a new page', () {
+    final home = find.byKey(const ValueKey('home'));
+
+    testWidgets('platform on iOS parallaxes it out', (tester) async {
+      await _push(tester, type: ScreenTransitionType.platform);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, lessThan(0));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('sharedAxisHorizontal moves it out', (tester) async {
+      await _push(tester, type: ScreenTransitionType.sharedAxisHorizontal);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, lessThan(0));
+    });
+
+    testWidgets('rightToLeft leaves it in place', (tester) async {
+      await _push(tester, type: ScreenTransitionType.rightToLeft);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, 0);
+    });
+
+    testWidgets('a joined type leaves it in place: its copy moves instead', (
+      tester,
+    ) async {
+      await _push(
+        tester,
+        type: ScreenTransitionType.rightToLeftJoined,
+        childCurrent: const SizedBox.expand(key: ValueKey('copy')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, 0);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('copy'))).dx,
+        lessThan(0),
+      );
+    });
+  });
+
   for (final signal in _Reduce.values) {
     group('us05/fr03, nfr-u03: under ${signal.name}', () {
       for (final type in [

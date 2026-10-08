@@ -143,6 +143,17 @@ class PageTransition<T> extends PageRouteBuilder<T> {
     childCurrent: childCurrent,
   );
 
+  /// The transition the route below leaves by (US-05 FR-01; style s03
+  /// invariant 21), by the one function every route of US-05 shares. Null
+  /// for a joined type: [childCurrent] already leaves in this route.
+  @override
+  DelegatedTransitionBuilder? get delegatedTransition =>
+      delegatedScreenTransition(
+        type,
+        platformOf(navigator?.context),
+        curve: curve,
+      );
+
   /// [duration], else zero for `none` (ruling R12), else the Flutter
   /// builder's for `platform` and `cupertino`, else the `slow` level of
   /// the theme above the navigator, else the package default's (spec

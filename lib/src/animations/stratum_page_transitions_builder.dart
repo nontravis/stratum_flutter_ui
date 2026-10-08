@@ -1,5 +1,4 @@
 import 'package:stratum_ui/src/animations/screen_transition.dart';
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The page transitions builder `StratumThemeData.toThemeData` installs
@@ -67,31 +66,25 @@ class StratumPageTransitionsBuilder extends PageTransitionsBuilder {
     joinOnSecondary: true,
   );
 
-  /// The transition the route below the pushed context uses to leave in
-  /// sync with this builder's route (style s03 invariant 21 "delegates to
-  /// the builder"): the Flutter builder's own delegate for `platform` and
-  /// `cupertino`, which may itself be null (Flutter's contract), else the
-  /// child unchanged, as under reduced motion too, where this builder draws
-  /// its own transition instead of delegating. Never throws.
+  /// The transition a route below that is not a Material route leaves by in
+  /// sync with this builder's route (style s03 invariant 21): the
+  /// [_typeOf] type's by [delegatedScreenTransition], which every route of
+  /// US-05 shares, else the child unchanged. Never throws.
   @override
   DelegatedTransitionBuilder? get delegatedTransition =>
-      (context, animation, secondaryAnimation, allowSnapshotting, child) {
-        final type = _typeOf(context);
-        final delegate =
-            (type == ScreenTransitionType.platform ||
-                    type == ScreenTransitionType.cupertino) &&
-                !reducesMotion(context)
-            ? flutterTransitionsBuilder(type, platform)?.delegatedTransition
-            : null;
-        return delegate?.call(
-              context,
-              animation,
-              secondaryAnimation,
-              allowSnapshotting,
-              child,
-            ) ??
-            child;
-      };
+      (context, animation, secondaryAnimation, allowSnapshotting, child) =>
+          delegatedScreenTransition(
+            _typeOf(context),
+            platform,
+            joinOnSecondary: true,
+          )?.call(
+            context,
+            animation,
+            secondaryAnimation,
+            allowSnapshotting,
+            child,
+          ) ??
+          child;
 
   @override
   bool operator ==(Object other) =>
