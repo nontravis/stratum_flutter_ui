@@ -107,6 +107,18 @@ class _StratumTransitionPageRoute<T> extends PageRoute<T> {
         joinOnSecondary: true,
       );
 
+  /// Whether this route's page moves out under [nextRoute]: only under an
+  /// opaque page route ([leavesUnder]).
+  @override
+  bool canTransitionTo(TransitionRoute<dynamic> nextRoute) =>
+      leavesUnder(nextRoute);
+
+  /// Whether the page below moves out under this route: only while it is
+  /// [opaque] ([leavesUnder]).
+  @override
+  bool canTransitionFrom(TransitionRoute<dynamic> previousRoute) =>
+      leavesUnder(this) && super.canTransitionFrom(previousRoute);
+
   @override
   String get debugLabel => '${super.debugLabel}(${_page.name})';
 }

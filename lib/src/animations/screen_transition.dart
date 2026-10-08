@@ -337,9 +337,9 @@ Widget buildScreenTransition<T>(
 /// on [curve], else the theme's `standard` curve. Every other type gets
 /// null, so a route below that moves only for its own kind, such as a
 /// [MaterialPageRoute], stays still. A route that is not [opaque] gets null
-/// for every type too: the page below shows through it, so it stays as it
-/// was rather than parked where the outgoing half ends, as Flutter only
-/// delegates from opaque page routes.
+/// for every type too, by the rule of [leavesUnder]: the page below shows
+/// through it, so it stays as it was rather than parked where the outgoing
+/// half ends.
 ///
 /// A page never moves twice: Flutter holds the secondary animation of the
 /// page below's own transition while this one runs, and
@@ -367,6 +367,16 @@ DelegatedTransitionBuilder? delegatedScreenTransition(
   ScreenTransitionType.sharedAxisScaled => _outgoingHalf(type, curve),
   _ => null,
 };
+
+/// Whether a page moves out under [next], by its own secondary animation
+/// or by [next]'s delegated transition: only under an opaque page route,
+/// for a page seen through a translucent route stays as it was, as Flutter
+/// only delegates from opaque page routes (US-05 FR-01; style s03 invariant
+/// 21). Every route of US-05 holds to it on both sides: `canTransitionTo`
+/// for the route above, `canTransitionFrom` for itself, and
+/// [delegatedScreenTransition] for the transition it hands down.
+bool leavesUnder(TransitionRoute<dynamic> next) =>
+    next is PageRoute && next.opaque;
 
 /// [builder]'s own delegated transition, null when it has none, with the
 /// caller's [curve] as in [buildScreenTransition].

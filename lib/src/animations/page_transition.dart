@@ -170,6 +170,18 @@ class PageTransition<T> extends PageRouteBuilder<T> {
         curve: curve,
       );
 
+  /// Whether this route's page moves out under [nextRoute]: only under an
+  /// opaque page route ([leavesUnder]).
+  @override
+  bool canTransitionTo(TransitionRoute<dynamic> nextRoute) =>
+      leavesUnder(nextRoute);
+
+  /// Whether the page below moves out under this route: only while it is
+  /// [opaque] ([leavesUnder]).
+  @override
+  bool canTransitionFrom(TransitionRoute<dynamic> previousRoute) =>
+      leavesUnder(this) && super.canTransitionFrom(previousRoute);
+
   /// [duration], else zero for `none` (ruling R12), else the Flutter
   /// builder's for `platform` and `cupertino`, else the `slow` level of
   /// the theme above the navigator, else the package default's (spec

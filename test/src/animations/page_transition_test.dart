@@ -936,6 +936,105 @@ void main() {
     });
   });
 
+  group('us05/fr01: a page below a translucent route', () {
+    final lower = find.byKey(const ValueKey('lower'));
+
+    /// The opacity the fades above [lower] leave it.
+    double opacityOf(WidgetTester tester) => tester
+        .widgetList<FadeTransition>(
+          find.ancestor(of: lower, matching: find.byType(FadeTransition)),
+        )
+        .fold(1, (opacity, fade) => opacity * fade.opacity.value);
+
+    /// Pushes [below] and lets it settle, then pushes a cupertino
+    /// [PageTransition] of [opaque] over it and pumps 100 ms into it.
+    Future<void> cover(
+      WidgetTester tester,
+      Route<void> below, {
+      required bool opaque,
+    }) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(_app(navigator));
+      navigator.currentState!.push(below).ignore();
+      await tester.pumpAndSettle();
+      navigator.currentState!
+          .push(
+            PageTransition<void>(
+              type: ScreenTransitionType.cupertino,
+              opaque: opaque,
+              child: const SizedBox(),
+            ),
+          )
+          .ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    for (final type in [
+      ScreenTransitionType.platform,
+      ScreenTransitionType.fadeThrough,
+    ]) {
+      testWidgets('an opaque ${type.name} page stays in place, fully seen', (
+        tester,
+      ) async {
+        await cover(
+          tester,
+          PageTransition<void>(
+            type: type,
+            opaque: true,
+            child: const SizedBox(key: ValueKey('lower')),
+          ),
+          opaque: false,
+        );
+
+        expect(tester.getTopLeft(lower).dx, 0);
+        expect(opacityOf(tester), 1);
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(lower).dx, 0);
+        expect(opacityOf(tester), 1);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+    }
+
+    testWidgets('a page of another route kind that leaves by its secondary '
+        'animation stays in place', (tester) async {
+      await cover(
+        tester,
+        PageRouteBuilder<void>(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const SizedBox(key: ValueKey('lower')),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+              SlideTransition(
+                position: Tween<Offset>(
+                  begin: Offset.zero,
+                  end: const Offset(-1, 0),
+                ).animate(secondaryAnimation),
+                child: child,
+              ),
+        ),
+        opaque: false,
+      );
+
+      expect(tester.getTopLeft(lower).dx, 0);
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(lower).dx, 0);
+    });
+
+    testWidgets('under an opaque route the same platform page parallaxes '
+        'out', (tester) async {
+      await cover(
+        tester,
+        PageTransition<void>(
+          type: ScreenTransitionType.platform,
+          opaque: true,
+          child: const SizedBox(key: ValueKey('lower')),
+        ),
+        opaque: true,
+      );
+
+      expect(tester.getTopLeft(lower).dx, lessThan(0));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  });
+
   for (final signal in _Reduce.values) {
     group('us05/fr03, nfr-u03: under ${signal.name}', () {
       for (final type in [

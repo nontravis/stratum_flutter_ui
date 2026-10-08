@@ -230,6 +230,52 @@ void main() {
     });
   });
 
+  group('us05/fr01: a page below a translucent route', () {
+    /// Shows [type]'s page settled over the home page, then pushes a
+    /// cupertino [PageTransition] of [opaque] over it and pumps 100 ms in.
+    Future<void> cover(
+      WidgetTester tester,
+      ScreenTransitionType type, {
+      required bool opaque,
+    }) async {
+      await tester.pumpWidget(_app(fadeTheme, [_home, _next(type)]));
+      await tester.pumpAndSettle();
+      tester
+          .state<NavigatorState>(find.byType(Navigator).last)
+          .push(
+            PageTransition<void>(
+              type: ScreenTransitionType.cupertino,
+              opaque: opaque,
+              child: const SizedBox(),
+            ),
+          )
+          .ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    for (final type in [
+      ScreenTransitionType.cupertino,
+      ScreenTransitionType.rightToLeftJoined,
+    ]) {
+      testWidgets('a ${type.name} page stays in place', (tester) async {
+        await cover(tester, type, opaque: false);
+
+        expect(tester.getTopLeft(_page).dx, 0);
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(_page).dx, 0);
+      });
+    }
+
+    testWidgets('under an opaque route the same joined page moves out', (
+      tester,
+    ) async {
+      await cover(tester, ScreenTransitionType.rightToLeftJoined, opaque: true);
+
+      expect(tester.getTopLeft(_page).dx, lessThan(0));
+    });
+  });
+
   testWidgets('the route scopes its page for assistive technology, as a '
       "MaterialPage's does", (tester) async {
     await _open(tester, fadeTheme, ScreenTransitionType.rightToLeft);
