@@ -52,25 +52,33 @@ PageTransitionsBuilder? flutterTransitionsBuilder(
   _ => null,
 };
 
-/// The push duration of [type] on [platform]: the Flutter builder's for
-/// `platform` and `cupertino`, else [slow]'s (US-05 FR-01).
+/// The push duration of [type] on [platform]: zero for `none` (ruling R12),
+/// else the Flutter builder's for `platform` and `cupertino`, else [slow]'s
+/// (US-05 FR-01).
 Duration transitionDurationOf(
   ScreenTransitionType type,
   TargetPlatform platform,
   AnimationStyle slow,
-) =>
+) => switch (type) {
+  ScreenTransitionType.none => Duration.zero,
+  _ =>
     flutterTransitionsBuilder(type, platform)?.transitionDuration ??
-    durationOf(slow);
+        durationOf(slow),
+};
 
-/// The pop duration of [type] on [platform]: the Flutter builder's for
-/// `platform` and `cupertino`, else [slow]'s reverse (US-05 FR-01).
+/// The pop duration of [type] on [platform]: zero for `none` (ruling R12),
+/// else the Flutter builder's for `platform` and `cupertino`, else [slow]'s
+/// reverse (US-05 FR-01).
 Duration reverseTransitionDurationOf(
   ScreenTransitionType type,
   TargetPlatform platform,
   AnimationStyle slow,
-) =>
+) => switch (type) {
+  ScreenTransitionType.none => Duration.zero,
+  _ =>
     flutterTransitionsBuilder(type, platform)?.reverseTransitionDuration ??
-    reverseDurationOf(slow);
+        reverseDurationOf(slow),
+};
 
 /// [type]'s transition of [route]'s page [child], for every route of
 /// US-05 (FR-01 and FR-03; style s03 invariants 14 and 21).

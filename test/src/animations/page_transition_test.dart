@@ -606,8 +606,8 @@ void main() {
     );
   });
 
-  testWidgets('review-m1-t4 important-1: a caller curve steps aside for a '
-      'Cupertino pop gesture already in progress', (tester) async {
+  testWidgets('us05/fr01: a caller curve steps aside for a Cupertino pop '
+      'gesture already in progress', (tester) async {
     final route = await _push(
       tester,
       type: ScreenTransitionType.cupertino,
@@ -621,6 +621,9 @@ void main() {
       find.ancestor(of: _page, matching: find.byType(SlideTransition)).first,
     );
     expect(slide.position.value.dx, closeTo(0.5, 1e-9));
+    // Not an addTearDown: testWidgets unmounts the tree (binding.dart:1960-
+    // 1963) inside the test body, before Dart's addTearDown queue runs, so
+    // an addTearDown here would call this on an already-disposed Navigator.
     route.navigator!.didStopUserGesture();
   });
 
@@ -721,10 +724,18 @@ void main() {
 
       expect(_page, findsOneWidget);
       expect(_transitionsAbove(tester), isEmpty);
+      expect(route.transitionDuration, Duration.zero);
+      expect(route.reverseTransitionDuration, Duration.zero);
+
+      // Let the push fully settle (R12: zero duration, but this also holds
+      // against the pre-R12 slow level) so the pop below has real distance
+      // to cover, not a no-op reverse from an already-dismissed controller.
+      await tester.pump(route.transitionDuration + const Duration(seconds: 1));
       route.navigator!.pop();
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+
       expect(_transitionsAbove(tester), isEmpty);
+      expect(_page, findsNothing);
     });
 
     testWidgets("fadeThrough fills with the Stratum theme's canvas color", (
@@ -955,6 +966,14 @@ void main() {
         find.ancestor(of: _page, matching: find.byType(RotationTransition)),
       );
       expect(rotation.turns.value, closeTo(quarter, 1e-9));
+      final scale = tester.widget<ScaleTransition>(
+        find.ancestor(of: _page, matching: find.byType(ScaleTransition)),
+      );
+      expect(scale.scale.value, closeTo(quarter, 1e-9));
+      final fade = tester.widget<FadeTransition>(
+        find.ancestor(of: _page, matching: find.byType(FadeTransition)),
+      );
+      expect(fade.opacity.value, closeTo(quarter, 1e-9));
     });
 
     for (final type in [
