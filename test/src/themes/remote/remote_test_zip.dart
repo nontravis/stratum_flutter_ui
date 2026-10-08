@@ -21,6 +21,8 @@ const remoteSchemaLine = r'$schema: stratum-theme/v1.0.0';
 /// - [centralExtra]: the central header's extra field.
 /// - [localAt]: writes no local header; the central header points at this
 ///   offset instead.
+/// - [rawName]: the name's bytes in both headers, in place of [name] in
+///   UTF-8.
 final class ZipEntryFixture {
   new(
     this.name,
@@ -38,6 +40,7 @@ final class ZipEntryFixture {
     this.crc,
     this.centralExtra = const [],
     this.localAt,
+    this.rawName,
   });
 
   final String name;
@@ -55,6 +58,7 @@ final class ZipEntryFixture {
   final int? crc;
   final List<int> centralExtra;
   final int? localAt;
+  final List<int>? rawName;
 
   List<int> get _body => body ?? (deflate ? Deflate(data).getBytes() : data);
 
@@ -66,7 +70,9 @@ final class ZipEntryFixture {
 
   /// This entry's local header followed by its data.
   Uint8List get localBytes {
-    final name = utf8.encode(localName ?? this.name);
+    final name = localName != null
+        ? utf8.encode(localName!)
+        : rawName ?? utf8.encode(this.name);
     final out = BytesBuilder();
     _u32(out, 0x04034b50);
     _u16(out, 20);
@@ -114,7 +120,7 @@ Uint8List buildZip(
   final out = BytesBuilder();
   final central = BytesBuilder();
   for (final entry in entries) {
-    final name = utf8.encode(entry.name);
+    final name = entry.rawName ?? utf8.encode(entry.name);
     final offset = entry.localAt ?? out.length;
     if (entry.localAt == null) out.add(entry.localBytes);
     _u32(central, 0x02014b50);

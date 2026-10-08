@@ -358,9 +358,9 @@ void main() {
           : false,
     );
 
-    test('edge i1, us02/fr01/e10: a POSIX file name holding a control '
-        'character fails as unsafe_entry_path from the writer, not left as '
-        'a stack trace', () async {
+    test('edge i1, us02/fr01/e10, rz2 (c-2): a POSIX file name holding a '
+        'control character fails as unsafe_entry_path with the '
+        'printable-ASCII message, not left as a stack trace', () async {
       final root = _folder('brand', _theme());
       File(p.join(root, 'images', 'a\u0001b.svg')).writeAsStringSync(_svg);
 
@@ -370,8 +370,8 @@ void main() {
       expect(run.out, isEmpty);
       expect(
         run.err.single,
-        r'unsafe_entry_path: entry "images/a\u0001b.svg" is no canonical '
-        'relative path',
+        r'unsafe_entry_path: entry "images/a\u0001b.svg" holds a '
+        'character outside printable ASCII, U+0020 to U+007E',
       );
     });
 
@@ -454,6 +454,26 @@ void main() {
       expect(run.code, exitPass);
       expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isTrue);
     });
+
+    for (final (label, file) in [
+      ('a file name', 'images/é.png'),
+      ('a folder name', 'imagés/logo.png'),
+    ]) {
+      test('us02/fr01/e10, us02/fr03/e14, rz2: $label outside printable '
+          'ASCII fails the pack with one unsafe_entry_path line, no '
+          'defaults line, and no zip', () async {
+        _folder('brand', {..._theme(), file: _svg});
+
+        final run = await _run(['pack', 'brand']);
+
+        expect(run.code, exitFailed);
+        expect(run.out, isEmpty);
+        expect(run.err, hasLength(1));
+        expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
+        expect(run.err.single, contains('outside printable ASCII'));
+        expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
+      });
+    }
 
     test('coverage: on-disk case twins warn, through the real walk, not only '
         'the writer', () async {

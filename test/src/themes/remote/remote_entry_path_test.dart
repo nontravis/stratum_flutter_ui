@@ -67,18 +67,28 @@ void main() {
     }
   }
 
-  test('us01/fr02/e14, r15: printable and non-ASCII text stays safe, a C1 '
-      'control and a format character included', () {
-    for (final path in [
-      'images/a b.png',
-      'images/~.png',
-      'images/é.png',
-      'images/a\u0080b.png',
-      'images/a\u202Eb.png',
-      'fonts/ไทย.ttf',
-    ]) {
-      expect(() => checkEntryPath(path), returnsNormally, reason: path);
-    }
+  for (final (label, path) in [
+    ('an accented letter', 'images/é.png'),
+    ('a C1 control', 'images/a\u0080b.png'),
+    ('a format character', 'images/a\u202Eb.png'),
+    ('a Thai letter', 'fonts/ไทย.ttf'),
+    ('an emoji', 'images/😀.png'),
+    ('a lone surrogate', 'images/a${String.fromCharCode(0xD800)}.png'),
+  ]) {
+    test('us01/s15, us01/fr02/e14, rz2: $label is unsafe_entry_path with '
+        'the path', () {
+      expect(() => checkEntryPath(path), _unsafe(path));
+    });
+  }
+
+  test(r'us01/fr02/e14, rz2: every printable ASCII character but "\" and '
+      '"/" passes in a segment', () {
+    final segment = String.fromCharCodes([
+      for (var unit = 0x20; unit <= 0x7E; unit++)
+        if (unit != 0x5C && unit != 0x2F) unit,
+    ]);
+
+    expect(() => checkEntryPath('a/$segment'), returnsNormally);
   });
 
   for (final type in [0, 0x8000, 0x4000]) {

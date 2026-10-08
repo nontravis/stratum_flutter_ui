@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -309,7 +308,7 @@ final class _Entry {
       at + _centralSize + nameLength,
     );
     return _Entry(
-      name: utf8.decode(nameBytes, allowMalformed: true),
+      name: String.fromCharCodes(nameBytes),
       nameBytes: nameBytes,
       flags: _u16(view, at + 8),
       method: _u16(view, at + 10),
@@ -322,6 +321,9 @@ final class _Entry {
     );
   }
 
+  /// The name read one byte per character (FO-04 US-01 FR-02 E14), so a
+  /// byte of 0x80 or more stays one character, which [checkEntryPath]
+  /// refuses.
   final String name;
   final Uint8List nameBytes;
   final int flags;

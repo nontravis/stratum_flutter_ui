@@ -495,9 +495,11 @@ void main() {
       });
     }
 
-    test('M6: a control-character name reaches the message escaped and the '
-        'path raw', () {
-      const evil = '\u001b[2J\u001b[31mFAKE\u001b[0m\n\u202Exyz/../../x';
+    test('rz2, us01/fr02/e14 (c-2): a path holding U+202E, a format '
+        'character, refuses as unsafe_entry_path with the printable-ASCII '
+        'message, each byte of its UTF-8 printed as its own escape', () {
+      const evil = 'images/a\u202Eb.png';
+      final decoded = String.fromCharCodes(utf8.encode(evil));
       final zip = buildZip([
         ZipEntryFixture('theme.yaml', yaml),
         ZipEntryFixture(evil, [1]),
@@ -507,15 +509,19 @@ void main() {
         () => _read(zip),
         throwsA(
           isA<RemoteThemeFailure>()
-              .having((f) => f.path, 'path', evil)
               .having(
-                (f) => f.toString(),
-                'toString',
+                (f) => f.code,
+                'code',
+                StratumRemoteThemeErrorCode.unsafeEntryPath,
+              )
+              .having((f) => f.path, 'path', decoded)
+              .having(
+                (f) => f.message,
+                'message',
                 allOf(
-                  isNot(contains('\u001b')),
-                  isNot(contains('\n')),
+                  contains('outside printable ASCII'),
+                  contains(r'\u00e2\u0080\u00ae'),
                   isNot(contains('\u202E')),
-                  contains(r'\u001b[2J'),
                 ),
               ),
         ),
@@ -710,6 +716,73 @@ void main() {
       expect(
         () => _read(zip),
         _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'hidden/'),
+      );
+    });
+  });
+
+  group('r17 printable ASCII names', () {
+    List<int> nameWith(List<int> high) => [
+      ...'fonts/'.codeUnits,
+      ...high,
+      ...'.ttf'.codeUnits,
+    ];
+
+    for (final (label, high, flags, escaped) in [
+      ('the overlong c0 8a', [0xC0, 0x8A], 0, r'fonts/\u00c0\u008a.ttf'),
+      (
+        'the surrogate ed a0 80',
+        [0xED, 0xA0, 0x80],
+        0,
+        r'fonts/\u00ed\u00a0\u0080.ttf',
+      ),
+      ('the CP437 byte 9b', [0x9B], 0, r'fonts/\u009b.ttf'),
+      (
+        'the CP437 byte 9b under flags bit 11',
+        [0x9B],
+        0x0800,
+        r'fonts/\u009b.ttf',
+      ),
+    ]) {
+      test('us01/s15, us01/fr02/e14, rz2, r17 (t26): a name holding $label '
+          'is unsafe_entry_path, each byte one character', () {
+        final bytes = nameWith(high);
+        final zip = buildZip([
+          ZipEntryFixture('theme.yaml', yaml),
+          ZipEntryFixture('x', [1], rawName: bytes, flags: flags),
+        ]);
+
+        expect(
+          () => _read(zip),
+          throwsA(
+            isA<RemoteThemeFailure>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  StratumRemoteThemeErrorCode.unsafeEntryPath,
+                )
+                .having((f) => f.path, 'path', String.fromCharCodes(bytes))
+                .having((f) => f.message, 'message', contains(escaped)),
+          ),
+        );
+      });
+    }
+
+    test('us01/fr02/e14, rz2, r17 (t28): two names that differ only in a '
+        'high byte refuse on the first in directory order, never as one '
+        'name held twice', () {
+      final first = [...'__MACOSX/Q'.codeUnits, 0xFF];
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture('a', [1], rawName: first),
+        ZipEntryFixture('b', [2], rawName: [...'__MACOSX/Q'.codeUnits, 0xFE]),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(
+          StratumRemoteThemeErrorCode.unsafeEntryPath,
+          path: String.fromCharCodes(first),
+        ),
       );
     });
   });

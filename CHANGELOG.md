@@ -27,3 +27,8 @@
   `stratum_theme` output line, now ends with `\[cut N chars, id H]` in place of `...`: N is the text's length in
   UTF-16 code units and H the first 32 hex digits of its SHA-256, so two long texts that differ only past the cut
   print differently. A test or a log parser that matched the old `...` needs the new form.
+- Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse a zip entry name holding any
+  character outside printable ASCII, U+0020 to U+007E, whatever the zip's UTF-8 flag says: an accented or Thai
+  letter, or a byte another zip tool would decode another way, is `unsafe_entry_path`, and `pack` refuses such a file
+  or folder name before it writes anything. A zip an app already keeps that breaks this rule, or any rule of this
+  release, now fails at preload, which skips it and calls `onRemoteThemeError` with its id and the error.
