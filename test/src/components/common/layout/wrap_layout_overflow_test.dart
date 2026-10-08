@@ -258,6 +258,11 @@ double _height(WidgetTester tester) =>
 /// [Curves.easeInOutSine] at half time: the midpoint of a size move.
 final double _mid = Curves.easeInOutSine.transform(0.5);
 
+/// The rect of the widget keyed [key], from the top left of the one wrap.
+Rect _rectIn(WidgetTester tester, String key) => tester
+    .getRect(find.byKey(ValueKey(key)))
+    .shift(-tester.getTopLeft(find.byType(WrapOverflowFrame)));
+
 void main() {
   group('WrapLayout overflow (US-14)', () {
     testWidgets(
@@ -1642,6 +1647,121 @@ void main() {
         expect(_height(tester), 72);
         expect(tester.binding.transientCallbackCount, 0);
         expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04: under IntrinsicHeight an expand neither asserts nor sticks '
+      'at the old size',
+      (tester) async {
+        Widget build(int? maxRuns) => themedHost(
+          SizedBox(
+            width: 230,
+            child: IntrinsicHeight(
+              child: _wrap(maxRuns: maxRuns, children: _tags(12)),
+            ),
+          ),
+        );
+        await tester.pumpWidget(build(2));
+        expect(_height(tester), 46);
+
+        await tester.pumpWidget(build(null));
+        expect(tester.takeException(), isNull);
+        await tester.pumpAndSettle();
+
+        expect(_height(tester), 72);
+        expect(_shownTags(), [for (var i = 0; i < 12; i++) i]);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04: between a limit change and its layout, dry layout returns '
+      'the size shown now and the cross-axis intrinsic the target',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Expandable()));
+        final wrap = tester.renderObject<RenderBox>(
+          find.byType(WrapOverflowFrame),
+        );
+
+        expandable(tester).set(expanded: true);
+        // Builds the limit change into the render object, before its layout.
+        tester.binding.buildOwner!.buildScope(tester.binding.rootElement!);
+        expect(wrap.debugNeedsLayout, isTrue);
+
+        expect(wrap.getDryLayout(wrap.constraints), const Size(230, 46));
+        expect(wrap.getMaxIntrinsicHeight(230), 72);
+        expect(wrap.getMinIntrinsicHeight(230), 72);
+
+        await tester.pump();
+        expect(_height(tester), 46);
+        await tester.pumpAndSettle();
+        expect(_height(tester), 72);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04, us14/fr01/e07: an upward wrap keeps its first run on its '
+      'bottom edge while an expand moves the size',
+      (tester) async {
+        Widget build(int? maxRuns) => themedHost(
+          SizedBox(
+            width: 230,
+            child: WrapLayout(
+              gap: 10,
+              runGap: 6,
+              maxRuns: maxRuns,
+              verticalDirection: VerticalDirection.up,
+              overflowBuilder: _more,
+              children: _tags(12),
+            ),
+          ),
+        );
+        await tester.pumpWidget(build(2));
+        final before = _rectIn(tester, 'tag 0');
+        expect(before, const Rect.fromLTWH(0, 26, 40, 20));
+
+        await tester.pumpWidget(build(null));
+        expect(_rectIn(tester, 'tag 0'), before, reason: 'first frame');
+
+        await tester.pump(const Duration(microseconds: 62500));
+        expect(_height(tester), moreOrLessEquals(46 + 26 * _mid));
+        expect(
+          _rectIn(tester, 'tag 0').bottom,
+          moreOrLessEquals(_height(tester)),
+          reason: 'mid-move',
+        );
+      },
+    );
+
+    testWidgets(
+      'us14/fr04, us14/fr01/e07: a right-to-left wrap keeps its first run on '
+      'its right edge while an expand moves the size',
+      (tester) async {
+        Widget build(int? maxRuns) => themedHost(
+          SizedBox(
+            width: 230,
+            child: Align(
+              alignment: AlignmentDirectional.topStart,
+              child: _wrap(maxRuns: maxRuns, children: _tags(12)),
+            ),
+          ),
+          textDirection: TextDirection.rtl,
+        );
+        await tester.pumpWidget(build(2));
+        final before = _rectIn(tester, 'tag 0');
+        expect(before, const Rect.fromLTWH(190, 0, 40, 20));
+
+        await tester.pumpWidget(build(null));
+        expect(_rectIn(tester, 'tag 0'), before, reason: 'first frame');
+
+        await tester.pump(const Duration(microseconds: 62500));
+        final width = tester.getSize(find.byType(WrapOverflowFrame)).width;
+        expect(width, moreOrLessEquals(230 - 40 * _mid));
+        expect(
+          _rectIn(tester, 'tag 0').right,
+          moreOrLessEquals(width),
+          reason: 'mid-move',
+        );
       },
     );
   });

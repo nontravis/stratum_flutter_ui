@@ -134,6 +134,9 @@ class _WrapOverflow extends RenderObjectWidget {
   /// The wrap's own node, which takes focus when no node after a collapse
   /// or an expand can.
   final FocusNode wrapNode;
+
+  /// Drives the size move: the frame's own [State], the same for the
+  /// render object's whole life.
   final TickerProvider vsync;
 
   /// How long a size move takes: the theme's default level, zero under
@@ -705,7 +708,6 @@ class _RenderWrapOverflow extends RenderBox
   new(_WrapOverflow widget)
     : _frame = widget.frame,
       _textDirection = widget.textDirection,
-      _vsync = widget.vsync,
       _duration = widget.duration,
       _curve = widget.curve,
       _controller = AnimationController(vsync: widget.vsync) {
@@ -717,13 +719,18 @@ class _RenderWrapOverflow extends RenderBox
 
   WrapOverflowFrame _frame;
   TextDirection? _textDirection;
-  TickerProvider _vsync;
   final AnimationController _controller;
   Duration _duration;
   Curve _curve;
 
   /// Whether the last [configure] changed `maxRuns` or `maxChildren`.
   bool _limitsChanged = false;
+
+  /// The size the last layout gave the frame, null before the first:
+  /// [computeDryLayout] reads it, since it must not read [size]
+  /// (`rendering/box.dart:2276-2286`, Flutter 3.47.3), as
+  /// `RenderAnimatedSize` keeps `_currentSize`.
+  Size? _lastSize;
 
   /// The ends of the size move under way; null once a layout ends it, so a
   /// non-null [_from] marks a move a [detach] may have stopped.
@@ -749,10 +756,6 @@ class _RenderWrapOverflow extends RenderBox
     }
     _frame = frame;
     _textDirection = widget.textDirection;
-    if (widget.vsync != _vsync) {
-      _vsync = widget.vsync;
-      _controller.resync(widget.vsync);
-    }
     _duration = widget.duration;
     _curve = widget.curve;
     // Reduced motion that turns on mid-move ends the move in this layout
@@ -763,22 +766,54 @@ class _RenderWrapOverflow extends RenderBox
 
   RenderBox? _overflow;
   RenderBox? get overflow => _overflow;
-  set overflow(RenderBox? value) {
+  set overflow(RenderBox? value) => _swapSlot(() {
     final old = _overflow;
     if (old != null) dropChild(old);
     _overflow = value;
     if (value != null) adoptChild(value);
-  }
+  });
 
   /// The probe (owner ruling R8): measures a candidate hidden count, laid
   /// out but never painted, hit tested, or exposed to semantics.
   RenderBox? _probe;
   RenderBox? get probe => _probe;
-  set probe(RenderBox? value) {
+  set probe(RenderBox? value) => _swapSlot(() {
     final old = _probe;
     if (old != null) dropChild(old);
     _probe = value;
     if (value != null) adoptChild(value);
+  });
+
+  /// Whether [performLayout] runs.
+  bool _inLayout = false;
+
+  /// Whether [_swapSlot] adopts or drops a child inside [performLayout].
+  bool _swappingInLayout = false;
+
+  /// Runs [swap], an adopt or a drop of the overflow child or the probe.
+  ///
+  /// Inside this frame's own layout, which builds both, the
+  /// `markNeedsLayout` that `adoptChild` and `dropChild` call is skipped:
+  /// the layout under way lays the child out, and neither child takes part
+  /// in the dry layout, the intrinsic sizes, or the dry baseline, so the
+  /// cached ones stay valid. [RenderBox.markNeedsLayout] would empty them,
+  /// and since it marks the parent only while they hold an entry
+  /// (`rendering/box.dart:2840-2860`, Flutter 3.47.3), an intrinsic parent
+  /// such as [IntrinsicHeight] would miss the next limit change.
+  void _swapSlot(VoidCallback swap) {
+    _swappingInLayout = _inLayout;
+    try {
+      swap();
+    } finally {
+      _swappingInLayout = false;
+    }
+  }
+
+  /// Skips the relayout an in-layout [_swapSlot] asks for; see there.
+  @override
+  void markNeedsLayout() {
+    if (_swappingInLayout) return;
+    super.markNeedsLayout();
   }
 
   /// The children the last layout showed, then the overflow child.
@@ -922,6 +957,16 @@ class _RenderWrapOverflow extends RenderBox
 
   @override
   void performLayout() {
+    _inLayout = true;
+    try {
+      _layOut();
+    } finally {
+      _inLayout = false;
+    }
+  }
+
+  /// Builds and measures the children, cuts them, and places the cut.
+  void _layOut() {
     runLayoutCallback();
     final childConstraints = _childConstraints(constraints);
     var measured = _measure(childConstraints);
@@ -1033,7 +1078,9 @@ class _RenderWrapOverflow extends RenderBox
     ], overflow?.size);
     final content = _extentOf(runs);
     final box = constraints.constrain(content);
-    size = _animatedSize(box);
+    final shown = _animatedSize(box);
+    size = shown;
+    _lastSize = shown;
     _hasVisualOverflow =
         box.width < content.width || box.height < content.height;
     RenderBox itemAt(int item) => item < 0 ? overflow! : children[item];
@@ -1047,11 +1094,13 @@ class _RenderWrapOverflow extends RenderBox
     for (final child in _shownBoxes) {
       (child.parentData! as _WrapOverflowParentData).shown = true;
     }
+    final anchor = _anchor(box, shown);
     _positionItems(runs, box, content, (item) => itemAt(item).size, (
       item,
       offset,
     ) {
-      (itemAt(item).parentData! as _WrapOverflowParentData).offset = offset;
+      (itemAt(item).parentData! as _WrapOverflowParentData).offset =
+          offset + anchor;
     });
   }
 
@@ -1065,14 +1114,15 @@ class _RenderWrapOverflow extends RenderBox
     final starts = _startsMove(target);
     _limitsChanged = false;
     if (starts) {
-      _from = size;
+      final from = _lastSize!;
+      _from = from;
       _to = target;
       _controller.duration = _duration;
       // Set before the restart: forward(from: 0) notifies at once, inside
       // this layout, and _tick must not mark it dirty.
       _lastValue = 0;
       _controller.forward(from: 0);
-      return constraints.constrain(size);
+      return constraints.constrain(from);
     }
     final shown = _movingSize(target, constraints);
     if (shown == null) {
@@ -1085,17 +1135,45 @@ class _RenderWrapOverflow extends RenderBox
 
   /// Whether a layout to [target] starts a size move: a limit changed
   /// since the last layout, the size changes, and motion is not reduced.
-  bool _startsMove(Size target) =>
-      _limitsChanged && hasSize && size != target && _duration > Duration.zero;
+  bool _startsMove(Size target) {
+    final last = _lastSize;
+    return _limitsChanged &&
+        last != null &&
+        last != target &&
+        _duration > Duration.zero;
+  }
 
   /// The size the move under way shows under [constraints] while its end
   /// is still [target]; null when no move is under way or it ends.
-  /// Writes no state, so [computeDryLayout] shares it.
   Size? _movingSize(Size target, BoxConstraints constraints) {
     final from = _from;
     if (!_controller.isAnimating || from == null || target != _to) return null;
     final t = _curve.transform(_controller.value);
     return constraints.constrain(Size.lerp(from, target, t)!);
+  }
+
+  /// The size a layout under [constraints] shows for [target], read
+  /// without writing any state, for [computeDryLayout] and
+  /// [computeDryBaseline]: the size shown now when the layout would start
+  /// a move, the move under way, else [target].
+  Size _dryShown(Size target, BoxConstraints constraints) {
+    if (_startsMove(target)) return constraints.constrain(_lastSize!);
+    return _movingSize(target, constraints) ?? target;
+  }
+
+  /// The shift of content placed in [box] while the frame shows [shown]:
+  /// on each axis the directions flip, the whole difference, so the
+  /// content stays on the wrap's start edge, the edge its first run starts
+  /// from (the bottom under [VerticalDirection.up], the right under
+  /// right-to-left text), and no run jumps when a move starts (US-14
+  /// FR-04, FR-01 E07); zero once the move ends.
+  Offset _anchor(Size box, Size shown) {
+    final rtl = (_textDirection ?? TextDirection.ltr) == TextDirection.rtl;
+    final up = _frame.verticalDirection == VerticalDirection.up;
+    return Offset(
+      rtl ? shown.width - box.width : 0,
+      up ? shown.height - box.height : 0,
+    );
   }
 
   /// `RenderWrap._positionChildren` (`rendering/wrap.dart:772-839`): walks
@@ -1151,16 +1229,21 @@ class _RenderWrapOverflow extends RenderBox
   /// as `RenderAnimatedSize.computeDryLayout` reads its move
   /// (`rendering/animated_size.dart`, Flutter 3.47.3).
   @override
-  Size computeDryLayout(covariant BoxConstraints constraints) {
+  Size computeDryLayout(covariant BoxConstraints constraints) =>
+      _dryShown(_dryTarget(constraints), constraints);
+
+  /// The size the cut's runs take under [constraints] once no move runs:
+  /// the target of a move, and what the intrinsic sizes measure, so an
+  /// intrinsic parent sizes the frame to where it lands, as
+  /// `RenderAnimatedSize` reports its child's intrinsics.
+  Size _dryTarget(BoxConstraints constraints) {
     final childConstraints = _childConstraints(constraints);
     final sizes = [
       for (final child in getChildrenAsList())
         child.getDryLayout(childConstraints),
     ];
     final cut = _cutOf(sizes, constraints);
-    final target = constraints.constrain(_extentOf(_runsOf(cut, sizes, null)));
-    if (_startsMove(target)) return constraints.constrain(size);
-    return _movingSize(target, constraints) ?? target;
+    return constraints.constrain(_extentOf(_runsOf(cut, sizes, null)));
   }
 
   /// `RenderWrap.computeDryBaseline` (`rendering/wrap.dart:617-648`): the
@@ -1180,13 +1263,15 @@ class _RenderWrapOverflow extends RenderBox
     final runs = _runsOf(cut, sizes, null);
     final content = _extentOf(runs);
     final box = constraints.constrain(content);
+    final anchor = _anchor(box, _dryShown(box, constraints));
     var result = BaselineOffset.noBaseline;
     _positionItems(runs, box, content, (item) => sizes[item], (item, offset) {
       result = result.minOf(
         BaselineOffset(
               children[item].getDryBaseline(childConstraints, baseline),
             ) +
-            offset.dy,
+            offset.dy +
+            anchor.dy,
       );
     });
     return result.offset;
@@ -1213,7 +1298,7 @@ class _RenderWrapOverflow extends RenderBox
           (width, child) =>
               math.max(width, child.getMinIntrinsicWidth(double.infinity)),
         )
-      : getDryLayout(BoxConstraints(maxHeight: height)).width;
+      : _dryTarget(BoxConstraints(maxHeight: height)).width;
 
   @override
   double computeMaxIntrinsicWidth(double height) => _horizontal
@@ -1221,11 +1306,11 @@ class _RenderWrapOverflow extends RenderBox
           0,
           (width, child) => width + child.getMaxIntrinsicWidth(double.infinity),
         )
-      : getDryLayout(BoxConstraints(maxHeight: height)).width;
+      : _dryTarget(BoxConstraints(maxHeight: height)).width;
 
   @override
   double computeMinIntrinsicHeight(double width) => _horizontal
-      ? getDryLayout(BoxConstraints(maxWidth: width)).height
+      ? _dryTarget(BoxConstraints(maxWidth: width)).height
       : _first(_oneRunEach).fold(
           0,
           (height, child) =>
@@ -1234,7 +1319,7 @@ class _RenderWrapOverflow extends RenderBox
 
   @override
   double computeMaxIntrinsicHeight(double width) => _horizontal
-      ? getDryLayout(BoxConstraints(maxWidth: width)).height
+      ? _dryTarget(BoxConstraints(maxWidth: width)).height
       : _first(_frame.maxChildren).fold(
           0,
           (height, child) =>
