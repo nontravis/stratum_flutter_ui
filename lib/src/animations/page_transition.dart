@@ -108,12 +108,12 @@ class PageTransition<T> extends PageRouteBuilder<T> {
   /// Alignment for transitions
   final Alignment? alignment;
 
-  /// The push duration; null takes the theme's `slow` level, 300 ms in the
-  /// package default.
+  /// The push duration; null takes zero for `none` (ruling R12), else the
+  /// theme's `slow` level, 300 ms in the package default.
   final Duration? duration;
 
-  /// The pop duration; null takes the theme's `slow` level reverse, 192 ms
-  /// in the package default.
+  /// The pop duration; null takes zero for `none` (ruling R12), else the
+  /// theme's `slow` level reverse, 192 ms in the package default.
   final Duration? reverseDuration;
 
   /// Context for inherit theme
@@ -143,9 +143,10 @@ class PageTransition<T> extends PageRouteBuilder<T> {
     childCurrent: childCurrent,
   );
 
-  /// [duration], else the Flutter builder's for `platform` and `cupertino`,
-  /// else the `slow` level of the theme above the navigator, else the
-  /// package default's (spec G21).
+  /// [duration], else zero for `none` (ruling R12), else the Flutter
+  /// builder's for `platform` and `cupertino`, else the `slow` level of
+  /// the theme above the navigator, else the package default's (spec
+  /// G21).
   @override
   Duration get transitionDuration =>
       duration ??
@@ -155,8 +156,9 @@ class PageTransition<T> extends PageRouteBuilder<T> {
         slowOf(navigator?.context),
       );
 
-  /// [reverseDuration], else the Flutter builder's for `platform` and
-  /// `cupertino`, else the `slow` level's reverse duration.
+  /// [reverseDuration], else zero for `none` (ruling R12), else the
+  /// Flutter builder's for `platform` and `cupertino`, else the `slow`
+  /// level's reverse duration.
   @override
   Duration get reverseTransitionDuration =>
       reverseDuration ??
