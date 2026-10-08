@@ -65,8 +65,9 @@ void main() {
     transitions: transitionsOf(ScreenTransitionType.fade),
   );
 
-  testWidgets('us05/fr05/e01, us05/fr04/e03, us05/s9: the page shows its '
-      "own type over the theme's", (tester) async {
+  testWidgets("us05/s9: the page shows its own type over the theme's", (
+    tester,
+  ) async {
     await _open(tester, fadeTheme, ScreenTransitionType.rightToLeft);
 
     expect(_above(SlideTransition), findsOneWidget);

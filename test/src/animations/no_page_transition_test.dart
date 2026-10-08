@@ -39,8 +39,8 @@ void main() {
     expect(route.reverseTransitionDuration, Duration.zero);
   });
 
-  testWidgets('us05/fr02, us05/s3: the page shows in the next frame with '
-      'no transition', (tester) async {
+  testWidgets('us05/s3: the page shows in the next frame with no '
+      'transition', (tester) async {
     await _push(tester);
 
     expect(_page, findsOneWidget);

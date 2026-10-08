@@ -445,8 +445,8 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr01/e02, us05/s5: a joined type with no '
-      'childCurrent fails an assertion naming childCurrent', (tester) async {
+  testWidgets('us05/s5: a joined type with no childCurrent fails an '
+      'assertion naming childCurrent', (tester) async {
     await _push(tester, type: ScreenTransitionType.rightToLeftJoined);
 
     expect(

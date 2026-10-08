@@ -379,8 +379,26 @@ void main() {
       );
     });
 
-    testWidgets('us05/fr04/e04, us05/s6, us08/s3: the '
-        'default theme gives the iOS slide and its swipe-back', (tester) async {
+    testWidgets('us05/s6: the default theme gives the iOS slide and its '
+        'swipe-back', (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(app(navigator, defaultThemeSet.light));
+      await push(tester, navigator);
+
+      expect(above(CupertinoPageTransition), findsOneWidget);
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(const Offset(5, 300));
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('page')), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('us08/s3: a plain Material page enters with the active '
+        "theme's iOS slide and its swipe-back", (tester) async {
       final navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(app(navigator, defaultThemeSet.light));
       await push(tester, navigator);
@@ -472,8 +490,8 @@ void main() {
       expect(above(FadeTransition), findsNothing);
     });
 
-    testWidgets('us05/fr01/e05, us05/fr04/e03, us05/s8: a '
-        "PageTransition shows its own type over the theme's", (tester) async {
+    testWidgets('us05/s8: a PageTransition shows its own type over the '
+        "theme's", (tester) async {
       final navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(
         app(

@@ -94,8 +94,8 @@ void main() {
     expect(_above('page', FadeTransition), findsNothing);
   });
 
-  testWidgets('us05/fr04/e01, us05/s11: no scope above takes the '
-      "window's size and never throws", (tester) async {
+  testWidgets("us05/s11: no scope above takes the window's size and never "
+      'throws', (tester) async {
     _window(tester, const Size(400, 800));
     final navigator = GlobalKey<NavigatorState>();
     await tester.pumpWidget(_app(navigator, fadeMobileSlideDesktop));
@@ -258,8 +258,9 @@ void main() {
     ),
     ('reduceMotion', null),
   ]) {
-    testWidgets('us05/s10, nfr-u03: under $signal fadeThrough fades '
-        'with no scale', (tester) async {
+    testWidgets('us05/s10: under $signal fadeThrough fades with no scale', (
+      tester,
+    ) async {
       if (reduce == null) {
         tester.platformDispatcher.accessibilityFeaturesTestValue =
             const FakeAccessibilityFeatures(reduceMotion: true);

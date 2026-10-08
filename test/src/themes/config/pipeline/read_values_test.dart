@@ -718,6 +718,14 @@ typography:
             '"cubic(a, b, c, d)", got "{animation.curve.enter}" '
             '[expected_curve]',
       ),
+    ];
+    for (final (name, body, expected) in cases) {
+      test('reports $name', () {
+        expect(_problems(body), [expected]);
+      });
+    }
+
+    final transitionCases = <(String, String, String)>[
       (
         'an unknown transition type',
         'animation:\n  transition:\n    desktop: slideUp',
@@ -740,8 +748,8 @@ typography:
             '[expected_transition]',
       ),
     ];
-    for (final (name, body, expected) in cases) {
-      test('reports $name', () {
+    for (final (name, body, expected) in transitionCases) {
+      test('us01/fr01/e11: reports $name', () {
         expect(_problems(body), [expected]);
       });
     }
