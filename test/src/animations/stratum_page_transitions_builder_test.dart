@@ -178,7 +178,7 @@ void main() {
     );
   });
 
-  test('R12: none takes zero push and pop durations in every route', () {
+  test('us05/fr01: none takes zero push and pop durations in every route', () {
     final motion = _motion(transitionsOf(ScreenTransitionType.none));
     final builder = StratumPageTransitionsBuilder(
       motion: motion,
@@ -189,55 +189,52 @@ void main() {
     expect(builder.reverseTransitionDuration, Duration.zero);
   });
 
-  testWidgets(
-    "FR-04 E04 (Important 1): platform delegates the Flutter builder's "
-    'own delegated transition, so a route below parallaxes',
-    (tester) async {
-      final motion = _motion(transitionsOf(ScreenTransitionType.platform));
-      final navigator = GlobalKey<NavigatorState>();
-      await tester.pumpWidget(
-        MaterialApp(
-          navigatorKey: navigator,
-          theme: ThemeData(
-            platform: TargetPlatform.iOS,
-            pageTransitionsTheme: PageTransitionsTheme(
-              builders: {
-                TargetPlatform.iOS: StratumPageTransitionsBuilder(
-                  motion: motion,
-                  platform: TargetPlatform.iOS,
-                ),
-              },
-            ),
+  testWidgets("us05/fr04/e04: platform delegates the Flutter builder's own "
+      'delegated transition, so a route below parallaxes', (tester) async {
+    final motion = _motion(transitionsOf(ScreenTransitionType.platform));
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigator,
+        theme: ThemeData(
+          platform: TargetPlatform.iOS,
+          pageTransitionsTheme: PageTransitionsTheme(
+            builders: {
+              TargetPlatform.iOS: StratumPageTransitionsBuilder(
+                motion: motion,
+                platform: TargetPlatform.iOS,
+              ),
+            },
           ),
-          home: const SizedBox(key: ValueKey('home')),
         ),
-      );
-      navigator.currentState!
-          .push(
-            PageTransition<void>(
-              type: ScreenTransitionType.platform,
-              child: const SizedBox(key: ValueKey('lower')),
-            ),
-          )
-          .ignore();
-      await tester.pumpAndSettle();
+        home: const SizedBox(key: ValueKey('home')),
+      ),
+    );
+    navigator.currentState!
+        .push(
+          PageTransition<void>(
+            type: ScreenTransitionType.platform,
+            child: const SizedBox(key: ValueKey('lower')),
+          ),
+        )
+        .ignore();
+    await tester.pumpAndSettle();
 
-      navigator.currentState!
-          .push(
-            MaterialPageRoute<void>(
-              builder: (_) => const SizedBox(key: ValueKey('upper')),
-            ),
-          )
-          .ignore();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+    navigator.currentState!
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => const SizedBox(key: ValueKey('upper')),
+          ),
+        )
+        .ignore();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
-      final slides = tester
-          .widgetList<SlideTransition>(_above('lower', SlideTransition))
-          .map((slide) => slide.position.value.dx);
-      expect(slides.any((dx) => dx < 0), isTrue);
-    },
-  );
+    final slides = tester
+        .widgetList<SlideTransition>(_above('lower', SlideTransition))
+        .map((slide) => slide.position.value.dx);
+    expect(slides.any((dx) => dx < 0), isTrue);
+  });
 
   test('us05/fr04/e02 (R5): no view classifies as mobile', () {
     expect(windowSizeOfView(null), WindowSize.mobile);

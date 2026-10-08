@@ -1,3 +1,5 @@
+import 'package:animations/animations.dart'
+    show FadeThroughTransition, SharedAxisTransition;
 import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/animations/stratum_page_transitions_builder.dart';
@@ -491,6 +493,34 @@ void main() {
       expect(above(SlideTransition), findsOneWidget);
       expect(above(FadeTransition), findsNothing);
     });
+
+    for (final type in [
+      ScreenTransitionType.fadeThrough,
+      ScreenTransitionType.sharedAxisHorizontal,
+    ]) {
+      testWidgets('us05/fr01: ${type.name} of a dark theme fills with its '
+          "canvas color, not Flutter's fallback", (tester) async {
+        final dark = defaultThemeSet.dark!;
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(
+          app(
+            navigator,
+            motionTheme(theme: dark, transitions: transitionsOf(type)),
+          ),
+        );
+        await push(tester, navigator);
+
+        final fill = type == ScreenTransitionType.fadeThrough
+            ? tester
+                  .widget<FadeThroughTransition>(above(FadeThroughTransition))
+                  .fillColor
+            : tester
+                  .widget<SharedAxisTransition>(above(SharedAxisTransition))
+                  .fillColor;
+        expect(fill, _material(dark).canvasColor);
+        expect(fill, isNot(ThemeData.fallback().canvasColor));
+      });
+    }
 
     testWidgets("a theme switch gives the next page the new theme's type", (
       tester,

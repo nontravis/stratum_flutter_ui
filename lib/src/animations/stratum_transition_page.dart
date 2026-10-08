@@ -62,12 +62,18 @@ class _StratumTransitionPageRoute<T> extends PageRoute<T> {
     slowOf(navigator?.context),
   );
 
+  /// [StratumTransitionPage.child] in a route scope, as a [MaterialPage]'s
+  /// route gives it, so a screen reader announces the new page's name.
   @override
   Widget buildPage(
     BuildContext context,
     Animation<double> animation,
     Animation<double> secondaryAnimation,
-  ) => _page.child;
+  ) => Semantics(
+    scopesRoute: true,
+    explicitChildNodes: true,
+    child: _page.child,
+  );
 
   /// [StratumTransitionPage.type]'s transition. A type that needs a caller
   /// input gets one (ruling R10): the center for `scale`, `rotate`, and

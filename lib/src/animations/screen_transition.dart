@@ -113,7 +113,8 @@ Widget buildScreenTransition<T>(
 }) {
   final resolved = curve ?? standard;
   final reduced = reducesMotion(context);
-  final curved = animation.drive(CurveTween(curve: resolved));
+  final tween = _curveTweenOf(resolved);
+  final curved = animation.drive(tween);
   switch (type) {
     case ScreenTransitionType.fade:
       return FadeTransition(opacity: curved, child: child);
@@ -121,40 +122,22 @@ Widget buildScreenTransition<T>(
     case ScreenTransitionType.rightToLeft:
       if (reduced) return _atOnce(route, animation, child);
       return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(1, 0),
-          end: Offset.zero,
-        ).animate(curved),
+        position: _fromRight.animate(curved),
         child: child,
       );
 
     case ScreenTransitionType.leftToRight:
       if (reduced) return _atOnce(route, animation, child);
-      return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(-1, 0),
-          end: Offset.zero,
-        ).animate(curved),
-        child: child,
-      );
+      return SlideTransition(position: _fromLeft.animate(curved), child: child);
 
     case ScreenTransitionType.topToBottom:
       if (reduced) return _atOnce(route, animation, child);
-      return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, -1),
-          end: Offset.zero,
-        ).animate(curved),
-        child: child,
-      );
+      return SlideTransition(position: _fromTop.animate(curved), child: child);
 
     case ScreenTransitionType.bottomToTop:
       if (reduced) return _atOnce(route, animation, child);
       return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 1),
-          end: Offset.zero,
-        ).animate(curved),
+        position: _fromBottom.animate(curved),
         child: child,
       );
 
@@ -191,20 +174,12 @@ Widget buildScreenTransition<T>(
       if (reduced) {
         return FadeTransition(opacity: curved, child: child);
       }
+      final slide = _fromRight.animate(curved);
       return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(1.0, 0.0),
-          end: Offset.zero,
-        ).animate(curved),
+        position: slide,
         child: FadeTransition(
           opacity: curved,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1, 0),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          ),
+          child: SlideTransition(position: slide, child: child),
         ),
       );
 
@@ -212,20 +187,12 @@ Widget buildScreenTransition<T>(
       if (reduced) {
         return FadeTransition(opacity: curved, child: child);
       }
+      final slide = _fromLeft.animate(curved);
       return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(-1.0, 0.0),
-          end: Offset.zero,
-        ).animate(curved),
+        position: slide,
         child: FadeTransition(
           opacity: curved,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(-1, 0),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          ),
+          child: SlideTransition(position: slide, child: child),
         ),
       );
 
@@ -235,9 +202,9 @@ Widget buildScreenTransition<T>(
         return _joinedOnSecondary(
           animation: animation,
           secondaryAnimation: secondaryAnimation,
-          curve: resolved,
-          incoming: const Offset(1, 0),
-          outgoing: const Offset(-1, 0),
+          tween: tween,
+          incoming: _fromRight,
+          outgoing: _toLeft,
           child: child,
         );
       }
@@ -253,19 +220,10 @@ Widget buildScreenTransition<T>(
       return Stack(
         children: <Widget>[
           SlideTransition(
-            position: Tween<Offset>(
-              begin: Offset.zero,
-              end: const Offset(-1.0, 0.0),
-            ).animate(curved),
+            position: _toLeft.animate(curved),
             child: childCurrent,
           ),
-          SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1.0, 0.0),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          ),
+          SlideTransition(position: _fromRight.animate(curved), child: child),
         ],
       );
 
@@ -275,9 +233,9 @@ Widget buildScreenTransition<T>(
         return _joinedOnSecondary(
           animation: animation,
           secondaryAnimation: secondaryAnimation,
-          curve: resolved,
-          incoming: const Offset(-1, 0),
-          outgoing: const Offset(1, 0),
+          tween: tween,
+          incoming: _fromLeft,
+          outgoing: _toRight,
           child: child,
         );
       }
@@ -291,18 +249,9 @@ Widget buildScreenTransition<T>(
       if (reduced) return _atOnce(route, animation, child);
       return Stack(
         children: <Widget>[
+          SlideTransition(position: _fromLeft.animate(curved), child: child),
           SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(-1.0, 0.0),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          ),
-          SlideTransition(
-            position: Tween<Offset>(
-              begin: Offset.zero,
-              end: const Offset(1.0, 0.0),
-            ).animate(curved),
+            position: _toRight.animate(curved),
             child: childCurrent,
           ),
         ],
@@ -350,7 +299,7 @@ Widget buildScreenTransition<T>(
         route,
         context,
         curved,
-        secondaryAnimation.drive(CurveTween(curve: resolved)),
+        secondaryAnimation.drive(tween),
         child,
       );
     case ScreenTransitionType.sharedAxisHorizontal ||
@@ -370,7 +319,7 @@ Widget buildScreenTransition<T>(
         route,
         context,
         curved,
-        secondaryAnimation.drive(CurveTween(curve: resolved)),
+        secondaryAnimation.drive(tween),
         child,
       );
   }
@@ -485,28 +434,41 @@ Animation<double> _onCallerCurve(
   required bool gesture,
 }) => curve == null || gesture
     ? animation
-    : animation.drive(CurveTween(curve: curve));
+    : animation.drive(_curveTweenOf(curve));
 
 /// A joined slide for a route with no current page: this route's page
-/// comes in from [incoming] by [animation] and leaves toward [outgoing] by
-/// [secondaryAnimation] while the next route covers it (ruling R10).
+/// comes in by [incoming] on [animation] and leaves by [outgoing] on
+/// [secondaryAnimation], both through [tween], while the next route covers
+/// it (ruling R10).
 Widget _joinedOnSecondary({
   required Animation<double> animation,
   required Animation<double> secondaryAnimation,
-  required Curve curve,
-  required Offset incoming,
-  required Offset outgoing,
+  required CurveTween tween,
+  required Tween<Offset> incoming,
+  required Tween<Offset> outgoing,
   required Widget child,
 }) => SlideTransition(
-  position: Tween<Offset>(
-    begin: Offset.zero,
-    end: outgoing,
-  ).animate(secondaryAnimation.drive(CurveTween(curve: curve))),
+  position: outgoing.animate(secondaryAnimation.drive(tween)),
   child: SlideTransition(
-    position: Tween<Offset>(
-      begin: incoming,
-      end: Offset.zero,
-    ).animate(animation.drive(CurveTween(curve: curve))),
+    position: incoming.animate(animation.drive(tween)),
     child: child,
   ),
 );
+
+/// The constant slides of [buildScreenTransition], built once rather than
+/// on every frame of a transition, as Flutter's own transitions keep
+/// theirs.
+final _fromRight = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero);
+final _fromLeft = Tween<Offset>(begin: const Offset(-1, 0), end: Offset.zero);
+final _fromTop = Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero);
+final _fromBottom = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero);
+final _toLeft = Tween<Offset>(begin: Offset.zero, end: const Offset(-1, 0));
+final _toRight = Tween<Offset>(begin: Offset.zero, end: const Offset(1, 0));
+
+/// The one [CurveTween] of each curve: a route rebuilds its transition on
+/// every frame, and its curve stays the same through it.
+final _curveTweens = Expando<CurveTween>('curveTweens');
+
+/// [curve]'s [CurveTween], built on its first use.
+CurveTween _curveTweenOf(Curve curve) =>
+    _curveTweens[curve] ??= CurveTween(curve: curve);

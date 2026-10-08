@@ -122,6 +122,19 @@ class PageTransition<T> extends PageRouteBuilder<T> {
   /// Optional inherit theme
   final bool inheritTheme;
 
+  /// [child] in a route scope, as a [MaterialPageRoute] gives its page, so
+  /// a screen reader announces the new page's name.
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) => Semantics(
+    scopesRoute: true,
+    explicitChildNodes: true,
+    child: super.buildPage(context, animation, secondaryAnimation),
+  );
+
   /// [type]'s transition (US-05 FR-01, FR-03), by the one function every
   /// route of US-05 shares.
   @override

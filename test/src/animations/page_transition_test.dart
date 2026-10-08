@@ -45,6 +45,7 @@ Future<PageTransition<void>> _push(
   StratumThemeData? theme,
   ScreenTransitionType type = ScreenTransitionType.fade,
   Duration? duration,
+  Duration? reverseDuration,
   Curve? curve,
   Widget child = const SizedBox(),
   Widget? childCurrent,
@@ -58,6 +59,7 @@ Future<PageTransition<void>> _push(
   final route = PageTransition<void>(
     type: type,
     duration: duration,
+    reverseDuration: reverseDuration,
     curve: curve,
     child: child,
     childCurrent: childCurrent,
@@ -738,6 +740,29 @@ void main() {
       expect(_page, findsNothing);
     });
 
+    testWidgets("none takes a caller's pop duration over its zero and "
+        'stays painted through it', (tester) async {
+      final route = await _push(
+        tester,
+        type: ScreenTransitionType.none,
+        reverseDuration: const Duration(milliseconds: 300),
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(route.transitionDuration, Duration.zero);
+      expect(
+        route.reverseTransitionDuration,
+        const Duration(milliseconds: 300),
+      );
+      route.navigator!.pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(_page, findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(_page, findsNothing);
+    });
+
     testWidgets("fadeThrough fills with the Stratum theme's canvas color", (
       tester,
     ) async {
@@ -809,6 +834,23 @@ void main() {
         );
       });
     }
+  });
+
+  testWidgets('the route scopes its page for assistive technology, as a '
+      "MaterialPageRoute's does", (tester) async {
+    await _push(tester, child: const SizedBox(key: ValueKey('page')));
+    await _settleHeroOffstage(tester);
+
+    final scopes = find.ancestor(
+      of: _page,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.scopesRoute == true &&
+            widget.explicitChildNodes,
+      ),
+    );
+    expect(scopes, findsOneWidget);
   });
 
   group('us05/fr01: the Material home below a new page', () {

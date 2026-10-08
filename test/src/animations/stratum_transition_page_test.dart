@@ -100,9 +100,8 @@ void main() {
     expect(_above(SlideTransition), findsNothing);
   });
 
-  testWidgets('R12: a pop of a none page leaves it gone after one pump', (
-    tester,
-  ) async {
+  testWidgets('us05/fr05/e02: a pop of a none page leaves it gone after one '
+      'pump', (tester) async {
     await _open(tester, fadeTheme, ScreenTransitionType.none);
 
     await tester.pumpWidget(_app(fadeTheme, const [_home]));
@@ -228,6 +227,22 @@ void main() {
         closeTo(dxOf(tester, 'upper') - tester.getSize(_page).width, 1e-6),
       );
     });
+  });
+
+  testWidgets('the route scopes its page for assistive technology, as a '
+      "MaterialPage's does", (tester) async {
+    await _open(tester, fadeTheme, ScreenTransitionType.rightToLeft);
+
+    final scopes = find.ancestor(
+      of: _page,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.scopesRoute == true &&
+            widget.explicitChildNodes,
+      ),
+    );
+    expect(scopes, findsOneWidget);
   });
 
   test('the page keeps its type and child', () {
