@@ -415,6 +415,7 @@ void runNativeAdapterContract(
           ..startPage(appPage.toString())
           ..scriptResult = false;
         final partner = Uri.parse('https://partner.example.net');
+        listener.allowedOrigins = {appOrigin, partner};
         await expectLater(
           adapter.postMessage('x', targetOrigin: partner),
           throwsA(_unallowedPage),

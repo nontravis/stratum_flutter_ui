@@ -376,7 +376,11 @@ final class NativeBridgeSession {
   /// With [targetOrigin], the page's own `location.origin` is compared
   /// against that one origin instead of the whole allowlist, and the
   /// script never carries the token, so the app's HTML never passes it
-  /// (US-03 FR-02 E16, E17).
+  /// (US-03 FR-02 E16, E17). [targetOrigin] is re-checked against
+  /// [_allowedOrigins] here, right before the script is built, the way the
+  /// web re-checks at post time: a caller awaits a platform round trip
+  /// between its own allowlist check and this call, and the allowlist can
+  /// change in that window (US-03 FR-02 E15, NFR-Sec02).
   String scriptForMessage(String data, {Uri? targetOrigin}) {
     if (_bridgeUnsupported) {
       throw StateError(
@@ -389,6 +393,11 @@ final class NativeBridgeSession {
       throw StateError('The HTML page has not connected the bridge yet.');
     }
     if (targetOrigin != null) {
+      if (!isAllowedOrigin(targetOrigin, _allowedOrigins())) {
+        throw StateError(
+          'targetOrigin $targetOrigin is not an allowed message destination.',
+        );
+      }
       return buildMessageDispatchScript(
         data,
         token: null,

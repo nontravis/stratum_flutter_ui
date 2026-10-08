@@ -714,6 +714,7 @@ void main() {
       final html = session.willLoadHtml('<p>Hi</p>');
       session.acceptMessage(envelope(nonceIn(html), 'hello', documentA));
       final partner = Uri.parse('https://partner.example.net');
+      allowed = {appOrigin, partner};
       final script = session.scriptForMessage('x', targetOrigin: partner);
       expect(
         script,
@@ -741,6 +742,23 @@ void main() {
             (error) => error.message,
             'message',
             'The HTML page has not connected the bridge yet.',
+          ),
+        ),
+      );
+    });
+
+    test('us03/fr02/e15: a named send re-checks the allowlist right before '
+        'script build, and throws when the target left it meanwhile', () {
+      final partner = Uri.parse('https://partner.example.net');
+      allowed = {partner}; // allowed when the app called postMessage
+      allowed = {appOrigin}; // dropped before the script is built
+      expect(
+        () => session.scriptForMessage('x', targetOrigin: partner),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'targetOrigin $partner is not an allowed message destination.',
           ),
         ),
       );
