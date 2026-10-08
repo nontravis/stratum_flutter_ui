@@ -23,3 +23,7 @@
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse a zip entry name holding a
   control character and a `/`-ending entry that holds bytes; a zip an app already installed can now fail at preload
   with `unsafe_entry_path`.
+- Breaking: an escaped text past 200 characters, in an FO-01 problem message, a remote theme message, or a
+  `stratum_theme` output line, now ends with `\[cut N chars, id H]` in place of `...`: N is the text's length in
+  UTF-16 code units and H the first 32 hex digits of its SHA-256, so two long texts that differ only past the cut
+  print differently. A test or a log parser that matched the old `...` needs the new form.

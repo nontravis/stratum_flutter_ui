@@ -247,5 +247,27 @@ void main() {
       const unread = 'is in the zip, but the app install never reads it';
       expect(cliWarnings(check), ['warning: "a\\u0022\\u00e9.html" $unread']);
     });
+
+    test('us02/fr03/e06, rz4, r19 (t28): twin names whose case differs only '
+        'past the cut print distinct ids', () async {
+      final check = await _check(
+        remoteTheme(
+          'brand',
+          files: {
+            '${'b' * 200}X.png': [1],
+            '${'b' * 200}x.png': [2],
+          },
+        ),
+      );
+      final twin = cliWarnings(check)
+          .singleWhere((line) => line.contains('differ only in letter case'));
+      final ids = [
+        for (final match in RegExp(r'id ([0-9a-f]{32})\]').allMatches(twin))
+          match[1],
+      ];
+
+      expect(ids, hasLength(2));
+      expect(ids.toSet(), hasLength(2));
+    });
   });
 }

@@ -110,8 +110,10 @@ void main() {
     );
   });
 
-  test('M6: an unsafe path reaches the message escaped and cut', () {
+  test('M6, rz4: an unsafe path reaches the message escaped and cut, its '
+      'marker inside the quotes', () {
     final path = '\u001b[31m\n"\\${'é' * 300}/../x';
+    final quoted = RegExp('entry "(.*)"');
 
     expect(
       () => checkEntryPath(path),
@@ -119,16 +121,19 @@ void main() {
         isA<RemoteThemeFailure>()
             .having((f) => f.path, 'path', path)
             .having(
-              (f) => f.message,
-              'message',
+              (f) => quoted.firstMatch(f.message)!.group(1)!,
+              'quoted text',
               allOf(
-                contains(r'\u001b[31m\u000a\u0022\u005c\u00e9'),
-                contains('...'),
-                isNot(contains('\u00e9')),
-                isNot(contains('\n')),
+                startsWith(r'\u001b[31m\u000a\u0022\u005c\u00e9'),
+                matches(RegExp(r'\\\[cut 313 chars, id [0-9a-f]{32}\]$')),
+                hasLength(lessThanOrEqualTo(253)),
               ),
             )
-            .having((f) => f.message.length, 'message length', lessThan(260)),
+            .having(
+              (f) => f.message,
+              'message',
+              allOf(isNot(contains('é')), isNot(contains('\n'))),
+            ),
       ),
     );
   });
