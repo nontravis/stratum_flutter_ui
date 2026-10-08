@@ -30,11 +30,13 @@ Matcher _fails(
   StratumRemoteThemeErrorCode code, {
   int? measured,
   String? path,
+  Object? message,
 }) => throwsA(
   isA<RemoteThemeFailure>()
       .having((f) => f.code, 'code', code)
       .having((f) => f.measured, 'measured', measured ?? anything)
-      .having((f) => f.path, 'path', path ?? anything),
+      .having((f) => f.path, 'path', path ?? anything)
+      .having((f) => f.message, 'message', message ?? anything),
 );
 
 void main() {
@@ -716,6 +718,20 @@ void main() {
         'stored bytes under a size and CRC-32 of 0',
         ZipEntryFixture('hidden/', const [], deflate: false, body: [1, 2, 3]),
       ),
+      (
+        'a deflate stream that inflates to a single byte under a size and '
+            'CRC-32 of 0',
+        ZipEntryFixture(
+          'hidden/',
+          const [],
+          method: 8,
+          body: Deflate([9]).getBytes(),
+        ),
+      ),
+      (
+        'a single stored byte under a size and CRC-32 of 0',
+        ZipEntryFixture('hidden/', const [], deflate: false, body: [9]),
+      ),
     ]) {
       test('us01/s15, us01/fr02/e13, rz3: a "/"-ending entry with $label is '
           'unsafe_entry_path', () {
@@ -1256,7 +1272,34 @@ void main() {
 
       expect(
         () => _read(zip),
-        _fails(StratumRemoteThemeErrorCode.invalidArchive),
+        _fails(
+          StratumRemoteThemeErrorCode.invalidArchive,
+          message: contains('holds bytes after its final deflate block'),
+        ),
+      );
+    });
+
+    test('us01/fr02/e10, us01/fr02/e13, rz3, r18 (t27 p11): the same hidden '
+        "local entry after an empty folder's final deflate block is "
+        'unsafe_entry_path, not invalid_archive', () {
+      final hidden = ZipEntryFixture('payload.txt', utf8.encode('evil'));
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture(
+          'brand/',
+          const [],
+          method: 8,
+          body: [...Deflate(const <int>[]).getBytes(), ...hidden.localBytes],
+        ),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(
+          StratumRemoteThemeErrorCode.unsafeEntryPath,
+          path: 'brand/',
+          message: contains('holds bytes after its final deflate block'),
+        ),
       );
     });
 
@@ -1268,9 +1311,103 @@ void main() {
 
       expect(
         () => _read(zip),
+        _fails(
+          StratumRemoteThemeErrorCode.invalidArchive,
+          message: contains('ends before its final deflate block'),
+        ),
+      );
+    });
+
+    test('us01/fr02/e06, us01/fr02/e07, rz3: maxBytes exactly equal to a read '
+        'entry plus an unread one installs; one byte more in the unread '
+        'entry is archive_too_large, measured there', () {
+      final macBytes = List<int>.filled(100, 7);
+      final total = yaml.length + macBytes.length;
+      final atCap = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture('__MACOSX/x', macBytes),
+      ]);
+
+      expect(_read(atCap, maxBytes: total).keys, ['theme.yaml']);
+
+      final overCap = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture('__MACOSX/x', [...macBytes, 7]),
+      ]);
+
+      expect(
+        () => _read(overCap, maxBytes: total),
+        _fails(
+          StratumRemoteThemeErrorCode.archiveTooLarge,
+          measured: total + 1,
+        ),
+      );
+    });
+
+    test('us01/fr02/e10, rz3: a deflate stream whose output exceeds 65,535 '
+        'bytes through chained stored blocks installs; the same stream with '
+        'one trailing byte is invalid_archive', () {
+      List<int> stored(List<int> chunk, {required bool last}) => [
+        if (last) 1 else 0,
+        chunk.length & 0xFF,
+        chunk.length >> 8,
+        (chunk.length & 0xFF) ^ 0xFF,
+        (chunk.length >> 8) ^ 0xFF,
+        ...chunk,
+      ];
+
+      final chunk1 = List<int>.generate(65535, (i) => i % 256);
+      final chunk2 = List<int>.generate(5000, (i) => (i * 3) % 256);
+      final data = [...chunk1, ...chunk2];
+      final body = [
+        ...stored(chunk1, last: false),
+        ...stored(chunk2, last: true),
+      ];
+
+      expect(
+        _read(
+          buildZip([
+            ZipEntryFixture('theme.yaml', data, method: 8, body: body),
+          ]),
+        ).keys,
+        ['theme.yaml'],
+      );
+
+      expect(
+        () => _read(
+          buildZip([
+            ZipEntryFixture(
+              'theme.yaml',
+              data,
+              method: 8,
+              body: [...body, 0x99],
+            ),
+          ]),
+        ),
         _fails(StratumRemoteThemeErrorCode.invalidArchive),
       );
     });
+
+    for (final (label, entry) in [
+      (
+        'stored with a compressed size of 0',
+        ZipEntryFixture('empty.txt', const [], deflate: false),
+      ),
+      (
+        'deflated to the 2-byte empty stream "03 00"',
+        ZipEntryFixture('empty.txt', const []),
+      ),
+    ]) {
+      test('us01/fr02/e13, rz3: a genuinely empty, non-folder file, $label, '
+          'installs as an empty file, not a folder', () {
+        final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
+
+        final files = _read(zip);
+
+        expect(files.keys, unorderedEquals(['theme.yaml', 'empty.txt']));
+        expect(files['empty.txt'], isEmpty);
+      });
+    }
 
     test('us01/fr02/e01, rz3, r18 (t27): an entry named theme.yaml typed '
         'S_IFDIR is unsafe_entry_path', () {
