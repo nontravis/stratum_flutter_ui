@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart' show Deflate;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 import 'package:stratum_ui/src/themes/remote/remote_zip_reader.dart';
@@ -783,6 +784,281 @@ void main() {
           StratumRemoteThemeErrorCode.unsafeEntryPath,
           path: String.fromCharCodes(first),
         ),
+      );
+    });
+  });
+
+  group('r18 container', () {
+    /// A ZIP64 extra record of [size] for both sizes.
+    List<int> zip64Extra(int size) => [
+      0x01, 0x00, 0x10, 0x00, //
+      size & 0xFF, (size >> 8) & 0xFF, (size >> 16) & 0xFF, size >> 24,
+      0, 0, 0, 0,
+      size & 0xFF, (size >> 8) & 0xFF, (size >> 16) & 0xFF, size >> 24,
+      0, 0, 0, 0,
+    ];
+
+    final payload = ZipEntryFixture('payload.txt', utf8.encode('evil'));
+
+    test('us01/fr02/e02, rz3: a Finder-style entry, flags bit 3 with a '
+        'signed 16-byte descriptor and a local CRC-32 and sizes of 0, '
+        'installs', () {
+      final zip = buildZip([
+        ZipEntryFixture(
+          'theme.yaml',
+          yaml,
+          flags: 0x8,
+          localCrc: 0,
+          localCompressedSize: 0,
+          localSize: 0,
+          descriptor: dataDescriptor(yaml),
+        ),
+      ]);
+
+      expect(_read(zip).keys, ['theme.yaml']);
+    });
+
+    test('us01/fr02/e02, rz3: a 12-byte descriptor with the local CRC-32 '
+        'and sizes repeated installs', () {
+      final zip = buildZip([
+        ZipEntryFixture(
+          'theme.yaml',
+          yaml,
+          flags: 0x8,
+          descriptor: dataDescriptor(yaml, signed: false),
+        ),
+      ]);
+
+      expect(_read(zip).keys, ['theme.yaml']);
+    });
+
+    test('us01/fr02/e02, rz3: an extra record the install does not know, '
+        'local and central, and an end record comment are ignored', () {
+      final zip = buildZip([
+        ZipEntryFixture(
+          'theme.yaml',
+          yaml,
+          localExtra: const [0x55, 0x54, 0x01, 0x00, 0x00],
+          centralExtra: const [0x55, 0x54, 0x01, 0x00, 0x00],
+        ),
+      ], comment: utf8.encode('note'));
+
+      expect(_read(zip).keys, ['theme.yaml']);
+    });
+
+    for (final (label, zip) in [
+      (
+        'p2: a folder entry whose local header declares 152 stored bytes '
+            'the directory does not',
+        () => buildZip([
+          ZipEntryFixture('theme.yaml', yaml),
+          ZipEntryFixture(
+            'hidden/',
+            const [],
+            deflate: false,
+            localCompressedSize: 152,
+            localSize: 152,
+            descriptor: List<int>.filled(152, 0x41),
+          ),
+        ]),
+      ),
+      (
+        'p3: flags bit 3 with a whole deflate stream and descriptor after a '
+            'central compressed size of 0',
+        () => buildZip([
+          ZipEntryFixture('theme.yaml', yaml),
+          ZipEntryFixture(
+            'hidden/',
+            const [],
+            method: 8,
+            flags: 0x8,
+            body: const [],
+            localCrc: 0,
+            localCompressedSize: 0,
+            localSize: 0,
+            descriptor: [
+              ...Deflate(List<int>.filled(152, 0x41)).getBytes(),
+              ...dataDescriptor(List<int>.filled(152, 0x41)),
+            ],
+          ),
+        ]),
+      ),
+      (
+        'p4: a whole local entry no central header lists, between two that '
+            'it does',
+        () => buildZip(
+          [
+            ZipEntryFixture('theme.yaml', yaml),
+            ZipEntryFixture('a.txt', [1]),
+          ],
+          gaps: {1: payload.localBytes},
+        ),
+      ),
+      (
+        'p4b: a whole local entry no central header lists, before the first',
+        () => buildZip([
+          ZipEntryFixture('theme.yaml', yaml),
+        ], prefix: payload.localBytes),
+      ),
+      (
+        'p5: local sizes 0xFFFFFFFF with a local ZIP64 record',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            localCompressedSize: 0xFFFFFFFF,
+            localSize: 0xFFFFFFFF,
+            localExtra: zip64Extra(yaml.length),
+          ),
+        ]),
+      ),
+      (
+        'a local ZIP64 record under sizes that agree',
+        () => buildZip([
+          ZipEntryFixture('theme.yaml', yaml, localExtra: zip64Extra(40)),
+        ]),
+      ),
+      (
+        'a central ZIP64 record under a small declared size',
+        () => buildZip([
+          ZipEntryFixture('theme.yaml', yaml, centralExtra: zip64Extra(40)),
+        ]),
+      ),
+      (
+        'an Info-ZIP Unicode Path record in the central extra field',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            centralExtra: const [0x75, 0x70, 0x05, 0x00, 1, 0, 0, 0, 0],
+          ),
+        ]),
+      ),
+      (
+        'a local extra field that is no whole record',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            localExtra: const [0x55, 0x54, 0x09, 0x00, 1],
+          ),
+        ]),
+      ),
+      (
+        'p9: a local size of 192 against the central one',
+        () => buildZip([ZipEntryFixture('theme.yaml', yaml, localSize: 192)]),
+      ),
+      (
+        'local flags that differ from the central ones',
+        () =>
+            buildZip([ZipEntryFixture('theme.yaml', yaml, localFlags: 0x0800)]),
+      ),
+      (
+        'a local CRC-32 that differs with flags bit 3 clear',
+        () => buildZip([ZipEntryFixture('theme.yaml', yaml, localCrc: 1)]),
+      ),
+      (
+        'flags bit 3 with a local CRC-32 of 0 but local sizes that differ',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            flags: 0x8,
+            localCrc: 0,
+            localSize: 1,
+            descriptor: dataDescriptor(yaml),
+          ),
+        ]),
+      ),
+      (
+        'a stored entry with flags bit 3 and a descriptor',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            deflate: false,
+            flags: 0x8,
+            descriptor: dataDescriptor(yaml, deflate: false),
+          ),
+        ]),
+      ),
+      (
+        'a descriptor with 8-byte sizes',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            flags: 0x8,
+            descriptor: dataDescriptor(yaml, zip64: true),
+          ),
+        ]),
+      ),
+      (
+        'a 16-byte descriptor that does not start 50 4b 07 08',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            flags: 0x8,
+            descriptor: [0, 0, 0, 0, ...dataDescriptor(yaml, signed: false)],
+          ),
+        ]),
+      ),
+      (
+        'a descriptor whose CRC-32 differs from the directory',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            flags: 0x8,
+            descriptor: dataDescriptor(utf8.encode('other')),
+          ),
+        ]),
+      ),
+      (
+        'flags bit 3 with no descriptor after the data',
+        () => buildZip([ZipEntryFixture('theme.yaml', yaml, flags: 0x8)]),
+      ),
+      (
+        'a byte after the end record comment',
+        () => buildZip([ZipEntryFixture('theme.yaml', yaml)], afterEnd: [0]),
+      ),
+      (
+        'a byte between the central directory and the end record',
+        () => buildZip([ZipEntryFixture('theme.yaml', yaml)], beforeEnd: [0]),
+      ),
+    ]) {
+      test('us01/fr02/e02, rz3, r18: $label is invalid_archive', () {
+        expect(
+          () => _read(zip()),
+          _fails(StratumRemoteThemeErrorCode.invalidArchive),
+        );
+      });
+    }
+
+    test('z8: a cap fault and a local header fault give archive_too_large '
+        'first, before any local header is read', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml, localSize: 999),
+        ZipEntryFixture('a.txt', [1]),
+      ]);
+
+      expect(
+        () => _read(zip, maxEntries: 1),
+        _fails(StratumRemoteThemeErrorCode.archiveTooLarge, measured: 2),
+      );
+    });
+
+    test('z8: a local header fault and an unsafe path give invalid_archive '
+        'first', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml, localSize: 999),
+        ZipEntryFixture('../evil.txt', [1]),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(StratumRemoteThemeErrorCode.invalidArchive),
       );
     });
   });

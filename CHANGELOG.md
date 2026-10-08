@@ -32,3 +32,9 @@
   letter, or a byte another zip tool would decode another way, is `unsafe_entry_path`, and `pack` refuses such a file
   or folder name before it writes anything. A zip an app already keeps that breaks this rule, or any rule of this
   release, now fails at preload, which skips it and calls `onRemoteThemeError` with its id and the error.
+- Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse as `invalid_archive` a zip that
+  another zip tool could read differently: a byte before the central directory that belongs to no entry, or to two;
+  a local header whose flags, method, CRC-32, sizes, or name differ from the central directory, the zeros a data
+  descriptor stands for aside; an extra field that is not whole records or holds a ZIP64 or Info-ZIP Unicode Path
+  record; a data descriptor on a stored entry, or of another length or value; and a byte after the end record's
+  comment. Zips from Finder, Info-ZIP `zip`, and Java's `ZipOutputStream` install as before.

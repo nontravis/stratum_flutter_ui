@@ -40,9 +40,10 @@ typedef RemoteZipContents = ({
 ///   entry [maxEntries] + 1 or a declared size sum past [maxBytes]
 ///   (`archiveTooLarge`), refusing an encrypted entry, a method other than
 ///   store or deflate, and a path held twice (`invalidArchive`);
-/// - the entry count against the end record, then every local header
-///   against its central header and no two entries sharing bytes
-///   (`invalidArchive`);
+/// - the entry count against the end record, then the container (design
+///   Z1 to Z4): every local header against its central header, every
+///   extra field, every data descriptor, and the spans tiling the bytes
+///   before the directory (`invalidArchive`);
 /// - every entry path, file type, and `/`-ending folder entry
 ///   (`unsafeEntryPath`), the theme root (`missingThemeFile`);
 /// - each entry under the root inflated from its own span under one
@@ -61,7 +62,7 @@ RemoteZipContents readRemoteZip(
   final view = ByteData.sublistView(data);
   final end = _EndRecord.find(view);
   final entries = _walk(data, view, end, maxBytes, maxEntries);
-  final spans = _locate(data, view, entries, end.directoryStart);
+  final spans = _locate(data, view, entries, end);
   for (final span in spans) {
     final entry = span.entry;
     checkEntryPath(entry.name);
@@ -142,29 +143,45 @@ List<_Entry> _walk(
 
 // MARK: - Local headers
 
-/// Checks each entry's local header against its central one and that no
-/// two entries share bytes; returns each entry with its data's first byte.
+/// Checks the container after the central walk (FO-04 US-01 FR-02 E02,
+/// design Z1 to Z4): each local header equals its central header, every
+/// extra field is a whole run of records with no ZIP64 or Info-ZIP
+/// Unicode Path record, a data descriptor sits only where flags bit 3
+/// puts one and equals the directory, and the entries' spans lie back to
+/// back from offset 0 to the central directory, which ends where the end
+/// record starts, with no byte after the end record's comment. Returns
+/// each entry with its data's first byte, in central directory order.
 List<_Span> _locate(
   Uint8List data,
   ByteData view,
   List<_Entry> entries,
-  int directoryStart,
+  _EndRecord end,
 ) {
+  if (end.directoryStart + end.directorySize != end.at) {
+    throw _invalid(
+      'the central directory does not end where the end record starts',
+    );
+  }
+  if (end.at + _endSize + end.commentLength != data.length) {
+    throw _invalid('bytes follow the end record');
+  }
   final spans = [
     for (final entry in entries)
-      (entry: entry, start: entry.dataStart(data, view, directoryStart)),
+      (entry: entry, start: entry.dataStart(data, view, end.directoryStart)),
   ];
   final ordered = [...spans]
     ..sort((a, b) => a.entry.localOffset.compareTo(b.entry.localOffset));
-  for (var i = 1; i < ordered.length; i++) {
-    final previous = ordered[i - 1];
-    if (ordered[i].entry.localOffset <
-        previous.start + previous.entry.compressedSize) {
-      throw _invalid(
-        '${ordered[i].entry.label} shares bytes with '
-        '${previous.entry.label}',
-      );
-    }
+  if (ordered.first.entry.localOffset != 0) {
+    throw _invalid(
+      'bytes before ${ordered.first.entry.label} belong to no entry',
+    );
+  }
+  for (var i = 0; i < ordered.length; i++) {
+    final (:entry, :start) = ordered[i];
+    final next = i + 1 < ordered.length
+        ? ordered[i + 1].entry.localOffset
+        : end.directoryStart;
+    entry.checkTail(view, start + entry.compressedSize, next);
   }
   return spans;
 }
@@ -224,9 +241,11 @@ typedef _Span = ({_Entry entry, int start});
 /// many entries it holds.
 final class _EndRecord {
   const new({
+    required this.at,
     required this.directoryStart,
     required this.directorySize,
     required this.count,
+    required this.commentLength,
   });
 
   /// Finds the end record nearest the end within the last 65 557 bytes,
@@ -261,14 +280,26 @@ final class _EndRecord {
         _u32(view, start + size) == _zip64EndSignature) {
       throw _invalid('the zip is a ZIP64 zip');
     }
-    return _EndRecord(directoryStart: start, directorySize: size, count: count);
+    return _EndRecord(
+      at: at,
+      directoryStart: start,
+      directorySize: size,
+      count: count,
+      commentLength: _u16(view, at + 20),
+    );
   }
+
+  /// Where the end record starts.
+  final int at;
 
   final int directoryStart;
   final int directorySize;
 
   /// The entry count the end record declares.
   final int count;
+
+  /// The length its comment field declares.
+  final int commentLength;
 }
 
 /// One central directory header, its fields as the zip declares them.
@@ -284,6 +315,8 @@ final class _Entry {
     required this.attributes,
     required this.localOffset,
     required this.next,
+    required this.centralExtraAt,
+    required this.centralExtraLength,
   });
 
   /// Reads the whole central header at [at], which must end at or before
@@ -318,6 +351,8 @@ final class _Entry {
       attributes: _u32(view, at + 38),
       localOffset: _u32(view, at + 42),
       next: next,
+      centralExtraAt: at + _centralSize + nameLength,
+      centralExtraLength: _u16(view, at + 30),
     );
   }
 
@@ -340,6 +375,10 @@ final class _Entry {
 
   /// The offset of the next central header.
   final int next;
+
+  /// Where this entry's central extra field starts, and its length.
+  final int centralExtraAt;
+  final int centralExtraLength;
 
   /// This entry named for a message, its path escaped.
   String get label => 'entry "${escapeZipText(name)}"';
@@ -380,20 +419,44 @@ final class _Entry {
     );
   }
 
-  /// Checks this entry's local header matches its central header and its
-  /// span ends at or before [directoryStart]; returns its data's first
-  /// byte.
+  /// Checks this entry's local header equals its central header (design
+  /// Z2): flags, method, CRC-32, both sizes, and name, the three numbers
+  /// allowed to be all 0 with flags bit 3; a data descriptor only on a
+  /// deflate entry; both extra fields whole (Z3); and its data ends at or
+  /// before [directoryStart]. Returns its data's first byte.
   int dataStart(Uint8List data, ByteData view, int directoryStart) {
     final at = localOffset;
     if (at + _localSize > directoryStart || _u32(view, at) != _localSignature) {
       throw _invalid('$label has no local header');
     }
-    if (_u16(view, at + 6) & 0x1 != 0) throw _invalid('$label is encrypted');
+    final localFlags = _u16(view, at + 6);
+    if (localFlags & 0x1 != 0) throw _invalid('$label is encrypted');
+    if (localFlags != flags) {
+      throw _invalid('$label declares other flags in its local header');
+    }
     if (_u16(view, at + 8) != method) {
       throw _invalid('$label declares another method in its local header');
     }
+    if (flags & 0x8 != 0 && method != 8) {
+      throw _invalid('$label is stored with a data descriptor');
+    }
+    final localCrc = _u32(view, at + 14);
+    final localPacked = _u32(view, at + 18);
+    final localSize = _u32(view, at + 22);
+    final deferred =
+        flags & 0x8 != 0 && localCrc == 0 && localPacked == 0 && localSize == 0;
+    if (!deferred &&
+        (localCrc != crc ||
+            localPacked != compressedSize ||
+            localSize != declaredSize)) {
+      throw _invalid(
+        '$label declares another CRC-32 or size in its local '
+        'header',
+      );
+    }
     final nameLength = _u16(view, at + 26);
-    final start = at + _localSize + nameLength + _u16(view, at + 28);
+    final extraLength = _u16(view, at + 28);
+    final start = at + _localSize + nameLength + extraLength;
     if (start + compressedSize > directoryStart) {
       throw _invalid('$label runs past the bytes before the directory');
     }
@@ -405,7 +468,67 @@ final class _Entry {
     if (!_sameBytes(localName, nameBytes)) {
       throw _invalid('$label holds another name in its local header');
     }
+    _checkExtra(view, at + _localSize + nameLength, extraLength, 'local');
+    _checkExtra(view, centralExtraAt, centralExtraLength, 'central');
     return start;
+  }
+
+  /// Checks the bytes from this entry's data end, [dataEnd], to the next
+  /// span or the central directory, [next] (design Z1, Z4): none, unless
+  /// flags bit 3 is set; then exactly its data descriptor, 12 bytes
+  /// (CRC-32, compressed size, size) or 16 starting `50 4b 07 08`, equal
+  /// to the directory.
+  void checkTail(ByteData view, int dataEnd, int next) {
+    if (next < dataEnd) throw _invalid('$label shares bytes with the next');
+    final gap = next - dataEnd;
+    if (flags & 0x8 == 0) {
+      if (gap != 0) throw _invalid('bytes after $label belong to no entry');
+      return;
+    }
+    final int at;
+    if (gap == 16 && _u32(view, dataEnd) == 0x08074b50) {
+      at = dataEnd + 4;
+    } else if (gap == 12) {
+      at = dataEnd;
+    } else {
+      throw _invalid(
+        '$label has no 12-byte or signed 16-byte data '
+        'descriptor',
+      );
+    }
+    if (_u32(view, at) != crc ||
+        _u32(view, at + 4) != compressedSize ||
+        _u32(view, at + 8) != declaredSize) {
+      throw _invalid(
+        'the data descriptor of $label differs from the '
+        'directory',
+      );
+    }
+  }
+
+  /// Checks the [where] extra field of [length] bytes at [at] is a run of
+  /// whole records, a 2-byte id, a 2-byte length, and that many bytes,
+  /// holding no ZIP64 record (0x0001) and no Info-ZIP Unicode Path record
+  /// (0x7075); every other record is ignored (design Z3).
+  void _checkExtra(ByteData view, int at, int length, String where) {
+    final end = at + length;
+    var i = at;
+    while (i < end) {
+      if (i + 4 > end || i + 4 + _u16(view, i + 2) > end) {
+        throw _invalid(
+          'the $where extra field of $label holds no whole '
+          'record',
+        );
+      }
+      final id = _u16(view, i);
+      if (id == 0x0001 || id == 0x7075) {
+        throw _invalid(
+          'the $where extra field of $label holds a '
+          '${id == 0x0001 ? 'ZIP64' : 'Info-ZIP Unicode Path'} record',
+        );
+      }
+      i += 4 + _u16(view, i + 2);
+    }
   }
 
   static bool _sameBytes(Uint8List a, Uint8List b) {
