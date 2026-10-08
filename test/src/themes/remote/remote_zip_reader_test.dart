@@ -1046,6 +1046,100 @@ void main() {
       expect(_read(zip).keys, ['theme.yaml']);
     });
 
+    for (final (tool, madeBy, folder, file) in [
+      ('Finder (ditto)', 0x0315, (0x41ED << 16) | 0x4000, 0x81A44000),
+      ('Info-ZIP', 0x031E, (0x41ED << 16) | 0x10, 0x81A4 << 16),
+      ('Info-ZIP, read-only', 0x031E, (0x416D << 16) | 0x11, 0x81240001),
+      ('tar -a and bsdtar', 0x0314, 0x41ED << 16, 0x81A4 << 16),
+      ('Python zipfile', 0x0314, (0x41ED << 16) | 0x10, 0x0180 << 16),
+      (
+        'Python zipfile on Windows',
+        0x0014,
+        (0x41FF << 16) | 0x10,
+        0x81B6 << 16,
+      ),
+      ('Java and jar', 0x0014, 0, 0),
+      ('stratum_theme pack', 0x0314, 0x41ED << 16, 0x81A4 << 16),
+      ('7-Zip', 0x0314, (0x41ED << 16) | 0x8010, (0x81A4 << 16) | 0x8020),
+      ('Windows, archive bit', 0x0014, 0x10, 0x20),
+    ]) {
+      test('us01/fr02/e01, rz12: a zip with the host byte and attributes '
+          '$tool writes installs', () {
+        final zip = buildZip([
+          ZipEntryFixture(
+            'brand/',
+            const [],
+            deflate: false,
+            madeBy: madeBy,
+            attributes: folder,
+          ),
+          ZipEntryFixture(
+            'brand/theme.yaml',
+            yaml,
+            madeBy: madeBy,
+            attributes: file,
+          ),
+        ]);
+
+        expect(_read(zip).keys, ['theme.yaml']);
+      });
+    }
+
+    for (final (label, madeBy, attributes, message) in [
+      (
+        'the MS-DOS volume-label bit 0x08, made on FAT',
+        0x0014,
+        0x08,
+        'MS-DOS attribute bits 0x0008',
+      ),
+      (
+        'the MS-DOS volume-label bit 0x08, made on NTFS (host 11)',
+        0x0B14,
+        0x08,
+        'made on host 11',
+      ),
+      (
+        'an Amiga folder type, high half 0x0800 (host 1)',
+        0x0114,
+        0x0800 << 16,
+        'made on host 1',
+      ),
+      (
+        'the setuid bit, made on Unix',
+        0x031E,
+        0x89ED << 16,
+        'setuid, setgid, or sticky',
+      ),
+      (
+        'the MS-DOS reparse-point bit 0x400, made on FAT',
+        0x0014,
+        0x400,
+        'MS-DOS attribute bits 0x0400',
+      ),
+    ]) {
+      test('us01/fr02/e01, rz12 (m3-t7b review): a root theme.yaml with '
+          '$label, beside a benign brand/theme.yaml, is unsafe_entry_path', () {
+        final zip = buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            utf8.encode('$remoteSchemaLine\nname: hostile\n'),
+            madeBy: madeBy,
+            attributes: attributes,
+          ),
+          ZipEntryFixture('brand/theme.yaml', yaml),
+        ]);
+
+        expect(
+          () => _read(zip),
+          _fails(
+            StratumRemoteThemeErrorCode.unsafeEntryPath,
+            path: 'theme.yaml',
+            message: contains(message),
+          ),
+        );
+      });
+    }
+
     for (final (label, zip) in [
       (
         'p2: a folder entry whose local header declares 152 stored bytes '

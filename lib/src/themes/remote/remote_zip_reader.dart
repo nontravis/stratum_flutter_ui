@@ -70,7 +70,11 @@ RemoteZipContents readRemoteZip(
   for (final span in spans) {
     final entry = span.entry;
     checkEntryPath(entry.name);
-    checkEntryFileType(entry.name, externalAttributes: entry.attributes);
+    checkEntryFileType(
+      entry.name,
+      externalAttributes: entry.attributes,
+      host: entry.host,
+    );
     entry.checkFolderEntry();
   }
   final root = findThemeRoot(entries.map((entry) => entry.name));
@@ -330,6 +334,7 @@ final class _Entry {
     required this.crc,
     required this.compressedSize,
     required this.declaredSize,
+    required this.host,
     required this.attributes,
     required this.localOffset,
     required this.next,
@@ -366,6 +371,7 @@ final class _Entry {
       crc: _u32(view, at + 16),
       compressedSize: _u32(view, at + 20),
       declaredSize: _u32(view, at + 24),
+      host: data[at + 5],
       attributes: _u32(view, at + 38),
       localOffset: _u32(view, at + 42),
       next: next,
@@ -386,6 +392,10 @@ final class _Entry {
 
   /// The unsigned 32-bit extracted size; no ZIP64 field is read.
   final int declaredSize;
+
+  /// The host that made the entry, the high byte of its central version
+  /// made by (design Z6, RZ12).
+  final int host;
 
   /// The external file attributes.
   final int attributes;
