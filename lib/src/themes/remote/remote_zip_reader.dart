@@ -1,8 +1,9 @@
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart';
+import 'package:archive/archive.dart' show getCrc32;
 import 'package:stratum_ui/src/themes/remote/remote_entry_path.dart';
+import 'package:stratum_ui/src/themes/remote/remote_inflate.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_root.dart';
 
@@ -32,8 +33,8 @@ typedef RemoteZipContents = ({
 });
 
 /// Reads a verified theme zip into memory, writing no file (FO-04 US-01
-/// FR-02), parsing the container itself; `archive` supplies only `Inflate`
-/// and `getCrc32`.
+/// FR-02), parsing the container itself and inflating through
+/// [inflateRaw]; `archive` supplies only `getCrc32` (design RZ11).
 ///
 /// Runs in the order of D2 steps 4 to 8 and stops at the first failure:
 /// - the end record, then one walk of the central directory that stops at
@@ -191,22 +192,13 @@ List<_Span> _locate(
 
 // MARK: - Inflate
 
-/// The zero bytes that follow an entry's data while it inflates (plan
-/// M1-T2, mechanism m2): a stored block header and the 65 535 bytes it may
-/// declare, plus one. A stream with no final block runs on into them, and
-/// a stored block cut short reads its length from them, so in both cases
-/// the input position passes the data's end.
-const _inflatePad = 65540;
-
-/// Inflates [span] from its own bytes only into an output capped at the
-/// [maxBytes] left after [before] bytes (FO-04 US-01 FR-02 E07, E10,
-/// E13): refuses an output of another length than its declared size, a
-/// deflate stream whose final block does not end at its data's last byte,
-/// and a CRC-32 mismatch, through [_Entry.mismatch].
-///
-/// Inflates through `Inflate` into a capped output, never through
-/// `ZipFile.decompress`, which on the VM collects a whole entry before
-/// its output sees a byte.
+/// Inflates [span] from its own bytes only, through [inflateRaw], into an
+/// output capped at the [maxBytes] left after [before] bytes (FO-04 US-01
+/// FR-02 E07, E10, E13; design Z5, RZ11): refuses, through
+/// [_Entry.mismatch], a deflate stream that is malformed anywhere, does
+/// not end at its data's last byte, or ends before its final block; an
+/// output of another length than its declared size; and a CRC-32
+/// mismatch.
 Uint8List _inflate(Uint8List data, _Span span, int before, int maxBytes) {
   final entry = span.entry;
   final raw = Uint8List.sublistView(
@@ -214,40 +206,30 @@ Uint8List _inflate(Uint8List data, _Span span, int before, int maxBytes) {
     span.start,
     span.start + entry.compressedSize,
   );
-  final output = _CappedOutput(maxBytes - before);
-  var end = raw.length;
+  final limit = maxBytes - before;
+  final Uint8List content;
   try {
     if (entry.method == 8) {
-      final input = InputMemoryStream(
-        Uint8List(raw.length + _inflatePad)..setRange(0, raw.length, raw),
-      );
-      Inflate.stream(input, output: output);
-      end = input.position;
+      content = inflateRaw(raw, sizeHint: entry.declaredSize, limit: limit);
     } else {
-      output.writeBytes(raw);
+      if (raw.length > limit) throw InflateLimitReached(raw.length);
+      content = Uint8List.fromList(raw);
     }
-  } on _CapReached catch (reached) {
+  } on InflateLimitReached catch (reached) {
     final measured = before + reached.measured;
     throw RemoteThemeFailure(
       StratumRemoteThemeErrorCode.archiveTooLarge,
       'the zip expands to at least $measured bytes, past maxBytes $maxBytes',
       measured: measured,
     );
-  } on Object {
-    throw entry.mismatch('does not inflate');
+  } on InflateFailure catch (failure) {
+    throw entry.mismatch(failure.reason);
   }
-  final content = Uint8List.fromList(output.getBytes());
   if (content.length != entry.declaredSize) {
     throw entry.mismatch(
       'inflates to ${content.length} bytes, not the ${entry.declaredSize} '
       'its header declares',
     );
-  }
-  if (end < raw.length) {
-    throw entry.mismatch('holds bytes after its final deflate block');
-  }
-  if (end > raw.length) {
-    throw entry.mismatch('ends before its final deflate block');
   }
   if (getCrc32(content) != entry.crc) {
     throw entry.mismatch('fails its CRC-32 check');
@@ -584,46 +566,5 @@ final class _Entry {
       if (a[i] != b[i]) return false;
     }
     return true;
-  }
-}
-
-final class _CapReached implements Exception {
-  const new(this.measured);
-  final int measured;
-}
-
-/// An output that refuses any write that would take it past [_cap] bytes,
-/// so inflating stops at the cap whatever the header declared.
-final class _CappedOutput extends OutputMemoryStream {
-  new(this._cap);
-
-  final int _cap;
-
-  void _room(int count) {
-    if (length + count > _cap) throw _CapReached(length + count);
-  }
-
-  @override
-  void writeByte(int value) {
-    _room(1);
-    super.writeByte(value);
-  }
-
-  @override
-  void writeBytes(List<int> bytes, {int? length}) {
-    _room(length ?? bytes.length);
-    super.writeBytes(bytes, length: length);
-  }
-
-  @override
-  void writeStream(InputStream stream) {
-    _room(stream.length);
-    super.writeStream(stream);
-  }
-
-  @override
-  void writeBackReference(int distance, int count) {
-    _room(count);
-    super.writeBackReference(distance, count);
   }
 }

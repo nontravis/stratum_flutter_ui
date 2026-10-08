@@ -1539,33 +1539,82 @@ void main() {
       });
     }
 
-    // Owner ruling 2026-10-08 (re-asked in plain words): "รับได้
-    // (Recommended)" — the mechanism-m2 residual stands; v10, v11, and v14
-    // install rather than refuse (plan M1-T2, mechanism m2).
-    for (final (label, data, vector) in [
+    // Owner ruling RZ11, 2026-10-08: "ตัวคลายเข้มงวดของเรา (Recommended)"
+    // — the package's own strict inflate refuses the stream ends RZ8 had
+    // accepted, and every other malformed block (design Z5).
+    for (final (label, data, vector, reason) in [
       (
         'v10 a reserved block type after the output',
         _small,
         [...storedBlock(_small), 0x07],
+        'has a deflate block of the reserved type',
       ),
       (
         'v11 a stored LEN and NLEN that disagree after the output',
         _small,
         [...storedBlock(_small), 0x01, 0x05, 0x00, 0x34, 0x12],
+        'NLEN is not the complement of its LEN',
       ),
       (
         'v14 an empty final stored block with a wrong NLEN',
         const <int>[],
         const [1, 0, 0, 0x12, 0x34],
+        'NLEN is not the complement of its LEN',
+      ),
+      (
+        'W1 an empty stored block with NLEN 0x4241 before the data',
+        yaml,
+        [0x00, 0x00, 0x00, 0x41, 0x42, ...Deflate(yaml).getBytes()],
+        'NLEN is not the complement of its LEN',
       ),
     ]) {
-      test('rz3, residual (owner ruling 2026-10-08): $label installs', () {
+      test('us01/fr02/e10, rz11 (m1-t2, m3-t7 security): $label is '
+          'invalid_archive', () {
         final zip = buildZip([
           ZipEntryFixture('theme.yaml', data, method: 8, body: vector),
         ]);
 
-        expect(_read(zip).keys, ['theme.yaml']);
+        expect(
+          () => _read(zip),
+          _fails(
+            StratumRemoteThemeErrorCode.invalidArchive,
+            message: contains(reason),
+          ),
+        );
       });
     }
+
+    final carrier = [
+      for (var i = 0; i < 1000; i++) ...[0, 0, 0, 0x48, 0x49],
+      0x03,
+      0x00,
+    ];
+
+    test('us01/fr02/e13, rz11 (m3-t7 security W2): a folder entry of 1,000 '
+        'empty stored blocks carrying 2,000 chosen bytes is '
+        'unsafe_entry_path', () {
+      final zip = buildZip([
+        ZipEntryFixture('brand/', const [], method: 8, body: carrier),
+        ZipEntryFixture('brand/theme.yaml', yaml),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'brand/'),
+      );
+    });
+
+    test('us01/fr02/e10, rz11 (m3-t7 security W2): the same carrier in an '
+        '__MACOSX/ entry the install never reads is invalid_archive', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture('__MACOSX/x', const [], method: 8, body: carrier),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(StratumRemoteThemeErrorCode.invalidArchive),
+      );
+    });
   });
 }

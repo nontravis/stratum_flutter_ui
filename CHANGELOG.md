@@ -8,6 +8,12 @@
   before it, or fails its CRC-32 check is `invalid_archive` (`unsafe_entry_path` for a folder entry), and every entry
   counts toward `maxBytes`. An entry typed as a folder on a name that does not end in `/` is `unsafe_entry_path`. A
   folder entry may hold any deflate stream that inflates to nothing, so Java's level-0 folder entries now install.
+- Breaking: a remote theme install, and `stratum_theme pack` and `check`, now inflate every zip entry with the
+  package's own strict inflate, which refuses as `invalid_archive` (`unsafe_entry_path` for a folder entry) a deflate
+  stream malformed anywhere, as zlib-based tools refuse it: a stored block whose NLEN is not the complement of its
+  LEN, a block of the reserved type, a malformed dynamic block header, an over-subscribed or incomplete Huffman code,
+  a symbol or distance out of range, a stream with no final block, or a byte after it. A hostile stream now costs time
+  in proportion to its size.
 - Breaking: `StratumNamedCurve.byName` moved to `StratumCurveConvert.byName`, on the Flutter side of the theme models,
   so the curve model compiles in the Dart VM; `stratumCurve.curve` reads as before. No `@Deprecated` step: Dart has no
   static extension members, and no release tag exists yet.
