@@ -88,8 +88,11 @@ Duration reverseTransitionDurationOf(
 /// Flutter motion those two show keeps its own curve. Under reduced motion
 /// ([reducesMotion]) every slide, scale, rotation, and size change drops: a
 /// type with a fade keeps a fade over the full duration, and any other type
-/// shows the page at once. A fade this function draws itself runs on
-/// [curve], else [standard], `platform` included (US-05 FR-03).
+/// shows the page at once and hides it while the route pops; the Cupertino
+/// slide of `platform` on iOS and of `cupertino` moves only while a pop
+/// gesture tracks the finger, so the swipe-back stays (FR-04 E04). A fade
+/// this function draws itself runs on [curve], else [standard], `platform`
+/// included (US-05 FR-03).
 ///
 /// [joinOnSecondary] is for a route with no current page, the theme's
 /// builder and `StratumTransitionPage` (ruling R10): a joined type then
@@ -116,7 +119,7 @@ Widget buildScreenTransition<T>(
       return FadeTransition(opacity: curved, child: child);
 
     case ScreenTransitionType.rightToLeft:
-      if (reduced) return child;
+      if (reduced) return _atOnce(route, animation, child);
       return SlideTransition(
         position: Tween<Offset>(
           begin: const Offset(1, 0),
@@ -126,7 +129,7 @@ Widget buildScreenTransition<T>(
       );
 
     case ScreenTransitionType.leftToRight:
-      if (reduced) return child;
+      if (reduced) return _atOnce(route, animation, child);
       return SlideTransition(
         position: Tween<Offset>(
           begin: const Offset(-1, 0),
@@ -136,7 +139,7 @@ Widget buildScreenTransition<T>(
       );
 
     case ScreenTransitionType.topToBottom:
-      if (reduced) return child;
+      if (reduced) return _atOnce(route, animation, child);
       return SlideTransition(
         position: Tween<Offset>(
           begin: const Offset(0, -1),
@@ -146,7 +149,7 @@ Widget buildScreenTransition<T>(
       );
 
     case ScreenTransitionType.bottomToTop:
-      if (reduced) return child;
+      if (reduced) return _atOnce(route, animation, child);
       return SlideTransition(
         position: Tween<Offset>(
           begin: const Offset(0, 1),
@@ -156,7 +159,7 @@ Widget buildScreenTransition<T>(
       );
 
     case ScreenTransitionType.scale:
-      if (reduced) return child;
+      if (reduced) return _atOnce(route, animation, child);
       return ScaleTransition(
         alignment: alignment!,
         scale: animation.drive(
@@ -166,7 +169,7 @@ Widget buildScreenTransition<T>(
       );
 
     case ScreenTransitionType.rotate:
-      if (reduced) return child;
+      if (reduced) return _atOnce(route, animation, child);
       return RotationTransition(
         alignment: alignment!,
         turns: curved,
@@ -178,7 +181,7 @@ Widget buildScreenTransition<T>(
       );
 
     case ScreenTransitionType.size:
-      if (reduced) return child;
+      if (reduced) return _atOnce(route, animation, child);
       return Align(
         alignment: alignment!,
         child: SizeTransition(sizeFactor: curved, child: child),
@@ -228,7 +231,7 @@ Widget buildScreenTransition<T>(
 
     case ScreenTransitionType.rightToLeftJoined:
       if (joinOnSecondary) {
-        if (reduced) return child;
+        if (reduced) return _atOnce(route, animation, child);
         return _joinedOnSecondary(
           animation: animation,
           secondaryAnimation: secondaryAnimation,
@@ -246,7 +249,7 @@ Widget buildScreenTransition<T>(
                   childCurrent: this
 
                 """);
-      if (reduced) return child;
+      if (reduced) return _atOnce(route, animation, child);
       return Stack(
         children: <Widget>[
           SlideTransition(
@@ -268,7 +271,7 @@ Widget buildScreenTransition<T>(
 
     case ScreenTransitionType.leftToRightJoined:
       if (joinOnSecondary) {
-        if (reduced) return child;
+        if (reduced) return _atOnce(route, animation, child);
         return _joinedOnSecondary(
           animation: animation,
           secondaryAnimation: secondaryAnimation,
@@ -285,7 +288,7 @@ Widget buildScreenTransition<T>(
                   childCurrent: this
 
                 """);
-      if (reduced) return child;
+      if (reduced) return _atOnce(route, animation, child);
       return Stack(
         children: <Widget>[
           SlideTransition(
@@ -310,12 +313,26 @@ Widget buildScreenTransition<T>(
         type,
         Theme.of(context).platform,
       )!;
-      if (reduced) {
-        return builder is CupertinoPageTransitionsBuilder
-            ? child
-            : FadeTransition(opacity: curved, child: child);
-      }
       final gesture = route.popGestureInProgress;
+      if (reduced) {
+        if (builder is! CupertinoPageTransitionsBuilder) {
+          return FadeTransition(opacity: curved, child: child);
+        }
+        // The swipe-back stays (FR-04 E04): the builder runs on held
+        // animations, and on the route's own only while a pop gesture
+        // tracks the finger.
+        return _atOnce(
+          route,
+          animation,
+          builder.buildTransitions<T>(
+            route,
+            context,
+            gesture ? animation : kAlwaysCompleteAnimation,
+            gesture ? secondaryAnimation : kAlwaysDismissedAnimation,
+            child,
+          ),
+        );
+      }
       return builder.buildTransitions<T>(
         route,
         context,
@@ -375,7 +392,9 @@ Widget buildScreenTransition<T>(
 /// A page never moves twice: Flutter holds the secondary animation of the
 /// page below's own transition while this one runs, and
 /// [kAlwaysCompleteAnimation] keeps the incoming half out of this one.
-/// Under reduced motion ([reducesMotion]) the page below stays still.
+/// Under reduced motion ([reducesMotion]) the page below stays still but
+/// for a Cupertino pop gesture, which it tracks as in
+/// [buildScreenTransition].
 DelegatedTransitionBuilder? delegatedScreenTransition(
   ScreenTransitionType type,
   TargetPlatform platform, {
@@ -403,18 +422,36 @@ DelegatedTransitionBuilder? _flutterDelegate(
 ) {
   final flutter = builder.delegatedTransition;
   if (flutter == null) return null;
+  final cupertino = builder is CupertinoPageTransitionsBuilder;
   return (context, animation, secondaryAnimation, allowSnapshotting, child) {
-    if (reducesMotion(context)) return null;
+    final reduced = reducesMotion(context);
+    if (reduced && !cupertino) return null;
     final gesture = ModalRoute.of(context)?.popGestureInProgress ?? false;
     return flutter(
       context,
       animation,
-      _onCallerCurve(secondaryAnimation, curve, gesture: gesture),
+      reduced && !gesture
+          ? kAlwaysDismissedAnimation
+          : _onCallerCurve(secondaryAnimation, curve, gesture: gesture),
       allowSnapshotting,
       child,
     );
   };
 }
+
+/// [child] shown at once under reduced motion (US-05 FR-03), and gone
+/// while [route] pops by its own [animation], so a pop never paints the
+/// popped page for the whole reverse duration; a pop gesture still moves it.
+Widget _atOnce<T>(
+  PageRoute<T> route,
+  Animation<double> animation,
+  Widget child,
+) => Offstage(
+  offstage:
+      animation.status == AnimationStatus.reverse &&
+      !route.popGestureInProgress,
+  child: child,
+);
 
 /// [type]'s outgoing half on the page below: [buildScreenTransition] of
 /// that page's own route, held complete, leaving by its secondary animation.

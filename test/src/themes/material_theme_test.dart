@@ -395,6 +395,55 @@ void main() {
       expect(find.byKey(const ValueKey('page')), findsNothing);
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
+    group('us05/fr04/e04, nfr-u03: under reduce motion the default theme', () {
+      final page = find.byKey(const ValueKey('page'));
+
+      void reduceMotion(WidgetTester tester) {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+      }
+
+      testWidgets('shows the page at once and keeps the iOS swipe-back, '
+          'which tracks the finger', (tester) async {
+        reduceMotion(tester);
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(app(navigator, defaultThemeSet.light));
+        await push(tester, navigator);
+
+        expect(tester.getTopLeft(page), Offset.zero);
+        await tester.pumpAndSettle();
+        final gesture = await tester.startGesture(const Offset(5, 300));
+        await gesture.moveBy(const Offset(250, 0));
+        await tester.pump();
+        await gesture.moveBy(const Offset(250, 0));
+        await tester.pump();
+        expect(tester.getTopLeft(page).dx, greaterThan(0));
+
+        await gesture.up();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(page, findsOneWidget);
+        await tester.pumpAndSettle();
+        expect(page, findsNothing);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+      testWidgets('leaves a popped page gone one pump later', (tester) async {
+        reduceMotion(tester);
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(app(navigator, defaultThemeSet.light));
+        await push(tester, navigator);
+        await tester.pumpAndSettle();
+
+        navigator.currentState!.pop();
+        await tester.pump();
+
+        expect(page, findsNothing);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+    });
+
     testWidgets('us05/s7: a desktop window takes the desktop type '
         'through the application', (tester) async {
       tester.view.devicePixelRatio = 1;

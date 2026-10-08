@@ -851,6 +851,25 @@ void main() {
         lessThan(0),
       );
     });
+
+    testWidgets('nfr-u03: under reduce motion cupertino leaves it in place '
+        'but for a swipe-back, which it tracks', (tester) async {
+      _apply(tester, _Reduce.reduceMotion);
+      await _push(tester, type: ScreenTransitionType.cupertino);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, 0);
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(const Offset(5, 300));
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      expect(tester.getTopLeft(home).dx, lessThan(0));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
   });
 
   for (final signal in _Reduce.values) {
@@ -868,10 +887,60 @@ void main() {
           );
           await tester.pump(const Duration(milliseconds: 150));
 
-          expect(_page, findsOneWidget);
-          expect(_transitionsAbove(tester), isEmpty);
+          // At rest, not bare: cupertino keeps the Cupertino builder, and so
+          // its swipe-back, on held animations.
+          expect(tester.getTopLeft(_page), Offset.zero);
+          expect(
+            _transitionsAbove(tester).whereType<FadeTransition>(),
+            isEmpty,
+          );
         });
       }
+
+      for (final type in [
+        ScreenTransitionType.rightToLeft,
+        ScreenTransitionType.scale,
+        ScreenTransitionType.rotate,
+        ScreenTransitionType.size,
+        ScreenTransitionType.rightToLeftJoined,
+        ScreenTransitionType.cupertino,
+      ]) {
+        testWidgets('${type.name} leaves the page gone one pump into a pop', (
+          tester,
+        ) async {
+          final route = await _push(
+            tester,
+            type: type,
+            alignment: Alignment.center,
+            childCurrent: const SizedBox(),
+            child: const SizedBox(key: ValueKey('page')),
+            reducedMotion: _apply(tester, signal),
+          );
+          await tester.pumpAndSettle();
+
+          route.navigator!.pop();
+          await tester.pump();
+
+          expect(_page, findsNothing);
+        });
+      }
+
+      testWidgets('fade keeps the page fading out through a pop', (
+        tester,
+      ) async {
+        final route = await _push(
+          tester,
+          child: const SizedBox(key: ValueKey('page')),
+          reducedMotion: _apply(tester, signal),
+        );
+        await tester.pumpAndSettle();
+
+        route.navigator!.pop();
+        await tester.pump();
+        await tester.pump(route.reverseTransitionDuration ~/ 2);
+
+        expect(_page, findsOneWidget);
+      });
 
       for (final type in [
         ScreenTransitionType.fadeThrough,
@@ -910,8 +979,8 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 150));
 
-        expect(_page, findsOneWidget);
-        expect(_transitionsAbove(tester), isEmpty);
+        expect(tester.getTopLeft(_page), Offset.zero);
+        expect(_transitionsAbove(tester).whereType<FadeTransition>(), isEmpty);
       }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
       testWidgets('platform on Android keeps its fade over the full '
