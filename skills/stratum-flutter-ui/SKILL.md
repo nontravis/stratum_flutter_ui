@@ -40,6 +40,11 @@ Each entry: usage, key parameters, keyboard behavior.
   and take no paint, hits, focus, or semantics, their tickers stopped. With `overflowBuilder` set, switching both limits
   to null keeps the children's `State`; without it the switch remounts them. A limit or `overflowBuilder` with `scroll`
   fails an assertion.
+  While measuring, the wrap calls `overflowBuilder` once per hidden count it tries, then shows the widget built for the
+  last; that widget must not carry a `GlobalKey` or a `FocusNode` the app owns (debug builds report it), while a key or
+  node a `State` inside the "+N" child creates for itself is safe.
+  Inside an app's own scrollable along `direction` (a horizontal wrap in a horizontal `SingleChildScrollView`), the
+  main axis is unbounded, so runs never break and `maxRuns` never cuts; use `maxChildren` there.
   Expand or collapse by changing the limits: the size moves over the theme's default level (`fast`, 125 ms in the
   package default) on the `standard` curve, clipped, and changes at once under reduced motion.
   Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`; Tab and the group's arrows skip hidden children,

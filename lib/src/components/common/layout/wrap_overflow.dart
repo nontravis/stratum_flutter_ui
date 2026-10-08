@@ -71,7 +71,10 @@ class WrapOverflowFrame extends StatefulWidget {
   /// local to each call, but a [GlobalKey] reports a duplicate-key error,
   /// since the probe and the shown child would both claim it at once. A
   /// GlobalKey a descendant's [State] creates for itself, as `Material`
-  /// does, is its own per State and reports nothing.
+  /// does, is its own per State and reports nothing. A [FocusNode] the
+  /// app owns reports the same way, since the probe and the shown child
+  /// would both attach it (owner ruling R9); one a descendant's [State]
+  /// creates is its own too.
   final Widget Function(BuildContext context, int hiddenCount)? overflowBuilder;
   final List<Widget> children;
 
@@ -479,7 +482,48 @@ class _WrapOverflowElement extends RenderObjectElement {
   /// Drops the probe (owner ruling R8): called once per layout, after
   /// [buildOverflow], so no probe content survives between layouts (N1)
   /// or when `cutWrap` builds no overflow child at all (N2).
+  ///
+  /// Reports first, debug-only, a [FocusNode] the probe and the live
+  /// overflow child both hand to a [Focus] (owner ruling R9): one the app
+  /// owns, since a node a [State] in the builder's output creates differs
+  /// per State. Each [Focus] attaches the node as it mounts, so a probe
+  /// built after the live child takes it, and dropping the probe takes it
+  /// out of the focus tree. It reports in every layout while both carry
+  /// it, whether or not the live child rebuilt, as [buildOverflow] reports
+  /// a [GlobalKey], without aborting the layout.
   void dropProbe() {
+    assert(() {
+      final node = _debugFocusNodesOf(_overflow)
+          .where(_debugFocusNodesOf(_probe).contains)
+          .firstOrNull;
+      if (node != null) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: FlutterError.fromParts([
+              ErrorSummary(
+                'WrapOverflowFrame.overflowBuilder built a widget that '
+                'carries a FocusNode the app owns ($node).',
+              ),
+              ErrorDescription(
+                'The probe that measures each candidate count (owner '
+                'ruling R8) and the overflow child it shows both inflate '
+                "the builder's output, so each attaches the node as it "
+                'mounts, and dropping a probe built after the overflow '
+                'child takes the node out of the focus tree (owner ruling '
+                'R9).',
+              ),
+              ErrorHint(
+                'Let a State inside the overflow child create its own '
+                'FocusNode, or give its Focus none.',
+              ),
+            ]),
+            library: 'stratum_ui',
+            context: ErrorDescription('building the overflow child of $widget'),
+          ),
+        );
+      }
+      return true;
+    }(), 'debug-only: reports a FocusNode the probe and the live child share');
     owner!.buildScope(this, () {
       _probe = updateChild(_probe, null, _probeSlot);
     });
@@ -500,6 +544,20 @@ class _WrapOverflowElement extends RenderObjectElement {
 
     if (root != null) visit(root);
     return keys;
+  }
+
+  /// The [FocusNode]s that a [Focus] in the element tree of [root], [root]
+  /// included, was handed; a [Focus] that creates its own node adds
+  /// none. Empty for null. Debug-only, read by [dropProbe]'s assert.
+  Set<FocusNode> _debugFocusNodesOf(Element? root) {
+    final nodes = <FocusNode>{};
+    void visit(Element element) {
+      if (element.widget case Focus(:final focusNode?)) nodes.add(focusNode);
+      element.visitChildren(visit);
+    }
+
+    if (root != null) visit(root);
+    return nodes;
   }
 
   /// Shows the first [shown] children and hides the rest, inside the
@@ -766,58 +824,67 @@ class _RenderWrapOverflow extends RenderBox
 
   RenderBox? _overflow;
   RenderBox? get overflow => _overflow;
-  set overflow(RenderBox? value) => _swapSlot(() {
+  set overflow(RenderBox? value) {
     final old = _overflow;
     if (old != null) dropChild(old);
     _overflow = value;
     if (value != null) adoptChild(value);
-  });
+  }
 
   /// The probe (owner ruling R8): measures a candidate hidden count, laid
   /// out but never painted, hit tested, or exposed to semantics.
   RenderBox? _probe;
   RenderBox? get probe => _probe;
-  set probe(RenderBox? value) => _swapSlot(() {
+  set probe(RenderBox? value) {
     final old = _probe;
     if (old != null) dropChild(old);
     _probe = value;
     if (value != null) adoptChild(value);
-  });
+  }
 
   /// Whether [performLayout] runs.
   bool _inLayout = false;
 
-  /// Whether [_swapSlot] adopts or drops a child inside [performLayout].
-  bool _swappingInLayout = false;
+  /// Whether a mark inside [performLayout] emptied the caches a parent
+  /// read without reaching it ([markParentNeedsLayout]); the next
+  /// [markNeedsLayout] outside it marks the parent and clears this.
+  bool _owesParentMark = false;
 
-  /// Runs [swap], an adopt or a drop of the overflow child or the probe,
-  /// marking whether it runs inside [performLayout] for [markNeedsLayout].
-  void _swapSlot(VoidCallback swap) {
-    _swappingInLayout = _inLayout;
-    try {
-      swap();
-    } finally {
-      _swappingInLayout = false;
-    }
+  /// [RenderBox.markNeedsLayout] calls this when its dry-layout,
+  /// intrinsic, and baseline caches held a read, as it empties them, so
+  /// the parent that read them lays out again (`rendering/box.dart:
+  /// 2840-2861`, Flutter 3.47.3); inside [performLayout] it is the only
+  /// caller, since `RenderObject.markNeedsLayout` returns early there.
+  ///
+  /// Inside [performLayout] that parent is the one laying the frame out,
+  /// and a mark in the frame's layout callback never reaches it
+  /// (`RenderObject.markParentNeedsLayout`): the probe or the overflow
+  /// child adopted or dropped, a child's own rebuild in [layoutCallback],
+  /// or a [TickerMode] flip in [_WrapOverflowElement.applyCut] that
+  /// resizes a child. The caches end empty either way, so the read is
+  /// kept owed to the parent in [_owesParentMark].
+  @override
+  void markParentNeedsLayout() {
+    if (_inLayout) _owesParentMark = true;
+    super.markParentNeedsLayout();
   }
 
-  /// Skips only the calls `adoptChild` and `dropChild` make while
-  /// [performLayout] adopts or drops the overflow child or the probe
-  /// ([_swapSlot]); every other call runs [RenderBox.markNeedsLayout].
+  /// Marks the parent too when a mark inside [performLayout] emptied the
+  /// caches a parent read ([markParentNeedsLayout]), as
+  /// [RenderBox.markNeedsLayout] would with the caches still held, so an
+  /// intrinsic parent such as [IntrinsicHeight] measures the frame again
+  /// on the next limit change instead of laying it out alone under the
+  /// old size.
   ///
-  /// [RenderBox.markNeedsLayout] empties the dry-layout, intrinsic, and
-  /// baseline caches, and marks the parent only when they held an entry
-  /// (`rendering/box.dart:2840-2861`, Flutter 3.47.3). The skipped calls
-  /// would empty caches that stay valid, since neither child takes part in
-  /// the dry layout, the intrinsic sizes, or the dry baseline, and ask for
-  /// a layout that is already running and lays both out. Emptied, the
-  /// caches would no longer mark an intrinsic parent such as
-  /// [IntrinsicHeight] on the next limit change, which then lays the frame
-  /// out alone under the old size.
+  /// [scheduleLayoutCallback] reaches [RenderBox.markNeedsLayout] past
+  /// this override and leaves the read owed: the parent would measure the
+  /// children before the layout callback rebuilds them.
   @override
   void markNeedsLayout() {
-    if (_swappingInLayout) return;
     super.markNeedsLayout();
+    if (_inLayout || !_owesParentMark || parent == null) return;
+    _owesParentMark = false;
+    markParentNeedsLayout();
   }
 
   /// The children the last layout showed, then the overflow child.

@@ -108,6 +108,13 @@ class WrapLayout extends BoxLayout {
   /// State; with it null, that switch remounts them, as a [focusGroup]
   /// switch does.
   ///
+  /// While it measures, the wrap calls the builder once for each hidden
+  /// count it tries, then shows the widget built for the last. That
+  /// widget must not carry a [GlobalKey] or a [FocusNode] the app owns: a
+  /// measuring copy and the shown child build it at once, and debug
+  /// builds report it. A key or a node that a [State] inside the child
+  /// creates for itself is its own per copy, and is safe.
+  ///
   /// Expand or collapse by changing [maxRuns] or [maxChildren]: the size
   /// moves from the old to the new size over the theme's default level
   /// (`fast`, 125 ms in the package default) on the theme's `standard`

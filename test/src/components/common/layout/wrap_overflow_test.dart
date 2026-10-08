@@ -60,6 +60,31 @@ class _CountingMoreState extends State<_CountingMore> {
   }
 }
 
+/// The "+N" child of [_more] on a focus node its own State creates, as a
+/// Stratum chip does.
+class _OwnNodeMore extends StatefulWidget {
+  const new({required this.count});
+
+  final int count;
+
+  @override
+  State<_OwnNodeMore> createState() => _OwnNodeMoreState();
+}
+
+class _OwnNodeMoreState extends State<_OwnNodeMore> {
+  final _node = FocusNode(debugLabel: '+N');
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Focus(focusNode: _node, child: _more(context, widget.count));
+}
+
 /// A frame with a gap of 10 and a run gap of 6, counting with [builder],
 /// else [_more], unless [counted] is false.
 WrapOverflowFrame _frame({
@@ -326,6 +351,32 @@ void main() {
         expect(
           tester.getTopLeft(find.byKey(const ValueKey('more'))),
           const Offset(100, 26),
+        );
+      },
+    );
+
+    testWidgets(
+      'us14/fr02/e04: under maxRuns 1 an oversize first child hides, and '
+      'the overflow child, alone in the run, counts it',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            _frame(
+              maxRuns: 1,
+              children: [
+                const SizedBox(key: ValueKey('tag 0'), width: 400, height: 20),
+                ..._tags(3).skip(1),
+              ],
+            ),
+          ),
+        );
+
+        expect(_shownTags(), isEmpty);
+        expect(_built(0), isTrue);
+        expect(find.text('+3'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.byKey(const ValueKey('more'))),
+          Offset.zero,
         );
       },
     );
@@ -865,6 +916,57 @@ void main() {
         await tester.pumpWidget(_host(frame, width: 232));
         expect(tester.takeException(), reportsGlobalKey);
         expect(find.text('+6'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'owner ruling R9: a "+N" on a FocusNode the app owns reports in each '
+      'layout, since the probe and the live overflow child both carry it',
+      (tester) async {
+        final node = FocusNode(debugLabel: 'app +N');
+        addTearDown(node.dispose);
+        // One frame widget for both pumps, so the second pump marks no
+        // overflow dirty: only the wider host reruns the cut and the probe.
+        final frame = _frame(
+          maxRuns: 2,
+          builder: (context, count) =>
+              Focus(focusNode: node, child: _more(context, count)),
+          children: _tags(12),
+        );
+        final reportsFocusNode = isA<FlutterError>().having(
+          (e) => e.toString(),
+          'message',
+          allOf(contains('carries a FocusNode'), contains('app +N')),
+        );
+
+        await tester.pumpWidget(_host(frame));
+        expect(tester.takeException(), reportsFocusNode);
+        expect(find.text('+4'), findsOneWidget);
+
+        await tester.pumpWidget(_host(frame, width: 232));
+        expect(tester.takeException(), reportsFocusNode);
+        expect(find.text('+4'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'owner ruling R9: a "+N" on a FocusNode its own State creates reports '
+      'nothing over two layouts, since the probe and the live child each '
+      'create their own',
+      (tester) async {
+        final frame = _frame(
+          maxRuns: 2,
+          builder: (context, count) => _OwnNodeMore(count: count),
+          children: _tags(12),
+        );
+
+        await tester.pumpWidget(_host(frame));
+        expect(tester.takeException(), isNull);
+        expect(find.text('+4'), findsOneWidget);
+
+        await tester.pumpWidget(_host(frame, width: 232));
+        expect(tester.takeException(), isNull);
+        expect(find.text('+4'), findsOneWidget);
       },
     );
 

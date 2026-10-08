@@ -177,6 +177,24 @@ Widget _swapTag(int i, {required double on, required double off}) => Builder(
         ),
 );
 
+/// Tag `i`, keyed `tag <i>`: a box 40 wide whose height its State's
+/// `grow` sets.
+class _GrowingTag extends StatefulWidget {
+  new(int i) : super(key: ValueKey('tag $i'));
+
+  @override
+  State<_GrowingTag> createState() => _GrowingTagState();
+}
+
+class _GrowingTagState extends State<_GrowingTag> {
+  double _height = 20;
+
+  void grow(double height) => setState(() => _height = height);
+
+  @override
+  Widget build(BuildContext context) => SizedBox(width: 40, height: _height);
+}
+
 /// An [AssertionError] whose message contains every one of [parts].
 Matcher _assertionNaming(List<String> parts) => throwsA(
   isA<AssertionError>().having(
@@ -1671,6 +1689,80 @@ void main() {
 
         expect(_height(tester), 72);
         expect(_shownTags(), [for (var i = 0; i < 12; i++) i]);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04: under IntrinsicHeight an expand after a hidden child '
+      'rebuilt itself in the layout lays the ancestor out to the new size',
+      (tester) async {
+        Widget build(int? maxRuns) => themedHost(
+          SizedBox(
+            width: 230,
+            child: IntrinsicHeight(
+              child: _wrap(
+                maxRuns: maxRuns,
+                children: [..._tags(11), _GrowingTag(11)],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(build(2));
+        expect(_height(tester), 46);
+
+        // Tag 11 is hidden: its own setState rebuilds it inside the
+        // wrap's layout, where its new height empties the wrap's
+        // intrinsic cache without reaching IntrinsicHeight.
+        tester
+            .state<_GrowingTagState>(
+              find.byType(_GrowingTag, skipOffstage: false),
+            )
+            .grow(40);
+        await tester.pump();
+        expect(_height(tester), 46);
+
+        await tester.pumpWidget(build(null));
+        await tester.pumpAndSettle();
+
+        // Three runs, the last as high as tag 11.
+        expect(_height(tester), 20 + 6 + 20 + 6 + 40);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04: under IntrinsicHeight an expand after a cut flip resized '
+      'a child lays the ancestor out to the new size',
+      (tester) async {
+        Widget build(int? maxRuns) => themedHost(
+          SizedBox(
+            width: 230,
+            child: IntrinsicHeight(
+              child: _wrap(
+                maxRuns: maxRuns,
+                children: [
+                  ..._tags(4),
+                  _swapTag(4, on: 30, off: 40),
+                  for (var i = 5; i < 12; i++) _tag(i),
+                ],
+              ),
+            ),
+          ),
+        );
+        // The first cut hides tag 4, which takes its 40 px ColoredBox
+        // inside the wrap's layout, emptying the wrap's intrinsic cache
+        // without reaching IntrinsicHeight.
+        await tester.pumpWidget(build(1));
+        expect(_height(tester), 20);
+        expect(_shownTags(), [0, 1, 2, 3]);
+
+        await tester.pumpWidget(build(2));
+        await tester.pumpAndSettle();
+
+        // Shown, tag 4 takes its 30 px SizedBox and fits in the first run.
+        expect(_height(tester), 46);
+        expect(_shownTags(), [for (var i = 0; i < 9; i++) i]);
+        expect(tester.takeException(), isNull);
       },
     );
 

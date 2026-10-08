@@ -170,6 +170,25 @@ void main() {
       expect(counts, [4, 5, 6]);
     });
 
+    test('us14/fr02/e04: under maxRuns 1 an oversize first child hides for '
+        'an overflow child that fits alone, which counts it', () {
+      final counts = <int>[];
+      final cut = cutWrap(
+        extents: [400, 40, 40],
+        limit: 230,
+        spacing: 10,
+        maxRuns: 1,
+        overflowExtent: (count) {
+          counts.add(count);
+          return 30;
+        },
+      );
+
+      expect(cut.runOf, isEmpty);
+      expect(cut.overflowRun, 0);
+      expect(counts, [2, 3]);
+    });
+
     test('us14/fr02/e05: an overflow child wider than a run sits alone in the '
         'last allowed run', () {
       final counts = <int>[];
