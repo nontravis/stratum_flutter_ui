@@ -445,6 +445,101 @@ void main() {
       },
     );
 
+    testWidgets(
+      'us14/fr02/e07, s03/inv38, D9: intrinsic sizes over a vertical frame '
+      'run the limits at the queried extent, leave the overflow child '
+      'out, and never throw',
+      (tester) async {
+        // The horizontal fr02/e07 test above with every width and height
+        // swapped: a vertical frame packs by height (the main axis) and
+        // reports width (the cross axis) where the horizontal frame packs
+        // by width and reports height, so every number here is that test's
+        // number unchanged.
+        List<Widget> tags(int count) => [
+          for (var i = 0; i < count; i++)
+            SizedBox(key: ValueKey('v-tag $i'), width: 20, height: 40),
+        ];
+        Widget more(BuildContext context, int count) => SizedBox(
+          key: const ValueKey('v-more'),
+          width: 20,
+          height: 30,
+          child: Text('+$count'),
+        );
+        Widget host(Widget child) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(height: 230, child: child),
+          ),
+        );
+
+        await tester.pumpWidget(
+          host(
+            IntrinsicWidth(
+              child: WrapOverflowFrame(
+                direction: Axis.vertical,
+                spacing: 10,
+                runSpacing: 6,
+                maxRuns: 2,
+                overflowBuilder: more,
+                children: tags(12),
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        final box = tester.renderObject<RenderBox>(
+          find.byType(WrapOverflowFrame),
+        );
+
+        expect(box.size.width, 46);
+        expect(box.getMaxIntrinsicWidth(230), 46);
+        expect(box.getMinIntrinsicWidth(230), 46);
+        expect(
+          box.getDryLayout(const BoxConstraints(maxHeight: 230)).width,
+          46,
+        );
+        expect(box.getMinIntrinsicHeight(double.infinity), 40);
+        expect(box.getMaxIntrinsicHeight(double.infinity), 480);
+
+        await tester.pumpWidget(
+          host(
+            WrapOverflowFrame(
+              direction: Axis.vertical,
+              spacing: 10,
+              runSpacing: 6,
+              maxChildren: 5,
+              overflowBuilder: more,
+              children: tags(12),
+            ),
+          ),
+        );
+        final five = tester.renderObject<RenderBox>(
+          find.byType(WrapOverflowFrame),
+        );
+        expect(five.getMaxIntrinsicHeight(double.infinity), 200);
+        expect(five.getMaxIntrinsicWidth(230), 46);
+      },
+    );
+
+    testWidgets('us14/fr02/e07, D3: a dry-baseline query never throws, as an '
+        'ancestor such as IntrinsicHeight over a baseline-aligned Row asks '
+        'for it', (tester) async {
+      await tester.pumpWidget(_host(_frame(maxRuns: 2, children: _tags(12))));
+      final box = tester.renderObject<RenderBox>(
+        find.byType(WrapOverflowFrame),
+      );
+
+      expect(
+        () => box.getDryBaseline(
+          const BoxConstraints(maxWidth: 230),
+          TextBaseline.alphabetic,
+        ),
+        returnsNormally,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('us14/fr02/e07: an overflow child larger than the tags under '
         'IntrinsicHeight lays out with no exception', (tester) async {
       await tester.pumpWidget(

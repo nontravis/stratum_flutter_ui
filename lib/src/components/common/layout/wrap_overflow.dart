@@ -12,6 +12,7 @@ import 'package:flutter/rendering.dart'
         PaintingContext,
         PipelineOwner,
         RenderBox,
+        RenderBoxContainerDefaultsMixin,
         RenderObjectVisitor,
         RenderObjectWithLayoutCallbackMixin;
 import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
@@ -195,6 +196,10 @@ class _WrapOverflowElement extends RenderObjectElement {
   }
 
   List<Element> _buildChildren(List<Element> old) {
+    assert(
+      !debugChildrenHaveDuplicateKeys(widget, _frame.children),
+      'WrapOverflowFrame.children has duplicate keys',
+    );
     final built = updateChildren(
       old,
       _frame.children,
@@ -314,6 +319,7 @@ class _Run {
 class _RenderWrapOverflow extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, _WrapOverflowParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _WrapOverflowParentData>,
         RenderObjectWithLayoutCallbackMixin {
   new(_WrapOverflow widget)
     : _frame = widget.frame,
@@ -393,16 +399,6 @@ class _RenderWrapOverflow extends RenderBox
 
   @override
   void layoutCallback() => element?.flushDirty();
-
-  /// The children in paint order; [ContainerRenderObjectMixin] exposes
-  /// only [firstChild] and [childAfter].
-  List<RenderBox> getChildrenAsList() {
-    final result = <RenderBox>[];
-    for (var child = firstChild; child != null; child = childAfter(child)) {
-      result.add(child);
-    }
-    return result;
-  }
 
   bool get _horizontal => _frame.direction == Axis.horizontal;
   double _main(Size size) => _horizontal ? size.width : size.height;
@@ -524,6 +520,25 @@ class _RenderWrapOverflow extends RenderBox
     for (final child in _shownBoxes) {
       (child.parentData! as _WrapOverflowParentData).shown = true;
     }
+    _positionItems(runs, box, content, (item) => itemAt(item).size, (
+      item,
+      offset,
+    ) {
+      (itemAt(item).parentData! as _WrapOverflowParentData).offset = offset;
+    });
+  }
+
+  /// `RenderWrap._positionChildren` (`rendering/wrap.dart:772-839`): walks
+  /// [runs] and calls [place] with each item's offset; [sizeOf] gives an
+  /// item's size, real for [_place] and dry for [computeDryBaseline], so
+  /// neither copies the other's arithmetic.
+  void _positionItems(
+    List<_Run> runs,
+    Size box,
+    Size content,
+    Size Function(int item) sizeOf,
+    void Function(int item, Offset offset) place,
+  ) {
     if (runs.isEmpty) return;
     final (flipMain, flipCross) = _flips;
     final crossAlignment = flipCross
@@ -547,13 +562,16 @@ class _RenderWrapOverflow extends RenderBox
       );
       var childOffset = leading;
       for (final item in flipMain ? run.items.reversed : run.items) {
-        final child = itemAt(item);
+        final size = sizeOf(item);
         final crossOffset =
-            _crossFactor(crossAlignment) * (run.cross - _cross(child.size));
-        (child.parentData! as _WrapOverflowParentData).offset = _horizontal
-            ? Offset(childOffset, runOffset + crossOffset)
-            : Offset(runOffset + crossOffset, childOffset);
-        childOffset += _main(child.size) + between;
+            _crossFactor(crossAlignment) * (run.cross - _cross(size));
+        place(
+          item,
+          _horizontal
+              ? Offset(childOffset, runOffset + crossOffset)
+              : Offset(runOffset + crossOffset, childOffset),
+        );
+        childOffset += _main(size) + between;
       }
       runOffset += run.cross + runBetween;
     }
@@ -568,6 +586,35 @@ class _RenderWrapOverflow extends RenderBox
     ];
     final cut = _cutOf(sizes, constraints);
     return constraints.constrain(_extentOf(_runsOf(cut, sizes, null)));
+  }
+
+  /// `RenderWrap.computeDryBaseline` (`rendering/wrap.dart:617-648`): the
+  /// dry layout's baseline, over the children left out of the cut's
+  /// overflow child (FR-02 E07, D3: the query never throws).
+  @override
+  double? computeDryBaseline(
+    covariant BoxConstraints constraints,
+    TextBaseline baseline,
+  ) {
+    final children = getChildrenAsList();
+    final childConstraints = _childConstraints(constraints);
+    final sizes = [
+      for (final child in children) child.getDryLayout(childConstraints),
+    ];
+    final cut = _cutOf(sizes, constraints);
+    final runs = _runsOf(cut, sizes, null);
+    final content = _extentOf(runs);
+    final box = constraints.constrain(content);
+    var result = BaselineOffset.noBaseline;
+    _positionItems(runs, box, content, (item) => sizes[item], (item, offset) {
+      result = result.minOf(
+        BaselineOffset(
+              children[item].getDryBaseline(childConstraints, baseline),
+            ) +
+            offset.dy,
+      );
+    });
+    return result.offset;
   }
 
   /// The first [count] children, or all of them when null.
