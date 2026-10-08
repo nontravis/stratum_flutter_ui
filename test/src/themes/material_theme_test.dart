@@ -1,4 +1,6 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/animations/stratum_page_transitions_builder.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
@@ -315,6 +317,154 @@ void main() {
 
       expect(scheme?.primary, appTheme.colorScheme.primary);
       expect(stratum, fakeTheme.color.brand.normal);
+    });
+  });
+
+  group('us08/fr01/e04: the page transitions', () {
+    /// A [MaterialApp] whose builder places an application of [data]
+    /// above the navigator.
+    Widget app(GlobalKey<NavigatorState> navigator, StratumThemeData data) =>
+        MaterialApp(
+          navigatorKey: navigator,
+          builder: (context, child) => StratumThemeApplication(
+            themes: StratumThemeSet(light: data),
+            themeMode: ThemeMode.light,
+            child: child!,
+          ),
+          home: const SizedBox(),
+        );
+
+    Future<void> push(
+      WidgetTester tester,
+      GlobalKey<NavigatorState> navigator, [
+      Route<void>? route,
+    ]) async {
+      navigator.currentState!
+          .push(
+            route ??
+                MaterialPageRoute<void>(
+                  builder: (_) => const SizedBox(key: ValueKey('page')),
+                ),
+          )
+          .ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    Finder above(Type type) => find.ancestor(
+      of: find.byKey(const ValueKey('page')),
+      matching: find.byType(type),
+    );
+
+    test('one Stratum builder of the theme for every platform', () {
+      final builders = _material(fakeTheme).pageTransitionsTheme.builders;
+
+      expect(builders.keys.toSet(), TargetPlatform.values.toSet());
+      for (final MapEntry(key: platform, value: builder) in builders.entries) {
+        expect(
+          builder,
+          isA<StratumPageTransitionsBuilder>()
+              .having((b) => b.motion, 'motion', fakeTheme.animation)
+              .having((b) => b.platform, 'platform', platform),
+        );
+      }
+    });
+
+    test('two calls give equal page transitions themes', () {
+      expect(
+        _material(fakeTheme).pageTransitionsTheme,
+        _material(fakeTheme).pageTransitionsTheme,
+      );
+    });
+
+    testWidgets('us05/fr04/e04, us05/s6, us08/s3: the '
+        'default theme gives the iOS slide and its swipe-back', (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(app(navigator, defaultThemeSet.light));
+      await push(tester, navigator);
+
+      expect(above(CupertinoPageTransition), findsOneWidget);
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(const Offset(5, 300));
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('page')), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('us05/s7: a desktop window takes the desktop type '
+        'through the application', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1300, 800);
+      addTearDown(tester.view.reset);
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        app(
+          navigator,
+          motionTheme(
+            transitions: transitionsOf(
+              ScreenTransitionType.platform,
+              sizes: {
+                WindowSize.mobile: ScreenTransitionType.fade,
+                WindowSize.desktop: ScreenTransitionType.rightToLeft,
+              },
+            ),
+          ),
+        ),
+      );
+      await push(tester, navigator);
+
+      expect(above(SlideTransition), findsOneWidget);
+      expect(above(FadeTransition), findsNothing);
+    });
+
+    testWidgets('us05/fr01/e05, us05/fr04/e03, us05/s8: a '
+        "PageTransition shows its own type over the theme's", (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        app(
+          navigator,
+          motionTheme(transitions: transitionsOf(ScreenTransitionType.fade)),
+        ),
+      );
+      await push(
+        tester,
+        navigator,
+        PageTransition<void>(
+          type: ScreenTransitionType.rightToLeft,
+          child: const SizedBox(key: ValueKey('page')),
+        ),
+      );
+
+      expect(above(SlideTransition), findsOneWidget);
+      expect(above(FadeTransition), findsNothing);
+    });
+
+    testWidgets("a theme switch gives the next page the new theme's type", (
+      tester,
+    ) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        app(
+          navigator,
+          motionTheme(transitions: transitionsOf(ScreenTransitionType.fade)),
+        ),
+      );
+      await tester.pumpWidget(
+        app(
+          navigator,
+          motionTheme(
+            transitions: transitionsOf(ScreenTransitionType.rightToLeft),
+          ),
+        ),
+      );
+      await push(tester, navigator);
+
+      expect(above(SlideTransition), findsOneWidget);
+      expect(above(FadeTransition), findsNothing);
     });
   });
 }
