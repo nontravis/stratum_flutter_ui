@@ -52,6 +52,12 @@ final class StratumWebViewController {
       const StratumWebViewConfiguration();
   bool _disposed = false;
 
+  /// Sender of each message this controller delivered, keyed by the message
+  /// object, so a message app code built that is equal by `==` never matches
+  /// (US-03 FR-05 E01).
+  final Expando<PlatformMessageSender> _senders =
+      Expando<PlatformMessageSender>('StratumWebViewMessage sender');
+
   /// Loads the page at [url].
   ///
   /// Throws an [ArgumentError] unless [url] uses the `http` or `https`
@@ -122,21 +128,75 @@ final class StratumWebViewController {
 
   /// Sends [data] to the page as a `message` event.
   ///
+  /// Without [targetOrigin] the page shown at delivery receives it. With
+  /// [targetOrigin], only a page with that origin does: it is compared as an
+  /// origin (scheme, host without case, and port; path, query, and fragment
+  /// are ignored), must match an entry of `StratumWebView.allowedOrigins`,
+  /// and never matches HTML the controller loaded. To answer a message, use
+  /// [reply], which names the sender for you.
+  ///
   /// Throws a [StateError] when `StratumWebView.allowedOrigins` is empty,
-  /// when the current page is not an allowed destination, on Android when
-  /// the system WebView has no `WEB_MESSAGE_LISTENER` or
-  /// `JS_INJECTION_IN_FRAME_AND_WORLD` support, or when HTML the controller
-  /// loaded has not connected the bridge yet: wait for a first message from
-  /// the page, so `await loadHtml(html)` followed at once by `postMessage`
-  /// throws. On native the page itself checks that it may receive the
-  /// message, or that check gives no answer within five seconds; either way
-  /// the error names no origin. On Android a send to HTML reaches only the
-  /// document that connected the bridge; once that document leaves, the
-  /// next one gets nothing and the send throws. On web, a message sent to
-  /// HTML content after the user navigated away from it is dropped without
-  /// an error: the browser gives no signal that the page left.
-  Future<void> postMessage(String data) async {
+  /// when the current page is not an allowed destination, when
+  /// [targetOrigin] matches no allowed entry or the page shown at delivery
+  /// has another origin, on Android when the system WebView has no
+  /// `WEB_MESSAGE_LISTENER` or `JS_INJECTION_IN_FRAME_AND_WORLD` support, or
+  /// when HTML the controller loaded has not connected the bridge yet: wait
+  /// for a first message from the page, so `await loadHtml(html)` followed
+  /// at once by `postMessage` throws. On native the page itself checks that
+  /// it may receive the message, or that check gives no answer within five
+  /// seconds; either way the error names no origin. On Android a send to
+  /// HTML reaches only the document that connected the bridge; once that
+  /// document leaves, the next one gets nothing and the send throws. On
+  /// web, a message sent to HTML content after the user navigated away from
+  /// it is dropped without an error: the browser gives no signal that the
+  /// page left. On web, a page that changes origin after the [targetOrigin]
+  /// check drops the message without an error.
+  Future<void> postMessage(String data, {Uri? targetOrigin}) async {
     _ensureActive();
+    _ensureBridgeOpen();
+    if (targetOrigin == null) {
+      await _platform.postMessage(data);
+    } else {
+      await _sendNamed(data, targetOrigin);
+    }
+  }
+
+  /// Sends [data] as a `message` event to the sender of [message], a
+  /// message this controller delivered through `StratumWebView.onMessage`.
+  ///
+  /// A URL page receives it only while the page shown has the message's
+  /// origin, as `postMessage(data, targetOrigin: message.origin)` would; a
+  /// reload of that page, or another page of the same origin, receives it
+  /// too. HTML the controller loaded receives it only in the document that
+  /// sent [message], never in a later document of the same load.
+  ///
+  /// Throws an [ArgumentError] for a message this controller did not
+  /// deliver, such as one app code built. Throws a [StateError] as
+  /// [postMessage] does, and when the sender is not the page shown or is
+  /// gone. On Windows and Linux a message carries the origin of the page of
+  /// the last `StratumWebView.onPageStarted`, so around a navigation a reply
+  /// can reach the page shown instead of the sender. On web, a reply to HTML
+  /// after the user followed a link away inside it is dropped without an
+  /// error.
+  Future<void> reply(StratumWebViewMessage message, String data) async {
+    _ensureActive();
+    final sender = _senders[message];
+    if (sender == null) {
+      throw ArgumentError(
+        'The message was not delivered by this controller.',
+        'message',
+      );
+    }
+    _ensureBridgeOpen();
+    switch (sender) {
+      case PlatformUrlPageSender(:final origin):
+        await _sendNamed(data, origin);
+      case PlatformHtmlDocumentSender():
+        await _platform.replyToDocument(sender, data);
+    }
+  }
+
+  void _ensureBridgeOpen() {
     if (_configuration.allowedOrigins.isEmpty) {
       throw StateError(
         'The bridge is disabled because allowedOrigins is empty.',
@@ -147,7 +207,16 @@ final class StratumWebViewController {
         'The bridge is disabled because javaScriptEnabled is false.',
       );
     }
-    await _platform.postMessage(data);
+  }
+
+  Future<void> _sendNamed(String data, Uri targetOrigin) async {
+    final target = originOf(targetOrigin);
+    if (!isAllowedOrigin(target, _configuration.allowedOrigins)) {
+      throw StateError(
+        'targetOrigin $target is not an allowed message destination.',
+      );
+    }
+    await _platform.postMessage(data, targetOrigin: target);
   }
 
   /// Releases the platform web view. Later calls throw a [StateError].
@@ -233,6 +302,7 @@ final class _ControllerListener implements PlatformStratumWebViewListener {
         callback == null) {
       return;
     }
+    _controller._senders[message] = sender;
     _guard('onMessage', () => callback(message));
   }
 

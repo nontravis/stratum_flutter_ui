@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_controller.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
@@ -7,6 +10,7 @@ import 'fakes/fake_platform_stratum_web_view.dart';
 
 void main() {
   final appOrigin = Uri.parse('https://app.example.com');
+  final partner = Uri.parse('https://partner.example.net');
   late List<FakePlatformStratumWebView> platforms;
   late StratumWebViewController controller;
 
@@ -73,6 +77,55 @@ void main() {
     );
     await controller.postMessage('x');
     expect(platform().sentMessages, ['x']);
+    expect(platform().sentTargets, [null]);
+  });
+
+  test('us03/fr02/e14: a named target is compared as an origin and passed on '
+      'as one', () async {
+    controller.configure(
+      StratumWebViewConfiguration(allowedOrigins: {appOrigin}),
+    );
+    await controller.postMessage(
+      'x',
+      targetOrigin: Uri.parse('https://APP.example.com:443/path?q=1#f'),
+    );
+    expect(platform().sentTargets, [Uri.parse('https://app.example.com')]);
+    expect(platform().sentMessages, ['x']);
+  });
+
+  test('us03/fr02/e15, nf01/NFR-Sec02: a named send whose target matches no '
+      'allowed entry, a host-less one included, throws before the platform '
+      'runs', () async {
+    controller.configure(
+      StratumWebViewConfiguration(allowedOrigins: {appOrigin}),
+    );
+    await expectLater(
+      controller.postMessage('x', targetOrigin: partner),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          allOf(
+            startsWith('targetOrigin '),
+            endsWith(' is not an allowed message destination.'),
+          ),
+        ),
+      ),
+    );
+    await expectLater(
+      controller.postMessage('x', targetOrigin: Uri.parse('about:blank')),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          allOf(
+            startsWith('targetOrigin '),
+            endsWith(' is not an allowed message destination.'),
+          ),
+        ),
+      ),
+    );
+    expect(platform().sentMessages, isEmpty);
   });
 
   test('postMessage surfaces platform refusals', () async {
@@ -92,6 +145,255 @@ void main() {
     );
     await expectLater(controller.postMessage('x'), throwsStateError);
     expect(platform().sentMessages, isEmpty);
+  });
+
+  group('reply', () {
+    test('us03/fr05/e01: reply throws ArgumentError for a message this '
+        'controller did not deliver', () async {
+      controller.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          onMessage: (_) {},
+        ),
+      );
+      platforms.first.listener.onMessage(
+        StratumWebViewMessage(data: 'ready', origin: appOrigin),
+        PlatformUrlPageSender(appOrigin),
+      );
+
+      final other = StratumWebViewController();
+      addTearDown(other.dispose);
+      other.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          onMessage: (_) {},
+        ),
+      );
+      final otherMessage = StratumWebViewMessage(
+        data: 'ready',
+        origin: appOrigin,
+      );
+      platforms.last.listener.onMessage(
+        otherMessage,
+        PlatformUrlPageSender(appOrigin),
+      );
+
+      await expectLater(
+        controller.reply(
+          StratumWebViewMessage(data: 'ready', origin: appOrigin),
+          'x',
+        ),
+        throwsA(
+          isA<ArgumentError>()
+              .having(
+                (e) => e.message,
+                'message',
+                'The message was not delivered by this controller.',
+              )
+              .having((e) => e.name, 'name', 'message'),
+        ),
+      );
+      await expectLater(
+        controller.reply(otherMessage, 'x'),
+        throwsA(
+          isA<ArgumentError>()
+              .having(
+                (e) => e.message,
+                'message',
+                'The message was not delivered by this controller.',
+              )
+              .having((e) => e.name, 'name', 'message'),
+        ),
+      );
+      expect(platforms.first.sentMessages, isEmpty);
+      expect(platforms.first.documentReplies, isEmpty);
+      expect(platforms.last.sentMessages, isEmpty);
+      expect(platforms.last.documentReplies, isEmpty);
+    });
+
+    test('us03/fr05/e02: reply checks dispose first, then the message, then '
+        'the bridge gate', () async {
+      final disposed = StratumWebViewController()..dispose();
+      await expectLater(
+        disposed.reply(
+          StratumWebViewMessage(data: 'ready', origin: appOrigin),
+          'x',
+        ),
+        throwsStateError,
+      );
+
+      final noAllowlist = StratumWebViewController();
+      addTearDown(noAllowlist.dispose);
+      await expectLater(
+        noAllowlist.reply(
+          StratumWebViewMessage(data: 'ready', origin: appOrigin),
+          'x',
+        ),
+        throwsArgumentError,
+      );
+
+      final emptied = StratumWebViewController();
+      addTearDown(emptied.dispose);
+      emptied.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          onMessage: (_) {},
+        ),
+      );
+      final emptiedMessage = StratumWebViewMessage(
+        data: 'ready',
+        origin: appOrigin,
+      );
+      platforms.last.listener.onMessage(
+        emptiedMessage,
+        PlatformUrlPageSender(appOrigin),
+      );
+      emptied.configure(const StratumWebViewConfiguration());
+      await expectLater(
+        emptied.reply(emptiedMessage, 'x'),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            'The bridge is disabled because allowedOrigins is empty.',
+          ),
+        ),
+      );
+
+      final jsOff = StratumWebViewController();
+      addTearDown(jsOff.dispose);
+      jsOff.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          onMessage: (_) {},
+        ),
+      );
+      final jsOffMessage = StratumWebViewMessage(
+        data: 'ready',
+        origin: appOrigin,
+      );
+      platforms.last.listener.onMessage(
+        jsOffMessage,
+        PlatformUrlPageSender(appOrigin),
+      );
+      jsOff.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          javaScriptEnabled: false,
+        ),
+      );
+      await expectLater(
+        jsOff.reply(jsOffMessage, 'x'),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            'The bridge is disabled because javaScriptEnabled is false.',
+          ),
+        ),
+      );
+    });
+
+    test('us03/fr05/e03, us03/fr05/e04, us03/s8: a reply to a URL page is a '
+        "send naming the message's origin, and the platform's refusal "
+        'surfaces', () async {
+      controller.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin, partner},
+          onMessage: (_) {},
+        ),
+      );
+      final message = StratumWebViewMessage(data: 'ready', origin: appOrigin);
+      platform().listener.onMessage(message, PlatformUrlPageSender(appOrigin));
+
+      await controller.reply(message, 'pong');
+      expect(platform().sentMessages, ['pong']);
+      expect(platform().sentTargets, [appOrigin]);
+
+      platform().postMessageError = StateError('moved');
+      await expectLater(
+        controller.reply(message, 'pong'),
+        throwsA(isA<StateError>().having((e) => e.message, 'message', 'moved')),
+      );
+    });
+
+    test('us03/fr05/e05: a reply to a URL page whose origin left the allowlist '
+        'throws before the platform runs', () async {
+      controller.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin, partner},
+          onMessage: (_) {},
+        ),
+      );
+      final message = StratumWebViewMessage(data: 'ready', origin: appOrigin);
+      platform().listener.onMessage(message, PlatformUrlPageSender(appOrigin));
+
+      controller.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {partner},
+          onMessage: (_) {},
+        ),
+      );
+
+      await expectLater(
+        controller.reply(message, 'pong'),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              startsWith('targetOrigin '),
+              endsWith(' is not an allowed message destination.'),
+            ),
+          ),
+        ),
+      );
+      expect(platform().sentMessages, isEmpty);
+    });
+
+    test('us03/fr05/e06, us03/fr05/e08: a reply to own HTML goes to the '
+        'platform with the document that sent the message', () async {
+      controller.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          onMessage: (_) {},
+        ),
+      );
+      final text = 'ready:${appOrigin.host}';
+      final message = StratumWebViewMessage(data: text);
+      platform().listener.onMessage(message, const FakeHtmlDocumentSender());
+
+      await controller.reply(message, 'pong');
+      expect(platform().documentReplies, [
+        (const FakeHtmlDocumentSender(), 'pong'),
+      ]);
+      expect(platform().sentMessages, isEmpty);
+
+      platform().replyError = StateError('gone');
+      await expectLater(
+        controller.reply(message, 'pong'),
+        throwsA(isA<StateError>().having((e) => e.message, 'message', 'gone')),
+      );
+    });
+
+    test(
+      'us03/fr05: a reply from inside onMessage reaches its sender',
+      () async {
+        controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {appOrigin},
+            onMessage: (m) => unawaited(controller.reply(m, 'ack')),
+          ),
+        );
+        final message = StratumWebViewMessage(data: 'ready', origin: appOrigin);
+        platform().listener.onMessage(
+          message,
+          PlatformUrlPageSender(appOrigin),
+        );
+        await pumpEventQueue();
+        expect(platform().sentMessages, ['ack']);
+      },
+    );
   });
 
   test('configure forwards JavaScript only when it changes', () {

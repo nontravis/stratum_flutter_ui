@@ -20,7 +20,10 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 /// ```
 ///
 /// `StratumWebViewController.postMessage` delivers a `message` event to the
-/// page on every platform. The bridge stays off while [allowedOrigins] is
+/// page on every platform. Answer a message with
+/// `StratumWebViewController.reply`, which reaches only the page or HTML
+/// document that sent it; `postMessage` with a `targetOrigin` names the
+/// recipient origin. The bridge stays off while [allowedOrigins] is
 /// empty, HTML content included: give HTML a non-empty [allowedOrigins]
 /// too. HTML content is trusted by a secret that its bootstrap script
 /// carries, new for every HTML load, never by the page address: a page the
@@ -43,7 +46,8 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 ///   drawn above the view need `PointerInterceptor`. An HTML page's URL is
 ///   always `null`; on native it is `about:blank`. A URL page that the view
 ///   has moved away from can still deliver a message, with its own allowed
-///   origin, until it unloads.
+///   origin, until it unloads. A `reply` to it throws once the view shows
+///   another origin.
 /// * Linux: the page is a native GTK widget, so Flutter widgets cannot draw
 ///   above it, and scale or rotation transforms hide it.
 /// * Android, iOS, and macOS: the platform names the sender of each
