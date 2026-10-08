@@ -1173,33 +1173,109 @@ void main() {
       expect(_focused(), '+N');
     });
 
+    /// A "+N" child of [_focusMore] keyed by [name] and its count, so a new
+    /// count, or a new name, builds it as a new element.
+    Widget Function(BuildContext, int) keyedMore(String name) =>
+        (context, count) => Focus(
+          key: ValueKey('$name $count'),
+          debugLabel: '+N',
+          child: _more(context, count),
+        );
+
+    /// Sixteen focusable tags on [nodes], cut to [maxRuns], with the "+N"
+    /// child of [overflowBuilder].
+    Widget sixteen(
+      int maxRuns,
+      List<FocusNode> nodes,
+      Widget Function(BuildContext, int) overflowBuilder,
+    ) {
+      return _host(
+        _wrap(
+          maxRuns: maxRuns,
+          overflowBuilder: overflowBuilder,
+          children: [for (final (i, node) in nodes.indexed) _focusTag(i, node)],
+        ),
+      );
+    }
+
+    /// Whether the "+N" child shown now holds primary focus.
+    bool moreFocused(WidgetTester tester) =>
+        Focus.of(tester.element(find.byKey(const ValueKey('more'))))
+            .hasPrimaryFocus;
+
     testWidgets(
       'r5: an expand that rebuilds the focused "+N" as a new child moves '
       'focus to the first child the expand shows',
       (tester) async {
         final nodes = [for (var i = 0; i < 16; i++) _node('tag $i')];
-        // Keyed by its count, the "+N" child is a new element at each count.
-        Widget more(BuildContext context, int count) => Focus(
-          key: ValueKey(count),
-          debugLabel: '+N',
-          child: _more(context, count),
-        );
-        Widget wrap(int maxRuns) => _host(
-          _wrap(
-            maxRuns: maxRuns,
-            overflowBuilder: more,
-            children: [
-              for (final (i, node) in nodes.indexed) _focusTag(i, node),
-            ],
-          ),
-        );
-        await tester.pumpWidget(wrap(2));
+        final more = keyedMore('count');
+        await tester.pumpWidget(sixteen(2, nodes, more));
         await focusMore(tester);
 
-        await tester.pumpWidget(wrap(3));
+        await tester.pumpWidget(sixteen(3, nodes, more));
         await tester.pump();
 
         expect(find.text('+4'), findsOneWidget);
+        expect(_focused(), 'tag 8');
+      },
+    );
+
+    testWidgets(
+      'us14/fr03/e01: a collapse that rebuilds the focused "+N" as a new '
+      'child moves focus to the new "+N" after the frame',
+      (tester) async {
+        final nodes = [for (var i = 0; i < 16; i++) _node('tag $i')];
+        final more = keyedMore('count');
+        await tester.pumpWidget(sixteen(3, nodes, more));
+        expect(find.text('+4'), findsOneWidget);
+        await focusMore(tester);
+
+        await tester.pumpWidget(sixteen(2, nodes, more));
+        await tester.pump();
+
+        expect(find.text('+8'), findsOneWidget);
+        expect(moreFocused(tester), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us14/fr03/e01: an overflowBuilder that rebuilds the focused "+N" as a '
+      'new child at the same limits moves focus to the new "+N" after the '
+      'frame',
+      (tester) async {
+        final nodes = [for (var i = 0; i < 16; i++) _node('tag $i')];
+        await tester.pumpWidget(sixteen(2, nodes, keyedMore('old')));
+        await focusMore(tester);
+
+        await tester.pumpWidget(sixteen(2, nodes, keyedMore('new')));
+        await tester.pump();
+
+        expect(find.text('+8'), findsOneWidget);
+        expect(moreFocused(tester), isTrue);
+      },
+    );
+
+    testWidgets(
+      'r5: an expand that also inserts a child before the cut moves focus '
+      'to the first child the expand shows',
+      (tester) async {
+        final nodes = [...twelve(), _node('tag 12')];
+        Widget host(int? maxRuns, {required bool inserted}) => _host(
+          _wrap(
+            maxRuns: maxRuns,
+            overflowBuilder: _focusMore,
+            children: [
+              if (inserted) _focusTag(12, nodes[12]),
+              for (var i = 0; i < 12; i++) _focusTag(i, nodes[i]),
+            ],
+          ),
+        );
+        await tester.pumpWidget(host(2, inserted: false));
+        await focusMore(tester);
+
+        await tester.pumpWidget(host(null, inserted: true));
+        await tester.pump();
+
         expect(_focused(), 'tag 8');
       },
     );

@@ -187,9 +187,15 @@ class _WrapOverflowElement extends RenderObjectElement {
   int? _shown;
 
   /// Whether an update of the overflow child in this layout dropped the
-  /// focus it held, by removing it or building it anew (owner ruling R5);
-  /// [handOffFocus] hands focus on and clears it.
+  /// focus it held, by removing it or building it anew; [handOffFocus]
+  /// hands focus on and clears it.
   bool _overflowHeldFocus = false;
+
+  /// The slots [applyCut] flipped from hidden to shown in this layout, so
+  /// an expand finds the first child it shows by slot, whatever index a
+  /// children change in the same update gave it (owner ruling R5);
+  /// [handOffFocus] reads and clears them.
+  final _newlyShown = <Element>{};
 
   @override
   BuildScope get buildScope => _buildScope;
@@ -359,7 +365,8 @@ class _WrapOverflowElement extends RenderObjectElement {
       return true;
     }(), 'debug-only: collects the GlobalKeys the probe holds');
     // Removing the overflow child, or building it anew, drops the focus it
-    // holds (owner ruling R5); compare where focus sits before and after.
+    // holds; compare where focus sits before and after, so handOffFocus
+    // hands it on.
     final held = _holdsFocus(_overflow);
     owner!.buildScope(this, () {
       _overflow = updateChild(
@@ -485,28 +492,39 @@ class _WrapOverflowElement extends RenderObjectElement {
         final hidden = i >= shown;
         if (slot.hidden == hidden) continue;
         slot.hidden = hidden;
+        if (hidden) {
+          _newlyShown.remove(child);
+        } else {
+          _newlyShown.add(child);
+        }
       }
     });
   }
 
   /// Hands focus on after the frame when this layout dropped it (s03
   /// invariant 39); the render object calls it once per layout, after its
-  /// last cut, with the count the previous layout showed in
-  /// [shownBefore].
+  /// last cut.
   ///
-  /// Reads where primary focus sits, not which slots flipped: a slot this
-  /// cut hid still holds primary focus here, since the focus manager
-  /// applies the unfocus after the frame, and a slot seeded hidden never
-  /// flips at all ([_buildChildren]).
-  void handOffFocus(int? shownBefore) {
+  /// When an update dropped the overflow child's focus, an expand that
+  /// showed hidden children hands it to the first of them (owner ruling
+  /// R5); any other drop, a collapse or a rebuild that replaces the "+N"
+  /// child, or a removal that shows no hidden child, follows FR-03 E01's
+  /// chain in [_handOff].
+  ///
+  /// Otherwise it reads where primary focus sits, not which slots flipped:
+  /// a slot this cut hid still holds primary focus here, since the focus
+  /// manager applies the unfocus after the frame, and a slot seeded hidden
+  /// never flips at all ([_buildChildren]).
+  void handOffFocus() {
     final shown = _shown!;
+    final expanded = _overflowHeldFocus
+        ? _children.take(shown).where(_newlyShown.contains).firstOrNull
+        : null;
+    _newlyShown.clear();
     if (_overflowHeldFocus) {
       _overflowHeldFocus = false;
-      final first = shownBefore != null && shownBefore < shown
-          ? shownBefore
-          : null;
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _handOffToShown(first),
+        (_) => expanded == null ? _handOff() : _handOffToShown(expanded),
       );
       return;
     }
@@ -531,15 +549,13 @@ class _WrapOverflowElement extends RenderObjectElement {
     (target ?? _wrapNode).requestFocus();
   }
 
-  /// Focuses the first Tab stop of the child at [index], the first child
-  /// an expand shows, else the wrap's own node (owner ruling R5), as
-  /// US-09 FR-02 hands focus to the incoming child, after the frame whose
-  /// expand dropped the focus of the overflow child.
-  void _handOffToShown(int? index) {
+  /// Focuses the first Tab stop of the child in [slot], the first child an
+  /// expand showed, else the wrap's own node (owner ruling R5), as US-09
+  /// FR-02 hands focus to the incoming child, after the frame whose expand
+  /// dropped the focus of the overflow child.
+  void _handOffToShown(Element slot) {
     if (!mounted) return;
-    final target = index == null || index >= _children.length
-        ? null
-        : firstTabStopIn(_nodeOf(_children[index]));
+    final target = slot.mounted ? firstTabStopIn(_nodeOf(slot)) : null;
     (target ?? _wrapNode).requestFocus();
   }
 
@@ -837,7 +853,6 @@ class _RenderWrapOverflow extends RenderBox
   @override
   void performLayout() {
     runLayoutCallback();
-    final shownBefore = element!._shown;
     final childConstraints = _childConstraints(constraints);
     var measured = _measure(childConstraints);
     var cut = _cutAndApply(measured.sizes, childConstraints);
@@ -852,7 +867,7 @@ class _RenderWrapOverflow extends RenderBox
       now = _measure(childConstraints);
       if (!now.matches(measured)) _debugReportUnsettledCut();
     }
-    element!.handOffFocus(shownBefore);
+    element!.handOffFocus();
     final overflowRun = cut.overflowRun;
     if (overflowRun != null) {
       _overflow!.layout(childConstraints, parentUsesSize: true);
