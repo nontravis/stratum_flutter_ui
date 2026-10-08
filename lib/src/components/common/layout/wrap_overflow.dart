@@ -139,7 +139,6 @@ class _WrapOverflowElement extends RenderObjectElement {
   WrapOverflowFrame get _frame => (widget as _WrapOverflow).frame;
 
   List<Element> _children = const [];
-  final _forgotten = <Element>{};
   Element? _overflow;
   Element? _probe;
 
@@ -223,22 +222,34 @@ class _WrapOverflowElement extends RenderObjectElement {
     super.unmount();
   }
 
+  /// Builds a slot per child. A keyed child keeps the flag its slot holds,
+  /// so only [applyCut] flips a child already built, in the layout of the
+  /// new cut; an unkeyed or new child takes the flag of its index under
+  /// the last cut.
   List<Element> _buildChildren(List<Element> old) {
     assert(
       !debugChildrenHaveDuplicateKeys(widget, _frame.children),
       'WrapOverflowFrame.children has duplicate keys',
     );
     final shown = _shown;
-    final built = updateChildren(old, [
+    final hiddenByKey = {
+      for (final element in old)
+        if (element.widget case _WrapSlot(:final Key key, :final hidden))
+          key: hidden,
+    };
+    return updateChildren(old, [
       for (final (i, child) in _frame.children.indexed)
-        _slot(child, hidden: shown != null && i >= shown),
-    ], forgottenChildren: _forgotten);
-    _forgotten.clear();
-    return built;
+        _slot(
+          child,
+          hidden: hiddenByKey[_slotKey(child)] ?? (shown != null && i >= shown),
+        ),
+    ]);
   }
 
   /// [child] in its [_WrapSlot], keyed by the child's own key, so a keyed
-  /// child keeps its State when the children move.
+  /// child keeps its State when the children move. A slot's key is never
+  /// a [GlobalKey], so Flutter never retakes a slot and the wrap needs no
+  /// `forgetChild`.
   static Widget _slot(Widget child, {required bool hidden}) =>
       _WrapSlot(key: _slotKey(child), hidden: hidden, child: child);
 
@@ -256,9 +267,7 @@ class _WrapOverflowElement extends RenderObjectElement {
 
   @override
   void visitChildren(ElementVisitor visitor) {
-    for (final child in _children) {
-      if (!_forgotten.contains(child)) visitor(child);
-    }
+    _children.forEach(visitor);
     final overflow = _overflow;
     if (overflow != null) visitor(overflow);
     final probe = _probe;
@@ -274,18 +283,6 @@ class _WrapOverflowElement extends RenderObjectElement {
     _children.take(_shown ?? _children.length).forEach(visitor);
     final overflow = _overflow;
     if (overflow != null) visitor(overflow);
-  }
-
-  @override
-  void forgetChild(Element child) {
-    if (child == _overflow) {
-      _overflow = null;
-    } else if (child == _probe) {
-      _probe = null;
-    } else {
-      _forgotten.add(child);
-    }
-    super.forgetChild(child);
   }
 
   /// Rebuilds the descendants marked dirty since the last layout; the
@@ -543,6 +540,15 @@ class _WrapOverflowParentData extends ContainerBoxParentData<RenderBox> {
   bool shown = false;
 }
 
+/// The children's boxes, in child order, and the sizes a layout gave them.
+typedef _Measured = ({List<RenderBox> boxes, List<Size> sizes});
+
+extension _MeasuredMatch on _Measured {
+  /// Whether [other] holds the same boxes at the same sizes.
+  bool matches(_Measured other) =>
+      listEquals(boxes, other.boxes) && listEquals(sizes, other.sizes);
+}
+
 /// One run of a cut: its items, indices into the children with -1 for the
 /// overflow child, and its extents along and across [Wrap]'s direction.
 class _Run {
@@ -730,14 +736,44 @@ class _RenderWrapOverflow extends RenderBox
   @override
   void performLayout() {
     runLayoutCallback();
-    final element = this.element!;
-    final children = getChildrenAsList();
     final childConstraints = _childConstraints(constraints);
-    for (final child in children) {
-      child.layout(childConstraints, parentUsesSize: true);
+    var measured = _measure(childConstraints);
+    var cut = _cutAndApply(measured.sizes, childConstraints);
+    // Flipping a child's TickerMode rebuilds what reads it; a child whose
+    // root does can take another render object or size, so the cut runs
+    // once more over what the flip left, and reports a second change
+    // rather than cutting on.
+    var now = _measure(childConstraints);
+    if (!now.matches(measured)) {
+      measured = now;
+      cut = _cutAndApply(measured.sizes, childConstraints);
+      now = _measure(childConstraints);
+      if (!now.matches(measured)) _debugReportUnsettledCut();
     }
+    final overflowRun = cut.overflowRun;
+    if (overflowRun != null) {
+      _overflow!.layout(childConstraints, parentUsesSize: true);
+    }
+    _place(cut, now.boxes, overflowRun == null ? null : _overflow);
+  }
+
+  /// Lays out every child under [childConstraints]: the boxes, in child
+  /// order, and the sizes they took.
+  _Measured _measure(BoxConstraints childConstraints) {
+    final boxes = getChildrenAsList();
+    for (final box in boxes) {
+      box.layout(childConstraints, parentUsesSize: true);
+    }
+    return (boxes: boxes, sizes: [for (final box in boxes) box.size]);
+  }
+
+  /// Cuts the children's [sizes], measuring each candidate count on the
+  /// probe, then builds the overflow child and flips the children's slots
+  /// to the cut, inside this layout.
+  WrapCut _cutAndApply(List<Size> sizes, BoxConstraints childConstraints) {
+    final element = this.element!;
     final cut = cutWrap(
-      extents: [for (final child in children) _main(child.size)],
+      extents: [for (final size in sizes) _main(size)],
       limit: _limit(constraints),
       spacing: _frame.spacing,
       maxRuns: _frame.maxRuns,
@@ -746,29 +782,49 @@ class _RenderWrapOverflow extends RenderBox
           ? null
           : (count) => _layOutProbe(count, childConstraints),
     );
-    final overflowRun = cut.overflowRun;
     invokeLayoutCallback<BoxConstraints>((_) {
-      if (overflowRun == null) {
+      if (cut.overflowRun == null) {
         element.buildOverflow(0, null);
       } else {
-        element.buildOverflow(
-          children.length - cut.shown,
-          element._probeWidget,
-        );
+        element.buildOverflow(sizes.length - cut.shown, element._probeWidget);
       }
       element
         ..applyCut(cut.shown)
         ..dropProbe();
     });
-    if (overflowRun != null) {
-      _overflow!.layout(childConstraints, parentUsesSize: true);
-    }
-    // A flag change rebuilds a child's slot, which can mark the child for
-    // layout; laying it out again is a no-op unless it did.
-    for (final child in children) {
-      child.layout(childConstraints, parentUsesSize: true);
-    }
-    _place(cut, children, overflowRun == null ? null : _overflow);
+    return cut;
+  }
+
+  /// Reports, debug-only, a cut that a second flip changed again: the
+  /// frame places the children as they are now by the last cut, which may
+  /// overflow a run, instead of cutting without end.
+  void _debugReportUnsettledCut() {
+    assert(() {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: FlutterError.fromParts([
+            ErrorSummary(
+              'A child of WrapOverflowFrame changed its render object or '
+              'size each time the cut showed or hid it.',
+            ),
+            ErrorDescription(
+              'Showing or hiding a child flips its TickerMode, which '
+              'rebuilds what reads it. A child whose root reads TickerMode '
+              'and so takes another render object or size moves the cut; '
+              'the frame cut twice, then placed the children by the last '
+              'cut.',
+            ),
+            ErrorHint(
+              'Keep the render object and the size of a child the same '
+              'whether it ticks or not.',
+            ),
+          ]),
+          library: 'stratum_ui',
+          context: ErrorDescription('laying out $this'),
+        ),
+      );
+      return true;
+    }(), 'debug-only: reports a cut a flip changed twice');
   }
 
   /// Measures a candidate hidden count on the probe (owner ruling R8) and

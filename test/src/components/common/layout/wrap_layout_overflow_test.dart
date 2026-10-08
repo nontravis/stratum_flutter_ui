@@ -126,6 +126,55 @@ class _SpinnerState extends State<_Spinner>
   Widget build(BuildContext context) => const SizedBox(width: 10, height: 10);
 }
 
+/// A 40 by 20 box that adds to [log], each time its [TickerMode] flips,
+/// whether the flip came inside a render object's layout.
+class _TickerWatch extends StatefulWidget {
+  const new({super.key, required this.log});
+
+  final List<bool> log;
+
+  @override
+  State<_TickerWatch> createState() => _TickerWatchState();
+}
+
+class _TickerWatchState extends State<_TickerWatch> {
+  ValueListenable<TickerModeData>? _mode;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final mode = TickerMode.getValuesNotifier(context);
+    if (mode == _mode) return;
+    _mode?.removeListener(_flipped);
+    _mode = mode..addListener(_flipped);
+  }
+
+  @override
+  void dispose() {
+    _mode?.removeListener(_flipped);
+    super.dispose();
+  }
+
+  void _flipped() => widget.log.add(RenderObject.debugActiveLayout != null);
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(width: 40, height: 20);
+}
+
+/// Tag [i], keyed `tag <i>`, whose root reads its [TickerMode]: a
+/// [SizedBox] [on] wide while on, a [ColoredBox] [off] wide while off,
+/// both 20 high, so showing or hiding it swaps its render object and its
+/// size.
+Widget _swapTag(int i, {required double on, required double off}) => Builder(
+  key: ValueKey('tag $i'),
+  builder: (context) => TickerMode.valuesOf(context).enabled
+      ? SizedBox(width: on, height: 20)
+      : ColoredBox(
+          color: const Color(0xFF000000),
+          child: SizedBox(width: off, height: 20),
+        ),
+);
+
 /// An [AssertionError] whose message contains every one of [parts].
 Matcher _assertionNaming(List<String> parts) => throwsA(
   isA<AssertionError>().having(
@@ -660,5 +709,108 @@ void main() {
         expect(find.byKey(const ValueKey('chip 1')), findsNothing);
       },
     );
+
+    testWidgets(
+      'us14/fr03/e04, s03/inv39: a focused child that a children change '
+      'moves past the old cut keeps focus when the new cut still shows it',
+      (tester) async {
+        final nodes = [for (var i = 0; i < 12; i++) _node('tag $i')];
+        Widget build({required bool inserted, required int maxChildren}) =>
+            _host(
+              _wrap(
+                maxChildren: maxChildren,
+                children: [
+                  if (inserted) _tag(12),
+                  for (final (i, node) in nodes.indexed) _focusTag(i, node),
+                ],
+              ),
+            );
+        await tester.pumpWidget(build(inserted: false, maxChildren: 8));
+        nodes[7].requestFocus();
+        await tester.pump();
+        expect(nodes[7].hasFocus, isTrue);
+
+        await tester.pumpWidget(build(inserted: true, maxChildren: 9));
+        await tester.pump();
+
+        expect(find.byKey(const ValueKey('tag 7')), findsOneWidget);
+        expect(nodes[7].hasFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      's03/inv39: a shown child that a children change moves past the cut '
+      'hides inside the layout of the new cut, never in the build before it',
+      (tester) async {
+        final flips = <bool>[];
+        Widget build({required bool inserted}) => _host(
+          _wrap(
+            maxChildren: 8,
+            children: [
+              if (inserted) _tag(12),
+              for (var i = 0; i < 12; i++)
+                if (i == 7)
+                  _TickerWatch(key: const ValueKey('tag 7'), log: flips)
+                else
+                  _tag(i),
+            ],
+          ),
+        );
+        await tester.pumpWidget(build(inserted: false));
+        expect(flips, isEmpty);
+
+        await tester.pumpWidget(build(inserted: true));
+
+        expect(find.byKey(const ValueKey('tag 7')), findsNothing);
+        expect(flips, [true]);
+      },
+    );
+
+    testWidgets(
+      'a child whose root swaps its render object and size when a limit '
+      'change shows it lays out at its shown size',
+      (tester) async {
+        Widget build(int? maxChildren) => _host(
+          _wrap(
+            maxChildren: maxChildren,
+            children: [_tag(0), _swapTag(1, on: 40, off: 200)],
+          ),
+        );
+        await tester.pumpWidget(build(1));
+        expect(tester.takeException(), isNull);
+        expect(_shownTags(), [0]);
+
+        await tester.pumpWidget(build(null));
+
+        expect(tester.takeException(), isNull);
+        expect(_shownTags(), [0, 1]);
+        final tag = find.byKey(const ValueKey('tag 1'));
+        expect(tester.getRect(tag), const Rect.fromLTWH(50, 0, 40, 20));
+        final wrap = tester.renderObject(find.byType(WrapOverflowFrame));
+        expect(wrap.paintsChild(tester.renderObject(tag)), isTrue);
+      },
+    );
+
+    testWidgets('a child that fits only while hidden reports the unsettled cut '
+        'instead of cutting again', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          _wrap(
+            maxRuns: 1,
+            overflowBuilder: null,
+            children: [_tag(0), _swapTag(1, on: 200, off: 40)],
+          ),
+        ),
+      );
+
+      expect(
+        tester.takeException(),
+        isA<FlutterError>().having(
+          (error) => error.toString(),
+          'message',
+          contains('changed its render object or size'),
+        ),
+      );
+    });
   });
 }
