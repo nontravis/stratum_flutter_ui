@@ -1,4 +1,3 @@
-import 'package:stratum_ui/src/animations/theme_transitions.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The five duration levels of `animation.duration` (spec G5).

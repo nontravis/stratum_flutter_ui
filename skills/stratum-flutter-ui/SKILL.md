@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType.
 ---
 
 # Stratum Flutter UI
@@ -241,6 +241,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   `StratumTypeStyle`, `StratumAnimationConfig`, and the models inside them) are immutable values with `copyWith`;
   their maps refuse changes, so derive a variant with `config.copyWith(name: ...)` instead of editing a map. A
   `StratumCurve` gives its Flutter `Curve` as `.curve` through `package:stratum_ui/stratum_ui.dart`.
+  `StratumAnimationConfig.transitions` holds the `animation.transition` names, and
+  `StratumTheme.of(context).animation.transition[windowSize]` gives the theme's `ScreenTransitionType` for a window
+  size.
 - **Before `preload`** — call `WidgetsFlutterBinding.ensureInitialized()` first: `preload` reads the asset manifest
   through `rootBundle`, which needs the binding. In a `testWidgets` test, the background parse runs on a real
   isolate, which the test's fake-async zone never finishes; run `preload`, or pump a tree rooted in
@@ -303,6 +306,41 @@ scroll it, guarded so a text field inside keeps its own keys.
   stratum_ui allows only the google_fonts version its CLI family list came from, so the CLI and your app accept the same
   `Google/<Name>` families. When `pub get` reports a google_fonts conflict, let your own google_fonts constraint allow
   the version stratum_ui's `pubspec.yaml` names.
+
+## Page transitions
+
+- **The theme's transition per window size** — every `MaterialPageRoute` and `MaterialPage` (go_router's default
+  page) below `StratumThemeApplication` takes the type the theme names for the window size, with no transition code:
+  the application's Material theme installs a Stratum page transitions builder for every platform. Name the types in
+  `theme.yaml` under `animation.transition`, one for each of `watch`, `mobile`, `tablet`, `desktop`, `bigDesktop`; the
+  package default names `platform` for all five, Flutter's own page motion, so the iOS slide keeps its swipe-back.
+  For `platform` and `cupertino`, the builder delegates to Flutter's whole builder, the outgoing page's motion
+  included; during a back-swipe the page tracks the finger, with no curve. A layer may change any of the five and
+  add no key; a name outside the nineteen types throws `StratumThemeFormatException` with `expected_transition` at
+  its path. A package build without the key reads it as `unknown_key`. A `Theme` of your own below the application
+  replaces the builder for its subtree.
+- **The nineteen types** — `ScreenTransitionType`: `fade`; the slides `rightToLeft`, `leftToRight`, `topToBottom`,
+  `bottomToTop`; `scale`, `rotate`, `size`; `rightToLeftWithFade`, `leftToRightWithFade`; the joined
+  `rightToLeftJoined`, `leftToRightJoined`; `platform`, Flutter's default motion for the platform; `cupertino`, the
+  Cupertino slide with swipe-back on every platform; `none`; `fadeThrough`; and `sharedAxisHorizontal`,
+  `sharedAxisVertical`, `sharedAxisScaled`, from package `animations`.
+- **One page's own type** — `PageTransition(type:, child:)` for `Navigator.push`, and
+  `StratumTransitionPage(key: state.pageKey, type:, child:)` for go_router's `pageBuilder` or a Navigator 2.0 page
+  list; either shows its own type, never the theme's. `PageTransition` also takes `curve`, `duration`,
+  `reverseDuration`, `alignment` (required by `scale`, `rotate`, `size`), `childCurrent` (the current page, required
+  by the joined types), and `inheritTheme` with `ctx`. In the theme and in `StratumTransitionPage`, which have neither,
+  `scale`, `rotate`, and `size` grow from the center and a joined type slides the page below out in its own route.
+  `NoPageTransition(builder:)` shows its page with no animation and zero push and pop durations, whatever the theme
+  names.
+- **Timing** — `none` always shows at once, zero push and pop durations in every route, whatever the theme names
+  (ruling R12); every other type but `platform` and `cupertino` runs over the theme's `slow` level (300 ms push,
+  192 ms pop in the package default) on its `standard` curve, unless the caller passes its own; `platform` and
+  `cupertino` keep the Flutter motion's durations and, when they show it, its curve.
+- **Reduced motion** — when `MediaQuery` or the platform asks for reduced motion, every slide, scale, rotation, and
+  size change drops: a type with a fade, `fadeThrough`, the shared-axis types, and `platform` on Android, Windows,
+  and Linux included, still fades over its full duration on the caller's curve, else the theme's `standard` curve, and
+  any other type shows the page at once.
+- **Flutter floor** — `stratum_ui` needs Flutter 3.44 or later, which package `animations` 3.0.0 needs.
 
 ## Web view
 

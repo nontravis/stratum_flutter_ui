@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stratum_ui/src/animations/theme_transitions.dart';
 import 'package:stratum_ui/src/src.dart';
 
 void main() {

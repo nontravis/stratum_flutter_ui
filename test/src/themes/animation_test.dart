@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stratum_ui/src/animations/theme_transitions.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/config/transition_names.dart';
 
