@@ -92,5 +92,59 @@ void main() {
         '${'a' * 10}\\u005c[cut 5 chars, id ${'0' * 32}]',
       );
     });
+
+    test('rz4, r19 (t28): an escaped text of exactly 200 characters prints '
+        'whole, and one escaped character more is cut with the marker', () {
+      final whole = '${'\u0007' * 33}ab';
+      expect(whole.length, 35);
+      expect(escapeZipText(whole), '${r'\u0007' * 33}ab');
+
+      final overflowed = '${'\u0007' * 33}abc';
+      final marker = _marker.firstMatch(escapeZipText(overflowed));
+      expect(marker, isNotNull);
+      expect(marker!.group(1), '${overflowed.length}');
+    });
+
+    test('rz4: the empty text returns empty', () {
+      expect(escapeZipText(''), '');
+    });
+
+    test('rz4: the id of a lone low surrogate past the cut matches the '
+        'hash rule', () {
+      // Expected id computed with Python hashlib.sha256 over the UTF-16
+      // code units of 'a' * 300 + U+DC00, each as two big-endian bytes.
+      expect(
+        escapeZipText('${'a' * 300}${String.fromCharCode(0xDC00)}'),
+        '${'a' * 200}\\[cut 301 chars, id a07aa87622eb56963bbd00185560c45f]',
+      );
+    });
+
+    test('rz4: a surrogate pair whose high half fits 200 and low half '
+        "does not keeps the high half's escape and drops the low half", () {
+      expect(
+        escapeZipText('${'a' * 194}${String.fromCharCode(0x1F600)}'),
+        startsWith('${'a' * 194}\\ud83d\\[cut 196 chars, id '),
+      );
+    });
+
+    test('rz4: a quote or backslash that would cross the cut is dropped '
+        'whole, not split', () {
+      expect(
+        escapeZipText('${'a' * 197}${'"' * 5}'),
+        startsWith('${'a' * 197}\\[cut 202 chars, id '),
+      );
+      expect(
+        escapeZipText('${'a' * 194}${'"' * 5}'),
+        startsWith('${'a' * 194}\\u0022\\[cut 199 chars, id '),
+      );
+      expect(
+        escapeZipText('${'a' * 197}${r'\' * 5}'),
+        startsWith('${'a' * 197}\\[cut 202 chars, id '),
+      );
+      expect(
+        escapeZipText('${'a' * 194}${r'\' * 5}'),
+        startsWith('${'a' * 194}\\u005c\\[cut 199 chars, id '),
+      );
+    });
   });
 }
