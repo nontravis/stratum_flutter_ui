@@ -312,8 +312,12 @@ scroll it, guarded so a text field inside keeps its own keys.
   `StratumBridge.postMessage(data)`; `onMessage` gets the text and the origin of the page that sent it, `null` for
   your HTML; answer the sender with `controller.reply(message, data)`: it reaches only the page or HTML document
   that sent the message, and throws `StateError` once the view shows another origin or that document is gone
-  (`ArgumentError` for a message the controller did not deliver). `controller.postMessage(data, targetOrigin:
-  origin)` names a recipient origin the same way; `postMessage(data)` sends to whatever page is shown. Your HTML
+  (`ArgumentError` for a message the controller did not deliver). Three limits on that guarantee: on Windows and
+  Linux the reply is credited to the page of the last `onPageStarted`, not necessarily the sender; on the web, after
+  an in-frame link to another origin the check still passes on stale history and the browser drops the reply
+  silently with no throw; and on the web, a reply to your own HTML after a link away inside it resolves the same
+  way, without delivering the data. `controller.postMessage(data, targetOrigin: origin)` names a recipient origin
+  the same way; `postMessage(data)` sends to whatever page is shown. Your HTML
   connects its bridge when its bootstrap script runs: a `postMessage` before that throws `StateError` on every
   platform, so wait for the page's first message instead of sending right after `loadHtml`. On iOS and macOS a
   `reload()` of your HTML shows an empty page and the bridge stays closed until the next `loadHtml`.

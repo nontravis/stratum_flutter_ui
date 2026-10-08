@@ -62,8 +62,8 @@ const Map<TargetPlatform, Set<int>> _cancelCodes = {
   TargetPlatform.windows: {14},
 };
 
-/// The only document id shape a `hello` or `bye` may carry: 16 bytes in
-/// lowercase hex.
+/// The only document id shape a `hello`, `bye`, or `message` envelope may
+/// carry: 16 bytes in lowercase hex.
 final RegExp _documentIdShape = RegExp(r'^[0-9a-f]{32}$');
 
 /// Android's handle on the `JavaScriptReplyProxy` of the document that sent
