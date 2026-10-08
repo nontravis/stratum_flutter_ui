@@ -790,16 +790,8 @@ class _RenderWrapOverflow extends RenderBox
   /// Whether [_swapSlot] adopts or drops a child inside [performLayout].
   bool _swappingInLayout = false;
 
-  /// Runs [swap], an adopt or a drop of the overflow child or the probe.
-  ///
-  /// Inside this frame's own layout, which builds both, the
-  /// `markNeedsLayout` that `adoptChild` and `dropChild` call is skipped:
-  /// the layout under way lays the child out, and neither child takes part
-  /// in the dry layout, the intrinsic sizes, or the dry baseline, so the
-  /// cached ones stay valid. [RenderBox.markNeedsLayout] would empty them,
-  /// and since it marks the parent only while they hold an entry
-  /// (`rendering/box.dart:2840-2860`, Flutter 3.47.3), an intrinsic parent
-  /// such as [IntrinsicHeight] would miss the next limit change.
+  /// Runs [swap], an adopt or a drop of the overflow child or the probe,
+  /// marking whether it runs inside [performLayout] for [markNeedsLayout].
   void _swapSlot(VoidCallback swap) {
     _swappingInLayout = _inLayout;
     try {
@@ -809,7 +801,19 @@ class _RenderWrapOverflow extends RenderBox
     }
   }
 
-  /// Skips the relayout an in-layout [_swapSlot] asks for; see there.
+  /// Skips only the calls `adoptChild` and `dropChild` make while
+  /// [performLayout] adopts or drops the overflow child or the probe
+  /// ([_swapSlot]); every other call runs [RenderBox.markNeedsLayout].
+  ///
+  /// [RenderBox.markNeedsLayout] empties the dry-layout, intrinsic, and
+  /// baseline caches, and marks the parent only when they held an entry
+  /// (`rendering/box.dart:2840-2861`, Flutter 3.47.3). The skipped calls
+  /// would empty caches that stay valid, since neither child takes part in
+  /// the dry layout, the intrinsic sizes, or the dry baseline, and ask for
+  /// a layout that is already running and lays both out. Emptied, the
+  /// caches would no longer mark an intrinsic parent such as
+  /// [IntrinsicHeight] on the next limit change, which then lays the frame
+  /// out alone under the old size.
   @override
   void markNeedsLayout() {
     if (_swappingInLayout) return;
@@ -1094,13 +1098,11 @@ class _RenderWrapOverflow extends RenderBox
     for (final child in _shownBoxes) {
       (child.parentData! as _WrapOverflowParentData).shown = true;
     }
-    final anchor = _anchor(box, shown);
-    _positionItems(runs, box, content, (item) => itemAt(item).size, (
+    _positionItems(runs, box, shown, content, (item) => itemAt(item).size, (
       item,
       offset,
     ) {
-      (itemAt(item).parentData! as _WrapOverflowParentData).offset =
-          offset + anchor;
+      (itemAt(item).parentData! as _WrapOverflowParentData).offset = offset;
     });
   }
 
@@ -1161,28 +1163,30 @@ class _RenderWrapOverflow extends RenderBox
     return _movingSize(target, constraints) ?? target;
   }
 
-  /// The shift of content placed in [box] while the frame shows [shown]:
-  /// on each axis the directions flip, the whole difference, so the
-  /// content stays on the wrap's start edge, the edge its first run starts
-  /// from (the bottom under [VerticalDirection.up], the right under
-  /// right-to-left text), and no run jumps when a move starts (US-14
-  /// FR-04, FR-01 E07); zero once the move ends.
-  Offset _anchor(Size box, Size shown) {
-    final rtl = (_textDirection ?? TextDirection.ltr) == TextDirection.rtl;
-    final up = _frame.verticalDirection == VerticalDirection.up;
-    return Offset(
-      rtl ? shown.width - box.width : 0,
-      up ? shown.height - box.height : 0,
-    );
-  }
-
   /// `RenderWrap._positionChildren` (`rendering/wrap.dart:772-839`): walks
   /// [runs] and calls [place] with each item's offset; [sizeOf] gives an
   /// item's size, real for [_place] and dry for [computeDryBaseline], so
   /// neither copies the other's arithmetic.
+  ///
+  /// The runs are placed in the target [box]; while the frame shows
+  /// another size, [shown], they shift by part of `shown - box` on each
+  /// axis, so no run jumps when a move starts (US-14 FR-04, FR-01 E07),
+  /// and by nothing once it ends:
+  ///
+  /// * Along a run, by the [_leadingShare] of
+  ///   [WrapOverflowFrame.alignment]: a run keeps its own items, so it
+  ///   keeps the place its alignment gives it in the shown size; the right
+  ///   edge under right-to-left text holds for the start alignment.
+  /// * Across the runs, by the share of [WrapAlignment.start]: a limit
+  ///   change adds or drops runs at the end, so the runs hold their start
+  ///   edge, the bottom under [VerticalDirection.up]. The share of
+  ///   [WrapOverflowFrame.runAlignment] would move every run the moment
+  ///   the runs' extent changes; it still spreads the free space the
+  ///   constraints leave in [box].
   void _positionItems(
     List<_Run> runs,
     Size box,
+    Size shown,
     Size content,
     Size Function(int item) sizeOf,
     void Function(int item, Offset offset) place,
@@ -1199,7 +1203,10 @@ class _RenderWrapOverflow extends RenderBox
       runs.length,
       flipped: flipCross,
     );
-    var runOffset = runLeading;
+    var runOffset =
+        runLeading +
+        _leadingShare(WrapAlignment.start, runs.length, flipped: flipCross) *
+            (_cross(shown) - _cross(box));
     for (final run in flipCross ? runs.reversed : runs) {
       final (leading, between) = _distribute(
         _frame.alignment,
@@ -1208,7 +1215,10 @@ class _RenderWrapOverflow extends RenderBox
         run.items.length,
         flipped: flipMain,
       );
-      var childOffset = leading;
+      var childOffset =
+          leading +
+          _leadingShare(_frame.alignment, run.items.length, flipped: flipMain) *
+              (_main(shown) - _main(box));
       for (final item in flipMain ? run.items.reversed : run.items) {
         final size = sizeOf(item);
         final crossOffset =
@@ -1263,15 +1273,17 @@ class _RenderWrapOverflow extends RenderBox
     final runs = _runsOf(cut, sizes, null);
     final content = _extentOf(runs);
     final box = constraints.constrain(content);
-    final anchor = _anchor(box, _dryShown(box, constraints));
+    final shown = _dryShown(box, constraints);
     var result = BaselineOffset.noBaseline;
-    _positionItems(runs, box, content, (item) => sizes[item], (item, offset) {
+    _positionItems(runs, box, shown, content, (item) => sizes[item], (
+      item,
+      offset,
+    ) {
       result = result.minOf(
         BaselineOffset(
               children[item].getDryBaseline(childConstraints, baseline),
             ) +
-            offset.dy +
-            anchor.dy,
+            offset.dy,
       );
     });
     return result.offset;
@@ -1420,6 +1432,16 @@ class _RenderWrapOverflow extends RenderBox
     ),
   };
 }
+
+/// The share of free space that [alignment] puts before the first item it
+/// places, of [count]: 0 at the start, 0.5 centered, 1 at the end,
+/// mirrored when [flipped]; [_distribute]'s leading space for a free space
+/// of 1.
+double _leadingShare(
+  WrapAlignment alignment,
+  int count, {
+  required bool flipped,
+}) => _distribute(alignment, 1, 0, count, flipped: flipped).$1;
 
 /// `WrapCrossAlignment._flipped` (`rendering/wrap.dart:157-161`).
 WrapCrossAlignment _flipped(WrapCrossAlignment alignment) =>

@@ -1764,6 +1764,57 @@ void main() {
         );
       },
     );
+
+    for (final (alignment, share) in const [
+      (WrapAlignment.center, 0.5),
+      (WrapAlignment.end, 1.0),
+    ]) {
+      testWidgets(
+        'us14/fr04: a wrap with alignment and runAlignment $alignment keeps '
+        'its first run in place while an expand or a collapse moves the size',
+        (tester) async {
+          Widget build(int? maxRuns) => themedHost(
+            SizedBox(
+              width: 230,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: WrapLayout(
+                  gap: 10,
+                  runGap: 6,
+                  alignment: alignment,
+                  runAlignment: alignment,
+                  maxRuns: maxRuns,
+                  overflowBuilder: _more,
+                  children: _tags(12),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpWidget(build(2));
+          // The first run, 190 wide, in the 230 wide run of the "+4" child.
+          final before = _rectIn(tester, 'tag 0');
+          expect(before, Rect.fromLTWH(40 * share, 0, 40, 20));
+
+          await tester.pumpWidget(build(null));
+          expect(_rectIn(tester, 'tag 0'), before, reason: 'first frame');
+
+          await tester.pump(const Duration(microseconds: 62500));
+          final width = tester.getSize(find.byType(WrapOverflowFrame)).width;
+          expect(width, moreOrLessEquals(230 - 40 * _mid));
+          expect(
+            _rectIn(tester, 'tag 0').topLeft,
+            offsetMoreOrLessEquals(Offset((width - 190) * share, 0)),
+            reason: 'mid-move',
+          );
+
+          await tester.pumpAndSettle();
+          final expanded = _rectIn(tester, 'tag 0');
+          expect(expanded, const Rect.fromLTWH(0, 0, 40, 20));
+          await tester.pumpWidget(build(2));
+          expect(_rectIn(tester, 'tag 0'), expanded, reason: 'collapse');
+        },
+      );
+    }
   });
 }
 
