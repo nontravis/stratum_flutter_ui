@@ -756,8 +756,7 @@ void main() {
         File(pubspecPath()).writeAsStringSync(
           [
             'a0: &a0 [x, x]',
-            for (var d = 1; d <= 40; d++)
-              'a$d: &a$d [*a${d - 1}, *a${d - 1}]',
+            for (var d = 1; d <= 40; d++) 'a$d: &a$d [*a${d - 1}, *a${d - 1}]',
             '? *a40',
             ': v',
           ].join('\n'),
@@ -793,6 +792,22 @@ void main() {
             'name: app\nflutter:\n  assets:\n    - assets/themes/default/\n';
         return '$head#${'x' * (bytes - head.length - 2)}\n';
       }
+
+      test('us02/fr03/e09, g1: bytes past 1 MiB that are not valid utf-8 '
+          'still exit 66 by length, never decoded', () async {
+        File(pubspecPath()).writeAsBytesSync([
+          ...utf8.encode(padded(1048576)),
+          ...List.filled(16, 0xFF),
+        ]);
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(
+          run.err.last,
+          'cannot read "pubspec.yaml": text longer than 1 MiB',
+        );
+      });
 
       test('us02/fr03/e09, g1: a pubspec.yaml of exactly 1,048,576 bytes is '
           'read, and one more byte exits 66', () async {
