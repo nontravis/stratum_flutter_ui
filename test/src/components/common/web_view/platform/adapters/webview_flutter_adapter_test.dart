@@ -346,6 +346,39 @@ void main() {
       await expectLater(adapter.postMessage('ping'), throwsA(unallowedPage));
       expect(harness.sender.proxyRuns, isEmpty);
     });
+
+    test('G3 us03/fr05/e09: a later loadHtml that proves while a reply '
+        'script is pending does not move the reply off its original '
+        'document', () async {
+      harness.sender.send(
+        messageEnvelope(nonceIn(html), 'm'),
+        senderUrl: 'about:blank',
+        replyProxy: proxy,
+      );
+      final sender = listener.senders.last as PlatformHtmlDocumentSender;
+      const laterProxy = BridgeReplyProxy(9);
+      harness.sender.proxyAnswer = () async {
+        await adapter.load(const StratumWebViewSource.html('<p>Later</p>'));
+        harness.sender.send(
+          envelope(nonceIn(harness.loadedHtml.last), 'hello', documentB),
+          senderUrl: 'about:blank',
+          replyProxy: laterProxy,
+        );
+        return true;
+      };
+      await adapter.replyToDocument(sender, 'pong');
+      expect(harness.sender.proxyRuns, [
+        (
+          replyProxy: proxy,
+          script: buildMessageDispatchScript(
+            'pong',
+            token: tokenIn(html),
+            documentId: documentA,
+            allowedOrigins: const <Uri>[],
+          ),
+        ),
+      ]);
+    });
   });
 
   group('WebviewFlutterAdapter B2 Android controller binding', () {

@@ -394,6 +394,44 @@ void main() {
         expect(platform().sentMessages, ['ack']);
       },
     );
+
+    test('G4 us03/fr05: two replies to the same still-valid sender both '
+        'land', () async {
+      controller.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          onMessage: (_) {},
+        ),
+      );
+      final message = StratumWebViewMessage(data: 'ready:${appOrigin.host}');
+      platform().listener.onMessage(message, const FakeHtmlDocumentSender());
+
+      await controller.reply(message, 'first');
+      await controller.reply(message, 'second');
+      expect(platform().documentReplies, [
+        (const FakeHtmlDocumentSender(), 'first'),
+        (const FakeHtmlDocumentSender(), 'second'),
+      ]);
+    });
+
+    test(
+      'G5 us03/fr05: an empty-string reply reaches the sender whole',
+      () async {
+        controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {appOrigin},
+            onMessage: (_) {},
+          ),
+        );
+        final message = StratumWebViewMessage(data: 'ready:${appOrigin.host}');
+        platform().listener.onMessage(message, const FakeHtmlDocumentSender());
+
+        await controller.reply(message, '');
+        expect(platform().documentReplies, [
+          (const FakeHtmlDocumentSender(), ''),
+        ]);
+      },
+    );
   });
 
   test('configure forwards JavaScript only when it changes', () {

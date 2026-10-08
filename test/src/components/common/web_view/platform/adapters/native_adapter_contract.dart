@@ -130,6 +130,24 @@ void runNativeAdapterContract(
       expect(harness.scripts, hasLength(before));
     });
 
+    test('us03/fr02/e16: a named send to own HTML throws, because own HTML '
+        'has no origin and never matches a targetOrigin', () async {
+      await proveOwnHtml();
+      harness.scriptResult = false;
+      await expectLater(
+        adapter.postMessage('x', targetOrigin: appOrigin),
+        throwsA(_unallowedPage),
+      );
+      expect(
+        harness.scripts.last,
+        buildMessageDispatchScript(
+          'x',
+          token: null,
+          allowedOrigins: [appOrigin],
+        ),
+      );
+    });
+
     test('us03/fr05/e11: a reply script with no answer within 5 seconds, '
         'or a platform error, throws the StateError naming no origin', () {
       fakeAsync((async) {
