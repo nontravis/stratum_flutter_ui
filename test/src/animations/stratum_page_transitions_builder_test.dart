@@ -8,11 +8,17 @@ import 'package:stratum_ui/src/src.dart';
 import '../components/common/fakes/fake_stratum_theme.dart';
 
 /// The package default's motion, with [transitions] as its
-/// `animation.transition` config.
-StratumAnimation _motion(Map<String, String> transitions) =>
-    StratumAnimation.fromConfig(
-      defaultThemeConfig.animation.copyWith(transitions: transitions),
-    );
+/// `animation.transition` config, and [curves] replacing its
+/// `animation.curve` roles when given.
+StratumAnimation _motion(
+  Map<String, String> transitions, {
+  Map<String, StratumCurve>? curves,
+}) => StratumAnimation.fromConfig(
+  defaultThemeConfig.animation.copyWith(
+    transitions: transitions,
+    curves: curves ?? defaultThemeConfig.animation.curves,
+  ),
+);
 
 /// A [MaterialApp] whose Material theme installs a builder of [motion] for
 /// every platform, with no [WindowSizeScope] unless [builder] adds one.
@@ -183,6 +189,56 @@ void main() {
     expect(builder.reverseTransitionDuration, Duration.zero);
   });
 
+  testWidgets(
+    "FR-04 E04 (Important 1): platform delegates the Flutter builder's "
+    'own delegated transition, so a route below parallaxes',
+    (tester) async {
+      final motion = _motion(transitionsOf(ScreenTransitionType.platform));
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigator,
+          theme: ThemeData(
+            platform: TargetPlatform.iOS,
+            pageTransitionsTheme: PageTransitionsTheme(
+              builders: {
+                TargetPlatform.iOS: StratumPageTransitionsBuilder(
+                  motion: motion,
+                  platform: TargetPlatform.iOS,
+                ),
+              },
+            ),
+          ),
+          home: const SizedBox(key: ValueKey('home')),
+        ),
+      );
+      navigator.currentState!
+          .push(
+            PageTransition<void>(
+              type: ScreenTransitionType.platform,
+              child: const SizedBox(key: ValueKey('lower')),
+            ),
+          )
+          .ignore();
+      await tester.pumpAndSettle();
+
+      navigator.currentState!
+          .push(
+            MaterialPageRoute<void>(
+              builder: (_) => const SizedBox(key: ValueKey('upper')),
+            ),
+          )
+          .ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final slides = tester
+          .widgetList<SlideTransition>(_above('lower', SlideTransition))
+          .map((slide) => slide.position.value.dx);
+      expect(slides.any((dx) => dx < 0), isTrue);
+    },
+  );
+
   test('us05/fr04/e02 (R5): no view classifies as mobile', () {
     expect(windowSizeOfView(null), WindowSize.mobile);
   });
@@ -218,7 +274,13 @@ void main() {
       await tester.pumpWidget(
         _app(
           navigator,
-          _motion(transitionsOf(ScreenTransitionType.fadeThrough)),
+          _motion(
+            transitionsOf(ScreenTransitionType.fadeThrough),
+            curves: {
+              ...defaultThemeConfig.animation.curves,
+              'standard': const StratumNamedCurve('easeIn'),
+            },
+          ),
           builder: reduce,
         ),
       );
@@ -233,10 +295,10 @@ void main() {
       final fade = tester.widget<FadeTransition>(
         _above('page', FadeTransition).first,
       );
-      expect(
-        fade.opacity.value,
-        closeTo(Curves.easeInOutSine.transform(0.5), 1e-9),
-      );
+      // easeIn, not easeInOutSine: tells the motion's own standard curve
+      // from curveOf's hardcoded fallback, which the package default's
+      // theme curve can't (both are easeInOutSine).
+      expect(fade.opacity.value, closeTo(Curves.easeIn.transform(0.5), 1e-9));
     });
   }
 
@@ -255,6 +317,31 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(find.byKey(const ValueKey('page')), findsOneWidget);
+        if (type == ScreenTransitionType.scale) {
+          expect(
+            tester
+                .widget<ScaleTransition>(_above('page', ScaleTransition).first)
+                .alignment,
+            Alignment.center,
+          );
+        } else if (type == ScreenTransitionType.rotate) {
+          expect(
+            tester
+                .widget<RotationTransition>(
+                  _above('page', RotationTransition).first,
+                )
+                .alignment,
+            Alignment.center,
+          );
+        } else {
+          // .last, not .first: SizeTransition wraps its own child in an
+          // inner Align (AlignmentDirectional.centerStart by default,
+          // transitions.dart:528-533@3.47.3); ours is the outer one.
+          expect(
+            tester.widget<Align>(_above('page', Align).last).alignment,
+            Alignment.center,
+          );
+        }
       });
     }
 

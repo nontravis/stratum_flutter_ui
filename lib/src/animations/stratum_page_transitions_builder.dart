@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/animations/screen_transition.dart';
+import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The page transitions builder `StratumThemeData.toThemeData` installs
@@ -37,9 +38,16 @@ class StratumPageTransitionsBuilder extends PageTransitionsBuilder {
 
   /// The theme's type for the window size of the scope above [context],
   /// else of the window's size by FO-07 US-01 FR-01, which never throws
-  /// (invariant 19). A type that needs a caller input gets one (ruling R10):
-  /// the center for `scale`, `rotate`, and `size`, and the route's own
-  /// secondary animation for the joined types.
+  /// (invariant 19). Shared by [buildTransitions] and [delegatedTransition]
+  /// so both read the same window size the same way.
+  ScreenTransitionType _typeOf(BuildContext context) =>
+      motion.transition[WindowSizeScope.maybeOf(context) ??
+          WindowSize.fromSize(MediaQuery.sizeOf(context))];
+
+  /// [_typeOf]'s transition of [route]'s [child] (FR-04 E01, E02). A type
+  /// that needs a caller input gets one (ruling R10): the center for
+  /// `scale`, `rotate`, and `size`, and the route's own secondary animation
+  /// for the joined types.
   @override
   Widget buildTransitions<T>(
     PageRoute<T> route,
@@ -47,22 +55,43 @@ class StratumPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
-  ) {
-    final windowSize =
-        WindowSizeScope.maybeOf(context) ??
-        WindowSize.fromSize(MediaQuery.sizeOf(context));
-    return buildScreenTransition<T>(
-      motion.transition[windowSize],
-      route: route,
-      context: context,
-      animation: animation,
-      secondaryAnimation: secondaryAnimation,
-      child: child,
-      standard: curveOf(motion.slow),
-      alignment: Alignment.center,
-      joinOnSecondary: true,
-    );
-  }
+  ) => buildScreenTransition<T>(
+    _typeOf(context),
+    route: route,
+    context: context,
+    animation: animation,
+    secondaryAnimation: secondaryAnimation,
+    child: child,
+    standard: curveOf(motion.slow),
+    alignment: Alignment.center,
+    joinOnSecondary: true,
+  );
+
+  /// The transition the route below the pushed context uses to leave in
+  /// sync with this builder's route (style s03 invariant 21 "delegates to
+  /// the builder"): the Flutter builder's own delegate for `platform` and
+  /// `cupertino`, which may itself be null (Flutter's contract), else the
+  /// child unchanged, as under reduced motion too, where this builder draws
+  /// its own transition instead of delegating. Never throws.
+  @override
+  DelegatedTransitionBuilder? get delegatedTransition =>
+      (context, animation, secondaryAnimation, allowSnapshotting, child) {
+        final type = _typeOf(context);
+        final delegate =
+            (type == ScreenTransitionType.platform ||
+                    type == ScreenTransitionType.cupertino) &&
+                !reducesMotion(context)
+            ? flutterTransitionsBuilder(type, platform)?.delegatedTransition
+            : null;
+        return delegate?.call(
+              context,
+              animation,
+              secondaryAnimation,
+              allowSnapshotting,
+              child,
+            ) ??
+            child;
+      };
 
   @override
   bool operator ==(Object other) =>
