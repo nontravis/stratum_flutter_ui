@@ -331,7 +331,8 @@ scroll it, guarded so a text field inside keeps its own keys.
   by the joined types), and `inheritTheme` with `ctx`. In the theme and in `StratumTransitionPage`, which have neither,
   `scale`, `rotate`, and `size` grow from the center and a joined type slides the page below out in its own route.
   `NoPageTransition(builder:)` shows its page with no animation and zero push and pop durations, whatever the theme
-  names.
+  names. The page below moves only under an opaque route: `PageTransition` is translucent by default, so pass
+  `opaque: true` for the page below to slide, fade, or parallax; a translucent page leaves it as it was.
 - **Timing** — `none` always shows at once, zero push and pop durations in every route, whatever the theme names,
   unless a `PageTransition` caller passes its own; every other type but `platform` and `cupertino` runs over the theme's
   `slow` level (300 ms push, 192 ms pop in the package default) on its `standard` curve, unless the caller passes its
