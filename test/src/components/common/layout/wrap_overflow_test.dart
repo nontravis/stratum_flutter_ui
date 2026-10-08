@@ -687,9 +687,10 @@ void main() {
           children: _tags(12),
         );
 
-        // One trial ("+9"), with an IntrinsicHeight ancestor querying the
-        // dry baseline round 1 added.
-        await tester.pumpWidget(row(rcaFrame(), intrinsic: true, width: 236));
+        // First frame, with an IntrinsicHeight ancestor querying the dry
+        // baseline round 1 added: the "Tags" text leaves the frame 174
+        // px, so two trials (9, then 10), the RCA's own repro geometry.
+        await tester.pumpWidget(row(rcaFrame(), intrinsic: true, width: 230));
         expect(tester.takeException(), isNull);
 
         // No IntrinsicHeight: the real baseline alone, one trial.
@@ -729,9 +730,9 @@ void main() {
     );
 
     testWidgets(
-      'owner ruling R8: find.text of the overflow label finds exactly one '
-      'widget, though the probe shows the same final label in its own '
-      'excluded subtree',
+      'owner ruling R8, rereview N1/N2: find.text of the overflow label '
+      'finds exactly one widget, onstage or off, since the probe drops '
+      'once the cut settles and never lingers as a second, hidden copy',
       (tester) async {
         await tester.pumpWidget(
           _host(
@@ -749,14 +750,18 @@ void main() {
         );
 
         expect(find.text('+6'), findsOneWidget);
-        expect(find.text('+6', skipOffstage: false), findsNWidgets(2));
+        expect(find.text('+6', skipOffstage: false), findsOneWidget);
+        // The probe tried 4 and 5 too (review Minor 3's trigger), but a
+        // dropped trial leaves nothing behind either.
+        expect(find.text('+4', skipOffstage: false), findsNothing);
+        expect(find.text('+5', skipOffstage: false), findsNothing);
       },
     );
 
     testWidgets(
-      'owner ruling R8: an overflowBuilder output with a GlobalKey fails '
-      'the duplicate-key assertion, since the probe and the live overflow '
-      'child both inflate it',
+      'owner ruling R8, rereview N1 caveat: an overflowBuilder output '
+      'with a GlobalKey reports a duplicate-key error, since the probe '
+      'and the live overflow child both inflate it',
       (tester) async {
         final key = GlobalKey();
         await tester.pumpWidget(
@@ -779,8 +784,67 @@ void main() {
           isA<FlutterError>().having(
             (e) => e.toString(),
             'message',
-            contains('Multiple widgets used the same GlobalKey'),
+            contains('built a widget keyed by a GlobalKey'),
           ),
+        );
+      },
+    );
+
+    testWidgets(
+      'rereview N1: an AnimatedSize overflow child whose count crosses a '
+      'digit boundary between two layouts measures the new width fresh, '
+      'on a probe a stale animation never freezes',
+      (tester) async {
+        Widget animatedMore(BuildContext context, int count) => AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          child: SizedBox(
+            key: const ValueKey('more'),
+            width: count < 10 ? 28 : 42,
+            height: 20,
+            child: Text('+$count'),
+          ),
+        );
+        WrapOverflowFrame frame(int tagCount) => WrapOverflowFrame(
+          spacing: 10,
+          runSpacing: 6,
+          maxRuns: 1,
+          overflowBuilder: animatedMore,
+          children: _tags(tagCount),
+        );
+
+        // Layout 1: one trial, "+9" (28 px) fits after 4 tags; the probe's
+        // first-ever layout, so AnimatedSize reports the exact size.
+        await tester.pumpWidget(_host(frame(13)));
+        expect(tester.takeException(), isNull);
+        expect(_shownTags(), [0, 1, 2, 3]);
+        expect(find.text('+9'), findsOneWidget);
+
+        // Layout 2: two trials, 12 then 13. A probe reused across trials
+        // (not dropped) would still report 28 px for "+12", wrongly
+        // fitting 4 tags; a fresh probe reports 42 px and settles at 3.
+        await tester.pumpWidget(_host(frame(16)));
+        expect(tester.takeException(), isNull);
+        expect(_shownTags(), [0, 1, 2]);
+        expect(find.text('+13'), findsOneWidget);
+        expect(find.text('+12', skipOffstage: false), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'rereview N2: a relayout that builds no overflow child drops the '
+      'probe too, so no label of either slot survives',
+      (tester) async {
+        await tester.pumpWidget(_host(_frame(maxRuns: 1, children: _tags(12))));
+        expect(
+          find.byKey(const ValueKey('more'), skipOffstage: false),
+          findsOneWidget,
+        );
+
+        await tester.pumpWidget(_host(_frame(maxRuns: 1, children: _tags(2))));
+        expect(find.byKey(const ValueKey('more')), findsNothing);
+        expect(
+          find.byKey(const ValueKey('more'), skipOffstage: false),
+          findsNothing,
         );
       },
     );

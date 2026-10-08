@@ -63,10 +63,10 @@ class WrapOverflowFrame extends StatefulWidget {
   /// Builds the overflow child from the number of hidden children, during
   /// layout; null hides them with no indicator.
   ///
-  /// Called for every candidate count `cutWrap` measures (owner ruling
-  /// R8: a private probe slot), then once more for the final count, on
-  /// the child the frame shows; a [Key] in the built widget is local to
-  /// each call, but a [GlobalKey] fails Flutter's duplicate-key assertion,
+  /// Called for every candidate count `cutWrap` measures, on a fresh
+  /// probe each time (owner ruling R8), then once more for the final
+  /// count, on the child the frame shows; a [Key] in the built widget is
+  /// local to each call, but a [GlobalKey] reports a duplicate-key error,
   /// since the probe and the shown child would both claim it at once.
   final Widget Function(BuildContext context, int hiddenCount)? overflowBuilder;
   final List<Widget> children;
@@ -147,6 +147,14 @@ class _WrapOverflowElement extends RenderObjectElement {
   Widget? _probeWidget;
   int? _probeHiddenCount;
 
+  /// The hidden count the live overflow child was last built for.
+  int? _overflowHiddenCount;
+
+  /// Whether the live overflow child must rebuild in the next layout even
+  /// if the hidden count stays the same: the frame's widget or an
+  /// inherited widget it reads may have changed.
+  bool _overflowDirty = true;
+
   /// How many children the last cut showed; null before the first cut.
   int? _shown;
 
@@ -203,6 +211,7 @@ class _WrapOverflowElement extends RenderObjectElement {
   /// Reruns the cut in the next layout: its builder, or an inherited
   /// widget it reads through this element, may have changed.
   void _rebuildOverflow() {
+    _overflowDirty = true;
     renderObject.scheduleLayoutCallback();
   }
 
@@ -266,12 +275,55 @@ class _WrapOverflowElement extends RenderObjectElement {
 
   /// Builds the overflow child once, from [builtWidget] (the exact
   /// widget [buildProbe] already built for [hiddenCount]), or removes it
-  /// at 0, inside the render object's layout.
+  /// at 0, inside the render object's layout. Skips the rebuild when
+  /// neither [hiddenCount] nor the frame's widget or its dependencies
+  /// changed since the last layout.
+  ///
+  /// Reports, debug-only, a [GlobalKey] found in the still-mounted probe
+  /// before this inflates [builtWidget] into the live slot: once both
+  /// slots belong to this same element, Flutter's own retake quietly
+  /// moves a GlobalKey-identified element from one to the other instead
+  /// of flagging a duplicate (owner ruling R8's GlobalKey caveat), so by
+  /// [dropProbe] the probe already reads empty and Flutter's own check
+  /// never runs. This report catches it first, while the probe still
+  /// holds it, the same way a throwing `overflowBuilder` reports without
+  /// aborting the layout.
   void buildOverflow(int hiddenCount, Widget? builtWidget) {
     assert(
       hiddenCount == 0 || _probeHiddenCount == hiddenCount,
       'buildOverflow expects the count buildProbe last measured',
     );
+    assert(() {
+      final key = _debugProbeGlobalKey();
+      if (key != null) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: FlutterError.fromParts([
+              ErrorSummary(
+                'WrapOverflowFrame.overflowBuilder built a widget keyed '
+                'by a GlobalKey ($key).',
+              ),
+              ErrorDescription(
+                'The probe that measures each candidate count (owner '
+                'ruling R8) and the overflow child it shows both '
+                "inflate the builder's output, so Flutter would reject "
+                'the key as a duplicate once both are active.',
+              ),
+              ErrorHint(
+                'Give the widget overflowBuilder returns a local Key, '
+                'or none.',
+              ),
+            ]),
+            library: 'stratum_ui',
+            context: ErrorDescription('building the overflow child of $widget'),
+          ),
+        );
+      }
+      return true;
+    }(), 'debug-only: reports a GlobalKey the probe still holds');
+    if (!_overflowDirty && hiddenCount == _overflowHiddenCount) return;
+    _overflowDirty = false;
+    _overflowHiddenCount = hiddenCount;
     owner!.buildScope(this, () {
       _overflow = updateChild(
         _overflow,
@@ -282,14 +334,20 @@ class _WrapOverflowElement extends RenderObjectElement {
   }
 
   /// Builds [WrapOverflowFrame.overflowBuilder]'s widget for [hiddenCount]
-  /// on the probe slot (owner ruling R8) and remembers it in [_probeWidget]
-  /// so [buildOverflow] can reuse it without asking the builder again.
-  /// `cutWrap`'s trial loop calls this once per candidate count, inside
-  /// the render object's layout; a builder that throws reports once and
-  /// shows an [ErrorWidget] on the probe, which [buildOverflow] then
-  /// reuses too.
+  /// on a fresh probe slot (owner ruling R8) and remembers it in
+  /// [_probeWidget] so [buildOverflow] can reuse it without asking the
+  /// builder again. `cutWrap`'s trial loop calls this once per candidate
+  /// count, inside the render object's layout; a builder that throws
+  /// reports once and shows an [ErrorWidget] on the probe, which
+  /// [buildOverflow] then reuses too.
+  ///
+  /// Drops the previous probe before building the new one: a
+  /// ticker-driven "+N" (`AnimatedSize`, `AnimatedSwitcher`, a Stratum
+  /// `AnimatedStyledBox`) must measure itself fresh, never resume a
+  /// mid-transition state an earlier trial froze under [TickerMode].
   void buildProbe(int hiddenCount) {
     owner!.buildScope(this, () {
+      _probe = updateChild(_probe, null, _probeSlot);
       Widget built;
       try {
         built = _frame.overflowBuilder!(this, hiddenCount);
@@ -307,10 +365,47 @@ class _WrapOverflowElement extends RenderObjectElement {
       _probeWidget = built;
       _probe = updateChild(
         _probe,
-        TickerMode(enabled: false, child: ExcludeFocus(child: built)),
+        TickerMode(
+          enabled: false,
+          child: ExcludeFocus(
+            child: SelectionContainer.disabled(
+              child: HeroMode(enabled: false, child: built),
+            ),
+          ),
+        ),
         _probeSlot,
       );
     });
+  }
+
+  /// Drops the probe (owner ruling R8): called once per layout, after
+  /// [buildOverflow], so no probe content survives between layouts (N1)
+  /// or when `cutWrap` builds no overflow child at all (N2).
+  void dropProbe() {
+    owner!.buildScope(this, () {
+      _probe = updateChild(_probe, null, _probeSlot);
+    });
+    _probeWidget = null;
+    _probeHiddenCount = null;
+  }
+
+  /// The first [GlobalKey] found walking the probe's element tree, or
+  /// null; debug-only, read by [buildOverflow]'s assert.
+  GlobalKey? _debugProbeGlobalKey() {
+    GlobalKey? found;
+    void visit(Element element) {
+      if (found != null) return;
+      final key = element.widget.key;
+      if (key is GlobalKey) {
+        found = key;
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    final probe = _probe;
+    if (probe != null) visit(probe);
+    return found;
   }
 
   /// Records the cut: the first [shown] children show.
@@ -574,7 +669,9 @@ class _RenderWrapOverflow extends RenderBox
           element._probeWidget,
         );
       }
-      element.applyCut(cut.shown);
+      element
+        ..applyCut(cut.shown)
+        ..dropProbe();
     });
     if (overflowRun != null) {
       _overflow!.layout(childConstraints, parentUsesSize: true);
