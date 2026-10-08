@@ -791,6 +791,84 @@ void main() {
     );
 
     testWidgets(
+      'rereview R3-N5: a Material "+N" reports nothing over two layouts, '
+      'since the GlobalKey its State creates for its ink renderer is its '
+      'own per State, never shared by the probe and the live child',
+      (tester) async {
+        Widget materialMore(BuildContext context, int count) =>
+            Material(child: Text('+$count'));
+
+        // The 28 px "+N" fits after 4 tags in the second run.
+        await tester.pumpWidget(
+          _host(_frame(maxRuns: 2, builder: materialMore, children: _tags(12))),
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('+4'), findsOneWidget);
+
+        await tester.pumpWidget(
+          _host(_frame(maxRuns: 2, builder: materialMore, children: _tags(14))),
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('+6'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'rereview R3-N5: a box-tier BoxLayout "+N" reports nothing over two '
+      "layouts, since AnimatedStyledBox's child GlobalKey is its own per "
+      'State, never shared by the probe and the live child',
+      (tester) async {
+        Widget boxMore(BuildContext context, int count) => ContainerLayout(
+          style: const WidgetStyle(backgroundColor: Color(0xFF000000)),
+          child: Text('+$count'),
+        );
+
+        await tester.pumpWidget(
+          _host(_frame(maxRuns: 2, builder: boxMore, children: _tags(12))),
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('+4'), findsOneWidget);
+
+        await tester.pumpWidget(
+          _host(_frame(maxRuns: 2, builder: boxMore, children: _tags(14))),
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('+6'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'rereview R3-N6: a GlobalKey "+N" in a second layout at the same '
+      'count, with nothing marked dirty, reports again and lays out the '
+      'live child, though the probe took its element back',
+      (tester) async {
+        final key = GlobalKey();
+        // One frame widget for both pumps, so the second pump marks no
+        // overflow dirty: only the wider host reruns the cut.
+        final frame = _frame(
+          maxRuns: 2,
+          builder: (context, count) =>
+              SizedBox(key: key, width: 90, height: 20, child: Text('+$count')),
+          children: _tags(12),
+        );
+        final reportsGlobalKey = isA<FlutterError>().having(
+          (e) => e.toString(),
+          'message',
+          contains('built a widget keyed by a GlobalKey'),
+        );
+
+        await tester.pumpWidget(_host(frame));
+        expect(tester.takeException(), reportsGlobalKey);
+        expect(find.text('+6'), findsOneWidget);
+
+        // Still 4 tags in the first run and 2 beside the 90 px "+6".
+        await tester.pumpWidget(_host(frame, width: 232));
+        expect(tester.takeException(), reportsGlobalKey);
+        expect(find.text('+6'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
       'rereview N1: an AnimatedSize overflow child whose count crosses a '
       'digit boundary between two layouts measures the new width fresh, '
       'on a probe a stale animation never freezes',

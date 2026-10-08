@@ -67,7 +67,9 @@ class WrapOverflowFrame extends StatefulWidget {
   /// probe each time (owner ruling R8), then once more for the final
   /// count, on the child the frame shows; a [Key] in the built widget is
   /// local to each call, but a [GlobalKey] reports a duplicate-key error,
-  /// since the probe and the shown child would both claim it at once.
+  /// since the probe and the shown child would both claim it at once. A
+  /// GlobalKey a descendant's [State] creates for itself, as `Material`
+  /// does, is its own per State and reports nothing.
   final Widget Function(BuildContext context, int hiddenCount)? overflowBuilder;
   final List<Widget> children;
 
@@ -277,24 +279,49 @@ class _WrapOverflowElement extends RenderObjectElement {
   /// widget [buildProbe] already built for [hiddenCount]), or removes it
   /// at 0, inside the render object's layout. Skips the rebuild when
   /// neither [hiddenCount] nor the frame's widget or its dependencies
-  /// changed since the last layout.
+  /// changed since the last layout, and the live child is still there: a
+  /// probe that took a [GlobalKey]-keyed live child back leaves the slot
+  /// empty.
   ///
-  /// Reports, debug-only, a [GlobalKey] found in the still-mounted probe
-  /// before this inflates [builtWidget] into the live slot: once both
-  /// slots belong to this same element, Flutter's own retake quietly
-  /// moves a GlobalKey-identified element from one to the other instead
-  /// of flagging a duplicate (owner ruling R8's GlobalKey caveat), so by
-  /// [dropProbe] the probe already reads empty and Flutter's own check
-  /// never runs. This report catches it first, while the probe still
-  /// holds it, the same way a throwing `overflowBuilder` reports without
+  /// Reports, debug-only, a [GlobalKey] this build took over from the
+  /// still-mounted probe: the live slot inflates the widget the probe
+  /// holds, so Flutter's retake moves a keyed element out of the probe
+  /// (owner ruling R8's GlobalKey caveat). Flutter tracks that move, but
+  /// `finalizeTree` unmounts the probe [dropProbe] deactivated before its
+  /// own duplicate check, which skips a defunct former parent, so this is
+  /// the only report. A key a descendant's [State]
+  /// creates for itself (`Material`'s ink renderer, [AnimatedStyledBox]'s
+  /// child key) differs per State, never moves, and never reports. It
+  /// reports the same way a throwing `overflowBuilder` does, without
   /// aborting the layout.
   void buildOverflow(int hiddenCount, Widget? builtWidget) {
     assert(
       hiddenCount == 0 || _probeHiddenCount == hiddenCount,
       'buildOverflow expects the count buildProbe last measured',
     );
+    if (!_overflowDirty &&
+        hiddenCount == _overflowHiddenCount &&
+        (hiddenCount == 0 || _overflow != null)) {
+      return;
+    }
+    _overflowDirty = false;
+    _overflowHiddenCount = hiddenCount;
+    var probeKeys = const <GlobalKey>{};
     assert(() {
-      final key = _debugProbeGlobalKey();
+      probeKeys = _debugGlobalKeysOf(_probe);
+      return true;
+    }(), 'debug-only: collects the GlobalKeys the probe holds');
+    owner!.buildScope(this, () {
+      _overflow = updateChild(
+        _overflow,
+        hiddenCount == 0 ? null : builtWidget,
+        _overflowSlot,
+      );
+    });
+    assert(() {
+      final key = _debugGlobalKeysOf(_overflow)
+          .where(probeKeys.contains)
+          .firstOrNull;
       if (key != null) {
         FlutterError.reportError(
           FlutterErrorDetails(
@@ -306,8 +333,8 @@ class _WrapOverflowElement extends RenderObjectElement {
               ErrorDescription(
                 'The probe that measures each candidate count (owner '
                 'ruling R8) and the overflow child it shows both '
-                "inflate the builder's output, so Flutter would reject "
-                'the key as a duplicate once both are active.',
+                "inflate the builder's output, so the overflow child "
+                "took the key's element over from the probe.",
               ),
               ErrorHint(
                 'Give the widget overflowBuilder returns a local Key, '
@@ -320,17 +347,7 @@ class _WrapOverflowElement extends RenderObjectElement {
         );
       }
       return true;
-    }(), 'debug-only: reports a GlobalKey the probe still holds');
-    if (!_overflowDirty && hiddenCount == _overflowHiddenCount) return;
-    _overflowDirty = false;
-    _overflowHiddenCount = hiddenCount;
-    owner!.buildScope(this, () {
-      _overflow = updateChild(
-        _overflow,
-        hiddenCount == 0 ? null : builtWidget,
-        _overflowSlot,
-      );
-    });
+    }(), 'debug-only: reports a GlobalKey taken over from the probe');
   }
 
   /// Builds [WrapOverflowFrame.overflowBuilder]'s widget for [hiddenCount]
@@ -389,23 +406,19 @@ class _WrapOverflowElement extends RenderObjectElement {
     _probeHiddenCount = null;
   }
 
-  /// The first [GlobalKey] found walking the probe's element tree, or
-  /// null; debug-only, read by [buildOverflow]'s assert.
-  GlobalKey? _debugProbeGlobalKey() {
-    GlobalKey? found;
+  /// The [GlobalKey]s in the element tree of [root], [root] included, an
+  /// ancestor's before its descendants', so the first one also found in
+  /// the probe keys the element Flutter's retake moved; empty for null.
+  /// Debug-only, read by [buildOverflow]'s asserts.
+  Set<GlobalKey> _debugGlobalKeysOf(Element? root) {
+    final keys = <GlobalKey>{};
     void visit(Element element) {
-      if (found != null) return;
-      final key = element.widget.key;
-      if (key is GlobalKey) {
-        found = key;
-        return;
-      }
+      if (element.widget.key case final GlobalKey key) keys.add(key);
       element.visitChildren(visit);
     }
 
-    final probe = _probe;
-    if (probe != null) visit(probe);
-    return found;
+    if (root != null) visit(root);
+    return keys;
   }
 
   /// Records the cut: the first [shown] children show.
