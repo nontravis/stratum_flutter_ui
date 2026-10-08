@@ -46,9 +46,12 @@ typedef RemoteZipContents = ({
 ///   before the directory (`invalidArchive`);
 /// - every entry path, file type, and `/`-ending folder entry
 ///   (`unsafeEntryPath`), the theme root (`missingThemeFile`);
-/// - each entry under the root inflated from its own span under one
-///   running byte count that stops at [maxBytes] (`archiveTooLarge`), its
-///   CRC-32 checked (`invalidArchive`).
+/// - every entry, those it never reads included, inflated from its own
+///   span under one running byte count that stops at [maxBytes]
+///   (`archiveTooLarge`), its output as long as its declared size, its
+///   deflate stream ending at its data's last byte, and its CRC-32
+///   checked (`invalidArchive`, or `unsafeEntryPath` for a folder entry);
+///   the output of an entry it does not keep is dropped.
 ///
 /// Never writes into [bytes]. Returns the files under the theme root by
 /// their path relative to that root, and the entries it never reads
@@ -67,13 +70,15 @@ RemoteZipContents readRemoteZip(
     final entry = span.entry;
     checkEntryPath(entry.name);
     checkEntryFileType(entry.name, externalAttributes: entry.attributes);
-    entry.checkFolderEntry(data, span.start);
+    entry.checkFolderEntry();
   }
   final root = findThemeRoot(entries.map((entry) => entry.name));
   final files = <String, Uint8List>{};
   final unread = <String>[];
   var total = 0;
   for (final span in spans) {
+    final content = _inflate(data, span, total, maxBytes);
+    total += content.length;
     final name = span.entry.name;
     final folder = name.endsWith('/');
     if (isIgnoredEntry(name) || (!folder && !name.startsWith(root))) {
@@ -81,8 +86,6 @@ RemoteZipContents readRemoteZip(
       continue;
     }
     if (folder) continue;
-    final content = _inflate(data, span, total, maxBytes);
-    total += content.length;
     files[name.substring(root.length)] = content;
   }
   return (files: files, unread: unread);
@@ -188,8 +191,18 @@ List<_Span> _locate(
 
 // MARK: - Inflate
 
+/// The zero bytes that follow an entry's data while it inflates (plan
+/// M1-T2, mechanism m2): a stored block header and the 65 535 bytes it may
+/// declare, plus one. A stream with no final block runs on into them, and
+/// a stored block cut short reads its length from them, so in both cases
+/// the input position passes the data's end.
+const _inflatePad = 65540;
+
 /// Inflates [span] from its own bytes only into an output capped at the
-/// [maxBytes] left after [before] bytes, then checks its CRC-32.
+/// [maxBytes] left after [before] bytes (FO-04 US-01 FR-02 E07, E10,
+/// E13): refuses an output of another length than its declared size, a
+/// deflate stream whose final block does not end at its data's last byte,
+/// and a CRC-32 mismatch, through [_Entry.mismatch].
 ///
 /// Inflates through `Inflate` into a capped output, never through
 /// `ZipFile.decompress`, which on the VM collects a whole entry before
@@ -202,9 +215,14 @@ Uint8List _inflate(Uint8List data, _Span span, int before, int maxBytes) {
     span.start + entry.compressedSize,
   );
   final output = _CappedOutput(maxBytes - before);
+  var end = raw.length;
   try {
     if (entry.method == 8) {
-      Inflate(raw, output: output);
+      final input = InputMemoryStream(
+        Uint8List(raw.length + _inflatePad)..setRange(0, raw.length, raw),
+      );
+      Inflate.stream(input, output: output);
+      end = input.position;
     } else {
       output.writeBytes(raw);
     }
@@ -216,11 +234,23 @@ Uint8List _inflate(Uint8List data, _Span span, int before, int maxBytes) {
       measured: measured,
     );
   } on Object {
-    throw _invalid('${entry.label} does not inflate');
+    throw entry.mismatch('does not inflate');
   }
   final content = Uint8List.fromList(output.getBytes());
+  if (content.length != entry.declaredSize) {
+    throw entry.mismatch(
+      'inflates to ${content.length} bytes, not the ${entry.declaredSize} '
+      'its header declares',
+    );
+  }
+  if (end < raw.length) {
+    throw entry.mismatch('holds bytes after its final deflate block');
+  }
+  if (end > raw.length) {
+    throw entry.mismatch('ends before its final deflate block');
+  }
   if (getCrc32(content) != entry.crc) {
-    throw _invalid('${entry.label} fails its CRC-32 check');
+    throw entry.mismatch('fails its CRC-32 check');
   }
   return content;
 }
@@ -394,30 +424,29 @@ final class _Entry {
     }
   }
 
-  /// Refuses an entry whose name ends in `/` unless it holds no bytes:
-  /// file type none or `S_IFDIR`, a declared extracted size of 0, and
-  /// compressed data that is either empty (compressed size 0) or the
-  /// 2-byte empty deflate stream `03 00` (method deflate, compressed
-  /// size 2), what Java's `ZipOutputStream` writes for a folder (FO-04
-  /// US-01 FR-02 E13), so no other bytes hide under a name the reader
-  /// skips. [data] and [start] are this entry's own span, from `_locate`.
-  void checkFolderEntry(Uint8List data, int start) {
-    if (!name.endsWith('/')) return;
-    final type = (attributes >> 16) & 0xF000;
-    final folder = type == 0 || type == 0x4000;
-    final noBytes =
-        compressedSize == 0 ||
-        (method == 8 &&
-            compressedSize == 2 &&
-            data[start] == 0x03 &&
-            data[start + 1] == 0x00);
-    if (folder && declaredSize == 0 && noBytes) return;
+  /// Refuses an entry whose name ends in `/` unless its declared size and
+  /// CRC-32 are 0 (FO-04 US-01 FR-02 E13); its file type is
+  /// [checkEntryFileType]'s, and that its data holds no bytes, stored with
+  /// a compressed size of 0 or any deflate stream that inflates to
+  /// nothing, is proved by `_inflate`.
+  void checkFolderEntry() {
+    if (!name.endsWith('/') || (declaredSize == 0 && crc == 0)) return;
     throw RemoteThemeFailure(
       StratumRemoteThemeErrorCode.unsafeEntryPath,
-      '$label ends with "/" but is no folder entry with no bytes',
+      '$label ends with "/" but declares bytes',
       path: name,
     );
   }
+
+  /// The failure for this entry's data, saying [why]: `unsafeEntryPath`
+  /// with the path for a folder entry (E13), else `invalidArchive` (E10).
+  RemoteThemeFailure mismatch(String why) => name.endsWith('/')
+      ? RemoteThemeFailure(
+          StratumRemoteThemeErrorCode.unsafeEntryPath,
+          '$label ends with "/" but its data $why',
+          path: name,
+        )
+      : _invalid('$label $why');
 
   /// Checks this entry's local header equals its central header (design
   /// Z2): flags, method, CRC-32, both sizes, and name, the three numbers

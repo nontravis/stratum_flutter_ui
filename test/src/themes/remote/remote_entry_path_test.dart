@@ -91,11 +91,29 @@ void main() {
     expect(() => checkEntryPath('a/$segment'), returnsNormally);
   });
 
-  for (final type in [0, 0x8000, 0x4000]) {
-    test('us01/fr02: file type 0x${type.toRadixString(16)} is safe', () {
+  for (final (path, type) in [
+    ('a', 0),
+    ('a', 0x8000),
+    ('a/', 0),
+    ('a/', 0x4000),
+  ]) {
+    test('us01/fr02: file type 0x${type.toRadixString(16)} on "$path" is '
+        'safe', () {
       expect(
-        () => checkEntryFileType('a', externalAttributes: (type | 0x1A4) << 16),
+        () =>
+            checkEntryFileType(path, externalAttributes: (type | 0x1A4) << 16),
         returnsNormally,
+      );
+    });
+  }
+
+  for (final (path, type) in [('theme.yaml', 0x4000), ('a/', 0x8000)]) {
+    test('us01/fr02/e01, us01/fr02/e13, rz3, r18 (t27): file type '
+        '0x${type.toRadixString(16)} on "$path" is unsafe_entry_path', () {
+      expect(
+        () =>
+            checkEntryFileType(path, externalAttributes: (type | 0x1ED) << 16),
+        _unsafe(path),
       );
     });
   }

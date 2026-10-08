@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Breaking: a remote theme install, and `stratum_theme pack` and `check`, now inflate and check every zip entry, those
+  the install never reads included (`__MACOSX/` entries, a `.DS_Store`, a loose file beside the theme folder): an
+  entry whose data does not inflate to exactly its declared size, holds a byte after its final deflate block or ends
+  before it, or fails its CRC-32 check is `invalid_archive` (`unsafe_entry_path` for a folder entry), and every entry
+  counts toward `maxBytes`. An entry typed as a folder on a name that does not end in `/` is `unsafe_entry_path`. A
+  folder entry may hold any deflate stream that inflates to nothing, so Java's level-0 folder entries now install.
 - Breaking: `StratumNamedCurve.byName` moved to `StratumCurveConvert.byName`, on the Flutter side of the theme models,
   so the curve model compiles in the Dart VM; `stratumCurve.curve` reads as before. No `@Deprecated` step: Dart has no
   static extension members, and no release tag exists yet.

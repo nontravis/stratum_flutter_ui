@@ -6,7 +6,7 @@ import 'package:stratum_ui/src/themes/remote/remote_zip_reader.dart';
 import 'tool_zips/tool_zips.g.dart';
 
 void main() {
-  for (final tool in ['finder', 'infoZip', 'javaDefault']) {
+  for (final tool in toolZips.keys) {
     test('us01/fr02/e02, us01/fr02/e13, rz3: a theme zipped by $tool '
         'installs', () {
       final read = readRemoteZip(

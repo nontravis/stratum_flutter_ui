@@ -10,6 +10,13 @@ import 'remote_test_zip.dart';
 
 const int _mb = 1024 * 1024;
 
+/// A deterministic 3000-byte payload, M1-T2's probe `_small`: large enough
+/// that a stored block must declare its length rather than fall out as the
+/// empty-folder special case.
+final _small = Uint8List.fromList([
+  for (var i = 0; i < 3000; i++) (i * 7) % 251,
+]);
+
 Map<String, Uint8List> _read(
   Uint8List zip, {
   int maxBytes = 20 * _mb,
@@ -673,6 +680,54 @@ void main() {
       expect(_read(zip).keys, ['theme.yaml']);
     });
 
+    for (final (label, body) in [
+      (
+        '01 00 00 ff ff, what Java writes at level 0',
+        [0x01, 0x00, 0x00, 0xFF, 0xFF],
+      ),
+      (
+        'an empty stored block, then an empty final fixed block',
+        [0x00, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00],
+      ),
+    ]) {
+      test('us01/fr02/e13, rz3: a folder entry deflated to nothing as '
+          '$label is read past', () {
+        final zip = buildZip([
+          ZipEntryFixture('brand/', const [], method: 8, body: body),
+          ZipEntryFixture('brand/theme.yaml', yaml),
+        ]);
+
+        expect(_read(zip).keys, ['theme.yaml']);
+      });
+    }
+
+    for (final (label, entry) in [
+      (
+        'a deflate stream that inflates to bytes under a size and CRC-32 '
+            'of 0',
+        ZipEntryFixture(
+          'hidden/',
+          const [],
+          method: 8,
+          body: Deflate([1, 2, 3]).getBytes(),
+        ),
+      ),
+      (
+        'stored bytes under a size and CRC-32 of 0',
+        ZipEntryFixture('hidden/', const [], deflate: false, body: [1, 2, 3]),
+      ),
+    ]) {
+      test('us01/s15, us01/fr02/e13, rz3: a "/"-ending entry with $label is '
+          'unsafe_entry_path', () {
+        final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
+
+        expect(
+          () => _read(zip),
+          _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'hidden/'),
+        );
+      });
+    }
+
     for (final (label, entry) in [
       ('stored bytes', ZipEntryFixture('hidden/', [1, 2, 3], deflate: false)),
       (
@@ -1175,5 +1230,142 @@ void main() {
         _fails(StratumRemoteThemeErrorCode.invalidArchive),
       );
     });
+  });
+
+  group('r18 every entry inflates', () {
+    List<int> storedBlock(List<int> data) => [
+      0,
+      data.length & 0xFF,
+      data.length >> 8,
+      (data.length & 0xFF) ^ 0xFF,
+      (data.length >> 8) ^ 0xFF,
+      ...data,
+    ];
+
+    test('us01/fr02/e10, rz3, r18 (t27 p11): a whole local entry after the '
+        'final deflate block, inside the span, is invalid_archive', () {
+      final hidden = ZipEntryFixture('payload.txt', utf8.encode('evil'));
+      final zip = buildZip([
+        ZipEntryFixture(
+          'theme.yaml',
+          yaml,
+          method: 8,
+          body: [...Deflate(yaml).getBytes(), ...hidden.localBytes],
+        ),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(StratumRemoteThemeErrorCode.invalidArchive),
+      );
+    });
+
+    test('us01/fr02/e10, rz3: a deflate stream with no final block is '
+        'invalid_archive', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml, method: 8, body: storedBlock(yaml)),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(StratumRemoteThemeErrorCode.invalidArchive),
+      );
+    });
+
+    test('us01/fr02/e01, rz3, r18 (t27): an entry named theme.yaml typed '
+        'S_IFDIR is unsafe_entry_path', () {
+      final zip = buildZip([
+        ZipEntryFixture(
+          'theme.yaml',
+          yaml,
+          madeBy: 0x031E,
+          attributes: 0x41ED << 16,
+        ),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'theme.yaml'),
+      );
+    });
+
+    test('us01/fr02/e10, rz3, review focus: a __MACOSX/ entry the install '
+        'never reads, whose CRC-32 fails, is invalid_archive', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture('__MACOSX/._theme.yaml', [1, 2, 3], crc: 7),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(StratumRemoteThemeErrorCode.invalidArchive),
+      );
+    });
+
+    test('us01/fr02/e07, rz3: entries the install never reads count toward '
+        'maxBytes', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture('__MACOSX/big', Uint8List(_mb), declaredSize: 1),
+      ]);
+
+      expect(
+        () => _read(zip, maxBytes: 64 * 1024),
+        _fails(StratumRemoteThemeErrorCode.archiveTooLarge),
+      );
+    });
+
+    for (final (label, entry) in [
+      (
+        'a stored entry whose compressed size differs from its size',
+        ZipEntryFixture('a.bin', [1, 2, 3], deflate: false, declaredSize: 2),
+      ),
+      (
+        'a deflate entry that inflates past its declared size within the cap',
+        ZipEntryFixture('a.bin', Uint8List(100), declaredSize: 50),
+      ),
+      (
+        'a deflate entry that inflates short of its declared size',
+        ZipEntryFixture('a.bin', Uint8List(100), declaredSize: 150),
+      ),
+    ]) {
+      test('us01/fr02/e10, rz3: $label is invalid_archive', () {
+        final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
+
+        expect(
+          () => _read(zip),
+          _fails(StratumRemoteThemeErrorCode.invalidArchive),
+        );
+      });
+    }
+
+    // Owner ruling 2026-10-08 (re-asked in plain words): "รับได้
+    // (Recommended)" — the mechanism-m2 residual stands; v10, v11, and v14
+    // install rather than refuse (plan M1-T2, mechanism m2).
+    for (final (label, data, vector) in [
+      (
+        'v10 a reserved block type after the output',
+        _small,
+        [...storedBlock(_small), 0x07],
+      ),
+      (
+        'v11 a stored LEN and NLEN that disagree after the output',
+        _small,
+        [...storedBlock(_small), 0x01, 0x05, 0x00, 0x34, 0x12],
+      ),
+      (
+        'v14 an empty final stored block with a wrong NLEN',
+        const <int>[],
+        const [1, 0, 0, 0x12, 0x34],
+      ),
+    ]) {
+      test('rz3, residual (owner ruling 2026-10-08): $label installs', () {
+        final zip = buildZip([
+          ZipEntryFixture('theme.yaml', data, method: 8, body: vector),
+        ]);
+
+        expect(_read(zip).keys, ['theme.yaml']);
+      });
+    }
   });
 }

@@ -2,9 +2,6 @@ import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 
 final _driveLetter = RegExp('^[A-Za-z]:');
 
-/// The file types an entry may carry: none, `S_IFREG`, and `S_IFDIR`.
-const _safeFileTypes = {0, 0x8000, 0x4000};
-
 /// Whether [path] holds a character outside printable ASCII, U+0020 to
 /// U+007E: a control character, U+0000 to U+001F or U+007F, or any
 /// character past U+007E (FO-04 US-01 FR-02 E14, US-02 FR-01 E10).
@@ -49,16 +46,19 @@ void checkEntryPath(String path) {
 }
 
 /// Checks the file type of the entry at [path], the high 16 bits of
-/// [externalAttributes] masked by `0xF000`, is none, a file, or a folder,
-/// whatever host made the zip; else throws `RemoteThemeFailure`
-/// `unsafeEntryPath` with the path, so a symbolic link is refused.
+/// [externalAttributes] masked by `0xF000`, whatever host made the zip
+/// (FO-04 US-01 FR-02 E01, E13): none or `S_IFDIR` (`0x4000`) on a path
+/// ending in `/`, none or `S_IFREG` (`0x8000`) on any other, so a symbolic
+/// link, and a folder type on a file's name, are refused. Throws
+/// `RemoteThemeFailure` `unsafeEntryPath` with the path.
 void checkEntryFileType(String path, {required int externalAttributes}) {
   final type = (externalAttributes >> 16) & 0xF000;
-  if (_safeFileTypes.contains(type)) return;
+  final folder = path.endsWith('/');
+  if (type == 0 || type == (folder ? 0x4000 : 0x8000)) return;
   throw RemoteThemeFailure(
     StratumRemoteThemeErrorCode.unsafeEntryPath,
     'entry "${escapeZipText(path)}" has file type '
-    '0x${type.toRadixString(16)}, neither a file nor a folder',
+    '0x${type.toRadixString(16)}, not ${folder ? 'a folder' : 'a file'}',
     path: path,
   );
 }
