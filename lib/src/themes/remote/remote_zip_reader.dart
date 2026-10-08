@@ -477,7 +477,10 @@ final class _Entry {
   /// span or the central directory, [next] (design Z1, Z4): none, unless
   /// flags bit 3 is set; then exactly its data descriptor, 12 bytes
   /// (CRC-32, compressed size, size) or 16 starting `50 4b 07 08`, equal
-  /// to the directory.
+  /// to the directory. Refuses a 12-byte descriptor whose CRC-32 field
+  /// happens to be `50 4b 07 08`: a tool that peeks for the signature,
+  /// such as Java's `ZipInputStream`, would then read 16 bytes instead
+  /// and disagree with this reader.
   void checkTail(ByteData view, int dataEnd, int next) {
     if (next < dataEnd) throw _invalid('$label shares bytes with the next');
     final gap = next - dataEnd;
@@ -489,6 +492,12 @@ final class _Entry {
     if (gap == 16 && _u32(view, dataEnd) == 0x08074b50) {
       at = dataEnd + 4;
     } else if (gap == 12) {
+      if (_u32(view, dataEnd) == 0x08074b50) {
+        throw _invalid(
+          '$label has an unsigned 12-byte data descriptor starting with '
+          'the signed signature',
+        );
+      }
       at = dataEnd;
     } else {
       throw _invalid(

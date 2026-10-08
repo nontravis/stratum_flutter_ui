@@ -1001,12 +1001,44 @@ void main() {
         ]),
       ),
       (
+        'an Info-ZIP Unicode Path record in the local extra field',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            localExtra: const [0x75, 0x70, 0x05, 0x00, 1, 0, 0, 0, 0],
+          ),
+        ]),
+      ),
+      (
         'a local extra field that is no whole record',
         () => buildZip([
           ZipEntryFixture(
             'theme.yaml',
             yaml,
             localExtra: const [0x55, 0x54, 0x09, 0x00, 1],
+          ),
+        ]),
+      ),
+      (
+        'a local extra field that ends with a fragment shorter than a '
+            'record header',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            localExtra: const [0x55, 0x54, 0x01, 0x00, 0x00, 1, 2, 3],
+          ),
+        ]),
+      ),
+      (
+        'a central extra field that ends with a fragment shorter than a '
+            'record header',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            centralExtra: const [0x55, 0x54, 0x01, 0x00, 0x00, 1, 2, 3],
           ),
         ]),
       ),
@@ -1078,6 +1110,22 @@ void main() {
             yaml,
             flags: 0x8,
             descriptor: dataDescriptor(utf8.encode('other')),
+          ),
+        ]),
+      ),
+      (
+        'a 12-byte descriptor whose CRC-32 field is the signed signature, '
+            'which Java reads as a 16-byte one',
+        () => buildZip([
+          ZipEntryFixture('theme.yaml', yaml),
+          ZipEntryFixture(
+            'hidden/',
+            const [],
+            method: 8,
+            flags: 0x8,
+            body: const [],
+            crc: 0x08074b50,
+            descriptor: const [0x50, 0x4b, 0x07, 0x08, 0, 0, 0, 0, 0, 0, 0, 0],
           ),
         ]),
       ),
