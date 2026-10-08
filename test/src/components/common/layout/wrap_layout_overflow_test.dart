@@ -767,6 +767,69 @@ void main() {
     );
 
     testWidgets(
+      'us14/fr03/e04, s03/inv39: an unkeyed focused child that a keyed '
+      'insert moves past the old cut keeps focus and never flips when the '
+      'new cut still shows it',
+      (tester) async {
+        final b = _node('b');
+        final flips = <bool>[];
+        // [A, tag 1, B] becomes [tag 0, A, tag 1, B]: Flutter matches the
+        // unkeyed A and B from the end, so B's slot moves from index 2 to 3.
+        Widget build({required bool inserted, required int maxChildren}) =>
+            _host(
+              _wrap(
+                maxChildren: maxChildren,
+                children: [
+                  if (inserted) _tag(0),
+                  const SizedBox(width: 40, height: 20),
+                  _tag(1),
+                  Focus(
+                    focusNode: b,
+                    child: _TickerWatch(log: flips),
+                  ),
+                ],
+              ),
+            );
+        await tester.pumpWidget(build(inserted: false, maxChildren: 3));
+        b.requestFocus();
+        await tester.pump();
+        expect(b.hasFocus, isTrue);
+
+        await tester.pumpWidget(build(inserted: true, maxChildren: 4));
+        await tester.pump();
+
+        expect(b.hasFocus, isTrue);
+        expect(flips, isEmpty);
+      },
+    );
+
+    testWidgets(
+      's03/inv39: an unkeyed child that a keyed insert moves past the cut '
+      'hides inside the layout of the new cut, never in the build before it',
+      (tester) async {
+        final flips = <bool>[];
+        Widget build({required bool inserted}) => _host(
+          _wrap(
+            maxChildren: 3,
+            children: [
+              if (inserted) _tag(0),
+              const SizedBox(width: 40, height: 20),
+              _tag(1),
+              _TickerWatch(log: flips),
+            ],
+          ),
+        );
+        await tester.pumpWidget(build(inserted: false));
+        expect(flips, isEmpty);
+
+        await tester.pumpWidget(build(inserted: true));
+
+        expect(find.byType(_TickerWatch), findsNothing);
+        expect(flips, [true]);
+      },
+    );
+
+    testWidgets(
       'a child whose root swaps its render object and size when a limit '
       'change shows it lays out at its shown size',
       (tester) async {

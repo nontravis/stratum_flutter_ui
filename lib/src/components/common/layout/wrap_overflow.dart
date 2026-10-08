@@ -222,27 +222,21 @@ class _WrapOverflowElement extends RenderObjectElement {
     super.unmount();
   }
 
-  /// Builds a slot per child. A keyed child keeps the flag its slot holds,
-  /// so only [applyCut] flips a child already built, in the layout of the
-  /// new cut; an unkeyed or new child takes the flag of its index under
-  /// the last cut.
+  /// Builds a slot per child. A slot already built keeps the flag its
+  /// [_WrapSlotState] holds, whatever index the build gives it, so only
+  /// [applyCut] flips it, in the layout of the new cut. A new slot starts
+  /// hidden at an index the last cut hides and shown otherwise (shown for
+  /// all before the first cut): it holds no focus yet and its tickers
+  /// have not fired, and this layout's cut flips it if the guess is wrong.
   List<Element> _buildChildren(List<Element> old) {
     assert(
       !debugChildrenHaveDuplicateKeys(widget, _frame.children),
       'WrapOverflowFrame.children has duplicate keys',
     );
     final shown = _shown;
-    final hiddenByKey = {
-      for (final element in old)
-        if (element.widget case _WrapSlot(:final Key key, :final hidden))
-          key: hidden,
-    };
     return updateChildren(old, [
       for (final (i, child) in _frame.children.indexed)
-        _slot(
-          child,
-          hidden: hiddenByKey[_slotKey(child)] ?? (shown != null && i >= shown),
-        ),
+        _slot(child, hidden: shown != null && i >= shown),
     ]);
   }
 
@@ -258,12 +252,15 @@ class _WrapOverflowElement extends RenderObjectElement {
     final key => ValueKey<Key>(key),
   };
 
+  /// The state of the [_WrapSlot] that [slot] holds.
+  static _WrapSlotState _stateOf(Element slot) =>
+      (slot as StatefulElement).state as _WrapSlotState;
+
   /// The node that marks the subtree of the child in [slot].
   // Read by the focus handoff after a collapse or an expand (US-14 FR-03
   // E01 to E03), which applyCut gains next.
   // ignore: unused_element
-  static FocusNode _nodeOf(Element slot) =>
-      ((slot as StatefulElement).state as _WrapSlotState).node;
+  static FocusNode _nodeOf(Element slot) => _stateOf(slot).node;
 
   @override
   void visitChildren(ElementVisitor visitor) {
@@ -437,19 +434,16 @@ class _WrapOverflowElement extends RenderObjectElement {
 
   /// Shows the first [shown] children and hides the rest, inside the
   /// render object's layout, so a child the cut hides stops ticking and
-  /// leaves focus in the frame of the cut (s03 invariant 39).
+  /// leaves focus in the frame of the cut (s03 invariant 39). The one
+  /// place a built child's flag flips.
   void applyCut(int shown) {
     _shown = shown;
     owner!.buildScope(this, () {
-      for (var i = 0; i < _children.length; i++) {
-        final slot = _children[i].widget as _WrapSlot;
+      for (final (i, child) in _children.indexed) {
+        final slot = _stateOf(child);
         final hidden = i >= shown;
         if (slot.hidden == hidden) continue;
-        _children[i] = updateChild(
-          _children[i],
-          _slot(slot.child, hidden: hidden),
-          IndexedSlot<Element?>(i, i == 0 ? null : _children[i - 1]),
-        )!;
+        slot.hidden = hidden;
       }
     });
   }
@@ -496,6 +490,8 @@ class _WrapOverflowElement extends RenderObjectElement {
 class _WrapSlot extends StatefulWidget {
   const new({super.key, required this.hidden, required this.child});
 
+  /// The flag a new slot starts with; a later widget's flag is ignored,
+  /// since [_WrapSlotState.hidden] owns it from then on.
   final bool hidden;
   final Widget child;
 
@@ -512,6 +508,16 @@ class _WrapSlotState extends State<_WrapSlot> {
     skipTraversal: true,
   );
 
+  /// Whether the cut hides the child; set only by
+  /// [_WrapOverflowElement.applyCut], inside the wrap's layout, so a
+  /// rebuild of the wrap never flips it.
+  bool get hidden => _hidden;
+  late bool _hidden = widget.hidden;
+  set hidden(bool value) {
+    if (value == _hidden) return;
+    setState(() => _hidden = value);
+  }
+
   @override
   void dispose() {
     node.dispose();
@@ -522,7 +528,7 @@ class _WrapSlotState extends State<_WrapSlot> {
   Widget build(BuildContext context) {
     return _hideable(
       Focus(focusNode: node, includeSemantics: false, child: widget.child),
-      hidden: widget.hidden,
+      hidden: _hidden,
     );
   }
 }
