@@ -280,6 +280,41 @@ void runNativeAdapterContract(
       ]);
     });
 
+    test(
+      'us03/fr02/e17, nf01/NFR-Sec02: a named send runs the one-target '
+      'script, and a refusal throws the StateError naming no origin',
+      () async {
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness
+          ..startPage(appPage.toString())
+          ..scriptResult = false;
+        final partner = Uri.parse('https://partner.example.net');
+        await expectLater(
+          adapter.postMessage('x', targetOrigin: partner),
+          throwsA(_unallowedPage),
+        );
+        expect(
+          harness.scripts.last,
+          buildMessageDispatchScript(
+            'x',
+            token: null,
+            allowedOrigins: [partner],
+          ),
+        );
+      },
+    );
+
+    test(
+      'us03/fr02/e18: a named send the page shown accepts resolves',
+      () async {
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness
+          ..startPage(appPage.toString())
+          ..scriptResult = true;
+        await adapter.postMessage('x', targetOrigin: appOrigin);
+      },
+    );
+
     test('us03/fr02/e03: a send the page refuses throws a StateError that '
         'names no origin', () async {
       await adapter.load(StratumWebViewSource.url(appPage));

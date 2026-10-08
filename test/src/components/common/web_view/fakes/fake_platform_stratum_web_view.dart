@@ -20,6 +20,7 @@ final class FakePlatformStratumWebView implements PlatformStratumWebView {
   final List<StratumWebViewSource> loads = [];
   final List<bool> javaScriptChanges = [];
   final List<String> sentMessages = [];
+  final List<Uri?> sentTargets = [];
   int reloadCount = 0;
   int backCount = 0;
   int forwardCount = 0;
@@ -55,10 +56,11 @@ final class FakePlatformStratumWebView implements PlatformStratumWebView {
   Future<Uri?> currentUrl() async => currentUrlValue;
 
   @override
-  Future<void> postMessage(String data) async {
+  Future<void> postMessage(String data, {Uri? targetOrigin}) async {
     final error = postMessageError;
     if (error != null) throw error;
     sentMessages.add(data);
+    sentTargets.add(targetOrigin);
   }
 
   @override

@@ -73,10 +73,13 @@ abstract interface class PlatformStratumWebView {
   /// Best known URL of the current page.
   Future<Uri?> currentUrl();
 
-  /// Sends [data] to the page as a `message` event.
+  /// Sends [data] to the page as a `message` event. With [targetOrigin], an
+  /// origin already on the allowlist, only a page shown at delivery with
+  /// that origin receives it; the app's HTML never does (US-03 FR-02 E14 to
+  /// E18).
   ///
   /// Throws a [StateError] when the current page may not receive messages.
-  Future<void> postMessage(String data);
+  Future<void> postMessage(String data, {Uri? targetOrigin});
 
   /// Builds the widget that displays the page.
   Widget buildView(BuildContext context);

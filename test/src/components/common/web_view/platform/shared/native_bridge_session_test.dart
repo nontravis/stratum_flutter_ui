@@ -707,6 +707,46 @@ void main() {
     });
   });
 
+  group('named sends', () {
+    test("us03/fr02/e17, us03/fr02/e16: a named send's script admits only "
+        'a page whose origin is the target, and carries no token even '
+        'while own HTML is proven', () {
+      final html = session.willLoadHtml('<p>Hi</p>');
+      session.acceptMessage(envelope(nonceIn(html), 'hello', documentA));
+      final partner = Uri.parse('https://partner.example.net');
+      final script = session.scriptForMessage('x', targetOrigin: partner);
+      expect(
+        script,
+        buildMessageDispatchScript('x', token: null, allowedOrigins: [partner]),
+      );
+      expect(script, isNot(contains(tokenIn(html))));
+    });
+
+    test('us03/fr02/e14: the named target is compared as an origin', () {
+      final script = session.scriptForMessage(
+        'x',
+        targetOrigin: Uri.parse('https://APP.example.com:443/home?q=1#f'),
+      );
+      expect(script, contains('o==="https://app.example.com"'));
+      expect(script, isNot(contains('/home')));
+    });
+
+    test('us03/fr02/e04: a named send while the nonce is minted still '
+        'throws not connected', () {
+      session.willLoadHtml('<p>Hi</p>');
+      expect(
+        () => session.scriptForMessage('x', targetOrigin: appOrigin),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The HTML page has not connected the bridge yet.',
+          ),
+        ),
+      );
+    });
+  });
+
   group('Android reply proxy', () {
     const proxyA = BridgeReplyProxy(1);
     const proxyB = BridgeReplyProxy(2);

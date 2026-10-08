@@ -114,9 +114,9 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   }
 
   @override
-  Future<void> postMessage(String data) async {
+  Future<void> postMessage(String data, {Uri? targetOrigin}) async {
     await _ready;
-    final script = _session.scriptForMessage(data);
+    final script = _session.scriptForMessage(data, targetOrigin: targetOrigin);
     _session.confirmDelivery(
       await dispatchScriptAnswer(
         _controller.runJavaScriptReturningResult(script),

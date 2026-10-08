@@ -166,14 +166,25 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     return current.url;
   }
 
+  /// With [targetOrigin], the view throws when the app's own HTML is shown
+  /// (it has no origin to compare) or when the current entry's origin is
+  /// not [targetOrigin] (US-03 FR-02 E16, E17). The post still carries the
+  /// current entry's own origin as the browser's `targetOrigin`, which
+  /// drops the message when the frame changed origin after this check
+  /// (US-03 FR-02 E17).
   @override
-  Future<void> postMessage(String data) async {
+  Future<void> postMessage(String data, {Uri? targetOrigin}) async {
     final current = _history.current;
     if (current == null) {
       throw StateError('The web view has no page to receive messages.');
     }
     switch (current) {
       case StratumWebViewHtmlSource():
+        if (targetOrigin != null) {
+          throw StateError(
+            "The app's HTML has no origin to match targetOrigin.",
+          );
+        }
         final port = _bridge?.port;
         if (port == null) {
           throw StateError('The HTML page has not connected the bridge yet.');
@@ -186,6 +197,11 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
             origin == null ||
             !isAllowedOrigin(origin, _listener.allowedOrigins)) {
           throw StateError('$origin is not an allowed message destination.');
+        }
+        if (targetOrigin != null && origin != originOf(targetOrigin)) {
+          throw StateError(
+            'The current page is not the named message destination.',
+          );
         }
         frameWindow.postMessage(data.toJS, origin.toString().toJS);
     }

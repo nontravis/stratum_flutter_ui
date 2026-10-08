@@ -275,6 +275,22 @@ void main() {
       expect(harness.sender.proxyRuns, isEmpty);
     });
 
+    test('us03/fr02/e17, us03/fr02/e16: a named send the page shown '
+        'refuses runs nothing through the reply proxy and throws', () async {
+      await expectLater(
+        adapter.postMessage('ping', targetOrigin: appOrigin),
+        throwsA(unallowedPage),
+      );
+      expect(harness.scripts, [
+        buildMessageDispatchScript(
+          'ping',
+          token: null,
+          allowedOrigins: {appOrigin},
+        ),
+      ]);
+      expect(harness.sender.proxyRuns, isEmpty);
+    });
+
     test('B1 us03/fr02/e13: a later loadHtml that proves while the first '
         "script is pending does not get the earlier load's send through "
         'the reply proxy', () async {

@@ -18,6 +18,8 @@ import '../fakes/recording_listener.dart';
 
 void main() {
   final appOrigin = Uri.parse(web.window.location.origin);
+  // A host that never resolves, so no test reaching it touches the network.
+  final partner = Uri.parse('https://partner.example.invalid');
   late RecordingListener listener;
   late WebPlatformStratumWebView view;
 
@@ -711,6 +713,87 @@ location.href = 'data:text/html,' + encodeURIComponent(
     await pending;
     expect(view.iframe.src, 'about:blank');
     expect(listener.pagesStarted, isEmpty);
+  });
+
+  test('us03/fr02/e17: a named send throws before any post when the '
+      'current entry has another origin', () async {
+    await view.load(missingPage());
+    attach();
+    listener.allowedOrigins = {appOrigin, partner};
+    await expectLater(
+      view.postMessage('ping', targetOrigin: partner),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'The current page is not the named message destination.',
+        ),
+      ),
+    );
+  });
+
+  test('us03/fr02/e14, us03/fr02/e18: a named send matches the current '
+      'entry by origin, so another page of that origin receives it', () async {
+    await view.load(missingPage());
+    attach();
+    await view.postMessage(
+      'ping',
+      targetOrigin: appOrigin.replace(
+        host: appOrigin.host.toUpperCase(),
+        path: '/other',
+        query: 'q=1',
+        fragment: 'f',
+      ),
+    );
+  });
+
+  test("us03/fr02/e16: a named send to the app's HTML throws, while an "
+      'unnamed one still reaches it', () async {
+    final ready = Completer<void>();
+    listener.onMessageCallback = (message) {
+      if (message.data == 'ready' && !ready.isCompleted) ready.complete();
+    };
+    await view.load(
+      const StratumWebViewSource.html(
+        "<script>window.addEventListener('message',function(e){"
+        "StratumBridge.postMessage('echo:'+e.data);});"
+        "StratumBridge.postMessage('ready');</script>",
+      ),
+    );
+    attach();
+    await ready.future.timeout(const Duration(seconds: 5));
+    await expectLater(
+      view.postMessage('ping', targetOrigin: appOrigin),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          "The app's HTML has no origin to match targetOrigin.",
+        ),
+      ),
+    );
+    final echoed = Completer<String>();
+    listener.onMessageCallback = (message) {
+      if (!echoed.isCompleted) echoed.complete(message.data);
+    };
+    await view.postMessage('pong');
+    expect(
+      await echoed.future.timeout(const Duration(seconds: 5)),
+      'echo:pong',
+    );
+  });
+
+  test('us03/s8, us03/fr02/e17: after the view moves to a page of another '
+      'allowed origin, a send naming the first origin throws', () async {
+    listener.allowedOrigins = {appOrigin, partner};
+    await view.load(missingPage());
+    attach();
+    await finishes(1);
+    await view.load(StratumWebViewSource.url(partner));
+    await expectLater(
+      view.postMessage('late', targetOrigin: appOrigin),
+      throwsStateError,
+    );
   });
 
   test(

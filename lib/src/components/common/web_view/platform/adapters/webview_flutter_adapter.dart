@@ -123,16 +123,17 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   /// for, by the nonce [NativeBridgeSession.currentLoadNonce] reads right
   /// after [NativeBridgeSession.scriptForMessage] returns: a later
   /// `loadHtml` that proves while the first script is still pending does
-  /// not receive this send (B1).
+  /// not receive this send (B1). A named send never runs the token check
+  /// through the reply proxy (US-03 FR-02 E17).
   @override
-  Future<void> postMessage(String data) async {
+  Future<void> postMessage(String data, {Uri? targetOrigin}) async {
     await _ready;
-    final script = _session.scriptForMessage(data);
+    final script = _session.scriptForMessage(data, targetOrigin: targetOrigin);
     final loadNonce = _session.currentLoadNonce;
     final answer = await dispatchScriptAnswer(
       _controller.runJavaScriptReturningResult(script),
     );
-    final run = answer == false
+    final run = answer == false && targetOrigin == null
         ? _session.replyProxyScriptForMessage(data, loadNonce: loadNonce)
         : null;
     _session.confirmDelivery(

@@ -372,7 +372,12 @@ final class NativeBridgeSession {
   /// Throws a [StateError] when the platform view lacks a feature the
   /// bridge needs (US-03 FR-02 E11), and while the current HTML load has
   /// not proven its nonce, whatever page shows (US-03 FR-02 E04).
-  String scriptForMessage(String data) {
+  ///
+  /// With [targetOrigin], the page's own `location.origin` is compared
+  /// against that one origin instead of the whole allowlist, and the
+  /// script never carries the token, so the app's HTML never passes it
+  /// (US-03 FR-02 E16, E17).
+  String scriptForMessage(String data, {Uri? targetOrigin}) {
     if (_bridgeUnsupported) {
       throw StateError(
         'The bridge is disabled because the WebView lacks '
@@ -382,6 +387,13 @@ final class NativeBridgeSession {
     final proof = _proof;
     if (proof is _Minted) {
       throw StateError('The HTML page has not connected the bridge yet.');
+    }
+    if (targetOrigin != null) {
+      return buildMessageDispatchScript(
+        data,
+        token: null,
+        allowedOrigins: [targetOrigin],
+      );
     }
     return buildMessageDispatchScript(
       data,
