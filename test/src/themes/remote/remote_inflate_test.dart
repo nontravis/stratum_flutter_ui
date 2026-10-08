@@ -173,6 +173,37 @@ void _overSubscribedEmptyBlock(_Bits bits, {required bool last}) {
   bits.code(_canonical([...List.filled(256, 1), 15])[256] & 0x7FFF, 15);
 }
 
+/// The cheapest valid dynamic block that fills three full 512-entry root
+/// tables (the code-length, length, and distance codes): 92 bits, 11.5
+/// bytes (review m3-t7c security, worst per byte). One literal length
+/// code (symbol 0) and the end-of-block code (symbol 256) at length 1,
+/// both distance codes at length 1, each pair filling its table; the
+/// block's only content bit decodes to the end-of-block code.
+void _maxFillBlock(_Bits bits, {required bool last}) {
+  bits
+    ..put(last ? 1 : 0, 1)
+    ..put(2, 2)
+    ..put(0, 5) // HLIT 257
+    ..put(1, 5) // HDIST 2
+    ..put(14, 4); // HCLEN 18
+  final codeLengths = List.filled(19, 0)
+    ..[1] = 1
+    ..[18] = 1;
+  for (var i = 0; i < 18; i++) {
+    bits.put(codeLengths[_order[i]], 3);
+  }
+  bits
+    ..code(0, 1) // length code 0 = 1
+    ..code(1, 1) // repeat zero (code 18)
+    ..put(138 - 11, 7) // code lengths 1 to 138 zero
+    ..code(1, 1) // repeat zero (code 18)
+    ..put(117 - 11, 7) // code lengths 139 to 255 zero
+    ..code(0, 1) // length code 256 (end-of-block) = 1
+    ..code(0, 1) // distance code 0 = 1
+    ..code(0, 1) // distance code 1 = 1
+    ..code(1, 1); // the block's content: one bit, the end-of-block code
+}
+
 Matcher _refused(String reason) => throwsA(
   isA<InflateFailure>().having((f) => f.reason, 'reason', contains(reason)),
 );
@@ -474,19 +505,23 @@ void main() {
     });
 
     // VM only: flutter test runs Chrome through the debug compiler, whose
-    // speed is no measure of the web build's.
-    test('100,000 complete empty dynamic blocks with 15-bit codes, 2.3 MB, '
-        'which archive 4.3.0 read in about 5 s, inflate in under 3 s', () {
+    // speed is no measure of the web build's. 100,000 max-fill blocks, 1.15
+    // MB, are the worst valid stream per byte (review m3-t7c security), so
+    // they bound the linear cost tighter than a cheaper block would; the
+    // budget stays generous for a loaded machine (uptime recorded in the
+    // task report).
+    test('100,000 max-fill dynamic blocks, each three full 512-entry root '
+        'tables, the worst per-byte cost, inflate in under 6 s', () {
       final bits = _Bits();
       for (var i = 0; i < 100000; i++) {
-        _completeEmptyBlock(bits, last: false);
+        _maxFillBlock(bits, last: false);
       }
       bits.stored(small, last: true);
       final stream = bits.done();
       final clock = Stopwatch()..start();
 
       expect(_inflate(stream), small);
-      expect(clock.elapsedMilliseconds, lessThan(3000));
+      expect(clock.elapsedMilliseconds, lessThan(6000));
     }, testOn: 'vm');
   });
 }

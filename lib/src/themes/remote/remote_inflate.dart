@@ -29,6 +29,36 @@
 // archive's inflate is in turn derived from zlib.js
 // (https://github.com/imaya/zlib.js), The MIT License, Copyright (c)
 // 2012 imaya, under the same permission notice.
+//
+// _Huffman.build, _symbol's slow path, and _dynamic's checks are
+// translated from zlib's puff.c (puff.h), which carries this notice:
+//
+// puff.h
+// Copyright (C) 2002-2013 Mark Adler, all rights reserved
+// version 2.3, 21 Jan 2013
+//
+// This software is provided 'as-is', without any express or implied
+// warranty.  In no event will the author be held liable for any damages
+// arising from the use of this software.
+//
+// Permission is granted to anyone to use this software for any purpose,
+// including commercial applications, and to alter it and redistribute it
+// freely, subject to the following restrictions:
+//
+// 1. The origin of this software must not be misrepresented; you must
+//    not claim that you wrote the original software. If you use this
+//    software in a product, an acknowledgment in the product
+//    documentation would be appreciated but is not required.
+// 2. Altered source versions must be plainly marked as such, and must
+//    not be misrepresented as being the original software.
+// 3. This notice may not be removed or altered from any source
+//    distribution.
+//
+// Mark Adler    madler@alumni.caltech.edu
+//
+// This is an altered version: translated to Dart, with a 9-bit root
+// lookup table ahead of puff's bit-at-a-time decode, and puff's return
+// codes replaced by stratum_ui's InflateFailure and InflateLimitReached.
 
 import 'dart:typed_data';
 
@@ -184,6 +214,11 @@ final class _Inflater {
 
   final Uint8List _input;
   final int _limit;
+
+  /// The buffer size past which [_room] stops doubling and jumps straight
+  /// to [_limit].
+  static const int _bigGrowth = 1 << 20;
+
   Uint8List _output;
   var _length = 0;
   var _at = 0;
@@ -370,10 +405,21 @@ final class _Inflater {
   }
 
   /// Makes room for [count] more output bytes, refusing to pass [_limit].
+  ///
+  /// Doubles while the buffer is small; past [_bigGrowth], one jump
+  /// straight to [_limit] replaces the chain of doublings that would
+  /// otherwise leave several stale buffers awaiting GC on the way there, so
+  /// an entry whose declared size understates its real one by megabytes
+  /// peaks near one buffer of [_limit], not several (review m3-t7c
+  /// security, Minor 1).
   void _room(int count) {
     final needed = _length + count;
     if (needed > _limit) throw InflateLimitReached(needed);
     if (needed <= _output.length) return;
+    if (_output.length >= _bigGrowth) {
+      _output = Uint8List(_limit)..setRange(0, _length, _output);
+      return;
+    }
     var size = _output.length < 1024 ? 1024 : _output.length * 2;
     while (size < needed) {
       size *= 2;
