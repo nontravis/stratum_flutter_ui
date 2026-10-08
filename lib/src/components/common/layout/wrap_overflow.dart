@@ -861,7 +861,9 @@ class _RenderWrapOverflow extends RenderBox
   /// Whether [_reconcileAfterFrame] has a post-frame mark scheduled.
   bool _reconcileScheduled = false;
 
-  /// Whether this layout is the one that post-frame mark asked for.
+  /// Whether the next layout is the one that post-frame mark asked for,
+  /// carrying no other change: any mark outside the layout clears it
+  /// ([markNeedsLayout], [scheduleLayoutCallback]).
   bool _reconciling = false;
 
   /// [RenderBox.markNeedsLayout] calls this when its dry-layout,
@@ -895,6 +897,10 @@ class _RenderWrapOverflow extends RenderBox
   /// this override and leaves the read owed: the parent would measure the
   /// children before the layout callback rebuilds them, so
   /// [_reconcileAfterFrame] marks it once they are built.
+  ///
+  /// Outside [performLayout] a mark brings a change of its own, so the
+  /// next layout is no longer only the one [_reconcileAfterFrame] asked
+  /// for, and its flips record ([_reconciling]).
   @override
   void markNeedsLayout() {
     super.markNeedsLayout();
@@ -902,9 +908,19 @@ class _RenderWrapOverflow extends RenderBox
       if (_childrenChanging) _childChanged = true;
       return;
     }
+    _reconciling = false;
     if (!_owesParentMark || parent == null) return;
     _owesParentMark = false;
     markParentNeedsLayout();
+  }
+
+  /// Clears [_reconciling] for a rebuild asked for outside [performLayout],
+  /// which reaches [RenderBox.markNeedsLayout] past [markNeedsLayout]: a
+  /// child's own `setState`, or a new widget or dependency of the frame.
+  @override
+  void scheduleLayoutCallback() {
+    if (!_inLayout) _reconciling = false;
+    super.scheduleLayoutCallback();
   }
 
   /// Runs [change], a rebuild or a flip of the children inside the layout
@@ -942,8 +958,8 @@ class _RenderWrapOverflow extends RenderBox
     SchedulerBinding.instance.addPostFrameCallback((_) {
       _reconcileScheduled = false;
       if (!attached || !_owesParentMark) return;
-      _reconciling = true;
       markNeedsLayout();
+      _reconciling = true;
     }, debugLabel: 'WrapOverflowFrame reconcile');
   }
 

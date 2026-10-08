@@ -177,6 +177,17 @@ Widget _swapTag(int i, {required double on, required double off}) => Builder(
         ),
 );
 
+/// Tag [i], keyed `tag <i>`, whose root reads its [TickerMode]: a box 40
+/// wide, 40 high while on and 20 while off, so showing it makes its run
+/// taller.
+Widget _tallWhileOnTag(int i) => Builder(
+  key: ValueKey('tag $i'),
+  builder: (context) => SizedBox(
+    width: 40,
+    height: TickerMode.valuesOf(context).enabled ? 40 : 20,
+  ),
+);
+
 /// Tag `i`, keyed `tag <i>`: a box 40 wide whose height its State's
 /// `grow` sets.
 class _GrowingTag extends StatefulWidget {
@@ -1801,6 +1812,54 @@ void main() {
         expect(tester.binding.hasScheduledFrame, isFalse);
         await tester.pump(const Duration(seconds: 1));
         expect(_height(tester), 40 + 6 + 20);
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us14/fr04, NFR-U03: under IntrinsicHeight and reduced motion an expand '
+      'in the frame that measures again after a child grew lays the '
+      'ancestor out to the size the expand shows',
+      (tester) async {
+        Widget build(int maxRuns) => MediaQuery(
+          data: MediaQueryData.fromView(tester.view)
+              .copyWith(disableAnimations: true),
+          child: themedHost(
+            SizedBox(
+              width: 230,
+              child: IntrinsicHeight(
+                child: _wrap(
+                  maxRuns: maxRuns,
+                  children: [
+                    _GrowingTag(0),
+                    ..._tags(4).skip(1),
+                    _tallWhileOnTag(4),
+                    for (var i = 5; i < 12; i++) _tag(i),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(build(1));
+        while (tester.binding.hasScheduledFrame) {
+          await tester.pump();
+        }
+        expect(_height(tester), 20);
+
+        // Frame N rebuilds tag 0 inside the wrap's layout and asks
+        // IntrinsicHeight to measure again in frame N + 1.
+        tester.state<_GrowingTagState>(find.byType(_GrowingTag)).grow(40);
+        await tester.pump();
+        expect(_height(tester), 20);
+
+        // Frame N + 1 also lifts the limit: IntrinsicHeight measures tag 4
+        // hidden, 20 high, and the expand shows it 40 high.
+        await tester.pumpWidget(build(2));
+        await tester.pump();
+
+        expect(_height(tester), 40 + 6 + 40);
         expect(tester.binding.hasScheduledFrame, isFalse);
         expect(tester.takeException(), isNull);
       },
