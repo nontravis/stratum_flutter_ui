@@ -262,7 +262,10 @@ void main() {
           )
           .first,
     );
-    expect(fade.opacity.value, closeTo(0.5, 1e-9));
+    expect(
+      fade.opacity.value,
+      closeTo(Curves.easeInOutSine.transform(0.5), 1e-9),
+    );
   });
 
   for (final type in [
@@ -291,7 +294,10 @@ void main() {
               )
               .first,
         );
-        expect(fade.opacity.value, closeTo(0.5, 1e-9));
+        expect(
+          fade.opacity.value,
+          closeTo(Curves.easeInOutSine.transform(0.5), 1e-9),
+        );
       },
     );
   }
@@ -877,4 +883,79 @@ void main() {
       }, variant: TargetPlatformVariant.only(TargetPlatform.android));
     });
   }
+
+  group("us05/fr03: the legacy types run on the theme's standard curve", () {
+    final theme = motionTheme(
+      slow: const Duration(milliseconds: 400),
+      standard: const StratumNamedCurve('easeIn'),
+    );
+    final quarter = Curves.easeIn.transform(0.25);
+
+    testWidgets('fade', (tester) async {
+      await _push(
+        tester,
+        theme: theme,
+        type: ScreenTransitionType.fade,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final fade = tester.widget<FadeTransition>(
+        find.ancestor(of: _page, matching: find.byType(FadeTransition)).first,
+      );
+      expect(fade.opacity.value, closeTo(quarter, 1e-9));
+    });
+
+    testWidgets('fade under reduced motion', (tester) async {
+      await _push(
+        tester,
+        theme: theme,
+        type: ScreenTransitionType.fade,
+        child: const SizedBox(key: ValueKey('page')),
+        reducedMotion: true,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final fade = tester.widget<FadeTransition>(
+        find.ancestor(of: _page, matching: find.byType(FadeTransition)).first,
+      );
+      expect(fade.opacity.value, closeTo(quarter, 1e-9));
+    });
+
+    testWidgets('rotate', (tester) async {
+      await _push(
+        tester,
+        theme: theme,
+        type: ScreenTransitionType.rotate,
+        alignment: Alignment.center,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final rotation = tester.widget<RotationTransition>(
+        find.ancestor(of: _page, matching: find.byType(RotationTransition)),
+      );
+      expect(rotation.turns.value, closeTo(quarter, 1e-9));
+    });
+
+    for (final type in [
+      ScreenTransitionType.rightToLeftWithFade,
+      ScreenTransitionType.leftToRightWithFade,
+    ]) {
+      testWidgets('${type.name} fades on the curve', (tester) async {
+        await _push(
+          tester,
+          theme: theme,
+          type: type,
+          child: const SizedBox(key: ValueKey('page')),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final fade = tester.widget<FadeTransition>(
+          find.ancestor(of: _page, matching: find.byType(FadeTransition)).first,
+        );
+        expect(fade.opacity.value, closeTo(quarter, 1e-9));
+      });
+    }
+  });
 }

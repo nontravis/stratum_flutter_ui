@@ -105,7 +105,7 @@ Widget buildScreenTransition<T>(
   final curved = animation.drive(CurveTween(curve: resolved));
   switch (type) {
     case ScreenTransitionType.fade:
-      return FadeTransition(opacity: animation, child: child);
+      return FadeTransition(opacity: curved, child: child);
 
     case ScreenTransitionType.rightToLeft:
       if (reduced) return child;
@@ -162,11 +162,11 @@ Widget buildScreenTransition<T>(
       if (reduced) return child;
       return RotationTransition(
         alignment: alignment!,
-        turns: animation,
+        turns: curved,
         child: ScaleTransition(
           alignment: alignment,
-          scale: animation,
-          child: FadeTransition(opacity: animation, child: child),
+          scale: curved,
+          child: FadeTransition(opacity: curved, child: child),
         ),
       );
 
@@ -182,7 +182,7 @@ Widget buildScreenTransition<T>(
 
     case ScreenTransitionType.rightToLeftWithFade:
       if (reduced) {
-        return FadeTransition(opacity: animation, child: child);
+        return FadeTransition(opacity: curved, child: child);
       }
       return SlideTransition(
         position: Tween<Offset>(
@@ -190,12 +190,12 @@ Widget buildScreenTransition<T>(
           end: Offset.zero,
         ).animate(CurvedAnimation(parent: animation, curve: resolved)),
         child: FadeTransition(
-          opacity: animation,
+          opacity: curved,
           child: SlideTransition(
             position: Tween<Offset>(
               begin: const Offset(1, 0),
               end: Offset.zero,
-            ).animate(animation),
+            ).animate(curved),
             child: child,
           ),
         ),
@@ -203,7 +203,7 @@ Widget buildScreenTransition<T>(
 
     case ScreenTransitionType.leftToRightWithFade:
       if (reduced) {
-        return FadeTransition(opacity: animation, child: child);
+        return FadeTransition(opacity: curved, child: child);
       }
       return SlideTransition(
         position: Tween<Offset>(
@@ -211,12 +211,12 @@ Widget buildScreenTransition<T>(
           end: Offset.zero,
         ).animate(CurvedAnimation(parent: animation, curve: resolved)),
         child: FadeTransition(
-          opacity: animation,
+          opacity: curved,
           child: SlideTransition(
             position: Tween<Offset>(
               begin: const Offset(-1, 0),
               end: Offset.zero,
-            ).animate(animation),
+            ).animate(curved),
             child: child,
           ),
         ),
