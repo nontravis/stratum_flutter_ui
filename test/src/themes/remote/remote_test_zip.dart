@@ -23,6 +23,8 @@ const remoteSchemaLine = r'$schema: stratum-theme/v1.0.0';
 ///   offset instead.
 /// - [rawName]: the name's bytes in both headers, in place of [name] in
 ///   UTF-8.
+/// - [localRawName]: the local header's name bytes, in place of [rawName]
+///   or [name] in UTF-8, the central header unaffected.
 /// - [localCrc], [localCompressedSize], [localSize]: the local header's
 ///   CRC-32, compressed size, and size, in place of the central ones.
 /// - [localExtra]: the local header's extra field.
@@ -46,6 +48,7 @@ final class ZipEntryFixture {
     this.centralExtra = const [],
     this.localAt,
     this.rawName,
+    this.localRawName,
     this.localCrc,
     this.localCompressedSize,
     this.localSize,
@@ -69,6 +72,7 @@ final class ZipEntryFixture {
   final List<int> centralExtra;
   final int? localAt;
   final List<int>? rawName;
+  final List<int>? localRawName;
   final int? localCrc;
   final int? localCompressedSize;
   final int? localSize;
@@ -87,7 +91,7 @@ final class ZipEntryFixture {
   Uint8List get localBytes {
     final name = localName != null
         ? utf8.encode(localName!)
-        : rawName ?? utf8.encode(this.name);
+        : localRawName ?? rawName ?? utf8.encode(this.name);
     final out = BytesBuilder();
     _u32(out, 0x04034b50);
     _u16(out, 20);

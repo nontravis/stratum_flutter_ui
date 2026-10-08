@@ -475,6 +475,38 @@ void main() {
       });
     }
 
+    test('us02/fr01/e10, us02/fr03/e14, rz2: a folder holding an emoji '
+        'name and a DEL (0x7F) name fails the pack with one '
+        'unsafe_entry_path line naming the first offending path, before '
+        'any write', () async {
+      const emoji = 'images/😀.png';
+      const del = 'images/a\u007Fb.png';
+      try {
+        _folder('brand', {..._theme(), emoji: _svg, del: _svg});
+      } on FileSystemException {
+        // This file system refuses to create a file name holding an
+        // emoji or a DEL byte; nothing to pin here.
+        markTestSkipped('no emoji or DEL file name on this file system');
+        return;
+      }
+
+      final run = await _run(['pack', 'brand']);
+
+      expect(run.code, exitFailed);
+      expect(run.out, isEmpty);
+      expect(run.err, hasLength(1));
+      expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
+      expect(run.err.single, contains('outside printable ASCII'));
+      expect(
+        run.err.single,
+        anyOf(
+          contains(r'images/\ud83d\ude00.png'),
+          contains(r'images/a\u007fb.png'),
+        ),
+      );
+      expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
+    });
+
     test('coverage: on-disk case twins warn, through the real walk, not only '
         'the writer', () async {
       final root = _folder('brand', _theme());

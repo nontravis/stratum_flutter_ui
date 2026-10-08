@@ -126,9 +126,10 @@ Uint8List writeRemoteZip(Map<String, List<int>> files) {
 
 /// The bytes of entry [name], one per character. Throws
 /// [RemoteThemeFailure] coded `unsafeEntryPath` when [name] is empty, ends
-/// in `/`, or fails [checkEntryPath] (propagated as is), which refuses
-/// every character outside printable ASCII, U+0020 to U+007E (US-02 FR-01
-/// E10); coded `archiveTooLarge` when it is past 0xFFFF characters.
+/// in `/`, fails [checkEntryPath] (propagated as is), or, defensively,
+/// holds a code unit past U+007E even once [checkEntryPath] has passed it
+/// — so a future change there can never let a code unit silently narrow
+/// to 8 bits; coded `archiveTooLarge` when it is past 0xFFFF characters.
 List<int> _checkedNameBytes(String name) {
   if (name.isEmpty || name.endsWith('/')) {
     throw RemoteThemeFailure(
@@ -138,6 +139,14 @@ List<int> _checkedNameBytes(String name) {
     );
   }
   checkEntryPath(name);
+  if (name.codeUnits.any((unit) => unit > 0x7E)) {
+    throw RemoteThemeFailure(
+      StratumRemoteThemeErrorCode.unsafeEntryPath,
+      'entry "${escapeZipText(name)}" holds a character outside '
+      'printable ASCII, U+0020 to U+007E',
+      path: name,
+    );
+  }
   if (name.length > _max16) {
     throw RemoteThemeFailure(
       StratumRemoteThemeErrorCode.archiveTooLarge,

@@ -20,18 +20,16 @@
 - Breaking: `google_fonts` is now pinned to exactly the version the `stratum_theme` CLI's family list was generated
   from (`>=9.0.0 <=9.0.0`); an app whose own `google_fonts` constraint excludes that version must widen it to allow
   it.
-- Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse a zip entry name holding a
-  control character and a `/`-ending entry that holds bytes; a zip an app already installed can now fail at preload
-  with `unsafe_entry_path`.
 - Breaking: an escaped text past 200 characters, in an FO-01 problem message, a remote theme message, or a
   `stratum_theme` output line, now ends with `\[cut N chars, id H]` in place of `...`: N is the text's length in
   UTF-16 code units and H the first 32 hex digits of its SHA-256, so two long texts that differ only past the cut
   print differently. A test or a log parser that matched the old `...` needs the new form.
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse a zip entry name holding any
-  character outside printable ASCII, U+0020 to U+007E, whatever the zip's UTF-8 flag says: an accented or Thai
-  letter, or a byte another zip tool would decode another way, is `unsafe_entry_path`, and `pack` refuses such a file
-  or folder name before it writes anything. A zip an app already keeps that breaks this rule, or any rule of this
-  release, now fails at preload, which skips it and calls `onRemoteThemeError` with its id and the error.
+  character outside printable ASCII, U+0020 to U+007E, whatever the zip's UTF-8 flag says — a control character, an
+  accented letter, a Thai letter, or a byte another zip tool would decode another way, is `unsafe_entry_path` — as
+  is a `/`-ending entry that holds bytes; `pack` refuses such a file or folder name before it writes anything. A zip
+  an app already keeps that breaks this rule, or any rule of this release, now fails at preload, which skips it and
+  calls `onRemoteThemeError` with its id and the error.
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse as `invalid_archive` a zip that
   another zip tool could read differently: a byte before the central directory that belongs to no entry, or to two;
   a local header whose flags, method, CRC-32, sizes, or name differ from the central directory, the zeros a data

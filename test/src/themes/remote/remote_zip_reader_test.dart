@@ -786,6 +786,72 @@ void main() {
         ),
       );
     });
+
+    test('us01/fr02/e14, rz2: an ASCII name with flags bit 11 set installs '
+        'and reads the same name', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture(
+          'fonts/a.ttf',
+          [1, 2, 3],
+          deflate: false,
+          flags: 0x0800,
+        ),
+      ]);
+
+      expect(_read(zip)['fonts/a.ttf'], [1, 2, 3]);
+    });
+
+    test('us01/fr02/e14, rz2: a name whose local bytes differ from the '
+        'central bytes only in one high byte is invalid_archive, naming '
+        'the mismatch in its local header message', () {
+      final central = [...'fonts/'.codeUnits, 0xFF, ...'.ttf'.codeUnits];
+      final local = [...'fonts/'.codeUnits, 0xFE, ...'.ttf'.codeUnits];
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture('x', [1], rawName: central, localRawName: local),
+      ]);
+
+      expect(
+        () => _read(zip),
+        throwsA(
+          isA<RemoteThemeFailure>()
+              .having(
+                (f) => f.code,
+                'code',
+                StratumRemoteThemeErrorCode.invalidArchive,
+              )
+              .having(
+                (f) => f.message,
+                'message',
+                contains('holds another name in its local header'),
+              ),
+        ),
+      );
+    });
+
+    test('us01/s15, us01/fr02/e14, rz2, r17 (t26): a high byte at the first '
+        r'position is unsafe_entry_path, escaped as its own \u00XX', () {
+      final bytes = [0x9B, ...'fonts.ttf'.codeUnits];
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture('x', [1], rawName: bytes),
+      ]);
+
+      expect(
+        () => _read(zip),
+        throwsA(
+          isA<RemoteThemeFailure>()
+              .having(
+                (f) => f.code,
+                'code',
+                StratumRemoteThemeErrorCode.unsafeEntryPath,
+              )
+              .having((f) => f.path, 'path', String.fromCharCodes(bytes))
+              .having((f) => f.message, 'message', contains(r'\u009b')),
+        ),
+      );
+    });
   });
 
   group('r18 container', () {
