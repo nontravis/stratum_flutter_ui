@@ -75,13 +75,16 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   /// Flutter creates a fresh host each time the view is inserted into the
   /// page, so re-insertion always moves the iframe and discards its browsing
   /// context: `srcdoc` reloads, the bootstrap script runs again, and a new
-  /// handshake carrying the same nonce replaces the adopted port. When that
-  /// restart lands on a completed entry (no load already open), reopen the
-  /// request-to-load window: otherwise `currentUrl()` would read the
-  /// restarted navigation's transient `about:blank` instead of the entry's
-  /// URL (US-04 FR-01 E02).
+  /// handshake carrying the same nonce replaces the adopted port. The old
+  /// port is closed here, before the move, so a reply to the document being
+  /// discarded throws at once instead of resolving into a dead port (US-03
+  /// FR-05 E06). When that restart lands on a completed entry (no load
+  /// already open), reopen the request-to-load window: otherwise
+  /// `currentUrl()` would read the restarted navigation's transient
+  /// `about:blank` instead of the entry's URL (US-04 FR-01 E02).
   @visibleForTesting
   void attachTo(web.HTMLElement host) {
+    _closeBridgePort();
     host.style
       ..width = '100%'
       ..height = '100%';

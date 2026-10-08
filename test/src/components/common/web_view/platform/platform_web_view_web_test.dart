@@ -528,6 +528,19 @@ location.href = 'data:text/html,' + encodeURIComponent(
     // ignore: unnecessary_lambdas
     addTearDown(() => host.remove());
     view.attachTo(host);
+    // The re-insertion destroys the document that owned the port before the
+    // new handshake runs: the reply must throw at once, never resolve into
+    // a dead port (US-03 FR-05 E06).
+    await expectLater(
+      view.replyToDocument(first, 'early'),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'The HTML document that sent the message is gone.',
+        ),
+      ),
+    );
     await waitForMessages(3);
     final second = listener.senders.last as PlatformHtmlDocumentSender;
 
