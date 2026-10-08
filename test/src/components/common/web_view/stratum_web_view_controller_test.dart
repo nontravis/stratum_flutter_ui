@@ -414,6 +414,38 @@ void main() {
       ]);
     });
 
+    test('us03/fr05: a reply to one of two HTML messages uses that '
+        "message's own sender, never the other's", () async {
+      controller.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          onMessage: (_) {},
+        ),
+      );
+      final first = StratumWebViewMessage(data: 'ready:${appOrigin.host}');
+      final second = StratumWebViewMessage(data: 'ready:${appOrigin.host}');
+      // Not const: a const instance would canonicalize both senders to the
+      // same object, defeating the identity check this test makes (F3).
+      // ignore: prefer_const_constructors
+      final firstSender = FakeHtmlDocumentSender();
+      // Not const, for the same reason as firstSender above.
+      // ignore: prefer_const_constructors
+      final secondSender = FakeHtmlDocumentSender();
+      platform().listener.onMessage(first, firstSender);
+      platform().listener.onMessage(second, secondSender);
+
+      await controller.reply(first, 'x');
+      expect(platform().documentReplies, [(firstSender, 'x')]);
+      expect(
+        identical(platform().documentReplies.single.$1, firstSender),
+        isTrue,
+      );
+      expect(
+        identical(platform().documentReplies.single.$1, secondSender),
+        isFalse,
+      );
+    });
+
     test(
       'G5 us03/fr05: an empty-string reply reaches the sender whole',
       () async {
