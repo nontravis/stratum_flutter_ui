@@ -333,9 +333,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   `NoPageTransition(builder:)` shows its page with no animation and zero push and pop durations, whatever the theme
   names.
 - **Timing** — `none` always shows at once, zero push and pop durations in every route, whatever the theme names,
-  unless a `PageTransition` caller passes its own; every other type but `platform` and `cupertino` runs over the theme's `slow` level (300 ms push,
-  192 ms pop in the package default) on its `standard` curve, unless the caller passes its own; `platform` and
-  `cupertino` keep the Flutter motion's durations and, when they show it, its curve.
+  unless a `PageTransition` caller passes its own; every other type but `platform` and `cupertino` runs over the theme's
+  `slow` level (300 ms push, 192 ms pop in the package default) on its `standard` curve, unless the caller passes its
+  own; `platform` and `cupertino` keep the Flutter motion's durations and, when they show it, its curve.
 - **Reduced motion** — when `MediaQuery` or the platform asks for reduced motion, every slide, scale, rotation, and
   size change drops: a type with a fade, `fadeThrough`, the shared-axis types, and `platform` on Android, Windows,
   and Linux included, still fades over its full duration on the caller's curve, else the theme's `standard` curve, and
