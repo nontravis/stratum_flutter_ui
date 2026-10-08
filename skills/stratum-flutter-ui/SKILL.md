@@ -34,6 +34,12 @@ Each entry: usage, key parameters, keyboard behavior.
   Keyboard: when `index` changes while focus sits in the outgoing child, focus moves after the frame to the first
   Tab-order node of the incoming child, else to the stack's own (non-Tab-stop) node.
 - **`WrapLayout`** — a `Wrap` that lays children in runs across `direction`, with `gap`, `runGap`, and `focusGroup`.
+  `maxRuns` (at least 1) and `maxChildren` (at least 0) cut it, the limit that hides more winning, and
+  `overflowBuilder(context, hiddenCount)` builds a "+N" child during layout with the exact hidden count, after the
+  last shown child in the last allowed run; more children hide until it fits. Hidden children stay mounted with their
+  `State` and neither paint nor take hits. With `overflowBuilder` set, switching both limits to null keeps the
+  children's `State`; without it the switch remounts them. A limit or `overflowBuilder` with `scroll` fails an
+  assertion.
   Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`.
 
 ## Scroll views
