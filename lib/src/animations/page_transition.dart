@@ -170,8 +170,9 @@ class PageTransition<T> extends PageRouteBuilder<T> {
         curve: curve,
       );
 
-  /// Whether this route's page moves out under [nextRoute]: only under an
-  /// opaque page route ([leavesUnder]).
+  /// Whether this route's page moves out under [nextRoute]: only under a
+  /// page route that is opaque or hands its own delegated transition
+  /// ([leavesUnder]).
   @override
   bool canTransitionTo(TransitionRoute<dynamic> nextRoute) =>
       leavesUnder(nextRoute);

@@ -369,14 +369,16 @@ DelegatedTransitionBuilder? delegatedScreenTransition(
 };
 
 /// Whether a page moves out under [next], by its own secondary animation
-/// or by [next]'s delegated transition: only under an opaque page route,
-/// for a page seen through a translucent route stays as it was, as Flutter
-/// only delegates from opaque page routes (US-05 FR-01; style s03 invariant
-/// 21). Every route of US-05 holds to it on both sides: `canTransitionTo`
-/// for the route above, `canTransitionFrom` for itself, and
-/// [delegatedScreenTransition] for the transition it hands down.
+/// or by [next]'s delegated transition (US-05 FR-01; style s03 invariant
+/// 21): only under a page route that is opaque or hands its own delegated
+/// transition. A page seen through a translucent route stays as it was,
+/// unless that route hands a delegate, which then owns how the page
+/// beneath looks, as Flutter's Cupertino sheet scales it back; a
+/// translucent route of US-05 hands none ([delegatedScreenTransition]).
+/// Every route of US-05 holds to it on both sides: `canTransitionTo` for
+/// the route above and `canTransitionFrom` for itself.
 bool leavesUnder(TransitionRoute<dynamic> next) =>
-    next is PageRoute && next.opaque;
+    next is PageRoute && (next.opaque || next.delegatedTransition != null);
 
 /// [builder]'s own delegated transition, null when it has none, with the
 /// caller's [curve] as in [buildScreenTransition].

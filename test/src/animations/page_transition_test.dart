@@ -4,7 +4,8 @@ import 'package:flutter/cupertino.dart'
     show
         CupertinoPageTransition,
         CupertinoPageTransitionsBuilder,
-        CupertinoRouteTransitionMixin;
+        CupertinoRouteTransitionMixin,
+        showCupertinoSheet;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -1032,6 +1033,31 @@ void main() {
       );
 
       expect(tester.getTopLeft(lower).dx, lessThan(0));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('a translucent route that hands its own delegated transition, '
+        "Flutter's Cupertino sheet, scales the page back", (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(_app(navigator));
+      navigator.currentState!
+          .push(
+            PageTransition<void>(
+              type: ScreenTransitionType.platform,
+              opaque: true,
+              child: const SizedBox(key: ValueKey('lower')),
+            ),
+          )
+          .ignore();
+      await tester.pumpAndSettle();
+
+      showCupertinoSheet<void>(
+        context: tester.element(lower),
+        scrollableBuilder: (context, controller) => const SizedBox(),
+      ).ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(tester.getRect(lower).width, lessThan(800));
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
   });
 

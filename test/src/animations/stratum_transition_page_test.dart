@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show showCupertinoSheet;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -274,6 +275,25 @@ void main() {
 
       expect(tester.getTopLeft(_page).dx, lessThan(0));
     });
+
+    testWidgets('a translucent route that hands its own delegated transition, '
+        "Flutter's Cupertino sheet, scales a cupertino page back", (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(fadeTheme, [_home, _next(ScreenTransitionType.cupertino)]),
+      );
+      await tester.pumpAndSettle();
+
+      showCupertinoSheet<void>(
+        context: tester.element(_page),
+        scrollableBuilder: (context, controller) => const SizedBox(),
+      ).ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(tester.getRect(_page).width, lessThan(800));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
   });
 
   testWidgets('the route scopes its page for assistive technology, as a '
