@@ -84,7 +84,7 @@ void main() {
         );
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
       harness.sendBridgeMessage(
-        envelope(nonceIn(harness.loadedHtml.single), 'message', 'x'),
+        messageEnvelope(nonceIn(harness.loadedHtml.single), 'x'),
         senderUrl: 'about:blank',
         isMainFrame: false,
       );

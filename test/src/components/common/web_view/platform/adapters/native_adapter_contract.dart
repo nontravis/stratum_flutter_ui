@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 import '../../fakes/native_bridge_envelope.dart';
@@ -90,6 +91,41 @@ void runNativeAdapterContract(
       ]);
     });
 
+    test('us03/fr05: every delivered message reaches the listener with its '
+        'sender', () async {
+      await adapter.load(StratumWebViewSource.url(appPage));
+      harness
+        ..startPage(appPage.toString())
+        ..sendBridgeMessage('hello', senderUrl: appPage.toString());
+      expect(
+        listener.senders.single,
+        isA<PlatformUrlPageSender>().having(
+          (sender) => sender.origin,
+          'origin',
+          appOrigin,
+        ),
+      );
+      await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      final nonce = nonceIn(harness.loadedHtml.last);
+      harness
+        ..sendBridgeMessage(
+          envelope(nonce, 'hello', documentA),
+          senderUrl: 'about:blank',
+        )
+        ..sendBridgeMessage(
+          messageEnvelope(nonce, 'm', document: documentB),
+          senderUrl: 'about:blank',
+        );
+      expect(
+        listener.senders.last,
+        isA<NativeHtmlDocumentSender>().having(
+          (sender) => sender.documentId,
+          'documentId',
+          documentB,
+        ),
+      );
+    });
+
     test('drops a message from a page outside the allowlist', () async {
       await adapter.load(StratumWebViewSource.url(appPage));
       harness
@@ -115,7 +151,7 @@ void runNativeAdapterContract(
       expect(html, endsWith('})();</script><p>Hi</p>'));
       harness
         ..sendBridgeMessage(
-          envelope(nonce, 'message', 'before hello'),
+          messageEnvelope(nonce, 'before hello'),
           senderUrl: 'about:blank',
         )
         ..sendBridgeMessage(
@@ -123,18 +159,18 @@ void runNativeAdapterContract(
           senderUrl: 'about:blank',
         )
         ..sendBridgeMessage(
-          envelope(nonce, 'message', 'early'),
+          messageEnvelope(nonce, 'early'),
           senderUrl: 'about:blank',
         )
         ..startPage('about:blank')
         ..sendBridgeMessage(
-          envelope(nonce, 'message', 'from html'),
+          messageEnvelope(nonce, 'from html'),
           senderUrl: 'about:blank',
         )
         ..sendBridgeMessage('untagged', senderUrl: 'about:blank')
         ..startPage('https://evil.example.net/')
         ..sendBridgeMessage(
-          envelope('0' * 32, 'message', 'spoofed'),
+          messageEnvelope('0' * 32, 'spoofed'),
           senderUrl: 'https://evil.example.net/',
         );
       expect(listener.messages, [
@@ -162,7 +198,7 @@ void runNativeAdapterContract(
         )
         ..startPage('about:blank')
         ..sendBridgeMessage(
-          envelope(nonce, 'message', 'between'),
+          messageEnvelope(nonce, 'between'),
           senderUrl: 'about:blank',
         )
         ..sendBridgeMessage(
@@ -170,7 +206,7 @@ void runNativeAdapterContract(
           senderUrl: 'about:blank',
         )
         ..sendBridgeMessage(
-          envelope(nonce, 'message', 'after'),
+          messageEnvelope(nonce, 'after'),
           senderUrl: 'about:blank',
         );
       expect(harness.reloadCount, 1);

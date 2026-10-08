@@ -7,6 +7,7 @@ import 'dart:js_interop_unsafe';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_web.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view.dart';
@@ -187,6 +188,28 @@ void main() {
       ]);
     },
   );
+
+  test('us03/fr05: each message reaches the listener with its sender, the '
+      'origin for a URL page and the adopted render for HTML', () async {
+    await loadBlobScript("parent.postMessage('hi','*');");
+    attach();
+    await waitForMessages(1);
+    expect(
+      listener.senders.single,
+      isA<PlatformUrlPageSender>().having(
+        (sender) => sender.origin,
+        'origin',
+        appOrigin,
+      ),
+    );
+    await view.load(
+      const StratumWebViewSource.html(
+        "<script>StratumBridge.postMessage('ready');</script>",
+      ),
+    );
+    await waitForMessages(2);
+    expect(listener.senders.last, isA<PlatformHtmlDocumentSender>());
+  });
 
   test('drops a real message from another window, not the frame', () async {
     await view.load(missingPage());

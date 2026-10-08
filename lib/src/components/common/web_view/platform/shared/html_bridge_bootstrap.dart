@@ -2,9 +2,9 @@
 ///
 /// An envelope reads `<tag><inbound nonce>:<kind>:<data>`, where the nonce is
 /// 32 lowercase hex characters and the kind is `hello` or `bye` (data: the
-/// document id) or `message`. A page message that starts with this tag is
-/// judged only by its nonce (US-03 FR-04, `event_bridge_messages.md`
-/// `## Native envelope`).
+/// document id) or `message` (data: the sending document's id, a colon, and
+/// the text). A page message that starts with this tag is judged only by
+/// its nonce (US-03 FR-04, `event_bridge_messages.md` `## Native envelope`).
 const String nativeBridgeEnvelopeTag = 'stratum-bridge-envelope:1:';
 
 /// Name of the window property where the native bootstrap keeps the
@@ -61,7 +61,8 @@ String injectBridgeBootstrap(String html, String nonce) {
 /// `bye` on `pagehide` or once a page script removes the document root, even
 /// if it puts the same root back, and `hello` again on a `pageshow` that
 /// restores the document from the back-forward cache (E03, E10, E11, E14).
-/// No envelope carries [token]. Without the platform object the bridge stays
+/// Every `message` envelope carries the document id before the text. No
+/// envelope carries [token]. Without the platform object the bridge stays
 /// closed.
 ///
 /// Returns [html] with the script placed by [placeBridgeBootstrap].
@@ -84,7 +85,7 @@ String injectNativeBridgeBootstrap(
       "{value:'$token'});\n"
       "Object.defineProperty(window,'StratumBridge',\n"
       '{value:Object.freeze({postMessage:function(d){\n'
-      "s('message',S(d));}}),\n"
+      "s('message',id+':'+S(d));}}),\n"
       'enumerable:true,writable:false,configurable:false});\n'
       "window.addEventListener('pagehide',function(){\n"
       "s('bye',id);},true);\n"

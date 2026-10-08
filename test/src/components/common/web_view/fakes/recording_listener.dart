@@ -12,6 +12,7 @@ final class RecordingListener implements PlatformStratumWebViewListener {
   void Function(StratumWebViewMessage message)? onMessageCallback;
 
   final List<StratumWebViewMessage> messages = [];
+  final List<PlatformMessageSender> senders = [];
   final List<Uri> navigationRequests = [];
   final List<Uri?> pagesStarted = [];
   final List<Uri?> pagesFinished = [];
@@ -22,8 +23,9 @@ final class RecordingListener implements PlatformStratumWebViewListener {
   final List<String> events = [];
 
   @override
-  void onMessage(StratumWebViewMessage message) {
+  void onMessage(StratumWebViewMessage message, PlatformMessageSender sender) {
     messages.add(message);
+    senders.add(sender);
     onMessageCallback?.call(message);
   }
 

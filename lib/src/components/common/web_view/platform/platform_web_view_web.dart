@@ -50,7 +50,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   bool _javaScriptEnabled = true;
   bool _disposed = false;
   String? _htmlNonce;
-  web.MessagePort? _bridgePort;
+  _WebHtmlDocumentSender? _bridge;
 
   /// Whether a page start was reported that no frame `load` has finished:
   /// from a controller load, or a re-insertion that restarts a completed
@@ -174,7 +174,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     }
     switch (current) {
       case StratumWebViewHtmlSource():
-        final port = _bridgePort;
+        final port = _bridge?.port;
         if (port == null) {
           throw StateError('The HTML page has not connected the bridge yet.');
         }
@@ -248,8 +248,8 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
   }
 
   void _closeBridgePort() {
-    _bridgePort?.close();
-    _bridgePort = null;
+    _bridge?.port.close();
+    _bridge = null;
   }
 
   String _generateNonce() {
@@ -303,6 +303,7 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     if (!isAllowedOrigin(origin, _listener.allowedOrigins)) return;
     _listener.onMessage(
       StratumWebViewMessage(data: text, origin: originOf(origin)),
+      PlatformUrlPageSender(originOf(origin)!),
     );
   }
 
@@ -323,14 +324,33 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     final ports = event.ports.toDart;
     if (ports.length != 1) return;
     _closeBridgePort();
-    final port = ports.first..onmessage = _handlePortMessage.toJS;
-    _bridgePort = port;
+    final sender = _WebHtmlDocumentSender(ports.first);
+    sender.port.onmessage = ((web.MessageEvent event) => _handlePortMessage(
+      sender,
+      event,
+    )).toJS;
+    _bridge = sender;
   }
 
-  void _handlePortMessage(web.MessageEvent event) {
+  void _handlePortMessage(
+    _WebHtmlDocumentSender sender,
+    web.MessageEvent event,
+  ) {
     if (_disposed) return;
     final data = event.data;
     if (data == null || !data.isA<JSString>()) return;
-    _listener.onMessage(StratumWebViewMessage(data: (data as JSString).toDart));
+    _listener.onMessage(
+      StratumWebViewMessage(data: (data as JSString).toDart),
+      sender,
+    );
   }
+}
+
+/// One document of the app's own HTML, bound to the [port] its handshake's
+/// adopted channel carries (US-03 FR-05 E06).
+final class _WebHtmlDocumentSender extends PlatformHtmlDocumentSender {
+  new(this.port);
+
+  /// The port adopted from the document's handshake.
+  final web.MessagePort port;
 }

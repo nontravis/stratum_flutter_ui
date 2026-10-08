@@ -174,8 +174,10 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   }
 
   void _handleBridgeMessage(String data) {
-    final message = _session.acceptMessage(data);
-    if (message != null) _listener.onMessage(message);
+    final accepted = _session.acceptMessage(data); // all: no sender
+    if (accepted != null) {
+      _listener.onMessage(accepted.message, accepted.sender);
+    }
   }
 
   void _handleResourceError(wa.WebResourceError error) {

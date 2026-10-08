@@ -216,7 +216,10 @@ void main() {
       controller.configure(
         StratumWebViewConfiguration(onMessage: messages.add),
       );
-      platform().listener.onMessage(const StratumWebViewMessage(data: 'x'));
+      platform().listener.onMessage(
+        const StratumWebViewMessage(data: 'x'),
+        const FakeHtmlDocumentSender(),
+      );
       expect(messages, isEmpty);
     });
 
@@ -227,7 +230,10 @@ void main() {
           onMessage: messages.add,
         ),
       );
-      platform().listener.onMessage(const StratumWebViewMessage(data: 'x'));
+      platform().listener.onMessage(
+        const StratumWebViewMessage(data: 'x'),
+        const FakeHtmlDocumentSender(),
+      );
       expect(messages, [const StratumWebViewMessage(data: 'x')]);
     });
 
@@ -239,7 +245,10 @@ void main() {
           onMessage: messages.add,
         ),
       );
-      platform().listener.onMessage(const StratumWebViewMessage(data: 'x'));
+      platform().listener.onMessage(
+        const StratumWebViewMessage(data: 'x'),
+        const FakeHtmlDocumentSender(),
+      );
       expect(messages, isEmpty);
     });
 
@@ -254,7 +263,10 @@ void main() {
           onMessage: (_) => throw StateError('boom'),
         ),
       );
-      platform().listener.onMessage(const StratumWebViewMessage(data: 'x'));
+      platform().listener.onMessage(
+        const StratumWebViewMessage(data: 'x'),
+        const FakeHtmlDocumentSender(),
+      );
       expect(reported.single.exception, isStateError);
     });
 
@@ -316,7 +328,10 @@ void main() {
         )
         ..dispose();
       platform().listener
-        ..onMessage(const StratumWebViewMessage(data: 'x'))
+        ..onMessage(
+          const StratumWebViewMessage(data: 'x'),
+          const FakeHtmlDocumentSender(),
+        )
         ..onPageStarted(appOrigin);
       expect(messages, isEmpty);
       expect(started, isEmpty);

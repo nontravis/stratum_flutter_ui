@@ -7,6 +7,11 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 /// Key of the widget that [FakePlatformStratumWebView.buildView] returns.
 const Key fakePlatformViewKey = ValueKey<String>('fake-platform-web-view');
 
+/// A sender for a test that only needs any [PlatformHtmlDocumentSender].
+final class FakeHtmlDocumentSender extends PlatformHtmlDocumentSender {
+  const new();
+}
+
 /// Records every call that the controller makes.
 final class FakePlatformStratumWebView implements PlatformStratumWebView {
   new(this.listener);

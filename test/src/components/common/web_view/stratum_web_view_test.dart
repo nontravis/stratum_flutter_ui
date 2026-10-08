@@ -77,7 +77,10 @@ void main() {
         onMessage: second.add,
       ),
     );
-    platforms.single.listener.onMessage(const StratumWebViewMessage(data: 'x'));
+    platforms.single.listener.onMessage(
+      const StratumWebViewMessage(data: 'x'),
+      const FakeHtmlDocumentSender(),
+    );
     expect(first, isEmpty);
     expect(second, [const StratumWebViewMessage(data: 'x')]);
   });
@@ -149,7 +152,10 @@ void main() {
         onMessage: received.add,
       ),
     );
-    firstPlatform.listener.onMessage(const StratumWebViewMessage(data: 'x'));
+    firstPlatform.listener.onMessage(
+      const StratumWebViewMessage(data: 'x'),
+      const FakeHtmlDocumentSender(),
+    );
     expect(received, isEmpty);
   });
 

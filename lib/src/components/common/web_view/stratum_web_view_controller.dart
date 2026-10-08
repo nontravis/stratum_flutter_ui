@@ -225,7 +225,7 @@ final class _ControllerListener implements PlatformStratumWebViewListener {
   Set<Uri> get allowedOrigins => _configuration.allowedOrigins;
 
   @override
-  void onMessage(StratumWebViewMessage message) {
+  void onMessage(StratumWebViewMessage message, PlatformMessageSender sender) {
     final callback = _configuration.onMessage;
     if (!_active ||
         allowedOrigins.isEmpty ||
