@@ -62,6 +62,12 @@ class WrapOverflowFrame extends StatefulWidget {
 
   /// Builds the overflow child from the number of hidden children, during
   /// layout; null hides them with no indicator.
+  ///
+  /// Called for every candidate count `cutWrap` measures (owner ruling
+  /// R8: a private probe slot), then once more for the final count, on
+  /// the child the frame shows; a [Key] in the built widget is local to
+  /// each call, but a [GlobalKey] fails Flutter's duplicate-key assertion,
+  /// since the probe and the shown child would both claim it at once.
   final Widget Function(BuildContext context, int hiddenCount)? overflowBuilder;
   final List<Widget> children;
 
@@ -104,7 +110,15 @@ class _WrapOverflow extends RenderObjectWidget {
 }
 
 /// The slot of the overflow child; the children take [IndexedSlot]s.
-const _overflowSlot = Object();
+///
+/// Not `const`: a const `Object()` canonicalizes to one instance, which
+/// would make this `==` to [_probeSlot] too.
+final _overflowSlot = Object();
+
+/// The slot of the probe child (owner ruling R8): measures a candidate
+/// hidden count for `cutWrap`'s trial loop, on a subtree the frame never
+/// paints, hit tests, or exposes to semantics.
+final _probeSlot = Object();
 
 /// Builds the children when the wrap builds, and the overflow child
 /// inside the render object's layout, as [LayoutBuilder] builds its child
@@ -125,9 +139,13 @@ class _WrapOverflowElement extends RenderObjectElement {
   List<Element> _children = const [];
   final _forgotten = <Element>{};
   Element? _overflow;
+  Element? _probe;
 
-  /// The hidden count [_overflow] was built for; null builds it again.
-  int? _overflowCount;
+  /// The widget [_probe] last built, and the hidden count it was built
+  /// for; the live overflow child reuses it instead of asking
+  /// [WrapOverflowFrame.overflowBuilder] again for the same count.
+  Widget? _probeWidget;
+  int? _probeHiddenCount;
 
   /// How many children the last cut showed; null before the first cut.
   int? _shown;
@@ -182,10 +200,9 @@ class _WrapOverflowElement extends RenderObjectElement {
     super.performRebuild();
   }
 
-  /// Builds the overflow child again in the next layout: its builder, or
-  /// an inherited widget it reads through this element, may have changed.
+  /// Reruns the cut in the next layout: its builder, or an inherited
+  /// widget it reads through this element, may have changed.
   void _rebuildOverflow() {
-    _overflowCount = null;
     renderObject.scheduleLayoutCallback();
   }
 
@@ -216,10 +233,14 @@ class _WrapOverflowElement extends RenderObjectElement {
     }
     final overflow = _overflow;
     if (overflow != null) visitor(overflow);
+    final probe = _probe;
+    if (probe != null) visitor(probe);
   }
 
   /// Only the shown children and the overflow child are onstage, as
-  /// [IndexedStack] keeps its hidden children offstage.
+  /// [IndexedStack] keeps its hidden children offstage; the probe (owner
+  /// ruling R8) is never onstage, so `find.text` of the overflow label
+  /// finds exactly one widget.
   @override
   void debugVisitOnstageChildren(ElementVisitor visitor) {
     _children.take(_shown ?? _children.length).forEach(visitor);
@@ -231,6 +252,8 @@ class _WrapOverflowElement extends RenderObjectElement {
   void forgetChild(Element child) {
     if (child == _overflow) {
       _overflow = null;
+    } else if (child == _probe) {
+      _probe = null;
     } else {
       _forgotten.add(child);
     }
@@ -241,29 +264,52 @@ class _WrapOverflowElement extends RenderObjectElement {
   /// render object's layout callback.
   void flushDirty() => owner!.buildScope(this);
 
-  /// Builds the overflow child for [hiddenCount], or removes it at 0,
-  /// inside the render object's layout.
-  void buildOverflow(int hiddenCount) {
-    if (hiddenCount == _overflowCount) return;
-    _overflowCount = hiddenCount;
+  /// Builds the overflow child once, from [builtWidget] (the exact
+  /// widget [buildProbe] already built for [hiddenCount]), or removes it
+  /// at 0, inside the render object's layout.
+  void buildOverflow(int hiddenCount, Widget? builtWidget) {
+    assert(
+      hiddenCount == 0 || _probeHiddenCount == hiddenCount,
+      'buildOverflow expects the count buildProbe last measured',
+    );
     owner!.buildScope(this, () {
-      final builder = _frame.overflowBuilder;
-      Widget? built;
-      if (builder != null && hiddenCount > 0) {
-        try {
-          built = builder(this, hiddenCount);
-        } on Object catch (error, stack) {
-          final details = FlutterErrorDetails(
-            exception: error,
-            stack: stack,
-            library: 'stratum_ui',
-            context: ErrorDescription('building the overflow child of $widget'),
-          );
-          FlutterError.reportError(details);
-          built = ErrorWidget.builder(details);
-        }
+      _overflow = updateChild(
+        _overflow,
+        hiddenCount == 0 ? null : builtWidget,
+        _overflowSlot,
+      );
+    });
+  }
+
+  /// Builds [WrapOverflowFrame.overflowBuilder]'s widget for [hiddenCount]
+  /// on the probe slot (owner ruling R8) and remembers it in [_probeWidget]
+  /// so [buildOverflow] can reuse it without asking the builder again.
+  /// `cutWrap`'s trial loop calls this once per candidate count, inside
+  /// the render object's layout; a builder that throws reports once and
+  /// shows an [ErrorWidget] on the probe, which [buildOverflow] then
+  /// reuses too.
+  void buildProbe(int hiddenCount) {
+    owner!.buildScope(this, () {
+      Widget built;
+      try {
+        built = _frame.overflowBuilder!(this, hiddenCount);
+      } on Object catch (error, stack) {
+        final details = FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'stratum_ui',
+          context: ErrorDescription('building the overflow child of $widget'),
+        );
+        FlutterError.reportError(details);
+        built = ErrorWidget.builder(details);
       }
-      _overflow = updateChild(_overflow, built, _overflowSlot);
+      _probeHiddenCount = hiddenCount;
+      _probeWidget = built;
+      _probe = updateChild(
+        _probe,
+        TickerMode(enabled: false, child: ExcludeFocus(child: built)),
+        _probeSlot,
+      );
     });
   }
 
@@ -274,6 +320,10 @@ class _WrapOverflowElement extends RenderObjectElement {
   void insertRenderObjectChild(RenderBox child, Object? slot) {
     if (slot == _overflowSlot) {
       renderObject.overflow = child;
+      return;
+    }
+    if (slot == _probeSlot) {
+      renderObject.probe = child;
       return;
     }
     final previous = (slot! as IndexedSlot<Element?>).value;
@@ -294,6 +344,8 @@ class _WrapOverflowElement extends RenderObjectElement {
   void removeRenderObjectChild(RenderBox child, Object? slot) {
     if (slot == _overflowSlot) {
       renderObject.overflow = null;
+    } else if (slot == _probeSlot) {
+      renderObject.probe = null;
     } else {
       renderObject.remove(child);
     }
@@ -346,6 +398,17 @@ class _RenderWrapOverflow extends RenderBox
     if (value != null) adoptChild(value);
   }
 
+  /// The probe (owner ruling R8): measures a candidate hidden count, laid
+  /// out but never painted, hit tested, or exposed to semantics.
+  RenderBox? _probe;
+  RenderBox? get probe => _probe;
+  set probe(RenderBox? value) {
+    final old = _probe;
+    if (old != null) dropChild(old);
+    _probe = value;
+    if (value != null) adoptChild(value);
+  }
+
   /// The children the last layout showed, then the overflow child.
   List<RenderBox> _shownBoxes = const [];
   bool _hasVisualOverflow = false;
@@ -362,12 +425,14 @@ class _RenderWrapOverflow extends RenderBox
   void attach(PipelineOwner owner) {
     super.attach(owner);
     _overflow?.attach(owner);
+    _probe?.attach(owner);
   }
 
   @override
   void detach() {
     super.detach();
     _overflow?.detach();
+    _probe?.detach();
   }
 
   @override
@@ -375,11 +440,27 @@ class _RenderWrapOverflow extends RenderBox
     super.redepthChildren();
     final overflow = _overflow;
     if (overflow != null) redepthChild(overflow);
+    final probe = _probe;
+    if (probe != null) redepthChild(probe);
   }
 
   @override
   void visitChildren(RenderObjectVisitor visitor) {
     super.visitChildren(visitor);
+    final overflow = _overflow;
+    if (overflow != null) visitor(overflow);
+    final probe = _probe;
+    if (probe != null) visitor(probe);
+  }
+
+  /// The overflow child reaches semantics (deferred to M2-T4 for the
+  /// hidden children too); the probe (owner ruling R8) never does, since
+  /// it holds an interim count no assistive technology should announce.
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      visitor(child);
+    }
     final overflow = _overflow;
     if (overflow != null) visitor(overflow);
   }
@@ -389,6 +470,7 @@ class _RenderWrapOverflow extends RenderBox
     ...super.debugDescribeChildren(),
     if (_overflow case final overflow?)
       overflow.toDiagnosticsNode(name: 'overflow'),
+    if (_probe case final probe?) probe.toDiagnosticsNode(name: 'probe'),
   ];
 
   @override
@@ -480,22 +562,34 @@ class _RenderWrapOverflow extends RenderBox
       maxChildren: _frame.maxChildren,
       overflowExtent: _frame.overflowBuilder == null
           ? null
-          : (count) => _layOutOverflow(count, childConstraints),
+          : (count) => _layOutProbe(count, childConstraints),
     );
     final overflowRun = cut.overflowRun;
     invokeLayoutCallback<BoxConstraints>((_) {
-      if (overflowRun == null) element.buildOverflow(0);
+      if (overflowRun == null) {
+        element.buildOverflow(0, null);
+      } else {
+        element.buildOverflow(
+          children.length - cut.shown,
+          element._probeWidget,
+        );
+      }
       element.applyCut(cut.shown);
     });
+    if (overflowRun != null) {
+      _overflow!.layout(childConstraints, parentUsesSize: true);
+    }
     _place(cut, children, overflowRun == null ? null : _overflow);
   }
 
-  /// Builds the overflow child for [count] and lays it out; its main-axis
-  /// extent.
-  double _layOutOverflow(int count, BoxConstraints childConstraints) {
-    invokeLayoutCallback<BoxConstraints>((_) => element!.buildOverflow(count));
-    final overflow = _overflow!..layout(childConstraints, parentUsesSize: true);
-    return _main(overflow.size);
+  /// Measures a candidate hidden count on the probe (owner ruling R8) and
+  /// lays it out there; its main-axis extent. The live overflow child
+  /// builds once, after `cutWrap` settles on a count, from the exact
+  /// widget the probe's last call built.
+  double _layOutProbe(int count, BoxConstraints childConstraints) {
+    invokeLayoutCallback<BoxConstraints>((_) => element!.buildProbe(count));
+    final probe = _probe!..layout(childConstraints, parentUsesSize: true);
+    return _main(probe.size);
   }
 
   /// Sizes the frame and places the runs of [cut] as `RenderWrap`'s

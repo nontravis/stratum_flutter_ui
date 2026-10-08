@@ -27,6 +27,39 @@ Widget _more(BuildContext context, int count) => SizedBox(
   child: Text('+$count'),
 );
 
+/// The "+N" child of [log]: 90 by 20, keyed `more`; [log] gets [count]
+/// each time the live slot's own count changes. The probe (owner ruling
+/// R8) builds this too, once per trial, but always inside a disabled
+/// [TickerMode], so [TickerMode.valuesOf] tells the two state objects
+/// apart; only the live one, never wrapped in one, logs.
+class _CountingMore extends StatefulWidget {
+  const new({required this.count, required this.log});
+
+  final int count;
+  final List<int> log;
+
+  @override
+  State<_CountingMore> createState() => _CountingMoreState();
+}
+
+class _CountingMoreState extends State<_CountingMore> {
+  int? _logged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (TickerMode.valuesOf(context).enabled && widget.count != _logged) {
+      _logged = widget.count;
+      widget.log.add(widget.count);
+    }
+    return SizedBox(
+      key: const ValueKey('more'),
+      width: 90,
+      height: 20,
+      child: Text('+${widget.count}'),
+    );
+  }
+}
+
 /// A frame with a gap of 10 and a run gap of 6, counting with [builder],
 /// else [_more], unless [counted] is false.
 WrapOverflowFrame _frame({
@@ -617,6 +650,138 @@ void main() {
         expect(tester.takeException(), isA<StateError>());
         expect(find.byType(ErrorWidget), findsOneWidget);
         expect(_shownTags(), [0]);
+      },
+    );
+
+    testWidgets(
+      'owner ruling R8 (rca-baseline): a baseline query through a Row '
+      'around the frame never throws, with or without an IntrinsicHeight '
+      'ancestor, and not after a later relayout tries two counts',
+      (tester) async {
+        Widget sizedText(BuildContext context, int count) =>
+            SizedBox(width: 30, height: 20, child: Text('+$count'));
+        Widget row(
+          Widget content, {
+          required bool intrinsic,
+          required double width,
+        }) {
+          final row = Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              const Text('Tags'),
+              Expanded(child: content),
+            ],
+          );
+          return _host(
+            intrinsic ? IntrinsicHeight(child: row) : row,
+            width: width,
+          );
+        }
+
+        WrapOverflowFrame rcaFrame() => WrapOverflowFrame(
+          spacing: 10,
+          runSpacing: 6,
+          maxRuns: 1,
+          overflowBuilder: sizedText,
+          children: _tags(12),
+        );
+
+        // One trial ("+9"), with an IntrinsicHeight ancestor querying the
+        // dry baseline round 1 added.
+        await tester.pumpWidget(row(rcaFrame(), intrinsic: true, width: 236));
+        expect(tester.takeException(), isNull);
+
+        // No IntrinsicHeight: the real baseline alone, one trial.
+        await tester.pumpWidget(row(rcaFrame(), intrinsic: false, width: 236));
+        expect(tester.takeException(), isNull);
+
+        // A later relayout at the cap tries two counts (review Minor 3's
+        // trigger): the real baseline query must still not throw.
+        await tester.pumpWidget(row(rcaFrame(), intrinsic: false, width: 181));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'owner ruling R8, review-minor-3: a stateful overflow child sees '
+      'only the final count in the first frame, and in a later relayout '
+      'at the cap that tries two counts, only the new final count',
+      (tester) async {
+        final log = <int>[];
+        Widget builder(BuildContext context, int count) =>
+            _CountingMore(count: count, log: log);
+
+        // maxRuns 2, the 90 px "+N" child: tries 4, 5, 6 (as e04 does);
+        // the live child must see only the last.
+        await tester.pumpWidget(
+          _host(_frame(maxRuns: 2, builder: builder, children: _tags(12))),
+        );
+        expect(log, [6]);
+
+        // maxRuns 1, same tags and width: tries 8, 9, 10 (a fresh cut, not
+        // a child's own setState, but the same render-layer trigger).
+        await tester.pumpWidget(
+          _host(_frame(maxRuns: 1, builder: builder, children: _tags(12))),
+        );
+        expect(log, [6, 10]);
+      },
+    );
+
+    testWidgets(
+      'owner ruling R8: find.text of the overflow label finds exactly one '
+      'widget, though the probe shows the same final label in its own '
+      'excluded subtree',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            _frame(
+              maxRuns: 2,
+              builder: (context, count) => SizedBox(
+                key: const ValueKey('more'),
+                width: 90,
+                height: 20,
+                child: Text('+$count'),
+              ),
+              children: _tags(12),
+            ),
+          ),
+        );
+
+        expect(find.text('+6'), findsOneWidget);
+        expect(find.text('+6', skipOffstage: false), findsNWidgets(2));
+      },
+    );
+
+    testWidgets(
+      'owner ruling R8: an overflowBuilder output with a GlobalKey fails '
+      'the duplicate-key assertion, since the probe and the live overflow '
+      'child both inflate it',
+      (tester) async {
+        final key = GlobalKey();
+        await tester.pumpWidget(
+          _host(
+            _frame(
+              maxRuns: 2,
+              builder: (context, count) => SizedBox(
+                key: key,
+                width: 90,
+                height: 20,
+                child: Text('+$count'),
+              ),
+              children: _tags(12),
+            ),
+          ),
+        );
+
+        expect(
+          tester.takeException(),
+          isA<FlutterError>().having(
+            (e) => e.toString(),
+            'message',
+            contains('Multiple widgets used the same GlobalKey'),
+          ),
+        );
       },
     );
   });
