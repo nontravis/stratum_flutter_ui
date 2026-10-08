@@ -7,6 +7,11 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 /// Key of the widget that [FakePlatformStratumWebView.buildView] returns.
 const Key fakePlatformViewKey = ValueKey<String>('fake-platform-web-view');
 
+/// A sender for a test that only needs any [PlatformHtmlDocumentSender].
+final class FakeHtmlDocumentSender extends PlatformHtmlDocumentSender {
+  const new();
+}
+
 /// Records every call that the controller makes.
 final class FakePlatformStratumWebView implements PlatformStratumWebView {
   new(this.listener);
@@ -15,6 +20,8 @@ final class FakePlatformStratumWebView implements PlatformStratumWebView {
   final List<StratumWebViewSource> loads = [];
   final List<bool> javaScriptChanges = [];
   final List<String> sentMessages = [];
+  final List<Uri?> sentTargets = [];
+  final List<(PlatformHtmlDocumentSender, String)> documentReplies = [];
   int reloadCount = 0;
   int backCount = 0;
   int forwardCount = 0;
@@ -22,6 +29,7 @@ final class FakePlatformStratumWebView implements PlatformStratumWebView {
   bool canGoForwardValue = false;
   Uri? currentUrlValue;
   StateError? postMessageError;
+  StateError? replyError;
   bool disposed = false;
 
   @override
@@ -50,10 +58,21 @@ final class FakePlatformStratumWebView implements PlatformStratumWebView {
   Future<Uri?> currentUrl() async => currentUrlValue;
 
   @override
-  Future<void> postMessage(String data) async {
+  Future<void> postMessage(String data, {Uri? targetOrigin}) async {
     final error = postMessageError;
     if (error != null) throw error;
     sentMessages.add(data);
+    sentTargets.add(targetOrigin);
+  }
+
+  @override
+  Future<void> replyToDocument(
+    PlatformHtmlDocumentSender document,
+    String data,
+  ) async {
+    final error = replyError;
+    if (error != null) throw error;
+    documentReplies.add((document, data));
   }
 
   @override

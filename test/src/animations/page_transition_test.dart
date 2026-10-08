@@ -1,3 +1,11 @@
+import 'package:animations/animations.dart'
+    show FadeThroughTransition, SharedAxisTransition, SharedAxisTransitionType;
+import 'package:flutter/cupertino.dart'
+    show
+        CupertinoPageTransition,
+        CupertinoPageTransitionsBuilder,
+        CupertinoRouteTransitionMixin,
+        showCupertinoSheet;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -30,7 +38,7 @@ Widget _app(
           }
           return result;
         },
-  home: const SizedBox(),
+  home: const SizedBox(key: ValueKey('home')),
 );
 
 Future<PageTransition<void>> _push(
@@ -38,9 +46,12 @@ Future<PageTransition<void>> _push(
   StratumThemeData? theme,
   ScreenTransitionType type = ScreenTransitionType.fade,
   Duration? duration,
+  Duration? reverseDuration,
+  Curve? curve,
   Widget child = const SizedBox(),
   Widget? childCurrent,
   Alignment? alignment,
+  bool opaque = false,
   bool reducedMotion = false,
 }) async {
   final navigator = GlobalKey<NavigatorState>();
@@ -50,13 +61,64 @@ Future<PageTransition<void>> _push(
   final route = PageTransition<void>(
     type: type,
     duration: duration,
+    reverseDuration: reverseDuration,
+    curve: curve,
     child: child,
     childCurrent: childCurrent,
     alignment: alignment,
+    opaque: opaque,
   );
   navigator.currentState!.push(route).ignore();
   await tester.pump();
   return route;
+}
+
+/// A second, time-free pump after [_push]: on the frame a route is pushed,
+/// `HeroController` (heroes.dart) marks it offstage until the hero search
+/// runs, and `find.byKey`/`find.ancestor` skip an offstage widget by
+/// default. A caller that checks the pushed page or its transition widget
+/// with no further time-advancing pump needs this first; a caller that
+/// already pumps a duration before checking does not.
+Future<void> _settleHeroOffstage(WidgetTester tester) => tester.pump();
+
+/// The page keyed `page`.
+final Finder _page = find.byKey(const ValueKey('page'));
+
+/// The motion widgets between [_page] and its route.
+List<Widget> _transitionsAbove(WidgetTester tester) => tester
+    .widgetList(
+      find.ancestor(
+        of: _page,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is FadeTransition ||
+              widget is SlideTransition ||
+              widget is ScaleTransition ||
+              widget is RotationTransition ||
+              widget is SizeTransition ||
+              widget is CupertinoPageTransition ||
+              widget is FadeThroughTransition ||
+              widget is SharedAxisTransition,
+        ),
+      ),
+    )
+    .toList();
+
+/// The two reduced-motion signals of NFR-U03. The platform's
+/// `disableAnimations` is left out of mid-transition checks: it runs every
+/// route controller at 5% of its duration.
+enum _Reduce { disableAnimations, reduceMotion }
+
+/// Sets [signal]: the app's `MediaQuery` flag goes through [_push]'s
+/// `reducedMotion`, the platform's `reduceMotion` through the test
+/// dispatcher.
+bool _apply(WidgetTester tester, _Reduce signal) {
+  if (signal == _Reduce.reduceMotion) {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(reduceMotion: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+  }
+  return signal == _Reduce.disableAnimations;
 }
 
 void main() {
@@ -205,7 +267,10 @@ void main() {
           )
           .first,
     );
-    expect(fade.opacity.value, closeTo(0.5, 1e-9));
+    expect(
+      fade.opacity.value,
+      closeTo(Curves.easeInOutSine.transform(0.5), 1e-9),
+    );
   });
 
   for (final type in [
@@ -234,7 +299,10 @@ void main() {
               )
               .first,
         );
-        expect(fade.opacity.value, closeTo(0.5, 1e-9));
+        expect(
+          fade.opacity.value,
+          closeTo(Curves.easeInOutSine.transform(0.5), 1e-9),
+        );
       },
     );
   }
@@ -361,4 +429,871 @@ void main() {
       },
     );
   }
+
+  test('us05/fr01/e01: inheritTheme with no ctx fails an assertion naming '
+      'ctx', () {
+    expect(
+      () => PageTransition<void>(
+        type: ScreenTransitionType.fade,
+        child: const SizedBox(),
+        inheritTheme: true,
+      ),
+      throwsA(
+        isA<AssertionError>().having(
+          (error) => '${error.message}',
+          'message',
+          contains('ctx'),
+        ),
+      ),
+    );
+  });
+
+  testWidgets('us05/s5: a joined type with no childCurrent fails an '
+      'assertion naming childCurrent', (tester) async {
+    await _push(tester, type: ScreenTransitionType.rightToLeftJoined);
+
+    expect(
+      tester.takeException(),
+      isA<AssertionError>().having(
+        (error) => '${error.message}',
+        'message',
+        contains('childCurrent'),
+      ),
+    );
+  });
+
+  testWidgets('us05/fr01/e03: scale with no alignment fails with a '
+      'null-check error', (tester) async {
+    await _push(tester, type: ScreenTransitionType.scale);
+
+    expect(tester.takeException(), isA<TypeError>());
+  });
+
+  testWidgets('us05/fr01/e04: the page under a pushed route stays '
+      'mounted', (tester) async {
+    const page = SizedBox(key: ValueKey('page'));
+    final route = await _push(
+      tester,
+      type: ScreenTransitionType.rightToLeft,
+      child: page,
+    );
+    await tester.pumpAndSettle();
+    route.navigator!
+        .push(MaterialPageRoute<void>(builder: (_) => const SizedBox()))
+        .ignore();
+    await tester.pumpAndSettle();
+
+    expect(route.maintainState, isTrue);
+    expect(
+      find.byKey(const ValueKey('page'), skipOffstage: false),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('us05/s2: rightToLeftJoined slides the current page '
+      'out beside the new one', (tester) async {
+    await _push(
+      tester,
+      theme: motionTheme(
+        slow: const Duration(milliseconds: 400),
+        standard: const StratumNamedCurve('linear'),
+      ),
+      type: ScreenTransitionType.rightToLeftJoined,
+      child: const SizedBox(key: ValueKey('page')),
+      childCurrent: const SizedBox(key: ValueKey('current')),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    double dxOf(String key) => tester
+        .widget<SlideTransition>(
+          find
+              .ancestor(
+                of: find.byKey(ValueKey(key)),
+                matching: find.byType(SlideTransition),
+              )
+              .first,
+        )
+        .position
+        .value
+        .dx;
+    expect(dxOf('page'), closeTo(0.75, 1e-9));
+    expect(dxOf('current'), closeTo(-0.25, 1e-9));
+  });
+
+  testWidgets('us05/s1: a right-to-left push slides in from the right edge '
+      'over 300 ms', (tester) async {
+    final route = await _push(
+      tester,
+      type: ScreenTransitionType.rightToLeft,
+      child: const SizedBox(key: ValueKey('page')),
+    );
+    double dx() => tester
+        .widget<SlideTransition>(
+          find
+              .ancestor(of: _page, matching: find.byType(SlideTransition))
+              .first,
+        )
+        .position
+        .value
+        .dx;
+
+    expect(route.transitionDuration, const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(dx(), closeTo(1 - Curves.easeInOutSine.transform(0.5), 1e-9));
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(dx(), 0);
+  });
+
+  for (final signal in _Reduce.values) {
+    testWidgets('us05/s4: under ${signal.name} a right-to-left push shows '
+        'the new page with no slide', (tester) async {
+      await _push(
+        tester,
+        type: ScreenTransitionType.rightToLeft,
+        child: const SizedBox(key: ValueKey('page')),
+        reducedMotion: _apply(tester, signal),
+      );
+      await tester.pump(const Duration(milliseconds: 150));
+
+      expect(_page, findsOneWidget);
+      expect(_transitionsAbove(tester), isEmpty);
+    });
+  }
+
+  testWidgets('us05/fr03/e01: a caller curve drives a Stratum type as '
+      'passed', (tester) async {
+    await _push(
+      tester,
+      theme: motionTheme(
+        slow: const Duration(milliseconds: 400),
+        standard: const StratumNamedCurve('linear'),
+      ),
+      type: ScreenTransitionType.rightToLeft,
+      curve: Curves.easeIn,
+      child: const SizedBox(key: ValueKey('page')),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final slide = tester.widget<SlideTransition>(
+      find.ancestor(of: _page, matching: find.byType(SlideTransition)).first,
+    );
+    expect(
+      slide.position.value.dx,
+      closeTo(1 - Curves.easeIn.transform(0.25), 1e-9),
+    );
+  });
+
+  testWidgets('us05/fr03/e01: a caller curve drives the Flutter motion of '
+      'cupertino too', (tester) async {
+    await _push(
+      tester,
+      type: ScreenTransitionType.cupertino,
+      curve: Curves.easeIn,
+      child: const SizedBox(key: ValueKey('page')),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // 100 ms of Cupertino's 500 ms: the caller curve, then the primary
+    // slide's own fastEaseInToSlowEaseOut
+    // (cupertino/route.dart:533-536@3.47.3).
+    final slide = tester.widget<SlideTransition>(
+      find.ancestor(of: _page, matching: find.byType(SlideTransition)).first,
+    );
+    expect(
+      slide.position.value.dx,
+      closeTo(
+        1 -
+            Curves.fastEaseInToSlowEaseOut.transform(
+              Curves.easeIn.transform(0.2),
+            ),
+        1e-6,
+      ),
+    );
+  });
+
+  testWidgets('us05/fr01: a caller curve steps aside for a Cupertino pop '
+      'gesture already in progress', (tester) async {
+    final route = await _push(
+      tester,
+      type: ScreenTransitionType.cupertino,
+      curve: Curves.easeIn,
+      child: const SizedBox(key: ValueKey('page')),
+    );
+    route.navigator!.didStartUserGesture();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    final slide = tester.widget<SlideTransition>(
+      find.ancestor(of: _page, matching: find.byType(SlideTransition)).first,
+    );
+    expect(slide.position.value.dx, closeTo(0.5, 1e-9));
+    // Not an addTearDown: testWidgets unmounts the tree (binding.dart:1960-
+    // 1963) inside the test body, before Dart's addTearDown queue runs, so
+    // an addTearDown here would call this on an already-disposed Navigator.
+    route.navigator!.didStopUserGesture();
+  });
+
+  group('us05/fr01: the seven types of the theme era', () {
+    testWidgets('platform shows the Cupertino slide on iOS and takes its '
+        'durations', (tester) async {
+      final route = await _push(
+        tester,
+        type: ScreenTransitionType.platform,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await _settleHeroOffstage(tester);
+
+      expect(
+        find.ancestor(
+          of: _page,
+          matching: find.byType(CupertinoPageTransition),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        route.transitionDuration,
+        CupertinoRouteTransitionMixin.kTransitionDuration,
+      );
+      expect(
+        route.reverseTransitionDuration,
+        const CupertinoPageTransitionsBuilder().reverseTransitionDuration,
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('platform takes the predictive-back builder on Android', (
+      tester,
+    ) async {
+      final route = await _push(tester, type: ScreenTransitionType.platform);
+      await _settleHeroOffstage(tester);
+
+      expect(find.byType(CupertinoPageTransition), findsNothing);
+      expect(
+        route.transitionDuration,
+        const PredictiveBackPageTransitionsBuilder().transitionDuration,
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+    testWidgets('cupertino shows the Cupertino slide on every platform', (
+      tester,
+    ) async {
+      final route = await _push(
+        tester,
+        type: ScreenTransitionType.cupertino,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await _settleHeroOffstage(tester);
+
+      expect(
+        find.ancestor(
+          of: _page,
+          matching: find.byType(CupertinoPageTransition),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        route.transitionDuration,
+        CupertinoRouteTransitionMixin.kTransitionDuration,
+      );
+    }, variant: TargetPlatformVariant.all());
+
+    testWidgets("us05/fr03/e02: cupertino keeps Flutter's curve, not the "
+        "theme's standard one", (tester) async {
+      await _push(
+        tester,
+        theme: motionTheme(standard: const StratumNamedCurve('easeIn')),
+        type: ScreenTransitionType.cupertino,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // The nearest slide is CupertinoPageTransition's primary one, on
+      // fastEaseInToSlowEaseOut over its own 500 ms
+      // (cupertino/route.dart:533-536@3.47.3).
+      final slide = tester.widget<SlideTransition>(
+        find.ancestor(of: _page, matching: find.byType(SlideTransition)).first,
+      );
+      expect(
+        slide.position.value.dx,
+        closeTo(1 - Curves.fastEaseInToSlowEaseOut.transform(0.2), 1e-6),
+      );
+    });
+
+    testWidgets('none shows the new page at once, in push and pop', (
+      tester,
+    ) async {
+      final route = await _push(
+        tester,
+        type: ScreenTransitionType.none,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await _settleHeroOffstage(tester);
+
+      expect(_page, findsOneWidget);
+      expect(_transitionsAbove(tester), isEmpty);
+      expect(route.transitionDuration, Duration.zero);
+      expect(route.reverseTransitionDuration, Duration.zero);
+
+      // Let the push fully settle (R12: zero duration, but this also holds
+      // against the pre-R12 slow level) so the pop below has real distance
+      // to cover, not a no-op reverse from an already-dismissed controller.
+      await tester.pump(route.transitionDuration + const Duration(seconds: 1));
+      route.navigator!.pop();
+      await tester.pump();
+
+      expect(_transitionsAbove(tester), isEmpty);
+      expect(_page, findsNothing);
+    });
+
+    testWidgets("none takes a caller's pop duration over its zero and "
+        'stays painted through it', (tester) async {
+      final route = await _push(
+        tester,
+        type: ScreenTransitionType.none,
+        reverseDuration: const Duration(milliseconds: 300),
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(route.transitionDuration, Duration.zero);
+      expect(
+        route.reverseTransitionDuration,
+        const Duration(milliseconds: 300),
+      );
+      route.navigator!.pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(_page, findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(_page, findsNothing);
+    });
+
+    testWidgets("fadeThrough fills with the Stratum theme's canvas color", (
+      tester,
+    ) async {
+      await _push(
+        tester,
+        theme: defaultThemeSet.dark,
+        type: ScreenTransitionType.fadeThrough,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await _settleHeroOffstage(tester);
+
+      final transition = tester.widget<FadeThroughTransition>(
+        find.ancestor(of: _page, matching: find.byType(FadeThroughTransition)),
+      );
+      expect(transition.fillColor, Theme.of(tester.element(_page)).canvasColor);
+    });
+
+    testWidgets("us05/fr03: fadeThrough runs on the theme's standard curve", (
+      tester,
+    ) async {
+      await _push(
+        tester,
+        theme: motionTheme(
+          slow: const Duration(milliseconds: 400),
+          standard: const StratumNamedCurve('easeIn'),
+        ),
+        type: ScreenTransitionType.fadeThrough,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final transition = tester.widget<FadeThroughTransition>(
+        find.ancestor(of: _page, matching: find.byType(FadeThroughTransition)),
+      );
+      expect(
+        transition.animation.value,
+        closeTo(Curves.easeIn.transform(0.25), 1e-9),
+      );
+    });
+
+    for (final (type, axis) in [
+      (
+        ScreenTransitionType.sharedAxisHorizontal,
+        SharedAxisTransitionType.horizontal,
+      ),
+      (
+        ScreenTransitionType.sharedAxisVertical,
+        SharedAxisTransitionType.vertical,
+      ),
+      (ScreenTransitionType.sharedAxisScaled, SharedAxisTransitionType.scaled),
+    ]) {
+      testWidgets('${type.name} shows the ${axis.name} shared axis on the '
+          "Stratum theme's canvas color", (tester) async {
+        await _push(
+          tester,
+          theme: defaultThemeSet.dark,
+          type: type,
+          child: const SizedBox(key: ValueKey('page')),
+        );
+        await _settleHeroOffstage(tester);
+
+        final transition = tester.widget<SharedAxisTransition>(
+          find.ancestor(of: _page, matching: find.byType(SharedAxisTransition)),
+        );
+        expect(transition.transitionType, axis);
+        expect(
+          transition.fillColor,
+          Theme.of(tester.element(_page)).canvasColor,
+        );
+      });
+    }
+  });
+
+  testWidgets('the route scopes its page for assistive technology, as a '
+      "MaterialPageRoute's does", (tester) async {
+    await _push(tester, child: const SizedBox(key: ValueKey('page')));
+    await _settleHeroOffstage(tester);
+
+    final scopes = find.ancestor(
+      of: _page,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.scopesRoute == true &&
+            widget.explicitChildNodes,
+      ),
+    );
+    expect(scopes, findsOneWidget);
+  });
+
+  group('us05/fr01: the Material home below a new page', () {
+    final home = find.byKey(const ValueKey('home'));
+
+    testWidgets('an opaque platform on iOS parallaxes it out', (tester) async {
+      await _push(tester, type: ScreenTransitionType.platform, opaque: true);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, lessThan(0));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('an opaque sharedAxisHorizontal moves it out', (tester) async {
+      await _push(
+        tester,
+        type: ScreenTransitionType.sharedAxisHorizontal,
+        opaque: true,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, lessThan(0));
+    });
+
+    for (final type in [
+      ScreenTransitionType.platform,
+      ScreenTransitionType.cupertino,
+      ScreenTransitionType.sharedAxisHorizontal,
+    ]) {
+      testWidgets('a translucent ${type.name} leaves it in place, seen '
+          'through it', (tester) async {
+        await _push(tester, type: type);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(tester.getTopLeft(home).dx, 0);
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(home).dx, 0);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+    }
+
+    testWidgets('rightToLeft leaves it in place', (tester) async {
+      await _push(tester, type: ScreenTransitionType.rightToLeft);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, 0);
+    });
+
+    testWidgets('a joined type leaves it in place: its copy moves instead', (
+      tester,
+    ) async {
+      await _push(
+        tester,
+        type: ScreenTransitionType.rightToLeftJoined,
+        childCurrent: const SizedBox.expand(key: ValueKey('copy')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, 0);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('copy'))).dx,
+        lessThan(0),
+      );
+    });
+
+    testWidgets('nfr-u03: under reduce motion cupertino leaves it in place '
+        'but for a swipe-back, which it tracks', (tester) async {
+      _apply(tester, _Reduce.reduceMotion);
+      await _push(tester, type: ScreenTransitionType.cupertino, opaque: true);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, 0);
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(const Offset(5, 300));
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      expect(tester.getTopLeft(home).dx, lessThan(0));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+  });
+
+  group('us05/fr01: a page below a translucent route', () {
+    final lower = find.byKey(const ValueKey('lower'));
+
+    /// The opacity the fades above [lower] leave it.
+    double opacityOf(WidgetTester tester) => tester
+        .widgetList<FadeTransition>(
+          find.ancestor(of: lower, matching: find.byType(FadeTransition)),
+        )
+        .fold(1, (opacity, fade) => opacity * fade.opacity.value);
+
+    /// Pushes [below] and lets it settle, then pushes a cupertino
+    /// [PageTransition] of [opaque] over it and pumps 100 ms into it.
+    Future<void> cover(
+      WidgetTester tester,
+      Route<void> below, {
+      required bool opaque,
+    }) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(_app(navigator));
+      navigator.currentState!.push(below).ignore();
+      await tester.pumpAndSettle();
+      navigator.currentState!
+          .push(
+            PageTransition<void>(
+              type: ScreenTransitionType.cupertino,
+              opaque: opaque,
+              child: const SizedBox(),
+            ),
+          )
+          .ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    for (final type in [
+      ScreenTransitionType.platform,
+      ScreenTransitionType.fadeThrough,
+    ]) {
+      testWidgets('an opaque ${type.name} page stays in place, fully seen', (
+        tester,
+      ) async {
+        await cover(
+          tester,
+          PageTransition<void>(
+            type: type,
+            opaque: true,
+            child: const SizedBox(key: ValueKey('lower')),
+          ),
+          opaque: false,
+        );
+
+        expect(tester.getTopLeft(lower).dx, 0);
+        expect(opacityOf(tester), 1);
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(lower).dx, 0);
+        expect(opacityOf(tester), 1);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+    }
+
+    testWidgets('a page of another route kind that leaves by its secondary '
+        'animation stays in place', (tester) async {
+      await cover(
+        tester,
+        PageRouteBuilder<void>(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const SizedBox(key: ValueKey('lower')),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+              SlideTransition(
+                position: Tween<Offset>(
+                  begin: Offset.zero,
+                  end: const Offset(-1, 0),
+                ).animate(secondaryAnimation),
+                child: child,
+              ),
+        ),
+        opaque: false,
+      );
+
+      expect(tester.getTopLeft(lower).dx, 0);
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(lower).dx, 0);
+    });
+
+    testWidgets('under an opaque route the same platform page parallaxes '
+        'out', (tester) async {
+      await cover(
+        tester,
+        PageTransition<void>(
+          type: ScreenTransitionType.platform,
+          opaque: true,
+          child: const SizedBox(key: ValueKey('lower')),
+        ),
+        opaque: true,
+      );
+
+      expect(tester.getTopLeft(lower).dx, lessThan(0));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('a translucent route that hands its own delegated transition, '
+        "Flutter's Cupertino sheet, scales the page back", (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(_app(navigator));
+      navigator.currentState!
+          .push(
+            PageTransition<void>(
+              type: ScreenTransitionType.platform,
+              opaque: true,
+              child: const SizedBox(key: ValueKey('lower')),
+            ),
+          )
+          .ignore();
+      await tester.pumpAndSettle();
+
+      showCupertinoSheet<void>(
+        context: tester.element(lower),
+        scrollableBuilder: (context, controller) => const SizedBox(),
+      ).ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(tester.getRect(lower).width, lessThan(800));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  });
+
+  for (final signal in _Reduce.values) {
+    group('us05/fr03, nfr-u03: under ${signal.name}', () {
+      for (final type in [
+        ScreenTransitionType.cupertino,
+        ScreenTransitionType.none,
+      ]) {
+        testWidgets('${type.name} shows the new page at once', (tester) async {
+          await _push(
+            tester,
+            type: type,
+            child: const SizedBox(key: ValueKey('page')),
+            reducedMotion: _apply(tester, signal),
+          );
+          await tester.pump(const Duration(milliseconds: 150));
+
+          // At rest, not bare: cupertino keeps the Cupertino builder, and so
+          // its swipe-back, on held animations.
+          expect(tester.getTopLeft(_page), Offset.zero);
+          expect(
+            _transitionsAbove(tester).whereType<FadeTransition>(),
+            isEmpty,
+          );
+        });
+      }
+
+      for (final type in [
+        ScreenTransitionType.rightToLeft,
+        ScreenTransitionType.scale,
+        ScreenTransitionType.rotate,
+        ScreenTransitionType.size,
+        ScreenTransitionType.rightToLeftJoined,
+        ScreenTransitionType.cupertino,
+      ]) {
+        testWidgets('${type.name} leaves the page gone one pump into a pop', (
+          tester,
+        ) async {
+          final route = await _push(
+            tester,
+            type: type,
+            alignment: Alignment.center,
+            childCurrent: const SizedBox(),
+            child: const SizedBox(key: ValueKey('page')),
+            reducedMotion: _apply(tester, signal),
+          );
+          await tester.pumpAndSettle();
+
+          route.navigator!.pop();
+          await tester.pump();
+
+          expect(_page, findsNothing);
+        });
+      }
+
+      testWidgets('fade keeps the page fading out through a pop', (
+        tester,
+      ) async {
+        final route = await _push(
+          tester,
+          child: const SizedBox(key: ValueKey('page')),
+          reducedMotion: _apply(tester, signal),
+        );
+        await tester.pumpAndSettle();
+
+        route.navigator!.pop();
+        await tester.pump();
+        await tester.pump(route.reverseTransitionDuration ~/ 2);
+
+        expect(_page, findsOneWidget);
+      });
+
+      for (final type in [
+        ScreenTransitionType.fadeThrough,
+        ScreenTransitionType.sharedAxisHorizontal,
+        ScreenTransitionType.sharedAxisVertical,
+        ScreenTransitionType.sharedAxisScaled,
+      ]) {
+        testWidgets("${type.name} fades on the theme's standard curve with "
+            'no slide or scale', (tester) async {
+          final route = await _push(
+            tester,
+            theme: motionTheme(standard: const StratumNamedCurve('easeIn')),
+            type: type,
+            child: const SizedBox(key: ValueKey('page')),
+            reducedMotion: _apply(tester, signal),
+          );
+          await tester.pump(route.transitionDuration ~/ 4);
+
+          final transitions = _transitionsAbove(tester);
+          expect(transitions.map((widget) => widget.runtimeType), [
+            FadeTransition,
+          ]);
+          expect(
+            (transitions.single as FadeTransition).opacity.value,
+            closeTo(Curves.easeIn.transform(0.25), 1e-9),
+          );
+        });
+      }
+
+      testWidgets('platform on iOS shows the new page at once', (tester) async {
+        await _push(
+          tester,
+          type: ScreenTransitionType.platform,
+          child: const SizedBox(key: ValueKey('page')),
+          reducedMotion: _apply(tester, signal),
+        );
+        await tester.pump(const Duration(milliseconds: 150));
+
+        expect(tester.getTopLeft(_page), Offset.zero);
+        expect(_transitionsAbove(tester).whereType<FadeTransition>(), isEmpty);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+      testWidgets('platform on Android keeps its fade over the full '
+          "duration, on the theme's standard curve", (tester) async {
+        final route = await _push(
+          tester,
+          theme: motionTheme(standard: const StratumNamedCurve('easeIn')),
+          type: ScreenTransitionType.platform,
+          child: const SizedBox(key: ValueKey('page')),
+          reducedMotion: _apply(tester, signal),
+        );
+        await tester.pump(route.transitionDuration ~/ 4);
+
+        final transitions = _transitionsAbove(tester);
+        expect(transitions.map((widget) => widget.runtimeType), [
+          FadeTransition,
+        ]);
+        expect(
+          (transitions.single as FadeTransition).opacity.value,
+          closeTo(Curves.easeIn.transform(0.25), 1e-9),
+        );
+      }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+      testWidgets('platform on Android fades on a caller curve', (
+        tester,
+      ) async {
+        final route = await _push(
+          tester,
+          type: ScreenTransitionType.platform,
+          curve: Curves.easeOut,
+          child: const SizedBox(key: ValueKey('page')),
+          reducedMotion: _apply(tester, signal),
+        );
+        await tester.pump(route.transitionDuration ~/ 4);
+
+        final fade = _transitionsAbove(tester).single as FadeTransition;
+        expect(
+          fade.opacity.value,
+          closeTo(Curves.easeOut.transform(0.25), 1e-9),
+        );
+      }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+    });
+  }
+
+  group("us05/fr03: the legacy types run on the theme's standard curve", () {
+    final theme = motionTheme(
+      slow: const Duration(milliseconds: 400),
+      standard: const StratumNamedCurve('easeIn'),
+    );
+    final quarter = Curves.easeIn.transform(0.25);
+
+    testWidgets('fade', (tester) async {
+      await _push(
+        tester,
+        theme: theme,
+        type: ScreenTransitionType.fade,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final fade = tester.widget<FadeTransition>(
+        find.ancestor(of: _page, matching: find.byType(FadeTransition)).first,
+      );
+      expect(fade.opacity.value, closeTo(quarter, 1e-9));
+    });
+
+    testWidgets('fade under reduced motion', (tester) async {
+      await _push(
+        tester,
+        theme: theme,
+        type: ScreenTransitionType.fade,
+        child: const SizedBox(key: ValueKey('page')),
+        reducedMotion: true,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final fade = tester.widget<FadeTransition>(
+        find.ancestor(of: _page, matching: find.byType(FadeTransition)).first,
+      );
+      expect(fade.opacity.value, closeTo(quarter, 1e-9));
+    });
+
+    testWidgets('rotate', (tester) async {
+      await _push(
+        tester,
+        theme: theme,
+        type: ScreenTransitionType.rotate,
+        alignment: Alignment.center,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final rotation = tester.widget<RotationTransition>(
+        find.ancestor(of: _page, matching: find.byType(RotationTransition)),
+      );
+      expect(rotation.turns.value, closeTo(quarter, 1e-9));
+      final scale = tester.widget<ScaleTransition>(
+        find.ancestor(of: _page, matching: find.byType(ScaleTransition)),
+      );
+      expect(scale.scale.value, closeTo(quarter, 1e-9));
+      final fade = tester.widget<FadeTransition>(
+        find.ancestor(of: _page, matching: find.byType(FadeTransition)),
+      );
+      expect(fade.opacity.value, closeTo(quarter, 1e-9));
+    });
+
+    for (final type in [
+      ScreenTransitionType.rightToLeftWithFade,
+      ScreenTransitionType.leftToRightWithFade,
+    ]) {
+      testWidgets('${type.name} fades on the curve', (tester) async {
+        await _push(
+          tester,
+          theme: theme,
+          type: type,
+          child: const SizedBox(key: ValueKey('page')),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final fade = tester.widget<FadeTransition>(
+          find.ancestor(of: _page, matching: find.byType(FadeTransition)).first,
+        );
+        expect(fade.opacity.value, closeTo(quarter, 1e-9));
+      });
+    }
+  });
 }

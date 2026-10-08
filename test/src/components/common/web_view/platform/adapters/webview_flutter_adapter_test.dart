@@ -84,7 +84,7 @@ void main() {
         );
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
       harness.sendBridgeMessage(
-        envelope(nonceIn(harness.loadedHtml.single), 'message', 'x'),
+        messageEnvelope(nonceIn(harness.loadedHtml.single), 'x'),
         senderUrl: 'about:blank',
         isMainFrame: false,
       );
@@ -275,6 +275,61 @@ void main() {
       expect(harness.sender.proxyRuns, isEmpty);
     });
 
+    test('us03/fr02/e17, us03/fr02/e16: a named send the page shown '
+        'refuses runs nothing through the reply proxy and throws', () async {
+      await expectLater(
+        adapter.postMessage('ping', targetOrigin: appOrigin),
+        throwsA(unallowedPage),
+      );
+      expect(harness.scripts, [
+        buildMessageDispatchScript(
+          'ping',
+          token: null,
+          allowedOrigins: {appOrigin},
+        ),
+      ]);
+      expect(harness.sender.proxyRuns, isEmpty);
+    });
+
+    test('us03/fr05/e08, us03/fr04/e15: a reply to own HTML runs only '
+        "through the reply proxy of the sending document's hello", () async {
+      harness.sender.send(
+        messageEnvelope(nonceIn(html), 'm'),
+        senderUrl: 'about:blank',
+        replyProxy: proxy,
+      );
+      final sender = listener.senders.last as PlatformHtmlDocumentSender;
+      await adapter.replyToDocument(sender, 'pong');
+      expect(harness.scripts, isEmpty);
+      expect(harness.sender.proxyRuns, [
+        (
+          replyProxy: proxy,
+          script: buildMessageDispatchScript(
+            'pong',
+            token: tokenIn(html),
+            documentId: documentA,
+            allowedOrigins: const <Uri>[],
+          ),
+        ),
+      ]);
+    });
+
+    test('us03/fr05/e08: FRAME_DESTROYED or another error from that reply '
+        'proxy throws', () async {
+      harness.sender.send(
+        messageEnvelope(nonceIn(html), 'm'),
+        senderUrl: 'about:blank',
+        replyProxy: proxy,
+      );
+      final sender = listener.senders.last as PlatformHtmlDocumentSender;
+      harness.sender.proxyAnswer = () =>
+          Future.error(PlatformException(code: 'frame-destroyed'));
+      await expectLater(
+        adapter.replyToDocument(sender, 'pong'),
+        throwsA(unallowedPage),
+      );
+    });
+
     test('B1 us03/fr02/e13: a later loadHtml that proves while the first '
         "script is pending does not get the earlier load's send through "
         'the reply proxy', () async {
@@ -290,6 +345,39 @@ void main() {
       };
       await expectLater(adapter.postMessage('ping'), throwsA(unallowedPage));
       expect(harness.sender.proxyRuns, isEmpty);
+    });
+
+    test('G3 us03/fr05/e09: a later loadHtml that proves while a reply '
+        'script is pending does not move the reply off its original '
+        'document', () async {
+      harness.sender.send(
+        messageEnvelope(nonceIn(html), 'm'),
+        senderUrl: 'about:blank',
+        replyProxy: proxy,
+      );
+      final sender = listener.senders.last as PlatformHtmlDocumentSender;
+      const laterProxy = BridgeReplyProxy(9);
+      harness.sender.proxyAnswer = () async {
+        await adapter.load(const StratumWebViewSource.html('<p>Later</p>'));
+        harness.sender.send(
+          envelope(nonceIn(harness.loadedHtml.last), 'hello', documentB),
+          senderUrl: 'about:blank',
+          replyProxy: laterProxy,
+        );
+        return true;
+      };
+      await adapter.replyToDocument(sender, 'pong');
+      expect(harness.sender.proxyRuns, [
+        (
+          replyProxy: proxy,
+          script: buildMessageDispatchScript(
+            'pong',
+            token: tokenIn(html),
+            documentId: documentA,
+            allowedOrigins: const <Uri>[],
+          ),
+        ),
+      ]);
     });
   });
 

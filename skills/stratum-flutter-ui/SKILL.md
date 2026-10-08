@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType.
 ---
 
 # Stratum Flutter UI
@@ -259,6 +259,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   `StratumTypeStyle`, `StratumAnimationConfig`, and the models inside them) are immutable values with `copyWith`;
   their maps refuse changes, so derive a variant with `config.copyWith(name: ...)` instead of editing a map. A
   `StratumCurve` gives its Flutter `Curve` as `.curve` through `package:stratum_ui/stratum_ui.dart`.
+  `StratumAnimationConfig.transitions` holds the `animation.transition` names, and
+  `StratumTheme.of(context).animation.transition[windowSize]` gives the theme's `ScreenTransitionType` for a window
+  size.
 - **Before `preload`** — call `WidgetsFlutterBinding.ensureInitialized()` first: `preload` reads the asset manifest
   through `rootBundle`, which needs the binding. In a `testWidgets` test, the background parse runs on a real
   isolate, which the test's fake-async zone never finishes; run `preload`, or pump a tree rooted in
@@ -322,16 +325,60 @@ scroll it, guarded so a text field inside keeps its own keys.
   `Google/<Name>` families. When `pub get` reports a google_fonts conflict, let your own google_fonts constraint allow
   the version stratum_ui's `pubspec.yaml` names.
 
+## Page transitions
+
+- **The theme's transition per window size** — every `MaterialPageRoute` and `MaterialPage` (go_router's default
+  page) below `StratumThemeApplication` takes the type the theme names for the window size, with no transition code:
+  the application's Material theme installs a Stratum page transitions builder for every platform. Name the types in
+  `theme.yaml` under `animation.transition`, one for each of `watch`, `mobile`, `tablet`, `desktop`, `bigDesktop`; the
+  package default names `platform` for all five, Flutter's own page motion, so the iOS slide keeps its swipe-back.
+  For `platform` and `cupertino`, the builder delegates to Flutter's whole builder, the outgoing page's motion
+  included; during a back-swipe the page tracks the finger, with no curve. A layer may change any of the five and
+  add no key; a name outside the nineteen types throws `StratumThemeFormatException` with `expected_transition` at
+  its path. A package build without the key reads it as `unknown_key`. A `Theme` of your own below the application
+  replaces the builder for its subtree.
+- **The nineteen types** — `ScreenTransitionType`: `fade`; the slides `rightToLeft`, `leftToRight`, `topToBottom`,
+  `bottomToTop`; `scale`, `rotate`, `size`; `rightToLeftWithFade`, `leftToRightWithFade`; the joined
+  `rightToLeftJoined`, `leftToRightJoined`; `platform`, Flutter's default motion for the platform; `cupertino`, the
+  Cupertino slide with swipe-back on every platform; `none`; `fadeThrough`; and `sharedAxisHorizontal`,
+  `sharedAxisVertical`, `sharedAxisScaled`, from package `animations`.
+- **One page's own type** — `PageTransition(type:, child:)` for `Navigator.push`, and
+  `StratumTransitionPage(key: state.pageKey, type:, child:)` for go_router's `pageBuilder` or a Navigator 2.0 page
+  list; either shows its own type, never the theme's. `PageTransition` also takes `curve`, `duration`,
+  `reverseDuration`, `alignment` (required by `scale`, `rotate`, `size`), `childCurrent` (the current page, required
+  by the joined types), and `inheritTheme` with `ctx`. In the theme and in `StratumTransitionPage`, which have neither,
+  `scale`, `rotate`, and `size` grow from the center and a joined type slides the page below out in its own route.
+  `NoPageTransition(builder:)` shows its page with no animation and zero push and pop durations, whatever the theme
+  names. The page below moves only under an opaque route, or under a route that hands its own delegated
+  transition, such as `showCupertinoSheet`: `PageTransition` is translucent by default, so pass `opaque: true`
+  for the page below to slide, fade, or parallax; a translucent page leaves it as it was.
+- **Timing** — `none` always shows at once, zero push and pop durations in every route, whatever the theme names,
+  unless a `PageTransition` caller passes its own; every other type but `platform` and `cupertino` runs over the theme's
+  `slow` level (300 ms push, 192 ms pop in the package default) on its `standard` curve, unless the caller passes its
+  own; `platform` and `cupertino` keep the Flutter motion's durations and, when they show it, its curve.
+- **Reduced motion** — when `MediaQuery` or the platform asks for reduced motion, every slide, scale, rotation, and
+  size change drops: a type with a fade, `fadeThrough`, the shared-axis types, and `platform` on Android, Windows,
+  and Linux included, still fades over its full duration on the caller's curve, else the theme's `standard` curve, and
+  any other type shows the page at once.
+- **Flutter floor** — `stratum_ui` needs Flutter 3.44 or later, which package `animations` 3.0.0 needs.
+
 ## Web view
 
 - **`StratumWebView`** — shows a URL page or the app's own HTML (`StratumWebViewSource.url`, `.html`) on Android,
   iOS, macOS, Windows, Linux, and the web, driven by an optional `StratumWebViewController`.
   Bridge: list the page origins you trust in `allowedOrigins` (empty closes the bridge, HTML included). A page calls
   `StratumBridge.postMessage(data)`; `onMessage` gets the text and the origin of the page that sent it, `null` for
-  your HTML; answer with `controller.postMessage(data)`. Your HTML connects its bridge when its bootstrap script
-  runs: a `postMessage` before that throws `StateError` on every platform, so wait for the page's first message
-  instead of sending right after `loadHtml`. On iOS and macOS a `reload()` of your HTML shows an empty page and the
-  bridge stays closed until the next `loadHtml`.
+  your HTML; answer the sender with `controller.reply(message, data)`: it reaches only the page or HTML document
+  that sent the message, and throws `StateError` once the view shows another origin or that document is gone
+  (`ArgumentError` for a message the controller did not deliver). Three limits on that guarantee: on Windows and
+  Linux the reply is credited to the page of the last `onPageStarted`, not necessarily the sender; on the web, after
+  an in-frame link to another origin the check still passes on stale history and the browser drops the reply
+  silently with no throw; and on the web, a reply to your own HTML after a link away inside it resolves the same
+  way, without delivering the data. `controller.postMessage(data, targetOrigin: origin)` names a recipient origin
+  the same way; `postMessage(data)` sends to whatever page is shown. Your HTML
+  connects its bridge when its bootstrap script runs: a `postMessage` before that throws `StateError` on every
+  platform, so wait for the page's first message instead of sending right after `loadHtml`. On iOS and macOS a
+  `reload()` of your HTML shows an empty page and the bridge stays closed until the next `loadHtml`.
   Native code: the package ships Android (Kotlin, AndroidX WebKit) and iOS and macOS (Swift) code that names the
   sender of each page message, so only the top-level page's messages pass, even one sent before `onPageStarted`; an
   app needs no setup of its own. On Android a system WebView without `WEB_MESSAGE_LISTENER` or

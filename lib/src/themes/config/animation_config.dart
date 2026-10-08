@@ -19,6 +19,19 @@ abstract class StratumAnimationConfig with _$StratumAnimationConfig {
 
     /// `animation.curve`: `standard`, `enter`, `exit`.
     required Map<String, StratumCurve> curves,
+
+    /// `animation.transition`: window size name to page transition type
+    /// name, one for each of `watch`, `mobile`, `tablet`, `desktop`, and
+    /// `bigDesktop`. A config built by hand that sets none names
+    /// `platform` for all five, as the package default does.
+    @Default(<String, String>{
+      'watch': 'platform',
+      'mobile': 'platform',
+      'tablet': 'platform',
+      'desktop': 'platform',
+      'bigDesktop': 'platform',
+    })
+    Map<String, String> transitions,
   }) = _StratumAnimationConfig;
 }
 

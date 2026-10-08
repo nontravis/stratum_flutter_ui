@@ -7,6 +7,7 @@ import 'package:stratum_ui/src/themes/config/pipeline/read_values.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
+import 'package:stratum_ui/src/themes/config/transition_names.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
 import '../theme_fixtures.dart';
@@ -553,6 +554,43 @@ typography:
       );
     });
 
+    test('fo01/us01/fr01: reads animation.transition, platform for every '
+        'window size in the base', () {
+      final (config, errors) = _read([]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.animation.transitions, {
+        'watch': 'platform',
+        'mobile': 'platform',
+        'tablet': 'platform',
+        'desktop': 'platform',
+        'bigDesktop': 'platform',
+      });
+    });
+
+    test('a layer that changes desktop alone keeps the other window '
+        'sizes', () {
+      final (config, errors) = _read([
+        layer('animation:\n  transition:\n    desktop: rightToLeft'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.animation.transitions['desktop'], 'rightToLeft');
+      expect(config.animation.transitions['mobile'], 'platform');
+    });
+
+    test('every one of the 19 type names reads', () {
+      expect(transitionTypeNames, hasLength(19));
+      for (final name in transitionTypeNames) {
+        final (config, errors) = _read([
+          layer('animation:\n  transition:\n    mobile: $name'),
+        ]);
+
+        expect(problems(errors), isEmpty, reason: name);
+        expect(config.animation.transitions['mobile'], name);
+      }
+    });
+
     test('0 ms, a fraction, 150%, and a new default read', () {
       final (config, errors) = _read([
         layer(
@@ -582,9 +620,9 @@ typography:
 
       expect(problems(errors), isEmpty);
       expect(config.animation.curves, {
-        'standard': StratumCubicCurve(0.37, 0, 0.63, 1),
-        'enter': StratumCubicCurve(0.4, 0, 0.2, 1),
-        'exit': StratumCubicCurve(0.5, -0.28, 0.5, 1.2),
+        'standard': const StratumCubicCurve(0.37, 0, 0.63, 1),
+        'enter': const StratumCubicCurve(0.4, 0, 0.2, 1),
+        'exit': const StratumCubicCurve(0.5, -0.28, 0.5, 1.2),
       });
       final standard = config.animation.curves['standard']!;
       expect(standard.curve, isA<Cubic>());
@@ -683,6 +721,35 @@ typography:
     ];
     for (final (name, body, expected) in cases) {
       test('reports $name', () {
+        expect(_problems(body), [expected]);
+      });
+    }
+
+    final transitionCases = <(String, String, String)>[
+      (
+        'an unknown transition type',
+        'animation:\n  transition:\n    desktop: slideUp',
+        'layer1 animation.transition.desktop: expected one of the 19 page '
+            'transition types, such as platform or fade, got "slideUp" '
+            '[expected_transition]',
+      ),
+      (
+        'a transition type in the wrong case',
+        'animation:\n  transition:\n    mobile: Fade',
+        'layer1 animation.transition.mobile: expected one of the 19 page '
+            'transition types, such as platform or fade, got "Fade" '
+            '[expected_transition]',
+      ),
+      (
+        'a number as a transition type',
+        'animation:\n  transition:\n    watch: 3',
+        'layer1 animation.transition.watch: expected one of the 19 page '
+            'transition types, such as platform or fade, got 3 '
+            '[expected_transition]',
+      ),
+    ];
+    for (final (name, body, expected) in transitionCases) {
+      test('us01/fr01/e11: reports $name', () {
         expect(_problems(body), [expected]);
       });
     }

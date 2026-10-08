@@ -699,6 +699,12 @@ animation:
     slow: 300
     verySlow: 400
   reverseDuration: 64%       # reverse = forward x 64%: fast 125 ms gives 80 ms
+  transition:                # a page transition type for each window size (FO-05 US-05 FR-04)
+    watch: platform          # platform: Flutter's own page motion for the platform
+    mobile: platform
+    tablet: platform
+    desktop: platform
+    bigDesktop: platform
   curve:                     # a Flutter Curves name, or "cubic(a, b, c, d)" as Figma and CSS write it
     standard: easeInOutSine  # forward and reverse of every level
     enter: easeOut           # forward of animation.appear
