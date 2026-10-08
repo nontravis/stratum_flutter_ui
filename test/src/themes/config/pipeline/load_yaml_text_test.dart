@@ -37,6 +37,12 @@ String _blockThenFlow(int n) => [
   '${' ' * 31}k31: ${'[' * (n - 32)}x${']' * (n - 32)}',
 ].join('\n');
 
+/// [n] nested flow mappings, each opened on its own line behind a
+/// byte-order mark except the first (design G4; security review round 2
+/// C1): package:yaml allows a byte-order mark to start any line, a
+/// construct the depth and anchor rules do not refuse.
+String _bomChain(int n) => '{${'\n\u{FEFF}{' * (n - 1)}a${'}' * n}';
+
 void main() {
   group('sec f1, us02/fr03/e09: loadYamlText turns every package:yaml '
       'failure into one escaped YamlTextFailure', () {
@@ -284,6 +290,42 @@ void main() {
 
         expect(failure.message, yamlKeyMessage, reason: '$n');
         expect(failure.at, (line: 1, column: 2), reason: '$n');
+      }
+    });
+  });
+
+  group('fo01 us01/fr01/e07, g4: a byte-order mark past the first '
+      'character', () {
+    test(r'"{\n﻿{a}}" is refused at the byte-order mark on its '
+        'second line, which package:yaml would otherwise let start a '
+        'mapping key just as a bare "{" does', () {
+      final failure = _gateFailure('{\n\u{FEFF}{a}}');
+
+      expect(failure.message, yamlBomMessage);
+      expect(failure.at, (line: 2, column: 1));
+    });
+
+    test('review focus: a leading byte-order mark still loads', () {
+      expect(
+        () => checkYamlGate('\u{FEFF}a: 1\r\nb:\r\n  c: "{x}"\r\n'),
+        returnsNormally,
+      );
+    });
+
+    test('c1 round 2 (critical): package:yaml allows a byte-order mark '
+        "to start any line, not just the text's own first character; a "
+        'chain of mappings each opened behind one on a later line is '
+        'refused fast at the first such mark, never at a depth '
+        'proportional to the chain', () {
+      for (final n in [16, 64]) {
+        final text = _bomChain(n);
+
+        final watch = Stopwatch()..start();
+        final failure = _gateFailure(text);
+        expect(watch.elapsedMilliseconds, lessThan(1000), reason: '$n');
+
+        expect(failure.message, yamlBomMessage, reason: '$n');
+        expect(failure.at, (line: 2, column: 1), reason: '$n');
       }
     });
   });

@@ -111,6 +111,10 @@ const _fragments = <String>[
   // without ":", so random concatenation can land a collection right
   // after a flow mapping's "{" or ",", the shape the old gate missed.
   '{a}', '{a}, ', '{a:b}', '{a:b}, ', '[a]', '[a], ',
+  // A byte-order mark starting a later line (C1 round 2): package:yaml
+  // allows it there too, a shape plain '\n' and '\u{FEFF}' fragments
+  // rarely land adjacent.
+  '\n\u{FEFF}', '\r\n\u{FEFF}',
 ];
 
 const _noise = <String>[
@@ -198,6 +202,11 @@ void main() {
         '{{a}}',
         '{[a]}',
         '{a, [b]}',
+        // C1 round 2: package:yaml allows a byte-order mark to start any
+        // line (scanner.dart's _scanToNextToken), not just the text's
+        // own first character, so one can hide a collection key the
+        // same way.
+        '{\n\u{FEFF}{a}}',
       ].forEach(_expectSound);
     });
 

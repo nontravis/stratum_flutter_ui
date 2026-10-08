@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:source_span/source_span.dart';
 import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:yaml/yaml.dart';
 
@@ -27,6 +26,12 @@ const yamlSizeMessage = 'text longer than 1 MiB';
 const yamlKeyMessage =
     'a mapping key is a collection or an explicit "?" key; write it as a '
     'plain or quoted value';
+
+/// The message of a byte-order mark anywhere but the text's first
+/// character (FO-01 US-01 FR-01 E07, design G4; security review round 2
+/// C1).
+const yamlBomMessage =
+    'a byte-order mark only starts the text, never a later line';
 
 const _tab = 0x09;
 const _lf = 0x0A;
@@ -85,16 +90,14 @@ YamlNode loadYamlText(String text) {
     );
   } on FormatException catch (error) {
     // `FormatException` also covers `YamlException` and
-    // `StringScannerException`, both `SourceSpanFormatException`s, whose
-    // `span` locates the error when package:yaml found one, and is null
-    // otherwise.
-    final start = error is SourceSpanFormatException ? error.span?.start : null;
-    throw YamlTextFailure(
-      escapeZipText(error.message),
-      at: start == null
-          ? null
-          : (line: start.line + 1, column: start.column + 1),
-    );
+    // `StringScannerException`; `FormatException.offset` already carries
+    // their span's start as a code-unit index with no new import, so
+    // [_refusal] locates it exactly as it locates a gate refusal, and is
+    // null when package:yaml found no position.
+    final offset = error.offset;
+    throw offset == null
+        ? YamlTextFailure(escapeZipText(error.message))
+        : _refusal(text, offset, escapeZipText(error.message));
   }
   checkYamlTree(root);
   return root;
@@ -142,12 +145,13 @@ YamlTextFailure _nodeFailure(YamlNode node, String message) {
 /// design G1 to G4, G9): a text longer than [yamlTextMaxUnits] code
 /// units; a YAML anchor, alias, or tag where package:yaml could start a
 /// token, outside a comment; a mapping key that is a collection or an
-/// explicit `?` key; and nesting deeper than [yamlMaxDepth]. One linear
-/// pass that errs toward refusing: it never passes a text in which
-/// package:yaml 3.1.4 reads an anchor, an alias, a tag, or a collection
-/// as a mapping key, or nests past 64, and may refuse a text package:yaml
-/// would read. Throws [YamlTextFailure] at the first offending character,
-/// with its 1-based line and column and the message of its rule.
+/// explicit `?` key; a byte-order mark anywhere but the first character;
+/// and nesting deeper than [yamlMaxDepth]. One linear pass that errs
+/// toward refusing: it never passes a text in which package:yaml 3.1.4
+/// reads an anchor, an alias, a tag, or a collection as a mapping key, or
+/// nests past 64, and may refuse a text package:yaml would read. Throws
+/// [YamlTextFailure] at the first offending character, with its 1-based
+/// line and column and the message of its rule.
 void checkYamlGate(String text) {
   if (text.length > yamlTextMaxUnits) {
     throw _refusal(text, yamlTextMaxUnits, yamlSizeMessage);
@@ -284,7 +288,13 @@ final class _YamlGate {
   }
 
   void _line(int start, int end) {
-    final property = _propertyAt(start, end);
+    var index = _propertyAt(start, end);
+    var message = yamlPropertyMessage;
+    final bom = _bomAt(start, end);
+    if (bom >= 0 && (index < 0 || bom < index)) {
+      index = bom;
+      message = yamlBomMessage;
+    }
     try {
       if (_locked) {
         _lockedLine(start, end, start);
@@ -292,11 +302,24 @@ final class _YamlGate {
         _modelLine(start, end);
       }
     } on _Breach catch (breach) {
-      if (property < 0 || breach.index < property) {
+      if (index < 0 || breach.index < index) {
         throw _refusal(_text, breach.index, breach.message);
       }
     }
-    if (property >= 0) throw _refusal(_text, property, yamlPropertyMessage);
+    if (index >= 0) throw _refusal(_text, index, message);
+  }
+
+  /// The first U+FEFF from [start] to [end] other than at the text's
+  /// absolute index 0, where it is the text's own leading mark; -1 when
+  /// none. package:yaml also allows a byte-order mark to start any later
+  /// line (`scanner.dart`'s `_scanToNextToken`), a construct the model
+  /// does not track, so the gate refuses every other one (design G4;
+  /// security review round 2 C1).
+  int _bomAt(int start, int end) {
+    for (var i = start; i < end; i++) {
+      if (_text.codeUnitAt(i) == _bom && i != 0) return i;
+    }
+    return -1;
   }
 
   // MARK: - The property rule (G3)
