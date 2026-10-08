@@ -88,7 +88,9 @@ class WrapLayout extends BoxLayout {
   /// Shows only the children of the first [maxRuns] runs; null sets no run
   /// limit. At least 1. With [maxChildren] also set, the limit that hides
   /// more wins, and children hide from the end. A hidden child stays
-  /// mounted with its State but does not paint or take hits.
+  /// mounted with its State but does not paint, take hits, take focus, or
+  /// appear in semantics, and its tickers stop until a limit change shows
+  /// it again.
   final int? maxRuns;
 
   /// Shows only the first [maxChildren] children; null sets no child

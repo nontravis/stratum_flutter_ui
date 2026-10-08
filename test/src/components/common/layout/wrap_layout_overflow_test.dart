@@ -93,6 +93,39 @@ List<Widget> _chips(int count) => [
   for (var i = 0; i < count; i++) _Chip(key: ValueKey('chip $i')),
 ];
 
+/// A 10 by 10 box whose ticker calls [onTick] on every frame.
+class _Spinner extends StatefulWidget {
+  const new({required this.onTick});
+
+  final VoidCallback onTick;
+
+  @override
+  State<_Spinner> createState() => _SpinnerState();
+}
+
+class _SpinnerState extends State<_Spinner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 1),
+  )..addListener(widget.onTick);
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(width: 10, height: 10);
+}
+
 /// An [AssertionError] whose message contains every one of [parts].
 Matcher _assertionNaming(List<String> parts) => throwsA(
   isA<AssertionError>().having(
@@ -101,6 +134,71 @@ Matcher _assertionNaming(List<String> parts) => throwsA(
     allOf([for (final part in parts) contains(part)]),
   ),
 );
+
+FocusNode _node(String label) {
+  final node = FocusNode(debugLabel: label);
+  addTearDown(node.dispose);
+  return node;
+}
+
+/// Tag [i], 40 by 20, that takes focus on [node].
+Widget _focusTag(int i, FocusNode node) => Focus(
+  key: ValueKey('tag $i'),
+  focusNode: node,
+  child: const SizedBox(width: 40, height: 20),
+);
+
+/// The "+N" child of [_more] on a focus node labeled `+N`.
+Widget _focusMore(BuildContext context, int count) =>
+    Focus(debugLabel: '+N', child: _more(context, count));
+
+/// The label of the node that holds primary focus.
+String? _focused() => FocusManager.instance.primaryFocus?.debugLabel;
+
+/// [child] between two focusable boxes, [before] and [after], under the
+/// app's default Tab and activation keys.
+Widget _keyboardHost(
+  Widget child, {
+  required FocusNode before,
+  required FocusNode after,
+}) {
+  return Directionality(
+    textDirection: TextDirection.ltr,
+    child: Shortcuts(
+      shortcuts: WidgetsApp.defaultShortcuts,
+      child: Actions(
+        actions: WidgetsApp.defaultActions,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 230,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Focus(
+                  focusNode: before,
+                  child: const SizedBox(width: 10, height: 10),
+                ),
+                child,
+                Focus(
+                  focusNode: after,
+                  child: const SizedBox(width: 10, height: 10),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// The labels a screen reader reads, in its order.
+List<String> _readOut(WidgetTester tester) => [
+  for (final node in tester.semantics.simulatedAccessibilityTraversal())
+    if (node.label.isNotEmpty) node.label,
+];
 
 void main() {
   group('WrapLayout overflow (US-14)', () {
@@ -341,6 +439,225 @@ void main() {
           ),
           findsOneWidget,
         );
+      },
+    );
+  });
+
+  group('WrapLayout hidden children (US-14 FR-03)', () {
+    testWidgets(
+      "us14/fr03, us14/fr03/e04, s03/inv39: a hidden child's ticker stops "
+      'and ticks again when a limit change shows it',
+      (tester) async {
+        final ticks = [0, 0];
+        Widget build(int? maxChildren) => _host(
+          _wrap(
+            maxChildren: maxChildren,
+            children: [
+              _Spinner(onTick: () => ticks[0]++),
+              _Spinner(onTick: () => ticks[1]++),
+            ],
+          ),
+        );
+        await tester.pumpWidget(build(1));
+        await tester.pump(const Duration(milliseconds: 16));
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(ticks[0], greaterThan(0));
+        expect(ticks[1], 0);
+
+        await tester.pumpWidget(build(null));
+        await tester.pump(const Duration(milliseconds: 16));
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(ticks[1], greaterThan(0));
+      },
+    );
+
+    testWidgets(
+      'us14/s5, us14/fr03/e04: a chip selected before a collapse shows '
+      'still selected after the expand',
+      (tester) async {
+        Widget build(int? maxRuns) =>
+            _host(_wrap(maxRuns: maxRuns, children: _chips(12)));
+        await tester.pumpWidget(build(null));
+        await tester.tap(find.byKey(const ValueKey('chip 9')));
+        await tester.pump();
+        final chip = tester.state<_ChipState>(
+          find.byKey(const ValueKey('chip 9')),
+        );
+        expect(chip.selected, isTrue);
+
+        await tester.pumpWidget(build(2));
+        expect(find.byKey(const ValueKey('chip 9')), findsNothing);
+        await tester.pumpWidget(build(null));
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.state<_ChipState>(find.byKey(const ValueKey('chip 9'))),
+          same(chip),
+        );
+        expect(chip.selected, isTrue);
+      },
+    );
+
+    testWidgets(
+      'us14/s7, us14/fr03/e05: Tab moves through the shown items and then '
+      '"+4", never a hidden item',
+      (tester) async {
+        final nodes = [for (var i = 0; i < 12; i++) _node('tag $i')];
+        final before = _node('before');
+        await tester.pumpWidget(
+          _keyboardHost(
+            before: before,
+            after: _node('after'),
+            _wrap(
+              maxRuns: 2,
+              overflowBuilder: _focusMore,
+              children: [
+                for (final (i, node) in nodes.indexed) _focusTag(i, node),
+              ],
+            ),
+          ),
+        );
+        before.requestFocus();
+        await tester.pump();
+
+        final visited = <String?>[];
+        for (var i = 0; i < 10; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          visited.add(_focused());
+        }
+
+        expect(visited, [for (var i = 0; i < 8; i++) 'tag $i', '+N', 'after']);
+      },
+    );
+
+    testWidgets(
+      'us14/fr03/e05: Shift+Tab moves back through "+4" and the shown items, '
+      'never a hidden item',
+      (tester) async {
+        final nodes = [for (var i = 0; i < 12; i++) _node('tag $i')];
+        final after = _node('after');
+        await tester.pumpWidget(
+          _keyboardHost(
+            before: _node('before'),
+            after: after,
+            _wrap(
+              maxRuns: 2,
+              overflowBuilder: _focusMore,
+              children: [
+                for (final (i, node) in nodes.indexed) _focusTag(i, node),
+              ],
+            ),
+          ),
+        );
+        after.requestFocus();
+        await tester.pump();
+
+        final visited = <String?>[];
+        for (var i = 0; i < 10; i++) {
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
+          await tester.pump();
+          visited.add(_focused());
+        }
+
+        expect(visited, [
+          '+N',
+          for (var i = 7; i >= 0; i--) 'tag $i',
+          'before',
+        ]);
+      },
+    );
+
+    testWidgets(
+      'us14/fr03, s03/inv39: a hidden child cannot take focus, and takes it '
+      'once a limit change shows it',
+      (tester) async {
+        final hidden = _node('tag 9');
+        Widget build(int? maxRuns) => _host(
+          _wrap(
+            maxRuns: maxRuns,
+            children: [
+              for (var i = 0; i < 12; i++)
+                if (i == 9) _focusTag(9, hidden) else _tag(i),
+            ],
+          ),
+        );
+        await tester.pumpWidget(build(2));
+        hidden.requestFocus();
+        await tester.pump();
+        expect(hidden.hasFocus, isFalse);
+
+        await tester.pumpWidget(build(null));
+        await tester.pumpAndSettle();
+        hidden.requestFocus();
+        await tester.pump();
+        expect(hidden.hasFocus, isTrue);
+      },
+    );
+
+    testWidgets(
+      'us14/s9, us14/fr03, us14/fr03/e04, s03/inv39: a screen reader reads '
+      'the shown items and "+4", never a hidden item',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final collapsed = [for (var i = 0; i < 8; i++) 'tag $i', '+4'];
+        await tester.pumpWidget(_host(_wrap(maxRuns: 2, children: _tags(12))));
+        expect(_readOut(tester), collapsed);
+
+        await tester.pumpWidget(_host(_wrap(children: _tags(12))));
+        await tester.pumpAndSettle();
+        expect(_readOut(tester), [for (var i = 0; i < 12; i++) 'tag $i']);
+
+        await tester.pumpWidget(_host(_wrap(maxRuns: 2, children: _tags(12))));
+        await tester.pumpAndSettle();
+        expect(_readOut(tester), collapsed);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('keyed children reordered while some hide keep their State', (
+      tester,
+    ) async {
+      Widget build(List<int> order) => _host(
+        _wrap(
+          maxChildren: 2,
+          children: [for (final i in order) _Chip(key: ValueKey('chip $i'))],
+        ),
+      );
+      await tester.pumpWidget(build([0, 1, 2, 3]));
+      final moved = tester.state(
+        find.byKey(const ValueKey('chip 3'), skipOffstage: false),
+      );
+
+      await tester.pumpWidget(build([3, 0, 1, 2]));
+
+      expect(tester.state(find.byKey(const ValueKey('chip 3'))), same(moved));
+      expect(find.byKey(const ValueKey('chip 1')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('chip 1'), skipOffstage: false),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'a hidden child that calls setState rebuilds and stays hidden',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(_wrap(maxChildren: 1, children: _chips(2))),
+        );
+        final hidden = tester.state<_ChipState>(
+          find.byKey(const ValueKey('chip 1'), skipOffstage: false),
+        );
+        expect(hidden.selected, isFalse);
+
+        hidden.toggle();
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(hidden.selected, isTrue);
+        expect(find.byKey(const ValueKey('chip 1')), findsNothing);
       },
     );
   });

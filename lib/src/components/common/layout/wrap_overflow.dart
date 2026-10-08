@@ -228,14 +228,31 @@ class _WrapOverflowElement extends RenderObjectElement {
       !debugChildrenHaveDuplicateKeys(widget, _frame.children),
       'WrapOverflowFrame.children has duplicate keys',
     );
-    final built = updateChildren(
-      old,
-      _frame.children,
-      forgottenChildren: _forgotten,
-    );
+    final shown = _shown;
+    final built = updateChildren(old, [
+      for (final (i, child) in _frame.children.indexed)
+        _slot(child, hidden: shown != null && i >= shown),
+    ], forgottenChildren: _forgotten);
     _forgotten.clear();
     return built;
   }
+
+  /// [child] in its [_WrapSlot], keyed by the child's own key, so a keyed
+  /// child keeps its State when the children move.
+  static Widget _slot(Widget child, {required bool hidden}) =>
+      _WrapSlot(key: _slotKey(child), hidden: hidden, child: child);
+
+  static Key? _slotKey(Widget child) => switch (child.key) {
+    null => null,
+    final key => ValueKey<Key>(key),
+  };
+
+  /// The node that marks the subtree of the child in [slot].
+  // Read by the focus handoff after a collapse or an expand (US-14 FR-03
+  // E01 to E03), which applyCut gains next.
+  // ignore: unused_element
+  static FocusNode _nodeOf(Element slot) =>
+      ((slot as StatefulElement).state as _WrapSlotState).node;
 
   @override
   void visitChildren(ElementVisitor visitor) {
@@ -279,9 +296,9 @@ class _WrapOverflowElement extends RenderObjectElement {
   /// widget [buildProbe] already built for [hiddenCount]), or removes it
   /// at 0, inside the render object's layout. Skips the rebuild when
   /// neither [hiddenCount] nor the frame's widget or its dependencies
-  /// changed since the last layout, and the live child is still there: a
-  /// probe that took a [GlobalKey]-keyed live child back leaves the slot
-  /// empty.
+  /// changed since the last layout, and the live child's box is still in
+  /// its slot: a probe that took a [GlobalKey]-keyed live child back
+  /// leaves its [_WrapSlot] mounted but the slot with no box.
   ///
   /// Reports, debug-only, a [GlobalKey] this build took over from the
   /// still-mounted probe: the live slot inflates the widget the probe
@@ -301,7 +318,7 @@ class _WrapOverflowElement extends RenderObjectElement {
     );
     if (!_overflowDirty &&
         hiddenCount == _overflowHiddenCount &&
-        (hiddenCount == 0 || _overflow != null)) {
+        (hiddenCount == 0 || renderObject.overflow != null)) {
       return;
     }
     _overflowDirty = false;
@@ -314,7 +331,9 @@ class _WrapOverflowElement extends RenderObjectElement {
     owner!.buildScope(this, () {
       _overflow = updateChild(
         _overflow,
-        hiddenCount == 0 ? null : builtWidget,
+        hiddenCount == 0 || builtWidget == null
+            ? null
+            : _slot(builtWidget, hidden: false),
         _overflowSlot,
       );
     });
@@ -382,13 +401,11 @@ class _WrapOverflowElement extends RenderObjectElement {
       _probeWidget = built;
       _probe = updateChild(
         _probe,
-        TickerMode(
-          enabled: false,
-          child: ExcludeFocus(
-            child: SelectionContainer.disabled(
-              child: HeroMode(enabled: false, child: built),
-            ),
+        _hideable(
+          SelectionContainer.disabled(
+            child: HeroMode(enabled: false, child: built),
           ),
+          hidden: true,
         ),
         _probeSlot,
       );
@@ -421,8 +438,24 @@ class _WrapOverflowElement extends RenderObjectElement {
     return keys;
   }
 
-  /// Records the cut: the first [shown] children show.
-  void applyCut(int shown) => _shown = shown;
+  /// Shows the first [shown] children and hides the rest, inside the
+  /// render object's layout, so a child the cut hides stops ticking and
+  /// leaves focus in the frame of the cut (s03 invariant 39).
+  void applyCut(int shown) {
+    _shown = shown;
+    owner!.buildScope(this, () {
+      for (var i = 0; i < _children.length; i++) {
+        final slot = _children[i].widget as _WrapSlot;
+        final hidden = i >= shown;
+        if (slot.hidden == hidden) continue;
+        _children[i] = updateChild(
+          _children[i],
+          _slot(slot.child, hidden: hidden),
+          IndexedSlot<Element?>(i, i == 0 ? null : _children[i - 1]),
+        )!;
+      }
+    });
+  }
 
   @override
   void insertRenderObjectChild(RenderBox child, Object? slot) {
@@ -459,6 +492,51 @@ class _WrapOverflowElement extends RenderObjectElement {
     }
   }
 }
+
+/// One child of the wrap: shown, or hidden with its tickers stopped and
+/// out of focus, keeping its State, as [IndexedStack] hides a child with
+/// [ExcludeFocus] and `IndexedStackLayout` adds [TickerMode].
+class _WrapSlot extends StatefulWidget {
+  const new({super.key, required this.hidden, required this.child});
+
+  final bool hidden;
+  final Widget child;
+
+  @override
+  State<_WrapSlot> createState() => _WrapSlotState();
+}
+
+class _WrapSlotState extends State<_WrapSlot> {
+  /// Marks the child's subtree, so the wrap can tell whether focus sits in
+  /// it and find its first Tab stop; takes no focus itself.
+  final node = FocusNode(
+    debugLabel: 'WrapLayout child',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+
+  @override
+  void dispose() {
+    node.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _hideable(
+      Focus(focusNode: node, includeSemantics: false, child: widget.child),
+      hidden: widget.hidden,
+    );
+  }
+}
+
+/// [child] with its tickers stopped and out of focus while [hidden]; the
+/// one wrapper of a [_WrapSlot] and of the probe (owner ruling R8), so
+/// both leave tickers and focus the same way.
+Widget _hideable(Widget child, {required bool hidden}) => TickerMode(
+  enabled: !hidden,
+  child: ExcludeFocus(excluding: hidden, child: child),
+);
 
 class _WrapOverflowParentData extends ContainerBoxParentData<RenderBox> {
   /// Whether the last layout showed the child.
@@ -561,17 +639,13 @@ class _RenderWrapOverflow extends RenderBox
     if (probe != null) visitor(probe);
   }
 
-  /// The overflow child reaches semantics (deferred to M2-T4 for the
-  /// hidden children too); the probe (owner ruling R8) never does, since
-  /// it holds an interim count no assistive technology should announce.
+  /// Only the shown children and the overflow child reach semantics, as
+  /// [IndexedStack] reports only its shown child; the probe (owner ruling
+  /// R8) never does, since it holds an interim count no assistive
+  /// technology should announce.
   @override
-  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
-    for (var child = firstChild; child != null; child = childAfter(child)) {
-      visitor(child);
-    }
-    final overflow = _overflow;
-    if (overflow != null) visitor(overflow);
-  }
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) =>
+      _shownBoxes.forEach(visitor);
 
   @override
   List<DiagnosticsNode> debugDescribeChildren() => [
@@ -688,6 +762,11 @@ class _RenderWrapOverflow extends RenderBox
     });
     if (overflowRun != null) {
       _overflow!.layout(childConstraints, parentUsesSize: true);
+    }
+    // A flag change rebuilds a child's slot, which can mark the child for
+    // layout; laying it out again is a no-op unless it did.
+    for (final child in children) {
+      child.layout(childConstraints, parentUsesSize: true);
     }
     _place(cut, children, overflowRun == null ? null : _overflow);
   }
