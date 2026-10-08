@@ -103,6 +103,7 @@ class _StratumTransitionPageRoute<T> extends PageRoute<T> {
       delegatedScreenTransition(
         _page.type,
         platformOf(navigator?.context),
+        opaque: opaque,
         joinOnSecondary: true,
       );
 

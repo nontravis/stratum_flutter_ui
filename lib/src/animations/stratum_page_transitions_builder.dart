@@ -69,13 +69,15 @@ class StratumPageTransitionsBuilder extends PageTransitionsBuilder {
   /// The transition a route below that is not a Material route leaves by in
   /// sync with this builder's route (style s03 invariant 21): the
   /// [_typeOf] type's by [delegatedScreenTransition], which every route of
-  /// US-05 shares, else the child unchanged. Never throws.
+  /// US-05 shares, else the child unchanged. Never throws. This builder's
+  /// routes are Material routes, which are opaque.
   @override
   DelegatedTransitionBuilder? get delegatedTransition =>
       (context, animation, secondaryAnimation, allowSnapshotting, child) =>
           delegatedScreenTransition(
             _typeOf(context),
             platform,
+            opaque: true,
             joinOnSecondary: true,
           )?.call(
             context,

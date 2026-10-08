@@ -50,6 +50,7 @@ Future<PageTransition<void>> _push(
   Widget child = const SizedBox(),
   Widget? childCurrent,
   Alignment? alignment,
+  bool opaque = false,
   bool reducedMotion = false,
 }) async {
   final navigator = GlobalKey<NavigatorState>();
@@ -64,6 +65,7 @@ Future<PageTransition<void>> _push(
     child: child,
     childCurrent: childCurrent,
     alignment: alignment,
+    opaque: opaque,
   );
   navigator.currentState!.push(route).ignore();
   await tester.pump();
@@ -856,19 +858,39 @@ void main() {
   group('us05/fr01: the Material home below a new page', () {
     final home = find.byKey(const ValueKey('home'));
 
-    testWidgets('platform on iOS parallaxes it out', (tester) async {
-      await _push(tester, type: ScreenTransitionType.platform);
+    testWidgets('an opaque platform on iOS parallaxes it out', (tester) async {
+      await _push(tester, type: ScreenTransitionType.platform, opaque: true);
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(tester.getTopLeft(home).dx, lessThan(0));
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
-    testWidgets('sharedAxisHorizontal moves it out', (tester) async {
-      await _push(tester, type: ScreenTransitionType.sharedAxisHorizontal);
+    testWidgets('an opaque sharedAxisHorizontal moves it out', (tester) async {
+      await _push(
+        tester,
+        type: ScreenTransitionType.sharedAxisHorizontal,
+        opaque: true,
+      );
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(tester.getTopLeft(home).dx, lessThan(0));
     });
+
+    for (final type in [
+      ScreenTransitionType.platform,
+      ScreenTransitionType.cupertino,
+      ScreenTransitionType.sharedAxisHorizontal,
+    ]) {
+      testWidgets('a translucent ${type.name} leaves it in place, seen '
+          'through it', (tester) async {
+        await _push(tester, type: type);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(tester.getTopLeft(home).dx, 0);
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(home).dx, 0);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+    }
 
     testWidgets('rightToLeft leaves it in place', (tester) async {
       await _push(tester, type: ScreenTransitionType.rightToLeft);
@@ -897,7 +919,7 @@ void main() {
     testWidgets('nfr-u03: under reduce motion cupertino leaves it in place '
         'but for a swipe-back, which it tracks', (tester) async {
       _apply(tester, _Reduce.reduceMotion);
-      await _push(tester, type: ScreenTransitionType.cupertino);
+      await _push(tester, type: ScreenTransitionType.cupertino, opaque: true);
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(tester.getTopLeft(home).dx, 0);

@@ -336,7 +336,10 @@ Widget buildScreenTransition<T>(
 /// draws the outgoing half of [buildScreenTransition] on the page below,
 /// on [curve], else the theme's `standard` curve. Every other type gets
 /// null, so a route below that moves only for its own kind, such as a
-/// [MaterialPageRoute], stays still.
+/// [MaterialPageRoute], stays still. A route that is not [opaque] gets null
+/// for every type too: the page below shows through it, so it stays as it
+/// was rather than parked where the outgoing half ends, as Flutter only
+/// delegates from opaque page routes.
 ///
 /// A page never moves twice: Flutter holds the secondary animation of the
 /// page below's own transition while this one runs, and
@@ -347,9 +350,11 @@ Widget buildScreenTransition<T>(
 DelegatedTransitionBuilder? delegatedScreenTransition(
   ScreenTransitionType type,
   TargetPlatform platform, {
+  required bool opaque,
   Curve? curve,
   bool joinOnSecondary = false,
 }) => switch (type) {
+  _ when !opaque => null,
   ScreenTransitionType.platform || ScreenTransitionType.cupertino =>
     _flutterDelegate(flutterTransitionsBuilder(type, platform)!, curve),
   ScreenTransitionType.rightToLeftJoined ||

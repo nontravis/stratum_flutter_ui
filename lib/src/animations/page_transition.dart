@@ -158,12 +158,15 @@ class PageTransition<T> extends PageRouteBuilder<T> {
 
   /// The transition the route below leaves by (US-05 FR-01; style s03
   /// invariant 21), by the one function every route of US-05 shares. Null
-  /// for a joined type: [childCurrent] already leaves in this route.
+  /// for a joined type: [childCurrent] already leaves in this route. Null
+  /// too unless [opaque], which is false by default: the route below then
+  /// shows through this one, unmoved.
   @override
   DelegatedTransitionBuilder? get delegatedTransition =>
       delegatedScreenTransition(
         type,
         platformOf(navigator?.context),
+        opaque: opaque,
         curve: curve,
       );
 
