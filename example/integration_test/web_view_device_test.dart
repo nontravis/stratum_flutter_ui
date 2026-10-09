@@ -7,6 +7,15 @@ import 'package:integration_test/integration_test.dart';
 // Same import as lib/main.dart, the demo this test walks.
 // ignore: implementation_imports
 import 'package:stratum_ui/src/components/common/web_view/web_view.dart';
+// Group A's `debugStratumWebViewPlatformFactory` seam (M3-T10, M3-T11): lets
+// the started check read a lasting record of the load callbacks instead of
+// a UI state that may never reach a drawn frame.
+// ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view.dart';
+// ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
+// ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_controller.dart';
 import 'package:stratum_ui_example/main.dart';
 
 /// Turns on the screenshot checkpoints (F-01 US-08 FR-01 input
@@ -47,6 +56,20 @@ void main() {
   });
 
   group('group A, the demo tabs', () {
+    // Records the URL tab's own load callbacks so the started and loaded
+    // checks below read a lasting record, not the spinner, which exists
+    // only between onPageStarted and onPageFinished and so can miss every
+    // drawn frame (US-08 scenario 1 on Linux, M3-T10).
+    late _Recorder recorder;
+
+    setUp(() {
+      recorder = _Recorder();
+      debugStratumWebViewPlatformFactory = (listener) =>
+          createPlatformStratumWebView(_ListenerRecorder(listener, recorder));
+    });
+
+    tearDown(() => debugStratumWebViewPlatformFactory = null);
+
     testWidgets(
       'us08/s1, us08/s8, us08/fr01, us08/fr01/e06: the URL, HTML, and '
       'Bridge tabs show their content',
@@ -57,24 +80,25 @@ void main() {
           ),
         );
 
-        // The URL tab shows a spinner from onPageStarted to onPageFinished,
-        // and an error line from onError. On the web the page starts at
-        // once and a refused frame finishes within a few frames, so this
-        // polls every frame from the first one on.
+        // `started` and `loaded` read `recorder`, filled through the
+        // platform hook above, not the spinner: the spinner stays below as
+        // a logged observation only, never an assertion (M3-T10 Fix
+        // direction, Option A).
         final spinner = find.byType(CircularProgressIndicator);
         final started = await _pumpUntil(
           tester,
-          () =>
-              spinner.evaluate().isNotEmpty ||
-              find.textContaining(_errorLine).evaluate().isNotEmpty,
+          () => recorder.starts.isNotEmpty || recorder.errors.isNotEmpty,
           timeout: const Duration(seconds: 45),
           interval: const Duration(milliseconds: 16),
         );
+        if (started && spinner.evaluate().isEmpty) {
+          debugPrint('us08/s1: started with no spinner frame drawn');
+        }
         final loaded =
             started &&
             await _pumpUntil(
               tester,
-              () => spinner.evaluate().isEmpty,
+              () => recorder.starts.isEmpty || recorder.finishes.isNotEmpty,
               timeout: const Duration(seconds: 45),
             );
         await _checkpoint(binding, tester, 'a_url');
@@ -944,6 +968,47 @@ Future<Uri> _closedPortPage() async {
   final port = socket.port;
   await socket.close();
   return Uri.parse('http://127.0.0.1:$port/');
+}
+
+/// Forwards every callback to [inner], the controller's own listener, and
+/// also feeds the load callbacks to [recorder], so a wrapped
+/// `debugStratumWebViewPlatformFactory` can observe them the way group B
+/// does, with no change to how the wrapped controller behaves (M3-T11,
+/// group A's started check).
+final class _ListenerRecorder implements PlatformStratumWebViewListener {
+  _ListenerRecorder(this.inner, this.recorder);
+
+  final PlatformStratumWebViewListener inner;
+  final _Recorder recorder;
+
+  @override
+  Set<Uri> get allowedOrigins => inner.allowedOrigins;
+
+  @override
+  void onMessage(StratumWebViewMessage message, PlatformMessageSender sender) =>
+      inner.onMessage(message, sender);
+
+  @override
+  StratumNavigationDecision onNavigationRequest(Uri url) =>
+      inner.onNavigationRequest(url);
+
+  @override
+  void onPageStarted(Uri? url) {
+    recorder.onStarted(url);
+    inner.onPageStarted(url);
+  }
+
+  @override
+  void onPageFinished(Uri? url) {
+    recorder.onFinished(url);
+    inner.onPageFinished(url);
+  }
+
+  @override
+  void onError(StratumWebViewError error) {
+    recorder.onError(error);
+    inner.onError(error);
+  }
 }
 
 /// What one web view reported in a group B case, in arrival order.
