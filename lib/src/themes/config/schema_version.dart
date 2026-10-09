@@ -10,8 +10,9 @@ part 'generated/schema_version.freezed.dart';
 class StratumSchemaVersion with _$StratumSchemaVersion {
   const new(this.major, this.minor, this.patch);
 
-  /// The newest version this package reads: `stratum-theme/v1.0.0`.
-  static const current = StratumSchemaVersion(1, 0, 0);
+  /// The newest version this package reads: `stratum-theme/v1.1.0`, the
+  /// version that adds the `opacity` group (config s03 invariant 11).
+  static const current = StratumSchemaVersion(1, 1, 0);
 
   static final _pattern = RegExp(r'^stratum-theme/v(\d+)\.(\d+)\.(\d+)$');
 

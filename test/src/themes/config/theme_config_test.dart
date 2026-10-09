@@ -87,7 +87,7 @@ void main() {
             'toString',
             'StratumThemeFormatException: 1 problem(s) in theme.yaml\n'
                 r'  ocean:1:10 $schema: theme needs stratum-theme v1.2; '
-                'this app reads up to v1.0 [unsupported_schema]',
+                'this app reads up to v1.1 [unsupported_schema]',
           ),
         ),
       );

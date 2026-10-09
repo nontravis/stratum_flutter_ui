@@ -1,4 +1,4 @@
-$schema: stratum-theme/v1.0.0
+$schema: stratum-theme/v1.1.0
 name: stratum-default
 
 assets:
