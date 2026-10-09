@@ -218,6 +218,27 @@ void main() {
       expect(_painter(tester).side, 40);
     });
 
+    testWidgets('customSize of -1 fails the assertion', (tester) async {
+      expect(() => StratumCaret(customSize: -1), throwsAssertionError);
+    });
+
+    testWidgets('customSize of NaN fails the assertion', (tester) async {
+      expect(() => StratumCaret(customSize: double.nan), throwsAssertionError);
+    });
+
+    testWidgets('customSize of infinity fails the assertion', (tester) async {
+      expect(
+        () => StratumCaret(customSize: double.infinity),
+        throwsAssertionError,
+      );
+    });
+
+    testWidgets('customSize of 0 builds', (tester) async {
+      await tester.pumpWidget(themedHost(const StratumCaret(customSize: 0)));
+
+      expect(tester.getSize(find.byType(StratumCaret)), Size.zero);
+    });
+
     testWidgets('us01/s3, R1: a regular caret at the large size measures '
         '20 px and keeps its 1.5 px line', (tester) async {
       await tester.pumpWidget(

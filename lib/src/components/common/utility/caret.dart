@@ -87,7 +87,14 @@ class StratumCaret extends StratumStatefulWidget {
     super.loading,
     super.debug,
     super.customStyle,
-  });
+  }) : assert(
+         // `customSize.isFinite` is not const-evaluable; comparisons are,
+         // and a NaN comparison is false either way (IEEE 754), which
+         // rejects it along with a negative or infinite value.
+         customSize == null ||
+             (customSize >= 0 && customSize < double.infinity),
+         'StratumCaret.customSize must be null or a finite number >= 0',
+       );
 
   /// A [StratumCaretStyle.light] or [StratumCaretStyle.regular] chevron
   /// line, or a [StratumCaretStyle.fill] triangle.
@@ -96,7 +103,8 @@ class StratumCaret extends StratumStatefulWidget {
   /// Which way the caret points; a change turns it the short way.
   final StratumCaretDirection direction;
 
-  /// The side of the square box in logical pixels; wins over `size`.
+  /// The side of the square box in logical pixels, null or finite and
+  /// `>= 0`; wins over `size`.
   final double? customSize;
 
   /// The glyph color, used as given; wins over `color`.
