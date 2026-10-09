@@ -120,4 +120,58 @@ void main() {
       );
     });
   });
+
+  group('us01/fr03/e01, fo01 us01/fr01/e07, r16 (t25): hostile theme files '
+      'in a zip are theme_format', () {
+    /// Anchors a0 to a[depth], each a list of the one before twice, then a
+    /// mapping key built from the last.
+    String aliasKey(int depth) => [
+      'a0: &a0 [x, x]',
+      for (var d = 1; d <= depth; d++) 'a$d: &a$d [*a${d - 1}, *a${d - 1}]',
+      '? *a$depth',
+      ': v',
+    ].join('\n');
+
+    for (final (label, text, at) in [
+      ('flow nesting 100,000 deep', '[' * 100000, (1, 65)),
+      ('a mapping key built from aliases', aliasKey(18), (1, 5)),
+      ('a tag whose %-escape is not UTF-8', 'x: !<%FF> y', (1, 4)),
+    ]) {
+      test('$label is theme_format holding yaml_syntax at the offending '
+          'character', () async {
+        final bytes = buildZip([
+          ZipEntryFixture('theme.yaml', utf8.encode(text)),
+        ]);
+
+        await expectLater(
+          checkRemoteInstall(
+            StratumRemoteTheme(
+              id: 'brand',
+              bytes: bytes,
+              checksum: checksumOf(bytes),
+            ),
+            packageDefault: remotePackageDefault,
+            parseValues: _inline,
+            nextGeneration: () => 1,
+          ),
+          throwsA(
+            isA<StratumRemoteThemeException>()
+                .having(
+                  (e) => e.code,
+                  'code',
+                  StratumRemoteThemeErrorCode.themeFormat,
+                )
+                .having(
+                  (e) => e.formatException!.errors
+                      .where((error) => error.source == 'brand@1')
+                      .map((error) => (error.code, error.line, error.column))
+                      .single,
+                  'zip error',
+                  (StratumThemeErrorCode.yamlSyntax, at.$1, at.$2),
+                ),
+          ),
+        );
+      });
+    }
+  });
 }

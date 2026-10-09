@@ -158,13 +158,16 @@ void main() {
         remoteTheme(
           'brand',
           files: {
-            'a\u202Ebé.svg': [1],
-            'A\u202EBé.svg': [2],
+            'a"b.svg': [1],
+            'A"B.svg': [2],
           },
         ),
       );
-      for (final line in cliWarnings(check)) {
+      final lines = cliWarnings(check);
+      expect(lines.where((line) => line.contains(r'\u0022')), isNotEmpty);
+      for (final line in lines) {
         expect(line.codeUnits.every((u) => u >= 0x20 && u <= 0x7E), isTrue);
+        expect(line, isNot(contains('a"b')));
       }
 
       try {
@@ -229,12 +232,12 @@ void main() {
       expect(cliWarnings(check), ['warning: "README.html" $unread']);
     });
 
-    test('minor6 edge, us02/fr03/e13: _unreadWarning escapes a non-ASCII '
-        'letter and a quote in the path', () async {
+    test('minor6 edge, us02/fr03/e13: _unreadWarning escapes a quote in the '
+        'path', () async {
       final bytes = buildZip([
         ZipEntryFixture('brand/', const [], deflate: false),
         ZipEntryFixture('brand/theme.yaml', utf8.encode('$remoteSchemaLine\n')),
-        ZipEntryFixture('a"é.html', [1]),
+        ZipEntryFixture('a"b.html', [1]),
       ]);
       final check = await _check(
         StratumRemoteTheme(
@@ -245,7 +248,52 @@ void main() {
       );
 
       const unread = 'is in the zip, but the app install never reads it';
-      expect(cliWarnings(check), ['warning: "a\\u0022\\u00e9.html" $unread']);
+      expect(cliWarnings(check), ['warning: "a\\u0022b.html" $unread']);
+    });
+
+    test('us02/fr02/e08, us02/fr03/e06, rz2: names that differ only in '
+        'Unicode normalization never reach a warning: the check refuses '
+        'them as the install does', () async {
+      await expectLater(
+        _check(
+          remoteTheme(
+            'brand',
+            files: {
+              'cafe\u0301.svg': [1],
+              'café.svg': [2],
+            },
+          ),
+        ),
+        throwsA(
+          isA<StratumRemoteThemeException>().having(
+            (e) => e.code,
+            'code',
+            StratumRemoteThemeErrorCode.unsafeEntryPath,
+          ),
+        ),
+      );
+    });
+
+    test('us02/fr03/e06, rz4, r19 (t28): twin names whose case differs only '
+        'past the cut print distinct ids', () async {
+      final check = await _check(
+        remoteTheme(
+          'brand',
+          files: {
+            '${'b' * 200}X.png': [1],
+            '${'b' * 200}x.png': [2],
+          },
+        ),
+      );
+      final twin = cliWarnings(check)
+          .singleWhere((line) => line.contains('differ only in letter case'));
+      final ids = [
+        for (final match in RegExp(r'id ([0-9a-f]{32})\]').allMatches(twin))
+          match[1],
+      ];
+
+      expect(ids, hasLength(2));
+      expect(ids.toSet(), hasLength(2));
     });
   });
 }

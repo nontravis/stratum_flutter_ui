@@ -312,6 +312,12 @@ scroll it, guarded so a text field inside keeps its own keys.
   alphabetical), and an app `default` folder layers over the package default. An `initialThemeId` that names no
   theme starts on `default` and calls `onThemeChanged('default')`, so the app overwrites its saved id; a theme file
   with problems throws `StratumThemeFormatException`.
+  A theme file, bundled or in a zip, holds no YAML anchor, alias, or tag (`&a`, `*a`, `!x`), no mapping key that is a
+  collection or an explicit `?` key (`[a]: x`, `{a: 1}: x`, `? a`), nests at most 64 collections, holds at most 256
+  keys in one mapping and 2,048 in all, stays within 1 MiB, and holds a byte-order mark (U+FEFF) only as its own
+  first character, never later even on its own line; past that it fails as `yaml_syntax` at the offending character,
+  so write each value out, refer to a token with a quoted `"{group.path}"` alias, split a larger mapping, write each
+  key as a plain or quoted value, and move or remove a stray byte-order mark.
   `switchTo(id)` completes after the new theme is active, keeps the current theme on screen while it loads and when
   it fails, throws `StratumThemeNotFoundException` for an unknown id, and lets the latest of overlapping switches
   win. For the active id it does nothing, unless a newer install of that id is registered and not yet on screen:
@@ -357,12 +363,14 @@ scroll it, guarded so a text field inside keeps its own keys.
   defaults line (`invalid_id`, a symbolic link or other special entry as `unsafe_entry_path`, or a file name or size a
   zip cannot hold as `unsafe_entry_path` or `archive_too_large`); 64 usage; 66 an input that cannot be read (the folder;
   a zip or `--app-default` that is not a regular file or cannot be read; your default theme; a file under the folder;
-  the stratum_ui package or its default theme; a `pubspec.yaml` that is not a regular file, cannot be read, or is not
-  yaml), an `--out` that is not a folder, or a zip that fails to write. Names starting with `.` and `__MACOSX/` stay out
-  of a pack. An install refuses an entry name holding a control character and a folder entry that holds bytes.
-  stratum_ui allows only the google_fonts version its CLI family list came from, so the CLI and your app accept the same
-  `Google/<Name>` families. When `pub get` reports a google_fonts conflict, let your own google_fonts constraint allow
-  the version stratum_ui's `pubspec.yaml` names.
+  the stratum_ui package or its default theme; a `pubspec.yaml` that is not a regular file, is longer than 1 MiB, cannot
+  be read, or is not yaml, such as one holding an anchor, alias, or tag or nesting deeper than 64), an `--out` that is
+  not a folder, or a zip that fails to write. Names starting with `.` and `__MACOSX/` stay out of a pack. An install
+  refuses an entry name holding any character outside printable ASCII, U+0020 to U+007E (a control character, an
+  accented letter, or a Thai letter alike), and a folder entry that holds bytes; `pack` refuses such a file or folder
+  name under the folder before it writes anything, so rename it. stratum_ui allows only the google_fonts version its CLI
+  family list came from, so the CLI and your app accept the same `Google/<Name>` families. When `pub get` reports a
+  google_fonts conflict, let your own google_fonts constraint allow the version stratum_ui's `pubspec.yaml` names.
 
 ## Page transitions
 

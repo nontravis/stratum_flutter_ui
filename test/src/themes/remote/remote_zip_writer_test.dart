@@ -11,7 +11,7 @@ Map<String, List<int>> get _files => {
   'theme.yaml': utf8.encode('name: x\n' * 50),
   'images/logo.svg': utf8.encode('<svg/>'),
   'images/Logo.svg': utf8.encode('<svg a/>'),
-  'é.txt': <int>[],
+  'zz.txt': <int>[],
   'big.bin': List<int>.generate(70000, (i) => i * 7 % 251),
 };
 
@@ -20,7 +20,7 @@ const _sorted = [
   'images/Logo.svg',
   'images/logo.svg',
   'theme.yaml',
-  'é.txt',
+  'zz.txt',
 ];
 
 /// Matches a thrown [RemoteThemeFailure] coded [code], and [path] or
@@ -76,7 +76,7 @@ void main() {
 
     test('s03 packed zip: each central header is deflate, 00:00 on '
         '1980-01-01, a regular file 0644, with no extra field or comment, '
-        'and the UTF-8 flag only on a non-ASCII name', () {
+        'and flags 0, every name being printable ASCII', () {
       final bytes = writeRemoteZip(_files);
       final view = ByteData.sublistView(bytes);
       final end = bytes.length - 22;
@@ -87,11 +87,7 @@ void main() {
         final nameLength = view.getUint16(at + 28, Endian.little);
         final name = utf8.decode(bytes.sublist(at + 46, at + 46 + nameLength));
         names.add(name);
-        expect(
-          view.getUint16(at + 8, Endian.little),
-          name == 'é.txt' ? 0x0800 : 0,
-          reason: name,
-        );
+        expect(view.getUint16(at + 8, Endian.little), 0, reason: name);
         expect(view.getUint16(at + 10, Endian.little), 8, reason: name);
         expect(view.getUint16(at + 12, Endian.little), 0, reason: name);
         expect(view.getUint16(at + 14, Endian.little), 0x0021, reason: name);
@@ -105,22 +101,6 @@ void main() {
         at += 46 + nameLength;
       }
       expect(names, _sorted);
-    });
-
-    test('s03 packed zip: a name past U+FFFF sorts by its 4-byte UTF-8 '
-        'lead, not a UTF-16 code-unit compare', () {
-      final zip = ZipDecoder().decodeBytes(
-        writeRemoteZip(const {
-          'images/logo.svg': <int>[],
-          'images/😀.svg': <int>[],
-          'theme.yaml': <int>[],
-        }),
-      );
-
-      expect(
-        [for (final file in zip.files) file.name],
-        ['images/logo.svg', 'images/😀.svg', 'theme.yaml'],
-      );
     });
 
     test('an empty files map gives the bare end record, which '
@@ -171,13 +151,21 @@ void main() {
       );
     });
 
-    test('a key whose UTF-8 does not round-trip, such as an unpaired '
-        'surrogate', () {
-      const name = 'a\u{D800}.txt';
-      expect(
-        () => writeRemoteZip({name: <int>[]}),
-        _failure(StratumRemoteThemeErrorCode.unsafeEntryPath, path: name),
-      );
+    test('us02/fr01/e10, rz2: a key outside printable ASCII, in a file or a '
+        'folder name, is unsafe_entry_path with the path', () {
+      for (final name in [
+        'é.txt',
+        'imagés/logo.svg',
+        'fonts/ไทย.ttf',
+        'images/😀.svg',
+        'a${String.fromCharCode(0xD800)}.txt',
+      ]) {
+        expect(
+          () => writeRemoteZip({'theme.yaml': <int>[], name: <int>[]}),
+          _failure(StratumRemoteThemeErrorCode.unsafeEntryPath, path: name),
+          reason: name,
+        );
+      }
     });
 
     test('a name that encodes past 0xFFFF UTF-8 bytes, as '
