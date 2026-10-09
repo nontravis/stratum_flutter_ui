@@ -37,6 +37,10 @@ abstract class StratumThemeConfig with _$StratumThemeConfig {
     /// The merged `animation` group (spec section 8.1).
     required StratumAnimationConfig animation,
 
+    /// The merged `opacity` group: `disabled`, the opacity of a disabled
+    /// component (FO-08 US-07), from 0 to 1; 0.5 in the package default.
+    required Map<String, double> opacity,
+
     /// The merged `extensions` group as plain Dart values: maps with string
     /// keys, lists, strings, numbers, booleans, and null. Never
     /// alias-resolved and never checked.

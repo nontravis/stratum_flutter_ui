@@ -704,4 +704,7 @@ animation:
     enter: easeOut           # forward of animation.appear
     exit: easeIn             # reverse of animation.appear
 
+opacity:
+  disabled: 0.5              # a disabled component's opacity, from 0 to 1 (FO-08 US-07)
+
 extensions: {}

@@ -155,6 +155,10 @@ void main() {
     );
   });
 
+  test('fo01/us01/fr01: the opacity group reads disabled 0.5', () {
+    expect(config.opacity, {'disabled': 0.5});
+  });
+
   final flutterRoot = Platform.environment['FLUTTER_ROOT'];
   test("the curve table equals the SDK's Curves constants", () {
     final source = File(

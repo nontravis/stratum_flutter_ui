@@ -98,6 +98,8 @@ animation:
     standard: easeInOutSine
     enter: easeOut
     exit: easeIn
+opacity:
+  disabled: 0.5
 ''';
 
 /// The folder of the package default in [sources].

@@ -764,4 +764,68 @@ typography:
       ]);
     });
   });
+
+  group('readThemeValues opacity', () {
+    test('fo01/us01/fr01: reads opacity.disabled 0.5 from the base', () {
+      final (config, errors) = _read([]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.opacity, {'disabled': 0.5});
+    });
+
+    test('fo08/us07/fr01/e02: a layer that sets disabled to 0.3 wins', () {
+      final (config, errors) = _read([layer('opacity:\n  disabled: 0.3')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.opacity['disabled'], 0.3);
+    });
+
+    test('fo08/us07/fr01/e03: a layer that leaves opacity out keeps the '
+        "base's 0.5", () {
+      final (config, errors) = _read([layer('name: ocean')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.opacity['disabled'], 0.5);
+    });
+
+    test('0, 1, a whole number, and a fraction read as opacities', () {
+      for (final (yaml, expected) in [
+        ('0', 0.0),
+        ('1', 1.0),
+        ('1.0', 1.0),
+        ('0.25', 0.25),
+      ]) {
+        final (config, errors) = _read([layer('opacity:\n  disabled: $yaml')]);
+
+        expect(problems(errors), isEmpty, reason: yaml);
+        expect(config.opacity['disabled'], expected, reason: yaml);
+      }
+    });
+
+    const expectedNumber =
+        'layer1 opacity.disabled: expected a number from 0 to 1, got';
+    final opacityCases = <(String, String, String)>[
+      ('a value above 1', '1.5', '$expectedNumber 1.5 [expected_opacity]'),
+      ('a value below 0', '-0.1', '$expectedNumber -0.1 [expected_opacity]'),
+      ('a quoted number', '"0.5"', '$expectedNumber "0.5" [expected_opacity]'),
+      ('a boolean', 'true', '$expectedNumber true [expected_opacity]'),
+      ('a percent', '50%', '$expectedNumber "50%" [expected_opacity]'),
+      (
+        'a brace string, which is no alias here',
+        '"{space.md}"',
+        '$expectedNumber "{space.md}" [expected_opacity]',
+      ),
+    ];
+    for (final (name, value, expected) in opacityCases) {
+      test('fo01/us01/fr01/e12: reports $name', () {
+        expect(_problems('opacity:\n  disabled: $value'), [expected]);
+      });
+    }
+
+    test('an empty disabled value is required', () {
+      expect(_problems('opacity:\n  disabled:'), [
+        'layer1 opacity.disabled: required [required]',
+      ]);
+    });
+  });
 }
