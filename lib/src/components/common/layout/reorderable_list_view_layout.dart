@@ -171,10 +171,13 @@ class ReorderableListViewLayout extends StatelessWidget {
   ///
   /// Give it when the app reorders its data with no
   /// [StratumReorderableItemsController.moveItem] call, as a live sync
-  /// does: an item the app keeps alive then follows the reorder. The list
+  /// does: an item that holds focus then keeps its State and focus at every
+  /// distance and the list scrolls to it, one frame after a `moveItem`
+  /// would, and an item the app keeps alive follows the reorder. The list
   /// asks once per built, cached, or kept-alive item on each build of the
-  /// list and never while it only scrolls, so read an O(1) key-to-index map
-  /// the app keeps in sync with its data, never a search of the data.
+  /// list, plus once for the focused item, and never while it only
+  /// scrolls, so read an O(1) key-to-index map the app keeps in sync with
+  /// its data, never a search of the data.
   final ChildIndexGetter? findChildIndexCallback;
 
   @override
@@ -395,6 +398,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The size of the item the drag in progress lifted: the gap's size.
   Size? _liftedSize;
 
+  /// The follow of a raw move of the lifted item, with the item's key
+  /// node, until the end of the frame the drag proxy lets the item go
+  /// ([_liftedLetGo]): until then the proxy holds the item outside its
+  /// slot (invariant 28), and until the build after that the item has no
+  /// registration, so the watch reads it from here ([_watchedKeys]).
+  ({_MoveTarget target, FocusNode node})? _liftedFollow;
+
   /// Reaches [SliverReorderableListState.cancelReorder] and the list's
   /// sliver ([_sliver]) through the list's own [_ReorderSliverState].
   final _listKey = GlobalKey<SliverReorderableListState>();
@@ -428,6 +438,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// parked, since a client built later that asks for a keep-alive in its
   /// first build trips a framework assert when it is released first.
   _ParkFrameState? _parkedFrame;
+
+  /// The parked item's key node, which the watch reads even when another
+  /// item took its registration, as a lifted item's is (invariant 35).
+  FocusNode? _parkedNode;
 
   ReorderableListViewLayout get _layout => widget.layout;
 
@@ -901,15 +915,20 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final layout = _layout;
     final count = layout.itemCount;
     final explained = count == _dataCount;
+    // Read before the clear: where this turn's calls put each watched key.
+    final watched = _watchedKeys();
     if (!explained) _resetMotion();
     _dataCount = count;
     _pending.clear();
     Key? keyAt(_DataIndex index) =>
         layout.itemBuilder(context, index.value).key;
     // A count the calls do not explain moves nothing the list can follow,
-    // and ends the park (E12).
-    if (explained) {
-      _bookMovedKeys(keyAt);
+    // and ends the park (E12), unless the app's callback follows each
+    // watched key by its key (R25): then the booked targets, which no call
+    // shifted across that count, give way to the app's answers.
+    if (explained || _layout.findChildIndexCallback != null) {
+      final dropped = explained ? const <Key>{} : _dropMoveTargets();
+      _bookMovedKeys(keyAt, watched, dropped);
     } else {
       _movedTo.clear();
       _releasePark();
@@ -957,19 +976,31 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// not lay out to its index in this build ([_movedTo]): a key move, a
   /// screen-reader move, or a drop ([_moveTargets]), and a `moveItem` call
   /// or a same-turn `removeItem` and `insertItem` of one key
-  /// ([_pendingInserts]). Read before the build settles the inserts and the
-  /// fresh exits, which [_enteredSlot] counts.
-  void _bookMovedKeys(Key? Function(_DataIndex index) keyAt) {
+  /// ([_pendingInserts]), and a raw move of a [watched] key
+  /// ([_bookRawMoves]), booked again for each key in [dropped]. Read before
+  /// the build settles the inserts and the fresh exits, which
+  /// [_enteredSlot] counts.
+  void _bookMovedKeys(
+    Key? Function(_DataIndex index) keyAt,
+    List<_Watched> watched,
+    Set<Key> dropped,
+  ) {
     _movedTo.clear();
+    final known = <Key>{};
     for (final target in _moveTargets) {
       final at = target.index;
       final key = at == null ? null : keyAt(at);
-      if (at != null && key != null) _bookMovedKey(key, at);
+      if (at == null || key == null) continue;
+      known.add(key);
+      _bookMovedKey(key, at);
     }
     for (final insert in _pendingInserts) {
       final key = keyAt(insert.index);
-      if (key != null) _bookMovedKey(key, insert.index);
+      if (key == null) continue;
+      known.add(key);
+      _bookMovedKey(key, insert.index);
     }
+    _bookRawMoves(watched, known, dropped);
     _bookParkedKey();
     if (_movedTo.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) => _movedTo.clear());
@@ -982,7 +1013,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void _bookMovedKey(Key key, _DataIndex at) {
     if (_builtSlot(_enteredSlot(at))) return;
     _movedTo[key] = at.value;
-    if (_holdsFocus(key)) _park(key, at);
+    final node = _registeredNodeOf(key);
+    if (node != null && node.hasFocus) _park(key, at, node);
   }
 
   /// Maps the parked item to its index after this turn's calls, so its
@@ -999,21 +1031,173 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _movedTo.putIfAbsent(key, () => at.value);
   }
 
-  /// Whether a node inside the item [key] holds focus, by the node the last
-  /// build registered for it.
-  bool _holdsFocus(Key key) {
-    for (final MapEntry(key: index, value: look) in _itemLooks.entries) {
-      if (look.key == key) return _nodeAt(index)?.hasFocus ?? false;
+  /// The keys a build asks the app's `findChildIndexCallback` about, each
+  /// with its key node and the index of the current data this turn's calls
+  /// put it at: the parked item, by [_parkedAt]; the lifted item a raw move
+  /// took, by its follow's target ([_liftedFollow]); and the item that
+  /// holds primary focus, by [_dataIndexOf]. Read before the build clears
+  /// [_pending]; empty with no callback (invariant 35).
+  List<_Watched> _watchedKeys() {
+    if (_layout.findChildIndexCallback == null) return const [];
+    final parkedKey = _parkedKey;
+    final parkedAt = _parkedAt;
+    final parkedNode = _parkedNode;
+    final watched = <_Watched>[
+      if (parkedKey != null && parkedAt != null && parkedNode != null)
+        (key: parkedKey, at: parkedAt, node: parkedNode),
+    ];
+    // Another item takes a lifted item's registration while the proxy
+    // holds it, so the walk would miss the item a raw move took.
+    Key? liftedKey;
+    if (_liftedFollow case (:final target, :final node)) {
+      final (key, at) = (target.key, target.index);
+      if (key != null && at != null && key != parkedKey) {
+        liftedKey = key;
+        watched.add((key: key, at: at, node: node));
+      }
     }
-    return false;
+    for (final MapEntry(key: index, value: node) in _itemNodes.entries) {
+      final key = _lookAt(index)?.key;
+      if (key == null || key == parkedKey || !node.hasFocus) continue;
+      if (key == liftedKey) continue;
+      final at = _dataIndexOf(index);
+      if (at != null) watched.add((key: key, at: at, node: node));
+    }
+    return watched;
   }
 
-  /// Keeps the existing element of item [key], at [at] of the data, alive
-  /// until it is laid out and revealed, releasing any other parked item.
-  void _park(Key key, _DataIndex at) {
+  /// Asks the app where each [watched] key sits in its data: an answer that
+  /// differs from the index this turn's calls give the key, with no move of
+  /// it the list knows ([known]), is a raw move ([_bookRawMove]), and so is
+  /// any answer for a key whose move target the build dropped ([dropped]).
+  /// A null answer, or one past the data, books none; for the parked key it
+  /// means the key left the data ([_releaseGone]).
+  void _bookRawMoves(List<_Watched> watched, Set<Key> known, Set<Key> dropped) {
+    final app = _layout.findChildIndexCallback;
+    if (app == null) return;
+    for (final (:key, :at, :node) in watched) {
+      if (known.contains(key)) continue;
+      final answer = app(key);
+      if (answer == null || answer < 0 || answer >= _dataCount) {
+        if (key == _parkedKey) _releaseGone(key, at);
+        continue;
+      }
+      final to = _DataIndex(answer);
+      if (to != at || dropped.contains(key)) {
+        _bookRawMove(key, node, from: at, to: to);
+      }
+    }
+  }
+
+  /// Drops every booked move target when an item count no call explains
+  /// meets the app's callback: no call shifted them across that count, so
+  /// each may name another key or an index past the data. Each one's jump
+  /// and follow then do nothing; returns the keys of the focused moves among
+  /// them, which the watch books again from the app's answers (R25).
+  Set<Key> _dropMoveTargets() {
+    final keys = <Key>{};
+    for (final target in _moveTargets) {
+      final key = target.key;
+      if (key != null) keys.add(key);
+      target.index = null;
+    }
+    _moveTargets.clear();
+    return keys;
+  }
+
+  /// Books the raw move of the watched item [key], whose key node is
+  /// [node], from [from] to [to] of the current data as a move the list
+  /// knows: mapped and parked when the last frame did not lay out the slot
+  /// it enters, then followed ([_followRawMove]); a lifted item's follow
+  /// waits for the drag proxy to let it go ([_liftedFollow]). A shift that
+  /// another item's raw move gives the item books the same way. The move
+  /// re-aims a reach that looks for the item, as `moveItem` does, and an
+  /// earlier move of the item reveals nothing (invariant 35).
+  void _bookRawMove(
+    Key key,
+    FocusNode node, {
+    required _DataIndex from,
+    required _DataIndex to,
+  }) {
+    if (key == _reachKey) _stopReach();
+    for (final target in _moveTargets) {
+      if (target.key == key) target.index = null;
+    }
+    if (!_builtSlot(_enteredSlot(to))) {
+      _movedTo[key] = to.value;
+      _park(key, to, node);
+    } else if (key == _parkedKey) {
+      _parkedAt = to;
+    }
+    final target = _MoveTarget(to, key: key, gap: from < to ? from : from + 1);
+    _moveTargets.add(target);
+    if (key == _liftedKey) {
+      _liftedFollow = (target: target, node: node);
+      return;
+    }
+    _followRawMove(target, node);
+  }
+
+  /// Releases the parked item [key], whose key left the app's data, and
+  /// after the frame hands focus on from [at], the item's last slot, when
+  /// focus fell to a scope with the item (invariant 26), so focus is never
+  /// lost; the item's reach and follow end with it (R25).
+  void _releaseGone(Key key, _DataIndex at) {
+    if (key == _reachKey) _stopReach();
+    for (final target in _moveTargets) {
+      if (target.key == key) target.index = null;
+    }
+    _releasePark(key);
+    final held = _HeldGap(at);
+    _givenUpGaps.add(held);
+    // Flutter moves focus off the item's disposed node in its own microtask.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => scheduleMicrotask(() {
+        _givenUpGaps.remove(held);
+        final primary = FocusManager.instance.primaryFocus;
+        if (primary == null || primary is FocusScopeNode) {
+          _handOffFocus(held.index);
+        }
+      }),
+    );
+  }
+
+  /// Follows the raw move [target] of the item whose key node is [node]:
+  /// when the last frame did not lay out the slot it enters, books its jump
+  /// for the next frame's start ([_bookFrameJump]) and reveals it after
+  /// that frame, else after this one ([_afterMove]), which reaches the slot
+  /// when the jump misses it. The build that booked the move stands in for
+  /// a move's call, so the item shows one frame after a `moveItem`'s would.
+  void _followRawMove(_MoveTarget target, FocusNode node) {
+    final at = target.index;
+    if (at == null) return;
+    final binding = WidgetsBinding.instance;
+    void follow(Duration _) => _afterMove(target, byKey: false);
+    if (_builtSlot(_enteredSlot(at))) {
+      binding.addPostFrameCallback(follow);
+      return;
+    }
+    _bookFrameJump(node, target);
+    binding.addPostFrameCallback((_) => binding.addPostFrameCallback(follow));
+  }
+
+  /// The key node the last build registered for the item [key]; null when
+  /// it registered none.
+  FocusNode? _registeredNodeOf(Key key) {
+    for (final MapEntry(key: index, value: look) in _itemLooks.entries) {
+      if (look.key == key) return _nodeAt(index);
+    }
+    return null;
+  }
+
+  /// Keeps the existing element of item [key], at [at] of the data, whose
+  /// key node is [node], alive until it is laid out and revealed, releasing
+  /// any other parked item.
+  void _park(Key key, _DataIndex at, FocusNode node) {
     if (_parkedKey != key) _releasePark();
     _parkedKey = key;
     _parkedAt = at;
+    _parkedNode = node;
     _parkedFrame ??= _frames[key]?..setParked(parked: true);
   }
 
@@ -1024,6 +1208,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _parkedKey = null;
     _parkedAt = null;
     _parkedFrame = null;
+    _parkedNode = null;
     if (frame != null && frame.mounted) frame.setParked(parked: false);
   }
 
@@ -1482,6 +1667,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (_liftedKey == key) _liftedKey = null;
     if (_standInKey == key) _standInKey = null;
     if (_dragged?.key == key) _dragged = null;
+    // A raw move of the lifted item follows it only now, with the item back
+    // in its slot (invariant 28). The watch reads the item from its follow
+    // until the end of this frame: the item registers again in its build.
+    final follow = _liftedFollow;
+    if (follow == null || follow.target.key != key) return;
+    _followRawMove(follow.target, follow.node);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_liftedFollow == follow) _liftedFollow = null;
+    });
   }
 
   /// Jumps to the start when [toStart], else to the end. The target slot
@@ -2966,6 +3160,11 @@ extension type const _FrameIndex(int value) {
 
   _FrameIndex operator -(int offset) => _FrameIndex(value - offset);
 }
+
+/// A key a build asks the app's `findChildIndexCallback` about, with its
+/// key node and the index of the current data the calls of the turn put it
+/// at (invariant 35).
+typedef _Watched = ({Key key, _DataIndex at, FocusNode node});
 
 /// What a reorder key or a screen reader's move action asks for: the four
 /// moves of FR-02 and FR-03 E03.

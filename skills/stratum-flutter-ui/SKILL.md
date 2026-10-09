@@ -200,8 +200,8 @@ scroll it, guarded so a text field inside keeps its own keys.
   item's State only when the list has built its new slot; a focused item the app removes and inserts back in the same
   turn keeps its State too. The Move up and Move down buttons above can call it.
   An app that reorders its data with no `moveItem` call, as a live sync does, passes `findChildIndexCallback`, which
-  reads an O(1) key-to-index map the app keeps in sync with its data: an item the app keeps alive then follows the
-  reorder.
+  reads an O(1) key-to-index map the app keeps in sync with its data: a focused moved item then keeps its State and
+  focus at every distance and shows on screen, and an item the app keeps alive follows the reorder.
 
   ```dart
   void moveTask(int from, int to) {

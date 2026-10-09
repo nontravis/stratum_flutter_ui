@@ -7876,7 +7876,7 @@ void main() {
     testWidgets(
       'us11/fr04/e12: an item-count change with no call while a focused '
       'item waits off screen for its slot ends its State and hands focus '
-      'on',
+      'on, and with the app index follows the item by its key',
       (tester) async {
         final controller = StratumReorderableItemsController();
         await tester.pumpWidget(
@@ -7894,6 +7894,14 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
+        if (_appIndex) {
+          // Rerun with the app's index: the count change ends no follow
+          // (R25), so the item shows at its slot with its State and focus.
+          expect(_statesOf(tester, 0), [same(state)]);
+          expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 0');
+          expect(_builtInView(tester, 0), isTrue);
+          return;
+        }
         expect(state.mounted, isFalse);
         final primary = FocusManager.instance.primaryFocus;
         expect(primary?.debugLabel, startsWith('item '));
@@ -8218,6 +8226,851 @@ void main() {
         expect(_harness(tester).ids[6], 5);
         expect(_statesOf(tester, 5), [same(state)]);
       },
+    );
+
+    /// Pumps [harness] scrolled to [offset], focuses item [id] unless
+    /// [focus] is false, and returns its State and the list's position.
+    Future<(_ItemState, ScrollPosition)> pumpItem(
+      WidgetTester tester,
+      _Harness harness, {
+      int id = 103,
+      double offset = 4000,
+      bool focus = true,
+    }) async {
+      final position = await _pumpScrolled(tester, harness, offset: offset);
+      final state = _itemState(tester, id);
+      if (focus) await _focusItem(tester, id);
+      return (state, position);
+    }
+
+    // Unbuilt items from id 300 on run taller, so a jump into them misses
+    // and the list reaches the slot over several frames.
+    final taller = {for (var id = 300; id < 1000; id += 1) id: 120.0};
+
+    testWidgets(
+      'us11/fr05/e13: with no callback, a focused item the app moves in its '
+      'data with no call to a slot the frame does not build loses its State',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000),
+        );
+
+        _harness(tester).moveData(103, 600);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(state.mounted, isFalse);
+        expect(FocusManager.instance.primaryFocus, isNot(same(state.node)));
+        expect(position.pixels, 4000);
+      },
+    );
+
+    final farTargets = ValueVariant<int>({600, 5, 999});
+    testWidgets(
+      'us11/fr05/e13: a focused item the app moves in its data with no call '
+      'to a slot the frame does not build keeps its State and focus, shows '
+      'one frame after the build that learns of it, and leaves once out of '
+      'view',
+      (tester) async {
+        final to = farTargets.currentValue!;
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+
+        _harness(tester).moveData(103, to);
+        await tester.pump();
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(_builtInView(tester, 103), isFalse);
+        await tester.pump();
+        expect(_builtInView(tester, 103), isTrue);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).moves, isEmpty);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+        position.jumpTo(to > 50 ? 0 : 20000);
+        await tester.pump();
+        expect(state.mounted, isFalse);
+      },
+      variant: farTargets,
+    );
+
+    testWidgets(
+      'us11/fr05/e13: a focused item the app moves to a laid-out slot out of '
+      'view keeps its State and focus, and the list reveals it',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+
+        _harness(tester).moveData(103, 111);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).moves, isEmpty);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+        expect(position.pixels, 4180);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e13: a focused item the app moves within the viewport keeps '
+      'its State and focus, and the list does not scroll',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+
+        _harness(tester).moveData(103, 105);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(position.pixels, 4000);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e13: an item that does not hold focus, moved by the app to '
+      'a slot the frame does not build, is never kept alive or followed',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+          focus: false,
+        );
+
+        _harness(tester).moveData(103, 600);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(state.mounted, isFalse);
+        expect(position.pixels, 4000);
+      },
+    );
+
+    // The dragged item: focused or not, to a slot the frame does not build
+    // or to a laid-out one out of view; unfocused, and kept alive by the app.
+    final dragged = ValueVariant<(bool, int, bool)>({
+      (true, 600, false),
+      (true, 111, false),
+      (false, 600, false),
+      (false, 600, true),
+    });
+    testWidgets(
+      'us11/fr01/e07 and us11/fr03/e06: the app moves the dragged item in its '
+      'data with no call: the drag ends with one onReorderEnd, and a focused '
+      'item keeps its State and focus and shows once the proxy lets it go',
+      (tester) async {
+        final (focused, to, keptAlive) = dragged.currentValue!;
+        final (state, position) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: true,
+            keepAliveIds: keptAlive ? const {103} : null,
+          ),
+          focus: focused,
+        );
+        final gesture = await _liftItem(tester, 103);
+        final harness = _harness(tester)..moveData(103, to);
+        await tester.pump();
+        expect(harness.ends, [103]);
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [103]);
+        expect(harness.moves, isEmpty);
+        if (!focused) {
+          // Never parked or followed. The proxy holds the item when the
+          // drag ends, outside the sliver, so the app's own keep-alive does
+          // not keep it either (measured).
+          expect(state.mounted, isFalse);
+          expect(position.pixels, 4000);
+          return;
+        }
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+      variant: dragged,
+    );
+
+    testWidgets(
+      'us11/fr05/e13: a focus the app moves to another item in the turn of '
+      'its reorder stays, and the moved item is neither kept nor followed',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+        final other = _itemState(tester, 105).node;
+
+        _harness(tester).moveData(103, 600);
+        other.requestFocus();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(state.mounted, isFalse);
+        expect(FocusManager.instance.primaryFocus, same(other));
+        expect(position.pixels, 4000);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e13: a focus the app moves to another item after the build '
+      "that books the jump, before the next frame's start, skips the jump",
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+        final other = _itemState(tester, 105).node;
+
+        _harness(tester).moveData(103, 600);
+        await tester.pump();
+        expect(_statesOf(tester, 103), [same(state)]);
+        other.requestFocus();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(FocusManager.instance.primaryFocus, same(other));
+        expect(position.pixels, 4000);
+      },
+    );
+
+    final answers = ValueVariant<int?>({null, 1000, -1});
+    testWidgets(
+      'us11/fr05/e13: a null app answer for the focused item, or one outside '
+      'the data, counts as no move, as with no callback',
+      (tester) async {
+        final answer = answers.currentValue;
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+        final harness = _harness(tester);
+        harness.answer = (key) => key == const ValueKey(103)
+            ? answer
+            : harness.ids.indexOf((key as ValueKey<int>).value);
+
+        harness.moveData(103, 600);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(state.mounted, isFalse);
+        expect(position.pixels, 4000);
+      },
+      variant: answers,
+    );
+
+    // A reorder with an insertItem in the same turn: before the target,
+    // between it and the item, and near.
+    final withInsert = ValueVariant<(int, int)>({
+      (600, 0),
+      (600, 300),
+      (105, 101),
+    });
+    testWidgets(
+      's03/inv35: a reorder with an insertItem in the same turn reads where '
+      'the calls put the focused item, which keeps its State and shows',
+      (tester) async {
+        final (to, insertAt) = withInsert.currentValue!;
+        final (state, _) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: true,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+
+        _harness(tester)
+          ..moveData(103, to)
+          ..insert(insertAt, 5000);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+      variant: withInsert,
+    );
+
+    testWidgets(
+      'us11/fr05/e13: on a lazy extent whose unbuilt items run taller, a '
+      'focused item moved to a middle slot keeps its State and shows',
+      (tester) async {
+        final (state, _) = await pumpItem(
+          tester,
+          _Harness(count: 1000, appIndex: true, heights: taller),
+        );
+
+        _harness(tester).moveData(103, 800);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e13: on a lazy extent whose unbuilt items run taller, a '
+      'focused item moved to the last slot is reached by an exact jump to '
+      'the end and settles within 20 frames',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: true,
+            heights: {for (var id = 150; id < 1000; id += 1) id: 400},
+          ),
+        );
+
+        _harness(tester).moveData(103, 999);
+        for (var frame = 0; frame < 20; frame += 1) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        final settled = position.pixels;
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(position.pixels, settled);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+    );
+
+    // The first reorder's slot lies where the jump lands; the later one is
+    // far, past the taller items, or near.
+    final again = ValueVariant<int>({800, 105});
+    testWidgets(
+      'us11/fr05/e13: a later reorder of the item kept alive off screen aims '
+      'the follow at its newest slot, with its State and focus',
+      (tester) async {
+        final to = again.currentValue!;
+        final (state, _) = await pumpItem(
+          tester,
+          _Harness(count: 1000, appIndex: true, heights: taller),
+        );
+
+        _harness(tester).moveData(103, 200);
+        await tester.pump();
+        expect(_statesOf(tester, 103), [same(state)]);
+        _harness(tester).moveData(200, to);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids[to], 103);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+      variant: again,
+    );
+
+    testWidgets(
+      's03/inv32: a reorder of the item the list reaches for re-aims the '
+      'reach, and the item keeps its State and focus',
+      (tester) async {
+        final (state, _) = await pumpItem(
+          tester,
+          _Harness(count: 1000, appIndex: true, heights: taller),
+        );
+
+        // The jump at the next frame's start misses the taller items, so
+        // after that frame the list reaches the slot.
+        _harness(tester).moveData(103, 800);
+        await tester.pump();
+        await tester.pump();
+        expect(_builtInView(tester, 103), isFalse);
+        _harness(tester).moveData(800, 400);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids[400], 103);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+    );
+
+    testWidgets(
+      's03/inv35: an insertItem that shifts the focused item, with no '
+      'reorder, books no move: the list does not scroll for the item',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: true,
+            itemsController: StratumReorderableItemsController(),
+          ),
+          id: 107,
+        );
+        expect(_itemInView(tester, 107), isFalse);
+
+        _harness(tester).insert(101, 5000);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 107), [same(state)]);
+        expect(position.pixels, 4000);
+      },
+    );
+
+    testWidgets(
+      'us11/fr01/input-output: the list asks the app once per built item on '
+      'each build, plus once for the focused item, and never while it only '
+      'scrolls',
+      (tester) async {
+        final (_, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+        final harness = _harness(tester);
+        expect(_laidOut(tester).count, 21);
+
+        harness
+          ..indexCalls = 0
+          ..replaceData(0, 0);
+        await tester.pump();
+        expect(harness.indexCalls, 21 + 1);
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pump();
+        harness
+          ..indexCalls = 0
+          ..replaceData(0, 0);
+        await tester.pump();
+        expect(harness.indexCalls, 21);
+        harness.indexCalls = 0;
+        for (var frame = 0; frame < 10; frame += 1) {
+          position.jumpTo(position.pixels + 15);
+          await tester.pump();
+        }
+        expect(harness.indexCalls, 0);
+        await _focusItem(tester, 103);
+        harness.moveData(103, 800);
+        await tester.pump();
+        harness.indexCalls = 0;
+        for (var frame = 0; frame < 40; frame += 1) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(harness.indexCalls, 0);
+      },
+    );
+
+    final shapes = ValueVariant<(String, int)>({
+      ('reversed', 600),
+      ('reversed', 5),
+      ('horizontal', 600),
+      ('horizontal', 5),
+    });
+    testWidgets(
+      'us11/fr05/e13: on a reversed or horizontal list, a focused item the '
+      'app moves far keeps its State and focus and shows',
+      (tester) async {
+        final (shape, to) = shapes.currentValue!;
+        final (state, _) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: true,
+            reverse: shape == 'reversed',
+            axis: shape == 'horizontal' ? Axis.horizontal : Axis.vertical,
+          ),
+        );
+
+        _harness(tester).moveData(103, to);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+      variant: shapes,
+    );
+
+    // Another item's reorder shifts the focused item one slot: a fully
+    // visible item scrolls nothing, a partly hidden one shows whole.
+    final shifted = ValueVariant<(int, double, double)>({
+      (103, 4000, 4000),
+      (100, 4020, 3960),
+    });
+    testWidgets(
+      'us11/fr05/e13: a shift of the focused item, when the app moves another '
+      'item past it, counts as its move',
+      (tester) async {
+        final (id, offset, revealed) = shifted.currentValue!;
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+          id: id,
+          offset: offset,
+        );
+
+        _harness(tester).moveData(50, 600);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, id), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, id), isTrue);
+        expect(position.pixels, revealed);
+      },
+      variant: shifted,
+    );
+
+    // An item-count change with no call, with the app's index: in the
+    // reorder's own turn, in the turn after the build that parks the item,
+    // and while the item is dragged. The list keeps following the item by
+    // its key (R25).
+    final countChange = ValueVariant<String>({
+      'in the same turn',
+      'after the build',
+      'while dragged',
+    });
+    testWidgets(
+      'us11/fr04/e12: with the app index, an item-count change with no call '
+      'keeps following the focused item by its key: State and focus stay, '
+      'and the list shows the item at its slot',
+      (tester) async {
+        final timing = countChange.currentValue!;
+        final (state, _) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+        final harness = _harness(tester);
+        final gesture = timing == 'while dragged'
+            ? await _liftItem(tester, 103)
+            : null;
+
+        harness.moveData(103, 600);
+        if (timing != 'in the same turn') {
+          await tester.pump();
+          expect(_statesOf(tester, 103), [same(state)]);
+        }
+        harness.removeData(5);
+        await gesture?.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ids[599], 103);
+        expect(harness.moves, isEmpty);
+        expect(harness.ends, gesture == null ? isEmpty : [103]);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+      variant: countChange,
+    );
+
+    testWidgets(
+      'us11/fr01/e07 and s03/inv28: an unfocused dragged item the app keeps '
+      'alive loses its State when an item-count change ends the drag and '
+      'its new slot is not laid out',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true, keepAliveIds: {103}),
+          focus: false,
+        );
+        final gesture = await _liftItem(tester, 103);
+
+        _harness(tester)
+          ..moveData(103, 600)
+          ..removeData(5);
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ends, [103]);
+        expect(state.mounted, isFalse);
+        expect(position.pixels, 4000);
+      },
+    );
+
+    // The park the count change meets: a moveItem's, or a raw move's, while
+    // the reach runs into taller unbuilt items.
+    final parkedBy = ValueVariant<String>({'moveItem', 'a raw move'});
+    testWidgets(
+      'us11/fr04/e17 and s03/inv32: with the app index, an item-count change '
+      'during the retry frames re-aims the reach, and the parked item keeps '
+      'its State and focus and shows',
+      (tester) async {
+        final (state, _) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: true,
+            heights: taller,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        final harness = _harness(tester);
+
+        if (parkedBy.currentValue == 'moveItem') {
+          harness.move(103, 800);
+          await tester.pump();
+        } else {
+          harness.moveData(103, 800);
+          await tester.pump();
+          await tester.pump();
+        }
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(_builtInView(tester, 103), isFalse);
+        harness.removeData(5);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ids[799], 103);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+      variant: parkedBy,
+    );
+
+    // The key leaves the data with no call while its item waits off screen:
+    // parked by a raw move before its follow runs, or by a same-turn remove
+    // and insert while its reach runs; removed, or replaced by another key
+    // at the same item count. Focus goes to the item next to the last slot.
+    final gone = ValueVariant<(String, String)>({
+      ('a raw move', 'removed'),
+      ('a raw move', 'replaced'),
+      ('remove and insert', 'removed'),
+    });
+    testWidgets(
+      'us11/fr04/e12 and s03/inv35: with the app index, a null answer for the '
+      'item kept alive off screen, its key gone from the data at any item '
+      'count, ends its State and hands focus to a neighbor from its last slot',
+      (tester) async {
+        final (parkedBy, how) = gone.currentValue!;
+        final raw = parkedBy == 'a raw move';
+        final (state, _) = await pumpItem(
+          tester,
+          _Harness(
+            count: raw ? 1000 : 200,
+            appIndex: true,
+            itemsController: StratumReorderableItemsController(),
+          ),
+          id: raw ? 103 : 0,
+          offset: raw ? 4000 : 0,
+        );
+        final harness = _harness(tester);
+        if (raw) {
+          harness.moveData(103, 600);
+        } else {
+          harness
+            ..remove(0)
+            ..insert(199, 0);
+        }
+        await tester.pump();
+        expect(_statesOf(tester, raw ? 103 : 0), [same(state)]);
+
+        final last = raw ? 600 : 199;
+        if (how == 'replaced') {
+          harness.replaceData(last, 5000);
+        } else {
+          harness.removeData(last);
+        }
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(state.mounted, isFalse);
+        final neighbor = how == 'replaced' ? 5000 : (raw ? 601 : 199);
+        final primary = FocusManager.instance.primaryFocus;
+        expect(primary?.debugLabel, 'item $neighbor');
+      },
+      variant: gone,
+    );
+
+    final countDrag = ValueVariant<bool>({false, true});
+    testWidgets(
+      'us11/fr03/e06, us11/fr04/e06, and s03/inv28: an item-count change '
+      'during a drag that shifts the focused dragged item to a slot the '
+      'frame does not lay out ends the drag; with no callback the item loses '
+      'its State, and with the app index it keeps its State and focus and '
+      'shows',
+      (tester) async {
+        final appIndex = countDrag.currentValue!;
+        final (state, position) = await pumpItem(
+          tester,
+          _Harness(count: 1000, appIndex: appIndex),
+        );
+        final harness = _harness(tester);
+        final gesture = await _liftItem(tester, 103);
+
+        for (var id = 2000; id < 2020; id += 1) {
+          harness.insertData(0, id);
+        }
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ids[123], 103);
+        expect(harness.ends, [103]);
+        if (appIndex) {
+          expect(_statesOf(tester, 103), [same(state)]);
+          expect(FocusManager.instance.primaryFocus, same(state.node));
+          expect(_builtInView(tester, 103), isTrue);
+          return;
+        }
+        expect(state.mounted, isFalse);
+        expect(FocusManager.instance.primaryFocus, isA<FocusScopeNode>());
+        expect(position.pixels, 4000);
+      },
+      variant: countDrag,
+    );
+
+    // A focused dragged item a raw move took to a laid-out slot, then shifted
+    // by an item-count change with no call before the drag proxy lets it go:
+    // by one slot, still laid out, or by twenty, past the laid-out slots.
+    final liftedShift = ValueVariant<int>({1, 20});
+    testWidgets(
+      'us11/fr04/e06 and s03/inv35: with the app index, an item-count change '
+      'before the drag proxy lets go of a focused item a raw move took to a '
+      'laid-out slot keeps following the item by its key',
+      (tester) async {
+        final shift = liftedShift.currentValue!;
+        final (state, _) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+        final harness = _harness(tester);
+        final gesture = await _liftItem(tester, 103);
+
+        harness.moveData(103, 111);
+        await tester.pump();
+        expect(harness.ends, [103]);
+        for (var id = 2000; id < 2000 + shift; id += 1) {
+          harness.insertData(0, id);
+        }
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ids[111 + shift], 103);
+        expect(harness.ends, [103]);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+      variant: liftedShift,
+    );
+
+    // A focused item Alt+End sent to a slot the frame does not build, past
+    // taller unbuilt items, its reveal still booked, then an item-count
+    // change with no call in the same turn: an insert before it leaves
+    // another key at the old target index, a remove before it leaves that
+    // index past the data, and an insert after it leaves the item where it
+    // was.
+    final staleTarget = ValueVariant<(String, int)>({
+      ('an insert before', 1000),
+      ('a remove before', 998),
+      ('an insert after', 999),
+    });
+    testWidgets(
+      'us11/fr04/e12 and s03/inv35: with the app index, an item-count change '
+      'with no call in the turn of a key move drops the booked target, and '
+      'the list follows the focused item by its key',
+      (tester) async {
+        final (change, at) = staleTarget.currentValue!;
+        final (state, _) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: true,
+            heights: taller,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        final harness = _harness(tester);
+
+        await _altNow(tester, LogicalKeyboardKey.end);
+        expect(harness.moves, [(103, 999)]);
+        switch (change) {
+          case 'an insert before':
+            harness.insertData(0, 2000);
+          case 'a remove before':
+            harness.removeData(0);
+          default:
+            harness.insertData(1000, 2000);
+        }
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ids[at], 103);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+      variant: staleTarget,
+    );
+
+    // Kept alive by the app or not, with no callback or with the app index.
+    final keptAliveDragged = ValueVariant<(bool, bool)>({
+      (false, false),
+      (true, false),
+      (false, true),
+      (true, true),
+    });
+    testWidgets(
+      'us11/fr05/e05 and s03/inv28: a moveItem that ends a drag moves the '
+      'unfocused dragged item to a slot the frame does not lay out, and the '
+      'item keeps its State only when the app keeps it alive, with or '
+      'without the app index',
+      (tester) async {
+        final (keptAlive, appIndex) = keptAliveDragged.currentValue!;
+        final (state, position) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: appIndex,
+            itemsController: StratumReorderableItemsController(),
+            keepAliveIds: keptAlive ? const {103} : null,
+          ),
+          focus: false,
+        );
+        final harness = _harness(tester);
+        final gesture = await _liftItem(tester, 103);
+
+        harness.move(103, 600);
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+        position.jumpTo(600 * 40.0 - 100);
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [103]);
+        expect(harness.moves, isEmpty);
+        expect(state.mounted, keptAlive);
+        expect(_statesOf(tester, 103), [
+          if (keptAlive) same(state) else isNot(same(state)),
+        ]);
+      },
+      variant: keptAliveDragged,
     );
   });
 
