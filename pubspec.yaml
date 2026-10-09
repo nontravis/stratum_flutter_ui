@@ -87,5 +87,4 @@ flutter:
 
   assets:
     - assets/
-    - assets/fonts/
     - assets/themes/default/
