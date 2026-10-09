@@ -871,8 +871,19 @@ class _RenderWrapOverflow extends RenderBox
   /// reach the frame meanwhile in [_childChanged].
   bool _childrenChanging = false;
 
+  /// The "+N" size the probe measured in the last layout, by hidden count
+  /// and child constraints (US-14 FR-02 E07): the intrinsic sizes and the
+  /// dry layout read it ([_dryRuns]), since they cannot build the overflow
+  /// child; only the last layout's, so it holds one constraints' counts.
+  Map<(int, BoxConstraints), Size> _overflowSizes = const {};
+
+  /// The "+N" sizes the layout under way measures; [_keepOverflowSizes]
+  /// keeps them.
+  Map<(int, BoxConstraints), Size> _probedSizes = {};
+
   /// Whether a child the layout callback rebuilt or flipped marked the
-  /// frame in this layout; [_reconcileAfterFrame] reads and clears it.
+  /// frame in this layout, or the probe measured a "+N" size the intrinsic
+  /// sizes did not have; [_reconcileAfterFrame] reads and clears it.
   bool _childChanged = false;
 
   /// Whether [_reconcileAfterFrame] has a post-frame mark scheduled.
@@ -960,11 +971,12 @@ class _RenderWrapOverflow extends RenderBox
   /// parent measures again over the built children one frame later.
   ///
   /// Nothing loops: the cut's builds of the probe and the overflow child,
-  /// run in every layout and left out of the intrinsic sizes, never
-  /// record (a dirty descendant of the overflow child rebuilt in the
-  /// layout callback records once, as a child does); the layout that mark
-  /// asks for rebuilds nothing unless a new change made it dirty, and its
-  /// flips, which follow from the parent's new read, do not record either
+  /// run in every layout, never record (a dirty descendant of the overflow
+  /// child rebuilt in the layout callback records once, as a child does),
+  /// and a "+N" size records only when the probe measures it anew
+  /// ([_keepOverflowSizes]); the layout that mark asks for rebuilds
+  /// nothing unless a new change made it dirty, and neither its flips,
+  /// which follow from the parent's new read, nor its "+N" sizes record
   /// ([_apply]).
   void _reconcileAfterFrame() {
     final changed = _childChanged;
@@ -1151,6 +1163,7 @@ class _RenderWrapOverflow extends RenderBox
   /// Builds and measures the children, cuts them, and places the cut.
   void _layOut() {
     _changeChildren(runLayoutCallback);
+    _probedSizes = {};
     final childConstraints = _childConstraints(constraints);
     final cap = _capOf(childConstraints);
     var measured = _measure(childConstraints);
@@ -1177,6 +1190,7 @@ class _RenderWrapOverflow extends RenderBox
         _settle(cut.shown, childConstraints);
       }
     }
+    _keepOverflowSizes();
     element!.handOffFocus();
     final overflowRun = cut.overflowRun;
     if (overflowRun != null) {
@@ -1245,6 +1259,22 @@ class _RenderWrapOverflow extends RenderBox
     _settledConstraints = childConstraints;
   }
 
+  /// Keeps the "+N" sizes this layout's probe measured in
+  /// [_overflowSizes], for the intrinsic sizes and the dry layout; one
+  /// they did not have yet records in [_childChanged], as a child's own
+  /// change does, so a parent that read them before this layout measures
+  /// again one frame later ([_reconcileAfterFrame]).
+  void _keepOverflowSizes() {
+    final previous = _overflowSizes;
+    _overflowSizes = _probedSizes;
+    if (_reconciling) return;
+    for (final MapEntry(:key, :value) in _overflowSizes.entries) {
+      if (previous[key] == value) continue;
+      _childChanged = true;
+      return;
+    }
+  }
+
   /// Reports, debug-only, a cut that a flip moved for good: the frame
   /// keeps hidden a child that does not fit shown, though it fits hidden,
   /// instead of cutting without end.
@@ -1285,6 +1315,7 @@ class _RenderWrapOverflow extends RenderBox
   double _layOutProbe(int count, BoxConstraints childConstraints) {
     invokeLayoutCallback<BoxConstraints>((_) => element!.buildProbe(count));
     final probe = _probe!..layout(childConstraints, parentUsesSize: true);
+    _probedSizes[(count, childConstraints)] = probe.size;
     return _main(probe.size);
   }
 
@@ -1466,13 +1497,47 @@ class _RenderWrapOverflow extends RenderBox
       for (final child in getChildrenAsList())
         child.getDryLayout(childConstraints),
     ];
-    final cut = _cut(sizes, childConstraints, cap: _capOf(childConstraints));
-    return constraints.constrain(_extentOf(_runsOf(cut, sizes, null)));
+    return constraints.constrain(
+      _extentOf(_dryRuns(sizes, childConstraints).runs),
+    );
+  }
+
+  /// The runs of the cut over the children's dry [sizes] under
+  /// [childConstraints] (US-14 FR-02 E07), with the [overflow] size the
+  /// probe measured for each count the cut tries under those constraints
+  /// in the last layout ([_overflowSizes]); when it measured none for a
+  /// count, the runs leave the overflow child out, since an intrinsic
+  /// size query cannot build it.
+  ({List<_Run> runs, Size? overflow}) _dryRuns(
+    List<Size> sizes,
+    BoxConstraints childConstraints,
+  ) {
+    final cap = _capOf(childConstraints);
+    if (_frame.overflowBuilder != null) {
+      Size? overflow;
+      var measured = true;
+      final cut = _cut(
+        sizes,
+        childConstraints,
+        cap: cap,
+        overflowExtent: (count) {
+          overflow = _overflowSizes[(count, childConstraints)];
+          if (overflow == null) measured = false;
+          return overflow == null ? 0 : _main(overflow!);
+        },
+      );
+      if (measured) {
+        return (runs: _runsOf(cut, sizes, overflow), overflow: overflow);
+      }
+    }
+    final cut = _cut(sizes, childConstraints, cap: cap);
+    return (runs: _runsOf(cut, sizes, null), overflow: null);
   }
 
   /// `RenderWrap.computeDryBaseline` (`rendering/wrap.dart:617-648`): the
-  /// dry layout's baseline, over the children left out of the cut's
-  /// overflow child (FR-02 E07, D3: the query never throws).
+  /// dry layout's baseline over the runs of [_dryRuns], from the children
+  /// alone, since the overflow child's baseline needs its box (FR-02 E07,
+  /// D3: the query never throws).
   @override
   double? computeDryBaseline(
     covariant BoxConstraints constraints,
@@ -1483,23 +1548,27 @@ class _RenderWrapOverflow extends RenderBox
     final sizes = [
       for (final child in children) child.getDryLayout(childConstraints),
     ];
-    final cut = _cut(sizes, childConstraints, cap: _capOf(childConstraints));
-    final runs = _runsOf(cut, sizes, null);
+    final (:runs, :overflow) = _dryRuns(sizes, childConstraints);
     final content = _extentOf(runs);
     final box = constraints.constrain(content);
     final shown = _dryShown(box, constraints);
     var result = BaselineOffset.noBaseline;
-    _positionItems(runs, box, shown, content, (item) => sizes[item], (
-      item,
-      offset,
-    ) {
-      result = result.minOf(
-        BaselineOffset(
-              children[item].getDryBaseline(childConstraints, baseline),
-            ) +
-            offset.dy,
-      );
-    });
+    _positionItems(
+      runs,
+      box,
+      shown,
+      content,
+      (item) => item < 0 ? overflow! : sizes[item],
+      (item, offset) {
+        if (item < 0) return;
+        result = result.minOf(
+          BaselineOffset(
+                children[item].getDryBaseline(childConstraints, baseline),
+              ) +
+              offset.dy,
+        );
+      },
+    );
     return result.offset;
   }
 

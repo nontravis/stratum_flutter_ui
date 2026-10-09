@@ -648,6 +648,58 @@ void main() {
       expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 46);
     });
 
+    /// The "+N" child: 30 by 40, taller than the tags.
+    Widget tallMore(BuildContext context, int count) => SizedBox(
+      key: const ValueKey('more'),
+      width: 30,
+      height: 40,
+      child: Text('+$count'),
+    );
+
+    testWidgets(
+      'us14/fr02/e07, s03/inv38: under IntrinsicHeight a "+N" taller than '
+      'the tags sizes the parent from the second frame, the first frame '
+      'leaving it out as before, then schedules no more frames',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            IntrinsicHeight(
+              child: _frame(maxRuns: 1, builder: tallMore, children: _tags(12)),
+            ),
+          ),
+        );
+        // No layout measured "+8" yet: the parent sized the frame to the
+        // tags alone.
+        expect(find.text('+8'), findsOneWidget);
+        expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 20);
+
+        await tester.pump();
+
+        expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 40);
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('us14/fr02/e07, s03/inv38: after a layout, dry layout and the '
+        'cross-axis intrinsics agree with the real size the "+N" child sets', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(_frame(maxRuns: 1, builder: tallMore, children: _tags(12))),
+      );
+      final box = tester.renderObject<RenderBox>(
+        find.byType(WrapOverflowFrame),
+      );
+      expect(box.size, const Size(230, 40));
+
+      expect(box.getDryLayout(box.constraints), box.size);
+      expect(box.getMaxIntrinsicHeight(230), 40);
+      expect(box.getMinIntrinsicHeight(230), 40);
+      // No layout measured "+N" under another width: left out.
+      expect(box.getMaxIntrinsicHeight(150), 20);
+    });
+
     testWidgets(
       'us14/fr03: hidden children take no hit test and are not painted',
       (tester) async {
