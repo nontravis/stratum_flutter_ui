@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:stratum_ui/src/themes/theme_application.dart';
 
 /// The disabled look and behavior the component bases wrap around every
-/// component (FO-08 US-07; base s03 invariants 12 to 18).
+/// component (FO-08 US-07; base s03 invariants 12 to 17 and 19).
 ///
 /// It stays in the tree whether [disabled] is true or false: a toggle
 /// changes only its values, so the component keeps its elements and its

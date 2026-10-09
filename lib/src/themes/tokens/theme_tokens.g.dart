@@ -3,6 +3,13 @@
 import 'dart:ui' show Color;
 
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
+import 'package:stratum_ui/src/themes/constant/color.dart';
+
+/// A `<group>.color` group that gives its token for a [ColorEnum] name.
+abstract interface class StratumColorEnumTokens {
+  /// The token named [color]; null when this group holds none.
+  Color? operator [](ColorEnum color);
+}
 
 /// The colors of one color set, `color.<set>` without `app`.
 final class StratumColorTokens {
@@ -79,7 +86,7 @@ final class StratumColorBackgroundTokens {
 }
 
 /// The `background.color` group of each color set.
-final class StratumColorBackgroundColorTokens {
+final class StratumColorBackgroundColorTokens implements StratumColorEnumTokens {
   StratumColorBackgroundColorTokens._(Map<String, Color> colors)
     : blue = _color(colors, 'background.color.blue'),
       brand = _color(colors, 'background.color.brand'),
@@ -113,6 +120,16 @@ final class StratumColorBackgroundColorTokens {
 
   /// `background.color.warning`
   final Color warning;
+
+  @override
+  Color? operator [](ColorEnum color) => switch (color) {
+    ColorEnum.brand => brand,
+    ColorEnum.violet => violet,
+    ColorEnum.blue => blue,
+    ColorEnum.teal => teal,
+    ColorEnum.gray => gray,
+    _ => null,
+  };
 }
 
 /// The `background.control` group of each color set.
@@ -298,7 +315,7 @@ final class StratumColorBorderTokens {
 }
 
 /// The `border.color` group of each color set.
-final class StratumColorBorderColorTokens {
+final class StratumColorBorderColorTokens implements StratumColorEnumTokens {
   StratumColorBorderColorTokens._(Map<String, Color> colors)
     : black = _color(colors, 'border.color.black'),
       blue = _color(colors, 'border.color.blue'),
@@ -340,6 +357,16 @@ final class StratumColorBorderColorTokens {
 
   /// `border.color.white`
   final Color white;
+
+  @override
+  Color? operator [](ColorEnum color) => switch (color) {
+    ColorEnum.brand => brand,
+    ColorEnum.violet => violet,
+    ColorEnum.blue => blue,
+    ColorEnum.teal => teal,
+    ColorEnum.gray => gray,
+    _ => null,
+  };
 }
 
 /// The `border.control` group of each color set.
@@ -570,7 +597,7 @@ final class StratumColorIconTokens {
 }
 
 /// The `icon.color` group of each color set.
-final class StratumColorIconColorTokens {
+final class StratumColorIconColorTokens implements StratumColorEnumTokens {
   StratumColorIconColorTokens._(Map<String, Color> colors)
     : blue = _color(colors, 'icon.color.blue'),
       brand = _color(colors, 'icon.color.brand'),
@@ -604,6 +631,15 @@ final class StratumColorIconColorTokens {
 
   /// `icon.color.warning`
   final Color warning;
+
+  @override
+  Color? operator [](ColorEnum color) => switch (color) {
+    ColorEnum.brand => brand,
+    ColorEnum.violet => violet,
+    ColorEnum.blue => blue,
+    ColorEnum.teal => teal,
+    _ => null,
+  };
 }
 
 /// The `icon.default` group of each color set.
@@ -748,7 +784,7 @@ final class StratumColorTextTokens {
 }
 
 /// The `text.color` group of each color set.
-final class StratumColorTextColorTokens {
+final class StratumColorTextColorTokens implements StratumColorEnumTokens {
   StratumColorTextColorTokens._(Map<String, Color> colors)
     : blue = _color(colors, 'text.color.blue'),
       brand = _color(colors, 'text.color.brand'),
@@ -782,6 +818,15 @@ final class StratumColorTextColorTokens {
 
   /// `text.color.warning`
   final Color warning;
+
+  @override
+  Color? operator [](ColorEnum color) => switch (color) {
+    ColorEnum.brand => brand,
+    ColorEnum.violet => violet,
+    ColorEnum.blue => blue,
+    ColorEnum.teal => teal,
+    _ => null,
+  };
 }
 
 /// The `text.default` group of each color set.

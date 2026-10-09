@@ -358,9 +358,9 @@ void main() {
           : false,
     );
 
-    test('edge i1, us02/fr01/e10: a POSIX file name holding a control '
-        'character fails as unsafe_entry_path from the writer, not left as '
-        'a stack trace', () async {
+    test('edge i1, us02/fr01/e10, rz2 (c-2): a POSIX file name holding a '
+        'control character fails as unsafe_entry_path with the '
+        'printable-ASCII message, not left as a stack trace', () async {
       final root = _folder('brand', _theme());
       File(p.join(root, 'images', 'a\u0001b.svg')).writeAsStringSync(_svg);
 
@@ -370,8 +370,8 @@ void main() {
       expect(run.out, isEmpty);
       expect(
         run.err.single,
-        r'unsafe_entry_path: entry "images/a\u0001b.svg" is no canonical '
-        'relative path',
+        r'unsafe_entry_path: entry "images/a\u0001b.svg" holds a '
+        'character outside printable ASCII, U+0020 to U+007E',
       );
     });
 
@@ -453,6 +453,58 @@ void main() {
 
       expect(run.code, exitPass);
       expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isTrue);
+    });
+
+    for (final (label, file) in [
+      ('a file name', 'images/é.png'),
+      ('a folder name', 'imagés/logo.png'),
+    ]) {
+      test('us02/fr01/e10, us02/fr03/e14, rz2: $label outside printable '
+          'ASCII fails the pack with one unsafe_entry_path line, no '
+          'defaults line, and no zip', () async {
+        _folder('brand', {..._theme(), file: _svg});
+
+        final run = await _run(['pack', 'brand']);
+
+        expect(run.code, exitFailed);
+        expect(run.out, isEmpty);
+        expect(run.err, hasLength(1));
+        expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
+        expect(run.err.single, contains('outside printable ASCII'));
+        expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
+      });
+    }
+
+    test('us02/fr01/e10, us02/fr03/e14, rz2: a folder holding an emoji '
+        'name and a DEL (0x7F) name fails the pack with one '
+        'unsafe_entry_path line naming the first offending path, before '
+        'any write', () async {
+      const emoji = 'images/😀.png';
+      const del = 'images/a\u007Fb.png';
+      try {
+        _folder('brand', {..._theme(), emoji: _svg, del: _svg});
+      } on FileSystemException {
+        // This file system refuses to create a file name holding an
+        // emoji or a DEL byte; nothing to pin here.
+        markTestSkipped('no emoji or DEL file name on this file system');
+        return;
+      }
+
+      final run = await _run(['pack', 'brand']);
+
+      expect(run.code, exitFailed);
+      expect(run.out, isEmpty);
+      expect(run.err, hasLength(1));
+      expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
+      expect(run.err.single, contains('outside printable ASCII'));
+      expect(
+        run.err.single,
+        anyOf(
+          contains(r'images/\ud83d\ude00.png'),
+          contains(r'images/a\u007fb.png'),
+        ),
+      );
+      expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
     });
 
     test('coverage: on-disk case twins warn, through the real walk, not only '
@@ -675,6 +727,124 @@ void main() {
       for (final line in run.err) {
         expect(line, matches(_printable));
       }
+    });
+
+    group('r16 (t25), rz1: hostile pubspec.yaml files', () {
+      setUp(() {
+        _folder('assets/themes/default', {'theme.yaml': _schema});
+        _zip('brand.zip', _theme());
+      });
+
+      String pubspecPath() => p.join(_app.path, 'pubspec.yaml');
+
+      test('us02/fr03/e09: flow nesting 100,000 deep exits 66 at line 1, '
+          'column 65', () async {
+        File(pubspecPath()).writeAsStringSync('[' * 100000);
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+        expect(
+          run.err.last,
+          'cannot read "pubspec.yaml":1:65: nesting deeper than 64',
+        );
+      });
+
+      test('us02/fr03/e09: a mapping key built from aliases 40 deep exits 66 '
+          'at its first anchor', () async {
+        File(pubspecPath()).writeAsStringSync(
+          [
+            'a0: &a0 [x, x]',
+            for (var d = 1; d <= 40; d++) 'a$d: &a$d [*a${d - 1}, *a${d - 1}]',
+            '? *a40',
+            ': v',
+          ].join('\n'),
+        );
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(
+          run.err.last,
+          'cannot read "pubspec.yaml":1:5: no anchor, alias, or tag; refer '
+          'to a token with "{path}" instead',
+        );
+      });
+
+      test('us02/fr03/e09: a 200 MB pubspec.yaml exits 66 after reading at '
+          'most 1,048,577 bytes', () async {
+        File(pubspecPath()).openSync(mode: FileMode.write)
+          ..truncateSync(200 * 1024 * 1024)
+          ..closeSync();
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(
+          run.err.last,
+          'cannot read "pubspec.yaml": text longer than 1 MiB',
+        );
+      });
+
+      String padded(int bytes) {
+        const head =
+            'name: app\nflutter:\n  assets:\n    - assets/themes/default/\n';
+        return '$head#${'x' * (bytes - head.length - 2)}\n';
+      }
+
+      test('us02/fr03/e09, g1: bytes past 1 MiB that are not valid utf-8 '
+          'still exit 66 by length, never decoded', () async {
+        File(pubspecPath()).writeAsBytesSync([
+          ...utf8.encode(padded(1048576)),
+          ...List.filled(16, 0xFF),
+        ]);
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(
+          run.err.last,
+          'cannot read "pubspec.yaml": text longer than 1 MiB',
+        );
+      });
+
+      test('us02/fr03/e09, g1: a pubspec.yaml of exactly 1,048,576 bytes is '
+          'read, and one more byte exits 66', () async {
+        File(pubspecPath()).writeAsStringSync(padded(1048576));
+        final read = await _run(['check', 'brand.zip']);
+
+        expect(read.code, exitPass);
+        expect(read.err.first, contains('(app)'));
+
+        File(pubspecPath()).writeAsStringSync(padded(1048577));
+        final refused = await _run(['check', 'brand.zip']);
+
+        expect(refused.code, exitNoInput);
+        expect(
+          refused.err.last,
+          'cannot read "pubspec.yaml": text longer than 1 MiB',
+        );
+      });
+
+      test('us02/fr03/e09: a pubspec.yaml under 1 MiB holding byte 0xe9 '
+          'exits 66, not an unhandled exception', () async {
+        File(pubspecPath()).writeAsBytesSync([
+          ...utf8.encode('name: app\n# caf'),
+          0xe9,
+          ...utf8.encode('\n'),
+        ]);
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+        expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
+        expect(run.err, isNot(contains(contains('Unhandled exception'))));
+        for (final line in run.err) {
+          expect(line, matches(_printable));
+        }
+      });
     });
 
     test('sec f3, us02/fr03/e09: a pubspec.yaml that is a dangling symbolic '

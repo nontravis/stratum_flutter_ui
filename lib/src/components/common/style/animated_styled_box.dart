@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/components/common/style/style_decoration.dart';
+import 'package:stratum_ui/src/extensions/context_extension.dart';
 import 'package:stratum_ui/src/themes/animation.dart';
 import 'package:stratum_ui/src/themes/theme_application.dart';
 
@@ -146,7 +146,7 @@ class _AnimatedStyledBoxState extends State<AnimatedStyledBox>
     final target = _target;
     if (target == _style.end) return;
     var begin = _style.evaluate(_animation);
-    if (reducesMotion(context)) begin = _jumpGeometry(begin, to: target);
+    if (context.reducesMotion) begin = _jumpGeometry(begin, to: target);
     _style
       ..begin = begin
       ..end = target;

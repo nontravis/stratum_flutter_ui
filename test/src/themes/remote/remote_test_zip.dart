@@ -21,6 +21,15 @@ const remoteSchemaLine = r'$schema: stratum-theme/v1.0.0';
 /// - [centralExtra]: the central header's extra field.
 /// - [localAt]: writes no local header; the central header points at this
 ///   offset instead.
+/// - [rawName]: the name's bytes in both headers, in place of [name] in
+///   UTF-8.
+/// - [localRawName]: the local header's name bytes, in place of [rawName]
+///   or [name] in UTF-8, the central header unaffected.
+/// - [localCrc], [localCompressedSize], [localSize]: the local header's
+///   CRC-32, compressed size, and size, in place of the central ones.
+/// - [localExtra]: the local header's extra field.
+/// - [descriptor]: bytes written right after the data, such as a data
+///   descriptor, counted in neither header.
 final class ZipEntryFixture {
   new(
     this.name,
@@ -38,6 +47,13 @@ final class ZipEntryFixture {
     this.crc,
     this.centralExtra = const [],
     this.localAt,
+    this.rawName,
+    this.localRawName,
+    this.localCrc,
+    this.localCompressedSize,
+    this.localSize,
+    this.localExtra = const [],
+    this.descriptor = const [],
   });
 
   final String name;
@@ -55,6 +71,13 @@ final class ZipEntryFixture {
   final int? crc;
   final List<int> centralExtra;
   final int? localAt;
+  final List<int>? rawName;
+  final List<int>? localRawName;
+  final int? localCrc;
+  final int? localCompressedSize;
+  final int? localSize;
+  final List<int> localExtra;
+  final List<int> descriptor;
 
   List<int> get _body => body ?? (deflate ? Deflate(data).getBytes() : data);
 
@@ -66,7 +89,9 @@ final class ZipEntryFixture {
 
   /// This entry's local header followed by its data.
   Uint8List get localBytes {
-    final name = utf8.encode(localName ?? this.name);
+    final name = localName != null
+        ? utf8.encode(localName!)
+        : localRawName ?? rawName ?? utf8.encode(this.name);
     final out = BytesBuilder();
     _u32(out, 0x04034b50);
     _u16(out, 20);
@@ -74,14 +99,16 @@ final class ZipEntryFixture {
     _u16(out, localMethod ?? _method);
     _u16(out, 0);
     _u16(out, 0);
-    _u32(out, _crc);
-    _u32(out, _body.length);
-    _u32(out, _size);
+    _u32(out, localCrc ?? _crc);
+    _u32(out, localCompressedSize ?? _body.length);
+    _u32(out, localSize ?? _size);
     _u16(out, name.length);
-    _u16(out, 0);
+    _u16(out, localExtra.length);
     out
       ..add(name)
-      ..add(_body);
+      ..add(localExtra)
+      ..add(_body)
+      ..add(descriptor);
     return out.toBytes();
   }
 }
@@ -97,24 +124,36 @@ void _u32(BytesBuilder builder, int value) => builder.add(
 /// A zip of [entries], in order, written byte by byte so a test controls
 /// every header field.
 ///
+/// - [prefix]: bytes before the first local header.
+/// - [gaps]: bytes written right before the local header of the entry at
+///   each index.
 /// - [endCount]: the entry count the end record declares.
 /// - [disk]: the end record's disk number.
 /// - [zip64Record]: writes a ZIP64 end record after the central directory.
 /// - [zip64Locator]: writes a ZIP64 locator right before the end record.
 /// - [directoryOffset]: the central directory offset the end record
 ///   declares.
+/// - [beforeEnd]: bytes between the central directory and the end record.
+/// - [comment]: the end record's comment.
+/// - [afterEnd]: bytes after the end record's comment.
 Uint8List buildZip(
   List<ZipEntryFixture> entries, {
+  List<int> prefix = const [],
+  Map<int, List<int>> gaps = const {},
   int? endCount,
   int disk = 0,
   bool zip64Record = false,
   bool zip64Locator = false,
   int? directoryOffset,
+  List<int> beforeEnd = const [],
+  List<int> comment = const [],
+  List<int> afterEnd = const [],
 }) {
-  final out = BytesBuilder();
+  final out = BytesBuilder()..add(prefix);
   final central = BytesBuilder();
-  for (final entry in entries) {
-    final name = utf8.encode(entry.name);
+  for (final (index, entry) in entries.indexed) {
+    out.add(gaps[index] ?? const <int>[]);
+    final name = entry.rawName ?? utf8.encode(entry.name);
     final offset = entry.localAt ?? out.length;
     if (entry.localAt == null) out.add(entry.localBytes);
     _u32(central, 0x02014b50);
@@ -140,7 +179,9 @@ Uint8List buildZip(
   }
   final start = out.length;
   final directory = central.toBytes();
-  out.add(directory);
+  out
+    ..add(directory)
+    ..add(beforeEnd);
   final record = out.length;
   if (zip64Record) {
     _u32(out, 0x06064b50);
@@ -160,12 +201,38 @@ Uint8List buildZip(
   _u16(out, endCount ?? entries.length);
   _u32(out, directory.length);
   _u32(out, directoryOffset ?? start);
-  _u16(out, 0);
+  _u16(out, comment.length);
+  out
+    ..add(comment)
+    ..add(afterEnd);
   return out.toBytes();
 }
 
 /// The checksum text of [bytes]: `sha256:` and 64 lowercase hex digits.
 String checksumOf(List<int> bytes) => 'sha256:${sha256.convert(bytes)}';
+
+/// A data descriptor for [data] as [ZipEntryFixture] writes its body:
+/// the signature `50 4b 07 08` unless [signed] is false, then the CRC-32,
+/// the compressed size, and the size, each 4 bytes, or 8 for the two
+/// sizes when [zip64] is set.
+List<int> dataDescriptor(
+  List<int> data, {
+  bool deflate = true,
+  bool signed = true,
+  bool zip64 = false,
+}) {
+  final out = BytesBuilder();
+  if (signed) _u32(out, 0x08074b50);
+  _u32(out, getCrc32(data));
+  for (final size in [
+    if (deflate) Deflate(data).getBytes().length else data.length,
+    data.length,
+  ]) {
+    _u32(out, size);
+    if (zip64) _u32(out, 0);
+  }
+  return out.toBytes();
+}
 
 /// [plain] under ZipCrypto with all-zero keys, the state `archive` decodes
 /// with when a local header sets flag bit 0 and no password is given.

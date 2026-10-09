@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/components/common/style/animated_styled_box.dart';
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/components/common/style/style_decoration.dart';
 import 'package:stratum_ui/src/themes/config/animation_config.dart';
 
@@ -747,59 +746,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(tester.getSize(_decorated()), const Size(60, 30));
-    });
-  });
-
-  group('reducesMotion', () {
-    void useFeatures(WidgetTester tester, FakeAccessibilityFeatures features) {
-      tester.platformDispatcher.accessibilityFeaturesTestValue = features;
-      addTearDown(
-        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-      );
-    }
-
-    /// The result of [reducesMotion] below [data], or below no
-    /// [MediaQuery] of the test's own when [data] is null.
-    Future<bool> read(WidgetTester tester, {MediaQueryData? data}) async {
-      late bool result;
-      Widget probe = Builder(
-        builder: (context) {
-          result = reducesMotion(context);
-          return const SizedBox();
-        },
-      );
-      if (data != null) probe = MediaQuery(data: data, child: probe);
-      await tester.pumpWidget(probe);
-      return result;
-    }
-
-    testWidgets('is false without a flag', (tester) async {
-      expect(await read(tester), isFalse);
-    });
-
-    testWidgets("is true for the app's MediaQuery disableAnimations", (
-      tester,
-    ) async {
-      expect(
-        await read(tester, data: const MediaQueryData(disableAnimations: true)),
-        isTrue,
-      );
-    });
-
-    testWidgets('is true for the platform reduceMotion', (tester) async {
-      useFeatures(tester, const FakeAccessibilityFeatures(reduceMotion: true));
-
-      expect(await read(tester, data: const MediaQueryData()), isTrue);
-    });
-
-    testWidgets("lets the app's MediaQuery override the platform "
-        'disableAnimations', (tester) async {
-      useFeatures(
-        tester,
-        const FakeAccessibilityFeatures(disableAnimations: true),
-      );
-
-      expect(await read(tester, data: const MediaQueryData()), isFalse);
     });
   });
 

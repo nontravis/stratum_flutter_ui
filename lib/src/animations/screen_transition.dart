@@ -4,7 +4,6 @@ import 'package:animations/animations.dart'
         SharedAxisPageTransitionsBuilder,
         SharedAxisTransitionType;
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The `slow` level of the theme above [context], else the package
@@ -86,11 +85,11 @@ Duration reverseTransitionDurationOf(
 /// [curve] is the caller's; with none, every type but `platform` and
 /// `cupertino` runs on [standard], the theme's `standard` curve, and the
 /// Flutter motion those two show keeps its own curve. Under reduced motion
-/// ([reducesMotion]) every slide, scale, rotation, and size change drops: a
-/// type with a fade keeps a fade over the full duration, and any other type
-/// shows the page at once and hides it while the route pops; the Cupertino
-/// slide of `platform` on iOS and of `cupertino` moves only while a pop
-/// gesture tracks the finger, so the swipe-back stays (FR-04 E04). A fade
+/// (`context.reducesMotion`) every slide, scale, rotation, and size change
+/// drops: a type with a fade keeps a fade over the full duration, and any
+/// other type shows the page at once and hides it while the route pops; the
+/// Cupertino slide of `platform` on iOS and of `cupertino` moves only while a
+/// pop gesture tracks the finger, so the swipe-back stays (FR-04 E04). A fade
 /// this function draws itself runs on [curve], else [standard], `platform`
 /// included (US-05 FR-03).
 ///
@@ -112,7 +111,7 @@ Widget buildScreenTransition<T>(
   bool joinOnSecondary = false,
 }) {
   final resolved = curve ?? standard;
-  final reduced = reducesMotion(context);
+  final reduced = context.reducesMotion;
   final tween = _curveTweenOf(resolved);
   final curved = animation.drive(tween);
   switch (type) {
@@ -344,8 +343,8 @@ Widget buildScreenTransition<T>(
 /// A page never moves twice: Flutter holds the secondary animation of the
 /// page below's own transition while this one runs, and
 /// [kAlwaysCompleteAnimation] keeps the incoming half out of this one.
-/// Under reduced motion ([reducesMotion]) the page below stays still but
-/// for a Cupertino pop gesture, which it tracks as in
+/// Under reduced motion (`context.reducesMotion`) the page below stays still
+/// but for a Cupertino pop gesture, which it tracks as in
 /// [buildScreenTransition].
 DelegatedTransitionBuilder? delegatedScreenTransition(
   ScreenTransitionType type,
@@ -390,7 +389,7 @@ DelegatedTransitionBuilder? _flutterDelegate(
   if (flutter == null) return null;
   final cupertino = builder is CupertinoPageTransitionsBuilder;
   return (context, animation, secondaryAnimation, allowSnapshotting, child) {
-    final reduced = reducesMotion(context);
+    final reduced = context.reducesMotion;
     if (reduced && !cupertino) return null;
     final gesture = ModalRoute.of(context)?.popGestureInProgress ?? false;
     return flutter(
@@ -426,7 +425,7 @@ DelegatedTransitionBuilder _outgoingHalf(
   Curve? curve,
 ) => (context, animation, secondaryAnimation, allowSnapshotting, child) {
   final route = ModalRoute.of(context);
-  if (route is! PageRoute<Object?> || child == null || reducesMotion(context)) {
+  if (route is! PageRoute<Object?> || child == null || context.reducesMotion) {
     return null;
   }
   return buildScreenTransition<Object?>(

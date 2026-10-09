@@ -1,3 +1,4 @@
+export 'caret.dart' hide CaretPainter;
 export 'focus_border.dart' hide focusBorderOutsideReach;
 export 'focus_spread.dart';
 export 'show.dart';

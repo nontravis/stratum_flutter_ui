@@ -5,6 +5,7 @@ import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/config/transparent.dart';
 
 import '../../tool/gen_theme_tokens.dart';
+import '../src/components/common/fakes/fake_stratum_theme.dart';
 
 /// The smallest yaml the generator reads, with [space] as its space group.
 String _yaml(String space) =>
@@ -25,6 +26,26 @@ opacity: { disabled: 0.5 }
 /// `#RRGGBBAA` as the Dart color `0xAARRGGBB`.
 Color _color(String hex) =>
     Color(int.parse('${hex.substring(7, 9)}${hex.substring(1, 7)}', radix: 16));
+
+/// The smallest yaml whose `color.light.icon.color` group holds [keys],
+/// each `#000000`.
+String _iconColorYaml(Iterable<String> keys) =>
+    '''
+color:
+  light:
+    icon:
+      color: { ${[for (final key in keys) '$key: "#000000"'].join(', ')} }
+palette:
+  brand: { 500: "#000000" }
+space: { md: 4 }
+radius: { md: 10 }
+layouts: { max-width-read: 720 }
+assets: { loading: }
+''';
+
+/// The yaml key whose Dart name is [color]'s name.
+String _keyOf(ColorEnum color) =>
+    color == ColorEnum.blueGray ? 'blue-gray' : color.name;
 
 void main() {
   test('the committed file equals the generator output', () {
@@ -149,6 +170,162 @@ void main() {
       ]);
       expect(names, contains('StratumColorTextDefaultsTokens'));
       expect(names, contains('StratumColorBackgroundDefaultsTokens'));
+    });
+  });
+
+  group('ColorEnum lookup', () {
+    test('us10/fr01/e04, s03/inv33: the output imports ColorEnum and '
+        'declares StratumColorEnumTokens', () {
+      final generated = generateThemeTokens(_iconColorYaml(['blue']));
+
+      expect(
+        generated,
+        contains(
+          "import 'package:stratum_ui/src/themes/constant/color.dart';\n",
+        ),
+      );
+      expect(
+        generated,
+        contains(
+          'abstract interface class StratumColorEnumTokens {\n'
+          '  /// The token named [color]; null when this group holds none.\n'
+          '  Color? operator [](ColorEnum color);\n'
+          '}\n',
+        ),
+      );
+    });
+
+    test('us10/fr01/e03, us10/fr01/e04, s03/inv33: a <group>.color class '
+        'answers the ColorEnum names it holds, in ColorEnum order, and null '
+        'for the rest; semantic keys stay out', () {
+      final generated = generateThemeTokens(
+        _iconColorYaml([
+          'blue',
+          'negative',
+          'red',
+          'blue-gray',
+          'negative-on-color',
+        ]),
+      );
+
+      expect(
+        generated,
+        contains(
+          'final class StratumColorIconColorTokens '
+          'implements StratumColorEnumTokens {\n',
+        ),
+      );
+      expect(
+        generated,
+        contains(
+          '  @override\n'
+          '  Color? operator [](ColorEnum color) => switch (color) {\n'
+          '    ColorEnum.red => red,\n'
+          '    ColorEnum.blue => blue,\n'
+          '    ColorEnum.blueGray => blueGray,\n'
+          '    _ => null,\n'
+          '  };\n',
+        ),
+      );
+      expect(generated, isNot(contains('=> negative')));
+    });
+
+    test('us10/fr01/e04: a group that holds all twenty names has no null '
+        'case', () {
+      final generated = generateThemeTokens(
+        _iconColorYaml(ColorEnum.values.map(_keyOf)),
+      );
+
+      for (final color in ColorEnum.values) {
+        expect(
+          generated,
+          contains('    ColorEnum.${color.name} => ${color.name},\n'),
+        );
+      }
+      expect(generated, isNot(contains('_ => null')));
+    });
+
+    test('us10/fr01/e03: a group that holds no ColorEnum name answers null '
+        'for every name', () {
+      final generated = generateThemeTokens(
+        _iconColorYaml(['negative', 'warning']),
+      );
+
+      expect(
+        generated,
+        contains('  Color? operator [](ColorEnum color) => null;\n'),
+      );
+    });
+
+    test('s03/inv33: in the package default exactly the four <group>.color '
+        'classes implement StratumColorEnumTokens', () {
+      final generated = generateThemeTokens(File(themePath).readAsStringSync());
+      final names = RegExp(
+        r'^final class (\w+) implements StratumColorEnumTokens \{',
+        multiLine: true,
+      ).allMatches(generated).map((match) => match[1]).toList();
+
+      expect(names, [
+        'StratumColorBackgroundColorTokens',
+        'StratumColorBorderColorTokens',
+        'StratumColorIconColorTokens',
+        'StratumColorTextColorTokens',
+      ]);
+    });
+
+    test('us10/fr01/e03, us10/s5: each package default group gives its own '
+        'token for a name it holds and null for every other name', () {
+      final colors = defaultThemeSet.light.color;
+      final background = colors.background.color;
+      final border = colors.border.color;
+      final icon = colors.icon.color;
+      final text = colors.text.color;
+      final groups = <String, (StratumColorEnumTokens, Map<ColorEnum, Color>)>{
+        'background.color': (
+          background,
+          {
+            ColorEnum.blue: background.blue,
+            ColorEnum.brand: background.brand,
+            ColorEnum.gray: background.gray,
+            ColorEnum.teal: background.teal,
+            ColorEnum.violet: background.violet,
+          },
+        ),
+        'border.color': (
+          border,
+          {
+            ColorEnum.blue: border.blue,
+            ColorEnum.brand: border.brand,
+            ColorEnum.gray: border.gray,
+            ColorEnum.teal: border.teal,
+            ColorEnum.violet: border.violet,
+          },
+        ),
+        'icon.color': (
+          icon,
+          {
+            ColorEnum.blue: icon.blue,
+            ColorEnum.brand: icon.brand,
+            ColorEnum.teal: icon.teal,
+            ColorEnum.violet: icon.violet,
+          },
+        ),
+        'text.color': (
+          text,
+          {
+            ColorEnum.blue: text.blue,
+            ColorEnum.brand: text.brand,
+            ColorEnum.teal: text.teal,
+            ColorEnum.violet: text.violet,
+          },
+        ),
+      };
+
+      for (final MapEntry(key: path, value: (group, held)) in groups.entries) {
+        for (final color in ColorEnum.values) {
+          expect(group[color], held[color], reason: '$path[${color.name}]');
+        }
+      }
     });
   });
 

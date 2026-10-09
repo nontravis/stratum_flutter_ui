@@ -75,14 +75,18 @@ void main() {
     );
   });
 
-  test('M6: a long folder list is one text cut at 200 characters', () {
+  test('M6, rz4: a long folder list is one text cut at 200 characters, '
+      'then the marker', () {
     expect(
       () => findThemeRoot([for (var i = 0; i < 100; i++) 'folder$i/x']),
       throwsA(
         isA<RemoteThemeFailure>().having(
           (f) => f.message,
           'message',
-          allOf(endsWith('...'), isNot(contains('folder99'))),
+          allOf(
+            matches(RegExp(r'\\\[cut \d+ chars, id [0-9a-f]{32}\]$')),
+            isNot(contains('folder99')),
+          ),
         ),
       ),
     );
