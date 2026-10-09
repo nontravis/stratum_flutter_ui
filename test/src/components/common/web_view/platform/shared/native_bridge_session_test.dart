@@ -1182,6 +1182,41 @@ void main() {
         const StratumWebViewMessage(data: 'new'),
       );
     });
+
+    test('us03/fr04/e10, us03/fr04/e15: a bfcache round trip, hello then bye '
+        'then hello again from the same document, moves acceptance to the '
+        'new reply proxy', () {
+      final nonce = nonceIn(android.willLoadHtml('<p>Hi</p>'));
+      android
+        ..acceptMessage(
+          envelope(nonce, 'hello', documentA),
+          sender: sentBy(proxyA),
+        )
+        ..acceptMessage(
+          envelope(nonce, 'bye', documentA),
+          sender: sentBy(proxyA),
+        )
+        ..acceptMessage(
+          envelope(nonce, 'hello', documentA),
+          sender: sentBy(proxyB),
+        );
+      expect(
+        android.acceptMessage(
+          messageEnvelope(nonce, 'old'),
+          sender: sentBy(proxyA),
+        ),
+        isNull,
+      );
+      expect(
+        android
+            .acceptMessage(
+              messageEnvelope(nonce, 'new'),
+              sender: sentBy(proxyB),
+            )
+            ?.message,
+        const StratumWebViewMessage(data: 'new'),
+      );
+    });
   });
 
   group('WebKit senders with no reply proxy', () {

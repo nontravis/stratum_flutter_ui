@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_web.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
@@ -403,6 +404,43 @@ void main() {
     );
     attach();
     expect(await counted.future.timeout(const Duration(seconds: 5)), '1:true');
+  });
+
+  test('nf01/NFR-Sec03, us03/fr04/e11: the native bootstrap removes itself and '
+      "its secrets from a real document's live DOM before any native channel "
+      "exists, and keeps the page's own script element", () async {
+    const nonce = '0123456789abcdef0123456789abcdef';
+    const token = 'native-bootstrap-token-secret';
+    final html = injectNativeBridgeBootstrap(
+      '<script id="own">window.__ownRan = true;</script>',
+      nonce: nonce,
+      token: token,
+    );
+    final nativeIframe = web.HTMLIFrameElement()..srcdoc = html.toJS;
+    final loaded = Completer<void>();
+    nativeIframe.addEventListener(
+      'load',
+      ((web.Event _) {
+        if (!loaded.isCompleted) loaded.complete();
+      }).toJS,
+    );
+    // A tear-off of a JS interop member does not compile, so wrap it.
+    // ignore: unnecessary_lambdas
+    addTearDown(() => nativeIframe.remove());
+    web.document.body!.appendChild(nativeIframe);
+    await loaded.future.timeout(const Duration(seconds: 5));
+
+    // No native sender was wired onto `window.StratumBridge`, so the
+    // bootstrap's own guard returns before posting `hello` or defining the
+    // token property: this pins only what runs before that first post.
+    final nativeDocument = nativeIframe.contentDocument;
+    if (nativeDocument == null) fail('expected a same-origin document');
+    final outerHtml = nativeDocument.documentElement!.outerHTML;
+    if (!outerHtml.isA<JSString>()) fail('expected a string outerHTML');
+    final live = (outerHtml as JSString).toDart;
+    expect(live, isNot(contains(nonce)));
+    expect(live, isNot(contains(token)));
+    expect(live, contains('id="own"'));
   });
 
   test('drops a direct postMessage, keeps the bridge message', () async {
