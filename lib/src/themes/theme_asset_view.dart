@@ -1,5 +1,4 @@
 import 'package:lottie/lottie.dart' show Lottie;
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_bundle.dart';
 
@@ -75,7 +74,7 @@ class StratumThemeAssetView extends StatelessWidget {
         width: width,
         height: height,
         fit: fit,
-        animate: !reducesMotion(context),
+        animate: !context.reducesMotion,
         errorBuilder: (context, error, stackTrace) => placeholder,
       ),
     };

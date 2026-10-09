@@ -1,5 +1,4 @@
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/components/common/utility/focus_border.dart'
     show focusBorderOutsideReach;
 import 'package:stratum_ui/src/src.dart';
@@ -551,7 +550,7 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
     final amount = page ? 0.8 * position.viewportDimension : 50.0;
     final delta = direction == position.axisDirection ? amount : -amount;
     // A zero duration makes moveTo jump (NFR-U03).
-    final line = reducesMotion(context)
+    final line = context.reducesMotion
         ? AnimationStyle.noAnimation
         : _motion.fast;
     if (nested != null) {
@@ -682,7 +681,7 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
     }
 
     if (jump ||
-        reducesMotion(context) ||
+        context.reducesMotion ||
         _durationOf(_motion.slow) == Duration.zero) {
       _slideTarget = null;
       controller.jumpToPage(page);

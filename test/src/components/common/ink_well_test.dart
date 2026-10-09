@@ -352,6 +352,7 @@ void main() {
         'zero duration on easeInOutSine', (tester) async {
       final theme = fakeTheme.copyWith(
         animation: StratumAnimation(
+          micro: StratumAnimation.packageDefault.micro,
           veryFast: StratumAnimation.packageDefault.veryFast,
           fast: const AnimationStyle(),
           normal: StratumAnimation.packageDefault.normal,

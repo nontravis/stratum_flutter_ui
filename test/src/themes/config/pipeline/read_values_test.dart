@@ -522,7 +522,8 @@ typography:
 
       expect(problems(errors), isEmpty);
       expect(config.animation.durations, {
-        'veryFast': const Duration(milliseconds: 50),
+        'micro': const Duration(milliseconds: 30),
+        'veryFast': const Duration(milliseconds: 75),
         'fast': const Duration(milliseconds: 125),
         'normal': const Duration(milliseconds: 200),
         'slow': const Duration(milliseconds: 300),
@@ -551,6 +552,43 @@ typography:
       expect(
         config.animation.durations['slow'],
         const Duration(milliseconds: 300),
+      );
+    });
+
+    test('fo01/us01/fr01: a layer that sets no micro keeps the base 30 ms', () {
+      final (config, errors) = _read([
+        layer('animation:\n  duration:\n    veryFast: 60'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(
+        config.animation.durations['micro'],
+        const Duration(milliseconds: 30),
+      );
+      expect(
+        config.animation.durations['veryFast'],
+        const Duration(milliseconds: 60),
+      );
+    });
+
+    test('fo01/us01/fr01: a layer may name micro as the default', () {
+      final (config, errors) = _read([
+        layer('animation:\n  duration:\n    default: micro'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.animation.defaultLevel, 'micro');
+    });
+
+    test('fo01/us01/fr01: a layer may set its own micro value', () {
+      final (config, errors) = _read([
+        layer('animation:\n  duration:\n    micro: 20'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(
+        config.animation.durations['micro'],
+        const Duration(milliseconds: 20),
       );
     });
 
@@ -670,10 +708,17 @@ typography:
             'of 0 or more, got Infinity [expected_duration]',
       ),
       (
+        'a negative micro level',
+        'animation:\n  duration:\n    micro: -10',
+        'layer1 animation.duration.micro: expected a number of milliseconds '
+            'of 0 or more, got -10 [expected_duration]',
+      ),
+      (
         'a default that names no level',
         'animation:\n  duration:\n    default: medium',
-        'layer1 animation.duration.default: expected one of veryFast, fast, '
-            'normal, slow, verySlow, got "medium" [expected_duration]',
+        'layer1 animation.duration.default: expected one of micro, '
+            'veryFast, fast, normal, slow, verySlow, got "medium" '
+            '[expected_duration]',
       ),
       (
         'a reverse duration without %',

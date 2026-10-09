@@ -6,7 +6,6 @@ import 'package:flutter/rendering.dart'
         ScrollCacheExtent;
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// A lazy list whose items the user reorders, inside a [WidgetStyle] box.
@@ -716,7 +715,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (key != null &&
         size != null &&
         !_fixedExtent &&
-        !reducesMotion(context)) {
+        !context.reducesMotion) {
       _joinGap(from, [_startClosingGap(from, key, size)]);
     }
     _shiftForInsert(to);
@@ -2454,7 +2453,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // reduced motion, or a caller transition gives it its room.
     if (_layout.itemTransitionBuilder == null &&
         !_fixedExtent &&
-        !reducesMotion(context)) {
+        !context.reducesMotion) {
       entered -= _pendingInserts.where((insert) {
         final at = insert.index.nextSlot;
         return at < slot && counts(at);
@@ -2705,7 +2704,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final builder = _layout.itemTransitionBuilder;
     if (builder != null) return builder(context, animation, child);
     final fade = FadeTransition(opacity: animation, child: _stretched(child));
-    if (_fixedExtent || reducesMotion(context)) return fade;
+    if (_fixedExtent || context.reducesMotion) return fade;
     return SizeTransition(
       axis: _layout.scrollDirection,
       sizeFactor: animation,
@@ -2725,7 +2724,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// that choice (E01, E02, E11).
   bool _exitsTakeNoExtent(BuildContext context) =>
       _fixedExtent ||
-      (_layout.itemTransitionBuilder == null && reducesMotion(context));
+      (_layout.itemTransitionBuilder == null && context.reducesMotion);
 
   /// [exit] over the item of its slot, taking no room: filling the slot
   /// under a fixed extent, else from the item's edge nearest index 0, or

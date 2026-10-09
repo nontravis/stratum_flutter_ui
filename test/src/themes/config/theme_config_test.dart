@@ -148,8 +148,9 @@ animation:
           '  ocean:4:7 space.md: expected a number, got "5%"; a percent is '
           'allowed only in layouts [expected_dimension]';
       const level =
-          '  ocean:7:14 animation.duration.default: expected one of veryFast, '
-          'fast, normal, slow, verySlow, got "medium" [expected_duration]';
+          '  ocean:7:14 animation.duration.default: expected one of micro, '
+          'veryFast, fast, normal, slow, verySlow, got "medium" '
+          '[expected_duration]';
       const fast =
           '  ocean:8:11 animation.duration.fast: expected a number of '
           'milliseconds of 0 or more, got -10 [expected_duration]';

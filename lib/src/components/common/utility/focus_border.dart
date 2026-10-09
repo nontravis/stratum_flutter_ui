@@ -1,4 +1,3 @@
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The gap before an outside ring when [StratumFocusBorder.gap] is null.
@@ -191,7 +190,7 @@ class _StratumFocusBorderState extends State<StratumFocusBorder> {
               side.copyWith(color: side.color.withValues(alpha: 0)),
             ),
           );
-    if (!reducesMotion(context)) return look;
+    if (!context.reducesMotion) return look;
     return look.copyWith(animationStyle: AnimationStyle.noAnimation);
   }
 
