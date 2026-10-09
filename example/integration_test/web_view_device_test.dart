@@ -769,8 +769,9 @@ Future<void> _checkpoint(
   await tester.pump(_hold);
 }
 
-/// Serves group B's pages on 127.0.0.1 at a port the system assigns
-/// (FR-01 E02); it runs inside the test and is never a public service.
+/// Serves group A's `URL` tab page and group B's pages on 127.0.0.1 at a
+/// port the system assigns (FR-01 E02); it runs inside the test and is
+/// never a public service.
 class _PageServer {
   _PageServer._(this._server);
 
