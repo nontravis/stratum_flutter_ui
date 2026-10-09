@@ -1,12 +1,13 @@
 import 'package:stratum_ui/src/src.dart';
 
-/// The five duration levels of `animation.duration` (spec G5).
-enum StratumMotionLevel { veryFast, fast, normal, slow, verySlow }
+/// The six duration levels of `animation.duration` (spec G5).
+enum StratumMotionLevel { micro, veryFast, fast, normal, slow, verySlow }
 
 /// One animation style per [StratumMotionLevel].
 @immutable
 class StratumMotionLevels {
   const new({
+    required this.micro,
     required this.veryFast,
     required this.fast,
     required this.normal,
@@ -14,6 +15,7 @@ class StratumMotionLevels {
     required this.verySlow,
   });
 
+  final AnimationStyle micro;
   final AnimationStyle veryFast;
   final AnimationStyle fast;
   final AnimationStyle normal;
@@ -21,6 +23,7 @@ class StratumMotionLevels {
   final AnimationStyle verySlow;
 
   AnimationStyle operator [](StratumMotionLevel level) => switch (level) {
+    StratumMotionLevel.micro => micro,
     StratumMotionLevel.veryFast => veryFast,
     StratumMotionLevel.fast => fast,
     StratumMotionLevel.normal => normal,
@@ -32,6 +35,7 @@ class StratumMotionLevels {
   bool operator ==(Object other) =>
       other.runtimeType == runtimeType &&
       other is StratumMotionLevels &&
+      other.micro == micro &&
       other.veryFast == veryFast &&
       other.fast == fast &&
       other.normal == normal &&
@@ -39,7 +43,8 @@ class StratumMotionLevels {
       other.verySlow == verySlow;
 
   @override
-  int get hashCode => Object.hash(veryFast, fast, normal, slow, verySlow);
+  int get hashCode =>
+      Object.hash(micro, veryFast, fast, normal, slow, verySlow);
 }
 
 /// A theme's motion: the `animation` group of its `theme.yaml` (spec
@@ -48,6 +53,7 @@ class StratumMotionLevels {
 @immutable
 class StratumAnimation extends StratumMotionLevels {
   const new({
+    required super.micro,
     required super.veryFast,
     required super.fast,
     required super.normal,
@@ -112,6 +118,7 @@ class StratumAnimation extends StratumMotionLevels {
 
     StratumMotionLevels levels(Curve forward, Curve back) =>
         StratumMotionLevels(
+          micro: style(StratumMotionLevel.micro, forward, back),
           veryFast: style(StratumMotionLevel.veryFast, forward, back),
           fast: style(StratumMotionLevel.fast, forward, back),
           normal: style(StratumMotionLevel.normal, forward, back),
@@ -120,6 +127,7 @@ class StratumAnimation extends StratumMotionLevels {
         );
     final main = levels(standard, standard);
     return StratumAnimation(
+      micro: main.micro,
       veryFast: main.veryFast,
       fast: main.fast,
       normal: main.normal,
@@ -147,9 +155,15 @@ class StratumAnimation extends StratumMotionLevels {
   /// widget with no theme above it (spec G20). A test keeps it equal to
   /// the yaml.
   static const packageDefault = StratumAnimation(
+    micro: AnimationStyle(
+      duration: Duration(milliseconds: 30),
+      reverseDuration: Duration(microseconds: 19200),
+      curve: Curves.easeInOutSine,
+      reverseCurve: Curves.easeInOutSine,
+    ),
     veryFast: AnimationStyle(
-      duration: Duration(milliseconds: 50),
-      reverseDuration: Duration(milliseconds: 32),
+      duration: Duration(milliseconds: 75),
+      reverseDuration: Duration(milliseconds: 48),
       curve: Curves.easeInOutSine,
       reverseCurve: Curves.easeInOutSine,
     ),
@@ -178,9 +192,15 @@ class StratumAnimation extends StratumMotionLevels {
       reverseCurve: Curves.easeInOutSine,
     ),
     appear: StratumMotionLevels(
+      micro: AnimationStyle(
+        duration: Duration(milliseconds: 30),
+        reverseDuration: Duration(microseconds: 19200),
+        curve: Curves.easeOut,
+        reverseCurve: Curves.easeIn,
+      ),
       veryFast: AnimationStyle(
-        duration: Duration(milliseconds: 50),
-        reverseDuration: Duration(milliseconds: 32),
+        duration: Duration(milliseconds: 75),
+        reverseDuration: Duration(milliseconds: 48),
         curve: Curves.easeOut,
         reverseCurve: Curves.easeIn,
       ),

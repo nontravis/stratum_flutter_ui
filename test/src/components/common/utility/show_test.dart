@@ -245,6 +245,7 @@ void main() {
           '$name shows '
           'and hides at once', (tester) async {
         final levels = StratumMotionLevels(
+          micro: level,
           veryFast: level,
           fast: level,
           normal: level,
@@ -253,6 +254,7 @@ void main() {
         );
         final theme = fakeTheme.copyWith(
           animation: StratumAnimation(
+            micro: level,
             veryFast: level,
             fast: level,
             normal: level,

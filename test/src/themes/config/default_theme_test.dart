@@ -131,7 +131,8 @@ void main() {
       config.animation,
       const StratumAnimationConfig(
         durations: {
-          'veryFast': Duration(milliseconds: 50),
+          'micro': Duration(milliseconds: 30),
+          'veryFast': Duration(milliseconds: 75),
           'fast': Duration(milliseconds: 125),
           'normal': Duration(milliseconds: 200),
           'slow': Duration(milliseconds: 300),

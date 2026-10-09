@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- The empty `assets/fonts/` asset declaration is removed from `pubspec.yaml`; the package ships no font from it.
+- Breaking: the theme animation scale gains a sixth duration level, `micro`, first and shortest: 30 ms forward and
+  19.2 ms back in the package default (its 64% `reverseDuration`), read as `StratumTheme.of(context).animation.micro`
+  and `StratumMotionLevel.micro`, and valid as `animation.duration.default`. `StratumMotionLevels` and
+  `StratumAnimation` now take a required `micro`, so a hand-built one passes it, and an exhaustive `switch` over
+  `StratumMotionLevel` needs a `micro` case. A theme file that sets no `micro` reads the package default's 30 ms, and
+  the `animation.duration.default` problem message now lists `micro` first.
+- Breaking: the package default `veryFast` duration level slows by 25 ms, from 50 ms to 75 ms forward and from 32 ms
+  to 48 ms back. No `@Deprecated` step: no release has shipped the 50 ms value.
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now inflate and check every zip entry, those
   the install never reads included (`__MACOSX/` entries, a `.DS_Store`, a loose file beside the theme folder): an
   entry whose data does not inflate to exactly its declared size, or fails its CRC-32 check, is `invalid_archive`
