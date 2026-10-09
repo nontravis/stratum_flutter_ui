@@ -338,6 +338,17 @@ void main() {
       expect(color, _fallback);
     });
 
+    testWidgets('us01/fr03/e01: StratumStatefulWidget with a null color '
+        'gives the fallback and reads no theme', (tester) async {
+      final color = await _readInBuild(
+        tester,
+        (context) =>
+            const _StatefulProbe().resolveColor(context, _icon, _fallback),
+      );
+
+      expect(color, _fallback);
+    });
+
     testWidgets('us01/fr03/e02, us01/s5: blue in the icon group gives the '
         "theme's icon.color.blue", (tester) async {
       final color = await _readInBuild(
