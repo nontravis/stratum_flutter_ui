@@ -12,7 +12,9 @@ import 'package:stratum_ui/src/src.dart';
 /// - In debug builds on every platform the constructor asserts that
 ///   [minScale] is above 0 and [maxScale] is at least [minScale].
 /// - New limits that leave the zoom outside them ease it to the nearest
-///   limit about the viewport's center, at once under reduced motion.
+///   limit about the viewport's center, at once under reduced motion; the
+///   center stays fixed only as far as the app's bounds allow, as a pinch
+///   does (R16).
 /// - It extends no component base, as [Slot] does.
 class StratumWebZoom extends StatelessWidget {
   const new({
@@ -103,9 +105,18 @@ class _WebZoomViewerState extends State<_WebZoomViewer>
       transformationController: _controller,
       minScale: widget.minScale,
       maxScale: widget.maxScale,
+      onInteractionStart: _onInteractionStart,
+      onInteractionEnd: (_) => _easeIntoLimits(),
       child: widget.child,
     ),
   );
+
+  /// Yields to a real gesture so it is never fought by the ease; a mouse
+  /// wheel also fires this while the guard holds, so it is left alone
+  /// (R16, Important 1).
+  void _onInteractionStart(ScaleStartDetails details) {
+    if (!_controller.held) _ease.stop();
+  }
 
   /// Takes a scale outside the limits to the nearest one, over the theme's
   /// default motion level, or at once under reduced motion (US-01 FR-01
@@ -141,16 +152,35 @@ class _WebZoomViewerState extends State<_WebZoomViewer>
   void _zoomTo(double scale) {
     final viewport = context.findRenderObject();
     if (viewport is! RenderBox || !viewport.hasSize) return;
-    final center = viewport.size.center(Offset.zero);
+    final size = viewport.size;
+    final center = size.center(Offset.zero);
     final matrix = _controller.value;
     final ratio = scale / matrix.getMaxScaleOnAxis();
     final translation = matrix.getTranslation();
     _controller.value = Matrix4.diagonal3Values(scale, scale, scale)
       ..setTranslationRaw(
-        center.dx + (translation.x - center.dx) * ratio,
-        center.dy + (translation.y - center.dy) * ratio,
+        _clampToBounds(
+          center.dx + (translation.x - center.dx) * ratio,
+          size.width,
+          scale,
+        ),
+        _clampToBounds(
+          center.dy + (translation.y - center.dy) * ratio,
+          size.height,
+          scale,
+        ),
         0,
       );
+  }
+
+  /// The nearest point to [value] that keeps the app's content from
+  /// crossing the viewport's edge on this axis, as `InteractiveViewer`'s own
+  /// pinch does with its default zero boundary margin (R16).
+  double _clampToBounds(double value, double extent, double scale) {
+    final bound = extent * (1 - scale);
+    return bound <= 0
+        ? clampDouble(value, bound, 0)
+        : clampDouble(value, 0, bound);
   }
 }
 

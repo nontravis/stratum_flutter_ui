@@ -53,6 +53,25 @@ Future<void> _pinch(WidgetTester tester, double factor) async {
   await tester.pumpAndSettle();
 }
 
+/// Two fingers that start 40 px apart, centered 20 px off the top-left
+/// corner of the zoom, and end [factor] times as far.
+Future<void> _cornerPinch(WidgetTester tester, double factor) async {
+  final origin = tester.getTopLeft(find.byType(StratumWebZoom));
+  final focal = origin + const Offset(40, 30);
+  final a = await tester.startGesture(focal - const Offset(20, 0), pointer: 1);
+  final b = await tester.startGesture(focal + const Offset(20, 0), pointer: 2);
+  await tester.pump();
+  for (var step = 1; step <= 10; step++) {
+    final spread = 20.0 * (1 + (factor - 1) * step / 10);
+    await a.moveTo(focal - Offset(spread, 0));
+    await b.moveTo(focal + Offset(spread, 0));
+    await tester.pump();
+  }
+  await a.up();
+  await b.up();
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('co01-04/us01/fr01: the web branch is one pinch zoom with the '
       'limits, clipped to its bounds (us01/s7)', (tester) async {
@@ -210,6 +229,85 @@ void main() {
 
       expect(tester.hasRunningAnimations, isFalse);
       expect(_scale(tester), zoomed);
+    });
+
+    testWidgets('R16: a maximum lowered past a corner zoom leaves no blank '
+        'strip', (tester) async {
+      await tester.pumpWidget(_host(zoom()));
+      await _cornerPinch(tester, 2);
+
+      await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
+      await tester.pumpAndSettle();
+
+      final translation = _transform(tester).getTranslation();
+      expect(_scale(tester), 1.5);
+      expect(translation.x, inInclusiveRange(400 * (1 - 1.5), 0.0));
+      expect(translation.y, inInclusiveRange(300 * (1 - 1.5), 0.0));
+    });
+
+    testWidgets('R16, Important 1: a pinch mid-ease shows its own scale, '
+        'not the stale eased one', (tester) async {
+      await tester.pumpWidget(_host(zoom()));
+      await _pinch(tester, 2);
+
+      await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(tester.hasRunningAnimations, isTrue);
+      final start = _scale(tester);
+
+      final center = tester.getCenter(find.byType(StratumWebZoom));
+      const half = 40.0;
+      final a = await tester.startGesture(
+        center - const Offset(half, 0),
+        pointer: 1,
+      );
+      final b = await tester.startGesture(
+        center + const Offset(half, 0),
+        pointer: 2,
+      );
+      await tester.pump();
+      await a.moveTo(center - const Offset(half * 1.2, 0));
+      await b.moveTo(center + const Offset(half * 1.2, 0));
+      await tester.pump();
+
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(_scale(tester), closeTo(clampDouble(start * 1.2, 1, 1.5), 0.01));
+
+      await a.up();
+      await b.up();
+      await tester.pumpAndSettle();
+      expect(_scale(tester), 1.5);
+    });
+
+    testWidgets('Minor 6: a rebuild with unchanged limits does not restart '
+        'the ease', (tester) async {
+      await tester.pumpWidget(_host(zoom()));
+      await _pinch(tester, 2);
+
+      await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
+      await tester.pump(const Duration(milliseconds: 30));
+      final mid = _scale(tester);
+
+      await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
+      await tester.pump(const Duration(milliseconds: 30));
+
+      expect(_scale(tester), lessThan(mid));
+
+      await tester.pumpAndSettle();
+      expect(_scale(tester), 1.5);
+    });
+
+    testWidgets('Minor 6: a dispose mid-ease leaves no ticker and no '
+        'exception', (tester) async {
+      await tester.pumpWidget(_host(zoom()));
+      await _pinch(tester, 2);
+
+      await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
+      await tester.pump(const Duration(milliseconds: 30));
+
+      await tester.pumpWidget(const SizedBox());
+
+      expect(tester.takeException(), isNull);
     });
   });
 
