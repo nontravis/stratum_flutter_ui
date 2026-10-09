@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -15,9 +14,6 @@ const int _dosDate1980 = (0 << 9) | (1 << 5) | 1;
 /// Made by Unix, version 2.0, and the version a reader needs, 2.0.
 const int _madeBy = (3 << 8) | 20;
 const int _needed = 20;
-
-/// General purpose flag bit 11: the name is UTF-8.
-const int _utf8Flag = 0x0800;
 
 /// A regular file with mode 0644, in the high 16 bits of the external
 /// attributes: the install's file-type rule reads `0x8000` (s03 Entry
@@ -41,11 +37,12 @@ const int _max32 = 0xFFFFFFFF;
 /// that rule lives once, in the reader, not here.
 ///
 /// Throws [RemoteThemeFailure] coded `unsafeEntryPath` on a key that is
-/// empty, ends in `/`, fails [checkEntryPath], or does not round-trip
-/// through UTF-8; coded `archiveTooLarge` on a name past 0xFFFF bytes,
-/// more than 0xFFFF entries, or any content length, packed length, header
-/// offset, or directory size past 0xFFFFFFFF — the same codes
-/// `readRemoteZip` throws, so one catch in `pack` reports either.
+/// empty, ends in `/`, or fails [checkEntryPath], which refuses every
+/// character outside printable ASCII (US-02 FR-01 E10); coded
+/// `archiveTooLarge` on a name past 0xFFFF characters, more than 0xFFFF
+/// entries, or any content length, packed length, header offset, or
+/// directory size past 0xFFFFFFFF — the same codes `readRemoteZip`
+/// throws, so one catch in `pack` reports either.
 Uint8List writeRemoteZip(Map<String, List<int>> files) {
   final names = [
     for (final name in files.keys) (name: name, bytes: _checkedNameBytes(name)),
@@ -76,11 +73,10 @@ Uint8List writeRemoteZip(Map<String, List<int>> files) {
       offset,
       'the local header offset of "${escapeZipText(name)}"',
     );
-    final flags = nameBytes.every((byte) => byte < 0x80) ? 0 : _utf8Flag;
     out
       ..add(_u32(0x04034b50))
       ..add(_u16(_needed))
-      ..add(_u16(flags))
+      ..add(_u16(0))
       ..add(_u16(8))
       ..add(_u16(0))
       ..add(_u16(_dosDate1980))
@@ -95,7 +91,7 @@ Uint8List writeRemoteZip(Map<String, List<int>> files) {
       ..add(_u32(0x02014b50))
       ..add(_u16(_madeBy))
       ..add(_u16(_needed))
-      ..add(_u16(flags))
+      ..add(_u16(0))
       ..add(_u16(8))
       ..add(_u16(0))
       ..add(_u16(_dosDate1980))
@@ -128,10 +124,12 @@ Uint8List writeRemoteZip(Map<String, List<int>> files) {
   return out.takeBytes();
 }
 
-/// The UTF-8 bytes of entry [name]. Throws [RemoteThemeFailure] coded
-/// `unsafeEntryPath` when [name] is empty, ends in `/`, fails
-/// [checkEntryPath] (propagated as is), or does not round-trip through
-/// UTF-8; coded `archiveTooLarge` when it encodes past 0xFFFF bytes.
+/// The bytes of entry [name], one per character. Throws
+/// [RemoteThemeFailure] coded `unsafeEntryPath` when [name] is empty, ends
+/// in `/`, fails [checkEntryPath] (propagated as is), or, defensively,
+/// holds a code unit past U+007E even once [checkEntryPath] has passed it
+/// — so a future change there can never let a code unit silently narrow
+/// to 8 bits; coded `archiveTooLarge` when it is past 0xFFFF characters.
 List<int> _checkedNameBytes(String name) {
   if (name.isEmpty || name.endsWith('/')) {
     throw RemoteThemeFailure(
@@ -141,22 +139,22 @@ List<int> _checkedNameBytes(String name) {
     );
   }
   checkEntryPath(name);
-  final bytes = utf8.encode(name);
-  if (utf8.decode(bytes) != name) {
+  if (name.codeUnits.any((unit) => unit > 0x7E)) {
     throw RemoteThemeFailure(
       StratumRemoteThemeErrorCode.unsafeEntryPath,
-      'entry "${escapeZipText(name)}" does not round-trip through UTF-8',
+      'entry "${escapeZipText(name)}" holds a character outside '
+      'printable ASCII, U+0020 to U+007E',
       path: name,
     );
   }
-  if (bytes.length > _max16) {
+  if (name.length > _max16) {
     throw RemoteThemeFailure(
       StratumRemoteThemeErrorCode.archiveTooLarge,
-      'entry "${escapeZipText(name)}" encodes past $_max16 bytes',
-      measured: bytes.length,
+      'entry "${escapeZipText(name)}" is past $_max16 bytes',
+      measured: name.length,
     );
   }
-  return bytes;
+  return name.codeUnits;
 }
 
 /// Throws [RemoteThemeFailure] coded `archiveTooLarge`, naming [what] in

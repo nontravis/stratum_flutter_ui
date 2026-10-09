@@ -92,6 +92,22 @@ void main() {
     );
   });
 
+  test('us01/fr04/e01, rz6 (3): a kept zip that breaks a new rule, a name '
+      'outside printable ASCII, is skipped at preload and reported', () async {
+    final controller = await start([
+      remoteTheme(
+        'songkran',
+        files: {
+          'imagés/a.svg': [1],
+        },
+      ),
+    ], initialThemeId: 'songkran');
+
+    expect(controller.themeIds, ['default']);
+    expect(controller.activeId, 'default');
+    expect(errors, [('songkran', StratumRemoteThemeErrorCode.unsafeEntryPath)]);
+  });
+
   test('us01/fr04/e03: of two kept zips with one id, the later wins', () async {
     final controller = await start([
       remoteTheme('brand', body: _mark('first')),
