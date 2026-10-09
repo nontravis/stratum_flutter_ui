@@ -4,16 +4,15 @@
 
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now inflate and check every zip entry, those
   the install never reads included (`__MACOSX/` entries, a `.DS_Store`, a loose file beside the theme folder): an
-  entry whose data does not inflate to exactly its declared size, holds a byte after its final deflate block or ends
-  before it, or fails its CRC-32 check is `invalid_archive` (`unsafe_entry_path` for a folder entry), and every entry
-  counts toward `maxBytes`. An entry typed as a folder on a name that does not end in `/` is `unsafe_entry_path`. A
-  folder entry may hold any deflate stream that inflates to nothing, so Java's level-0 folder entries now install.
+  entry whose data does not inflate to exactly its declared size, or fails its CRC-32 check, is `invalid_archive`
+  (`unsafe_entry_path` for a folder entry), and every entry counts toward `maxBytes`. An entry typed as a folder on a
+  name that does not end in `/` is `unsafe_entry_path`. A folder entry may hold any deflate stream that inflates to
+  nothing, so Java's level-0 folder entries now install.
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now inflate every zip entry with the
   package's own strict inflate, which refuses as `invalid_archive` (`unsafe_entry_path` for a folder entry) a deflate
   stream malformed anywhere, as zlib-based tools refuse it: a stored block whose NLEN is not the complement of its
   LEN, a block of the reserved type, a malformed dynamic block header, an over-subscribed or incomplete Huffman code,
-  a symbol or distance out of range, a stream with no final block, or a byte after it. A hostile stream now costs time
-  in proportion to its size.
+  a symbol or distance out of range, a stream with no final block, or a byte after it.
 - Breaking: `StratumNamedCurve.byName` moved to `StratumCurveConvert.byName`, on the Flutter side of the theme models,
   so the curve model compiles in the Dart VM; `stratumCurve.curve` reads as before. No `@Deprecated` step: Dart has no
   static extension members, and no release tag exists yet.
@@ -45,20 +44,23 @@
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse as `invalid_archive` a zip that
   another zip tool could read differently: a byte before the central directory that belongs to no entry, or to two;
   a local header whose flags, method, CRC-32, sizes, or name differ from the central directory, the zeros a data
-  descriptor stands for aside; an extra field that is not whole records or holds a ZIP64 or Info-ZIP Unicode Path
-  record; a data descriptor on a stored entry, or of another length or value; and a byte after the end record's
-  comment. Zips from Finder, Info-ZIP `zip`, and Java's `ZipOutputStream` install as before.
+  descriptor stands for aside; an extra field that is not whole records (a later bullet allowlists its record ids);
+  a data descriptor on a stored entry, or of another length or value; and a byte after the end record's comment.
+  Zips from Finder, Info-ZIP `zip`, and Java's `ZipOutputStream` install as before.
 - Breaking: every theme yaml file, bundled, the app's own, or in a remote zip, now fails as `yaml_syntax` at the
   offending character, before the yaml package reads it, when it holds a YAML anchor, alias, or tag (`&a`, `*a`, `!x`,
   `!!x`), uses a collection or an explicit `?` key as a mapping key (`[a]: x`, `{a: 1}: x`, `? a`), nests more than 64
   collections, block or flow, or is longer than 1 MiB (1,048,576 UTF-16 code units). Write each value out, or refer to
   a token with a quoted `"{group.path}"` alias, and write each key as a plain or quoted value. A malformed tag now
   reports `no anchor, alias, or tag; refer to a token with "{path}" instead` at its `!`, in place of `invalid percent
-  escape in a tag`.
+  escape in a tag`. It also now fails when a byte-order mark (U+FEFF) stands anywhere but the text's first
+  character, package:yaml's own leading-mark rule included for any later line: move the mark to the very start of
+  the text or remove it.
 - Breaking: `stratum_theme` now exits 66 with `cannot read "pubspec.yaml": text longer than 1 MiB` when the app
-  project's `pubspec.yaml` is longer than 1 MiB (1,048,576 bytes), checked by its length before the file is read, and
-  exits 66 when the yaml check refuses the file, as it refuses a theme file: an anchor, alias, or tag, a collection or
-  an explicit `?` key as a mapping key, or nesting past 64.
+  project's `pubspec.yaml` is longer than 1 MiB (1,048,576 bytes), refused after reading at most 1,048,577 bytes off
+  one handle; exits 66 with `not valid UTF-8 text` when the bytes under that cap do not decode as UTF-8; and exits 66
+  when the yaml check refuses the file, as it refuses a theme file: an anchor, alias, or tag, a collection or an
+  explicit `?` key as a mapping key, or nesting past 64.
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse a zip entry whose extra field
   holds a record of any id but 0x000a (NTFS times), 0x5455 and 0x5855 (timestamps), 0x7875 (Unix owner ids), and
   0xcafe (the jar marker), the ones Finder, Info-ZIP, Java, and `tar` write, as `invalid_archive`, and an entry that

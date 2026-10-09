@@ -254,9 +254,10 @@ scroll it, guarded so a text field inside keeps its own keys.
   with problems throws `StratumThemeFormatException`.
   A theme file, bundled or in a zip, holds no YAML anchor, alias, or tag (`&a`, `*a`, `!x`), no mapping key that is a
   collection or an explicit `?` key (`[a]: x`, `{a: 1}: x`, `? a`), nests at most 64 collections, holds at most 256
-  keys in one mapping and 2,048 in all, and stays within 1 MiB; past that it fails as `yaml_syntax` at the offending
-  character, so write each value out, refer to a token with a quoted `"{group.path}"` alias, split a larger mapping,
-  and write each key as a plain or quoted value.
+  keys in one mapping and 2,048 in all, stays within 1 MiB, and holds a byte-order mark (U+FEFF) only as its own
+  first character, never later even on its own line; past that it fails as `yaml_syntax` at the offending character,
+  so write each value out, refer to a token with a quoted `"{group.path}"` alias, split a larger mapping, write each
+  key as a plain or quoted value, and move or remove a stray byte-order mark.
   `switchTo(id)` completes after the new theme is active, keeps the current theme on screen while it loads and when
   it fails, throws `StratumThemeNotFoundException` for an unknown id, and lets the latest of overlapping switches
   win. For the active id it does nothing, unless a newer install of that id is registered and not yet on screen:

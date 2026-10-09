@@ -44,7 +44,7 @@ const yamlKeyCountMessage =
 /// character (FO-01 US-01 FR-01 E07, design G4; security review round 2
 /// C1).
 const yamlBomMessage =
-    'a byte-order mark only starts the text, never a later line';
+    'a byte-order mark may stand only at the very start of the text';
 
 const _tab = 0x09;
 const _lf = 0x0A;
