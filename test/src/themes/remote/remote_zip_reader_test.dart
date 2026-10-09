@@ -471,7 +471,8 @@ void main() {
       );
     });
 
-    test('M5: a symbolic link made on host 19 is unsafe_entry_path', () {
+    test('M5, rz12: a symbolic link made on host 19 is unsafe_entry_path '
+        'by its host, which the type rule never reaches', () {
       final zip = buildZip([
         ZipEntryFixture('theme.yaml', yaml),
         ZipEntryFixture(
@@ -485,7 +486,35 @@ void main() {
 
       expect(
         () => _read(zip),
-        _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'link'),
+        _fails(
+          StratumRemoteThemeErrorCode.unsafeEntryPath,
+          path: 'link',
+          message: contains('was made on host 19'),
+        ),
+      );
+    });
+
+    test('rz12 (review m3-t7d): a symbolic link made on host 0, as 7-Zip '
+        'writes one with its marker 0x8000, is unsafe_entry_path by its '
+        'type', () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture(
+          'link',
+          utf8.encode('../../etc'),
+          deflate: false,
+          madeBy: 0x0014,
+          attributes: (0xA1FF << 16) | 0x8000,
+        ),
+      ]);
+
+      expect(
+        () => _read(zip),
+        _fails(
+          StratumRemoteThemeErrorCode.unsafeEntryPath,
+          path: 'link',
+          message: contains('has file type 0xa000'),
+        ),
       );
     });
 
@@ -1708,6 +1737,108 @@ void main() {
       expect(
         () => _read(zip),
         _fails(StratumRemoteThemeErrorCode.invalidArchive),
+      );
+    });
+  });
+
+  group('us01/fr02/e10, rz13: one Huffman-block budget per zip', () {
+    // Two of remote_inflate_test's 92-bit max-fill dynamic blocks, 23 bytes
+    // whole, each building three full tables and writing nothing.
+    const twoMaxFillBlocks = [
+      0x04, 0xC1, 0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0xFF, 0xD5, //
+      0x48, 0x10, 0x1C, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF1, 0x5F,
+      0x8D,
+    ];
+    // Four empty fixed blocks, 5 bytes whole.
+    const fourEmptyFixedBlocks = [0x02, 0x08, 0x20, 0x80, 0x00];
+    const emptyFinalStored = [0x01, 0x00, 0x00, 0xFF, 0xFF];
+
+    List<int> folderData(List<int> blocks, int times) => [
+      for (var i = 0; i < times; i++) ...blocks,
+      ...emptyFinalStored,
+    ];
+
+    Uint8List folders(int count, List<int> data) => buildZip([
+      ZipEntryFixture('theme.yaml', yaml, deflate: false),
+      for (var i = 0; i < count; i++)
+        ZipEntryFixture(
+          'd${i.toString().padLeft(5, '0')}/',
+          const [],
+          method: 8,
+          body: data,
+        ),
+    ]);
+
+    test('review m3-t7e Important 1: 65,534 empty folder entries of 16 '
+        'max-fill blocks each, which took 8.5 to 9.2 s, are refused at the '
+        'second folder entry in under 2 s', () {
+      final zip = folders(65534, folderData(twoMaxFillBlocks, 8));
+      final clock = Stopwatch()..start();
+
+      expect(
+        () => _read(zip, maxEntries: 65535),
+        _fails(
+          StratumRemoteThemeErrorCode.unsafeEntryPath,
+          path: 'd00001/',
+          message: contains('starts more Huffman blocks than its zip allows'),
+        ),
+      );
+      expect(clock.elapsedMilliseconds, lessThan(2000));
+    });
+
+    test('2,000 folder entries holding 03 00, as Java writes an empty '
+        'folder, read: each entry pays for its own block', () {
+      final zip = folders(2000, const [0x03, 0x00]);
+
+      expect(_read(zip, maxEntries: 2001), {'theme.yaml': yaml});
+    });
+
+    test('the budget spans the entries: 5 folder entries of 4 empty '
+        'Huffman blocks read, 20 of the 21 their 16 free and 5 own allow, '
+        'and a 6th is refused at its third block', () {
+      final data = folderData(fourEmptyFixedBlocks, 1);
+
+      expect(_read(folders(5, data)), {'theme.yaml': yaml});
+      expect(
+        () => _read(folders(6, data)),
+        _fails(
+          StratumRemoteThemeErrorCode.unsafeEntryPath,
+          path: 'd00005/',
+          message: contains('starts more Huffman blocks than its zip allows'),
+        ),
+      );
+    });
+
+    test('each read has a budget of its own', () {
+      final zip = folders(5, folderData(fourEmptyFixedBlocks, 1));
+
+      expect(_read(zip), {'theme.yaml': yaml});
+      expect(_read(zip), {'theme.yaml': yaml});
+    });
+
+    test('output an earlier entry inflated pays for a later entry: after '
+        '3,000 deflated bytes, 7 folder entries of 4 empty blocks read and '
+        'an 8th is refused', () {
+      Uint8List zip(int count) => buildZip([
+        ZipEntryFixture('theme.yaml', yaml, deflate: false),
+        ZipEntryFixture('a.bin', _small),
+        for (var i = 0; i < count; i++)
+          ZipEntryFixture(
+            'd$i/',
+            const [],
+            method: 8,
+            body: folderData(fourEmptyFixedBlocks, 1),
+          ),
+      ]);
+
+      expect(_read(zip(7)), {'theme.yaml': yaml, 'a.bin': _small});
+      expect(
+        () => _read(zip(8)),
+        _fails(
+          StratumRemoteThemeErrorCode.unsafeEntryPath,
+          path: 'd7/',
+          message: contains('starts more Huffman blocks than its zip allows'),
+        ),
       );
     });
   });

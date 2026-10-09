@@ -81,8 +81,9 @@ RemoteZipContents readRemoteZip(
   final files = <String, Uint8List>{};
   final unread = <String>[];
   var total = 0;
+  final budget = HuffmanBlockBudget();
   for (final span in spans) {
-    final content = _inflate(data, span, total, maxBytes);
+    final content = _inflate(data, span, total, maxBytes, budget);
     total += content.length;
     final name = span.entry.name;
     final folder = name.endsWith('/');
@@ -203,7 +204,13 @@ List<_Span> _locate(
 /// not end at its data's last byte, or ends before its final block; an
 /// output of another length than its declared size; and a CRC-32
 /// mismatch.
-Uint8List _inflate(Uint8List data, _Span span, int before, int maxBytes) {
+Uint8List _inflate(
+  Uint8List data,
+  _Span span,
+  int before,
+  int maxBytes,
+  HuffmanBlockBudget budget,
+) {
   final entry = span.entry;
   final raw = Uint8List.sublistView(
     data,
@@ -214,7 +221,12 @@ Uint8List _inflate(Uint8List data, _Span span, int before, int maxBytes) {
   final Uint8List content;
   try {
     if (entry.method == 8) {
-      content = inflateRaw(raw, sizeHint: entry.declaredSize, limit: limit);
+      content = inflateRaw(
+        raw,
+        sizeHint: entry.declaredSize,
+        limit: limit,
+        budget: budget,
+      );
     } else {
       if (raw.length > limit) throw InflateLimitReached(raw.length);
       content = Uint8List.fromList(raw);

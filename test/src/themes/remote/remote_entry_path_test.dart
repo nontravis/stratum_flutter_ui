@@ -124,19 +124,26 @@ void main() {
     });
   }
 
-  for (final (path, attributes) in [
-    ('theme.yaml', 0x10),
-    ('theme.yaml', (0x81A4 << 16) | 0x10),
-    ('a', 0x31),
-  ]) {
-    test('us01/fr02/e01, rz9 (m3-t6 security): the MS-DOS folder attribute '
-        'on "$path", attributes 0x${attributes.toRadixString(16)}, is '
-        'unsafe_entry_path, whatever host', () {
-      expect(
-        () => checkEntryFileType(path, externalAttributes: attributes, host: 3),
-        _unsafe(path),
-      );
-    });
+  for (final host in [0, 3]) {
+    for (final (path, attributes) in [
+      ('theme.yaml', 0x10),
+      ('theme.yaml', (0x81A4 << 16) | 0x10),
+      ('a', 0x31),
+    ]) {
+      test('us01/fr02/e01, rz9 (m3-t6 security): the MS-DOS folder '
+          'attribute on "$path", attributes '
+          '0x${attributes.toRadixString(16)}, is unsafe_entry_path on host '
+          '$host', () {
+        expect(
+          () => checkEntryFileType(
+            path,
+            externalAttributes: attributes,
+            host: host,
+          ),
+          _unsafe(path),
+        );
+      });
+    }
   }
 
   for (final (path, attributes) in [
@@ -241,18 +248,20 @@ void main() {
     });
   }
 
-  for (final type in [0xA000, 0x1000, 0x2000, 0x6000, 0xC000]) {
-    test('us01/fr02/e01: file type 0x${type.toRadixString(16)} is '
-        'unsafe_entry_path, whatever host', () {
-      expect(
-        () => checkEntryFileType(
-          'link',
-          externalAttributes: (type | 0x1FF) << 16,
-          host: 3,
-        ),
-        _unsafe('link'),
-      );
-    });
+  for (final host in [0, 3]) {
+    for (final type in [0xA000, 0x1000, 0x2000, 0x6000, 0xC000]) {
+      test('us01/fr02/e01: file type 0x${type.toRadixString(16)} is '
+          'unsafe_entry_path on host $host', () {
+        expect(
+          () => checkEntryFileType(
+            'link',
+            externalAttributes: (type | 0x1FF) << 16,
+            host: host,
+          ),
+          _unsafe('link'),
+        );
+      });
+    }
   }
 
   test('us01/fr02/e01, rz12: the low attribute half never counts as a file '

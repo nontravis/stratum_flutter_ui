@@ -13,13 +13,22 @@ import 'package:yaml/yaml.dart' show ScalarStyle, YamlException;
 /// an alias or carries an anchor or a tag, whether a collection starts in
 /// a mapping's key position (design G9), the deepest nesting it opens,
 /// stopping past 200, and the keys it reads, in all and in the fullest
-/// mapping (design G10); null when it refuses the text. An error
-/// other than [YamlException], such as the `ArgumentError` a malformed
-/// tag throws, counts as a property read. package:yaml gives every quoted
+/// mapping (design G10); when it refuses the text, `refused` and what it
+/// read before the [YamlException], since its loader has built those
+/// keys by then (review m4-t8b, Minor 1). An error other than
+/// [YamlException], such as the `ArgumentError` a malformed tag throws,
+/// counts as a property read. package:yaml gives every quoted
 /// or block scalar the non-specific tag `!` itself (`parser.dart:314`), so
 /// such a tag counts only when the text writes it, where the event's span
 /// then starts.
-({bool properties, bool collectionKey, int depth, int keys, int mostKeys})?
+({
+  bool refused,
+  bool properties,
+  bool collectionKey,
+  int depth,
+  int keys,
+  int mostKeys,
+})
 _oracle(String text) {
   final parser = Parser(text);
   // Per open collection: whether it is a mapping, and how many nodes it
@@ -81,9 +90,17 @@ _oracle(String text) {
       }
     }
   } on YamlException {
-    return null;
+    return (
+      refused: true,
+      properties: properties,
+      collectionKey: collectionKey,
+      depth: deepest,
+      keys: keys,
+      mostKeys: mostKeys,
+    );
   } on Object {
     return (
+      refused: false,
       properties: true,
       collectionKey: collectionKey,
       depth: deepest,
@@ -92,6 +109,7 @@ _oracle(String text) {
     );
   }
   return (
+    refused: false,
     properties: properties,
     collectionKey: collectionKey,
     depth: deepest,
@@ -110,20 +128,25 @@ _oracle(String text) {
 }
 
 /// Expects, once for every [text], refused ones included (ruling C-8), the
-/// gate's verdict to be sound: the gate refuses [text], or package:yaml
-/// refuses it too, or reads in it no property, no collection key, no
-/// nesting past 64, and no more keys, in all or in its fullest mapping,
-/// than the gate counted (design G10).
+/// gate's verdict to be sound: the gate refuses [text]; or package:yaml
+/// reads in it no property, no collection key, no nesting past 64, and no
+/// more keys, in all or in its fullest mapping, than the gate counted
+/// (design G10); or package:yaml refuses it, having read before the error
+/// at most one key more than the gate counted, in all and in its fullest
+/// mapping: the key package:yaml inserts for a line's saved simple key
+/// before it finds the line malformed (review m4-t8b, Minor 1).
 void _expectSound(String text) {
   final gate = _passes(text);
-  final read = gate == null ? null : _oracle(text);
+  if (gate == null) return;
+  final read = _oracle(text);
   expect(
-    read == null ||
-        (!read.properties &&
-            !read.collectionKey &&
-            read.depth <= 64 &&
-            read.keys <= gate!.keys &&
-            read.mostKeys <= gate.mostKeys),
+    read.refused
+        ? read.keys <= gate.keys + 1 && read.mostKeys <= gate.mostKeys + 1
+        : !read.properties &&
+              !read.collectionKey &&
+              read.depth <= 64 &&
+              read.keys <= gate.keys &&
+              read.mostKeys <= gate.mostKeys,
     isTrue,
     reason:
         '${jsonEncode(text)} passes the gate counting $gate; package:yaml '
@@ -255,6 +278,21 @@ void main() {
         'a: b\n  c\nd: e',
         '"a": 1\n\'b\': 2\nc d: 3',
       ].forEach(_expectSound);
+    });
+
+    test('g10 (review m4-t8b Minor 1): after 256 keys, `"j" x: 1` passes '
+        'the gate at 256, and package:yaml reads one key more before it '
+        'refuses the text, the one key the oracle allows a refused text', () {
+      final text = [
+        for (var i = 0; i < 256; i++) 'k$i: 1',
+        '"j" x: 1',
+      ].join('\n');
+
+      expect(checkYamlGate(text).mostKeys, 256);
+      final read = _oracle(text);
+      expect(read.refused, isTrue);
+      expect(read.mostKeys, 257);
+      expect(() => loadYamlText(text), throwsA(isA<YamlTextFailure>()));
     });
 
     test('20,000 texts of random fragments', () {
