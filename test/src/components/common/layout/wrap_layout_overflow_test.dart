@@ -292,6 +292,29 @@ Rect _rectIn(WidgetTester tester, String key) => tester
     .getRect(find.byKey(ValueKey(key)))
     .shift(-tester.getTopLeft(find.byType(WrapOverflowFrame)));
 
+/// Pumps each of [widgets], each followed by up to ten more frames while
+/// one is scheduled; the errors reported meanwhile.
+Future<List<FlutterErrorDetails>> _settleReporting(
+  WidgetTester tester,
+  List<Widget> widgets,
+) async {
+  final reports = <FlutterErrorDetails>[];
+  final previous = FlutterError.onError;
+  FlutterError.onError = reports.add;
+  try {
+    for (final widget in widgets) {
+      await tester.pumpWidget(widget);
+      for (var frame = 0; frame < 10; frame++) {
+        if (!tester.binding.hasScheduledFrame) break;
+        await tester.pump();
+      }
+    }
+  } finally {
+    FlutterError.onError = previous;
+  }
+  return reports;
+}
+
 void main() {
   group('WrapLayout overflow (US-14)', () {
     testWidgets(
@@ -754,6 +777,140 @@ void main() {
     );
 
     testWidgets(
+      'us14/fr03/e09, s03/inv39: select-all and copy under a SelectionArea '
+      'leave the text of hidden children out',
+      (tester) async {
+        String? copied;
+        Future<Object?> clipboard(MethodCall call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied =
+                (call.arguments as Map<Object?, Object?>)['text'] as String?;
+          }
+          return null;
+        }
+
+        final messenger = tester.binding.defaultBinaryMessenger
+          ..setMockMethodCallHandler(SystemChannels.platform, clipboard);
+        addTearDown(
+          () =>
+              messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: SelectionArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 230,
+                  child: _wrap(
+                    maxChildren: 2,
+                    children: [
+                      for (var i = 0; i < 4; i++)
+                        SizedBox(width: 40, height: 20, child: Text('w$i')),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        // The region's own shortcuts' intents, invoked under it.
+        final inside = tester.element(find.byType(WrapLayout));
+
+        Actions.invoke(
+          inside,
+          const SelectAllTextIntent(SelectionChangedCause.keyboard),
+        );
+        await tester.pump();
+        Actions.invoke(inside, CopySelectionTextIntent.copy);
+        await tester.pump();
+
+        expect(copied, allOf(contains('w0'), contains('w1'), contains('+2')));
+        expect(copied, isNot(anyOf(contains('w2'), contains('w3'))));
+      },
+    );
+
+    testWidgets(
+      'us14/fr03/e09, s03/inv39: a route push finds no Hero in a hidden '
+      'child',
+      (tester) async {
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navigator,
+            home: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 230,
+                child: _wrap(
+                  maxChildren: 1,
+                  children: [
+                    _tag(0),
+                    const Hero(
+                      tag: 'hidden',
+                      child: SizedBox(width: 40, height: 20),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        navigator.currentState!.push(
+          MaterialPageRoute<void>(
+            builder: (context) => Hero(
+              tag: 'hidden',
+              flightShuttleBuilder: (_, _, _, _, _) =>
+                  const SizedBox(key: ValueKey('shuttle')),
+              child: const SizedBox(width: 40, height: 20),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 10));
+
+        expect(find.byKey(const ValueKey('shuttle')), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us14/fr03/e09, s03/inv39: under a SelectionArea a child keeps its '
+      'State and its text render object while a limit hides and shows it',
+      (tester) async {
+        Widget build(int? maxChildren) => MaterialApp(
+          home: SelectionArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 230,
+                child: _wrap(
+                  maxChildren: maxChildren,
+                  children: [
+                    _tag(0),
+                    const _Chip(key: ValueKey('chip 1')),
+                    const SizedBox(width: 40, height: 20, child: Text('w2')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(build(null));
+        final chip = tester.state(find.byKey(const ValueKey('chip 1')));
+        final text = tester.renderObject(find.text('w2'));
+
+        await tester.pumpWidget(build(1));
+        await tester.pumpWidget(build(null));
+        await tester.pumpAndSettle();
+
+        expect(tester.state(find.byKey(const ValueKey('chip 1'))), same(chip));
+        expect(tester.renderObject(find.text('w2')), same(text));
+      },
+    );
+
+    testWidgets(
       'us14/fr03/e04, s03/inv39: a focused child that a children change '
       'moves past the old cut keeps focus when the new cut still shows it',
       (tester) async {
@@ -918,6 +1075,139 @@ void main() {
         ),
       );
     });
+
+    testWidgets(
+      'us14/fr01/e08: a child that fits only while hidden stays hidden, '
+      '"+N" counts it, and the wrap settles after one report',
+      (tester) async {
+        final reports = await _settleReporting(tester, [
+          _host(
+            _wrap(
+              maxRuns: 1,
+              children: [_tag(0), _swapTag(1, on: 200, off: 40)],
+            ),
+          ),
+        ]);
+
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(_shownTags(), [0]);
+        expect(find.text('+1'), findsOneWidget);
+        expect(reports, hasLength(1));
+        expect(
+          '${reports.single.exception}',
+          contains('changed its render object or size'),
+        );
+      },
+    );
+
+    testWidgets(
+      'us14/fr01/e08: a limit change that shows a child that fits only '
+      'while hidden keeps it hidden, and the wrap settles after one report',
+      (tester) async {
+        Widget build(int? maxChildren) => _host(
+          _wrap(
+            maxRuns: 1,
+            maxChildren: maxChildren,
+            children: [_tag(0), _swapTag(1, on: 200, off: 40)],
+          ),
+        );
+        final reports = await _settleReporting(tester, [build(1), build(null)]);
+
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(_shownTags(), [0]);
+        expect(find.text('+1'), findsOneWidget);
+        expect(reports, hasLength(1));
+      },
+    );
+
+    testWidgets(
+      'us14/fr01/e08: ancestor rebuilds that build the same children anew '
+      'keep a child that fits only while hidden hidden, with no new report',
+      (tester) async {
+        // Each call builds every child widget anew, as a parent's build
+        // does.
+        Widget build() => _host(
+          _wrap(maxRuns: 1, children: [_tag(0), _swapTag(1, on: 200, off: 40)]),
+        );
+        final reports = await _settleReporting(tester, [
+          for (var rebuild = 0; rebuild < 4; rebuild++) build(),
+        ]);
+
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(_shownTags(), [0]);
+        expect(find.text('+1'), findsOneWidget);
+        expect(reports, hasLength(1));
+      },
+    );
+
+    testWidgets(
+      'us14/fr01/e08: a gap or constraints change lets a child that fits '
+      'only while hidden show again when it fits shown',
+      (tester) async {
+        // The same widgets in every build, so only the gap or the width
+        // changes.
+        final children = [_tag(0), _swapTag(1, on: 185, off: 40)];
+        Widget build({double gap = 10, double width = 230}) => _host(
+          WrapLayout(
+            gap: gap,
+            maxRuns: 1,
+            overflowBuilder: _more,
+            children: children,
+          ),
+          width: width,
+        );
+        // 40 + 10 + 185 = 235 does not fit 230 shown: pinned hidden.
+        var reports = await _settleReporting(tester, [build()]);
+        expect(_shownTags(), [0]);
+        expect(reports, hasLength(1));
+
+        // 40 + 0 + 185 = 225 fits.
+        reports = await _settleReporting(tester, [build(gap: 0)]);
+        expect(_shownTags(), [0, 1]);
+        expect(reports, isEmpty);
+
+        reports = await _settleReporting(tester, [build()]);
+        expect(_shownTags(), [0]);
+        reports = await _settleReporting(tester, [build(width: 240)]);
+        expect(_shownTags(), [0, 1]);
+        expect(tester.binding.hasScheduledFrame, isFalse);
+      },
+    );
+
+    testWidgets(
+      'us14/fr01/e08: a hot reload re-measures a child that fits only while '
+      'hidden, so it shows once its fixed code fits shown',
+      (tester) async {
+        // The code a developer fixes: tag 1's width while shown.
+        var shownWidth = 200.0;
+        final children = [
+          _tag(0),
+          Builder(
+            key: const ValueKey('tag 1'),
+            builder: (context) => TickerMode.valuesOf(context).enabled
+                ? SizedBox(width: shownWidth, height: 20)
+                : const ColoredBox(
+                    color: Color(0xFF000000),
+                    child: SizedBox(width: 40, height: 20),
+                  ),
+          ),
+        ];
+        Widget build() => _host(_wrap(maxRuns: 1, children: children));
+        final reports = await _settleReporting(tester, [build()]);
+        expect(_shownTags(), [0]);
+        expect(reports, hasLength(1));
+
+        shownWidth = 40;
+        // Completes after the frame the pump draws.
+        final reassembled = tester.binding.reassembleApplication();
+        await tester.pump();
+        await reassembled;
+
+        expect(_shownTags(), [0, 1]);
+        expect(find.text('+1'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 
   group('WrapLayout focus after a limit change (US-14 FR-03, R5, R6)', () {
@@ -1996,6 +2286,137 @@ void main() {
         },
       );
     }
+
+    for (final alignment in const [
+      WrapAlignment.spaceBetween,
+      WrapAlignment.spaceAround,
+      WrapAlignment.spaceEvenly,
+    ]) {
+      testWidgets(
+        'us14/fr04/e06, s03/inv40: under loose width an expand that widens '
+        'the wrap moves no item of a $alignment run at the start of the '
+        'move, which spreads the free space over the size shown',
+        (tester) async {
+          Widget build(int maxRuns) => themedHost(
+            SizedBox(
+              width: 230,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: WrapLayout(
+                  gap: 10,
+                  runGap: 6,
+                  alignment: alignment,
+                  maxRuns: maxRuns,
+                  children: [
+                    ..._tags(4),
+                    const SizedBox(width: 220, height: 20),
+                  ],
+                ),
+              ),
+            ),
+          );
+          // One run of four tags, 190 wide; the 220 wide child hides.
+          await tester.pumpWidget(build(1));
+          final before = [
+            for (var i = 0; i < 4; i++) _rectIn(tester, 'tag $i'),
+          ];
+          expect(before.last, const Rect.fromLTWH(150, 0, 40, 20));
+
+          await tester.pumpWidget(build(2));
+          expect(
+            [for (var i = 0; i < 4; i++) _rectIn(tester, 'tag $i')],
+            before,
+            reason: 'first frame',
+          );
+
+          await tester.pumpAndSettle();
+          expect(tester.getSize(find.byType(WrapOverflowFrame)).width, 220);
+        },
+      );
+    }
+
+    for (final textDirection in TextDirection.values) {
+      for (final alignment in const [
+        WrapAlignment.spaceBetween,
+        WrapAlignment.spaceAround,
+        WrapAlignment.spaceEvenly,
+      ]) {
+        testWidgets(
+          'us14/fr04/e06, s03/inv40: under $textDirection an expand that '
+          'widens a $alignment run past the size shown keeps its items in '
+          'place, its start edge held',
+          (tester) async {
+            Widget build(int maxChildren) => themedHost(
+              SizedBox(
+                width: 230,
+                child: Align(
+                  alignment: AlignmentDirectional.topStart,
+                  child: WrapLayout(
+                    gap: 10,
+                    alignment: alignment,
+                    maxChildren: maxChildren,
+                    children: _tags(4),
+                  ),
+                ),
+              ),
+              textDirection: textDirection,
+            );
+            // Two tags, 90 wide; the expand makes the run 190 wide while
+            // the frame still shows 90.
+            await tester.pumpWidget(build(2));
+            final before = [_rectIn(tester, 'tag 0'), _rectIn(tester, 'tag 1')];
+
+            await tester.pumpWidget(build(4));
+            expect(
+              [_rectIn(tester, 'tag 0'), _rectIn(tester, 'tag 1')],
+              before,
+              reason: 'first frame',
+            );
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
+
+    testWidgets(
+      'us14/fr04/e06, s03/inv40: an expand that narrows the wrap keeps a '
+      'spaceBetween run that keeps its items in place at the start of the '
+      'move, then spreads it over the size shown',
+      (tester) async {
+        Widget build(int? maxRuns) => themedHost(
+          SizedBox(
+            width: 230,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: WrapLayout(
+                gap: 10,
+                runGap: 6,
+                alignment: WrapAlignment.spaceBetween,
+                maxRuns: maxRuns,
+                overflowBuilder: _more,
+                children: _tags(12),
+              ),
+            ),
+          ),
+        );
+        // Run 0, 190 wide, spread over the 230 the "+4" run sets.
+        await tester.pumpWidget(build(2));
+        final before = _rectIn(tester, 'tag 3');
+        expect(before, const Rect.fromLTWH(190, 0, 40, 20));
+
+        await tester.pumpWidget(build(null));
+        expect(_rectIn(tester, 'tag 3'), before, reason: 'first frame');
+
+        await tester.pump(const Duration(microseconds: 62500));
+        final width = tester.getSize(find.byType(WrapOverflowFrame)).width;
+        expect(width, moreOrLessEquals(230 - 40 * _mid));
+        expect(
+          _rectIn(tester, 'tag 3').right,
+          moreOrLessEquals(width),
+          reason: 'mid-move',
+        );
+      },
+    );
   });
 }
 

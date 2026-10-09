@@ -37,9 +37,13 @@ Each entry: usage, key parameters, keyboard behavior.
   `maxRuns` (at least 1) and `maxChildren` (at least 0) cut it, the limit that hides more winning, and
   `overflowBuilder(context, hiddenCount)` builds a "+N" child during layout with the exact hidden count, after the last
   shown child in the last allowed run; more children hide until it fits. Hidden children stay mounted with their `State`
-  and take no paint, hits, focus, or semantics, their tickers stopped. With `overflowBuilder` set, switching both limits
+  and take no paint, hits, focus, or semantics, their tickers stopped; their text stays out of a `SelectionArea`'s
+  select-all and copy, and a route push flies no `Hero` inside them. With `overflowBuilder` set, switching both limits
   to null keeps the children's `State`; without it the switch remounts them. A limit or `overflowBuilder` with `scroll`
   fails an assertion.
+  Keep a child's size the same shown or hidden: one that does not fit shown but fits hidden stays hidden, counted in
+  "+N", until the children change in number, order, key, or type, or the limits, `gap`, `runGap`, or the constraints
+  change; a rebuild that builds the same children anew keeps it hidden (debug builds report it once).
   While measuring, the wrap calls `overflowBuilder` once per hidden count it tries, then shows the widget built for the
   last; that widget must not carry a `GlobalKey` or a `FocusNode` the app owns (debug builds report it), while a key or
   node a `State` inside the "+N" child creates for itself is safe.

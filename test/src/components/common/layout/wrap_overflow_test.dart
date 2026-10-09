@@ -648,6 +648,121 @@ void main() {
       expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 46);
     });
 
+    /// The "+N" child: 30 by 40, taller than the tags.
+    Widget tallMore(BuildContext context, int count) => SizedBox(
+      key: const ValueKey('more'),
+      width: 30,
+      height: 40,
+      child: Text('+$count'),
+    );
+
+    testWidgets(
+      'us14/fr02/e07, s03/inv38: under IntrinsicHeight a "+N" taller than '
+      'the tags sizes the parent from the second frame, the first frame '
+      'leaving it out as before, then schedules no more frames',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            IntrinsicHeight(
+              child: _frame(maxRuns: 1, builder: tallMore, children: _tags(12)),
+            ),
+          ),
+        );
+        // No layout measured "+8" yet: the parent sized the frame to the
+        // tags alone.
+        expect(find.text('+8'), findsOneWidget);
+        expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 20);
+
+        await tester.pump();
+
+        expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 40);
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('us14/fr02/e07, s03/inv38: after a layout, dry layout and the '
+        'cross-axis intrinsics agree with the real size the "+N" child sets', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(_frame(maxRuns: 1, builder: tallMore, children: _tags(12))),
+      );
+      final box = tester.renderObject<RenderBox>(
+        find.byType(WrapOverflowFrame),
+      );
+      expect(box.size, const Size(230, 40));
+
+      expect(box.getDryLayout(box.constraints), box.size);
+      expect(box.getMaxIntrinsicHeight(230), 40);
+      expect(box.getMinIntrinsicHeight(230), 40);
+      // No layout measured "+N" under another width: left out.
+      expect(box.getMaxIntrinsicHeight(150), 20);
+    });
+
+    testWidgets(
+      'us14/fr02/e07, s03/inv38: after a layout under an unbounded width, '
+      'the main-axis intrinsics count the "+N" child it measured',
+      (tester) async {
+        Widget wideMore(BuildContext context, int count) => SizedBox(
+          key: const ValueKey('more'),
+          width: 50,
+          height: 20,
+          child: Text('+$count'),
+        );
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: UnconstrainedBox(
+              alignment: Alignment.topLeft,
+              constrainedAxis: Axis.vertical,
+              child: _frame(
+                maxChildren: 3,
+                builder: wideMore,
+                children: _tags(12),
+              ),
+            ),
+          ),
+        );
+        final box = tester.renderObject<RenderBox>(
+          find.byType(WrapOverflowFrame),
+        );
+        expect(box.size.width, 3 * 40 + 3 * 10 + 50);
+
+        // The tags as RenderWrap sums them, with no gap, then "+9".
+        expect(box.getMaxIntrinsicWidth(double.infinity), 3 * 40 + 50);
+        // A tag a run each, then "+9" in a run of its own.
+        expect(box.getMinIntrinsicWidth(double.infinity), 50);
+      },
+    );
+
+    testWidgets(
+      'us14/fr02/e07: after a layout, the dry baseline counts the baseline '
+      'of the "+N" child the probe measured, as the real baseline does',
+      (tester) async {
+        // Baseline places the frame's real baseline 50 below its top.
+        await tester.pumpWidget(
+          _host(
+            Baseline(
+              baseline: 50,
+              baselineType: TextBaseline.alphabetic,
+              child: _frame(maxRuns: 1, children: _tags(12)),
+            ),
+          ),
+        );
+        final box = tester.renderObject<RenderBox>(
+          find.byType(WrapOverflowFrame),
+        );
+        // The tags have no baseline: only "+8" sets one.
+        final real = 50 - tester.getTopLeft(find.byType(WrapOverflowFrame)).dy;
+
+        expect(
+          box.getDryBaseline(box.constraints, TextBaseline.alphabetic),
+          real,
+        );
+      },
+    );
+
     testWidgets(
       'us14/fr03: hidden children take no hit test and are not painted',
       (tester) async {
