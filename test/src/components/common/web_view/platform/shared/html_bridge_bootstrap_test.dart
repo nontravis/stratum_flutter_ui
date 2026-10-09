@@ -295,7 +295,8 @@ void main() {
 
     test('us03/fr04/e14: posts bye once a record shows the document root '
         'removed, even if put back, reading records through getters bound '
-        'before any page script', () {
+        'before any page script, and remembers the removal in a closure '
+        'flag', () {
       final html = inject('<p>Hi</p>');
       expect(
         html,
@@ -310,7 +311,7 @@ void main() {
           'new MutationObserver(function(rs){\n'
           'for(var i=0;i<rs.length;i++){var n=removedOf(rs[i]);\n'
           'for(var j=0;j<countOf(n);j++)\n'
-          "if(n[j]===root){s('bye',id);return;}}})\n"
+          "if(n[j]===root){gone=true;s('bye',id);return;}}})\n"
           '.observe(doc,{childList:true});\n',
         ),
       );
@@ -322,13 +323,16 @@ void main() {
     });
 
     test('us03/fr04/e03, us03/fr04/e14: posts hello again on a trusted '
-        'pageshow that restores the document from the back-forward '
-        'cache', () {
+        'pageshow that restores the document, but only while the root it '
+        'removed never set the "gone" flag; a real trusted pageshow event '
+        'cannot be raised outside a browser, so this and the e14 test above '
+        'pin the trusted-restore-closed path at the generated-source level, '
+        'not by dispatching one', () {
       expect(
         inject('<p>Hi</p>'),
         contains(
           "window.addEventListener('pageshow',function(v){\n"
-          "if(v.isTrusted&&v.persisted)s('hello',id);},true);",
+          "if(v.isTrusted&&v.persisted&&!gone)s('hello',id);},true);",
         ),
       );
     });

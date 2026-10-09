@@ -444,7 +444,7 @@ void main() {
   });
 
   test('us03/fr04/e14: a forged pageshow never reopens the bridge a page '
-      'script closed; only a trusted restore does', () async {
+      'script closed', () async {
     const nonce = '0123456789abcdef0123456789abcdef';
     const token = 'fedcba9876543210fedcba9876543210';
     final native = injectNativeBridgeBootstrap(

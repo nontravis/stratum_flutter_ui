@@ -71,10 +71,10 @@ String injectBridgeBootstrap(String html, String nonce) {
 /// [nonce] (see [nativeBridgeEnvelopeTag]). It draws a document id of 16
 /// random bytes in lowercase hex, posts `hello` with it to prove [nonce] for
 /// this document, `bye` on `pagehide` or once a page script removes the
-/// document root, even if it puts the same root back, and `hello` again on
-/// a trusted `pageshow` that restores the document from the back-forward
-/// cache; an untrusted, script-dispatched `pageshow` never reopens a bridge
-/// a removed root closed (E03, E10, E11, E14). Every `message` envelope
+/// document root, even if it puts the same root back, remembering a root
+/// removal so no later `pageshow` reopens that bridge, and `hello` again on
+/// a trusted `pageshow` that restores a document whose root it never
+/// removed (E03, E10, E11, E14). Every `message` envelope
 /// carries the document id before the text. No envelope carries [token].
 /// Without the platform object the bridge stays closed. It keeps the
 /// document id in [nativeBridgeDocumentProperty] too, for a reply's dispatch
@@ -103,10 +103,11 @@ String injectNativeBridgeBootstrap(
       '{value:Object.freeze({postMessage:function(d){\n'
       "s('message',id+':'+S(d));}}),\n"
       'enumerable:true,writable:false,configurable:false});\n'
+      'var gone=false;\n'
       "window.addEventListener('pagehide',function(){\n"
       "s('bye',id);},true);\n"
       "window.addEventListener('pageshow',function(v){\n"
-      "if(v.isTrusted&&v.persisted)s('hello',id);},true);\n"
+      "if(v.isTrusted&&v.persisted&&!gone)s('hello',id);},true);\n"
       'var doc=document,root=doc.documentElement,\n'
       'removedOf=Function.prototype.call.bind(\n'
       'Object.getOwnPropertyDescriptor(\n'
@@ -117,7 +118,7 @@ String injectNativeBridgeBootstrap(
       'new MutationObserver(function(rs){\n'
       'for(var i=0;i<rs.length;i++){var n=removedOf(rs[i]);\n'
       'for(var j=0;j<countOf(n);j++)\n'
-      "if(n[j]===root){s('bye',id);return;}}})\n"
+      "if(n[j]===root){gone=true;s('bye',id);return;}}})\n"
       '.observe(doc,{childList:true});\n'
       "s('hello',id);\n"
       '})();';
