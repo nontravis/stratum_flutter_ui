@@ -11,6 +11,10 @@ import '../fakes/fake_stratum_theme.dart';
 
 const _red = Color(0xFFFF0000);
 
+/// Whether every [_Harness] gives its list `findChildIndexCallback`, for the
+/// groups that rerun with an app index (D19).
+var _appIndex = false;
+
 /// [child], 200 by 300, in an app with an overlay, localizations, and the
 /// default keys, under the Stratum theme.
 Widget _app(
@@ -55,6 +59,7 @@ class _Harness extends StatefulWidget {
     this.heights,
     this.keepAliveIds,
     this.scrollCacheExtent,
+    this.appIndex = false,
   });
 
   final int count;
@@ -118,6 +123,9 @@ class _Harness extends StatefulWidget {
   /// The list's `scrollCacheExtent`; null keeps the default 250 px.
   final ScrollCacheExtent? scrollCacheExtent;
 
+  /// Whether the list gets `findChildIndexCallback`, as under [_appIndex].
+  final bool appIndex;
+
   @override
   State<_Harness> createState() => _HarnessState();
 }
@@ -180,6 +188,22 @@ class _HarnessState extends State<_Harness> {
   /// Puts [id] in place of the id at [index] with no controller call.
   void replaceData(int index, int id) => setState(() => ids[index] = id);
 
+  /// How many times the list called `findChildIndexCallback`.
+  int indexCalls = 0;
+
+  /// Replaces the index [indexOf] answers, when set.
+  int? Function(Key key)? answer;
+
+  /// The list's `findChildIndexCallback`: the key's index in [ids].
+  int? indexOf(Key key) {
+    indexCalls += 1;
+    final answer = this.answer;
+    if (answer != null) return answer(key);
+    if (key is! ValueKey<int>) return null;
+    final index = ids.indexOf(key.value);
+    return index < 0 ? null : index;
+  }
+
   @override
   Widget build(BuildContext context) {
     return ReorderableListViewLayout.builder(
@@ -196,6 +220,7 @@ class _HarnessState extends State<_Harness> {
       itemExtentBuilder: widget.itemExtentBuilder,
       prototypeItem: widget.prototypeItem,
       scrollCacheExtent: widget.scrollCacheExtent,
+      findChildIndexCallback: widget.appIndex || _appIndex ? indexOf : null,
       onReorderStart: (index) {
         starts.add(index);
         events.add('start $index');
@@ -622,7 +647,7 @@ void _sendPointer(WidgetTester tester, PointerEvent event) {
 }
 
 void main() {
-  group('ReorderableListViewLayout pointer', () {
+  void pointerTests() {
     testWidgets(
       'us11/fr01: the list builds one SliverReorderableList, found by a '
       'subtype predicate',
@@ -974,7 +999,9 @@ void main() {
       },
       variant: viewportEdges,
     );
-  });
+  }
+
+  group('ReorderableListViewLayout pointer', pointerTests);
 
   group('ReorderableListViewLayout keys', () {
     for (final (axis, back, forth) in const [
@@ -1309,7 +1336,7 @@ void main() {
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 
-  group('ReorderableListViewLayout insert and remove', () {
+  void insertAndRemoveTests() {
     testWidgets('us11/fr04/e07: an out-of-range index fails a debug assert', (
       tester,
     ) async {
@@ -3872,9 +3899,11 @@ void main() {
         expect(state.expanded, isTrue);
       },
     );
-  });
+  }
 
-  group('ReorderableListViewLayout moveItem', () {
+  group('ReorderableListViewLayout insert and remove', insertAndRemoveTests);
+
+  void moveItemTests() {
     testWidgets(
       'us11/s15: the app moves the third item to the first slot: the third '
       'slot closes, the item grows and fades in, and its button keeps focus',
@@ -4804,7 +4833,9 @@ void main() {
         );
       },
     );
-  });
+  }
+
+  group('ReorderableListViewLayout moveItem', moveItemTests);
 
   group('ReorderableListViewLayout data and frame indices', () {
     // 200 items of 40 px in a 300 px viewport scrolled to 4000, with the
@@ -6642,7 +6673,7 @@ void main() {
     );
   });
 
-  group('ReorderableListViewLayout unbuilt slots and kept-alive items', () {
+  void keptAliveSlotsTests() {
     // Item 50 keeps itself alive: shown once at 2000 px, it stays mounted
     // after the list scrolls to 4000 px, outside the sliver's child list.
     Future<ScrollPosition> pumpKeptAlive(WidgetTester tester) async {
@@ -6701,7 +6732,12 @@ void main() {
         expect(FocusManager.instance.primaryFocus, same(focused));
       },
     );
-  });
+  }
+
+  group(
+    'ReorderableListViewLayout unbuilt slots and kept-alive items',
+    keptAliveSlotsTests,
+  );
 
   group('ReorderableListViewLayout unbuilt slot and a focus the app moves', () {
     testWidgets(
@@ -7106,7 +7142,7 @@ void main() {
     );
   });
 
-  group('ReorderableListViewLayout drag ends', () {
+  void dragEndsTests() {
     testWidgets(
       'us11/fr04/e06: a second pointer that takes a long-press drag over '
       'ends it with one onReorderEnd, in the microtask after its down '
@@ -7376,9 +7412,11 @@ void main() {
         expect(harness.ids.take(3), [1, 2, 3]);
       },
     );
-  });
+  }
 
-  group('ReorderableListViewLayout same-count change during a drag', () {
+  group('ReorderableListViewLayout drag ends', dragEndsTests);
+
+  void sameCountDragTests() {
     testWidgets(
       'us11/fr03/e06: a same-count change that moves the dragged item to a '
       'built slot cancels the drag after the frame, with one onReorderEnd '
@@ -7409,9 +7447,9 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr01/e07: a same-count change that moves the dragged item to a '
-      'slot the frame does not build cancels the drag with no error, and '
-      'the item loses its State, since the list learns of no move',
+      'us11/fr01/e07: a same-count change that moves the unfocused dragged '
+      'item to a slot the frame does not build cancels the drag with no '
+      'error, and the item loses its State, never kept alive',
       (tester) async {
         await tester.pumpWidget(_app(const _Harness(count: 400)));
         final gesture = await _liftItem(tester, 3);
@@ -7545,7 +7583,12 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
-  });
+  }
+
+  group(
+    'ReorderableListViewLayout same-count change during a drag',
+    sameCountDragTests,
+  );
 
   group('ReorderableListViewLayout items framed by key', () {
     testWidgets(
@@ -7658,7 +7701,7 @@ void main() {
     );
   });
 
-  group('ReorderableListViewLayout parked moved item', () {
+  void parkedItemTests() {
     testWidgets(
       'us11/fr04/e17: a node that takes focus while a focused item waits off '
       'screen ends its park, so the item, never laid out, leaves with its '
@@ -7885,7 +7928,9 @@ void main() {
         expect(_builtInView(tester, 0), isTrue);
       },
     );
-  });
+  }
+
+  group('ReorderableListViewLayout parked moved item', parkedItemTests);
 
   group("ReorderableListViewLayout jumps at the next frame's start", () {
     /// Pumps 200 items scrolled to 4200 px, items 105 to 112 in view, with
@@ -8103,5 +8148,88 @@ void main() {
         );
       },
     );
+  });
+
+  group('ReorderableListViewLayout reorders the app makes alone', () {
+    testWidgets(
+      'us11/fr05/e13: an item the app keeps alive follows a reorder of its '
+      'data with no call to a slot the frame does not build',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 1000, appIndex: true, keepAliveIds: {103}),
+        );
+        final state = _itemState(tester, 103);
+
+        _harness(tester).moveData(103, 600);
+        await tester.pumpAndSettle();
+        expect(_statesOf(tester, 103), [same(state)]);
+        position.jumpTo(600 * 40.0 - 100);
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(_builtInView(tester, 103), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr01/input-output: an app index past the data counts as no '
+      'answer, with no error',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+        final harness = _harness(tester)..answer = (key) => 1000;
+        final state = _itemState(tester, 104);
+
+        harness.moveData(103, 600);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 104), [same(state)]);
+        expect(_statesOf(tester, 103), isEmpty);
+        expect(position.pixels, 4000);
+      },
+    );
+
+    testWidgets(
+      's03/inv35: an item the app keeps alive off screen, shifted by an '
+      'insertItem, moves in place by the app index and keeps its State',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: true,
+            itemsController: StratumReorderableItemsController(),
+            keepAliveIds: const {5},
+          ),
+        );
+        final state = _itemState(tester, 5);
+
+        _harness(tester).insert(0, 5000);
+        await tester.pumpAndSettle();
+        position.jumpTo(0);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids[6], 5);
+        expect(_statesOf(tester, 5), [same(state)]);
+      },
+    );
+  });
+
+  group('ReorderableListViewLayout given findChildIndexCallback', () {
+    setUp(() => _appIndex = true);
+    tearDown(() => _appIndex = false);
+    group('pointer', pointerTests);
+    group('insert and remove', insertAndRemoveTests);
+    group('moveItem', moveItemTests);
+    group('drag ends', dragEndsTests);
+    group('same-count change during a drag', sameCountDragTests);
+    group('unbuilt slots and kept-alive items', keptAliveSlotsTests);
+    group('parked moved item', parkedItemTests);
   });
 }

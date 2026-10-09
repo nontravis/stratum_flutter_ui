@@ -92,6 +92,7 @@ class ReorderableListViewLayout extends StatelessWidget {
     this.autoScrollerVelocityScalar,
     this.focusable,
     this.semanticsLabel,
+    this.findChildIndexCallback,
   });
 
   final WidgetStyle? style;
@@ -163,6 +164,18 @@ class ReorderableListViewLayout extends StatelessWidget {
 
   /// Names the focusable list for a screen reader.
   final String? semanticsLabel;
+
+  /// Returns the index in the app's current data of the item whose key is
+  /// [key], the key [itemBuilder] gave it; null when the app does not know
+  /// it. An answer outside `0` to `itemCount - 1` counts as null.
+  ///
+  /// Give it when the app reorders its data with no
+  /// [StratumReorderableItemsController.moveItem] call, as a live sync
+  /// does: an item the app keeps alive then follows the reorder. The list
+  /// asks once per built, cached, or kept-alive item on each build of the
+  /// list and never while it only scrolls, so read an O(1) key-to-index map
+  /// the app keeps in sync with its data, never a search of the data.
+  final ChildIndexGetter? findChildIndexCallback;
 
   @override
   Widget build(BuildContext context) {
@@ -1360,15 +1373,34 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
   }
 
-  /// The SDK's delegate [sdk] with each item framed by its own key and the
-  /// moves of this build mapped through `findChildIndexCallback`.
+  /// The SDK's delegate [sdk] with each item framed by its own key. Its
+  /// `findChildIndexCallback` answers a move the list knows ([_movedTo]),
+  /// else the app's answer for the item's own key ([_appIndexOf]), else
+  /// null (invariant 35).
   SliverChildBuilderDelegate _rebuiltDelegate(SliverChildBuilderDelegate sdk) {
     return SliverChildBuilderDelegate(
       (context, index) => _rewrapped(sdk.builder, context, index),
       childCount: sdk.childCount,
-      findChildIndexCallback: (key) =>
-          key is _IndexFreeKey ? _movedTo[key.value] : null,
+      findChildIndexCallback: (key) => key is _IndexFreeKey
+          ? _movedTo[key.value] ?? _appIndexOf(key.value)
+          : null,
     );
+  }
+
+  /// The slot this build draws the item [key] at, by the app's
+  /// `findChildIndexCallback`; null with no callback, or when the app does
+  /// not know the key or answers past its data. Each leaving item and
+  /// closing gap sits inside its host's slot, one child per data item, and
+  /// the sliver builds after the body cleared [_pending], so the app's
+  /// index is this build's slot; [_builtIndexOf] maps to the last frame.
+  int? _appIndexOf(Key key) {
+    final app = _layout.findChildIndexCallback;
+    if (app == null) return null;
+    assert(_pending.isEmpty, 'The list sliver built with calls pending');
+    if (_pending.isNotEmpty) return null;
+    final at = app(key);
+    if (at == null || at < 0 || at >= _dataCount) return null;
+    return at;
   }
 
   /// The SDK's own end of a drag, a drop: reported at once with the index
