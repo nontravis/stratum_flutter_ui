@@ -173,7 +173,8 @@ class _StratumCaretState extends State<StratumCaret> {
 
   @override
   Widget build(BuildContext context) {
-    final jump = _follow(widget.direction, Directionality.of(context));
+    final textDirection = Directionality.of(context);
+    final jump = _follow(widget.direction, textDirection);
     // Read on every build, so the MediaQuery dependency stays registered.
     final reduce = reducesMotion(context);
     final remount = reduce && _wasReduced == false;
@@ -182,69 +183,80 @@ class _StratumCaretState extends State<StratumCaret> {
     final motion = widget.resolveTheme(context).animation.fast;
     final side = widget.customSize ?? _sideOf(widget.resolveSize(context));
     final color = _color(context);
+    final style = widget.resolveStyle(
+      context,
+      WidgetStyle(width: side, height: side),
+    );
+    // `customStyle`'s margin grows the box past `side`; resolved with the
+    // ambient text direction so a directional margin (start/end) deflates
+    // the right side under RTL.
+    final margin = (style.margin ?? EdgeInsets.zero).resolve(textDirection);
     // A decorative glyph: the owning component announces expanded or
     // collapsed (US-02 FR-05).
-    return LayoutBuilder(
-      // Reads the constraints this widget gets from its own parent,
-      // before `ContainerLayout` turns `side` and `customStyle` into the
-      // box's width, height, and padding: a tighter ambient parent still
-      // shrinks the glyph (US-01 FR-02 E03), but the box's own padding
-      // never does (spec invariant 14) because padding is applied deeper
-      // inside, past this point.
-      builder: (context, constraints) {
-        final fit = math.min(
-          side,
-          math.min(constraints.maxWidth, constraints.maxHeight),
-        );
-        return ExcludeSemantics(
-          child: ContainerLayout(
-            style: widget.resolveStyle(
-              context,
-              WidgetStyle(width: side, height: side),
-            ),
-            debug: widget.debug,
-            child: TweenAnimationBuilder<double>(
-              // Keyed by `_reduceKey`, which only a false-to-true turn of
-              // reduced motion bumps. Remounting under a new key builds a
-              // fresh `TweenAnimationBuilder` state, which starts at its
-              // tween's end value with no animation (spec invariant 9);
-              // turning reduced motion back off leaves the key unchanged,
-              // so the live state survives and a direction change in that
-              // same frame turns instead of jumping.
-              key: ValueKey(_reduceKey),
-              tween: Tween<double>(end: _quarterTurns * math.pi / 2),
-              // The theme's fast level on its standard curve; a level built
-              // with no duration or curve takes none and easeInOutSine
-              // (themes s03 invariant 15). Reduced motion and a text-direction
-              // flip show the new angle at once (US-02 FR-03, FR-04).
-              duration: jump || reduce
-                  ? Duration.zero
-                  : motion.duration ?? Duration.zero,
-              curve: motion.curve ?? Curves.easeInOutSine,
-              // `OverflowBox` imposes `fit` on the glyph's canvas no
-              // matter what constraints `customStyle`'s padding leaves
-              // inside the box, so the glyph never shrinks to the padded
-              // remainder; `fit` already carries a tighter ambient
-              // parent's shrink, read above, before this widget's own
-              // padding muddies the constraints (US-01 FR-02 E03, spec
-              // invariant 14).
-              builder: (context, angle, _) => OverflowBox(
-                minWidth: fit,
-                maxWidth: fit,
-                minHeight: fit,
-                maxHeight: fit,
-                child: CustomPaint(
-                  painter: CaretPainter(
-                    style: widget.style,
-                    color: color,
-                    angle: angle,
-                  ),
-                ),
+    return ExcludeSemantics(
+      // Declares the box's natural total size (the glyph plus its
+      // margin), so a looser ambient parent neither shrinks nor grows it;
+      // a tighter one still shrinks it by clamping this down (US-01
+      // FR-02 E03).
+      child: SizedBox(
+        width: side + margin.horizontal,
+        height: side + margin.vertical,
+        // `Center` loosens whatever this got clamped to (including a
+        // tighter ambient parent's clamp-up past a bigger one, the quirk
+        // `BoxConstraints.enforce` has with two tight ranges) before it
+        // reaches `ContainerLayout`'s own sizing below, so that sizing
+        // answers from `side` and `margin` again instead of the clamped
+        // value.
+        child: Center(
+          child: TweenAnimationBuilder<double>(
+            // Keyed by `_reduceKey`, which only a false-to-true turn of
+            // reduced motion bumps. Remounting under a new key builds a
+            // fresh `TweenAnimationBuilder` state, which starts at its
+            // tween's end value with no animation (spec invariant 9);
+            // turning reduced motion back off leaves the key unchanged,
+            // so the live state survives and a direction change in that
+            // same frame turns instead of jumping.
+            key: ValueKey(_reduceKey),
+            tween: Tween<double>(end: _quarterTurns * math.pi / 2),
+            // The theme's fast level on its standard curve; a level built
+            // with no duration or curve takes none and easeInOutSine
+            // (themes s03 invariant 15). Reduced motion and a
+            // text-direction flip show the new angle at once (US-02
+            // FR-03, FR-04).
+            duration: jump || reduce
+                ? Duration.zero
+                : motion.duration ?? Duration.zero,
+            curve: motion.curve ?? Curves.easeInOutSine,
+            // The box, built once: `ContainerLayout` turns `side` and
+            // `customStyle` into the final size. Passed as this
+            // builder's `child` instead of being rebuilt inside it, so
+            // an animation frame repaints only the glyph. Unlike the
+            // `LayoutBuilder` this replaced, a `SizedBox` with a tight,
+            // bounded size answers an intrinsic query directly, with no
+            // need to ask anything below it (including this `CustomPaint`
+            // with a child), so the caret lays out inside an
+            // `IntrinsicWidth` or `IntrinsicHeight` ancestor (US-01
+            // FR-02).
+            child: ContainerLayout(style: style, debug: widget.debug),
+            builder: (context, angle, child) => CustomPaint(
+              // Foreground: painted after the box's own decoration, so a
+              // `customStyle` background never hides the glyph. The
+              // box's padding is applied deeper inside that decoration
+              // and never reaches this canvas (spec invariant 14);
+              // `margin` is read above instead, because it grows this
+              // canvas past `side` and the painter must deflate it back
+              // out (US-01 FR-02 E03).
+              foregroundPainter: CaretPainter(
+                style: widget.style,
+                color: color,
+                angle: angle,
+                margin: margin,
               ),
+              child: child,
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -288,7 +300,12 @@ int _quarterTurnsOf(
 ///
 /// Library-internal: `utility.dart` hides it; tests read its fields.
 class CaretPainter extends CustomPainter {
-  const new({required this.style, required this.color, required this.angle});
+  const new({
+    required this.style,
+    required this.color,
+    required this.angle,
+    this.margin = EdgeInsets.zero,
+  });
 
   /// The glyph: a chevron line or a triangle.
   final StratumCaretStyle style;
@@ -299,14 +316,20 @@ class CaretPainter extends CustomPainter {
   /// Radians clockwise from pointing down.
   final double angle;
 
+  /// Deflates the canvas before the glyph is measured and centered, so a
+  /// `customStyle` margin leaves the glyph inside it instead of under it
+  /// (US-01 FR-02 E03); resolved with the ambient text direction.
+  final EdgeInsets margin;
+
   @override
   void paint(Canvas canvas, Size size) {
+    final rect = margin.deflateRect(Offset.zero & size);
     // The Figma glyph in its 16 px frame, centered on the origin and
     // pointing down: a 10 x 5 chevron centerline or an 11 x 6 triangle
     // (R8). The points scale with the laid-out canvas, which a tighter
     // ancestor can shrink below the requested side (US-01 FR-02 E03); the
     // line width never scales (R1).
-    final unit = math.min(size.width, size.height) / 16;
+    final unit = rect.shortestSide / 16;
     final paint = Paint()..color = color;
     final path = Path();
     switch (style) {
@@ -331,7 +354,7 @@ class CaretPainter extends CustomPainter {
     }
     canvas
       ..save()
-      ..translate(size.width / 2, size.height / 2)
+      ..translate(rect.center.dx, rect.center.dy)
       ..rotate(angle)
       ..drawPath(path, paint)
       ..restore();
@@ -341,5 +364,6 @@ class CaretPainter extends CustomPainter {
   bool shouldRepaint(CaretPainter oldDelegate) =>
       oldDelegate.style != style ||
       oldDelegate.color != color ||
-      oldDelegate.angle != angle;
+      oldDelegate.angle != angle ||
+      oldDelegate.margin != margin;
 }

@@ -7,13 +7,14 @@ import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
 
-/// The one widget that paints a caret glyph.
+/// The one widget that paints a caret glyph; foreground, so a
+/// `customStyle` background never hides it.
 final Finder _glyph = find.byWidgetPredicate(
-  (widget) => widget is CustomPaint && widget.painter is CaretPainter,
+  (widget) => widget is CustomPaint && widget.foregroundPainter is CaretPainter,
 );
 
 CaretPainter _painter(WidgetTester tester) =>
-    tester.widget<CustomPaint>(_glyph).painter! as CaretPainter;
+    tester.widget<CustomPaint>(_glyph).foregroundPainter! as CaretPainter;
 
 /// The style, color, and angle the glyph paints with.
 List<Object> _look(WidgetTester tester) {
@@ -304,6 +305,23 @@ void main() {
       );
     });
 
+    testWidgets('an IntrinsicWidth ancestor lays the caret out at 16 px '
+        'with no exception', (tester) async {
+      await tester.pumpWidget(
+        themedHost(
+          const IntrinsicWidth(
+            child: RowLayout(
+              mainAxisSize: MainAxisSize.min,
+              children: [Text('x'), StratumCaret()],
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byType(StratumCaret)), const Size(16, 16));
+    });
+
     testWidgets('us01/fr02/e04: a fill caret at the large size scales its '
         'triangle to the 20 px box', (tester) async {
       await tester.pumpWidget(
@@ -492,6 +510,26 @@ void main() {
       );
 
       expect(tester.getSize(_glyph), const Size(16, 16));
+      final (:path, paint: _) = _drawn();
+      expect(
+        path.getBounds(),
+        rectMoreOrLessEquals(const Rect.fromLTRB(-5, -2.5, 5, 2.5)),
+      );
+    });
+
+    testWidgets('a customStyle margin leaves the glyph centered in the box '
+        'inside the margin at full size', (tester) async {
+      await tester.pumpWidget(
+        themedHost(
+          const StratumCaret(
+            customStyle: WidgetStyle(margin: EdgeInsets.all(4)),
+          ),
+        ),
+      );
+
+      expect(tester.getSize(find.byType(StratumCaret)), const Size(24, 24));
+      expect(tester.getSize(_glyph), const Size(24, 24));
+      expect(_glyph, paints..translate(x: 12, y: 12));
       final (:path, paint: _) = _drawn();
       expect(
         path.getBounds(),
