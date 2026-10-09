@@ -1084,6 +1084,16 @@ class _RenderWrapOverflow extends RenderBox
     if (_from != null) markNeedsLayout();
   }
 
+  /// Drops the pin of [_settledShown] on a hot reload, which may have
+  /// fixed the child it keeps hidden, so the next layout measures that
+  /// child again and reports it once more if it still misbehaves;
+  /// [RenderObject.reassemble] marks the layout.
+  @override
+  void reassemble() {
+    super.reassemble();
+    _settledShown = null;
+  }
+
   /// Stops a size move, so no ticker marks a detached frame dirty.
   @override
   void detach() {

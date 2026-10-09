@@ -1173,6 +1173,41 @@ void main() {
         expect(tester.binding.hasScheduledFrame, isFalse);
       },
     );
+
+    testWidgets(
+      'us14/fr01/e08: a hot reload re-measures a child that fits only while '
+      'hidden, so it shows once its fixed code fits shown',
+      (tester) async {
+        // The code a developer fixes: tag 1's width while shown.
+        var shownWidth = 200.0;
+        final children = [
+          _tag(0),
+          Builder(
+            key: const ValueKey('tag 1'),
+            builder: (context) => TickerMode.valuesOf(context).enabled
+                ? SizedBox(width: shownWidth, height: 20)
+                : const ColoredBox(
+                    color: Color(0xFF000000),
+                    child: SizedBox(width: 40, height: 20),
+                  ),
+          ),
+        ];
+        Widget build() => _host(_wrap(maxRuns: 1, children: children));
+        final reports = await _settleReporting(tester, [build()]);
+        expect(_shownTags(), [0]);
+        expect(reports, hasLength(1));
+
+        shownWidth = 40;
+        // Completes after the frame the pump draws.
+        final reassembled = tester.binding.reassembleApplication();
+        await tester.pump();
+        await reassembled;
+
+        expect(_shownTags(), [0, 1]);
+        expect(find.text('+1'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 
   group('WrapLayout focus after a limit change (US-14 FR-03, R5, R6)', () {
