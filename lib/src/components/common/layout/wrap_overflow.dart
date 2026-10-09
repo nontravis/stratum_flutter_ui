@@ -785,6 +785,19 @@ class _WrapOverflowParentData extends ContainerBoxParentData<RenderBox> {
 /// The children's boxes, in child order, and the sizes a layout gave them.
 typedef _Measured = ({List<RenderBox> boxes, List<Size> sizes});
 
+/// What the probe measured of a "+N" child: its size and its baselines,
+/// for the intrinsic sizes and the dry layout and baseline (US-14 FR-02
+/// E07).
+typedef _ProbeMeasure = ({Size size, double? alphabetic, double? ideographic});
+
+extension on _ProbeMeasure {
+  /// The distance to [baseline] from the top; null when it has none.
+  double? baselineOf(TextBaseline baseline) => switch (baseline) {
+    TextBaseline.alphabetic => alphabetic,
+    TextBaseline.ideographic => ideographic,
+  };
+}
+
 extension _MeasuredMatch on _Measured {
   /// Whether [other] holds the same boxes at the same sizes.
   bool matches(_Measured other) =>
@@ -831,8 +844,9 @@ class _RenderWrapOverflow extends RenderBox
   /// How many children an unsettled cut left shown (US-14 FR-01 E08): a
   /// child that showing or hiding resizes, and that does not fit shown,
   /// stays hidden though it fits hidden. Caps every cut under the child
-  /// constraints [_settledConstraints] until the children or the limits
-  /// change ([configure]); null caps none.
+  /// constraints [_settledConstraints] until the children change in
+  /// number, order, key, or type, or the limits or the gaps change
+  /// ([configure]); null caps none.
   int? _settledShown;
   BoxConstraints? _settledConstraints;
 
@@ -865,7 +879,11 @@ class _RenderWrapOverflow extends RenderBox
       _limitsChanged = true;
       _settledShown = null;
     }
-    if (!listEquals(frame.children, _frame.children)) _settledShown = null;
+    if (frame.spacing != _frame.spacing ||
+        frame.runSpacing != _frame.runSpacing ||
+        !_sameChildren(frame.children, _frame.children)) {
+      _settledShown = null;
+    }
     _frame = frame;
     _textDirection = widget.textDirection;
     _duration = widget.duration;
@@ -874,6 +892,18 @@ class _RenderWrapOverflow extends RenderBox
     // (NFR-U03).
     if (_duration == Duration.zero) _controller.stop();
     markNeedsLayout();
+  }
+
+  /// Whether [next] updates every child of [previous] in place, by
+  /// [Widget.canUpdate] at each index: a parent's rebuild builds the
+  /// children anew, which is no children change for [_settledShown].
+  static bool _sameChildren(List<Widget> next, List<Widget> previous) {
+    if (identical(next, previous)) return true;
+    if (next.length != previous.length) return false;
+    for (final (i, child) in next.indexed) {
+      if (!Widget.canUpdate(child, previous[i])) return false;
+    }
+    return true;
   }
 
   RenderBox? _overflow;
@@ -908,15 +938,17 @@ class _RenderWrapOverflow extends RenderBox
   /// reach the frame meanwhile in [_childChanged].
   bool _childrenChanging = false;
 
-  /// The "+N" size the probe measured in the last layout, by hidden count
-  /// and child constraints (US-14 FR-02 E07): the intrinsic sizes and the
-  /// dry layout read it ([_dryRuns]), since they cannot build the overflow
-  /// child; only the last layout's, so it holds one constraints' counts.
-  Map<(int, BoxConstraints), Size> _overflowSizes = const {};
+  /// The "+N" size and baselines the probe measured in the last layout,
+  /// by hidden count and child constraints (US-14 FR-02 E07): the
+  /// intrinsic sizes, the dry layout, and the dry baseline read them
+  /// ([_dryRuns], [_unboundedOverflow]), since they cannot build the
+  /// overflow child; only the last layout's, so it holds one constraints'
+  /// counts.
+  Map<(int, BoxConstraints), _ProbeMeasure> _overflowSizes = const {};
 
-  /// The "+N" sizes the layout under way measures; [_keepOverflowSizes]
+  /// The "+N" measures the layout under way takes; [_keepOverflowSizes]
   /// keeps them.
-  Map<(int, BoxConstraints), Size> _probedSizes = {};
+  Map<(int, BoxConstraints), _ProbeMeasure> _probedSizes = {};
 
   /// Whether a child the layout callback rebuilt or flipped marked the
   /// frame in this layout, or the probe measured a "+N" size the intrinsic
@@ -1288,15 +1320,15 @@ class _RenderWrapOverflow extends RenderBox
   /// Caps every later cut under [childConstraints] at [shown] (US-14
   /// FR-01 E08), so a child that showing or hiding resizes stays where
   /// this cut left it, and the layout flips nothing and schedules no
-  /// frame; reports the misuse, debug-only, once until the children or
-  /// the limits change.
+  /// frame; reports the misuse, debug-only, once until the children, the
+  /// limits, or the gaps change.
   void _settle(int shown, BoxConstraints childConstraints) {
     if (_settledShown == null) _debugReportUnsettledCut();
     _settledShown = shown;
     _settledConstraints = childConstraints;
   }
 
-  /// Keeps the "+N" sizes this layout's probe measured in
+  /// Keeps the "+N" measures this layout's probe took in
   /// [_overflowSizes], for the intrinsic sizes and the dry layout; one
   /// they did not have yet records in [_childChanged], as a child's own
   /// change does, so a parent that read them before this layout measures
@@ -1329,8 +1361,9 @@ class _RenderWrapOverflow extends RenderBox
               'rebuilds what reads it. A child whose root reads TickerMode '
               'and so takes another render object or size moves the cut; '
               'the frame keeps hidden a child that does not fit shown, '
-              'though it fits hidden, until its children, limits, or '
-              'constraints change.',
+              'though it fits hidden, until its children change in number, '
+              'order, key, or type, or its limits, gaps, or constraints '
+              'change.',
             ),
             ErrorHint(
               'Keep the render object and the size of a child the same '
@@ -1352,7 +1385,17 @@ class _RenderWrapOverflow extends RenderBox
   double _layOutProbe(int count, BoxConstraints childConstraints) {
     invokeLayoutCallback<BoxConstraints>((_) => element!.buildProbe(count));
     final probe = _probe!..layout(childConstraints, parentUsesSize: true);
-    _probedSizes[(count, childConstraints)] = probe.size;
+    _probedSizes[(count, childConstraints)] = (
+      size: probe.size,
+      alphabetic: probe.getDistanceToBaseline(
+        TextBaseline.alphabetic,
+        onlyReal: true,
+      ),
+      ideographic: probe.getDistanceToBaseline(
+        TextBaseline.ideographic,
+        onlyReal: true,
+      ),
+    );
     return _main(probe.size);
   }
 
@@ -1460,9 +1503,10 @@ class _RenderWrapOverflow extends RenderBox
   ///   `shown - box`, so the `space*` alignments keep their gaps too (US-14
   ///   FR-04 E06): a run keeps its own items, so it keeps the place its
   ///   alignment gives it in the shown size. A run wider than the shown
-  ///   size shifts by the [_leadingShare] of that negative free space, so
-  ///   the right edge under right-to-left text holds for the start
-  ///   alignment.
+  ///   size shifts by the [_leadingShare] of that negative free space for
+  ///   the alignment it takes with no free space ([_withNoFreeSpace]), so
+  ///   its start edge holds for the start and `space*` alignments, the
+  ///   right edge under right-to-left text.
   /// * Across the runs, by the share of [WrapAlignment.start]: a limit
   ///   change adds or drops runs at the end, so the runs hold their start
   ///   edge, the bottom under [VerticalDirection.up]. The share of
@@ -1505,7 +1549,11 @@ class _RenderWrapOverflow extends RenderBox
       );
       var childOffset =
           leading +
-          _leadingShare(_frame.alignment, run.items.length, flipped: flipMain) *
+          _leadingShare(
+                _withNoFreeSpace(_frame.alignment),
+                run.items.length,
+                flipped: flipMain,
+              ) *
               math.min(0.0, free);
       for (final item in flipMain ? run.items.reversed : run.items) {
         final size = sizeOf(item);
@@ -1546,18 +1594,18 @@ class _RenderWrapOverflow extends RenderBox
   }
 
   /// The runs of the cut over the children's dry [sizes] under
-  /// [childConstraints] (US-14 FR-02 E07), with the [overflow] size the
-  /// probe measured for each count the cut tries under those constraints
-  /// in the last layout ([_overflowSizes]); when it measured none for a
-  /// count, the runs leave the overflow child out, since an intrinsic
-  /// size query cannot build it.
-  ({List<_Run> runs, Size? overflow}) _dryRuns(
+  /// [childConstraints] (US-14 FR-02 E07), with the [overflow] the probe
+  /// measured for each count the cut tries under those constraints in the
+  /// last layout ([_overflowSizes]); when it measured none for a count,
+  /// the runs leave the overflow child out, since an intrinsic size query
+  /// cannot build it.
+  ({List<_Run> runs, _ProbeMeasure? overflow}) _dryRuns(
     List<Size> sizes,
     BoxConstraints childConstraints,
   ) {
     final cap = _capOf(childConstraints);
     if (_frame.overflowBuilder != null) {
-      Size? overflow;
+      _ProbeMeasure? overflow;
       var measured = true;
       final cut = _cut(
         sizes,
@@ -1566,11 +1614,11 @@ class _RenderWrapOverflow extends RenderBox
         overflowExtent: (count) {
           overflow = _overflowSizes[(count, childConstraints)];
           if (overflow == null) measured = false;
-          return overflow == null ? 0 : _main(overflow!);
+          return overflow == null ? 0 : _main(overflow!.size);
         },
       );
       if (measured) {
-        return (runs: _runsOf(cut, sizes, overflow), overflow: overflow);
+        return (runs: _runsOf(cut, sizes, overflow?.size), overflow: overflow);
       }
     }
     final cut = _cut(sizes, childConstraints, cap: cap);
@@ -1578,9 +1626,9 @@ class _RenderWrapOverflow extends RenderBox
   }
 
   /// `RenderWrap.computeDryBaseline` (`rendering/wrap.dart:617-648`): the
-  /// dry layout's baseline over the runs of [_dryRuns], from the children
-  /// alone, since the overflow child's baseline needs its box (FR-02 E07,
-  /// D3: the query never throws).
+  /// dry layout's baseline over the runs of [_dryRuns], the overflow
+  /// child's from the baselines the probe measured (FR-02 E07, D3: the
+  /// query never throws).
   @override
   double? computeDryBaseline(
     covariant BoxConstraints constraints,
@@ -1601,15 +1649,12 @@ class _RenderWrapOverflow extends RenderBox
       box,
       shown,
       content,
-      (item) => item < 0 ? overflow! : sizes[item],
+      (item) => item < 0 ? overflow!.size : sizes[item],
       (item, offset) {
-        if (item < 0) return;
-        result = result.minOf(
-          BaselineOffset(
-                children[item].getDryBaseline(childConstraints, baseline),
-              ) +
-              offset.dy,
-        );
+        final distance = item < 0
+            ? overflow!.baselineOf(baseline)
+            : children[item].getDryBaseline(childConstraints, baseline);
+        result = result.minOf(BaselineOffset(distance) + offset.dy);
       },
     );
     return result.offset;
@@ -1629,39 +1674,73 @@ class _RenderWrapOverflow extends RenderBox
     return math.min(maxRuns, maxChildren);
   }
 
+  /// The main-axis extent of the "+N" child when [shown] children show:
+  /// the one a layout under an unbounded main axis measured, as the
+  /// main-axis intrinsics measure the children unbounded (US-14 FR-02
+  /// E07); null when no child hides or no layout measured that count.
+  double? _unboundedOverflow(int shown) {
+    final count = childCount - shown;
+    if (count <= 0 || _frame.overflowBuilder == null) return null;
+    final measure =
+        _overflowSizes[(count, _childConstraints(const BoxConstraints()))];
+    return measure == null ? null : _main(measure.size);
+  }
+
+  /// The main-axis min intrinsic extent over each child's [extentOf]: the
+  /// widest of the children the limits keep when each takes its own run,
+  /// as `RenderWrap` reads it, and of the "+N" child that cut shows when a
+  /// layout measured it ([_unboundedOverflow]). At the cap of `maxRuns`,
+  /// "+N" cannot sit beside a child at that extent and takes the last
+  /// run, hiding one more, as `cutWrap` places it.
+  double _minMainIntrinsic(double Function(RenderBox child) extentOf) {
+    final kept = math.min(_oneRunEach ?? childCount, childCount);
+    final maxRuns = _frame.maxRuns;
+    final atCap = maxRuns != null && kept >= maxRuns;
+    final besideOverflow = atCap && kept < childCount ? kept - 1 : kept;
+    final overflow = _unboundedOverflow(besideOverflow);
+    return _first(
+      overflow == null ? kept : besideOverflow,
+    ).fold(overflow ?? 0, (extent, child) => math.max(extent, extentOf(child)));
+  }
+
+  /// The main-axis max intrinsic extent over each child's [extentOf]: the
+  /// children `maxChildren` keeps, summed as `RenderWrap` sums them, and
+  /// the "+N" child at the end of that one run when a layout measured it
+  /// ([_unboundedOverflow]).
+  double _maxMainIntrinsic(double Function(RenderBox child) extentOf) {
+    final shown = math.min(_frame.maxChildren ?? childCount, childCount);
+    return _first(shown).fold(
+      _unboundedOverflow(shown) ?? 0,
+      (extent, child) => extent + extentOf(child),
+    );
+  }
+
   @override
   double computeMinIntrinsicWidth(double height) => _horizontal
-      ? _first(_oneRunEach).fold(
-          0,
-          (width, child) =>
-              math.max(width, child.getMinIntrinsicWidth(double.infinity)),
+      ? _minMainIntrinsic(
+          (child) => child.getMinIntrinsicWidth(double.infinity),
         )
       : _dryTarget(BoxConstraints(maxHeight: height)).width;
 
   @override
   double computeMaxIntrinsicWidth(double height) => _horizontal
-      ? _first(_frame.maxChildren).fold(
-          0,
-          (width, child) => width + child.getMaxIntrinsicWidth(double.infinity),
+      ? _maxMainIntrinsic(
+          (child) => child.getMaxIntrinsicWidth(double.infinity),
         )
       : _dryTarget(BoxConstraints(maxHeight: height)).width;
 
   @override
   double computeMinIntrinsicHeight(double width) => _horizontal
       ? _dryTarget(BoxConstraints(maxWidth: width)).height
-      : _first(_oneRunEach).fold(
-          0,
-          (height, child) =>
-              math.max(height, child.getMinIntrinsicHeight(double.infinity)),
+      : _minMainIntrinsic(
+          (child) => child.getMinIntrinsicHeight(double.infinity),
         );
 
   @override
   double computeMaxIntrinsicHeight(double width) => _horizontal
       ? _dryTarget(BoxConstraints(maxWidth: width)).height
-      : _first(_frame.maxChildren).fold(
-          0,
-          (height, child) =>
-              height + child.getMaxIntrinsicHeight(double.infinity),
+      : _maxMainIntrinsic(
+          (child) => child.getMaxIntrinsicHeight(double.infinity),
         );
 
   @override
@@ -1758,6 +1837,17 @@ class _RenderWrapOverflow extends RenderBox
     ),
   };
 }
+
+/// The alignment [alignment] places a run with no free space by: the
+/// `space*` alignments place it from the start, as [_distribute] does
+/// for a free space of 0, so a run wider than the size shown holds its
+/// start edge (US-14 FR-04 E06).
+WrapAlignment _withNoFreeSpace(WrapAlignment alignment) => switch (alignment) {
+  WrapAlignment.spaceBetween ||
+  WrapAlignment.spaceAround ||
+  WrapAlignment.spaceEvenly => WrapAlignment.start,
+  WrapAlignment.start || WrapAlignment.end || WrapAlignment.center => alignment,
+};
 
 /// The share of free space that [alignment] puts before the first item it
 /// places, of [count]: 0 at the start, 0.5 centered, 1 at the end,

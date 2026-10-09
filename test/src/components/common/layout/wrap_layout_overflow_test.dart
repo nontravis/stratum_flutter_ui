@@ -292,8 +292,8 @@ Rect _rectIn(WidgetTester tester, String key) => tester
     .getRect(find.byKey(ValueKey(key)))
     .shift(-tester.getTopLeft(find.byType(WrapOverflowFrame)));
 
-/// Pumps each of [widgets], then up to ten more frames while one is
-/// scheduled; the errors reported meanwhile.
+/// Pumps each of [widgets], each followed by up to ten more frames while
+/// one is scheduled; the errors reported meanwhile.
 Future<List<FlutterErrorDetails>> _settleReporting(
   WidgetTester tester,
   List<Widget> widgets,
@@ -304,10 +304,10 @@ Future<List<FlutterErrorDetails>> _settleReporting(
   try {
     for (final widget in widgets) {
       await tester.pumpWidget(widget);
-    }
-    for (var frame = 0; frame < 10; frame++) {
-      if (!tester.binding.hasScheduledFrame) break;
-      await tester.pump();
+      for (var frame = 0; frame < 10; frame++) {
+        if (!tester.binding.hasScheduledFrame) break;
+        await tester.pump();
+      }
     }
   } finally {
     FlutterError.onError = previous;
@@ -1117,6 +1117,60 @@ void main() {
         expect(_shownTags(), [0]);
         expect(find.text('+1'), findsOneWidget);
         expect(reports, hasLength(1));
+      },
+    );
+
+    testWidgets(
+      'us14/fr01/e08: ancestor rebuilds that build the same children anew '
+      'keep a child that fits only while hidden hidden, with no new report',
+      (tester) async {
+        // Each call builds every child widget anew, as a parent's build
+        // does.
+        Widget build() => _host(
+          _wrap(maxRuns: 1, children: [_tag(0), _swapTag(1, on: 200, off: 40)]),
+        );
+        final reports = await _settleReporting(tester, [
+          for (var rebuild = 0; rebuild < 4; rebuild++) build(),
+        ]);
+
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(_shownTags(), [0]);
+        expect(find.text('+1'), findsOneWidget);
+        expect(reports, hasLength(1));
+      },
+    );
+
+    testWidgets(
+      'us14/fr01/e08: a gap or constraints change lets a child that fits '
+      'only while hidden show again when it fits shown',
+      (tester) async {
+        // The same widgets in every build, so only the gap or the width
+        // changes.
+        final children = [_tag(0), _swapTag(1, on: 185, off: 40)];
+        Widget build({double gap = 10, double width = 230}) => _host(
+          WrapLayout(
+            gap: gap,
+            maxRuns: 1,
+            overflowBuilder: _more,
+            children: children,
+          ),
+          width: width,
+        );
+        // 40 + 10 + 185 = 235 does not fit 230 shown: pinned hidden.
+        var reports = await _settleReporting(tester, [build()]);
+        expect(_shownTags(), [0]);
+        expect(reports, hasLength(1));
+
+        // 40 + 0 + 185 = 225 fits.
+        reports = await _settleReporting(tester, [build(gap: 0)]);
+        expect(_shownTags(), [0, 1]);
+        expect(reports, isEmpty);
+
+        reports = await _settleReporting(tester, [build()]);
+        expect(_shownTags(), [0]);
+        reports = await _settleReporting(tester, [build(width: 240)]);
+        expect(_shownTags(), [0, 1]);
+        expect(tester.binding.hasScheduledFrame, isFalse);
       },
     );
   });
@@ -2244,6 +2298,49 @@ void main() {
           expect(tester.getSize(find.byType(WrapOverflowFrame)).width, 220);
         },
       );
+    }
+
+    for (final textDirection in TextDirection.values) {
+      for (final alignment in const [
+        WrapAlignment.spaceBetween,
+        WrapAlignment.spaceAround,
+        WrapAlignment.spaceEvenly,
+      ]) {
+        testWidgets(
+          'us14/fr04/e06, s03/inv40: under $textDirection an expand that '
+          'widens a $alignment run past the size shown keeps its items in '
+          'place, its start edge held',
+          (tester) async {
+            Widget build(int maxChildren) => themedHost(
+              SizedBox(
+                width: 230,
+                child: Align(
+                  alignment: AlignmentDirectional.topStart,
+                  child: WrapLayout(
+                    gap: 10,
+                    alignment: alignment,
+                    maxChildren: maxChildren,
+                    children: _tags(4),
+                  ),
+                ),
+              ),
+              textDirection: textDirection,
+            );
+            // Two tags, 90 wide; the expand makes the run 190 wide while
+            // the frame still shows 90.
+            await tester.pumpWidget(build(2));
+            final before = [_rectIn(tester, 'tag 0'), _rectIn(tester, 'tag 1')];
+
+            await tester.pumpWidget(build(4));
+            expect(
+              [_rectIn(tester, 'tag 0'), _rectIn(tester, 'tag 1')],
+              before,
+              reason: 'first frame',
+            );
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
     }
 
     testWidgets(

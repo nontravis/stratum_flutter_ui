@@ -91,9 +91,11 @@ class WrapLayout extends BoxLayout {
   /// mounted with its State but does not paint, take hits, take focus,
   /// appear in semantics, join a [SelectionArea]'s selection, or fly as a
   /// [Hero], and its tickers stop until a limit change shows it again. A
-  /// child whose size changes as it shows or hides, and that
-  /// does not fit shown but fits hidden, stays hidden until the children,
-  /// the limits, or the constraints change; debug builds report it once.
+  /// child whose size changes as it shows or hides, and that does not fit
+  /// shown but fits hidden, stays hidden until the children change in
+  /// number, order, key, or type, or the limits, [gap], [runGap], or the
+  /// constraints change; a rebuild that builds the same children anew
+  /// keeps it hidden, and debug builds report it once.
   final int? maxRuns;
 
   /// Shows only the first [maxChildren] children; null sets no child
