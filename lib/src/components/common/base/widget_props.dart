@@ -9,6 +9,7 @@ import 'package:stratum_ui/src/themes/constant/widget_size.dart';
 import 'package:stratum_ui/src/themes/constant/window_size.dart';
 import 'package:stratum_ui/src/themes/theme_application.dart';
 import 'package:stratum_ui/src/themes/theme_data.dart';
+import 'package:stratum_ui/src/themes/tokens/theme_tokens.g.dart';
 
 /// The props every Stratum component takes, and how they resolve.
 ///
@@ -77,4 +78,22 @@ mixin StratumWidgetProps {
       defaults
           .merge(StratumComponentDefaults.styleOf(context, runtimeType))
           .merge(customStyle);
+
+  /// The token named [color] in the `<group>.color` group that [group]
+  /// picks from the resolved theme's colors, such as
+  /// `(colors) => colors.icon.color`; [fallback], the component's own
+  /// default color of that group, when [color] is null or the group holds
+  /// no token of that name (FO-08 US-01 FR-03).
+  ///
+  /// A null [color] reads no theme, so it never throws; a set [color]
+  /// throws like [resolveTheme] when no theme is above [context].
+  Color resolveColor(
+    BuildContext context,
+    StratumColorEnumTokens Function(StratumColorTokens colors) group,
+    Color fallback,
+  ) {
+    final name = color;
+    if (name == null) return fallback;
+    return group(resolveTheme(context).color)[name] ?? fallback;
+  }
 }

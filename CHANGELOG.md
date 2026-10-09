@@ -27,3 +27,5 @@
   the app's material localizations name it, now reads Stratum's built-in labels: Thai under a Thai locale, English
   under any other. The package now depends on `flutter_localizations` (SDK) and `intl` (`any`); an app whose own
   `intl` constraint excludes the version `flutter_localizations` requires must widen it to allow it.
+- The Flutter floor is now `>=3.47.0`, the floor `google_fonts` 9.0.0, `badges` 4.0.1, and
+  `webview_flutter_wkwebview` 3.27.0 already required; no app below Flutter 3.47 could resolve the package before.

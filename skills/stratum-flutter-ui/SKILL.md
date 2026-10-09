@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType, or Stratum's built-in labels in Thai and supportedLocales.
+description: Use when building a Flutter app on Stratum UI: picking a layout primitive, its parameters or keyboard behavior, or starting, switching, or writing a Stratum theme. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, or StratumWebView, StratumWebViewController, its message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType, or StratumCaret, StratumCaretDirection, StratumCaretStyle, a named color via resolveColor or a ColorEnum lookup, or built-in Thai labels and supportedLocales.
 ---
 
 # Stratum Flutter UI
@@ -232,6 +232,29 @@ scroll it, guarded so a text field inside keeps its own keys.
   customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
   took effect.
 
+## Caret and named colors
+
+- **`StratumCaret`** — the Figma `Caret` glyph that marks a disclosure, select, or dropdown as open or closed; for
+  navigation between pages or sections, use a dedicated arrow or chevron icon instead. Key parameters: `direction`
+  (`StratumCaretDirection.down`, the default, `.up`, `.start`, `.end`: `start` and `end` follow the text direction,
+  so `end` points right in a left-to-right app and left in a right-to-left app), `style`
+  (`StratumCaretStyle.regular`, the default, a 1.5 px round chevron; `.light`, 1.0 px; `.fill`, a solid triangle),
+  `size` (a `WidgetSize`: `tiny` 10 px to `huge` 32 px, `medium` 16 px; null takes the theme's `defaultWidgetSize`)
+  or `customSize` (any side in logical pixels, must be finite and >= 0), and `color` (a `ColorEnum`: the theme's
+  `icon.color.<name>` token, else `icon.default.primary`) or `customColor` (any color, as given). The line width
+  stays the same at every size, and the glyph sits centered in its square box and never stretches. Change
+  `direction` to turn it: it turns the short way over the theme's `fast` level, a half turn back the way the last
+  half turn came, and shows the new direction at once under reduced motion or when the text direction flips. It
+  adds nothing to the semantics tree: announce expanded or collapsed on the component that holds it. `customStyle`
+  styles the box, never the glyph, and `state`, `feedbackState`, and `loading` leave its look as it is.
+- **Named colors** — a component of your own on `StratumStatelessWidget` or `StratumStatefulWidget` maps its `color`
+  prop with `resolveColor(context, (colors) => colors.icon.color, fallback)`: the token of that name in the group
+  you pick (`background.color`, `border.color`, `icon.color`, or `text.color`), else `fallback` when `color` is null
+  or the group has no token of that name. Read a group by name yourself with
+  `StratumTheme.of(context).color.icon.color[ColorEnum.blue]`, which gives null for a name the group lacks; a token
+  the package's default theme gains joins the lookup in the next package release; an app's own theme can only
+  restyle the names the package already has.
+
 ## Built-in labels
 
 - **Thai labels** — Stratum's own labels hold English and Thai, and read English for any other language. The menu
@@ -376,7 +399,8 @@ scroll it, guarded so a text field inside keeps its own keys.
   size change drops: a type with a fade, `fadeThrough`, the shared-axis types, and `platform` on Android, Windows,
   and Linux included, still fades over its full duration on the caller's curve, else the theme's `standard` curve, and
   any other type shows the page at once.
-- **Flutter floor** — `stratum_ui` needs Flutter 3.44 or later, which package `animations` 3.0.0 needs.
+- **Flutter floor** — `stratum_ui` needs Flutter 3.47 or later, which packages `google_fonts` 9.0.0, `badges`
+  ^4.0.1, and `webview_flutter_wkwebview` ^3.27.0 need.
 
 ## Web view
 

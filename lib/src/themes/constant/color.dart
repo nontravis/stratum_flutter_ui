@@ -1,7 +1,5 @@
 import 'dart:math';
 
-import 'package:stratum_ui/src/src.dart';
-
 enum ColorEnum {
   brand,
   red,
