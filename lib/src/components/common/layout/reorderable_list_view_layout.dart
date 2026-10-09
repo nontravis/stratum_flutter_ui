@@ -1,11 +1,9 @@
 import 'package:flutter/rendering.dart'
     show
-        CacheExtentStyle,
         ItemExtentBuilder,
         RenderAbstractViewport,
         RenderSliverMultiBoxAdaptor,
-        ScrollCacheExtent,
-        ViewportOffset;
+        ScrollCacheExtent;
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
@@ -361,11 +359,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// reveals the item: each call moves them, as it moves [_handoffGap].
   final _moveTargets = <_MoveTarget>[];
 
-  /// The near slots focused moves asked the next frame to build ahead to,
-  /// each until that frame's post-frame callbacks have run (D1, D3); the
-  /// list's viewport alone listens to them.
-  final _aheadAsks = _AheadAsks();
-
   /// The reveal jumps booked for the next frame's start, in booking order
   /// (invariant 35): a move's turn scrolls nothing.
   final _frameJumps = <_FrameJump>[];
@@ -461,7 +454,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void dispose() {
     _layout.itemsController?._detach(this);
     _resetMotion();
-    _aheadAsks.dispose();
     super.dispose();
   }
 
@@ -619,13 +611,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       // key, so the post-frame follow follows the data, not frozen indices.
       _followKey = key;
       _followGap = from < to ? from : from + 1;
-      // A focused item whose new slot is not built has the next frame build
-      // ahead to a near slot, or books a jump toward a far one at the next
-      // frame's start (E04). Asked after the booking, which starts the
-      // boxes that slot counts. The target lives among [_moveTargets], so
-      // each later call shifts it until the jump reads it.
+      // A focused item whose new slot the last frame did not lay out books
+      // a jump toward it at the next frame's start, and the build that
+      // moves it parks it until it is laid out (E04). Asked after the
+      // booking, which starts the boxes that slot counts. The target lives
+      // among [_moveTargets], so each later call shifts it until the jump
+      // reads it.
       final target = _MoveTarget(to);
-      _buildAheadOrJump(to, node, target, owned: true);
+      _bookMoveJump(to, node, target, owned: true);
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _followMoved(node, key, target.origin),
       );
@@ -1203,10 +1196,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// is decoded into its intent and takes the reorder keys' target (R4),
   /// so it acts at once, also between a call and its frame (FR-03 E07),
   /// and ends a drag or a settling drop first, as a call does (FR-03 E08).
-  /// The start and end actions, once reported, jump there when that slot
-  /// is not built, so the moved item keeps its State; a step action that a
-  /// same-turn call shifts onto the data's first or last slot takes D1's
-  /// near and far paths instead (R12 inputs), not this exact jump.
+  /// The start and end actions, once reported, book a jump there for the
+  /// next frame's start when that slot is not laid out, so the moved item
+  /// keeps its State; a step action that a same-turn call shifts onto the
+  /// data's first or last slot takes a focused move's jump instead
+  /// ([_bookMoveJump]), not this exact one.
   void _handleReorderItem(int fromIndex, int toIndex) {
     final index = _FrameIndex(fromIndex);
     final drop = _liftedKey != null && _lookAt(index)?.key == _liftedKey;
@@ -1218,9 +1212,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final target = intent == null ? _dataIndexOf(to) : _targetOf(from, intent);
     if (target == null) return;
     if (!drop) _cancelDrag();
-    // A drop reports no intent at all (null), and a drop's own edge jump
-    // stays untouched (D2); only a step intent (previous or next) is the
-    // one R12 inputs routes through the near and far paths instead.
+    // A drop reports no intent at all (null) and keeps its own edge jump;
+    // only a step intent (previous or next) takes a focused move's jump
+    // instead.
     final edgeAction =
         intent != _MoveIntent.previous && intent != _MoveIntent.next;
     final edge =
@@ -1254,7 +1248,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final key = _lookAt(index)?.key;
     _endExitsBeside(index);
     _bookReportedMove(from, to);
-    final moved = _targetFor(intent, from, to, node, key);
+    final moved = _targetFor(from, to, node, key);
     _moveTargets.add(moved);
     _layout.onReorderItem(from.value, to.value);
     final toStart = to == const _DataIndex(0);
@@ -1294,32 +1288,25 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The record the frame after a key or screen-reader move reads, for a
   /// move booked from [from] to [to] of the current data. A move of an item
-  /// that holds focus, whose key node is [node], keeps the item's [key] and
-  /// the gap it left, for the reach should the frame not lay its slot out
-  /// ([_reachStep]); [intent] previous or next also readies the slot
-  /// ([_readySlot]).
+  /// that holds focus, whose key node is [node], whatever its intent, keeps
+  /// the item's [key] and the gap it left, for its jump ([_readySlot]) and
+  /// for the reach should the frame not lay its slot out ([_reachStep]).
   _MoveTarget _targetFor(
-    _MoveIntent? intent,
     _DataIndex from,
     _DataIndex to,
     FocusNode? node,
     Key? key,
   ) {
     if (node == null || key == null || !node.hasFocus) return _MoveTarget(to);
-    final step = intent == _MoveIntent.previous || intent == _MoveIntent.next;
-    if (!step) {
-      return _MoveTarget(to, key: key, gap: from < to ? from : from + 1)
-        ..readies = false;
-    }
     // The slot the item left, by the index of the item now after it.
     return _MoveTarget(to, key: key, gap: from < to ? from : from + 1);
   }
 
   /// Readies the slot of the reported move [moved], whose item's key node
   /// is [node], at the index the calls so far left its target at: a
-  /// focused one-slot move readies it as a move call does
-  /// ([_buildAheadOrJump], FR-03 E09); else, with [edgeJump], the list
-  /// books a jump to the start when [toStart], else to the end, so the
+  /// focused move books its jump as a move call does ([_bookMoveJump],
+  /// FR-03 E09), with no input-specific rule; else, with [edgeJump], the
+  /// list books a jump to the start when [toStart], else to the end, so the
   /// moved item keeps its State (FR-03 E02). Each jump runs at the next
   /// frame's start ([_runFrameJumps]). A target a call took out readies
   /// nothing.
@@ -1332,8 +1319,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final at = moved.index;
     final item = node?.context;
     if (at == null || node == null || item == null) return;
-    if (moved.key != null && moved.readies) {
-      _buildAheadOrJump(at, node, moved);
+    if (moved.key != null) {
+      _bookMoveJump(at, node, moved);
       return;
     }
     if (edgeJump) _bookFrameJump(node, moved, toStart: toStart);
@@ -1876,31 +1863,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return (position: position, offset: offset);
   }
 
-  /// Readies the slot the focused item whose key node is [node] enters at
-  /// [to] of the current data for the next frame, when the last frame did
-  /// not lay that slot number out ([_enteredSlot], invariant 35): a near
-  /// slot ([_nearExtra]) has the next frame build ahead to it, with no
-  /// scroll in this turn ([_askAhead], D1); a farther one books the jump of
-  /// [_jumpForMove] toward [target] for the next frame's start, and
-  /// registers [target] among [_moveTargets] until then when [owned]. The
-  /// item's key comes from its built slot, so the list never calls
-  /// `itemBuilder` here.
-  void _buildAheadOrJump(
+  /// Books the jump of [_jumpForMove] toward [target] for the next frame's
+  /// start, for the focused item whose key node is [node] and which enters
+  /// at [to] of the current data, when the last frame did not lay that slot
+  /// number out ([_enteredSlot], invariant 35), at every distance; with
+  /// [owned], [target] sits among [_moveTargets] until then. The item's key
+  /// comes from its built slot, so the list never calls `itemBuilder` here.
+  void _bookMoveJump(
     _DataIndex to,
     FocusNode node,
     _MoveTarget target, {
     bool owned = false,
   }) {
-    final entered = _enteredSlot(to);
-    if (_builtSlot(entered)) return;
-    final item = node.context;
-    final position = item == null ? null : Scrollable.maybeOf(item)?.position;
-    if (item == null || position == null) return;
-    final extra = _nearExtra(entered, position);
-    if (extra != null) {
-      _askAhead(node, _baseCacheExtent(position) + extra);
-      return;
-    }
+    if (_builtSlot(_enteredSlot(to))) return;
     if (owned) _moveTargets.add(target);
     _bookFrameJump(node, target, owned: owned);
   }
@@ -1961,46 +1936,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       jump.target.origin = (position: position, pixels: position.pixels);
       _jumpTowards(item, position, toStart: toStart);
     }
-  }
-
-  /// The cache extent past the layout's own that builds [slot] in the next
-  /// frame, when [slot] is near: its distance in slots past the laid-out
-  /// range, on either side, plus a 1-slot margin, times the laid-out
-  /// children's average extent, fits within one viewport extent along the
-  /// main axis (D1). Null for a farther slot, or with nothing laid out.
-  double? _nearExtra(int slot, ScrollPosition position) {
-    final laid = _laidOut();
-    if (laid == null || !position.hasViewportDimension) return null;
-    final distance = slot > laid.last ? slot - laid.last : laid.first - slot;
-    final extra = (distance + 1) * laid.extent;
-    return extra <= position.viewportDimension ? extra : null;
-  }
-
-  /// The layout's `scrollCacheExtent` in pixels for [position]: a value
-  /// relative to the viewport converts first, so the build-ahead adds to
-  /// pixels (D7); none is Flutter's default.
-  double _baseCacheExtent(ScrollPosition position) {
-    final extent = _layout.scrollCacheExtent;
-    if (extent == null) return RenderAbstractViewport.defaultCacheExtent;
-    return switch (extent.style) {
-      CacheExtentStyle.pixel => extent.value,
-      CacheExtentStyle.viewport => extent.value * position.viewportDimension,
-    };
-  }
-
-  /// Has the next frame build with a cache extent of [cache] pixels on
-  /// both sides of the viewport, for the focused item whose key node is
-  /// [node] (D1), and returns to the layout's own extent once that frame's
-  /// post-frame callbacks, the item's reveal among them, have run (D3).
-  /// Each change rebuilds the viewport alone ([_ReorderScrollView]).
-  void _askAhead(FocusNode node, double cache) {
-    final ask = _AheadAsk(node, cache);
-    _aheadAsks.add(ask);
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => scheduleMicrotask(() {
-        if (mounted) _aheadAsks.remove(ask);
-      }),
-    );
   }
 
   /// Jumps at the next frame's start toward the slot the focused item
@@ -2106,19 +2041,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return entered;
   }
 
-  /// After the frame that moved the focused item [key] (FR-05 E04): with
-  /// its State kept, it keeps focus and is revealed twice; with its State
-  /// gone after a missed estimate, the list reaches the item's slot, read
-  /// by key from the settling build ([_followAt]), for another call in the
-  /// move's own turn may have shifted the data under the move's own
-  /// indices. With no settled slot for the key, a later call took the item
-  /// or a count change reset the frame (E12), the follow runs the give-up
-  /// path: it returns to [origin], the offset before the move's jump at
-  /// the next frame's start, else the one before the reach's own first
-  /// jump, and hands focus on
-  /// from the gap the frame left, the slot the item left (R5). The follow
-  /// fields belong to the newest move: a follow whose key they no longer
-  /// name waits for that move's own callback and does nothing here.
+  /// After the frame that moved the focused item [key] (FR-05 E04): laid
+  /// out, it keeps focus and is revealed twice; parked off screen after a
+  /// missed estimate, or with its State gone, the list reaches the item's
+  /// slot, read by key from the settling build ([_followAt]), for another
+  /// call in the move's own turn may have shifted the data under the move's
+  /// own indices. With no settled slot for the key, a later call took the
+  /// item or a count change reset the frame (E12), the follow runs the
+  /// give-up path: it returns to [origin], the offset before the move's
+  /// jump at the next frame's start, else the one before the reach's own
+  /// first jump, and hands focus on from the gap the frame left, the slot
+  /// the item left (R5). The follow fields belong to the newest move: a
+  /// follow whose key they no longer name waits for that move's own
+  /// callback and does nothing here.
   void _followMoved(
     FocusNode node,
     Key key,
@@ -2463,11 +2398,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       }
     }
     _listCount = listCount;
-    // The widgets `ReorderableList`'s own tree, built here so the key
-    // reaches the sliver (invariant 35) and the viewport alone follows the
-    // build-ahead (D3).
+    // The widgets `ReorderableList`'s own tree, built here so the list
+    // builds its own sliver subclass (invariant 28) and the key reaches it
+    // (invariant 35); `scrollCacheExtent` reaches the viewport unchanged.
     return _ReorderScrollView(
-      aheadAsks: _aheadAsks,
       scrollDirection: layout.scrollDirection,
       reverse: layout.reverse,
       controller: widget.controller,
@@ -3017,13 +2951,9 @@ class _MoveTarget {
   /// reach looks for.
   final Key? key;
 
-  /// Whether a focused move readies its slot ([key] set): a one-slot move
-  /// does; a move to either end keeps its exact jump (FR-03 E02).
-  bool readies = true;
-
-  /// For a focused one-slot move: the gap the item left, before the item at
-  /// this index of the current data, moved by each later call as [index]
-  /// is; the reach hands focus on from it when it gives up.
+  /// For a move of an item that holds focus: the gap the item left, before
+  /// the item at this index of the current data, moved by each later call
+  /// as [index] is; the reach hands focus on from it when it gives up.
   _DataIndex? gap;
 
   /// The offset before the move's jump, where a reach that gives up
@@ -3031,15 +2961,12 @@ class _MoveTarget {
   ({ScrollPosition position, double pixels})? origin;
 }
 
-/// The list's scroll view: a [CustomScrollView] whose viewport alone
-/// listens to [aheadAsks]. A build-ahead widens and returns the cache
-/// extent by rebuilding the viewport while the sliver widgets stay the
-/// same instances, so no item rebuilds, and every build of the viewport,
-/// a rebuild of the [Scrollable] alone among them, reads the asks as they
-/// stand (D3).
+/// The list's own scroll view: the body builds the widgets
+/// `ReorderableList`'s tree itself, so its own [SliverReorderableList]
+/// subclass sits in it (invariant 28); an item finds the list through
+/// `SliverReorderableList.maybeOf`, not `ReorderableList.maybeOf`.
 class _ReorderScrollView extends CustomScrollView {
   const new({
-    required this.aheadAsks,
     super.scrollDirection,
     super.reverse,
     super.controller,
@@ -3053,90 +2980,6 @@ class _ReorderScrollView extends CustomScrollView {
     super.clipBehavior,
     super.slivers,
   });
-
-  /// The near slots focused moves asked to build ahead to.
-  final _AheadAsks aheadAsks;
-
-  @override
-  Widget buildViewport(
-    BuildContext context,
-    ViewportOffset offset,
-    AxisDirection axisDirection,
-    List<Widget> slivers,
-  ) {
-    return ListenableBuilder(
-      listenable: aheadAsks,
-      builder: (context, _) {
-        final cache = aheadAsks.cache;
-        final extent = cache == null
-            ? scrollCacheExtent
-            : ScrollCacheExtent.pixels(cache);
-        if (shrinkWrap) {
-          return ShrinkWrappingViewport(
-            axisDirection: axisDirection,
-            offset: offset,
-            slivers: slivers,
-            paintOrder: paintOrder,
-            clipBehavior: clipBehavior,
-            scrollCacheExtent: extent,
-          );
-        }
-        return Viewport(
-          axisDirection: axisDirection,
-          offset: offset,
-          slivers: slivers,
-          scrollCacheExtent: extent,
-          center: center,
-          anchor: anchor,
-          clipBehavior: clipBehavior,
-          paintOrder: paintOrder,
-        );
-      },
-    );
-  }
-}
-
-/// The near slots focused moves asked the next frame to build ahead to,
-/// each until that frame's post-frame callbacks have run (D1, D3); each
-/// change notifies the list's viewport.
-class _AheadAsks extends ChangeNotifier {
-  final _asks = <_AheadAsk>[];
-
-  void add(_AheadAsk ask) {
-    _asks.add(ask);
-    notifyListeners();
-  }
-
-  void remove(_AheadAsk ask) {
-    if (_asks.remove(ask)) notifyListeners();
-  }
-
-  /// The cache extent in pixels the viewport builds with: the largest one
-  /// asked for whose item still holds focus, read as the viewport builds,
-  /// so an item the app took focus from in the move's turn counts as
-  /// unfocused and never builds ahead (R13); null keeps the layout's own
-  /// (D1).
-  double? get cache {
-    double? cache;
-    for (final ask in _asks) {
-      if (!ask.node.hasFocus) continue;
-      if (cache == null || ask.cache > cache) cache = ask.cache;
-    }
-    return cache;
-  }
-}
-
-/// A focused move's request that the next frame build ahead to the near
-/// slot it enters (D1).
-class _AheadAsk {
-  new(this.node, this.cache);
-
-  /// The moved item's key node.
-  final FocusNode node;
-
-  /// The cache extent in pixels the frame builds with on both sides of the
-  /// viewport: the layout's own plus the near slot's extra.
-  final double cache;
 }
 
 /// A reveal jump a move booked for the next frame's start (invariant 35).

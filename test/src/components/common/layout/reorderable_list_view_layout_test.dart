@@ -4620,17 +4620,24 @@ void main() {
         _harness(tester)
           ..move(100, 40)
           ..insert(0, 500);
-        // Each jump of the reach springs back to where the call-turn jump
-        // landed, so the reach gives up and the E04 handoff runs.
+        // Each jump of the reach springs back to where the move's jump at
+        // the next frame's start landed, so the reach gives up and the E04
+        // handoff runs.
         final position = tester
             .state<ScrollableState>(find.byType(Scrollable))
             .position;
-        final landing = position.pixels;
+        expect(position.pixels, 8000);
+        double? landing;
         var springs = 0;
         position.addListener(() {
-          if (springs == 4 || position.pixels == landing) return;
+          final at = landing;
+          if (at == null) {
+            landing = position.pixels;
+            return;
+          }
+          if (springs == 4 || position.pixels == at) return;
           springs += 1;
-          position.jumpTo(landing);
+          position.jumpTo(at);
         });
         await tester.pumpAndSettle();
 
@@ -4841,7 +4848,7 @@ void main() {
 
     testWidgets(
       'us11/fr05/e04: a focused move down past the built slots after an '
-      'insertItem in the same turn builds ahead with no call-turn scroll and '
+      'insertItem in the same turn scrolls nothing in the call turn and '
       'keeps its State',
       (tester) async {
         final position = await pumpAt4000(tester);
@@ -4886,9 +4893,9 @@ void main() {
     });
 
     testWidgets(
-      'us11/fr05/e04: a focused move down to the last built slot builds '
-      'ahead with no call-turn scroll, since the item enters the slot after '
-      'it, and keeps its State',
+      'us11/fr05/e04: a focused move down to the last built slot scrolls '
+      'nothing in the call turn, since the item enters the slot after it, '
+      'and keeps its State',
       (tester) async {
         final position = await pumpAt4000(tester);
         final state = _itemState(tester, 100);
@@ -5405,17 +5412,24 @@ void main() {
         final harness = _harness(tester)
           ..move(100, 40)
           ..insert(0, 500);
-        // Each jump of the reach springs back to where the call-turn jump
-        // landed, so after four the reach gives up and the list jumps back
-        // to 8000, the offset before the move; the app then inserts again.
-        final landing = position.pixels;
+        // Each jump of the reach springs back to where the move's jump at
+        // the next frame's start landed, so after four the reach gives up
+        // and the list jumps back to 8000, the offset before the move; the
+        // app then inserts again.
+        expect(position.pixels, 8000);
+        double? landing;
         var springs = 0;
         var called = false;
         position.addListener(() {
+          final at = landing;
+          if (at == null) {
+            landing = position.pixels;
+            return;
+          }
           if (springs < 4) {
-            if (position.pixels == landing) return;
+            if (position.pixels == at) return;
             springs += 1;
-            position.jumpTo(landing);
+            position.jumpTo(at);
             return;
           }
           if (called || position.pixels != 8000) return;
@@ -5447,8 +5461,8 @@ void main() {
     });
     testWidgets(
       's03/inv35: a focused move down past the leaving copy of a built item '
-      'removed in the same turn builds ahead with no call-turn scroll and '
-      'keeps its State',
+      'removed in the same turn scrolls nothing in the call turn and keeps '
+      'its State',
       (tester) async {
         final position = await pumpAt4000(tester);
         final state = _itemState(tester, 100);
@@ -5512,8 +5526,8 @@ void main() {
 
     testWidgets(
       's03/inv35: a focused move up past the leaving copy of a built item '
-      'removed in the same turn builds ahead with no call-turn scroll and '
-      'keeps its State',
+      'removed in the same turn scrolls nothing in the call turn and keeps '
+      'its State',
       (tester) async {
         final position = await pumpAt4000(tester);
         final state = _itemState(tester, 106);
@@ -5539,7 +5553,7 @@ void main() {
 
     testWidgets(
       's03/inv35: a focused move up to a slot before the first one the frame '
-      'built builds ahead with no call-turn scroll and keeps its State, '
+      'built scrolls nothing in the call turn and keeps its State, '
       'though a leaving copy sits before the target',
       (tester) async {
         final position = await pumpAt4000(tester);
@@ -5810,11 +5824,11 @@ void main() {
 
     testWidgets(
       'us11/fr05/e04: an app insert from the scroll listener of a focused '
-      "move's call-turn jump leaves the give-up handoff on the item after "
-      'the gap',
+      "move's jump at the next frame's start leaves the give-up handoff on "
+      'the item after the gap',
       (tester) async {
-        // Slots before index 100 are 80 px and the rest 40 px, so the jump in
-        // the call turn lands short of slot 40 and the State is lost.
+        // Slots before index 100 are 80 px and the rest 40 px, so the jump at
+        // the next frame's start lands short of slot 40.
         final controller = StratumReorderableItemsController();
         await tester.pumpWidget(
           _app(
@@ -5831,9 +5845,10 @@ void main() {
         await tester.pump();
         await _focusItem(tester, 100);
 
-        // The app inserts at the start from inside the call-turn jump's
-        // scroll notification; each jump of the reach then springs back to
-        // where that jump landed, so the reach gives up and hands focus on.
+        // The app inserts at the start from inside the scroll notification
+        // of the move's jump at the next frame's start; each jump of the
+        // reach then springs back to where that jump landed, so the reach
+        // gives up and hands focus on.
         final harness = _harness(tester);
         double? landing;
         var springs = 0;
@@ -5858,7 +5873,7 @@ void main() {
     );
   });
 
-  group('ReorderableListViewLayout build-ahead of moveItem', () {
+  group('ReorderableListViewLayout unbuilt slots of moveItem', () {
     // 200 items of 40 px in a 300 px viewport at 4000 px, with the default
     // 250 px cache extent: the sliver lays out slots 93 to 113. A move down
     // enters the slot after its target, since its closing slot counts one.
@@ -5882,7 +5897,7 @@ void main() {
     final pastLast = ValueVariant<int>({1, 2, 5});
     testWidgets(
       'us11/fr05/e04: a focused move to a near slot past the last laid-out '
-      'one builds ahead with no call-turn scroll and keeps State and focus',
+      'one scrolls nothing in the call turn and keeps State and focus',
       (tester) async {
         final position = await _pumpScrolled(tester, list());
         expect(_laidOut(tester), (first: 93, last: 113, count: 21));
@@ -5907,7 +5922,7 @@ void main() {
     // Slots before the first laid-out one that item 100 enters.
     final beforeFirst = ValueVariant<int>({1, 2});
     testWidgets('us11/fr05/e04: a focused move to a near slot before the first '
-        'laid-out one builds ahead with no call-turn scroll and keeps State '
+        'laid-out one scrolls nothing in the call turn and keeps State '
         'and focus', (tester) async {
       final position = await _pumpScrolled(tester, list());
       final state = _itemState(tester, 100);
@@ -5976,7 +5991,7 @@ void main() {
 
     testWidgets(
       'us11/fr05/e04: under a fixed item extent the estimate is exact, so '
-      'the same tall items never make a near move miss',
+      'the same tall items never make the move miss',
       (tester) async {
         final position = await _pumpScrolled(
           tester,
@@ -5999,7 +6014,8 @@ void main() {
 
     testWidgets(
       's03/inv35: a same-turn removeItem and insertItem of one key before a '
-      'focused near move costs one widened frame and no call-turn scroll',
+      "focused near move books one unneeded jump at the next frame's start, "
+      'with State and focus kept',
       (tester) async {
         final position = await _pumpScrolled(tester, list());
         final state = _itemState(tester, 100);
@@ -6014,7 +6030,7 @@ void main() {
         expect(position.pixels, 4000);
         await tester.pump();
 
-        expect(_laidOut(tester).count, greaterThan(21));
+        expect(position.pixels, isNot(4000));
         expect(_statesOf(tester, 100), contains(state));
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(focused));
@@ -6023,7 +6039,7 @@ void main() {
 
     testWidgets(
       's03/inv35: when two average extents exceed one viewport, the same-turn '
-      'remove and insert over-count can still book one far-path jump for the '
+      'remove and insert over-count can still book one jump for the '
       "next frame's start, with State and focus kept",
       (tester) async {
         // 200 px items: the sliver lays out 18 to 22 at 4000 px, and one slot
@@ -6053,8 +6069,9 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr05/e04: a viewport-relative scrollCacheExtent converts to '
-      'pixels before the build-ahead adds to it',
+      'us11/fr05/e04: a viewport-relative scrollCacheExtent reaches the '
+      'viewport unchanged: a focused move just past the laid-out slots lays '
+      'out no more slots and keeps State and focus',
       (tester) async {
         // Half a 300 px viewport, 150 px: the sliver lays out 96 to 111.
         final position = await _pumpScrolled(
@@ -6070,6 +6087,7 @@ void main() {
         expect(position.pixels, 4000);
         await tester.pump();
 
+        expect(_laidOut(tester).count, lessThanOrEqualTo(17));
         expect(_statesOf(tester, 100), contains(state));
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(focused));
@@ -6082,9 +6100,9 @@ void main() {
       'right-to-left',
     });
     testWidgets(
-      'us11/fr05/e04: a focused move past the last laid-out slot builds '
-      'ahead with no call-turn scroll on a horizontal, reversed, or '
-      'right-to-left list',
+      'us11/fr05/e04: a focused move past the last laid-out slot scrolls '
+      'nothing in the call turn and keeps State and focus on a horizontal, '
+      'reversed, or right-to-left list',
       (tester) async {
         final variant = axes.currentValue!;
         final position = await _pumpScrolled(
@@ -6115,8 +6133,8 @@ void main() {
 
     final motion = ValueVariant<String>({'motion', 'reduced motion'});
     testWidgets(
-      's03/inv35: the frame after the widened one lays out the base cache '
-      'extent again and calls itemBuilder only for the items it adds',
+      's03/inv35: a focused move to a near unbuilt slot lays out the base '
+      "cache extent in the move's frame and after it, never a wider one",
       (tester) async {
         if (motion.currentValue == 'reduced motion') {
           tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -6125,35 +6143,27 @@ void main() {
             tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
           );
         }
-        var builds = 0;
         final position = await _pumpScrolled(
           tester,
           _Harness(
             count: 200,
             itemsController: StratumReorderableItemsController(),
-            onItemBuild: (_) => builds += 1,
           ),
         );
+        expect(_laidOut(tester).count, 21);
         final state = _itemState(tester, 100);
         final focused = await _focusItem(tester, 100);
 
         _harness(tester).move(100, 114);
         expect(position.pixels, 4000);
         await tester.pump();
-        final widened = _laidOut(tester);
-        expect(widened.count, greaterThan(21));
+        expect(_laidOut(tester).count, lessThanOrEqualTo(22));
         expect(_statesOf(tester, 100), contains(state));
 
-        builds = 0;
         await tester.pump();
-        final returned = _laidOut(tester);
-        final added = {
-          for (var i = returned.first; i <= returned.last; i++) i,
-        }.difference({for (var i = widened.first; i <= widened.last; i++) i});
-        expect(returned.count, lessThan(widened.count));
-        expect(builds, added.length);
-        expect(_statesOf(tester, 100), contains(state));
+        expect(_laidOut(tester).count, lessThanOrEqualTo(22));
         await tester.pumpAndSettle();
+        expect(_laidOut(tester).count, 21);
         expect(_statesOf(tester, 100), contains(state));
         expect(FocusManager.instance.primaryFocus, same(focused));
       },
@@ -6161,76 +6171,50 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr05/e08: two near moves staggered a frame apart each keep '
-      "their own widening and State, the second's ask outliving the "
-      "first's own removal",
+      'us11/fr05/e08: a second focused move the app defers into the first '
+      "move's post-frame batch keeps its own State, as the first move kept "
+      'its own',
       (tester) async {
         await _pumpScrolled(tester, list());
         final stateA = _itemState(tester, 100);
         await _focusItem(tester, 100);
-        final stateB = _itemState(tester, 105);
-        final focusB = stateB.node;
 
-        // Ask #1, queued now, for the frame this pump builds.
+        // The first move books its jump for the frame this pump builds.
         _harness(tester).move(100, 114);
-        // The app's own deferred call (FR-05 E08): item 105, a different
-        // item, takes focus and moves near too, but only once frame 1's
-        // post-frame batch runs, one frame after ask #1 was queued. Item
-        // 100's own move already shifted the ids, so item 105 now sits one
-        // data slot earlier; its target, 121, is near frame 1's widened
-        // range but past frame 2's own base range, so dropping ask #1's
-        // removal into clearing every ask (a mutation probe) makes this
-        // pin fail, proving ask #2 is the only thing that builds it ahead.
+        // The app's own deferred call (FR-05 E08): item 120, a different
+        // item that frame 1 lays out, takes focus and moves far, but only
+        // once frame 1's post-frame batch runs, so its jump is booked for
+        // frame 2.
+        late _ItemState stateB;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          focusB.requestFocus();
+          stateB = _itemState(tester, 120);
+          stateB.node.requestFocus();
           FocusManager.instance.applyFocusChangesIfNeeded();
-          _harness(tester).move(_harness(tester).ids.indexOf(105), 121);
+          _harness(tester).move(_harness(tester).ids.indexOf(120), 170);
         });
         await tester.pump();
 
-        // Frame 1 consumed ask #1 alone: item 100 kept its State.
+        // Frame 1 ran the first jump alone: item 100 kept its State.
         expect(_statesOf(tester, 100), contains(stateA));
         await tester.pump();
 
-        // Frame 2 widens for ask #2 alone, queued after frame 1's own
-        // batch: item 105 keeps its State too, and ask #1's removal,
-        // scheduled a frame earlier, did not clear ask #2's own widening.
-        expect(_statesOf(tester, 105), contains(stateB));
+        // Frame 2 runs the second jump: item 120 keeps its State too.
+        expect(_statesOf(tester, 120), contains(stateB));
         await tester.pumpAndSettle();
-        expect(_statesOf(tester, 100), contains(stateA));
-        expect(_statesOf(tester, 105), contains(stateB));
-        expect(FocusManager.instance.primaryFocus, same(focusB));
-      },
-    );
-
-    testWidgets(
-      's03/inv35: a rebuild of the scroll view alone after the frame that '
-      'returns the cache extent lays out the base extent',
-      (tester) async {
-        await _pumpScrolled(tester, list());
-        await _focusItem(tester, 100);
-
-        _harness(tester).move(100, 114);
-        await tester.pump();
-        await tester.pump();
-        final returned = _laidOut(tester);
-
-        // A rebuild of the Scrollable alone, as a dependency it reads makes.
-        // ignore: invalid_use_of_protected_member
-        tester.state<ScrollableState>(find.byType(Scrollable)).setState(() {});
-        await tester.pump();
-        expect(_laidOut(tester), returned);
+        expect(_statesOf(tester, 120), contains(stateB));
+        expect(FocusManager.instance.primaryFocus, same(stateB.node));
+        expect(_builtInView(tester, 120), isTrue);
       },
     );
   });
 
-  group('ReorderableListViewLayout build-ahead by key and screen reader', () {
+  group('ReorderableListViewLayout unbuilt slots by key and screen reader', () {
     // Alt+Up from the first laid-out item, 93, or Alt+Down from the last,
     // 113, at 4000 px.
     final edges = ValueVariant<String>({'Alt+Up from 93', 'Alt+Down from 113'});
     testWidgets(
-      'us11/fr03/e09: Alt and an arrow to a near unbuilt slot builds ahead '
-      'with no scroll in the turn of the key and keeps State and focus',
+      'us11/fr03/e09: Alt and an arrow to a near unbuilt slot scrolls '
+      'nothing in the turn of the key and keeps State and focus',
       (tester) async {
         final up = edges.currentValue == 'Alt+Up from 93';
         final id = up ? 93 : 113;
@@ -6250,7 +6234,7 @@ void main() {
 
         expect(_statesOf(tester, id), contains(state));
         await tester.pump();
-        // The frame after the widened one lays out the base extent again.
+        // The list lays out the base extent: it never widens it.
         expect(_laidOut(tester).count, lessThanOrEqualTo(22));
         await tester.pumpAndSettle();
         expect(_statesOf(tester, id), contains(state));
@@ -6264,8 +6248,8 @@ void main() {
     final actions = ValueVariant<String>({'Move up', 'Move down'});
     testWidgets(
       'us11/fr03/e09: a screen-reader move of one slot to a near unbuilt '
-      'slot builds ahead with no scroll in the turn of the action and keeps '
-      'State and focus',
+      'slot scrolls nothing in the turn of the action and keeps State and '
+      'focus',
       (tester) async {
         final handle = tester.ensureSemantics();
         final up = actions.currentValue == 'Move up';
@@ -6304,7 +6288,7 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr03/e09: Alt and an arrow whose near test fails scrolls nothing '
+      'us11/fr03/e09: Alt and an arrow to a far unbuilt slot scrolls nothing '
       "in the turn of the key, jumps at the next frame's start, and keeps "
       'State and focus',
       (tester) async {
@@ -6358,7 +6342,7 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr03/e09: Alt and an arrow to an edge slot whose near test fails '
+      'us11/fr03/e09: Alt and an arrow to an unbuilt edge slot far off '
       "jumps exactly to that edge at the next frame's start and keeps State "
       'and focus',
       (tester) async {
@@ -6433,7 +6417,7 @@ void main() {
       'hands focus on from the slot the item left',
       (tester) async {
         // 200 px items and item 23 at 1200 px: the sliver lays out 18 to 22
-        // at 4000 px. Alt+Down on item 22 fails the near test, so the next
+        // at 4000 px. Alt+Down on item 22 enters slot 23, so the next
         // frame's start jumps by the 200 px average to 4600, where item 23,
         // now in slot 22, leaves slot 23 at 5600, past the frame.
         final position = await _pumpScrolled(
@@ -6634,8 +6618,8 @@ void main() {
 
     testWidgets(
       'us11/fr03/e02: an app that takes the moved item out of the data and '
-      'the controller from onReorderItem of Alt+End makes no call-turn '
-      'jump and throws nothing after the frame',
+      'the controller from onReorderItem of Alt+End leaves no jump and '
+      'throws nothing after the frame',
       (tester) async {
         final position = await _pumpScrolled(
           tester,
@@ -6658,7 +6642,7 @@ void main() {
     );
   });
 
-  group('ReorderableListViewLayout build-ahead and kept-alive items', () {
+  group('ReorderableListViewLayout unbuilt slots and kept-alive items', () {
     // Item 50 keeps itself alive: shown once at 2000 px, it stays mounted
     // after the list scrolls to 4000 px, outside the sliver's child list.
     Future<ScrollPosition> pumpKeptAlive(WidgetTester tester) async {
@@ -6699,7 +6683,7 @@ void main() {
 
     testWidgets(
       'us11/fr05/e12: a kept-alive item never counts as built, so it never '
-      'stops a near move from building ahead',
+      "stops a near move's jump at the next frame's start",
       (tester) async {
         final position = await pumpKeptAlive(tester);
         final state = _itemState(tester, 100);
@@ -6719,10 +6703,11 @@ void main() {
     );
   });
 
-  group('ReorderableListViewLayout build-ahead and a focus the app moves', () {
+  group('ReorderableListViewLayout unbuilt slot and a focus the app moves', () {
     testWidgets(
       'us11/fr05/e11: a focus the app moves in the turn of a near move '
-      'stays, and the moved item does not build ahead',
+      "stays, the list skips the move's jump, and the moved item is not kept "
+      'alive',
       (tester) async {
         final position = await _pumpScrolled(
           tester,
@@ -6901,7 +6886,8 @@ void main() {
 
     testWidgets(
       'us11/fr03/e09: a focus the app moves in the turn of Alt+Down to a '
-      'near unbuilt slot stays, and the moved item does not build ahead',
+      "near unbuilt slot stays, the list skips the move's jump, and the "
+      'moved item is not kept alive',
       (tester) async {
         final position = await _pumpScrolled(
           tester,
@@ -6955,8 +6941,8 @@ void main() {
 
     testWidgets(
       'us11/fr03/e09: a focus the app moves in the turn of a screen-reader '
-      'move to a near unbuilt slot stays, and the moved item does not build '
-      'ahead',
+      "move to a near unbuilt slot stays, the list skips the move's jump, "
+      'and the moved item is not kept alive',
       (tester) async {
         final handle = tester.ensureSemantics();
         // With no cache extent the sliver lays out 100 to 107 at 4020 px.
