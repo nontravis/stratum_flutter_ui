@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge.
+description: Use when building a Flutter app on Stratum UI: picking a layout primitive, its parameters or keyboard behavior, or starting, switching, or writing a Stratum theme. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, or StratumWebView, StratumWebViewController, its message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType, or StratumCaret, StratumCaretDirection, StratumCaretStyle, a named color via resolveColor or a ColorEnum lookup, or built-in Thai labels and supportedLocales.
 ---
 
 # Stratum Flutter UI
@@ -34,7 +34,29 @@ Each entry: usage, key parameters, keyboard behavior.
   Keyboard: when `index` changes while focus sits in the outgoing child, focus moves after the frame to the first
   Tab-order node of the incoming child, else to the stack's own (non-Tab-stop) node.
 - **`WrapLayout`** — a `Wrap` that lays children in runs across `direction`, with `gap`, `runGap`, and `focusGroup`.
-  Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`.
+  `maxRuns` (at least 1) and `maxChildren` (at least 0) cut it, the limit that hides more winning, and
+  `overflowBuilder(context, hiddenCount)` builds a "+N" child during layout with the exact hidden count, after the last
+  shown child in the last allowed run; more children hide until it fits. Hidden children stay mounted with their `State`
+  and take no paint, hits, focus, or semantics, their tickers stopped; their text stays out of a `SelectionArea`'s
+  select-all and copy, and a route push flies no `Hero` inside them. With `overflowBuilder` set, switching both limits
+  to null keeps the children's `State`; without it the switch remounts them. A limit or `overflowBuilder` with `scroll`
+  fails an assertion.
+  Keep a child's size the same shown or hidden: one that does not fit shown but fits hidden stays hidden, counted in
+  "+N", until the children change in number, order, key, or type, or the limits, `gap`, `runGap`, or the constraints
+  change; a rebuild that builds the same children anew keeps it hidden (debug builds report it once).
+  While measuring, the wrap calls `overflowBuilder` once per hidden count it tries, then shows the widget built for the
+  last; that widget must not carry a `GlobalKey` or a `FocusNode` the app owns (debug builds report it), while a key or
+  node a `State` inside the "+N" child creates for itself is safe.
+  Inside an app's own scrollable along `direction` (a horizontal wrap in a horizontal `SingleChildScrollView`), the
+  main axis is unbounded, so runs never break and `maxRuns` never cuts; use `maxChildren` there.
+  Expand or collapse by changing the limits: the size moves over the theme's default level (`fast`, 125 ms in the
+  package default) on the `standard` curve, clipped, and changes at once under reduced motion.
+  Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`; Tab and the group's arrows skip hidden children,
+  and End lands on the last item in reading order, the "+N" child in a horizontal, downward wrap. When a collapse hides
+  the focused child, or a collapse or rebuild replaces the focused "+N" child with a new one, focus moves after the
+  frame to the "+N" child, else to the last shown child, else to the wrap's own node, which is not a Tab stop; when an
+  expand that shows hidden children drops the focused "+N" child, focus moves to the first child it shows, else to the
+  wrap's own node.
 
 ## Scroll views
 
@@ -211,6 +233,42 @@ scroll it, guarded so a text field inside keeps its own keys.
   customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
   took effect.
 
+## Caret and named colors
+
+- **`StratumCaret`** — the Figma `Caret` glyph that marks a disclosure, select, or dropdown as open or closed; for
+  navigation between pages or sections, use a dedicated arrow or chevron icon instead. Key parameters: `direction`
+  (`StratumCaretDirection.down`, the default, `.up`, `.start`, `.end`: `start` and `end` follow the text direction,
+  so `end` points right in a left-to-right app and left in a right-to-left app), `style`
+  (`StratumCaretStyle.regular`, the default, a 1.5 px round chevron; `.light`, 1.0 px; `.fill`, a solid triangle),
+  `size` (a `WidgetSize`: `tiny` 10 px to `huge` 32 px, `medium` 16 px; null takes the theme's `defaultWidgetSize`)
+  or `customSize` (any side in logical pixels, must be finite and >= 0), and `color` (a `ColorEnum`: the theme's
+  `icon.color.<name>` token, else `icon.default.primary`) or `customColor` (any color, as given). The line width
+  stays the same at every size, and the glyph sits centered in its square box and never stretches. Change
+  `direction` to turn it: it turns the short way over the theme's `fast` level, a half turn back the way the last
+  half turn came, and shows the new direction at once under reduced motion or when the text direction flips. It
+  adds nothing to the semantics tree: announce expanded or collapsed on the component that holds it. `customStyle`
+  styles the box, never the glyph, and `state`, `feedbackState`, and `loading` leave its look as it is.
+- **Named colors** — a component of your own on `StratumStatelessWidget` or `StratumStatefulWidget` maps its `color`
+  prop with `resolveColor(context, (colors) => colors.icon.color, fallback)`: the token of that name in the group
+  you pick (`background.color`, `border.color`, `icon.color`, or `text.color`), else `fallback` when `color` is null
+  or the group has no token of that name. Read a group by name yourself with
+  `StratumTheme.of(context).color.icon.color[ColorEnum.blue]`, which gives null for a name the group lacks; a token
+  the package's default theme gains joins the lookup in the next package release; an app's own theme can only
+  restyle the names the package already has.
+
+## Built-in labels
+
+- **Thai labels** — Stratum's own labels hold English and Thai, and read English for any other language. The menu
+  action a screen reader offers on a tap surface with `onSecondaryTap` takes the app's material localizations'
+  tooltip first when present, so with the global material delegates a Japanese app hears the Japanese material
+  tooltip, not Stratum's English fallback; otherwise it reads Stratum's built-in label, Thai for a Thai locale. List
+  `Locale('th')` in the app's `supportedLocales` to show them in Thai. Stratum's built-in labels need no delegate of
+  their own: an app that lists `Locale('th')` in `supportedLocales` still adds Flutter's
+  `GlobalMaterialLocalizations.delegates`, as any Thai Flutter app does, for its own material widgets; Stratum reads
+  the resulting locale without registering a delegate of its own. Above `MaterialApp` the platform locale picks the
+  language. A component's label prop, such as `StratumInkWell.secondaryTapSemanticsLabel`, replaces its built-in
+  label.
+
 ## Themes
 
 - **Theme font files** — a theme ships its own fonts by listing them under `typography.fonts.<key>.files` in its
@@ -241,6 +299,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   `StratumTypeStyle`, `StratumAnimationConfig`, and the models inside them) are immutable values with `copyWith`;
   their maps refuse changes, so derive a variant with `config.copyWith(name: ...)` instead of editing a map. A
   `StratumCurve` gives its Flutter `Curve` as `.curve` through `package:stratum_ui/stratum_ui.dart`.
+  `StratumAnimationConfig.transitions` holds the `animation.transition` names, and
+  `StratumTheme.of(context).animation.transition[windowSize]` gives the theme's `ScreenTransitionType` for a window
+  size.
 - **Before `preload`** — call `WidgetsFlutterBinding.ensureInitialized()` first: `preload` reads the asset manifest
   through `rootBundle`, which needs the binding. In a `testWidgets` test, the background parse runs on a real
   isolate, which the test's fake-async zone never finishes; run `preload`, or pump a tree rooted in
@@ -312,16 +373,61 @@ scroll it, guarded so a text field inside keeps its own keys.
   family list came from, so the CLI and your app accept the same `Google/<Name>` families. When `pub get` reports a
   google_fonts conflict, let your own google_fonts constraint allow the version stratum_ui's `pubspec.yaml` names.
 
+## Page transitions
+
+- **The theme's transition per window size** — every `MaterialPageRoute` and `MaterialPage` (go_router's default
+  page) below `StratumThemeApplication` takes the type the theme names for the window size, with no transition code:
+  the application's Material theme installs a Stratum page transitions builder for every platform. Name the types in
+  `theme.yaml` under `animation.transition`, one for each of `watch`, `mobile`, `tablet`, `desktop`, `bigDesktop`; the
+  package default names `platform` for all five, Flutter's own page motion, so the iOS slide keeps its swipe-back.
+  For `platform` and `cupertino`, the builder delegates to Flutter's whole builder, the outgoing page's motion
+  included; during a back-swipe the page tracks the finger, with no curve. A layer may change any of the five and
+  add no key; a name outside the nineteen types throws `StratumThemeFormatException` with `expected_transition` at
+  its path. A package build without the key reads it as `unknown_key`. A `Theme` of your own below the application
+  replaces the builder for its subtree.
+- **The nineteen types** — `ScreenTransitionType`: `fade`; the slides `rightToLeft`, `leftToRight`, `topToBottom`,
+  `bottomToTop`; `scale`, `rotate`, `size`; `rightToLeftWithFade`, `leftToRightWithFade`; the joined
+  `rightToLeftJoined`, `leftToRightJoined`; `platform`, Flutter's default motion for the platform; `cupertino`, the
+  Cupertino slide with swipe-back on every platform; `none`; `fadeThrough`; and `sharedAxisHorizontal`,
+  `sharedAxisVertical`, `sharedAxisScaled`, from package `animations`.
+- **One page's own type** — `PageTransition(type:, child:)` for `Navigator.push`, and
+  `StratumTransitionPage(key: state.pageKey, type:, child:)` for go_router's `pageBuilder` or a Navigator 2.0 page
+  list; either shows its own type, never the theme's. `PageTransition` also takes `curve`, `duration`,
+  `reverseDuration`, `alignment` (required by `scale`, `rotate`, `size`), `childCurrent` (the current page, required
+  by the joined types), and `inheritTheme` with `ctx`. In the theme and in `StratumTransitionPage`, which have neither,
+  `scale`, `rotate`, and `size` grow from the center and a joined type slides the page below out in its own route.
+  `NoPageTransition(builder:)` shows its page with no animation and zero push and pop durations, whatever the theme
+  names. The page below moves only under an opaque route, or under a route that hands its own delegated
+  transition, such as `showCupertinoSheet`: `PageTransition` is translucent by default, so pass `opaque: true`
+  for the page below to slide, fade, or parallax; a translucent page leaves it as it was.
+- **Timing** — `none` always shows at once, zero push and pop durations in every route, whatever the theme names,
+  unless a `PageTransition` caller passes its own; every other type but `platform` and `cupertino` runs over the theme's
+  `slow` level (300 ms push, 192 ms pop in the package default) on its `standard` curve, unless the caller passes its
+  own; `platform` and `cupertino` keep the Flutter motion's durations and, when they show it, its curve.
+- **Reduced motion** — when `MediaQuery` or the platform asks for reduced motion, every slide, scale, rotation, and
+  size change drops: a type with a fade, `fadeThrough`, the shared-axis types, and `platform` on Android, Windows,
+  and Linux included, still fades over its full duration on the caller's curve, else the theme's `standard` curve, and
+  any other type shows the page at once.
+- **Flutter floor** — `stratum_ui` needs Flutter 3.47 or later, which packages `google_fonts` 9.0.0, `badges`
+  ^4.0.1, and `webview_flutter_wkwebview` ^3.27.0 need.
+
 ## Web view
 
 - **`StratumWebView`** — shows a URL page or the app's own HTML (`StratumWebViewSource.url`, `.html`) on Android,
   iOS, macOS, Windows, Linux, and the web, driven by an optional `StratumWebViewController`.
   Bridge: list the page origins you trust in `allowedOrigins` (empty closes the bridge, HTML included). A page calls
   `StratumBridge.postMessage(data)`; `onMessage` gets the text and the origin of the page that sent it, `null` for
-  your HTML; answer with `controller.postMessage(data)`. Your HTML connects its bridge when its bootstrap script
-  runs: a `postMessage` before that throws `StateError` on every platform, so wait for the page's first message
-  instead of sending right after `loadHtml`. On iOS and macOS a `reload()` of your HTML shows an empty page and the
-  bridge stays closed until the next `loadHtml`.
+  your HTML; answer the sender with `controller.reply(message, data)`: it reaches only the page or HTML document
+  that sent the message, and throws `StateError` once the view shows another origin or that document is gone
+  (`ArgumentError` for a message the controller did not deliver). Three limits on that guarantee: on Windows and
+  Linux the reply is credited to the page of the last `onPageStarted`, not necessarily the sender; on the web, after
+  an in-frame link to another origin the check still passes on stale history and the browser drops the reply
+  silently with no throw; and on the web, a reply to your own HTML after a link away inside it resolves the same
+  way, without delivering the data. `controller.postMessage(data, targetOrigin: origin)` names a recipient origin
+  the same way; `postMessage(data)` sends to whatever page is shown. Your HTML
+  connects its bridge when its bootstrap script runs: a `postMessage` before that throws `StateError` on every
+  platform, so wait for the page's first message instead of sending right after `loadHtml`. On iOS and macOS a
+  `reload()` of your HTML shows an empty page and the bridge stays closed until the next `loadHtml`.
   Native code: the package ships Android (Kotlin, AndroidX WebKit) and iOS and macOS (Swift) code that names the
   sender of each page message, so only the top-level page's messages pass, even one sent before `onPageStarted`; an
   app needs no setup of its own. On Android a system WebView without `WEB_MESSAGE_LISTENER` or

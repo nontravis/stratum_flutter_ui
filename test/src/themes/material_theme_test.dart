@@ -1,4 +1,8 @@
+import 'package:animations/animations.dart'
+    show FadeThroughTransition, SharedAxisTransition;
+import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/animations/stratum_page_transitions_builder.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 
@@ -315,6 +319,249 @@ void main() {
 
       expect(scheme?.primary, appTheme.colorScheme.primary);
       expect(stratum, fakeTheme.color.brand.normal);
+    });
+  });
+
+  group('us08/fr01/e04: the page transitions', () {
+    /// A [MaterialApp] whose builder places an application of [data]
+    /// above the navigator.
+    Widget app(GlobalKey<NavigatorState> navigator, StratumThemeData data) =>
+        MaterialApp(
+          navigatorKey: navigator,
+          builder: (context, child) => StratumThemeApplication(
+            themes: StratumThemeSet(light: data),
+            themeMode: ThemeMode.light,
+            child: child!,
+          ),
+          home: const SizedBox(),
+        );
+
+    Future<void> push(
+      WidgetTester tester,
+      GlobalKey<NavigatorState> navigator, [
+      Route<void>? route,
+    ]) async {
+      navigator.currentState!
+          .push(
+            route ??
+                MaterialPageRoute<void>(
+                  builder: (_) => const SizedBox(key: ValueKey('page')),
+                ),
+          )
+          .ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    Finder above(Type type) => find.ancestor(
+      of: find.byKey(const ValueKey('page')),
+      matching: find.byType(type),
+    );
+
+    test('one Stratum builder of the theme for every platform', () {
+      final builders = _material(fakeTheme).pageTransitionsTheme.builders;
+
+      expect(builders.keys.toSet(), TargetPlatform.values.toSet());
+      for (final MapEntry(key: platform, value: builder) in builders.entries) {
+        expect(
+          builder,
+          isA<StratumPageTransitionsBuilder>()
+              .having((b) => b.motion, 'motion', fakeTheme.animation)
+              .having((b) => b.platform, 'platform', platform),
+        );
+      }
+    });
+
+    test('two calls give equal page transitions themes', () {
+      expect(
+        _material(fakeTheme).pageTransitionsTheme,
+        _material(fakeTheme).pageTransitionsTheme,
+      );
+    });
+
+    testWidgets('us05/s6: the default theme gives the iOS slide and its '
+        'swipe-back', (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(app(navigator, defaultThemeSet.light));
+      await push(tester, navigator);
+
+      expect(above(CupertinoPageTransition), findsOneWidget);
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(const Offset(5, 300));
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('page')), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('us08/s3: a plain Material page enters with the active '
+        "theme's iOS slide and its swipe-back", (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(app(navigator, defaultThemeSet.light));
+      await push(tester, navigator);
+
+      expect(above(CupertinoPageTransition), findsOneWidget);
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(const Offset(5, 300));
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('page')), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    group('us05/fr04/e04, nfr-u03: under reduce motion the default theme', () {
+      final page = find.byKey(const ValueKey('page'));
+
+      void reduceMotion(WidgetTester tester) {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+      }
+
+      testWidgets('shows the page at once and keeps the iOS swipe-back, '
+          'which tracks the finger', (tester) async {
+        reduceMotion(tester);
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(app(navigator, defaultThemeSet.light));
+        await push(tester, navigator);
+
+        expect(tester.getTopLeft(page), Offset.zero);
+        await tester.pumpAndSettle();
+        final gesture = await tester.startGesture(const Offset(5, 300));
+        await gesture.moveBy(const Offset(250, 0));
+        await tester.pump();
+        await gesture.moveBy(const Offset(250, 0));
+        await tester.pump();
+        expect(tester.getTopLeft(page).dx, greaterThan(0));
+
+        await gesture.up();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(page, findsOneWidget);
+        await tester.pumpAndSettle();
+        expect(page, findsNothing);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+      testWidgets('leaves a popped page gone one pump later', (tester) async {
+        reduceMotion(tester);
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(app(navigator, defaultThemeSet.light));
+        await push(tester, navigator);
+        await tester.pumpAndSettle();
+
+        navigator.currentState!.pop();
+        await tester.pump();
+
+        expect(page, findsNothing);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+    });
+
+    testWidgets('us05/s7: a desktop window takes the desktop type '
+        'through the application', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1300, 800);
+      addTearDown(tester.view.reset);
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        app(
+          navigator,
+          motionTheme(
+            transitions: transitionsOf(
+              ScreenTransitionType.platform,
+              sizes: {
+                WindowSize.mobile: ScreenTransitionType.fade,
+                WindowSize.desktop: ScreenTransitionType.rightToLeft,
+              },
+            ),
+          ),
+        ),
+      );
+      await push(tester, navigator);
+
+      expect(above(SlideTransition), findsOneWidget);
+      expect(above(FadeTransition), findsNothing);
+    });
+
+    testWidgets('us05/s8: a PageTransition shows its own type over the '
+        "theme's", (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        app(
+          navigator,
+          motionTheme(transitions: transitionsOf(ScreenTransitionType.fade)),
+        ),
+      );
+      await push(
+        tester,
+        navigator,
+        PageTransition<void>(
+          type: ScreenTransitionType.rightToLeft,
+          child: const SizedBox(key: ValueKey('page')),
+        ),
+      );
+
+      expect(above(SlideTransition), findsOneWidget);
+      expect(above(FadeTransition), findsNothing);
+    });
+
+    for (final type in [
+      ScreenTransitionType.fadeThrough,
+      ScreenTransitionType.sharedAxisHorizontal,
+    ]) {
+      testWidgets('us05/fr01: ${type.name} of a dark theme fills with its '
+          "canvas color, not Flutter's fallback", (tester) async {
+        final dark = defaultThemeSet.dark!;
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(
+          app(
+            navigator,
+            motionTheme(theme: dark, transitions: transitionsOf(type)),
+          ),
+        );
+        await push(tester, navigator);
+
+        final fill = type == ScreenTransitionType.fadeThrough
+            ? tester
+                  .widget<FadeThroughTransition>(above(FadeThroughTransition))
+                  .fillColor
+            : tester
+                  .widget<SharedAxisTransition>(above(SharedAxisTransition))
+                  .fillColor;
+        expect(fill, _material(dark).canvasColor);
+        expect(fill, isNot(ThemeData.fallback().canvasColor));
+      });
+    }
+
+    testWidgets("a theme switch gives the next page the new theme's type", (
+      tester,
+    ) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        app(
+          navigator,
+          motionTheme(transitions: transitionsOf(ScreenTransitionType.fade)),
+        ),
+      );
+      await tester.pumpWidget(
+        app(
+          navigator,
+          motionTheme(
+            transitions: transitionsOf(ScreenTransitionType.rightToLeft),
+          ),
+        ),
+      );
+      await push(tester, navigator);
+
+      expect(above(SlideTransition), findsOneWidget);
+      expect(above(FadeTransition), findsNothing);
     });
   });
 }

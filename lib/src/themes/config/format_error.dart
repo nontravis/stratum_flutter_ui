@@ -22,6 +22,7 @@ enum StratumThemeErrorCode {
   invalidAsset,
   expectedDuration,
   expectedCurve,
+  expectedTransition,
   // FO-02 typography (docs/specs/stratum_ui/themes/typography/s05_errors.md)
   emptyFonts,
   unknownFontKey,

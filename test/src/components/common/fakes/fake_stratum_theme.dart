@@ -76,14 +76,25 @@ StratumThemeData fakeStratumTheme({
 /// The default theme of [themedHost].
 final StratumThemeData fakeTheme = fakeStratumTheme();
 
+/// The `animation.transition` config that names [type] for every window
+/// size, and [sizes]' type for the window sizes it names.
+Map<String, String> transitionsOf(
+  ScreenTransitionType type, {
+  Map<WindowSize, ScreenTransitionType> sizes = const {},
+}) => {
+  for (final size in WindowSize.values) size.name: (sizes[size] ?? type).name,
+};
+
 /// [theme], else [fakeTheme], with its `fast` level at [fast], its `slow`
-/// level at [slow], and [standard] as its standard curve; every other
-/// animation value is the package default's.
+/// level at [slow], [standard] as its standard curve, and [transitions] as
+/// its `animation.transition` config, else the package default's; every
+/// other animation value is the package default's.
 StratumThemeData motionTheme({
   Duration fast = const Duration(milliseconds: 77),
   Duration slow = const Duration(milliseconds: 333),
   StratumCurve standard = const StratumNamedCurve('easeInOutSine'),
   StratumThemeData? theme,
+  Map<String, String>? transitions,
 }) {
   final config = defaultThemeConfig.animation;
   return (theme ?? fakeTheme).copyWith(
@@ -93,6 +104,7 @@ StratumThemeData motionTheme({
         defaultLevel: config.defaultLevel,
         reverseRatio: config.reverseRatio,
         curves: {...config.curves, 'standard': standard},
+        transitions: transitions ?? config.transitions,
       ),
     ),
   );

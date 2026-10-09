@@ -7,6 +7,7 @@ import 'package:stratum_ui/src/themes/config/plain_theme_config.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
+import 'package:stratum_ui/src/themes/config/transition_names.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
 import 'package:stratum_ui/src/themes/typography/typography_parser.dart';
 
@@ -337,6 +338,9 @@ final class _Read {
     final curve = node == null
         ? null
         : _reader.map(node['curve'], 'animation.curve');
+    final transition = node == null
+        ? null
+        : _reader.map(node['transition'], 'animation.transition');
     final levels = [
       for (final key
           in _schema.keysAt(const ['animation', 'duration'])?.keys ??
@@ -348,6 +352,7 @@ final class _Read {
       defaultLevel: _defaultLevel(duration, levels),
       reverseRatio: node == null ? 0 : _reverseRatio(node['reverseDuration']),
       curves: frozenMap(_curves(curve)),
+      transitions: frozenMap(_transitions(transition)),
     );
   }
 
@@ -418,6 +423,27 @@ final class _Read {
       );
     }
     return curves;
+  }
+
+  /// `animation.transition` (FO-01 US-01 FR-01 E11): each window size the
+  /// merged tree holds, the package default's five, naming one of
+  /// [transitionTypeNames].
+  Map<String, String> _transitions(Map<String, Object?>? node) {
+    final transitions = <String, String>{};
+    for (final MapEntry(:key, :value)
+        in (node ?? const <String, Object?>{}).entries) {
+      if (value is String && transitionTypeNames.contains(value)) {
+        transitions[key] = value;
+        continue;
+      }
+      _reader.report(
+        StratumThemeErrorCode.expectedTransition,
+        'animation.transition.$key',
+        'expected one of the 19 page transition types, such as platform or '
+            'fade, got ${ThemeReader.show(value)}',
+      );
+    }
+    return transitions;
   }
 
   PlainTypography _typography(Object? value) {

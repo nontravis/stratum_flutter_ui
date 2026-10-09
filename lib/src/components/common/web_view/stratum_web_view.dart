@@ -20,7 +20,11 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 /// ```
 ///
 /// `StratumWebViewController.postMessage` delivers a `message` event to the
-/// page on every platform. The bridge stays off while [allowedOrigins] is
+/// page on every platform. Answer a message with
+/// `StratumWebViewController.reply`, which reaches only the page or HTML
+/// document that sent it, subject to the per-platform limits below;
+/// `postMessage` with a `targetOrigin` names the recipient origin. The
+/// bridge stays off while [allowedOrigins] is
 /// empty, HTML content included: give HTML a non-empty [allowedOrigins]
 /// too. HTML content is trusted by a secret that its bootstrap script
 /// carries, new for every HTML load, never by the page address: a page the
@@ -43,7 +47,12 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 ///   drawn above the view need `PointerInterceptor`. An HTML page's URL is
 ///   always `null`; on native it is `about:blank`. A URL page that the view
 ///   has moved away from can still deliver a message, with its own allowed
-///   origin, until it unloads.
+///   origin, until it unloads. A `reply` to it throws once the view shows
+///   another origin, except after an in-frame link to another origin: the
+///   check still passes against the page's prior history entry, and the
+///   browser drops the reply silently with no throw. A `reply` to your own
+///   HTML after a link away inside it resolves the same way, without
+///   delivering the data.
 /// * Linux: the page is a native GTK widget, so Flutter widgets cannot draw
 ///   above it, and scale or rotation transforms hide it.
 /// * Android, iOS, and macOS: the platform names the sender of each
@@ -60,7 +69,8 @@ import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types
 ///   allowed page, so allow only pages that embed no untrusted iframes. A
 ///   message is credited to the page of the last [onPageStarted], so around
 ///   a navigation it can carry the origin of the page before or after the
-///   one that sent it.
+///   one that sent it. A `reply` is credited the same way, so it can reach
+///   a page other than the sender.
 /// * Every native platform: treat bridge messages as untrusted input, and
 ///   use [onNavigationRequest] to prevent top-level navigation outside
 ///   [allowedOrigins] when a hard boundary is needed.

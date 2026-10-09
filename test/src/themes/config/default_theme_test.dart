@@ -144,6 +144,13 @@ void main() {
           'enter': StratumNamedCurve('easeOut'),
           'exit': StratumNamedCurve('easeIn'),
         },
+        transitions: {
+          'watch': 'platform',
+          'mobile': 'platform',
+          'tablet': 'platform',
+          'desktop': 'platform',
+          'bigDesktop': 'platform',
+        },
       ),
     );
   });

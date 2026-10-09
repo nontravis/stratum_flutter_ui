@@ -1,3 +1,4 @@
+import 'package:stratum_ui/src/animations/stratum_page_transitions_builder.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The theme data of one color set (spec section 7.2). Build it through
@@ -101,6 +102,9 @@ class StratumThemeData {
   /// `### Material text theme`, resolved for [locale], [windowSize], and
   /// [textScaler]. No slot sets a weight, so each draws its type's yaml
   /// weight. A null [windowSize] adds no window scale to the text theme.
+  /// Its page transitions install one `StratumPageTransitionsBuilder` of
+  /// [animation] for every [TargetPlatform], so every plain Material page
+  /// takes the theme's transition (FO-03 US-08 FR-01 E04).
   ThemeData toThemeData({
     required Locale locale,
     required WindowSize? windowSize,
@@ -162,6 +166,15 @@ class StratumThemeData {
         color: color.border.defaults.normal,
       ),
       appBarTheme: AppBarTheme(systemOverlayStyle: systemOverlayStyle),
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: {
+          for (final platform in TargetPlatform.values)
+            platform: StratumPageTransitionsBuilder(
+              motion: animation,
+              platform: platform,
+            ),
+        },
+      ),
       textTheme: TextTheme(
         displayLarge: resolve(StratumTextStyle.header.s56),
         displayMedium: resolve(StratumTextStyle.header.s36),

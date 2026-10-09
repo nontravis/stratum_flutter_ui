@@ -43,6 +43,7 @@ void main() {
 
       expect(animation.durations, same(animation.durations));
       expect(animation.curves, same(animation.curves));
+      expect(animation.transitions, same(animation.transitions));
     });
 
     test('StratumTypography and the holders inside it', () {

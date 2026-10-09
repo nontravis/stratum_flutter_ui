@@ -88,7 +88,7 @@ void main() {
     expect(a, isNot(const StratumThemeFormatException([])));
   });
 
-  test('each of the 29 codes has its snake_case catalog key', () {
+  test('each of the 30 codes has its snake_case catalog key', () {
     expect(
       {for (final code in StratumThemeErrorCode.values) code: code.key},
       {
@@ -106,6 +106,7 @@ void main() {
         StratumThemeErrorCode.invalidAsset: 'invalid_asset',
         StratumThemeErrorCode.expectedDuration: 'expected_duration',
         StratumThemeErrorCode.expectedCurve: 'expected_curve',
+        StratumThemeErrorCode.expectedTransition: 'expected_transition',
         StratumThemeErrorCode.emptyFonts: 'empty_fonts',
         StratumThemeErrorCode.unknownFontKey: 'unknown_font_key',
         StratumThemeErrorCode.invalidTag: 'invalid_tag',

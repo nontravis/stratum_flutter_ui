@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/transition_names.dart';
 
 import '../components/common/fakes/fake_stratum_theme.dart';
 
@@ -119,7 +120,9 @@ void main() {
     });
 
     test('a cubic curve gives the same Cubic on every read', () {
-      final config = _config(standard: StratumCubicCurve(0.37, 0, 0.63, 1));
+      final config = _config(
+        standard: const StratumCubicCurve(0.37, 0, 0.63, 1),
+      );
 
       expect(
         StratumAnimation.fromConfig(config),
@@ -242,5 +245,94 @@ void main() {
 
       expect(tester.takeException(), isA<FlutterError>());
     });
+  });
+
+  group('StratumAnimation.fromConfig transition', () {
+    test('us05/fr04: maps each window size name to its type', () {
+      final animation = StratumAnimation.fromConfig(
+        _config().copyWith(
+          transitions: transitionsOf(
+            ScreenTransitionType.fade,
+            sizes: {WindowSize.desktop: ScreenTransitionType.rightToLeft},
+          ),
+        ),
+      );
+
+      expect(
+        animation.transition[WindowSize.mobile],
+        ScreenTransitionType.fade,
+      );
+      expect(
+        animation.transition[WindowSize.desktop],
+        ScreenTransitionType.rightToLeft,
+      );
+    });
+
+    test('a config with no type for a window size throws an '
+        'ArgumentError', () {
+      expect(
+        () => StratumAnimation.fromConfig(
+          _config().copyWith(transitions: const {}),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('a config that names no type throws an ArgumentError', () {
+      expect(
+        () => StratumAnimation.fromConfig(
+          _config().copyWith(
+            transitions: transitionsOf(ScreenTransitionType.fade)
+              ..['mobile'] = 'slideUp',
+          ),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('two animations that differ only in transition are not equal', () {
+      expect(
+        StratumAnimation.fromConfig(_config()),
+        isNot(
+          StratumAnimation.fromConfig(
+            _config().copyWith(
+              transitions: transitionsOf(ScreenTransitionType.fade),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('a hand-built animation names platform for every window size', () {
+      expect(
+        StratumAnimation.fromConfig(_config()).transition,
+        StratumThemeTransitions.platform,
+      );
+      expect(
+        StratumAnimation.packageDefault.transition,
+        StratumThemeTransitions.platform,
+      );
+    });
+  });
+
+  test('transitionTypeNames is ScreenTransitionType.values by name, in '
+      'order', () {
+    expect(transitionTypeNames, [
+      for (final type in ScreenTransitionType.values) type.name,
+    ]);
+  });
+
+  test("fo01/us01/fr01: the default yaml's transition keys equal WindowSize "
+      'and each names platform', () {
+    final document = loadYaml(
+      File('assets/themes/default/theme.yaml').readAsStringSync(),
+    ) as YamlMap;
+    final transition =
+        (document['animation'] as YamlMap)['transition'] as YamlMap;
+
+    expect(transition.keys.toList(), [
+      for (final size in WindowSize.values) size.name,
+    ]);
+    expect(transition.values.toSet(), {'platform'});
   });
 }
