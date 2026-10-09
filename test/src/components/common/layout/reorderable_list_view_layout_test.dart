@@ -9920,6 +9920,137 @@ void main() {
       );
     }
 
+    /// Pumps 1000 items on a list of [shape], `reversed`, `horizontal`, or
+    /// `right-to-left`, scrolled to px 4000, focuses item 103, and returns
+    /// its State and the list's position.
+    Future<(_ItemState, ScrollPosition)> pumpShaped(
+      WidgetTester tester,
+      String shape,
+    ) async {
+      final horizontal = shape != 'reversed';
+      final position = await _pumpScrolled(
+        tester,
+        _Harness(
+          count: 1000,
+          axis: horizontal ? Axis.horizontal : Axis.vertical,
+          reverse: shape == 'reversed',
+          itemsController: StratumReorderableItemsController(),
+        ),
+        textDirection: shape == 'right-to-left'
+            ? TextDirection.rtl
+            : TextDirection.ltr,
+      );
+      final state = _itemState(tester, 103);
+      await _focusItem(tester, 103);
+      return (state, position);
+    }
+
+    // A list shape other than a plain vertical one (D21 to D24).
+    final listShapes = ValueVariant<String>({
+      'reversed',
+      'horizontal',
+      'right-to-left',
+    });
+    testWidgets(
+      'us11/fr03/e11 and s03/inv35: a focused item on a reversed, horizontal, '
+      'or right-to-left list scrolled out of view stays alive off screen with '
+      'its State and focus, and the list scrolls nothing',
+      (tester) async {
+        final shape = listShapes.currentValue!;
+        final (state, position) = await pumpShaped(tester, shape);
+
+        position.jumpTo(20000);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isFalse);
+        expect(position.pixels, 20000);
+      },
+      variant: listShapes,
+    );
+
+    // Where the focused item was when the app dropped it, on each shape.
+    final shapedDrops = ValueVariant<(String, String)>({
+      for (final shape in ['reversed', 'horizontal', 'right-to-left'])
+        for (final place in ['in view', 'kept alive off screen'])
+          (shape, place),
+    });
+    testWidgets(
+      'us11/fr04/e19 and s03/inv26: a focused item on a reversed, horizontal, '
+      'or right-to-left list that the app drops with no call hands focus to '
+      'the next item, which the list reaches back to and shows',
+      (tester) async {
+        final (shape, place) = shapedDrops.currentValue!;
+        final (state, position) = await pumpShaped(tester, shape);
+        if (place == 'kept alive off screen') {
+          position.jumpTo(20000);
+          await tester.pump();
+        }
+
+        _harness(tester).removeData(103);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(state.mounted, isFalse);
+        expect(focused(), 'item 104');
+        expect(_builtInView(tester, 104), isTrue);
+      },
+      variant: shapedDrops,
+    );
+
+    testWidgets(
+      'us11/fr03/e11 and s03/inv21: Tab from the focused item kept alive off '
+      'screen on a reversed, horizontal, or right-to-left list brings it back, '
+      'then moves focus as Tab from the item in view does and shows the target',
+      (tester) async {
+        final shape = listShapes.currentValue!;
+        final (state, position) = await pumpShaped(tester, shape);
+        position.jumpTo(20000);
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+
+        // Reading order follows the screen: on a reversed list item 102
+        // sits below item 103, so Tab from 103 in view reaches it too.
+        final target = shape == 'reversed' ? 102 : 104;
+        expect(tester.takeException(), isNull);
+        expect(focused(), 'item $target');
+        expect(_builtInView(tester, target), isTrue);
+        expect(_statesOf(tester, 103), [same(state)]);
+      },
+      variant: listShapes,
+    );
+
+    // The arrow that points from item 103 toward item 104 on each shape.
+    for (final (shape, name, key) in [
+      ('reversed', 'Up', LogicalKeyboardKey.arrowUp),
+      ('horizontal', 'Right', LogicalKeyboardKey.arrowRight),
+      ('right-to-left', 'Left', LogicalKeyboardKey.arrowLeft),
+    ]) {
+      testWidgets(
+        'us11/fr03/e11 and s03/inv21: on a $shape list, $name from the '
+        'focused item kept alive off screen brings it back, then moves focus '
+        'to item 104',
+        (tester) async {
+          final (state, position) = await pumpShaped(tester, shape);
+          position.jumpTo(20000);
+          await tester.pump();
+
+          await tester.sendKeyEvent(key);
+          await tester.pumpAndSettle();
+
+          expect(tester.takeException(), isNull);
+          expect(focused(), 'item 104');
+          expect(_builtInView(tester, 104), isTrue);
+          expect(_statesOf(tester, 103), [same(state)]);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      );
+    }
+
     final removals = ValueVariant<String>({
       'item 103',
       'item 103 under reduced motion',
