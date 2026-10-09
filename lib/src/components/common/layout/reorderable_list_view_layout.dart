@@ -1568,8 +1568,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// a call that runs earlier in the post-frame batch cannot land focus one
   /// item off; an item at the gap that the frame has not built, inserted
   /// after the frame, is skipped (R3). Each target is revealed in every
-  /// viewport around it, as invariant 21 reveals every focus move.
-  void _handOffFocus(_DataIndex gap) {
+  /// viewport around it, as invariant 21 reveals every focus move. When the
+  /// frame laid out no item beside the gap, as when the app takes a moved
+  /// item out before the frame whose jump would reach its slot, the list
+  /// first reaches toward the gap, as [_reach] reaches an unbuilt slot, for
+  /// up to [frames] frames, and hands focus on over the items laid out
+  /// there; when the reach gives up, focus goes to the laid-out item
+  /// nearest the gap ([_nearestStopTo]), and only with none to the list's
+  /// own Tab stop, so focus is never lost (invariant 26).
+  void _handOffFocus(_DataIndex gap, {int frames = _reachFrames}) {
     if (!mounted) return;
     final next = _builtNear(gap, 1);
     final previous = _builtNear(gap - 1, -1);
@@ -1580,8 +1587,56 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       target.requestFocus();
       return;
     }
+    bool laidOut(_FrameIndex? index) => index != null && _builtSlot(index.slot);
+    if (!laidOut(next) && !laidOut(previous)) {
+      final estimate = frames == 0 ? null : _estimateTowards(gap.nextSlot);
+      if (estimate != null) {
+        // Held before the jump: its scroll notifications may reach an app
+        // listener that calls the controller at once.
+        final held = _HeldGap(gap);
+        _givenUpGaps.add(held);
+        estimate.position.jumpTo(estimate.offset);
+        WidgetsBinding.instance
+          ..addPostFrameCallback((_) {
+            _givenUpGaps.remove(held);
+            _handOffFocus(held.index, frames: frames - 1);
+          })
+          ..scheduleFrame();
+        return;
+      }
+      final nearest = _nearestStopTo(gap);
+      if (nearest != null) {
+        nearest.requestFocus();
+        return;
+      }
+    }
     final own = _ownTabStop();
     if (own != null) requestFocusInViewports(own);
+  }
+
+  /// The first node in Tab order of the laid-out item nearest [gap] of the
+  /// current data by data index, the first one after the gap, else the
+  /// last one before it, revealed by [firstTabStopIn]; null when the frame
+  /// laid out no item that holds one. Only the item it returns is revealed.
+  FocusNode? _nearestStopTo(_DataIndex gap) {
+    final laid = _laidOut();
+    if (laid == null) return null;
+    final after = <(_DataIndex, _FrameIndex)>[];
+    final before = <(_DataIndex, _FrameIndex)>[];
+    for (var slot = laid.first; slot <= laid.last; slot += 1) {
+      final index = _FrameIndex(slot);
+      final at = _dataIndexOf(index);
+      if (at != null) (at >= gap ? after : before).add((at, index));
+    }
+    int byIndex((_DataIndex, _FrameIndex) a, (_DataIndex, _FrameIndex) b) =>
+        a.$1 < b.$1 ? -1 : (a.$1 > b.$1 ? 1 : 0);
+    after.sort(byIndex);
+    before.sort((a, b) => byIndex(b, a));
+    for (final (_, index) in [...after, ...before]) {
+      final stop = _firstStopOf(index);
+      if (stop != null) return stop;
+    }
+    return null;
   }
 
   /// The index in the last frame of the item nearest [index] of the
@@ -2104,10 +2159,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// The first node in Tab order inside the built item at [index], revealed
-  /// by [firstTabStopIn]; null when the item is not built or holds none.
+  /// by [firstTabStopIn]; null when the item is not laid out or holds none.
+  /// A parked item, or one the app keeps alive, keeps its registered node
+  /// off screen, so it is never a target (invariant 26).
   FocusNode? _firstStopOf(_FrameIndex index) {
     final node = _nodeAt(index);
-    if (node == null || node.context == null) return null;
+    if (node == null || node.context == null || !_builtSlot(index.slot)) {
+      return null;
+    }
     return firstTabStopIn(node);
   }
 

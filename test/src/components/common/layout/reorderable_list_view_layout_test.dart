@@ -8024,4 +8024,98 @@ void main() {
       },
     );
   });
+
+  group('ReorderableListViewLayout handoff away from the laid-out items', () {
+    testWidgets(
+      'us11/fr04/e04: when the app takes a moved item out before the frame '
+      'whose jump would reach its slot, the list reaches toward the gap and '
+      'hands focus to an item laid out there, so focus is never lost',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+          ),
+          offset: 4200,
+        );
+        await _focusItem(tester, 105);
+
+        await _altNow(tester, LogicalKeyboardKey.end);
+        _harness(tester).remove(199);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids.contains(105), isFalse);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 199');
+        expect(_builtInView(tester, 199), isTrue);
+        expect(position.pixels, greaterThan(4200));
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e04: an item the app keeps alive off screen beside the gap '
+      'of a removed focused item is never the handoff target: the list '
+      'reaches the gap and focus goes to an item laid out there',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            keepAliveIds: const {30, 31},
+          ),
+          offset: 1100,
+        );
+        await _focusItem(tester, 31);
+        position.jumpTo(4000);
+        await tester.pump();
+        expect(_laidOut(tester).first, greaterThan(31));
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 31');
+
+        _harness(tester).remove(31);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 32');
+        final laid = _laidOut(tester);
+        expect(laid.first, lessThanOrEqualTo(31));
+        expect(laid.last, greaterThanOrEqualTo(31));
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e04: when the reach toward the gap gives up, focus goes to '
+      'the laid-out item nearest the gap, on a list with no Tab stop of its '
+      'own',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            focusable: false,
+          ),
+          offset: 4200,
+        );
+        await _focusItem(tester, 105);
+        // Held at 4200, the list never lays out the gap at the end, so the
+        // reach gives up after its frames.
+        _pinScroll(tester, 4200);
+
+        await _altNow(tester, LogicalKeyboardKey.end);
+        _harness(tester).remove(199);
+        await tester.pumpAndSettle();
+
+        final harness = _harness(tester);
+        final laid = _laidOut(tester);
+        expect(tester.takeException(), isNull);
+        expect(position.pixels, 4200);
+        expect(
+          FocusManager.instance.primaryFocus?.debugLabel,
+          'item ${harness.ids[laid.last]}',
+        );
+      },
+    );
+  });
 }
