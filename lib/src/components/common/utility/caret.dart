@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// Which way a [StratumCaret] points.
@@ -176,7 +175,7 @@ class _StratumCaretState extends State<StratumCaret> {
     final textDirection = Directionality.of(context);
     final jump = _follow(widget.direction, textDirection);
     // Read on every build, so the MediaQuery dependency stays registered.
-    final reduce = reducesMotion(context);
+    final reduce = context.reducesMotion;
     final remount = reduce && _wasReduced == false;
     if (remount) _reduceKey++;
     _wasReduced = reduce;

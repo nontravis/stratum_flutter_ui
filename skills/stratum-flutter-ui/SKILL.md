@@ -75,15 +75,14 @@ scroll it, guarded so a text field inside keeps its own keys.
   platform asks for reduced motion or the level has no duration; focus moves to the new page's first Tab-order node.
   Buttons: the layout draws no previous or next buttons, and on desktop a mouse without a trackpad cannot swipe, so
   the app adds previous and next buttons around the view (WCAG 2.5.1) until a component in the package provides
-  them. Like the keys, the buttons jump when motion is reduced or the theme's `slow` level has no duration, else
-  `previousPage` or `nextPage` over that level's duration and curve.
+  them. Like the keys, the buttons jump when `context.reducesMotion` is true or the theme's `slow` level has no
+  duration, else `previousPage` or `nextPage` over that level's duration and curve.
 
   ```dart
   void turn(BuildContext context, {required bool forward}) {
     final slow = StratumTheme.of(context).animation.slow;
     final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        View.of(context).platformDispatcher.accessibilityFeatures.reduceMotion ||
+        context.reducesMotion ||
         slow.duration == null ||
         slow.duration == Duration.zero;
     if (reduced) {
