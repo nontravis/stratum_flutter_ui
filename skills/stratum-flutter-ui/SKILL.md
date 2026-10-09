@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType.
+description: Use when building a Flutter app on the Stratum UI package and choosing a layout primitive, its key parameters, or its keyboard behavior, or starting, switching, or writing a Stratum theme. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and its message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType, or StratumCaret, StratumCaretDirection, StratumCaretStyle, or a named color through resolveColor and a ColorEnum lookup.
 ---
 
 # Stratum Flutter UI
@@ -210,6 +210,28 @@ scroll it, guarded so a text field inside keeps its own keys.
   borderRadius: r, child: x)` with `StratumFocusBorder(state: f ? FullWidgetState.focused : FullWidgetState.normal,
   customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
   took effect.
+
+## Caret and named colors
+
+- **`StratumCaret`** — the Figma `Caret` glyph that marks a disclosure, select, or dropdown as open or closed; for
+  navigation between pages or sections, use a dedicated arrow or chevron icon instead. Key parameters: `direction`
+  (`StratumCaretDirection.down`, the default, `.up`, `.start`, `.end`: `start` and `end` follow the text direction,
+  so `end` points right in a left-to-right app and left in a right-to-left app), `style`
+  (`StratumCaretStyle.regular`, the default, a 1.5 px round chevron; `.light`, 1.0 px; `.fill`, a solid triangle),
+  `size` (a `WidgetSize`: `tiny` 10 px to `huge` 32 px, `medium` 16 px; null takes the theme's `defaultWidgetSize`)
+  or `customSize` (any side in logical pixels), and `color` (a `ColorEnum`: the theme's `icon.color.<name>` token,
+  else `icon.default.primary`) or `customColor` (any color, as given). The line width stays the same at every size,
+  and the glyph sits centered in its square box and never stretches. Change `direction` to turn it: it turns the
+  short way over the theme's `fast` level, a half turn back the way the last half turn came, and shows the new
+  direction at once under reduced motion or when the text direction flips. It adds nothing to the semantics tree:
+  announce expanded or collapsed on the component that holds it. `customStyle` styles the box, never the glyph, and
+  `state`, `feedbackState`, and `loading` leave its look as it is.
+- **Named colors** — a component of your own on `StratumStatelessWidget` or `StratumStatefulWidget` maps its `color`
+  prop with `resolveColor(context, (colors) => colors.icon.color, fallback)`: the token of that name in the group
+  you pick (`background.color`, `border.color`, `icon.color`, or `text.color`), else `fallback` when `color` is null
+  or the group has no token of that name. Read a group by name yourself with
+  `StratumTheme.of(context).color.icon.color[ColorEnum.blue]`, which gives null for a name the group lacks; a token
+  the theme yaml adds to a group joins the lookup when the package regenerates its token classes.
 
 ## Themes
 
