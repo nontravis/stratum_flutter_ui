@@ -126,6 +126,19 @@ class _StratumCaretState extends State<StratumCaret> {
   /// The direction of the last build; null before the first build.
   StratumCaretDirection? _direction;
 
+  /// Whether the previous build read reduced motion on; null before the
+  /// first build.
+  bool? _wasReduced;
+
+  /// Bumped on a false-to-true turn of reduced motion, used as
+  /// `TweenAnimationBuilder`'s key: only that edge needs a fresh state
+  /// that starts at the target angle with no animation (spec invariant
+  /// 9). Turning reduced motion back off keeps the live state, whose
+  /// `AnimatedWidgetBaseState` already restarts cleanly toward a new
+  /// target, so a direction change in that same frame turns instead of
+  /// jumping.
+  int _reduceKey = 0;
+
   /// Moves the turn value to [direction] under [textDirection]; true when
   /// the glyph must show the new angle at once instead of turning to it.
   ///
@@ -163,6 +176,9 @@ class _StratumCaretState extends State<StratumCaret> {
     final jump = _follow(widget.direction, Directionality.of(context));
     // Read on every build, so the MediaQuery dependency stays registered.
     final reduce = reducesMotion(context);
+    final remount = reduce && _wasReduced == false;
+    if (remount) _reduceKey++;
+    _wasReduced = reduce;
     final motion = widget.resolveTheme(context).animation.fast;
     final side = widget.customSize ?? _sideOf(widget.resolveSize(context));
     final color = _color(context);
@@ -188,13 +204,14 @@ class _StratumCaretState extends State<StratumCaret> {
             ),
             debug: widget.debug,
             child: TweenAnimationBuilder<double>(
-              // Keyed by `reduce`: a mid-turn flip of reduced motion
-              // changes no target angle, so `AnimatedWidgetBaseState`
-              // would otherwise never restart the already-running
-              // controller. Remounting under a new key builds a fresh
-              // `TweenAnimationBuilder` state, which starts at its
-              // tween's end value with no animation (spec invariant 9).
-              key: ValueKey(reduce),
+              // Keyed by `_reduceKey`, which only a false-to-true turn of
+              // reduced motion bumps. Remounting under a new key builds a
+              // fresh `TweenAnimationBuilder` state, which starts at its
+              // tween's end value with no animation (spec invariant 9);
+              // turning reduced motion back off leaves the key unchanged,
+              // so the live state survives and a direction change in that
+              // same frame turns instead of jumping.
+              key: ValueKey(_reduceKey),
               tween: Tween<double>(end: _quarterTurns * math.pi / 2),
               // The theme's fast level on its standard curve; a level built
               // with no duration or curve takes none and easeInOutSine

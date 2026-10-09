@@ -776,6 +776,26 @@ void main() {
       });
     }
 
+    testWidgets('us02/fr03: a direction change turns instead of jumping '
+        'when reduced motion turns off in the same frame', (tester) async {
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(reduceMotion: true);
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures();
+      await tester.pumpWidget(_turning(StratumCaretDirection.up));
+
+      expect(_angle(tester), 0);
+      expect(tester.hasRunningAnimations, isTrue);
+
+      await tester.pumpAndSettle();
+      expect(_angle(tester), math.pi);
+    });
+
     testWidgets('us02/fr04/e01, us02/s6: end moves to the left at once when '
         'the app switches to right to left', (tester) async {
       await tester.pumpWidget(_turning(StratumCaretDirection.end));
