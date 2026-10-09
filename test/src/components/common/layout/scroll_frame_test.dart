@@ -1464,6 +1464,7 @@ void main() {
         'fields at all', (tester) async {
       final theme = fakeTheme.copyWith(
         animation: StratumAnimation(
+          micro: StratumAnimation.packageDefault.micro,
           veryFast: StratumAnimation.packageDefault.veryFast,
           fast: StratumAnimation.packageDefault.fast,
           normal: StratumAnimation.packageDefault.normal,

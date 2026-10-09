@@ -84,6 +84,7 @@ StratumThemeData _fastLevel(AnimationStyle fast) {
   final motion = fakeTheme.animation;
   return fakeTheme.copyWith(
     animation: StratumAnimation(
+      micro: motion.micro,
       veryFast: motion.veryFast,
       fast: fast,
       normal: motion.normal,

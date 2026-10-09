@@ -693,7 +693,8 @@ typography:
 animation:
   duration:
     default: fast            # the level animation.defaultStyle takes
-    veryFast: 50             # milliseconds
+    micro: 30                # milliseconds
+    veryFast: 75
     fast: 125
     normal: 200
     slow: 300
