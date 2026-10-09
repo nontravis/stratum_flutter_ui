@@ -1,0 +1,5 @@
+arb-dir: lib/src/components/common/l10n
+template-arb-file: stratum_labels_en.arb
+output-dir: lib/src/components/common/l10n
+output-localization-file: stratum_labels.dart
+output-class: StratumLabels

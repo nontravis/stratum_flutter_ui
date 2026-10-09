@@ -1,0 +1,75 @@
+{
+  "@@locale": "en",
+  "closeButtonLabel": "Close",
+  "@closeButtonLabel": {
+    "description": "Close button label."
+  },
+  "expanded": "Expanded",
+  "@expanded": {
+    "description": "Announced when a section expands."
+  },
+  "collapsed": "Collapsed",
+  "@collapsed": {
+    "description": "Announced when a section collapses."
+  },
+  "removeTagLabel": "Remove",
+  "@removeTagLabel": {
+    "description": "Remove tag label."
+  },
+  "loadingLabel": "Loading",
+  "@loadingLabel": {
+    "description": "Loading label."
+  },
+  "requiredMarker": "Required",
+  "@requiredMarker": {
+    "description": "Required marker."
+  },
+  "showMenuLabel": "Show menu",
+  "@showMenuLabel": {
+    "description": "Show menu label: the last fallback of the tap surface's menu action label."
+  },
+  "retryLabel": "Retry",
+  "@retryLabel": {
+    "description": "Retry label."
+  },
+  "failureMessage": "Something went wrong",
+  "@failureMessage": {
+    "description": "Failure message."
+  },
+  "placeholderPageTitle": "Coming soon",
+  "@placeholderPageTitle": {
+    "description": "Placeholder page title."
+  },
+  "forceUpdateTitle": "Update required",
+  "@forceUpdateTitle": {
+    "description": "Force update title."
+  },
+  "forceUpdateMessage": "Please update to the latest version to continue.",
+  "@forceUpdateMessage": {
+    "description": "Force update message."
+  },
+  "maintenanceTitle": "Under maintenance",
+  "@maintenanceTitle": {
+    "description": "Maintenance title."
+  },
+  "maintenanceMessage": "We'll be back soon. Please try again later.",
+  "@maintenanceMessage": {
+    "description": "Maintenance message."
+  },
+  "softUpdateTitle": "Update available",
+  "@softUpdateTitle": {
+    "description": "Soft update title."
+  },
+  "softUpdateMessage": "A new version is ready. Update now for the latest improvements.",
+  "@softUpdateMessage": {
+    "description": "Soft update message."
+  },
+  "updateLabel": "Update",
+  "@updateLabel": {
+    "description": "Update label."
+  },
+  "laterLabel": "Later",
+  "@laterLabel": {
+    "description": "Later label."
+  }
+}

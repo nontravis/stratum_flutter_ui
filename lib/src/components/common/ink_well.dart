@@ -1,4 +1,5 @@
 import 'package:flutter/rendering.dart' show RenderSemanticsAnnotations;
+import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// Whether a [StratumInkWell] with these settings takes focus: not
@@ -190,7 +191,9 @@ class StratumInkWell extends StatefulWidget {
 
   /// Label of the semantics action for [onSecondaryTap]; null uses
   /// `MaterialLocalizations.showMenuTooltip` when material localizations
-  /// are present, else `'Show menu'`.
+  /// are present, else Stratum's built-in show menu label in the locale's
+  /// language when the built-in labels hold it (English and Thai), else in
+  /// English.
   final String? secondaryTapSemanticsLabel;
 
   /// Key bindings that fire while this widget or a descendant has focus,
@@ -415,7 +418,7 @@ class _StratumInkWellState extends State<StratumInkWell>
           context,
           MaterialLocalizations,
         )?.showMenuTooltip ??
-        'Show menu';
+        builtInLabelsOf(context).showMenuLabel;
   }
 
   @override

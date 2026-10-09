@@ -67,8 +67,10 @@ class StratumInteraction {
   final WidgetStatesController? statesController;
   final bool excludeFromSemantics;
 
-  /// Label of the semantics action for [onSecondaryTap]; null uses the
-  /// material "Show menu" tooltip.
+  /// Label of the semantics action for [onSecondaryTap]; null uses
+  /// `MaterialLocalizations.showMenuTooltip` when material localizations
+  /// are present, else Stratum's built-in show menu label in the locale's
+  /// language. See `StratumInkWell.secondaryTapSemanticsLabel`.
   final String? secondaryTapSemanticsLabel;
 
   /// Key bindings that fire while the tap surface or a descendant has
