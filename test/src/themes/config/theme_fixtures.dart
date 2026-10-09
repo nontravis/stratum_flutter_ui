@@ -82,7 +82,8 @@ extensions: {}
 animation:
   duration:
     default: fast
-    veryFast: 50
+    micro: 30
+    veryFast: 75
     fast: 125
     normal: 200
     slow: 300
