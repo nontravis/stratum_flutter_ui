@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI package and choosing a layout primitive, its key parameters, or its keyboard behavior, or starting, switching, or writing a Stratum theme. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and its message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType, or StratumCaret, StratumCaretDirection, StratumCaretStyle, or a named color through resolveColor and a ColorEnum lookup.
+description: Use when building a Flutter app on Stratum UI: picking a layout primitive, its parameters or keyboard behavior, or starting, switching, or writing a Stratum theme. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, or StratumWebView, StratumWebViewController, its message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType, or StratumCaret, StratumCaretDirection, StratumCaretStyle, a named color via resolveColor or a ColorEnum lookup, or built-in Thai labels and supportedLocales.
 ---
 
 # Stratum Flutter UI
@@ -34,7 +34,29 @@ Each entry: usage, key parameters, keyboard behavior.
   Keyboard: when `index` changes while focus sits in the outgoing child, focus moves after the frame to the first
   Tab-order node of the incoming child, else to the stack's own (non-Tab-stop) node.
 - **`WrapLayout`** — a `Wrap` that lays children in runs across `direction`, with `gap`, `runGap`, and `focusGroup`.
-  Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`.
+  `maxRuns` (at least 1) and `maxChildren` (at least 0) cut it, the limit that hides more winning, and
+  `overflowBuilder(context, hiddenCount)` builds a "+N" child during layout with the exact hidden count, after the last
+  shown child in the last allowed run; more children hide until it fits. Hidden children stay mounted with their `State`
+  and take no paint, hits, focus, or semantics, their tickers stopped; their text stays out of a `SelectionArea`'s
+  select-all and copy, and a route push flies no `Hero` inside them. With `overflowBuilder` set, switching both limits
+  to null keeps the children's `State`; without it the switch remounts them. A limit or `overflowBuilder` with `scroll`
+  fails an assertion.
+  Keep a child's size the same shown or hidden: one that does not fit shown but fits hidden stays hidden, counted in
+  "+N", until the children change in number, order, key, or type, or the limits, `gap`, `runGap`, or the constraints
+  change; a rebuild that builds the same children anew keeps it hidden (debug builds report it once).
+  While measuring, the wrap calls `overflowBuilder` once per hidden count it tries, then shows the widget built for the
+  last; that widget must not carry a `GlobalKey` or a `FocusNode` the app owns (debug builds report it), while a key or
+  node a `State` inside the "+N" child creates for itself is safe.
+  Inside an app's own scrollable along `direction` (a horizontal wrap in a horizontal `SingleChildScrollView`), the
+  main axis is unbounded, so runs never break and `maxRuns` never cuts; use `maxChildren` there.
+  Expand or collapse by changing the limits: the size moves over the theme's default level (`fast`, 125 ms in the
+  package default) on the `standard` curve, clipped, and changes at once under reduced motion.
+  Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`; Tab and the group's arrows skip hidden children,
+  and End lands on the last item in reading order, the "+N" child in a horizontal, downward wrap. When a collapse hides
+  the focused child, or a collapse or rebuild replaces the focused "+N" child with a new one, focus moves after the
+  frame to the "+N" child, else to the last shown child, else to the wrap's own node, which is not a Tab stop; when an
+  expand that shows hidden children drops the focused "+N" child, focus moves to the first child it shows, else to the
+  wrap's own node.
 
 ## Scroll views
 
@@ -233,6 +255,19 @@ scroll it, guarded so a text field inside keeps its own keys.
   `StratumTheme.of(context).color.icon.color[ColorEnum.blue]`, which gives null for a name the group lacks; a token
   the package's default theme gains joins the lookup in the next package release; an app's own theme can only
   restyle the names the package already has.
+
+## Built-in labels
+
+- **Thai labels** — Stratum's own labels hold English and Thai, and read English for any other language. The menu
+  action a screen reader offers on a tap surface with `onSecondaryTap` takes the app's material localizations'
+  tooltip first when present, so with the global material delegates a Japanese app hears the Japanese material
+  tooltip, not Stratum's English fallback; otherwise it reads Stratum's built-in label, Thai for a Thai locale. List
+  `Locale('th')` in the app's `supportedLocales` to show them in Thai. Stratum's built-in labels need no delegate of
+  their own: an app that lists `Locale('th')` in `supportedLocales` still adds Flutter's
+  `GlobalMaterialLocalizations.delegates`, as any Thai Flutter app does, for its own material widgets; Stratum reads
+  the resulting locale without registering a delegate of its own. Above `MaterialApp` the platform locale picks the
+  language. A component's label prop, such as `StratumInkWell.secondaryTapSemanticsLabel`, replaces its built-in
+  label.
 
 ## Themes
 
