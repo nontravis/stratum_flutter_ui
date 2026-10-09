@@ -1081,8 +1081,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// screen-reader move, or a drop ([_moveTargets]), and a `moveItem` call
   /// or a same-turn `removeItem` and `insertItem` of one key
   /// ([_pendingInserts]), and a raw move of a [watched] key
-  /// ([_bookRawMoves]), booked again for each key in [dropped]. Read before
-  /// the build settles the inserts and the fresh exits, which
+  /// ([_bookRawMoves]), booked again for each key in [dropped], and a
+  /// call's shift of the item that holds focus ([_bookFocusedKey]). Read
+  /// before the build settles the inserts and the fresh exits, which
   /// [_enteredSlot] counts.
   void _bookMovedKeys(
     Key? Function(_DataIndex index) keyAt,
@@ -1106,6 +1107,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     _bookRawMoves(watched, known, dropped);
     _bookParkedKey();
+    _bookFocusedKey(watched);
     if (_movedTo.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) => _movedTo.clear());
   }
@@ -1135,20 +1137,40 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _movedTo.putIfAbsent(key, () => at.value);
   }
 
-  /// The keys a build asks the app's `findChildIndexCallback` about, each
-  /// with its key node and the index of the current data this turn's calls
-  /// put it at: the parked item, by [_parkedAt]; the lifted item a raw move
-  /// took, by its follow's target ([_liftedFollow]); and the item that
-  /// holds primary focus, by [_dataIndexOf]. Read before the build clears
-  /// [_pending]; empty with no callback (invariant 35).
+  /// Maps the item that holds focus, among [watched], to its index after
+  /// this turn's calls when a call shifted it into a slot the next frame
+  /// does not lay out, so its element, which the list keeps alive off screen
+  /// (R29), follows the call in place: its State and focus stay, with no
+  /// jump and no reach (R35). With the app's `findChildIndexCallback`, the
+  /// sliver's own answer for the key follows it ([_appIndexOf]).
+  void _bookFocusedKey(List<_Watched> watched) {
+    if (_layout.findChildIndexCallback != null) return;
+    for (final (:key, :at, :frame, node: _) in watched) {
+      if (frame == null || at.value == frame.value) continue;
+      if (_builtSlot(_enteredSlot(at))) continue;
+      _movedTo.putIfAbsent(key, () => at.value);
+    }
+  }
+
+  /// The keys a build follows by key, each with its key node and the index
+  /// of the current data this turn's calls put it at: the parked item, by
+  /// [_parkedAt]; the lifted item a raw move took, by its follow's target
+  /// ([_liftedFollow]); and the item that holds primary focus, by
+  /// [_dataIndexOf], with the frame index it drew at. The app's
+  /// `findChildIndexCallback` answers for each of them ([_bookRawMoves]);
+  /// with no callback, only a call can shift the focused item
+  /// ([_bookFocusedKey]), so a turn with none watches nothing. Read before
+  /// the build clears [_pending] (invariant 35).
   List<_Watched> _watchedKeys() {
-    if (_layout.findChildIndexCallback == null) return const [];
+    if (_layout.findChildIndexCallback == null && _pending.isEmpty) {
+      return const [];
+    }
     final parkedKey = _parkedKey;
     final parkedAt = _parkedAt;
     final parkedNode = _parkedNode;
     final watched = <_Watched>[
       if (parkedKey != null && parkedAt != null && parkedNode != null)
-        (key: parkedKey, at: parkedAt, node: parkedNode),
+        (key: parkedKey, at: parkedAt, node: parkedNode, frame: null),
     ];
     // Another item takes a lifted item's registration while the proxy
     // holds it, so the walk would miss the item a raw move took.
@@ -1157,7 +1179,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       final (key, at) = (target.key, target.index);
       if (key != null && at != null && key != parkedKey) {
         liftedKey = key;
-        watched.add((key: key, at: at, node: node));
+        watched.add((key: key, at: at, node: node, frame: null));
       }
     }
     for (final MapEntry(key: index, value: node) in _itemNodes.entries) {
@@ -1165,7 +1187,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       if (key == null || key == parkedKey || !node.hasFocus) continue;
       if (key == liftedKey) continue;
       final at = _dataIndexOf(index);
-      if (at != null) watched.add((key: key, at: at, node: node));
+      if (at != null) watched.add((key: key, at: at, node: node, frame: index));
     }
     return watched;
   }
@@ -1179,7 +1201,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void _bookRawMoves(List<_Watched> watched, Set<Key> known, Set<Key> dropped) {
     final app = _layout.findChildIndexCallback;
     if (app == null) return;
-    for (final (:key, :at, :node) in watched) {
+    for (final (:key, :at, :node, frame: _) in watched) {
       if (known.contains(key)) continue;
       final answer = app(key);
       if (answer == null || answer < 0 || answer >= _dataCount) {
@@ -3466,10 +3488,15 @@ extension type const _FrameIndex(int value) {
   _FrameIndex operator -(int offset) => _FrameIndex(value - offset);
 }
 
-/// A key a build asks the app's `findChildIndexCallback` about, with its
-/// key node and the index of the current data the calls of the turn put it
-/// at (invariant 35).
-typedef _Watched = ({Key key, _DataIndex at, FocusNode node});
+/// A key a build follows by key, with its key node, the index of the
+/// current data the calls of the turn put it at, and, for the item that
+/// holds focus, the frame index the last build drew it at (invariant 35).
+typedef _Watched = ({
+  Key key,
+  _DataIndex at,
+  FocusNode node,
+  _FrameIndex? frame,
+});
 
 /// The work each list queued for the end of the next frame's layout, before
 /// that frame's post-frame callbacks ([_runAfterLayout]).

@@ -9658,6 +9658,52 @@ void main() {
       },
     );
 
+    // A call of the app's controller that shifts the item kept alive off
+    // screen, with no app index, and the item's index after it (R35).
+    final shiftingCalls = ValueVariant<(String, int)>({
+      ('insertItem', 104),
+      ('removeItem', 102),
+      ('moveItem of another item', 104),
+    });
+    testWidgets(
+      'us11/fr03/e11 and s03/inv35: with no app index, a call that shifts the '
+      'focused item kept alive off screen keeps its State and focus, and the '
+      'list scrolls nothing for it',
+      (tester) async {
+        final (call, shiftedTo) = shiftingCalls.currentValue!;
+        final (state, position) = await pumpFocused(
+          tester,
+          _Harness(
+            count: 1000,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        position.jumpTo(20000);
+        await tester.pump();
+        final log = focusLog();
+
+        final harness = _harness(tester);
+        switch (call) {
+          case 'insertItem':
+            harness.insert(0, 5000);
+          case 'removeItem':
+            harness.remove(0);
+          default:
+            harness.move(900, 0);
+        }
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ids.indexOf(103), shiftedTo);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(log, isEmpty);
+        expect(_builtInView(tester, 103), isFalse);
+        expect(position.pixels, 20000);
+      },
+      variant: shiftingCalls,
+    );
+
     testWidgets(
       'us11/fr03/e11 and s03/inv35: a focused item the frame builds anew, '
       'with no focus move, stays alive when scrolled out of view',
