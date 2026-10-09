@@ -576,11 +576,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 62));
       expect(_angle(tester), lessThan(math.pi));
 
+      // Exactly the 125 ms fast level: t == 1.0 evaluates to the end
+      // value exactly.
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(_angle(tester), math.pi);
+
       // 1 ms past the 125 ms fast level: AnimationController's isDone is
       // strictly past its duration, so the ticker unregisters one tick
-      // after the value already reads its end.
-      await tester.pump(const Duration(milliseconds: 2));
-      expect(_angle(tester), math.pi);
+      // after the value already read its end.
+      await tester.pump(const Duration(milliseconds: 1));
       expect(tester.hasRunningAnimations, isFalse);
     });
 
@@ -797,6 +801,33 @@ void main() {
       expect(_angle(tester), allOf(greaterThan(0), lessThan(live)));
       await tester.pumpAndSettle();
       expect(_angle(tester), 0);
+    });
+
+    testWidgets('us02/fr02: three overlapping direction changes in one '
+        'turn alternate the half-turn way (inv. 8)', (tester) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      await tester.pumpWidget(_turning(StratumCaretDirection.up));
+      await tester.pump(const Duration(milliseconds: 62));
+      final afterFirst = _angle(tester);
+      // down → up, the first half turn, clockwise.
+      expect(afterFirst, allOf(greaterThan(0), lessThan(math.pi)));
+
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      await tester.pump(const Duration(milliseconds: 20));
+      final afterSecond = _angle(tester);
+      // up → down, interrupted before it settles, turns back
+      // counterclockwise from the live angle.
+      expect(afterSecond, allOf(greaterThan(0), lessThan(afterFirst)));
+
+      await tester.pumpWidget(_turning(StratumCaretDirection.up));
+      await tester.pump(const Duration(milliseconds: 20));
+      // down → up again, interrupted before it settles too, turns
+      // clockwise again: opposite to the second half turn, same as the
+      // first.
+      expect(_angle(tester), greaterThan(afterSecond));
+
+      await tester.pumpAndSettle();
+      expect(_angle(tester), math.pi);
     });
 
     testWidgets('us02/fr02: a rebuild that keeps the direction starts no '
