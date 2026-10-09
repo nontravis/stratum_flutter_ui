@@ -8795,6 +8795,40 @@ void main() {
       variant: countChange,
     );
 
+    // An item-count change with no call in the turn of a moveItem that
+    // leaves the moved item's index as the call put it (F2).
+    final unshifting = ValueVariant<String>({'an append', 'a remove past it'});
+    testWidgets(
+      'us11/fr05/e04 and us11/fr04/e12: with the app index, a moveItem of '
+      'the focused item far into taller items and an item-count change with '
+      'no call that leaves its index in one turn still reach and show it',
+      (tester) async {
+        final (state, _) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: true,
+            heights: taller,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        final harness = _harness(tester)..move(103, 800);
+        if (unshifting.currentValue == 'an append') {
+          harness.insertData(harness.ids.length, 5000);
+        } else {
+          harness.removeData(900);
+        }
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ids[800], 103);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+      },
+      variant: unshifting,
+    );
+
     testWidgets(
       'us11/fr01/e07 and s03/inv28: an unfocused dragged item the app keeps '
       'alive loses its State when an item-count change ends the drag and '

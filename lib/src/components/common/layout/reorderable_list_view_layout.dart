@@ -1371,6 +1371,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     binding.addPostFrameCallback((_) => binding.addPostFrameCallback(follow));
   }
 
+  /// The index the last build registered the key node [node] at, the slot
+  /// the sliver gave the node's item by its key; null when it registered
+  /// none.
+  _FrameIndex? _registeredIndexOf(FocusNode node) {
+    for (final MapEntry(key: index, value: registered) in _itemNodes.entries) {
+      if (registered == node) return index;
+    }
+    return null;
+  }
+
   /// The key node the last build registered for the item [key]; null when
   /// it registered none.
   FocusNode? _registeredNodeOf(Key key) {
@@ -2508,14 +2518,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// missed estimate, or with its State gone, the list reaches the item's
   /// slot, read by key from the settling build ([_followAt]), for another
   /// call in the move's own turn may have shifted the data under the move's
-  /// own indices. With no settled slot for the key, a later call took the
-  /// item or a count change reset the frame (E12), the follow runs the
-  /// give-up path: it returns to [origin], the offset before the move's
-  /// jump at the next frame's start, else the one before the reach's own
-  /// first jump, and hands focus on from the gap the frame left, the slot
-  /// the item left (R5). The follow fields belong to the newest move: a
-  /// follow whose key they no longer name waits for that move's own
-  /// callback and does nothing here.
+  /// own indices. An item that kept its State with no settled slot, since a
+  /// count change reset the frame (E12) while the app's
+  /// `findChildIndexCallback` moved it by its key (R25), is reached at the
+  /// slot it registered at, where that build put it. With no settled slot
+  /// and its State gone, a later call took the item or a count change reset
+  /// the frame, the follow runs the give-up path: it returns to [origin],
+  /// the offset before the move's jump at the next frame's start, else the
+  /// one before the reach's own first jump, and hands focus on from the gap
+  /// the frame left, the slot the item left (R5). The follow fields belong
+  /// to the newest move: a follow whose key they no longer name waits for
+  /// that move's own callback and does nothing here.
   void _followMoved(
     FocusNode node,
     Key key,
@@ -2528,11 +2541,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _followKey = null;
     _followAt = null;
     if (!mounted) return;
-    if (node.context != null && _itemNodes.containsValue(node)) {
+    final registered = _registeredIndexOf(node);
+    if (node.context != null && registered != null) {
+      final slot = at ?? registered;
       // Parked off screen: registered, but not laid out (invariant 35).
-      if (at != null && !_builtSlot(at.slot)) {
+      if (!_builtSlot(slot.slot)) {
         if (node.hasFocus && gap != null) {
-          _startReach(at, key, gap, origin: origin);
+          _startReach(slot, key, gap, origin: origin);
         } else {
           _releasePark(key);
         }
