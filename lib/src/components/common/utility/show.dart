@@ -208,8 +208,10 @@ class _StratumShowState extends State<StratumShow>
     _aim(now);
   }
 
-  /// Rebuilds once the hide motion ends, so the content leaves the tree.
+  /// Re-aims at the real track once the motion settles (Minor 4), then
+  /// rebuilds once the hide motion ends, so the content leaves the tree.
   void _onStatus(AnimationStatus status) {
+    if (!status.isAnimating) _aim(_look);
     if (status.isDismissed) setState(() {});
   }
 
@@ -240,24 +242,40 @@ class _StratumShowState extends State<StratumShow>
   /// Sets each channel's line: at rest the track itself; mid-motion the
   /// line from [now], what the content showed before the change, to the
   /// track's value at the motion's end, so no change jumps (invariant 48).
+  /// While [_reduced], the size and the slide skip the line and go
+  /// straight to the reduced track; only the opacity still refits
+  /// (invariant 44).
   ///
   /// Every track is linear in the motion value, so a line through the
-  /// value now and the track's end reaches the track at the end.
+  /// value now and the track's end reaches the track at the end. A
+  /// caller curve can plateau at the end value before the motion itself
+  /// settles (an `Interval`, say); while that holds, [now] is held on
+  /// every line, and [_onStatus] aims at the real track once the motion
+  /// settles.
   void _aim(_Look now) {
     final t = _value.value;
     final end = _controller.status == AnimationStatus.forward ? 1.0 : 0.0;
-    if (!_controller.isAnimating || t == end) {
+    if (!_controller.isAnimating) {
       _setLines(hidden: _track(0), shown: _track(1));
+      return;
+    }
+    if (t == end) {
+      _setLines(hidden: now, shown: now);
       return;
     }
     final target = _track(end);
     // The line through (t, now) and (end, target), read at [at].
     _Look line(double at) {
       final k = (at - end) / (t - end);
+      final track = _track(at);
       return (
-        size: target.size + (now.size - target.size) * k,
+        size: _reduced
+            ? track.size
+            : target.size + (now.size - target.size) * k,
         opacity: target.opacity + (now.opacity - target.opacity) * k,
-        slide: target.slide + (now.slide - target.slide) * k,
+        slide: _reduced
+            ? track.slide
+            : target.slide + (now.slide - target.slide) * k,
       );
     }
 
@@ -356,7 +374,13 @@ class _SizeFactorBox extends SingleChildRenderObjectWidget {
     renderObject
       ..factor = factor
       ..slide = slide
-      ..textDirection = Directionality.of(context);
+      ..textDirection = Directionality.of(context)
+      // The setters above return early when [factor] or [slide] keep the
+      // same Animation object, as a rewrite at rest does (Important 3);
+      // re-check both so a value change with no new object still marks
+      // layout or paint.
+      .._onFactor()
+      .._onSlide();
   }
 }
 

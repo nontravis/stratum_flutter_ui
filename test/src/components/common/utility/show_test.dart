@@ -735,23 +735,61 @@ void main() {
       );
     }
 
+    // The show's duration (fast level) and the hide's (its 64% reverse
+    // ratio), on the package default `easeInOutSine` curve (PD9).
+    const showMs = 125;
+    const hideMs = 80;
+
+    /// The curved motion value [elapsed] into a show, or a hide, [visible].
+    double curvedAt(bool visible, int elapsed) {
+      final raw = elapsed / (visible ? showMs : hideMs);
+      return Curves.easeInOutSine.transform(visible ? raw : 1 - raw);
+    }
+
+    /// The line a change aims at (invariant 48), read at the motion value
+    /// [elapsed] ms carries, given it was [atChange] ms in when [now] was
+    /// captured and [target] is the new transition's track at the
+    /// motion's end.
+    ({Size size, Offset offset, double opacity}) blendAt(
+      bool visible,
+      int atChange,
+      int elapsed,
+      ({Size size, Offset offset, double opacity}) now,
+      ({Size size, Offset offset, double opacity}) target,
+    ) {
+      final end = visible ? 1.0 : 0.0;
+      final k =
+          (curvedAt(visible, elapsed) - end) /
+          (curvedAt(visible, atChange) - end);
+      return (
+        size: Size(
+          target.size.width + (now.size.width - target.size.width) * k,
+          target.size.height + (now.size.height - target.size.height) * k,
+        ),
+        offset: target.offset + (now.offset - target.offset) * k,
+        opacity: target.opacity + (now.opacity - target.opacity) * k,
+      );
+    }
+
     for (final (from, to) in [
       (StratumShowTransition.slide, StratumShowTransition.size),
       (StratumShowTransition.sizeAndFade, StratumShowTransition.fade),
       (StratumShowTransition.fade, StratumShowTransition.slide),
+      (StratumShowTransition.slide, StratumShowTransition.fade),
     ]) {
       for (final visible in [true, false]) {
         final motion = visible ? 'show' : 'hide';
         testWidgets('us15/fr01/e07, us15/s15: ${from.name} to ${to.name} '
             'mid-$motion continues from where it is to the end of '
             '${to.name}', (tester) async {
+          final atChange = visible ? 60 : 40;
           await _toggle(
             tester,
             _row(_show(visible: !visible, transition: from)),
             _row(_show(visible: visible, transition: from)),
           );
           // Midway: 60 ms of the 125 ms show, 40 ms of the 80 ms hide.
-          await tester.pump(Duration(milliseconds: visible ? 60 : 40));
+          await tester.pump(Duration(milliseconds: atChange));
           final before = look(tester);
 
           // The frame of the change advances no time, so it shows what
@@ -761,12 +799,50 @@ void main() {
           );
           expectLook(look(tester), before);
 
+          // One motion step later: the blended line, not the held value
+          // and not the end (Minor 5).
+          await tester.pump(const Duration(milliseconds: 16));
+          expectLook(
+            look(tester),
+            blendAt(
+              visible,
+              atChange,
+              atChange + 16,
+              before,
+              endOf(to, shown: visible),
+            ),
+          );
+
           // To the motion's last value, a tick before it settles.
-          await tester.pump(Duration(milliseconds: visible ? 65 : 40));
+          await tester.pump(Duration(milliseconds: visible ? 49 : 24));
           expectLook(look(tester), endOf(to, shown: visible));
         });
       }
     }
+
+    testWidgets('us15/fr01/e07: a second change mid-blend continues to the '
+        'end of the last transition', (tester) async {
+      await _toggle(
+        tester,
+        _row(_show(visible: false, transition: StratumShowTransition.slide)),
+        _row(_show(visible: true, transition: StratumShowTransition.slide)),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpWidget(
+        _row(_show(visible: true, transition: StratumShowTransition.size)),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      final before = look(tester);
+
+      // The second change, mid-blend from the first, still shows no jump.
+      await tester.pumpWidget(
+        _row(_show(visible: true, transition: StratumShowTransition.fade)),
+      );
+      expectLook(look(tester), before);
+
+      await tester.pumpAndSettle();
+      expectLook(look(tester), endOf(StratumShowTransition.fade, shown: true));
+    });
 
     testWidgets('us15/fr01/e07: a hide after the change reverses from where '
         'it is to the end of the new transition', (tester) async {
@@ -957,6 +1033,45 @@ void main() {
       await tester.pumpWidget(_row(_show(visible: false)));
 
       expect(find.byKey(_content, skipOffstage: false), findsNothing);
+      expect(_size(tester), Size.zero);
+    });
+
+    testWidgets('us15/fr01/e07: a transition changed while hidden under '
+        'maintainState does not paint the next show at the old size', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _row(
+          _show(
+            visible: false,
+            transition: StratumShowTransition.fade,
+            maintainState: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(
+        _row(
+          _show(
+            visible: false,
+            transition: StratumShowTransition.size,
+            maintainState: true,
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        _row(
+          _show(
+            visible: true,
+            transition: StratumShowTransition.size,
+            maintainState: true,
+          ),
+        ),
+      );
+
+      // The flip advances no time: still at the hidden size, not the
+      // stale full size the old `fade` layout left behind (Important 3).
       expect(_size(tester), Size.zero);
     });
 
@@ -1158,6 +1273,80 @@ void main() {
       await tester.pump();
 
       expect(_size(tester), const Size(100, 40));
+    });
+
+    testWidgets('us15/fr04: reduce motion turned on mid-slide snaps the '
+        'size and the slide at once; only the opacity keeps refitting', (
+      tester,
+    ) async {
+      // A MediaQuery that stays in the tree throughout, so toggling
+      // `reduced` changes its data in place instead of replacing the
+      // root widget and losing the running motion.
+      Widget host({required bool visible, required bool reduced}) => MediaQuery(
+        data: MediaQueryData(disableAnimations: reduced),
+        child: _row(
+          _show(visible: visible, transition: StratumShowTransition.slide),
+        ),
+      );
+
+      await tester.pumpWidget(host(visible: false, reduced: false));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(host(visible: true, reduced: false));
+      await tester.pump(const Duration(milliseconds: 60));
+      final opacityBefore = _opacity(tester);
+
+      await tester.pumpWidget(host(visible: true, reduced: true));
+      expect(_size(tester), const Size(100, 40));
+      expect(
+        tester.getTopLeft(find.byKey(_content)),
+        tester.getTopLeft(find.byType(StratumShow)),
+      );
+
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(_size(tester), const Size(100, 40));
+      expect(
+        tester.getTopLeft(find.byKey(_content)),
+        tester.getTopLeft(find.byType(StratumShow)),
+      );
+      expect(_opacity(tester), greaterThan(opacityBefore));
+
+      await tester.pumpAndSettle();
+      expect(_opacity(tester), 1.0);
+    });
+
+    testWidgets('us15/fr01/e07: a curve plateau at the end value holds the '
+        'line until the motion settles', (tester) async {
+      const plateau = Interval(0.5, 1.0);
+      StratumShow show({
+        required bool visible,
+        required StratumShowTransition transition,
+      }) => StratumShow(
+        visible: visible,
+        transition: transition,
+        curve: plateau,
+        child: const KeyedSubtree(key: _content, child: _Box()),
+      );
+
+      await tester.pumpWidget(
+        _row(show(visible: true, transition: StratumShowTransition.size)),
+      );
+      await tester.pumpWidget(
+        _row(show(visible: false, transition: StratumShowTransition.size)),
+      );
+      // 60 ms into the 80 ms hide: the curve has read 0 since 40 ms.
+      // `size` keeps the opacity at 1 regardless of t.
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(_opacity(tester), 1.0);
+
+      // The change advances no time: still the held opacity, not a jump
+      // to fade's hidden value of 0 (Minor 4).
+      await tester.pumpWidget(
+        _row(show(visible: false, transition: StratumShowTransition.fade)),
+      );
+      expect(_opacity(tester), 1.0);
+
+      await tester.pumpAndSettle();
+      expect(_size(tester), Size.zero);
     });
 
     testWidgets('us15/fr04: reduced motion turned on while mounted holds '
