@@ -14,13 +14,14 @@ StratumLabels builtInLabelsOf(BuildContext context) {
 }
 
 /// Stratum's built-in labels for [locale]'s language, matched by
-/// [Locale.languageCode], else English.
+/// [Locale.languageCode] case-insensitively, else English.
 ///
 /// Never hands [lookupStratumLabels] a language it does not hold, since
 /// that generated lookup throws for one.
 StratumLabels builtInLabelsFor(Locale locale) {
+  final languageCode = locale.languageCode.toLowerCase();
   final held = StratumLabels.supportedLocales.any(
-    (supported) => supported.languageCode == locale.languageCode,
+    (supported) => supported.languageCode == languageCode,
   );
-  return lookupStratumLabels(Locale(held ? locale.languageCode : 'en'));
+  return lookupStratumLabels(Locale(held ? languageCode : 'en'));
 }

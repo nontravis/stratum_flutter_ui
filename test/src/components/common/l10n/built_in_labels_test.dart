@@ -56,6 +56,21 @@ void main() {
         'Show menu',
       );
     });
+
+    test('us01/fr01/e03: an uppercase language code reads the same table', () {
+      expect(builtInLabelsFor(const Locale('TH')).showMenuLabel, 'แสดงเมนู');
+      expect(
+        builtInLabelsFor(const Locale('EN', 'US')).showMenuLabel,
+        'Show menu',
+      );
+    });
+
+    test('us01/fr01/e03: an undetermined language reads English', () {
+      expect(
+        builtInLabelsFor(const Locale.fromSubtags()).showMenuLabel,
+        'Show menu',
+      );
+    });
   });
 
   group('builtInLabelsOf', () {
@@ -83,11 +98,26 @@ void main() {
       tester,
     ) async {
       final labels = <String>[];
-      await tester.pumpWidget(_localeHost(const Locale('en'), _probe(labels)));
-      await tester.pumpWidget(_localeHost(const Locale('th'), _probe(labels)));
+      final probe = _probe(labels);
+      await tester.pumpWidget(_localeHost(const Locale('en'), probe));
+      await tester.pumpWidget(_localeHost(const Locale('th'), probe));
 
       expect(labels.first, 'Show menu');
       expect(labels.last, 'แสดงเมนู');
     });
+
+    testWidgets(
+      'us01/fr01/e03: a locale change to an unsupported language '
+      'rebuilds in English',
+      (tester) async {
+        final labels = <String>[];
+        final probe = _probe(labels);
+        await tester.pumpWidget(_localeHost(const Locale('th'), probe));
+        await tester.pumpWidget(_localeHost(const Locale('ja'), probe));
+
+        expect(labels.first, 'แสดงเมนู');
+        expect(labels.last, 'Show menu');
+      },
+    );
   });
 }

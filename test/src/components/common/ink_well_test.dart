@@ -1806,6 +1806,8 @@ void main() {
 
     testWidgets("without localizations the semantics action reads 'Show "
         "menu'", (tester) async {
+      tester.platformDispatcher.localeTestValue = const Locale('en');
+      addTearDown(tester.platformDispatcher.clearLocaleTestValue);
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         themedHost(const StratumInkWell(onSecondaryTap: _noop, child: _box)),
