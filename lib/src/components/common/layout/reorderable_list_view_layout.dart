@@ -347,6 +347,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// at once itself, so [_handleListReset] leaves it alone.
   var _cancelingByCall = false;
 
+  /// The key of the item a drag lifted and the index its drag started at,
+  /// from `onReorderStart` until the drag proxy lets the item go, or until
+  /// the drag ends before the proxy took it: a build that finds another
+  /// key at that index ends the drag (FR-01 E07).
+  ({Key key, _FrameIndex start})? _dragged;
+
   /// The item count the last build gave [SliverReorderableList].
   int? _listCount;
 
@@ -1202,6 +1208,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void _handleReorderStart(int index) {
     final dragged = _FrameIndex(index);
     _dragIndex = dragged;
+    final key = _lookAt(dragged)?.key;
+    _dragged = key == null ? null : (key: key, start: dragged);
     final box = _nodeAt(dragged)?.context?.findRenderObject();
     _liftedSize = box is RenderBox && box.hasSize ? box.size : null;
     _inReorderStart = true;
@@ -1258,6 +1266,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final start = _dragIndex;
     if (start == null) return;
     _dragIndex = null;
+    // A drag the proxy never took has no lifted item to watch.
+    if (_liftedKey == null) _dragged = null;
     final index = at ?? start.value;
     if (now) {
       _layout.onReorderEnd?.call(index);
@@ -1268,6 +1278,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     });
   }
 
+  /// Whether the item a drag lifted no longer sits at the index its drag
+  /// started at: the app moved or replaced it with no call, at the same
+  /// item count (FR-01 E07). Reads the app's `itemBuilder` once.
+  bool _draggedLeftStart() {
+    final dragged = _dragged;
+    if (dragged == null) return false;
+    // Every call, key move, and screen-reader move ends the drag first, so
+    // the start index reads as an index of the app's data.
+    final start = _dataIndexOf(dragged.start);
+    if (start == null || start >= _dataEnd) return true;
+    return _layout.itemBuilder(context, start.value).key != dragged.key;
+  }
+
   /// The drag proxy took the item [key], its State with it.
   void _liftedTook(Key key) => _liftedKey = key;
 
@@ -1276,6 +1299,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void _liftedLetGo(Key key) {
     if (_liftedKey == key) _liftedKey = null;
     if (_standInKey == key) _standInKey = null;
+    if (_dragged?.key == key) _dragged = null;
   }
 
   /// Jumps to the start when [toStart], else to the end. The target slot
@@ -2131,11 +2155,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final hostless =
         layout.itemCount == 0 && _exits.isNotEmpty && !_fixedExtent;
     final listCount = hostless ? 1 : layout.itemCount;
-    // A count change ends the drag in this build, before the sliver builds
-    // the new count; the end reaches _endDrag through
+    // A count change, or the lifted item away from its start at the same
+    // count (FR-01 E07), ends the drag in this build, before the sliver
+    // builds the item's key elsewhere; the end reaches _endDrag through
     // _ReorderSliverState.cancelReorder (E06).
-    if (listCount != _listCount) {
+    if (listCount != _listCount || _draggedLeftStart()) {
       _listKey.currentState?.cancelReorder();
+      _dragged = null;
       final lifted = _liftedKey;
       if (lifted != null) {
         _standInKey = lifted;

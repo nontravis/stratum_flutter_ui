@@ -169,10 +169,11 @@ scroll it, guarded so a text field inside keeps its own keys.
   plays. Focus on a removed item moves to the next item, else the previous, else the list's Tab stop when the list is
   focusable, unless the app moves focus in the same turn; a focused item the app removes and inserts back with its key
   in the same turn keeps focus instead, and the list scrolls to it and shows it. A reorder of a leaving item's neighbor
-  ends that leaving item. An `insertItem`, `removeItem`, `moveItem`, key or screen-reader move, or item-count change
-  during a drag ends it first, and a pointer cancel or a second pointer that takes the drag over ends it, each with
-  `onReorderEnd` at its start index and no `onReorderItem`; key and screen-reader moves then report their own. Every
-  drag ends with exactly one `onReorderEnd`; a drop reports the index Flutter's reorderable list gives it.
+  ends that leaving item. An `insertItem`, `removeItem`, `moveItem`, key or screen-reader move, item-count change, or
+  data change at the same count that moves or replaces the dragged item during a drag ends it first, and a pointer
+  cancel or a second pointer that takes the drag over ends it, each with `onReorderEnd` at its start index and no
+  `onReorderItem`; key and screen-reader moves then report their own. Every drag ends with exactly one `onReorderEnd`;
+  a drop reports the index Flutter's reorderable list gives it.
 
   ```dart
   final itemsController = StratumReorderableItemsController();

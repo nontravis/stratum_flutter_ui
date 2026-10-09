@@ -7380,4 +7380,173 @@ void main() {
       },
     );
   });
+
+  group('ReorderableListViewLayout same-count change during a drag', () {
+    testWidgets(
+      'us11/fr03/e06: a same-count change that moves the dragged item to a '
+      'built slot cancels the drag after the frame, with one onReorderEnd '
+      'at its start index, no onReorderItem, and its State kept',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 20)));
+        final gesture = await _liftItem(tester, 3);
+        final harness = _harness(tester);
+        final state = _itemState(tester, 3);
+
+        harness.moveData(3, 7);
+        expect(harness.ends, isEmpty);
+        await tester.pump();
+        expect(harness.ends, [3]);
+        await tester.pump();
+        expect(_itemState(tester, 3), same(state));
+        expect(state.widget.index, 7);
+        await gesture.moveBy(const Offset(0, 100));
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [3]);
+        expect(harness.moves, isEmpty);
+        expect(harness.ids.take(8), [0, 1, 2, 4, 5, 6, 7, 3]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr01/e07: a same-count change that moves the dragged item to a '
+      'slot the frame does not build cancels the drag with no error, and '
+      'the item loses its State, since the list learns of no move',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 400)));
+        final gesture = await _liftItem(tester, 3);
+        final harness = _harness(tester);
+        final state = _itemState(tester, 3);
+
+        harness.moveData(3, 300);
+        await tester.pump();
+        expect(harness.ends, [3]);
+        await tester.pump();
+        expect(state.mounted, isFalse);
+        await gesture.moveBy(const Offset(0, 100));
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [3]);
+        expect(harness.moves, isEmpty);
+        expect(harness.ids[300], 3);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e06: a same-count change that moves a dropped item while it '
+      'settles ends the drop with no onReorderItem and no second '
+      'onReorderEnd, and the item keeps its State',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 20)));
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('3')),
+        );
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+        await gesture.moveBy(const Offset(0, 100));
+        // The lift runs its full 250 ms, so the drop takes 250 ms to settle.
+        await tester.pump(const Duration(milliseconds: 300));
+        await gesture.up();
+        await tester.pump();
+        final harness = _harness(tester);
+        final ends = [...harness.ends];
+        expect(ends, hasLength(1));
+        final moves = [...harness.moves];
+        await tester.pump(const Duration(milliseconds: 100));
+        final state = _itemState(tester, 3);
+        final at = harness.ids.indexOf(3);
+
+        harness.moveData(at, 7);
+        await tester.pump();
+        await tester.pump();
+        expect(_itemState(tester, 3), same(state));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, ends);
+        expect(harness.moves, moves);
+        expect(harness.ids[7], 3);
+      },
+    );
+
+    testWidgets(
+      "us11/fr04/e12: a same-count change that replaces the dragged item's "
+      'key cancels the drag after the frame, and the item leaves',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 20)));
+        final gesture = await _liftItem(tester, 3);
+        final harness = _harness(tester);
+        final state = _itemState(tester, 3);
+
+        harness.replaceData(3, 99);
+        await tester.pump();
+        expect(harness.ends, [3]);
+        await tester.pump();
+        expect(state.mounted, isFalse);
+        await gesture.moveBy(const Offset(0, 100));
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [3]);
+        expect(harness.moves, isEmpty);
+        expect(harness.ids.take(5), [0, 1, 2, 99, 4]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr01/e07: a same-count change that moves only other items keeps '
+      'the drag',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 20)));
+        final gesture = await _liftItem(tester, 3);
+        final harness = _harness(tester)..moveData(5, 6);
+        await tester.pump();
+        await tester.pump();
+        expect(harness.ends, isEmpty);
+        await gesture.moveBy(const Offset(0, 100));
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, hasLength(1));
+        expect(harness.moves, hasLength(1));
+        expect(harness.ids[harness.moves.single.$2], 3);
+      },
+    );
+
+    testWidgets(
+      'us11/fr01/e07: the dragged-key check costs one itemBuilder call per '
+      'build while an item is lifted, and none on an idle frame',
+      (tester) async {
+        var builds = 0;
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, onItemBuild: (_) => builds += 1)),
+        );
+        final gesture = await _liftItem(tester, 3);
+
+        builds = 0;
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(builds, 0);
+        await gesture.moveBy(const Offset(0, 5));
+        await tester.pump();
+        final update = builds;
+        builds = 0;
+        _harness(tester).moveData(15, 16);
+        await tester.pump();
+        expect(builds - update, 1);
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+      },
+    );
+  });
 }
