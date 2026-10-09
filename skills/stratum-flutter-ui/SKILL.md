@@ -238,7 +238,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   package's or your own, the base paints it at the theme's `opacity.disabled` (0.5 by default), shows the forbidden
   cursor, lets no tap, long press, drag, or hover reach it, and keeps it and every node inside it out of focus and Tab
   order, so a focused one loses focus. A screen reader reads it as disabled on a node of its own. Turning `disabled`
-  off keeps the component's state.
+  off keeps the component's state. A press already down on a `StratumInkWell` inside it when it turns disabled is
+  cancelled and runs no action, while a scroll that already took the finger goes on; a `GestureDetector` you write
+  inside it finishes a gesture already under way.
 - **Your own disabled look** — a component whose design draws its own disabled look overrides
   `@protected bool get dimsWhenDisabled => false`; the cursor, input, focus, and screen-reader rules still hold. A
   widget that extends neither base gets none of this.

@@ -317,6 +317,43 @@ void main() {
     });
   });
 
+  group('StratumDisabledScope', () {
+    bool scopeAt(WidgetTester tester) =>
+        StratumDisabledScope.of(tester.element(find.byType(_Kept)));
+
+    testWidgets('base s03 invariant 14: true inside a disabled component, '
+        'false inside an enabled one and outside every component', (
+      tester,
+    ) async {
+      await tester.pumpWidget(themedHost(const _Kept()));
+      expect(scopeAt(tester), isFalse);
+
+      await tester.pumpWidget(
+        themedHost(const StratumDisabled(disabled: false, child: _Kept())),
+      );
+      expect(scopeAt(tester), isFalse);
+
+      await tester.pumpWidget(
+        themedHost(const StratumDisabled(disabled: true, child: _Kept())),
+      );
+      expect(scopeAt(tester), isTrue);
+    });
+
+    testWidgets('us07/fr02/e07: an enabled component inside a disabled one '
+        'passes the disabled scope on', (tester) async {
+      await tester.pumpWidget(
+        themedHost(
+          const StratumDisabled(
+            disabled: true,
+            child: StratumDisabled(disabled: false, child: _Kept()),
+          ),
+        ),
+      );
+
+      expect(scopeAt(tester), isTrue);
+    });
+  });
+
   group('StratumDisabled look and input', () {
     double opacityOf(WidgetTester tester) => tester
         .widget<Opacity>(
@@ -573,8 +610,8 @@ void main() {
       });
     }
 
-    testWidgets('us07/fr02: a drag in progress when it turns disabled gets '
-        'no update; it ends at the flip, as a cancelled drag does', (
+    testWidgets('us07/fr02/e07: a drag that a gesture detector of the app '
+        'already runs finishes after the flip; a new one is refused', (
       tester,
     ) async {
       final log = <String>[];
@@ -590,50 +627,69 @@ void main() {
         ),
       );
       await tester.pumpWidget(build(disabled: false));
-      final drag = await tester.startGesture(
-        tester.getCenter(find.byType(StratumDisabled)),
-      );
+      final center = tester.getCenter(find.byType(StratumDisabled));
+      final drag = await tester.startGesture(center);
       await drag.moveBy(const Offset(30, 0));
       await drag.moveBy(const Offset(10, 0));
       expect(log, contains('update'));
       log.clear();
 
       await tester.pumpWidget(build(disabled: true));
-      expect(log, ['end']);
-
       await drag.moveBy(const Offset(10, 0));
       await drag.up();
       await tester.pump();
-      expect(log, ['end']);
+      expect(log, ['update', 'end']);
+
+      log.clear();
+      await tester.dragFrom(center, const Offset(40, 0));
+      await tester.pump();
+      expect(log, isEmpty);
     });
 
-    testWidgets('us07/fr02: a press in progress when it turns disabled runs '
-        'no tap on release', (tester) async {
+    testWidgets('us07/fr02/e07, us07/s12: a scroll that already took the '
+        'finger on a tap surface inside keeps going after the flip', (
+      tester,
+    ) async {
       var taps = 0;
-      var cancels = 0;
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
       Widget build({required bool disabled}) => themedHost(
-        StratumDisabled(
-          disabled: disabled,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => taps++,
-            onTapCancel: () => cancels++,
-            child: const SizedBox(width: 100, height: 100),
+        SizedBox(
+          width: 200,
+          height: 200,
+          child: ListView(
+            controller: controller,
+            children: [
+              StratumDisabled(
+                disabled: disabled,
+                child: StratumInkWell(
+                  onTap: () => taps++,
+                  child: const SizedBox(height: 100),
+                ),
+              ),
+              const SizedBox(height: 1000),
+            ],
           ),
         ),
       );
       await tester.pumpWidget(build(disabled: false));
-      final press = await tester.startGesture(
-        tester.getCenter(find.byType(StratumDisabled)),
+      final drag = await tester.startGesture(
+        tester.getCenter(find.byType(StratumInkWell)),
       );
-      await tester.pump(kPressTimeout);
+      await drag.moveBy(const Offset(0, -30));
+      await drag.moveBy(const Offset(0, -10));
+      await tester.pump();
+      final before = controller.offset;
+      expect(before, greaterThan(0));
 
       await tester.pumpWidget(build(disabled: true));
-      await press.up();
-      await tester.pump(kDoubleTapTimeout);
+      await drag.moveBy(const Offset(0, -20));
+      await tester.pump();
+      expect(controller.offset, before + 20);
 
+      await drag.up();
+      await tester.pumpAndSettle();
       expect(taps, 0);
-      expect(cancels, 1);
     });
 
     testWidgets('us07/fr02/e06: enabled again, it takes taps', (tester) async {

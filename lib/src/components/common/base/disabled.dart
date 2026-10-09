@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart' show GestureBinding;
 import 'package:flutter/material.dart';
 import 'package:stratum_ui/src/themes/theme_application.dart';
 
@@ -19,10 +18,12 @@ import 'package:stratum_ui/src/themes/theme_application.dart';
 /// `opacity.disabled` unless [dims] is false, shows
 /// `SystemMouseCursors.forbidden`, lets no pointer event reach the
 /// component, and keeps the component and every node inside it out of
-/// focus and Tab order. A gesture already in progress when [disabled]
-/// turns true is cancelled, so a press runs no tap and a drag gets no
-/// further update.
-class StratumDisabled extends StatefulWidget {
+/// focus and Tab order. It also gives the component a
+/// [StratumDisabledScope], so a tap surface inside cancels a press already
+/// down through its own recognizers, while a gesture an ancestor already
+/// won, such as an enclosing scroll, goes on (R13). A gesture detector the
+/// app writes inside the component finishes a gesture already under way.
+class StratumDisabled extends StatelessWidget {
   const new({
     super.key,
     required this.disabled,
@@ -45,42 +46,16 @@ class StratumDisabled extends StatefulWidget {
 
   final Widget child;
 
-  @override
-  State<StratumDisabled> createState() => _StratumDisabledState();
-}
-
-class _StratumDisabledState extends State<StratumDisabled> {
-  /// The pointers down inside the component now.
-  final _down = <int>{};
-
-  @override
-  void didUpdateWidget(StratumDisabled oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.disabled || !widget.disabled) return;
-    // IgnorePointer refuses only new pointers: Flutter routes a pointer
-    // already down along the path hit at its down, so cancel each one
-    // (gestures/binding.dart:340@3.47.7). A drag recognizer reports the
-    // cancel of an accepted drag as its end (monodrag.dart:753-766).
-    _down
-      ..forEach(GestureBinding.instance.cancelPointer)
-      ..clear();
-  }
-
-  void _onDown(PointerDownEvent event) => _down.add(event.pointer);
-
-  void _onEnd(PointerEvent event) => _down.remove(event.pointer);
-
   /// The same layers in every build: the `Semantics` layer, which while it
   /// reports is a container node with `enabled` false and otherwise adds
   /// no node and no flag (US-07 FR-03 E01, E02), then the cursor, pointer,
-  /// pointer-tracking, focus, and opacity layers. It reads the theme only
+  /// disabled scope, focus, and opacity layers. It reads the theme only
   /// while it dims, so a widget on either base with no theme above it
   /// builds while enabled.
   @override
   Widget build(BuildContext context) {
-    final disabled = widget.disabled;
-    final reports = disabled && widget.contributesSemantics;
-    final opacity = disabled && widget.dims
+    final reports = disabled && contributesSemantics;
+    final opacity = disabled && dims
         ? StratumThemeApplication.of(context).opacity.disabled
         : 1.0;
     return Semantics(
@@ -91,16 +66,15 @@ class _StratumDisabledState extends State<StratumDisabled> {
         cursor: disabled ? SystemMouseCursors.forbidden : MouseCursor.defer,
         child: IgnorePointer(
           ignoring: disabled,
-          child: Listener(
-            onPointerDown: _onDown,
-            onPointerUp: _onEnd,
-            onPointerCancel: _onEnd,
+          child: StratumDisabledScope(
+            // An enabled component inside a disabled one is disabled too.
+            disabled: disabled || StratumDisabledScope.of(context),
             child: ExcludeFocus(
               excluding: disabled,
               child: Opacity(
                 opacity: opacity,
                 alwaysIncludeSemantics: true,
-                child: widget.child,
+                child: child,
               ),
             ),
           ),
@@ -108,6 +82,37 @@ class _StratumDisabledState extends State<StratumDisabled> {
       ),
     );
   }
+}
+
+/// Tells a tap surface whether it sits inside a disabled component (R13;
+/// base s03 invariant 14).
+///
+/// [IgnorePointer] refuses only a new pointer: Flutter routes a pointer
+/// already down along the path it hit at its down
+/// (`gestures/binding.dart:438@3.47.7`). A tap surface that depends on this
+/// scope turns its handlers off when it reads true, so Flutter disposes its
+/// recognizers and the press already down on it runs no action.
+///
+/// Not exported: `base.dart` does not export this file, and the tap
+/// surface imports it by path.
+class StratumDisabledScope extends InheritedWidget {
+  const new({super.key, required this.disabled, required super.child});
+
+  /// True inside a disabled component, also inside an enabled one nested
+  /// in a disabled one.
+  final bool disabled;
+
+  /// Whether [context] sits inside a disabled component; false outside
+  /// every component. Rebuilds [context] when the answer changes.
+  static bool of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<StratumDisabledScope>()
+          ?.disabled ??
+      false;
+
+  @override
+  bool updateShouldNotify(StratumDisabledScope oldWidget) =>
+      disabled != oldWidget.disabled;
 }
 
 /// The message a base element's debug assertion raises when [built], what
