@@ -2197,6 +2197,94 @@ void main() {
         },
       );
     }
+
+    for (final alignment in const [
+      WrapAlignment.spaceBetween,
+      WrapAlignment.spaceAround,
+      WrapAlignment.spaceEvenly,
+    ]) {
+      testWidgets(
+        'us14/fr04/e06, s03/inv40: under loose width an expand that widens '
+        'the wrap moves no item of a $alignment run at the start of the '
+        'move, which spreads the free space over the size shown',
+        (tester) async {
+          Widget build(int maxRuns) => themedHost(
+            SizedBox(
+              width: 230,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: WrapLayout(
+                  gap: 10,
+                  runGap: 6,
+                  alignment: alignment,
+                  maxRuns: maxRuns,
+                  children: [
+                    ..._tags(4),
+                    const SizedBox(width: 220, height: 20),
+                  ],
+                ),
+              ),
+            ),
+          );
+          // One run of four tags, 190 wide; the 220 wide child hides.
+          await tester.pumpWidget(build(1));
+          final before = [
+            for (var i = 0; i < 4; i++) _rectIn(tester, 'tag $i'),
+          ];
+          expect(before.last, const Rect.fromLTWH(150, 0, 40, 20));
+
+          await tester.pumpWidget(build(2));
+          expect(
+            [for (var i = 0; i < 4; i++) _rectIn(tester, 'tag $i')],
+            before,
+            reason: 'first frame',
+          );
+
+          await tester.pumpAndSettle();
+          expect(tester.getSize(find.byType(WrapOverflowFrame)).width, 220);
+        },
+      );
+    }
+
+    testWidgets(
+      'us14/fr04/e06, s03/inv40: an expand that narrows the wrap keeps a '
+      'spaceBetween run that keeps its items in place at the start of the '
+      'move, then spreads it over the size shown',
+      (tester) async {
+        Widget build(int? maxRuns) => themedHost(
+          SizedBox(
+            width: 230,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: WrapLayout(
+                gap: 10,
+                runGap: 6,
+                alignment: WrapAlignment.spaceBetween,
+                maxRuns: maxRuns,
+                overflowBuilder: _more,
+                children: _tags(12),
+              ),
+            ),
+          ),
+        );
+        // Run 0, 190 wide, spread over the 230 the "+4" run sets.
+        await tester.pumpWidget(build(2));
+        final before = _rectIn(tester, 'tag 3');
+        expect(before, const Rect.fromLTWH(190, 0, 40, 20));
+
+        await tester.pumpWidget(build(null));
+        expect(_rectIn(tester, 'tag 3'), before, reason: 'first frame');
+
+        await tester.pump(const Duration(microseconds: 62500));
+        final width = tester.getSize(find.byType(WrapOverflowFrame)).width;
+        expect(width, moreOrLessEquals(230 - 40 * _mid));
+        expect(
+          _rectIn(tester, 'tag 3').right,
+          moreOrLessEquals(width),
+          reason: 'mid-move',
+        );
+      },
+    );
   });
 }
 

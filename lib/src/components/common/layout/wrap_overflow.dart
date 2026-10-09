@@ -1455,10 +1455,14 @@ class _RenderWrapOverflow extends RenderBox
   /// axis, so no run jumps when a move starts (US-14 FR-04, FR-01 E07),
   /// and by nothing once it ends:
   ///
-  /// * Along a run, by the [_leadingShare] of
-  ///   [WrapOverflowFrame.alignment]: a run keeps its own items, so it
-  ///   keeps the place its alignment gives it in the shown size; the right
-  ///   edge under right-to-left text holds for the start alignment.
+  /// * Along a run, [WrapOverflowFrame.alignment] spreads the free space
+  ///   the run has in the shown size, its free space in [box] plus
+  ///   `shown - box`, so the `space*` alignments keep their gaps too (US-14
+  ///   FR-04 E06): a run keeps its own items, so it keeps the place its
+  ///   alignment gives it in the shown size. A run wider than the shown
+  ///   size shifts by the [_leadingShare] of that negative free space, so
+  ///   the right edge under right-to-left text holds for the start
+  ///   alignment.
   /// * Across the runs, by the share of [WrapAlignment.start]: a limit
   ///   change adds or drops runs at the end, so the runs hold their start
   ///   edge, the bottom under [VerticalDirection.up]. The share of
@@ -1490,9 +1494,11 @@ class _RenderWrapOverflow extends RenderBox
         _leadingShare(WrapAlignment.start, runs.length, flipped: flipCross) *
             (_cross(shown) - _cross(box));
     for (final run in flipCross ? runs.reversed : runs) {
+      final free =
+          math.max(0.0, _main(box) - run.main) + _main(shown) - _main(box);
       final (leading, between) = _distribute(
         _frame.alignment,
-        math.max(0.0, _main(box) - run.main),
+        math.max(0.0, free),
         _frame.spacing,
         run.items.length,
         flipped: flipMain,
@@ -1500,7 +1506,7 @@ class _RenderWrapOverflow extends RenderBox
       var childOffset =
           leading +
           _leadingShare(_frame.alignment, run.items.length, flipped: flipMain) *
-              (_main(shown) - _main(box));
+              math.min(0.0, free);
       for (final item in flipMain ? run.items.reversed : run.items) {
         final size = sizeOf(item);
         final crossOffset =
