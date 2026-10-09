@@ -1198,10 +1198,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// any answer for a key whose move target the build dropped ([dropped]).
   /// A null answer, or one past the data, books none; for the parked key it
   /// means the key left the data ([_releaseGone]).
+  ///
+  /// The item that holds focus from a slot the last frame did not lay out,
+  /// kept alive off screen (R29), with no move of its own running
+  /// ([_focusOwned]), books no raw move: the sliver's own answer for its key
+  /// follows its shift or raw move in place, silently, with no park, jump,
+  /// or reach, and the next focus move or reorder key reveals it (R36).
   void _bookRawMoves(List<_Watched> watched, Set<Key> known, Set<Key> dropped) {
     final app = _layout.findChildIndexCallback;
     if (app == null) return;
-    for (final (:key, :at, :node, frame: _) in watched) {
+    for (final (:key, :at, :node, :frame) in watched) {
       if (known.contains(key)) continue;
       final answer = app(key);
       if (answer == null || answer < 0 || answer >= _dataCount) {
@@ -1209,9 +1215,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         continue;
       }
       final to = _DataIndex(answer);
-      if (to != at || dropped.contains(key)) {
-        _bookRawMove(key, node, from: at, to: to);
-      }
+      final rebooked = dropped.contains(key);
+      if (to == at && !rebooked) continue;
+      final offScreen = frame != null && !_builtSlot(frame.slot);
+      if (offScreen && !rebooked && !_focusOwned(key)) continue;
+      _bookRawMove(key, node, from: at, to: to);
     }
   }
 

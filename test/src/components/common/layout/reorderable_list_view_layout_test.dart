@@ -9913,8 +9913,9 @@ void main() {
 
     testWidgets(
       'us11/fr05/e13 and us11/fr04/e19: a raw move of the focused item kept '
-      'alive off screen is followed with the app index, and with none hands '
-      'focus to the next item, which the list reaches back to',
+      'alive off screen follows it in place with the app index, scrolling '
+      'nothing, and with none hands focus to the next item, which the list '
+      'reaches back to',
       (tester) async {
         final withIndex = appIndex.currentValue!;
         final (state, position) = await pumpFocused(
@@ -9931,7 +9932,14 @@ void main() {
         if (withIndex) {
           expect(_statesOf(tester, 103), [same(state)]);
           expect(FocusManager.instance.primaryFocus, same(state.node));
-          expect(position.pixels, 32000);
+          expect(_builtInView(tester, 103), isFalse);
+          expect(position.pixels, 20000);
+
+          // The next focus move brings it back from its new slot (D24).
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pumpAndSettle();
+          expect(focused(), 'item 801');
+          expect(_builtInView(tester, 801), isTrue);
           return;
         }
         expect(state.mounted, isFalse);
@@ -9939,6 +9947,83 @@ void main() {
         expect(position.pixels, 4120);
       },
       variant: appIndex,
+    );
+
+    // A data change with no call that shifts the item kept alive off
+    // screen, and the item's index after it (R36).
+    final rawShifts = ValueVariant<(String, int)>({
+      ('an insert before it', 104),
+      ('a remove before it', 102),
+      ('a move of another item past it', 104),
+    });
+    testWidgets(
+      'us11/fr05/e13 and us11/fr03/e11: with the app index, a raw shift of '
+      'the focused item kept alive off screen follows it in place, keeping '
+      'its State and focus, and the list scrolls nothing for it',
+      (tester) async {
+        final (change, shiftedTo) = rawShifts.currentValue!;
+        final (state, position) = await pumpFocused(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+        position.jumpTo(20000);
+        await tester.pump();
+        final log = focusLog();
+
+        final harness = _harness(tester);
+        switch (change) {
+          case 'an insert before it':
+            harness.insertData(0, 5000);
+          case 'a remove before it':
+            harness.removeData(0);
+          default:
+            harness.moveData(900, 0);
+        }
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ids.indexOf(103), shiftedTo);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(log, isEmpty);
+        expect(_builtInView(tester, 103), isFalse);
+        expect(position.pixels, 20000);
+      },
+      variant: rawShifts,
+    );
+
+    final ownMoves = ValueVariant<String>({'moveItem', 'Alt+Down'});
+    testWidgets(
+      'us11/fr05/e04 and us11/fr03/e11: with the app index, a moveItem or a '
+      'reorder key of the focused item kept alive off screen still reveals it',
+      (tester) async {
+        final (state, position) = await pumpFocused(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: true,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        position.jumpTo(20000);
+        await tester.pump();
+
+        if (ownMoves.currentValue == 'moveItem') {
+          _harness(tester).move(103, 800);
+          await tester.pumpAndSettle();
+        } else {
+          await _alt(tester, LogicalKeyboardKey.arrowDown);
+        }
+
+        final to = ownMoves.currentValue == 'moveItem' ? 800 : 104;
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids.indexOf(103), to);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isTrue);
+        expect(position.pixels, isNot(20000));
+      },
+      variant: ownMoves,
     );
 
     testWidgets(
