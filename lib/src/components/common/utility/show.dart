@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// How a [StratumShow] moves between shown and hidden (FO-06 US-15 FR-01).
@@ -103,6 +104,10 @@ class _StratumShowState extends State<StratumShow>
   /// The controller through [_curve] and [_slide].
   late final Animation<Offset> _position = _value.drive(_slide);
 
+  /// Whether the app or the platform asks for less motion; read with the
+  /// theme in [_applyMotion].
+  var _reduced = false;
+
   /// Takes focus when focus sat inside content that hides; Tab skips it
   /// (layout s03 invariant 46, the rule of `IndexedStackLayout`).
   final _showNode = FocusNode(debugLabel: 'StratumShow', skipTraversal: true);
@@ -155,6 +160,7 @@ class _StratumShowState extends State<StratumShow>
   /// Takes the show and hide durations and the curve from the theme's
   /// `defaultStyle`, unless this instance sets them (invariant 43).
   void _applyMotion() {
+    _reduced = reducesMotion(context);
     final style =
         (StratumThemeApplication.maybeOf(context)?.animation ??
                 StratumAnimation.packageDefault)
@@ -163,14 +169,20 @@ class _StratumShowState extends State<StratumShow>
       ..duration = widget.duration ?? style.duration
       ..reverseDuration = widget.reverseDuration ?? style.reverseDuration;
     _curve.curve = widget.curve ?? style.curve!;
-    // Only `slide` moves the content (FR-02 E04).
-    _slide.begin = widget.transition == StratumShowTransition.slide
+    // Only `slide` moves the content (FR-02 E04), and not under reduced
+    // motion (invariant 44).
+    _slide.begin = widget.transition == StratumShowTransition.slide && !_reduced
         ? _edge(widget.slideDirection, Directionality.of(context))
         : Offset.zero;
   }
 
   /// Runs the show or the hide from where the motion is now.
   void _move() {
+    if (_reduced && widget.transition == StratumShowTransition.size) {
+      // `size` shows and hides at once under reduced motion (invariant 44).
+      _controller.value = widget.visible ? 1 : 0;
+      return;
+    }
     if (widget.visible) {
       _controller.forward();
     } else {
@@ -184,11 +196,12 @@ class _StratumShowState extends State<StratumShow>
   }
 
   /// The size factor: the motion under `size` and `sizeAndFade`; the full
-  /// size under `fade` and `slide`.
+  /// size under `fade` and `slide`, and under reduced motion (invariant
+  /// 44).
   Animation<double> get _sizeFactor => switch (widget.transition) {
-    StratumShowTransition.size || StratumShowTransition.sizeAndFade => _value,
-    StratumShowTransition.fade ||
-    StratumShowTransition.slide => kAlwaysCompleteAnimation,
+    StratumShowTransition.size ||
+    StratumShowTransition.sizeAndFade when !_reduced => _value,
+    _ => kAlwaysCompleteAnimation,
   };
 
   /// The opacity: the motion under every transition but `size`.

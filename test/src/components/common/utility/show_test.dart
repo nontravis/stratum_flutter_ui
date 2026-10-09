@@ -42,19 +42,29 @@ StratumShow _show({
 );
 
 /// [show] between two texts, in a themed row sized to its children, so a
-/// row that takes no space still reports [Size.zero].
+/// row that takes no space still reports [Size.zero]. [reduced] wraps the
+/// host in a [MediaQuery] asking for `disableAnimations`.
 Widget _row(
   Widget show, {
   StratumThemeData? theme,
   TextDirection direction = TextDirection.ltr,
-}) => themedHost(
-  Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [const Text('A'), show, const Text('B')],
-  ),
-  theme: theme,
-  textDirection: direction,
-);
+  bool reduced = false,
+}) {
+  final host = themedHost(
+    Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [const Text('A'), show, const Text('B')],
+    ),
+    theme: theme,
+    textDirection: direction,
+  );
+  return reduced
+      ? MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: host,
+        )
+      : host;
+}
 
 /// Pumps [initial], settles it, then pumps [updated] with no further pump,
 /// so a caller's own pumps read the motion from its first frame.
@@ -781,6 +791,129 @@ void main() {
       await tester.pump();
       expect(after.hasPrimaryFocus, isTrue);
       handle.dispose();
+    });
+  });
+
+  group('StratumShow under reduced motion', () {
+    testWidgets('us15/fr04/e01, us15/s7: sizeAndFade takes its full size at '
+        'once and fades in', (tester) async {
+      await _toggle(
+        tester,
+        _row(_show(visible: false), reduced: true),
+        _row(_show(visible: true), reduced: true),
+      );
+      await tester.pump();
+      expect(_size(tester), const Size(100, 40));
+
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(_opacity(tester), inExclusiveRange(0, 1));
+      await tester.pump(const Duration(milliseconds: 65));
+      expect(_opacity(tester), 1.0);
+    });
+
+    testWidgets('us15/fr04: fade runs unchanged', (tester) async {
+      await _toggle(
+        tester,
+        _row(
+          _show(visible: false, transition: StratumShowTransition.fade),
+          reduced: true,
+        ),
+        _row(
+          _show(visible: true, transition: StratumShowTransition.fade),
+          reduced: true,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(_size(tester), const Size(100, 40));
+      expect(_opacity(tester), inExclusiveRange(0, 1));
+    });
+
+    testWidgets('us15/fr04/e02: slide hides in place, fades out, then takes '
+        'no space', (tester) async {
+      await _toggle(
+        tester,
+        _row(
+          _show(visible: true, transition: StratumShowTransition.slide),
+          reduced: true,
+        ),
+        _row(
+          _show(visible: false, transition: StratumShowTransition.slide),
+          reduced: true,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        tester.getTopLeft(find.byKey(_content)),
+        tester.getTopLeft(find.byType(StratumShow)),
+      );
+      expect(_opacity(tester), inExclusiveRange(0, 1));
+
+      await tester.pump(const Duration(milliseconds: 40));
+      // One more tick past the 80 ms hide: AnimationController reports
+      // dismissed a tick after its value reaches 0 (isDone is strict `>`).
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(_size(tester), Size.zero);
+    });
+
+    testWidgets('us15/fr04/e03, us15/s8: size shows and hides at once', (
+      tester,
+    ) async {
+      await _toggle(
+        tester,
+        _row(
+          _show(visible: false, transition: StratumShowTransition.size),
+          reduced: true,
+        ),
+        _row(
+          _show(visible: true, transition: StratumShowTransition.size),
+          reduced: true,
+        ),
+      );
+      expect(_size(tester), const Size(100, 40));
+      expect(_opacity(tester), 1.0);
+
+      await tester.pumpWidget(
+        _row(
+          _show(visible: false, transition: StratumShowTransition.size),
+          reduced: true,
+        ),
+      );
+      expect(_size(tester), Size.zero);
+      expect(find.byKey(_content, skipOffstage: false), findsNothing);
+    });
+
+    testWidgets('us15/fr04/e04: a caller duration sets the fade', (
+      tester,
+    ) async {
+      const slow = Duration(milliseconds: 400);
+      await _toggle(
+        tester,
+        _row(_show(visible: false, duration: slow), reduced: true),
+        _row(_show(visible: true, duration: slow), reduced: true),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(_opacity(tester), lessThan(1));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(_opacity(tester), 1.0);
+    });
+
+    testWidgets('nfr-u03: the platform reduce-motion flag holds the same', (
+      tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(reduceMotion: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await _toggle(
+        tester,
+        _row(_show(visible: false)),
+        _row(_show(visible: true)),
+      );
+      await tester.pump();
+
+      expect(_size(tester), const Size(100, 40));
     });
   });
 }
