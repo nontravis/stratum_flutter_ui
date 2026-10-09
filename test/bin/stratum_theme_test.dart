@@ -772,8 +772,8 @@ void main() {
         );
       });
 
-      test('us02/fr03/e09: a 200 MB pubspec.yaml exits 66 by its length, '
-          'before any read', () async {
+      test('us02/fr03/e09: a 200 MB pubspec.yaml exits 66 after reading at '
+          'most 1,048,577 bytes', () async {
         File(pubspecPath()).openSync(mode: FileMode.write)
           ..truncateSync(200 * 1024 * 1024)
           ..closeSync();
@@ -825,6 +825,25 @@ void main() {
           refused.err.last,
           'cannot read "pubspec.yaml": text longer than 1 MiB',
         );
+      });
+
+      test('us02/fr03/e09: a pubspec.yaml under 1 MiB holding byte 0xe9 '
+          'exits 66, not an unhandled exception', () async {
+        File(pubspecPath()).writeAsBytesSync([
+          ...utf8.encode('name: app\n# caf'),
+          0xe9,
+          ...utf8.encode('\n'),
+        ]);
+
+        final run = await _run(['check', 'brand.zip']);
+
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+        expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
+        expect(run.err, isNot(contains(contains('Unhandled exception'))));
+        for (final line in run.err) {
+          expect(line, matches(_printable));
+        }
       });
     });
 

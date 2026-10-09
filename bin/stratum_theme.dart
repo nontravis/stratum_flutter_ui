@@ -377,10 +377,10 @@ final class _Run {
   /// item that covers the app default, the file's own path or its
   /// folder's, as the app's asset manifest takes them (s03 App default);
   /// false with no pubspec. Throws [_NoInput] for a pubspec that is not a
-  /// regular file, is longer than 1,048,576 bytes, refused before more
-  /// than that many bytes are ever read off the one handle this opens,
-  /// cannot be read, or is not yaml, the yaml gate's refusals included
-  /// (FR-03 E09).
+  /// regular file, is longer than 1,048,576 bytes, refused after reading
+  /// at most that many bytes plus one off the one handle this opens,
+  /// cannot be read, is not valid UTF-8 text, or is not yaml, the yaml
+  /// gate's refusals included (FR-03 E09).
   bool _listsAppDefault() {
     final path = p.join(_cwd, 'pubspec.yaml');
     if (FileSystemEntity.typeSync(path, followLinks: false) ==
@@ -405,6 +405,8 @@ final class _Run {
     final Object? pubspec;
     try {
       pubspec = loadYamlText(utf8.decode(bytes)).value;
+    } on FormatException {
+      throw const _NoInput('cannot read "pubspec.yaml": not valid UTF-8 text');
     } on YamlTextFailure catch (failure) {
       final at = failure.at;
       final position = at == null ? '' : ':${at.line}:${at.column}';
