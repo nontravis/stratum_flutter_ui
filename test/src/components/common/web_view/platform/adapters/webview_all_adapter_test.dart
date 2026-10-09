@@ -122,6 +122,12 @@ final class _Harness implements NativeAdapterHarness {
   int get reloadCount => _controller.reloadCount;
 
   @override
+  int get goBackCount => _controller.goBackCount;
+
+  @override
+  int get goForwardCount => _controller.goForwardCount;
+
+  @override
   set scriptResult(Object value) => _controller.scriptResult = value;
 
   @override

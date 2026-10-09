@@ -20,6 +20,8 @@ abstract interface class NativeAdapterHarness {
   List<bool> get javaScriptEnabledStates;
   Set<String> get channelNames;
   int get reloadCount;
+  int get goBackCount;
+  int get goForwardCount;
 
   /// What the platform answers for the next dispatch script.
   set scriptResult(Object value);
@@ -1124,6 +1126,56 @@ void runNativeAdapterContract(
       await pumpEventQueue();
       expect(harness.loadedUrls, [Uri.parse('about:blank')]);
     });
+
+    test('a load started just before dispose leaves the view blank', () async {
+      final pending = adapter.load(StratumWebViewSource.url(appPage));
+      adapter.dispose();
+      await pending;
+      await pumpEventQueue();
+      expect(harness.loadedUrls, [Uri.parse('about:blank')]);
+    });
+
+    test('us03/fr04: an HTML load started just before dispose loads nothing '
+        'and leaves no nonce to prove', () async {
+      final pending = adapter.load(
+        const StratumWebViewSource.html('<p>Hi</p>'),
+      );
+      adapter.dispose();
+      await pending;
+      await pumpEventQueue();
+      expect(harness.loadedHtml, isEmpty);
+      expect(harness.loadedUrls, [Uri.parse('about:blank')]);
+    });
+
+    test('a reload started just before dispose reaches no platform', () async {
+      await adapter.load(StratumWebViewSource.url(appPage));
+      final pending = adapter.reload();
+      adapter.dispose();
+      await pending;
+      await pumpEventQueue();
+      expect(harness.reloadCount, 0);
+    });
+
+    test('a goBack started just before dispose reaches no platform', () async {
+      await adapter.load(StratumWebViewSource.url(appPage));
+      final pending = adapter.goBack();
+      adapter.dispose();
+      await pending;
+      await pumpEventQueue();
+      expect(harness.goBackCount, 0);
+    });
+
+    test(
+      'a goForward started just before dispose reaches no platform',
+      () async {
+        await adapter.load(StratumWebViewSource.url(appPage));
+        final pending = adapter.goForward();
+        adapter.dispose();
+        await pending;
+        await pumpEventQueue();
+        expect(harness.goForwardCount, 0);
+      },
+    );
   });
 }
 
