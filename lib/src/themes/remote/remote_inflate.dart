@@ -60,7 +60,9 @@
 // from zlib's inftrees.c (inflate_table) and inflate.c, with the table
 // bounds of inftrees.h, which carry this notice:
 //
-// Copyright (C) 1995-2024 Mark Adler
+// inftrees.c -- Copyright (C) 1995-2024 Mark Adler
+// inflate.c -- Copyright (C) 1995-2022 Mark Adler
+// inftrees.h -- Copyright (C) 1995-2005, 2010 Mark Adler
 // For conditions of distribution and use, see copyright notice in zlib.h
 //
 // zlib.h's notice:
