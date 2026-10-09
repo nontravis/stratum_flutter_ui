@@ -74,3 +74,17 @@ class StratumDisabled extends StatelessWidget {
     );
   }
 }
+
+/// The message a base element's debug assertion raises when [built], what
+/// [component] built at its root, is a `ParentDataWidget` (base s03
+/// invariant 12, US-07 FR-01 E07).
+///
+/// Public, not private, so both base elements' libraries can call it;
+/// `base.dart` does not export this file, so it stays out of the package's
+/// public API.
+String boxRootAssertionMessage(Type component, Widget built) =>
+    'Incorrect use of ParentDataWidget: $component builds a '
+    '${built.runtimeType} at its root.\n'
+    'A component on either base builds one box widget at its root, never a '
+    'ParentDataWidget (Expanded, Flexible, Positioned) or a sliver.\n'
+    "Move the ${built.runtimeType} to $component's call site instead.";

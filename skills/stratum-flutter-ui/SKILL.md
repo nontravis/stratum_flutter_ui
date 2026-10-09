@@ -225,8 +225,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   `@protected bool get contributesSemantics => false`; while disabled it then gets no screen-reader node, and the
   dimming, cursor, input, and focus rules still hold.
 - **One box widget at its root** — a component on either base builds exactly one box widget at its root, never
-  `Expanded`, `Flexible`, `Positioned`, or a sliver; the base asserts this in debug builds, so move the parent-data
-  widget to the call site instead.
+  `Expanded`, `Flexible`, or `Positioned`; the base asserts no `ParentDataWidget` root in debug builds, so move the
+  parent-data widget to the call site instead. A sliver root is not caught by this assertion; it fails Flutter's own
+  box-child assertion instead.
 
 ## Themes
 

@@ -14,8 +14,9 @@ import 'package:stratum_ui/src/themes/constant/window_size.dart';
 /// Holds the props of [StratumWidgetProps]; the `State` reads them through
 /// `widget`, for example `widget.resolveSize(context)`. The `State`'s `build`
 /// returns one box widget at its root, never a `ParentDataWidget`
-/// (`Expanded`, `Flexible`, `Positioned`) or a sliver; the base's element
-/// asserts this in debug builds (US-07 FR-01 E07).
+/// (`Expanded`, `Flexible`, `Positioned`); the base's element asserts this in
+/// debug builds. A sliver root is not caught by this assertion; it fails
+/// Flutter's own box-child assertion instead (US-07 FR-01 E07).
 abstract class StratumStatefulWidget extends StatefulWidget
     with StratumWidgetProps {
   const new({
@@ -86,7 +87,7 @@ class _StratumStatefulElement extends StatefulElement {
     final built = super.build();
     assert(
       built is! ParentDataWidget,
-      _boxRootAssertionMessage(component.runtimeType, built),
+      boxRootAssertionMessage(component.runtimeType, built),
     );
     return StratumDisabled(
       disabled: component.disabled,
@@ -96,13 +97,3 @@ class _StratumStatefulElement extends StatefulElement {
     );
   }
 }
-
-/// The message a base element's debug assertion raises when [built], what
-/// [component] built at its root, is a `ParentDataWidget` (base s03
-/// invariant 12, US-07 FR-01 E07).
-String _boxRootAssertionMessage(Type component, Widget built) =>
-    'Incorrect use of ParentDataWidget: $component builds a '
-    '${built.runtimeType} at its root.\n'
-    'A component on either base builds one box widget at its root, never a '
-    'ParentDataWidget (Expanded, Flexible, Positioned) or a sliver.\n'
-    "Move the ${built.runtimeType} to $component's call site instead.";
