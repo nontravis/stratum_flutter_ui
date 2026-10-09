@@ -208,8 +208,9 @@ class _StratumShowState extends State<StratumShow>
     _aim(now);
   }
 
-  /// Re-aims at the real track once the motion settles (Minor 4), then
-  /// rebuilds once the hide motion ends, so the content leaves the tree.
+  /// Re-aims at the real track once the motion settles (US-15 FR-01 E07),
+  /// then rebuilds once the hide motion ends, so the content leaves the
+  /// tree.
   void _onStatus(AnimationStatus status) {
     if (!status.isAnimating) _aim(_look);
     if (status.isDismissed) setState(() {});
@@ -376,7 +377,7 @@ class _SizeFactorBox extends SingleChildRenderObjectWidget {
       ..slide = slide
       ..textDirection = Directionality.of(context)
       // The setters above return early when [factor] or [slide] keep the
-      // same Animation object, as a rewrite at rest does (Important 3);
+      // same Animation object, as a rewrite at rest does (invariant 48);
       // re-check both so a value change with no new object still marks
       // layout or paint.
       .._onFactor()

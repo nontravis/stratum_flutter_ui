@@ -106,16 +106,25 @@ class _WebZoomViewerState extends State<_WebZoomViewer>
       minScale: widget.minScale,
       maxScale: widget.maxScale,
       onInteractionStart: _onInteractionStart,
-      onInteractionEnd: (_) => _easeIntoLimits(),
+      onInteractionEnd: _onInteractionEnd,
       child: widget.child,
     ),
   );
 
   /// Yields to a real gesture so it is never fought by the ease; a mouse
   /// wheel also fires this while the guard holds, so it is left alone
-  /// (R16, Important 1).
+  /// (US-01 FR-01 E05).
   void _onInteractionStart(ScaleStartDetails details) {
     if (!_controller.held) _ease.stop();
+  }
+
+  /// Eases back into the limits once a real gesture ends; a mouse wheel
+  /// notch also fires this while the guard holds, so it is left alone, and
+  /// a notch mid-ease never restarts the ease from curve 0 (US-01 FR-01
+  /// E05).
+  void _onInteractionEnd(ScaleEndDetails details) {
+    if (_controller.held || _ease.isAnimating) return;
+    _easeIntoLimits();
   }
 
   /// Takes a scale outside the limits to the nearest one, over the theme's

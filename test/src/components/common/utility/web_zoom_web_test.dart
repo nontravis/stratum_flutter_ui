@@ -245,7 +245,7 @@ void main() {
       expect(translation.y, inInclusiveRange(300 * (1 - 1.5), 0.0));
     });
 
-    testWidgets('R16, Important 1: a pinch mid-ease shows its own scale, '
+    testWidgets('us01/fr01/e05: a pinch mid-ease shows its own scale, '
         'not the stale eased one', (tester) async {
       await tester.pumpWidget(_host(zoom()));
       await _pinch(tester, 2);
@@ -279,8 +279,8 @@ void main() {
       expect(_scale(tester), 1.5);
     });
 
-    testWidgets('Minor 6: a rebuild with unchanged limits does not restart '
-        'the ease', (tester) async {
+    testWidgets('us01/fr01/e05: a rebuild with unchanged limits does not '
+        'restart the ease', (tester) async {
       await tester.pumpWidget(_host(zoom()));
       await _pinch(tester, 2);
 
@@ -297,7 +297,7 @@ void main() {
       expect(_scale(tester), 1.5);
     });
 
-    testWidgets('Minor 6: a dispose mid-ease leaves no ticker and no '
+    testWidgets('us01/fr01/e05: a dispose mid-ease leaves no ticker and no '
         'exception', (tester) async {
       await tester.pumpWidget(_host(zoom()));
       await _pinch(tester, 2);
@@ -308,6 +308,32 @@ void main() {
       await tester.pumpWidget(const SizedBox());
 
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('us01/fr01/e05: a wheel notch mid-ease leaves the ease '
+        'running on schedule', (tester) async {
+      await tester.pumpWidget(_host(zoom()));
+      await _pinch(tester, 2);
+      final zoomed = _scale(tester);
+
+      await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(
+        pointer.hover(tester.getCenter(find.byType(StratumWebZoom))),
+      );
+      for (var notch = 0; notch < 3; notch++) {
+        await tester.sendEventToBinding(pointer.scroll(const Offset(0, -1)));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+
+      // What an uninterrupted ease would show at the same 60 ms, so a
+      // crawl (each notch restarting the curve at 0) reads far below it.
+      final expected =
+          zoomed + (1.5 - zoomed) * Curves.easeInOutSine.transform(60 / 125);
+      expect(_scale(tester), closeTo(expected, 0.03));
+
+      await tester.pumpAndSettle();
+      expect(_scale(tester), 1.5);
     });
   });
 
