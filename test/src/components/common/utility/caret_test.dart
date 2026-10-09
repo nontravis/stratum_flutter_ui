@@ -479,6 +479,25 @@ void main() {
       expect(_box(tester).width, 16);
       expect(_look(tester), look);
     });
+
+    testWidgets('inv. 14: customStyle padding never shrinks the glyph', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        themedHost(
+          const StratumCaret(
+            customStyle: WidgetStyle(padding: EdgeInsets.all(2)),
+          ),
+        ),
+      );
+
+      expect(tester.getSize(_glyph), const Size(16, 16));
+      final (:path, paint: _) = _drawn();
+      expect(
+        path.getBounds(),
+        rectMoreOrLessEquals(const Rect.fromLTRB(-5, -2.5, 5, 2.5)),
+      );
+    });
   });
 
   group('StratumCaret text direction', () {

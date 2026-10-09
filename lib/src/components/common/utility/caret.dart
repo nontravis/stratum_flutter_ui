@@ -168,50 +168,66 @@ class _StratumCaretState extends State<StratumCaret> {
     final color = _color(context);
     // A decorative glyph: the owning component announces expanded or
     // collapsed (US-02 FR-05).
-    return ExcludeSemantics(
-      child: ContainerLayout(
-        style: widget.resolveStyle(
-          context,
-          WidgetStyle(width: side, height: side),
-        ),
-        debug: widget.debug,
-        child: TweenAnimationBuilder<double>(
-          // Keyed by `reduce`: a mid-turn flip of reduced motion changes no
-          // target angle, so `AnimatedWidgetBaseState` would otherwise never
-          // restart the already-running controller. Remounting under a new
-          // key builds a fresh `TweenAnimationBuilder` state, which starts
-          // at its tween's end value with no animation (spec invariant 9).
-          key: ValueKey(reduce),
-          tween: Tween<double>(end: _quarterTurns * math.pi / 2),
-          // The theme's fast level on its standard curve; a level built
-          // with no duration or curve takes none and easeInOutSine
-          // (themes s03 invariant 15). Reduced motion and a text-direction
-          // flip show the new angle at once (US-02 FR-03, FR-04).
-          duration: jump || reduce
-              ? Duration.zero
-              : motion.duration ?? Duration.zero,
-          curve: motion.curve ?? Curves.easeInOutSine,
-          // `Center` loosens whatever constraints `ContainerLayout` passes
-          // down before `SizedBox` re-tightens them to `side`: a tight
-          // ambient box bigger than `side` cannot otherwise be narrowed
-          // (`BoxConstraints.enforce` clamps a smaller desired tight range
-          // up to the ambient one), which left the glyph's own canvas
-          // larger than its box and the glyph centered by hand instead of
-          // by layout (US-01 FR-02 E03).
-          builder: (context, angle, _) => Center(
-            child: SizedBox.square(
-              dimension: side,
-              child: CustomPaint(
-                painter: CaretPainter(
-                  style: widget.style,
-                  color: color,
-                  angle: angle,
+    return LayoutBuilder(
+      // Reads the constraints this widget gets from its own parent,
+      // before `ContainerLayout` turns `side` and `customStyle` into the
+      // box's width, height, and padding: a tighter ambient parent still
+      // shrinks the glyph (US-01 FR-02 E03), but the box's own padding
+      // never does (spec invariant 14) because padding is applied deeper
+      // inside, past this point.
+      builder: (context, constraints) {
+        final fit = math.min(
+          side,
+          math.min(constraints.maxWidth, constraints.maxHeight),
+        );
+        return ExcludeSemantics(
+          child: ContainerLayout(
+            style: widget.resolveStyle(
+              context,
+              WidgetStyle(width: side, height: side),
+            ),
+            debug: widget.debug,
+            child: TweenAnimationBuilder<double>(
+              // Keyed by `reduce`: a mid-turn flip of reduced motion
+              // changes no target angle, so `AnimatedWidgetBaseState`
+              // would otherwise never restart the already-running
+              // controller. Remounting under a new key builds a fresh
+              // `TweenAnimationBuilder` state, which starts at its
+              // tween's end value with no animation (spec invariant 9).
+              key: ValueKey(reduce),
+              tween: Tween<double>(end: _quarterTurns * math.pi / 2),
+              // The theme's fast level on its standard curve; a level built
+              // with no duration or curve takes none and easeInOutSine
+              // (themes s03 invariant 15). Reduced motion and a text-direction
+              // flip show the new angle at once (US-02 FR-03, FR-04).
+              duration: jump || reduce
+                  ? Duration.zero
+                  : motion.duration ?? Duration.zero,
+              curve: motion.curve ?? Curves.easeInOutSine,
+              // `OverflowBox` imposes `fit` on the glyph's canvas no
+              // matter what constraints `customStyle`'s padding leaves
+              // inside the box, so the glyph never shrinks to the padded
+              // remainder; `fit` already carries a tighter ambient
+              // parent's shrink, read above, before this widget's own
+              // padding muddies the constraints (US-01 FR-02 E03, spec
+              // invariant 14).
+              builder: (context, angle, _) => OverflowBox(
+                minWidth: fit,
+                maxWidth: fit,
+                minHeight: fit,
+                maxHeight: fit,
+                child: CustomPaint(
+                  painter: CaretPainter(
+                    style: widget.style,
+                    color: color,
+                    angle: angle,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
