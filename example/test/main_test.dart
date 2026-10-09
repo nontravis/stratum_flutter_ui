@@ -37,23 +37,22 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/fr01/e05: urlAddress set, the URL tab loads it instead',
-    (tester) async {
-      final address = Uri.parse('http://127.0.0.1:9999/ok');
+  testWidgets('us01/fr01/e05: urlAddress set, the URL tab loads it instead', (
+    tester,
+  ) async {
+    final address = Uri.parse('http://127.0.0.1:9999/ok');
 
-      await tester.pumpWidget(StratumWebViewExampleApp(urlAddress: address));
+    await tester.pumpWidget(StratumWebViewExampleApp(urlAddress: address));
 
-      final loads = created.expand((fake) => fake.loads);
-      expect(loads, contains(StratumWebViewSource.url(address)));
-      expect(
-        loads,
-        isNot(
-          contains(StratumWebViewSource.url(Uri.parse('https://flutter.dev'))),
-        ),
-      );
-    },
-  );
+    final loads = created.expand((fake) => fake.loads);
+    expect(loads, contains(StratumWebViewSource.url(address)));
+    expect(
+      loads,
+      isNot(
+        contains(StratumWebViewSource.url(Uri.parse('https://flutter.dev'))),
+      ),
+    );
+  });
 }
 
 /// Records every source a controller loads; `buildView` and the other calls
@@ -89,7 +88,13 @@ final class _FakePlatformWebView implements PlatformStratumWebView {
   Future<Uri?> currentUrl() async => null;
 
   @override
-  Future<void> postMessage(String data) async {}
+  Future<void> postMessage(String data, {Uri? targetOrigin}) async {}
+
+  @override
+  Future<void> replyToDocument(
+    PlatformHtmlDocumentSender document,
+    String data,
+  ) async {}
 
   @override
   Widget buildView(BuildContext context) => const SizedBox();
