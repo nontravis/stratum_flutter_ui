@@ -339,12 +339,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   _FrameIndex? _returnAt;
 
   /// The index the drag in progress started at, from `onReorderStart` to
-  /// `onReorderEnd`; null with no drag.
-  ///
-  /// The SDK ends a drag without `onReorderEnd` on a canceled gesture and
-  /// on a change of the item count it is given: the last pointer up clears
-  /// it, and that change reports the end ([_reportCountEnd]).
+  /// `onReorderEnd`; null with no drag. Only [_handleReorderStart] sets it
+  /// and only [_endDrag], the drag's one exit, clears it.
   _FrameIndex? _dragIndex;
+
+  /// Whether [_cancelDrag] is canceling the SDK's drag: it reports that end
+  /// at once itself, so [_handleListReset] leaves it alone.
+  var _cancelingByCall = false;
 
   /// The item count the last build gave [SliverReorderableList].
   int? _listCount;
@@ -384,11 +385,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The size of the item the drag in progress lifted: the gap's size.
   Size? _liftedSize;
 
-  /// The pointers down on the list; a drag needs one.
-  var _pointersDown = 0;
-
   /// Reaches [SliverReorderableListState.cancelReorder] and the list's
-  /// sliver ([_sliver]).
+  /// sliver ([_sliver]) through the list's own [_ReorderSliverState].
   final _listKey = GlobalKey<SliverReorderableListState>();
 
   ReorderableListViewLayout get _layout => widget.layout;
@@ -1215,41 +1213,58 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
   }
 
-  void _handleReorderEnd(int index) {
-    _dragIndex = null;
-    _layout.onReorderEnd?.call(index);
-  }
+  /// The SDK's own end of a drag, a drop: reported at once with the index
+  /// the SDK gives the drop (FR-04 E06).
+  void _handleReorderEnd(int index) => _endDrag(now: true, at: index);
 
   /// Cancels a drag in progress before an insert, remove, or move, a key
   /// move or a screen-reader move among them, or one that starts before
   /// their frame (E06): the dragged item returns to its slot,
-  /// `onReorderEnd` fires with the index the drag started at, and
+  /// `onReorderEnd` fires at once with the index the drag started at, and
   /// `onReorderItem` does not fire. A dropped item still settling ends the
   /// same way, with no second `onReorderEnd`.
   void _cancelDrag() {
-    final index = _dragIndex;
-    _dragIndex = null;
     if (_inReorderStart) {
       // The drag `onReorderStart` reports is set up after it returns.
       scheduleMicrotask(() {
         if (mounted) _listKey.currentState?.cancelReorder();
       });
     } else {
-      _listKey.currentState?.cancelReorder();
+      _cancelingByCall = true;
+      try {
+        _listKey.currentState?.cancelReorder();
+      } finally {
+        _cancelingByCall = false;
+      }
     }
-    if (index != null) _layout.onReorderEnd?.call(index.value);
+    _endDrag(now: true);
   }
 
-  /// Reports the end of the drag that the SDK cancels, with no
-  /// `onReorderEnd`, in the build that changes its item count: once, after
-  /// that frame, with the index the drag started at (E06).
-  void _reportCountEnd() {
-    final index = _dragIndex;
-    if (index == null) return;
+  /// The list's sliver reset its drag outside [_cancelDrag]: a second
+  /// pointer that takes the drag over, a pointer cancel, or an item-count
+  /// change. The SDK resets inside its own `setState` or a build, so the end
+  /// waits for a microtask (FR-04 E06).
+  void _handleListReset() {
+    if (_cancelingByCall) return;
+    _endDrag(now: false);
+  }
+
+  /// The one exit of a drag: reports `onReorderEnd` once per
+  /// `onReorderStart`, with [at], else the index the drag started at.
+  ///
+  /// - [now]: at once; otherwise in a microtask, after the SDK's own
+  ///   `setState` or the build that ended the drag.
+  void _endDrag({required bool now, int? at}) {
+    final start = _dragIndex;
+    if (start == null) return;
     _dragIndex = null;
-    // After the frame: the app may set state in onReorderEnd.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _layout.onReorderEnd?.call(index.value);
+    final index = at ?? start.value;
+    if (now) {
+      _layout.onReorderEnd?.call(index);
+      return;
+    }
+    scheduleMicrotask(() {
+      if (mounted) _layout.onReorderEnd?.call(index);
     });
   }
 
@@ -1261,14 +1276,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void _liftedLetGo(Key key) {
     if (_liftedKey == key) _liftedKey = null;
     if (_standInKey == key) _standInKey = null;
-  }
-
-  /// A pointer left the list, lifted or canceled. With none left, no drag
-  /// is in progress, whatever [_dragIndex] says after a gesture the SDK
-  /// canceled without `onReorderEnd`.
-  void _handlePointerGone() {
-    _pointersDown -= 1;
-    if (_pointersDown == 0) _dragIndex = null;
   }
 
   /// Jumps to the start when [toStart], else to the end. The target slot
@@ -2124,9 +2131,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final hostless =
         layout.itemCount == 0 && _exits.isNotEmpty && !_fixedExtent;
     final listCount = hostless ? 1 : layout.itemCount;
-    // The SDK cancels a drag with no onReorderEnd when this count changes.
+    // A count change ends the drag in this build, before the sliver builds
+    // the new count; the end reaches _endDrag through
+    // _ReorderSliverState.cancelReorder (E06).
     if (listCount != _listCount) {
-      _reportCountEnd();
+      _listKey.currentState?.cancelReorder();
       final lifted = _liftedKey;
       if (lifted != null) {
         _standInKey = lifted;
@@ -2138,47 +2147,127 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       }
     }
     _listCount = listCount;
-    // Counts the pointers down on the list: the last one gone ends a drag.
-    return Listener(
-      onPointerDown: (_) => _pointersDown += 1,
-      onPointerUp: (_) => _handlePointerGone(),
-      onPointerCancel: (_) => _handlePointerGone(),
-      // The widgets `ReorderableList`'s own tree, built here so the key
-      // reaches the sliver (invariant 35) and the viewport alone follows
-      // the build-ahead (D3).
-      child: _ReorderScrollView(
-        aheadAsks: _aheadAsks,
-        scrollDirection: layout.scrollDirection,
-        reverse: layout.reverse,
-        controller: widget.controller,
-        primary: layout.primary,
-        physics: layout.physics,
-        shrinkWrap: layout.shrinkWrap,
-        scrollCacheExtent: layout.scrollCacheExtent,
-        dragStartBehavior: layout.dragStartBehavior,
-        keyboardDismissBehavior: layout.keyboardDismissBehavior,
-        restorationId: layout.restorationId,
-        clipBehavior: layout.clipBehavior,
-        slivers: [
-          SliverPadding(
-            padding: widget.padding ?? EdgeInsets.zero,
-            sliver: SliverReorderableList(
-              key: _listKey,
-              itemBuilder: _buildItem,
-              itemCount: listCount,
-              onReorderItem: _handleReorderItem,
-              onReorderStart: _handleReorderStart,
-              onReorderEnd: _handleReorderEnd,
-              itemExtent: layout.itemExtent,
-              itemExtentBuilder: layout.itemExtentBuilder,
-              prototypeItem: layout.prototypeItem,
-              proxyDecorator: layout.dragStyle == null ? null : _proxy,
-              autoScrollerVelocityScalar: layout.autoScrollerVelocityScalar,
-            ),
+    // The widgets `ReorderableList`'s own tree, built here so the key
+    // reaches the sliver (invariant 35) and the viewport alone follows the
+    // build-ahead (D3).
+    return _ReorderScrollView(
+      aheadAsks: _aheadAsks,
+      scrollDirection: layout.scrollDirection,
+      reverse: layout.reverse,
+      controller: widget.controller,
+      primary: layout.primary,
+      physics: layout.physics,
+      shrinkWrap: layout.shrinkWrap,
+      scrollCacheExtent: layout.scrollCacheExtent,
+      dragStartBehavior: layout.dragStartBehavior,
+      keyboardDismissBehavior: layout.keyboardDismissBehavior,
+      restorationId: layout.restorationId,
+      clipBehavior: layout.clipBehavior,
+      slivers: [
+        SliverPadding(
+          padding: widget.padding ?? EdgeInsets.zero,
+          sliver: _ReorderSliver(
+            key: _listKey,
+            body: this,
+            itemBuilder: _buildItem,
+            itemCount: listCount,
+            onReorderItem: _handleReorderItem,
+            onReorderStart: _handleReorderStart,
+            onReorderEnd: _handleReorderEnd,
+            itemExtent: layout.itemExtent,
+            itemExtentBuilder: layout.itemExtentBuilder,
+            prototypeItem: layout.prototypeItem,
+            proxyDecorator: layout.dragStyle == null ? null : _proxy,
+            autoScrollerVelocityScalar: layout.autoScrollerVelocityScalar,
           ),
-        ],
-      ),
+        ),
+      ],
     );
+  }
+}
+
+/// The widgets [SliverReorderableList] whose State routes every drag end
+/// the SDK causes to [body]'s one exit, `_endDrag` (FR-04 E06). Private,
+/// so a test finds it by a `SliverReorderableList` subtype predicate.
+class _ReorderSliver extends SliverReorderableList {
+  const new({
+    required GlobalKey<SliverReorderableListState> super.key,
+    required this.body,
+    required super.itemBuilder,
+    required super.itemCount,
+    required ReorderCallback super.onReorderItem,
+    required void Function(int index) super.onReorderStart,
+    required void Function(int index) super.onReorderEnd,
+    super.itemExtent,
+    super.itemExtentBuilder,
+    super.prototypeItem,
+    super.proxyDecorator,
+    super.autoScrollerVelocityScalar,
+  });
+
+  final _ReorderableBodyState body;
+
+  @override
+  SliverReorderableListState createState() => _ReorderSliverState();
+}
+
+/// Reports to the body each reset the SDK makes through [cancelReorder],
+/// and each canceled gesture through a [_WatchedDrag]; the SDK reports a
+/// drop itself through `onReorderEnd`. Every drag passes through
+/// [startItemDragReorder], from the long-press listener or an app's
+/// `ReorderableDragStartListener` handle alike.
+class _ReorderSliverState extends SliverReorderableListState {
+  _ReorderableBodyState get _body => (widget as _ReorderSliver).body;
+
+  // Wraps after super: the recognizer reads onStart only when the arena
+  // accepts, after the pointer-down dispatch (multidrag.dart, _startDrag).
+  @override
+  void startItemDragReorder({
+    required int index,
+    required PointerDownEvent event,
+    required MultiDragGestureRecognizer recognizer,
+  }) {
+    super.startItemDragReorder(
+      index: index,
+      event: event,
+      recognizer: recognizer,
+    );
+    final start = recognizer.onStart;
+    if (start == null) return;
+    final body = _body;
+    recognizer.onStart = (position) {
+      final drag = start(position);
+      return drag == null ? null : _WatchedDrag(drag, body._handleListReset);
+    };
+  }
+
+  // The SDK calls this on an item-count change (didUpdateWidget) and on a
+  // second pointer (startItemDragReorder); the body calls it too.
+  @override
+  void cancelReorder() {
+    super.cancelReorder();
+    _body._handleListReset();
+  }
+}
+
+/// Forwards a drag to the SDK's own and reports its cancel, which the SDK
+/// resets with neither `onReorderEnd` nor `cancelReorder`.
+class _WatchedDrag extends Drag {
+  new(this._drag, this._onCancel);
+
+  final Drag _drag;
+  final VoidCallback _onCancel;
+
+  @override
+  void update(DragUpdateDetails details) => _drag.update(details);
+
+  @override
+  void end(DragEndDetails details) => _drag.end(details);
+
+  @override
+  void cancel() {
+    _drag.cancel();
+    _onCancel();
   }
 }
 
@@ -2472,8 +2561,7 @@ extension type const _DataIndex(int value) {
 /// and `_itemLooks`, and the index the SDK reports. It becomes a
 /// [_DataIndex] only through `_dataIndexOf`; its `value` leaves it only
 /// there (its argument), in [slot], and at `onReorderEnd` for the
-/// `_dragIndex` of a drag the list ends (`_cancelDrag`,
-/// `_reportCountEnd`).
+/// `_dragIndex` of a drag the list ends (`_endDrag`).
 extension type const _FrameIndex(int value) {
   /// The slot this index held in the last frame.
   int get slot => value;

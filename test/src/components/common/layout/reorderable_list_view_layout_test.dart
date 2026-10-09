@@ -128,8 +128,15 @@ class _HarnessState extends State<_Harness> {
   final starts = <int>[];
   final ends = <int>[];
 
+  /// Each `onReorderStart` and `onReorderEnd`, as `start <index>` or
+  /// `end <index>`, in call order.
+  final events = <String>[];
+
   /// Runs inside `onReorderStart`, after the start is logged.
   void Function(int index)? onStart;
+
+  /// Runs inside `onReorderEnd`, after the end is logged.
+  void Function(int index)? onEnd;
 
   /// Runs inside `onReorderItem`, after the move is applied.
   void Function(int from, int to)? onMove;
@@ -191,9 +198,14 @@ class _HarnessState extends State<_Harness> {
       scrollCacheExtent: widget.scrollCacheExtent,
       onReorderStart: (index) {
         starts.add(index);
+        events.add('start $index');
         onStart?.call(index);
       },
-      onReorderEnd: ends.add,
+      onReorderEnd: (index) {
+        ends.add(index);
+        events.add('end $index');
+        onEnd?.call(index);
+      },
       onReorderItem: (from, to) {
         setState(() {
           moves.add((from, to));
@@ -563,6 +575,51 @@ Future<void> _altNow(WidgetTester tester, LogicalKeyboardKey key) async {
 /// subtype (D11).
 Finder _reorderSliver() =>
     find.byWidgetPredicate((widget) => widget is SliverReorderableList);
+
+/// Long-presses item [id] past the long-press delay and moves it [by] px
+/// down: a drag of the item in progress, on [pointer] when given.
+Future<TestGesture> _liftItem(
+  WidgetTester tester,
+  int id, {
+  double by = 10,
+  int? pointer,
+}) async {
+  final gesture = await tester.startGesture(
+    tester.getCenter(find.text('$id')),
+    pointer: pointer,
+  );
+  await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+  await gesture.moveBy(Offset(0, by));
+  await tester.pump();
+  return gesture;
+}
+
+/// Drags item [id] by its handle past the touch slop, on [pointer] when
+/// given.
+Future<TestGesture> _grabHandle(
+  WidgetTester tester,
+  int id, {
+  int? pointer,
+}) async {
+  final gesture = await tester.startGesture(
+    tester.getCenter(find.byKey(ValueKey('handle $id'))),
+    pointer: pointer,
+  );
+  await tester.pump();
+  await gesture.moveBy(const Offset(0, 20));
+  await tester.pump();
+  await gesture.moveBy(const Offset(0, 10));
+  await tester.pump();
+  return gesture;
+}
+
+/// Dispatches [event] as the test's own pointer source, with no frame.
+void _sendPointer(WidgetTester tester, PointerEvent event) {
+  tester.binding.handlePointerEventForSource(
+    event,
+    source: TestBindingEventSource.test,
+  );
+}
 
 void main() {
   group('ReorderableListViewLayout pointer', () {
@@ -2552,8 +2609,8 @@ void main() {
     });
 
     testWidgets(
-      'us11/fr04/e06: a drag its gesture canceled fires no onReorderEnd at a '
-      'later removal',
+      'us11/fr04/e06: a drag its gesture canceled fires one onReorderEnd, '
+      'and none at a later removal',
       (tester) async {
         final controller = StratumReorderableItemsController();
         await tester.pumpWidget(
@@ -2569,12 +2626,12 @@ void main() {
         await gesture.cancel();
         await tester.pumpAndSettle();
         expect(_harness(tester).starts, [0]);
-        expect(_harness(tester).ends, isEmpty);
+        expect(_harness(tester).ends, [0]);
 
         _harness(tester).remove(3);
         await tester.pumpAndSettle();
 
-        expect(_harness(tester).ends, isEmpty);
+        expect(_harness(tester).ends, [0]);
         expect(_harness(tester).ids, [0, 1, 2, 4]);
       },
     );
@@ -7048,6 +7105,278 @@ void main() {
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(outside));
         expect(position.pixels, 4000);
+      },
+    );
+  });
+
+  group('ReorderableListViewLayout drag ends', () {
+    testWidgets(
+      'us11/fr04/e06: a second pointer that takes a long-press drag over '
+      'ends it with one onReorderEnd, in the microtask after its down '
+      '(the SDK calls cancelReorder on the second pointer)',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        final gesture = await _liftItem(tester, 2);
+        final harness = _harness(tester);
+        final second = TestPointer(9);
+
+        _sendPointer(tester, second.down(tester.getCenter(find.text('5'))));
+        expect(harness.ends, isEmpty);
+        await tester.idle();
+        expect(harness.ends, [2]);
+        _sendPointer(tester, second.up());
+        await tester.pump();
+        harness.insert(0, 100);
+        expect(harness.ends, [2]);
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [2]);
+        expect(harness.moves, isEmpty);
+        expect(harness.starts, [2]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e06: a second long press that starts a second drag ends '
+      'the first drag before the second one starts',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 20)));
+        final gesture = await _liftItem(tester, 2);
+        final harness = _harness(tester);
+
+        final second = await _liftItem(tester, 5, by: 50, pointer: 9);
+        await tester.pump();
+        await second.up();
+        await tester.pumpAndSettle();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.starts, [2, 5]);
+        expect(harness.events.first, 'start 2');
+        expect(harness.events[1], 'end 2');
+        expect(harness.events[2], 'start 5');
+        expect(harness.events.where((event) => event.startsWith('end')), [
+          'end 2',
+          isA<String>(),
+        ]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e06: a pointer cancel ends the drag with one onReorderEnd, '
+      'and a later insertItem reports none',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        final gesture = await _liftItem(tester, 2);
+        final harness = _harness(tester);
+
+        await gesture.cancel();
+        await tester.pump();
+        expect(harness.ends, [2]);
+        harness.insert(0, 100);
+        expect(harness.ends, [2]);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [2]);
+        expect(harness.starts, [2]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e06: a pointer cancel reports onReorderEnd in a microtask '
+      'after the cancel, not inside its dispatch (the SDK reads the '
+      "recognizer's onStart lazily and its own cancel skips cancelReorder)",
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 20)));
+        final harness = _harness(tester);
+        final first = TestPointer(8);
+        _sendPointer(tester, first.down(tester.getCenter(find.text('2'))));
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+        _sendPointer(tester, first.move(first.location! + const Offset(0, 10)));
+        await tester.pump();
+        expect(harness.starts, [2]);
+
+        _sendPointer(tester, first.cancel());
+        expect(harness.ends, isEmpty);
+        await tester.idle();
+        expect(harness.ends, [2]);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [2]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e06: a drop reports onReorderEnd once, at the pointer up, '
+      "with the index Flutter's list gives the drop",
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 20)));
+        final gesture = await _liftItem(tester, 2, by: 100);
+        final harness = _harness(tester);
+
+        await gesture.up();
+        expect(harness.ends, [4]);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [4]);
+        expect(harness.moves, [(2, 3)]);
+      },
+    );
+
+    testWidgets('us11/fr04/e06: disposing the list during a drag reports no '
+        'onReorderEnd', (tester) async {
+      await tester.pumpWidget(_app(const _Harness(count: 20)));
+      final gesture = await _liftItem(tester, 2);
+      final harness = _harness(tester);
+
+      await tester.pumpWidget(_app(const SizedBox()));
+      await tester.idle();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(harness.starts, [2]);
+      expect(harness.ends, isEmpty);
+    });
+
+    testWidgets(
+      'us11/fr01/e01: a second pointer on a handle takes the handle drag '
+      'over and ends it with one onReorderEnd, in the microtask after its '
+      'down',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 20,
+              handles: true,
+              longPressDrag: false,
+              itemsController: controller,
+            ),
+          ),
+        );
+        final gesture = await _grabHandle(tester, 2);
+        final harness = _harness(tester);
+        expect(harness.starts, [2]);
+        final second = TestPointer(9);
+
+        _sendPointer(
+          tester,
+          second.down(tester.getCenter(find.byKey(const ValueKey('handle 5')))),
+        );
+        expect(harness.ends, isEmpty);
+        await tester.idle();
+        expect(harness.ends, [2]);
+        _sendPointer(tester, second.up());
+        await tester.pump();
+        harness.insert(0, 100);
+        expect(harness.ends, [2]);
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [2]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr01/e01: a second handle drag ends the first one before it '
+      'starts',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(const _Harness(count: 20, handles: true, longPressDrag: false)),
+        );
+        final gesture = await _grabHandle(tester, 2);
+        final harness = _harness(tester);
+
+        final second = await _grabHandle(tester, 5, pointer: 9);
+        await second.up();
+        await tester.pumpAndSettle();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.starts, [2, 5]);
+        expect(harness.events.take(3), ['start 2', 'end 2', 'start 5']);
+        expect(harness.ends, hasLength(2));
+      },
+    );
+
+    testWidgets(
+      'us11/fr01/e01: a pointer cancel on a handle drag ends it with one '
+      'onReorderEnd',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(const _Harness(count: 20, handles: true, longPressDrag: false)),
+        );
+        final gesture = await _grabHandle(tester, 2);
+
+        await gesture.cancel();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ends, [2]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e06: an app that calls removeItem from the onReorderEnd of '
+      "a second pointer's takeover fails no assert",
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        final gesture = await _liftItem(tester, 2);
+        final harness = _harness(tester);
+        harness.onEnd = (_) => harness.remove(0);
+        final second = TestPointer(9);
+
+        _sendPointer(tester, second.down(tester.getCenter(find.text('5'))));
+        await tester.idle();
+        _sendPointer(tester, second.up());
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [2]);
+        expect(harness.ids.take(3), [1, 2, 3]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e06: an app that calls removeItem from the onReorderEnd of '
+      'a pointer cancel fails no assert',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 20, itemsController: controller)),
+        );
+        final gesture = await _liftItem(tester, 2);
+        final harness = _harness(tester);
+        harness.onEnd = (_) => harness.remove(0);
+
+        await gesture.cancel();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [2]);
+        expect(harness.ids.take(3), [1, 2, 3]);
       },
     );
   });

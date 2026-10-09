@@ -127,7 +127,9 @@ scroll it, guarded so a text field inside keeps its own keys.
 - **`ReorderableListViewLayout`** (`.builder` only) — a reorderable list on widgets `SliverReorderableList`, with a
   caller-placed drag handle or `longPressDrag`, `onReorderItem`, and `dragStyle` for the lifted item; each item keeps
   its `State` and focus across a move through a global key that never uses the index. An item finds the list through
-  `SliverReorderableList.maybeOf(context)`, not `ReorderableList.maybeOf`.
+  `SliverReorderableList.maybeOf(context)`, not `ReorderableList.maybeOf`. The list builds a private
+  `SliverReorderableList` subtype, which `find.byType(SliverReorderableList)` misses: a test finds it with
+  `find.byWidgetPredicate((widget) => widget is SliverReorderableList)`.
   A drag held near a viewport edge scrolls the list toward that edge; `autoScrollerVelocityScalar` scales its speed.
   Keyboard: Alt+arrow along the axis moves the focused item one slot, Alt+Home/Alt+End move it to either end; a move
   past either end is still handled, so it never reaches the browser (Chrome's Alt+Left/Alt+Right Back/Forward).
@@ -168,8 +170,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   focusable, unless the app moves focus in the same turn; a focused item the app removes and inserts back with its key
   in the same turn keeps focus instead, and the list scrolls to it and shows it. A reorder of a leaving item's neighbor
   ends that leaving item. An `insertItem`, `removeItem`, `moveItem`, key or screen-reader move, or item-count change
-  during a drag ends it first with `onReorderEnd` at its start index and no `onReorderItem`; key and screen-reader moves
-  then report their own.
+  during a drag ends it first, and a pointer cancel or a second pointer that takes the drag over ends it, each with
+  `onReorderEnd` at its start index and no `onReorderItem`; key and screen-reader moves then report their own. Every
+  drag ends with exactly one `onReorderEnd`; a drop reports the index Flutter's reorderable list gives it.
 
   ```dart
   final itemsController = StratumReorderableItemsController();
