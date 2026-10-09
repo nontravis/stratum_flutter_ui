@@ -20,7 +20,6 @@ import 'package:flutter/rendering.dart'
 import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/wrap_cut.dart';
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The content of a [WrapLayout] in overflow mode (s03 invariants 36 to
@@ -112,7 +111,7 @@ class _WrapOverflowFrameState extends State<WrapOverflowFrame>
         textDirection: widget.textDirection ?? Directionality.maybeOf(context),
         wrapNode: _wrapNode,
         vsync: this,
-        duration: reducesMotion(context)
+        duration: context.reducesMotion
             ? Duration.zero
             : motion.duration ?? Duration.zero,
         curve: motion.curve ?? Curves.easeInOutSine,
