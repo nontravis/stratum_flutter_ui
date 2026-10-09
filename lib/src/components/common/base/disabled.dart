@@ -18,7 +18,9 @@ import 'package:stratum_ui/src/themes/theme_application.dart';
 /// `opacity.disabled` unless [dims] is false, shows
 /// `SystemMouseCursors.forbidden`, lets no pointer event reach the
 /// component, and keeps the component and every node inside it out of
-/// focus and Tab order. It also gives the component a
+/// focus and Tab order. A tap on it then reaches an ancestor's gesture
+/// detector, as a tap on a Flutter button with no `onPressed` does; enabled,
+/// it reports exactly the hit its child reports. It also gives the component a
 /// [StratumDisabledScope], so a tap surface inside cancels a press already
 /// down through its own recognizers, while a gesture an ancestor already
 /// won, such as an enclosing scroll, goes on (R13). A gesture detector the
@@ -61,8 +63,14 @@ class StratumDisabled extends StatelessWidget {
     return Semantics(
       container: reports,
       enabled: reports ? !disabled : null,
+      // A non-opaque region reports no hit to its ancestors
+      // (rendering/proxy_box.dart:3339-3341@3.47.7). Enabled, it reports
+      // its child's hit; disabled, it is hit across its bounds, so the
+      // cursor shows and an ancestor's detector gets the tap.
       child: MouseRegion(
-        opaque: false,
+        hitTestBehavior: disabled
+            ? HitTestBehavior.opaque
+            : HitTestBehavior.deferToChild,
         cursor: disabled ? SystemMouseCursors.forbidden : MouseCursor.defer,
         child: IgnorePointer(
           ignoring: disabled,

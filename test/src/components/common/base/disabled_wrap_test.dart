@@ -132,6 +132,30 @@ class _ExpandedStatefulState extends State<_ExpandedStateful> {
   Widget build(BuildContext context) => const Expanded(child: SizedBox());
 }
 
+/// A component that paints a box and takes no input of its own.
+class _Badge extends StratumStatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) => const ColoredBox(
+    color: Color(0xFF000000),
+    child: SizedBox(width: 100, height: 40),
+  );
+}
+
+/// A component whose tap surface is a [StratumInkWell].
+class _Pressable extends StratumStatelessWidget {
+  const new({super.disabled, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => StratumInkWell(
+    onTap: onTap,
+    child: const SizedBox(width: 100, height: 40),
+  );
+}
+
 StratumDisabled _wrapOf(WidgetTester tester, Finder component) =>
     tester.widget<StratumDisabled>(
       find.descendant(of: component, matching: find.byType(StratumDisabled)),
@@ -255,6 +279,42 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('an app gesture detector around a component', () {
+    testWidgets('us07/fr01: it gets a tap on an enabled component', (
+      tester,
+    ) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        themedHost(GestureDetector(onTap: () => taps++, child: const _Badge())),
+      );
+
+      await tester.tap(find.byType(_Badge));
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(taps, 1);
+    });
+
+    testWidgets('us07/fr02: it gets a tap on a disabled component, while the '
+        "component's own tap surface gets none", (tester) async {
+      var outer = 0;
+      var inner = 0;
+      await tester.pumpWidget(
+        themedHost(
+          GestureDetector(
+            onTap: () => outer++,
+            child: _Pressable(disabled: true, onTap: () => inner++),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(_Pressable));
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(outer, 1);
+      expect(inner, 0);
     });
   });
 
