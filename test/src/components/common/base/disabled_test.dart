@@ -11,7 +11,8 @@ const _box = SizedBox(width: 40, height: 20);
 Widget _host(Widget child, {String label = 'host'}) =>
     themedHost(Semantics(container: true, label: label, child: child));
 
-/// A widget with a State of its own, for the structure checks.
+/// A button with a State of its own, for the structure checks. Its own
+/// `Semantics` sits inside it, so [_chain] sees only the wrapper's layers.
 class _Kept extends StatefulWidget {
   const new();
 
@@ -21,7 +22,8 @@ class _Kept extends StatefulWidget {
 
 class _KeptState extends State<_Kept> {
   @override
-  Widget build(BuildContext context) => _box;
+  Widget build(BuildContext context) =>
+      Semantics(button: true, label: 'Save', child: _box);
 }
 
 /// The widget types from the parent of [_Kept] up to [StratumDisabled].
@@ -36,7 +38,7 @@ List<Type> _chain(WidgetTester tester) {
 
 void main() {
   group('StratumDisabled semantics', () {
-    testWidgets('us07/fr03, us07/s5: a disabled component that contributes '
+    testWidgets('us07/fr03, us07/s5: a disabled component that declares '
         'semantics reads as disabled on one node', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -87,11 +89,17 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us07/fr03/e01, us07/s6: a disabled subtree with no '
-        'semantics adds no node and no flag', (tester) async {
+    testWidgets('us07/fr03/e01, us07/s6: a disabled component that declares '
+        'no semantics adds no node and no flag', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
-        _host(const StratumDisabled(disabled: true, child: _box)),
+        _host(
+          const StratumDisabled(
+            disabled: true,
+            contributesSemantics: false,
+            child: _box,
+          ),
+        ),
       );
 
       expect(
@@ -129,6 +137,27 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('us07/fr03/e03: with dims off it still reads as disabled', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _host(
+          StratumDisabled(
+            disabled: true,
+            dims: false,
+            child: Semantics(button: true, label: 'Save', child: _box),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumDisabled)),
+        isSemantics(label: 'Save', hasEnabledState: true, isEnabled: false),
+      );
+      handle.dispose();
+    });
+
     testWidgets('us07/fr03/e04: the flag stays on the component, never on '
         'the card around it', (tester) async {
       final handle = tester.ensureSemantics();
@@ -159,46 +188,76 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us07/fr03: a disabled subtree that gains semantics later '
-        'reads as disabled', (tester) async {
+    testWidgets('us07/fr03: a first mount with a layer between the wrapper '
+        "and the component's node is right after one pump", (tester) async {
       final handle = tester.ensureSemantics();
-      Widget build({required bool labelled}) => _host(
-        StratumDisabled(
-          disabled: true,
-          child: Semantics(label: labelled ? 'Save' : null, child: _box),
+      await tester.pumpWidget(_host(_box));
+
+      await tester.pumpWidget(
+        _host(
+          StratumDisabled(
+            disabled: true,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Semantics(button: true, label: 'Save', child: _box),
+            ),
+          ),
         ),
       );
-      await tester.pumpWidget(build(labelled: false));
-      expect(
-        tester.getSemantics(find.byType(StratumDisabled)),
-        isSemantics(label: 'host', hasEnabledState: false),
-      );
-
-      await tester.pumpWidget(build(labelled: true));
-      await tester.pump();
 
       expect(
         tester.getSemantics(find.byType(StratumDisabled)),
-        isSemantics(label: 'Save', hasEnabledState: true, isEnabled: false),
+        isSemantics(
+          label: 'Save',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+        ),
       );
+      handle.dispose();
+    });
+
+    testWidgets('us07/fr03, base s03 invariant 15: a semantics-only change '
+        'under a disabled component is right after one pump', (tester) async {
+      final handle = tester.ensureSemantics();
+      final label = ValueNotifier<String?>(null);
+      addTearDown(label.dispose);
+      await tester.pumpWidget(
+        _host(
+          StratumDisabled(
+            disabled: true,
+            child: ValueListenableBuilder<String?>(
+              valueListenable: label,
+              builder: (_, value, _) => Semantics(label: value, child: _box),
+            ),
+          ),
+        ),
+      );
+
+      for (final value in ['Save', null, 'Send']) {
+        label.value = value;
+        await tester.pump();
+
+        final node = tester.getSemantics(find.byType(StratumDisabled));
+        expect(node, isSemantics(hasEnabledState: true, isEnabled: false));
+        expect(node.label, value ?? '');
+      }
       handle.dispose();
     });
   });
 
   group('StratumDisabled structure', () {
-    testWidgets('us07/fr01/e01: a toggle changes values only; the subtree '
-        'keeps its elements and its State', (tester) async {
+    testWidgets('us07/fr01/e01, base s03 invariant 13: a toggle changes '
+        'values only; the semantics layer, the elements, and the State '
+        'stay', (tester) async {
       final handle = tester.ensureSemantics();
-      Widget build({required bool disabled}) => _host(
-        StratumDisabled(
-          disabled: disabled,
-          child: Semantics(button: true, label: 'Save', child: const _Kept()),
-        ),
-      );
+      Widget build({required bool disabled}) =>
+          _host(StratumDisabled(disabled: disabled, child: const _Kept()));
       await tester.pumpWidget(build(disabled: false));
       final element = tester.element(find.byType(_Kept));
       final state = tester.state(find.byType(_Kept));
       final chain = _chain(tester);
+      expect(chain, contains(Semantics));
 
       await tester.pumpWidget(build(disabled: true));
       expect(tester.element(find.byType(_Kept)), same(element));
@@ -206,10 +265,11 @@ void main() {
       expect(_chain(tester), chain);
       expect(
         tester.getSemantics(find.byType(StratumDisabled)),
-        isSemantics(hasEnabledState: true, isEnabled: false),
+        isSemantics(label: 'Save', hasEnabledState: true, isEnabled: false),
       );
 
       await tester.pumpWidget(build(disabled: false));
+      expect(tester.element(find.byType(_Kept)), same(element));
       expect(tester.state(find.byType(_Kept)), same(state));
       expect(_chain(tester), chain);
       expect(
