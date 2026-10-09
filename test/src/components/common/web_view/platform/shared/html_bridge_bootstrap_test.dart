@@ -321,14 +321,14 @@ void main() {
       );
     });
 
-    test('us03/fr04/e03: posts hello again with the same document id on a '
+    test('us03/fr04/e03, us03/fr04/e14: posts hello again on a trusted '
         'pageshow that restores the document from the back-forward '
         'cache', () {
       expect(
         inject('<p>Hi</p>'),
         contains(
           "window.addEventListener('pageshow',function(v){\n"
-          "if(v.persisted)s('hello',id);},true);",
+          "if(v.isTrusted&&v.persisted)s('hello',id);},true);",
         ),
       );
     });

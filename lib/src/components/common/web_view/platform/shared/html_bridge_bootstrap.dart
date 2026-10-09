@@ -72,12 +72,13 @@ String injectBridgeBootstrap(String html, String nonce) {
 /// random bytes in lowercase hex, posts `hello` with it to prove [nonce] for
 /// this document, `bye` on `pagehide` or once a page script removes the
 /// document root, even if it puts the same root back, and `hello` again on
-/// a `pageshow` that restores the document from the back-forward cache (E03,
-/// E10, E11, E14). Every `message` envelope carries the document id before
-/// the text. No envelope carries [token]. Without the platform object the
-/// bridge stays closed. It keeps the document id in
-/// [nativeBridgeDocumentProperty] too, for a reply's dispatch script to
-/// compare.
+/// a trusted `pageshow` that restores the document from the back-forward
+/// cache; an untrusted, script-dispatched `pageshow` never reopens a bridge
+/// a removed root closed (E03, E10, E11, E14). Every `message` envelope
+/// carries the document id before the text. No envelope carries [token].
+/// Without the platform object the bridge stays closed. It keeps the
+/// document id in [nativeBridgeDocumentProperty] too, for a reply's dispatch
+/// script to compare.
 ///
 /// Returns [html] with the source placed by [placeBridgeBootstrap].
 String injectNativeBridgeBootstrap(
@@ -105,7 +106,7 @@ String injectNativeBridgeBootstrap(
       "window.addEventListener('pagehide',function(){\n"
       "s('bye',id);},true);\n"
       "window.addEventListener('pageshow',function(v){\n"
-      "if(v.persisted)s('hello',id);},true);\n"
+      "if(v.isTrusted&&v.persisted)s('hello',id);},true);\n"
       'var doc=document,root=doc.documentElement,\n'
       'removedOf=Function.prototype.call.bind(\n'
       'Object.getOwnPropertyDescriptor(\n'

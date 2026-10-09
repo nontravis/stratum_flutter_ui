@@ -443,6 +443,82 @@ void main() {
     expect(live, contains('id="own"'));
   });
 
+  test('us03/fr04/e14: a forged pageshow never reopens the bridge a page '
+      'script closed; only a trusted restore does', () async {
+    const nonce = '0123456789abcdef0123456789abcdef';
+    const token = 'fedcba9876543210fedcba9876543210';
+    final native = injectNativeBridgeBootstrap(
+      '<p>Hi</p>',
+      nonce: nonce,
+      token: token,
+    );
+    // A fake platform sender wired onto `window.StratumBridge` before the
+    // native bootstrap's own script runs, the shape a real native platform
+    // wires; it forwards each envelope to this test window as a real
+    // cross-document message, so the assertions below read no in-frame
+    // state.
+    final srcdoc =
+        '<script>window.StratumBridge={postMessage:function(m){\n'
+        "parent.postMessage('log:'+m,'*');}};</script>$native";
+    final nativeIframe = web.HTMLIFrameElement()..srcdoc = srcdoc.toJS;
+    final loaded = Completer<void>();
+    nativeIframe.addEventListener(
+      'load',
+      ((web.Event _) {
+        if (!loaded.isCompleted) loaded.complete();
+      }).toJS,
+    );
+    // A tear-off of a JS interop member does not compile, so wrap it.
+    // ignore: unnecessary_lambdas
+    addTearDown(() => nativeIframe.remove());
+    web.document.body!.appendChild(nativeIframe);
+    await loaded.future.timeout(const Duration(seconds: 5));
+
+    final log = <String>[];
+    final raw = ((web.MessageEvent event) {
+      final data = event.data;
+      if (data != null && data.isA<JSString>()) {
+        final text = (data as JSString).toDart;
+        if (text.startsWith('log:')) log.add(text.substring(4));
+      }
+    }).toJS;
+    web.window.addEventListener('message', raw);
+    addTearDown(() => web.window.removeEventListener('message', raw));
+
+    Future<void> waitForLog(int count) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (log.length < count) {
+        if (DateTime.now().isAfter(deadline)) fail('log never reached $count');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    }
+
+    await waitForLog(1);
+    expect(log.single, startsWith('$nativeBridgeEnvelopeTag$nonce:hello:'));
+
+    final nativeDocument = nativeIframe.contentDocument;
+    if (nativeDocument == null) fail('expected a same-origin document');
+    final nativeWindow = nativeIframe.contentWindow;
+    if (nativeWindow == null) fail('expected a content window');
+    final root = nativeDocument.documentElement!;
+    nativeDocument
+      ..removeChild(root)
+      ..appendChild(root);
+    await waitForLog(2);
+    expect(log[1], startsWith('$nativeBridgeEnvelopeTag$nonce:bye:'));
+
+    // A forged, untrusted pageshow: real script cannot set `isTrusted`, so
+    // this carries it false even though it sets `persisted`.
+    nativeWindow.dispatchEvent(
+      web.PageTransitionEvent(
+        'pageshow',
+        web.PageTransitionEventInit(persisted: true),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(log, hasLength(2));
+  });
+
   test('drops a direct postMessage, keeps the bridge message', () async {
     final viaBridge = Completer<void>();
     listener.onMessageCallback = (message) {

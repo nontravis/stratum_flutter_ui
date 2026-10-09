@@ -1258,6 +1258,29 @@ void main() {
         const StratumWebViewMessage(data: 'm'),
       );
     });
+
+    test('us03/fr04/e15: a message whose sender names a reply proxy still '
+        "passes, since the platform does not bind sends to a document's "
+        'proxy', () {
+      final nonce = nonceIn(webKit.willLoadHtml('<p>Hi</p>'));
+      webKit.acceptMessage(
+        envelope(nonce, 'hello', documentA),
+        sender: const BridgeMessageSender(origin: null, isMainFrame: true),
+      );
+      expect(
+        webKit
+            .acceptMessage(
+              messageEnvelope(nonce, 'm'),
+              sender: const BridgeMessageSender(
+                origin: null,
+                isMainFrame: true,
+                replyProxy: BridgeReplyProxy(1),
+              ),
+            )
+            ?.message,
+        const StratumWebViewMessage(data: 'm'),
+      );
+    });
   });
 
   group('dispatchScriptAnswer', () {
