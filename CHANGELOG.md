@@ -23,3 +23,7 @@
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse a zip entry name holding a
   control character and a `/`-ending entry that holds bytes; a zip an app already installed can now fail at preload
   with `unsafe_entry_path`.
+- The tap surface's menu action label, `StratumInkWell`'s last fallback when neither `secondaryTapSemanticsLabel` nor
+  the app's material localizations name it, now reads Stratum's built-in labels: Thai under a Thai locale, English
+  under any other. The package now depends on `flutter_localizations` (SDK) and `intl` (`any`); an app whose own
+  `intl` constraint excludes the version `flutter_localizations` requires must widen it to allow it.
