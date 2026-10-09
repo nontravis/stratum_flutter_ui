@@ -148,8 +148,8 @@ void runNativeAdapterContract(
       );
     });
 
-    test('us03/fr05/e11: a reply script with no answer within 5 seconds, '
-        'or a platform error, throws the StateError naming no origin', () {
+    test('us03/fr05/e11: a reply script with no answer within 5 seconds '
+        'throws the StateError naming no origin', () {
       fakeAsync((async) {
         final zonedHarness = createHarness();
         final zonedAdapter = zonedHarness.createAdapter(listener);
@@ -181,6 +181,10 @@ void runNativeAdapterContract(
         async.elapse(const Duration(milliseconds: 1));
         expect(failure, _unallowedPage);
       });
+    });
+
+    test('us03/fr05/e11: a reply script the platform fails throws the '
+        'StateError naming no origin', () {
       fakeAsync((async) {
         final zonedHarness = createHarness();
         final zonedAdapter = zonedHarness.createAdapter(listener);
