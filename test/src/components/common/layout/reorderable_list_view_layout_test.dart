@@ -58,6 +58,7 @@ class _Harness extends StatefulWidget {
     this.onItemBuild,
     this.heights,
     this.keepAliveIds,
+    this.plainIds,
     this.scrollCacheExtent,
     this.appIndex = false,
   });
@@ -119,6 +120,9 @@ class _Harness extends StatefulWidget {
 
   /// The ids of the items that keep themselves alive off screen.
   final Set<int>? keepAliveIds;
+
+  /// The ids of the items that hold no focus node, as header rows do.
+  final Set<int>? plainIds;
 
   /// The list's `scrollCacheExtent`; null keeps the default 250 px.
   final ScrollCacheExtent? scrollCacheExtent;
@@ -251,6 +255,7 @@ class _HarnessState extends State<_Harness> {
           fill: widget.fillItems,
           height: widget.heights?[ids[index]] ?? 40,
           keepAlive: widget.keepAliveIds?.contains(ids[index]) ?? false,
+          plain: widget.plainIds?.contains(ids[index]) ?? false,
         );
       },
     );
@@ -271,6 +276,7 @@ class _Item extends StatefulWidget {
     this.fill = false,
     this.height = 40,
     this.keepAlive = false,
+    this.plain = false,
   });
 
   final int id;
@@ -294,6 +300,9 @@ class _Item extends StatefulWidget {
 
   /// Whether the item keeps itself alive when it leaves the built range.
   final bool keepAlive;
+
+  /// Whether the item holds no focus node, only its label.
+  final bool plain;
 
   @override
   State<_Item> createState() => _ItemState();
@@ -325,6 +334,7 @@ class _ItemState extends State<_Item> with AutomaticKeepAliveClientMixin {
       height: widget.height,
       child: Text('${widget.id}'),
     );
+    if (widget.plain) return label;
     Widget item = Focus(
       focusNode: node,
       child: widget.inner
@@ -9304,6 +9314,49 @@ void main() {
         expect(focused(), 'item 18');
         expect(_builtInView(tester, 18), isTrue);
       },
+    );
+
+    // How the focused item leaves, and where it was then (R37).
+    final plainNeighbors = ValueVariant<(String, String)>({
+      ('a raw remove', 'in view'),
+      ('a raw remove', 'kept alive off screen'),
+      ('removeItem', 'in view'),
+      ('removeItem', 'kept alive off screen'),
+    });
+    testWidgets(
+      'us11/fr04/e19, us11/fr04/e04, and s03/inv26: a focused item that leaves '
+      'between neighbors with no focusable node hands focus to the nearest '
+      "item that has one, before the list's own Tab stop and Flutter's "
+      'fallback',
+      (tester) async {
+        final (change, place) = plainNeighbors.currentValue!;
+        final (state, position) = await pumpFocused(
+          tester,
+          _Harness(
+            count: 1000,
+            plainIds: const {101, 102, 104},
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        if (place == 'kept alive off screen') {
+          position.jumpTo(20000);
+          await tester.pump();
+        }
+
+        final harness = _harness(tester);
+        if (change == 'removeItem') {
+          harness.remove(103);
+        } else {
+          harness.removeData(103);
+        }
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(state.mounted, isFalse);
+        expect(focused(), 'item 105');
+        expect(_builtInView(tester, 105), isTrue);
+      },
+      variant: plainNeighbors,
     );
 
     final resized = ValueVariant<bool>({false, true});

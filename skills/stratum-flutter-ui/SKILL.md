@@ -170,8 +170,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   back; a `builder` keeps it fading on its own look. The leaving item keeps its State and rebuilds, so an item reading
   its data through `context` (a `watch` or `select` by id or index, a provider family) needs a `builder` capturing that
   data. Under reduced motion, or with `itemExtent`, `itemExtentBuilder`, or `prototypeItem`, the size jumps and the fade
-  plays. Focus on a removed item moves to the next item, else the previous, else the list's Tab stop when the list is
-  focusable, and the list shows it, unless the app moves focus in the same turn or after the frame; the same holds when
+  plays. Focus on a removed item moves to the next item, else the previous, else the nearest item that has a focusable
+  node, else the list's Tab stop when the list is focusable, and the list shows it, unless the app moves focus in the
+  same turn or after the frame; the same holds when
   the app takes the focused item out of its data with no call, by a remove, a replace, or, with no
   `findChildIndexCallback`, a reorder. A focused item the app removes and inserts back with its key in the same turn
   keeps focus instead, and the list scrolls to it and shows it. A reorder of a leaving item's neighbor

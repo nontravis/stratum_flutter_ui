@@ -1303,8 +1303,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Requests focus now for the node [_handOffFocus] would pick from [gap]:
   /// the first node of the laid-out item at the gap, else of the one before
-  /// it, else the list's own Tab stop; with no laid-out neighbor, the hold
-  /// node, while [_handOffFocus] reaches toward the gap after the frame.
+  /// it, else of the laid-out item nearest the gap that holds one
+  /// ([_nearestStopTo], R37), else the list's own Tab stop; with no laid-out
+  /// neighbor, the hold node, while [_handOffFocus] reaches toward the gap
+  /// after the frame.
   ///
   /// Called once the frame's layout is done and before its post-frame
   /// callbacks, where the tree may be locked: it scrolls and reveals
@@ -1321,6 +1323,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
               (previous == null
                   ? null
                   : _firstStopOf(previous, reveal: false)) ??
+              _nearestStopTo(gap, reveal: false) ??
               _ownTabStop();
     if (target == null) return;
     target.requestFocus();
@@ -1973,9 +1976,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// item out before the frame whose jump would reach its slot, the list
   /// first reaches toward the gap, as [_reach] reaches an unbuilt slot, for
   /// up to [frames] frames, and hands focus on over the items laid out
-  /// there; when the reach gives up, focus goes to the laid-out item
-  /// nearest the gap ([_nearestStopTo]), and only with none to the list's
-  /// own Tab stop, so focus stays in the list while it can take it
+  /// there; when the reach gives up, or when neither laid-out neighbor holds
+  /// a node that takes focus, focus goes to the laid-out item nearest the
+  /// gap that holds one ([_nearestStopTo], R37), and only with none to the
+  /// list's own Tab stop, so focus stays in the list while it can take it
   /// (invariant 26). With [interim], the node the list focused while it
   /// reaches, a focus the app moves off it ends the handoff (R13,
   /// invariant 32); when nothing in the list can take focus, [interim] lets
@@ -2017,12 +2021,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
           ..scheduleFrame();
         return;
       }
-      final nearest = _nearestStopTo(gap);
-      if (nearest != null) {
-        nearest.requestFocus();
-        _revealHandOff(nearest);
-        return;
-      }
+    }
+    final nearest = _nearestStopTo(gap);
+    if (nearest != null) {
+      nearest.requestFocus();
+      _revealHandOff(nearest);
+      return;
     }
     final own = _ownTabStop();
     if (own != null) {
@@ -2060,9 +2064,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The first node in Tab order of the laid-out item nearest [gap] of the
   /// current data by data index, the first one after the gap, else the
-  /// last one before it, revealed by [firstTabStopIn]; null when the frame
-  /// laid out no item that holds one. Only the item it returns is revealed.
-  FocusNode? _nearestStopTo(_DataIndex gap) {
+  /// last one before it, revealed by [firstTabStopIn] when [reveal] is
+  /// true; null when the frame laid out no item that holds one. Only the
+  /// item it returns is revealed.
+  FocusNode? _nearestStopTo(_DataIndex gap, {bool reveal = true}) {
     final laid = _laidOut();
     if (laid == null) return null;
     final after = <(_DataIndex, _FrameIndex)>[];
@@ -2077,7 +2082,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     after.sort(byIndex);
     before.sort((a, b) => byIndex(b, a));
     for (final (_, index) in [...after, ...before]) {
-      final stop = _firstStopOf(index);
+      final stop = _firstStopOf(index, reveal: reveal);
       if (stop != null) return stop;
     }
     return null;
