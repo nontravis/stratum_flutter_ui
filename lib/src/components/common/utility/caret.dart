@@ -168,6 +168,12 @@ class _StratumCaretState extends State<StratumCaret> {
         ),
         debug: widget.debug,
         child: TweenAnimationBuilder<double>(
+          // Keyed by `reduce`: a mid-turn flip of reduced motion changes no
+          // target angle, so `AnimatedWidgetBaseState` would otherwise never
+          // restart the already-running controller. Remounting under a new
+          // key builds a fresh `TweenAnimationBuilder` state, which starts
+          // at its tween's end value with no animation (spec invariant 9).
+          key: ValueKey(reduce),
           tween: Tween<double>(end: _quarterTurns * math.pi / 2),
           // The theme's fast level on its standard curve; a level built
           // with no duration or curve takes none and easeInOutSine

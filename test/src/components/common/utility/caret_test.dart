@@ -656,6 +656,48 @@ void main() {
       });
     }
 
+    for (final (name, viaMediaQuery) in [
+      ('us02/fr03/e01, nfr-u03: the app disables animations mid-turn', true),
+      (
+        'us02/fr03/e02, nfr-u03: the platform reduce-motion flag turns on '
+            'mid-turn',
+        false,
+      ),
+    ]) {
+      testWidgets('$name: the live turn snaps to the end angle', (
+        tester,
+      ) async {
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        Widget host(StratumCaretDirection direction, {required bool reduce}) {
+          if (!viaMediaQuery) {
+            tester.platformDispatcher.accessibilityFeaturesTestValue = reduce
+                ? const FakeAccessibilityFeatures(reduceMotion: true)
+                : const FakeAccessibilityFeatures();
+          }
+          return MediaQuery(
+            data: MediaQueryData.fromView(tester.view)
+                .copyWith(disableAnimations: viaMediaQuery && reduce),
+            child: _turning(direction),
+          );
+        }
+
+        await tester.pumpWidget(
+          host(StratumCaretDirection.down, reduce: false),
+        );
+        await tester.pumpWidget(host(StratumCaretDirection.up, reduce: false));
+        await tester.pump(const Duration(milliseconds: 62));
+        expect(_angle(tester), allOf(greaterThan(0), lessThan(math.pi)));
+
+        await tester.pumpWidget(host(StratumCaretDirection.up, reduce: true));
+        await tester.pump();
+
+        expect(_angle(tester), math.pi);
+        expect(tester.hasRunningAnimations, isFalse);
+      });
+    }
+
     testWidgets('us02/fr04/e01, us02/s6: end moves to the left at once when '
         'the app switches to right to left', (tester) async {
       await tester.pumpWidget(_turning(StratumCaretDirection.end));
