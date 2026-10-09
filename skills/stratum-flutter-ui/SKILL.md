@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType, or showing and hiding content with StratumShow, disabling any component with disabled and dimsWhenDisabled, the opacity.disabled theme token, or pinch zoom on the web with StratumWebZoom.
 ---
 
 # Stratum Flutter UI
@@ -367,6 +367,29 @@ scroll it, guarded so a text field inside keeps its own keys.
   and Linux included, still fades over its full duration on the caller's curve, else the theme's `standard` curve, and
   any other type shows the page at once.
 - **Flutter floor** — `stratum_ui` needs Flutter 3.44 or later, which package `animations` 3.0.0 needs.
+
+## Show and hide
+
+- **`StratumShow`** — `StratumShow(visible: v, child: c)` shows `c` while `v` is true and hides it while false, by
+  `transition`: `StratumShowTransition.sizeAndFade` (the default), `.fade`, `.size`, or `.slide`, over the theme's
+  default motion level (125 ms to show and 80 ms to hide in the package default) on its `standard` curve; `duration`,
+  `reverseDuration`, and `curve` each replace one of them. A slide moves the content by its own size from
+  `slideDirection`: `StratumShowSlideDirection.end` (the default), `.start`, `.top`, or `.bottom`, with start and end
+  mirrored under right-to-left text, and fades as it moves. Hidden content takes no space in a row or a column and is
+  unmounted after its hide motion, so it builds fresh when shown again; `maintainState: true` keeps it mounted
+  instead, with its state, its tickers stopped, and no size. From the frame it turns hidden, leaving or hidden content
+  takes no tap, focus, or screen-reader attention; focus inside it moves to the show, which Tab never stops on. Under
+  reduced motion nothing moves or resizes: `fade`, `sizeAndFade`, and `slide` keep their fade, and `size` shows and
+  hides at once.
+
+## Web zoom
+
+- **`StratumWebZoom`** — wrap a web app, or the part of it to zoom, in `StratumWebZoom(child: app)`. On the web the
+  EndUser pinches, on a touch screen or a trackpad, to zoom between `minScale` (default 1.0, so the app never shrinks
+  below its own layout) and `maxScale` (default 2.5), pans the zoomed app, and sees it clipped to the zoom's bounds;
+  the mouse wheel never zooms and keeps scrolling the list under the pointer. On Android, iOS, macOS, Windows, and
+  Linux it builds the child alone. A `maxScale` below `minScale`, or a `minScale` of 0 or less, fails an assertion in
+  debug builds on every platform. It does not zoom the page inside a `StratumWebView`.
 
 ## Web view
 
