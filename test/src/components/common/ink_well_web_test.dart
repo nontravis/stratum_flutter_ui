@@ -4,9 +4,21 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
-import 'fakes/web_themed_host.dart';
+import 'fakes/fake_stratum_theme.dart';
 
 const _box = SizedBox(width: 40, height: 20);
+
+/// Places [child] in a [Center] under a [StratumThemeApplication] of
+/// [defaultThemeSet]'s light data (no [fakeTheme] overlay colors) and a
+/// [Directionality], as `themedHost` does on the Dart VM.
+Widget webThemedHost(
+  Widget child, {
+  TextDirection textDirection = TextDirection.ltr,
+}) => themedHost(
+  child,
+  theme: defaultThemeSet.light,
+  textDirection: textDirection,
+);
 
 void _noop() {}
 
