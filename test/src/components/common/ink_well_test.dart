@@ -101,6 +101,16 @@ class _MenuLocalizationsDelegate
   bool shouldReload(_MenuLocalizationsDelegate old) => false;
 }
 
+/// [child] under a bare [Localizations] for [locale] that holds widgets
+/// localizations only, so material localizations are absent.
+Widget _localeHost(Locale locale, Widget child) {
+  return Localizations(
+    locale: locale,
+    delegates: const [DefaultWidgetsLocalizations.delegate],
+    child: themedHost(child),
+  );
+}
+
 /// [child] under a [MaterialApp], which a [TextField] needs.
 Widget _appHost(Widget child) {
   return MaterialApp(home: Material(child: themedHost(child)));
@@ -1786,6 +1796,115 @@ void main() {
         tester.getSemantics(find.byType(StratumInkWell)),
         isSemantics(
           customActions: [const CustomSemanticsAction(label: 'Show menu')],
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us05/fr04/e01: under th the action reads the Thai '
+        'built-in label', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _localeHost(
+          const Locale('th'),
+          const StratumInkWell(onSecondaryTap: _noop, child: _box),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          customActions: [const CustomSemanticsAction(label: 'แสดงเมนู')],
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us05/fr04/e02: under ja the action reads the English '
+        'built-in label', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _localeHost(
+          const Locale('ja'),
+          const StratumInkWell(onSecondaryTap: _noop, child: _box),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          customActions: [const CustomSemanticsAction(label: 'Show menu')],
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('fo09/us01/fr02: under th secondaryTapSemanticsLabel wins '
+        'over the built-in label', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _localeHost(
+          const Locale('th'),
+          const StratumInkWell(
+            onSecondaryTap: _noop,
+            secondaryTapSemanticsLabel: 'Row options',
+            child: _box,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          customActions: [const CustomSemanticsAction(label: 'Row options')],
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us05/fr04: under th the material showMenuTooltip wins over '
+        'the built-in label', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        Localizations(
+          locale: const Locale('th'),
+          delegates: const [
+            _MenuLocalizationsDelegate(),
+            DefaultWidgetsLocalizations.delegate,
+          ],
+          child: themedHost(
+            const StratumInkWell(onSecondaryTap: _noop, child: _box),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          customActions: [const CustomSemanticsAction(label: 'Open menu')],
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us05/s3: the action label follows the app language from '
+        'English to Thai', (tester) async {
+      final handle = tester.ensureSemantics();
+      const surface = StratumInkWell(onSecondaryTap: _noop, child: _box);
+      await tester.pumpWidget(_localeHost(const Locale('en'), surface));
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          customActions: [const CustomSemanticsAction(label: 'Show menu')],
+        ),
+      );
+
+      await tester.pumpWidget(_localeHost(const Locale('th'), surface));
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          customActions: [const CustomSemanticsAction(label: 'แสดงเมนู')],
         ),
       );
       handle.dispose();

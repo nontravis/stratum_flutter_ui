@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType.
+description: Use when building a Flutter app on the Stratum UI design system package and deciding which layout primitive to reach for, what its key parameters are, or how it behaves by keyboard, or when starting, switching, or writing a Stratum theme. Triggers on questions about ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts files in theme.yaml, or StratumWebView, StratumWebViewController, and the page message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType, or Stratum's built-in labels in Thai and supportedLocales.
 ---
 
 # Stratum Flutter UI
@@ -210,6 +210,17 @@ scroll it, guarded so a text field inside keeps its own keys.
   borderRadius: r, child: x)` with `StratumFocusBorder(state: f ? FullWidgetState.focused : FullWidgetState.normal,
   customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
   took effect.
+
+## Built-in labels
+
+- **Thai labels** — Stratum's own labels, such as the menu action a screen reader offers on a tap surface with
+  `onSecondaryTap`, show in Thai when the locale's language is Thai and in English for any other language. List
+  `Locale('th')` in the app's `supportedLocales` to show them in Thai. Stratum's built-in labels need no delegate of
+  their own: an app that lists `Locale('th')` in `supportedLocales` still adds Flutter's
+  `GlobalMaterialLocalizations.delegates`, as any Thai Flutter app does, for its own material widgets; Stratum reads
+  the resulting locale without registering a delegate of its own. Above `MaterialApp` the platform locale picks the
+  language. A component's label prop, such as `StratumInkWell.secondaryTapSemanticsLabel`, replaces its built-in
+  label.
 
 ## Themes
 
