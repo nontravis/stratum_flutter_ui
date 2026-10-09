@@ -133,6 +133,11 @@ scroll it, guarded so a text field inside keeps its own keys.
   A drag held near a viewport edge scrolls the list toward that edge; `autoScrollerVelocityScalar` scales its speed.
   Keyboard: Alt+arrow along the axis moves the focused item one slot, Alt+Home/Alt+End move it to either end; a move
   past either end is still handled, so it never reaches the browser (Chrome's Alt+Left/Alt+Right Back/Forward).
+  An item that holds focus, on its own node or one inside it, stays alive with its State and focus when a scroll, the
+  user's or the app's, takes it out of view, and the list scrolls nothing for it; Tab, Shift+Tab, or an arrow key from
+  it brings it back into view first, then moves focus, but two known gaps skip that and land on the first laid-out
+  item unrevealed: the app's own `nextFocus()`, `previousFocus()`, or `focusInDirection()` on it, and Tab on a list
+  whose scroll the app holds in place; a focus that moves elsewhere lets it go.
   Without dragging: dragging is the list's only pointer path, so the app adds one that needs no drag (WCAG 2.5.7),
   such as Move up and Move down buttons or context-menu entries on each item, until a component in the package
   provides it. They call the handler the app passes to `onReorderItem`, with the indexes the keys pass, and that
@@ -167,8 +172,10 @@ scroll it, guarded so a text field inside keeps its own keys.
   its data through `context` (a `watch` or `select` by id or index, a provider family) needs a `builder` capturing that
   data. Under reduced motion, or with `itemExtent`, `itemExtentBuilder`, or `prototypeItem`, the size jumps and the fade
   plays. Focus on a removed item moves to the next item, else the previous, else the list's Tab stop when the list is
-  focusable, unless the app moves focus in the same turn; a focused item the app removes and inserts back with its key
-  in the same turn keeps focus instead, and the list scrolls to it and shows it. A reorder of a leaving item's neighbor
+  focusable, and the list shows it, unless the app moves focus in the same turn or after the frame; the same holds when
+  the app takes the focused item out of its data with no call, by a remove, a replace, or, with no
+  `findChildIndexCallback`, a reorder. A focused item the app removes and inserts back with its key in the same turn
+  keeps focus instead, and the list scrolls to it and shows it. A reorder of a leaving item's neighbor
   ends that leaving item. An `insertItem`, `removeItem`, `moveItem`, key or screen-reader move, item-count change, or
   data change at the same count that moves or replaces the dragged item during a drag ends it first, and a pointer
   cancel or a second pointer that takes the drag over ends it, each with `onReorderEnd` at its start index and no

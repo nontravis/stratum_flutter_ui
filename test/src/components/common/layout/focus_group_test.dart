@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/layout/focus_group.dart'
+    show firstTabStopIn;
 import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
@@ -1178,5 +1180,35 @@ void main() {
       );
       handle.dispose();
     });
+  });
+
+  group('firstTabStopIn', () {
+    testWidgets(
+      'finds the first Tab stop below the viewport and scrolls to it only '
+      'when reveal is true',
+      (tester) async {
+        final controller = _controller();
+        final container = _node('container');
+        final item = _node('item');
+        await tester.pumpWidget(
+          _belowAndAbove(
+            Focus(
+              focusNode: container,
+              skipTraversal: true,
+              child: Focus(focusNode: item, child: _dot),
+            ),
+            controller,
+          ),
+        );
+
+        expect(firstTabStopIn(container, reveal: false), same(item));
+        await tester.pump();
+        expect(controller.offset, 0);
+
+        expect(firstTabStopIn(container), same(item));
+        await tester.pump();
+        expect(controller.offset, 310 - 200);
+      },
+    );
   });
 }

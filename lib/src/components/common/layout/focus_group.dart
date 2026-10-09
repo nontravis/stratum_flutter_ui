@@ -392,16 +392,16 @@ class _FocusGroupPolicy extends ReadingOrderTraversalPolicy {
   }
 }
 
-/// The first node inside [container] in Tab order, scrolled into view;
-/// null when no node inside can take focus.
+/// The first node inside [container] in Tab order, scrolled into view
+/// unless [reveal] is false; null when no node inside can take focus.
 ///
 /// Sorts each traversal group inside by its own policy, as Tab does, so a
 /// focusable scroll view's Tab stop precedes its items. Layouts that
 /// switch their content focus this node after the switch.
-FocusNode? firstTabStopIn(FocusNode container) {
+FocusNode? firstTabStopIn(FocusNode container, {bool reveal = true}) {
   final first = _tabOrder.first(container);
   if (first == null) return null;
-  revealInViewports(first);
+  if (reveal) revealInViewports(first);
   return first;
 }
 
