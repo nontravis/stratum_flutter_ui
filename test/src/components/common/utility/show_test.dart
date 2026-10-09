@@ -21,6 +21,20 @@ class _BoxState extends State<_Box> {
   Widget build(BuildContext context) => const SizedBox(width: 100, height: 40);
 }
 
+/// Paints [ring] 5 px outside a 100 by 40 box on every side, as a focus
+/// ring or a shadow does.
+class _Outside extends CustomPainter {
+  const new();
+
+  static const ring = Rect.fromLTWH(-5, -5, 110, 50);
+
+  @override
+  void paint(Canvas canvas, Size size) => canvas.drawRect(ring, Paint());
+
+  @override
+  bool shouldRepaint(_Outside oldDelegate) => false;
+}
+
 /// A [StratumShow] around a [_Box] keyed [_content], or [child] when given.
 StratumShow _show({
   required bool visible,
@@ -223,6 +237,47 @@ void main() {
       expect(_size(tester), Size.zero);
     });
 
+    for (final (name, level) in [
+      ('AnimationStyle.noAnimation', AnimationStyle.noAnimation),
+      ('an empty AnimationStyle', const AnimationStyle()),
+    ]) {
+      testWidgets('themes s03 invariant 15: a default level of $name shows '
+          'and hides at once', (tester) async {
+        final levels = StratumMotionLevels(
+          veryFast: level,
+          fast: level,
+          normal: level,
+          slow: level,
+          verySlow: level,
+        );
+        final theme = fakeTheme.copyWith(
+          animation: StratumAnimation(
+            veryFast: level,
+            fast: level,
+            normal: level,
+            slow: level,
+            verySlow: level,
+            appear: levels,
+            defaultLevel: StratumMotionLevel.fast,
+          ),
+        );
+
+        await _toggle(
+          tester,
+          _row(_show(visible: false), theme: theme),
+          _row(_show(visible: true), theme: theme),
+        );
+        await tester.pump();
+        expect(_size(tester), const Size(100, 40));
+        expect(_opacity(tester), 1.0);
+
+        await tester.pumpWidget(_row(_show(visible: false), theme: theme));
+        await tester.pump();
+        expect(_size(tester), Size.zero);
+        expect(find.byKey(_content, skipOffstage: false), findsNothing);
+      });
+    }
+
     testWidgets('us15/fr01/e05: a caller curve runs both ways, backward on '
         'the hide', (tester) async {
       StratumShow show({required bool visible}) => StratumShow(
@@ -411,6 +466,59 @@ void main() {
     });
   });
 
+  group('StratumShow at rest', () {
+    for (final transition in StratumShowTransition.values) {
+      testWidgets('PD7: a shown child in a stretch column fills its width '
+          '(${transition.name})', (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              width: 300,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _show(
+                    visible: true,
+                    transition: transition,
+                    child: const ColoredBox(
+                      key: _content,
+                      color: Color(0xFF000000),
+                      child: Text('Banner'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        expect(tester.getSize(find.byKey(_content)).width, 300);
+      });
+
+      testWidgets('PD6: a shown child paints outside its box, unclipped '
+          '(${transition.name})', (tester) async {
+        await tester.pumpWidget(
+          _row(
+            _show(
+              visible: true,
+              transition: transition,
+              child: const CustomPaint(
+                key: _content,
+                painter: _Outside(),
+                child: SizedBox(width: 100, height: 40),
+              ),
+            ),
+          ),
+        );
+
+        final show = tester.renderObject(find.byType(StratumShow));
+        expect(show, paints..rect(rect: _Outside.ring));
+        expect(show, paintsExactlyCountTimes(#clipRect, 0));
+      });
+    }
+  });
+
   group('StratumShow slides', () {
     double left(WidgetTester tester) =>
         tester.getTopLeft(find.byKey(_content)).dx;
@@ -562,21 +670,26 @@ void main() {
       expect(left(tester), showLeft(tester));
     });
 
-    testWidgets('PD6: one clip bounds the slide to the show box', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _row(_show(visible: true, transition: StratumShowTransition.slide)),
-      );
+    for (final transition in [
+      StratumShowTransition.slide,
+      StratumShowTransition.size,
+      StratumShowTransition.sizeAndFade,
+    ]) {
+      testWidgets('PD6: the show box clips its child while it moves, then '
+          'stops (${transition.name})', (tester) async {
+        await _toggle(
+          tester,
+          _row(_show(visible: false, transition: transition)),
+          _row(_show(visible: true, transition: transition)),
+        );
+        await tester.pump(const Duration(milliseconds: 60));
+        final show = tester.renderObject(find.byType(StratumShow));
+        expect(show, paints..clipRect(rect: Offset.zero & _size(tester)));
 
-      expect(
-        find.descendant(
-          of: find.byType(StratumShow),
-          matching: find.byType(ClipRect),
-        ),
-        findsOneWidget,
-      );
-    });
+        await tester.pumpAndSettle();
+        expect(show, paintsExactlyCountTimes(#clipRect, 0));
+      });
+    }
   });
 
   group('StratumShow input, focus, and maintainState', () {
@@ -713,6 +826,17 @@ void main() {
 
       await tester.pumpWidget(_row(_show(visible: true, maintainState: true)));
       expect(tester.state(find.byType(_Box)), same(state));
+    });
+
+    testWidgets('us15/fr03/e05: maintainState turned off while hidden '
+        'unmounts the kept content', (tester) async {
+      await tester.pumpWidget(_row(_show(visible: false, maintainState: true)));
+      expect(find.byKey(_content, skipOffstage: false), findsOneWidget);
+
+      await tester.pumpWidget(_row(_show(visible: false)));
+
+      expect(find.byKey(_content, skipOffstage: false), findsNothing);
+      expect(_size(tester), Size.zero);
     });
 
     testWidgets('us15/fr03/e05: content kept alive stops its tickers while '
@@ -912,6 +1036,23 @@ void main() {
       );
       await tester.pump();
 
+      expect(_size(tester), const Size(100, 40));
+    });
+
+    testWidgets('us15/fr04: reduced motion turned on while mounted holds '
+        'from the next show', (tester) async {
+      Widget host({required bool visible, required bool reduced}) => MediaQuery(
+        data: MediaQueryData(disableAnimations: reduced),
+        child: themedHost(_show(visible: visible)),
+      );
+      await tester.pumpWidget(host(visible: false, reduced: false));
+      final state = tester.state(find.byType(StratumShow));
+
+      await tester.pumpWidget(host(visible: false, reduced: true));
+      await tester.pumpWidget(host(visible: true, reduced: true));
+      await tester.pump();
+
+      expect(tester.state(find.byType(StratumShow)), same(state));
       expect(_size(tester), const Size(100, 40));
     });
   });

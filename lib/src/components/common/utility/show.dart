@@ -1,5 +1,9 @@
 import 'dart:math' as math;
 
+import 'package:flutter/rendering.dart'
+    show ClipRectLayer, LayerHandle, PipelineOwner, RenderAligningShiftedBox;
+import 'package:stratum_ui/src/animations/screen_transition.dart'
+    show curveOf, durationOf, reverseDurationOf;
 import 'package:stratum_ui/src/src.dart';
 
 /// How a [StratumShow] moves between shown and hidden (FO-06 US-15 FR-01).
@@ -158,6 +162,10 @@ class _StratumShowState extends State<StratumShow>
 
   /// Takes the show and hide durations and the curve from the theme's
   /// `defaultStyle`, unless this instance sets them (invariant 43).
+  ///
+  /// A level that sets none of them, such as [AnimationStyle.noAnimation],
+  /// takes zero, its own forward duration, and `easeInOutSine` (themes s03
+  /// invariant 15).
   void _applyMotion() {
     _reduced = context.reducesMotion;
     final style =
@@ -165,9 +173,9 @@ class _StratumShowState extends State<StratumShow>
                 StratumAnimation.packageDefault)
             .defaultStyle;
     _controller
-      ..duration = widget.duration ?? style.duration
-      ..reverseDuration = widget.reverseDuration ?? style.reverseDuration;
-    _curve.curve = widget.curve ?? style.curve!;
+      ..duration = widget.duration ?? durationOf(style)
+      ..reverseDuration = widget.reverseDuration ?? reverseDurationOf(style);
+    _curve.curve = widget.curve ?? curveOf(style);
     // Only `slide` moves the content (FR-02 E04), and not under reduced
     // motion (invariant 44).
     _slide.begin = widget.transition == StratumShowTransition.slide && !_reduced
@@ -239,29 +247,175 @@ class _StratumShowState extends State<StratumShow>
     );
   }
 
-  /// One clip around a size change on both axes, anchored at the top
-  /// start corner (layout s03 invariant 45; PD6, PD7).
-  Widget _motion() {
-    final size = _sizeFactor;
-    return ClipRect(
-      child: AnimatedBuilder(
-        animation: size,
-        builder: (context, child) {
-          final factor = math.max(size.value, 0.0);
-          return Align(
-            alignment: AlignmentDirectional.topStart,
-            widthFactor: factor,
-            heightFactor: factor,
-            child: child,
-          );
-        },
-        child: FadeTransition(
-          opacity: _opacity,
-          child: SlideTransition(position: _position, child: widget.child),
-        ),
-      ),
+  /// The size change on both axes, anchored at the top start corner, with
+  /// the fade and the slide inside it (layout s03 invariant 45; PD6, PD7).
+  Widget _motion() => _SizeFactorBox(
+    factor: _sizeFactor,
+    slide: _position,
+    child: FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(position: _position, child: widget.child),
+    ),
+  );
+}
+
+/// Sizes itself to its child's size times [factor] and places the child at
+/// the top start corner (layout s03 invariant 45; PD6, PD7).
+///
+/// The child lays out under the incoming constraints unchanged, so a shown
+/// child stretches as it would with no show around it. It clips to its own
+/// box only while the child moves, [factor] below 1 or [slide] off zero, so
+/// at rest a focus ring or a shadow paints outside it.
+class _SizeFactorBox extends SingleChildRenderObjectWidget {
+  const new({required this.factor, required this.slide, required super.child});
+
+  /// The size factor on both axes; a value below 0 counts as 0.
+  final Animation<double> factor;
+
+  /// The slide offset, read only to decide the clip.
+  final Animation<Offset> slide;
+
+  @override
+  _RenderSizeFactorBox createRenderObject(BuildContext context) =>
+      _RenderSizeFactorBox(
+        factor: factor,
+        slide: slide,
+        textDirection: Directionality.of(context),
+      );
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderSizeFactorBox renderObject,
+  ) {
+    renderObject
+      ..factor = factor
+      ..slide = slide
+      ..textDirection = Directionality.of(context);
+  }
+}
+
+/// The render box of [_SizeFactorBox]. It listens to both animations
+/// itself, so a motion frame lays it out or repaints it with no rebuild.
+class _RenderSizeFactorBox extends RenderAligningShiftedBox {
+  new({
+    required Animation<double> factor,
+    required Animation<Offset> slide,
+    required super.textDirection,
+  }) : _factor = factor,
+       _slide = slide,
+       super(alignment: AlignmentDirectional.topStart);
+
+  Animation<double> _factor;
+  set factor(Animation<double> value) {
+    if (value == _factor) return;
+    if (attached) _factor.removeListener(markNeedsLayout);
+    _factor = value;
+    if (attached) _factor.addListener(markNeedsLayout);
+    markNeedsLayout();
+  }
+
+  Animation<Offset> _slide;
+  set slide(Animation<Offset> value) {
+    if (value == _slide) return;
+    if (attached) _slide.removeListener(_onSlide);
+    _slide = value;
+    if (attached) _slide.addListener(_onSlide);
+    _onSlide();
+  }
+
+  /// The clip layer of the last clipped paint.
+  final _clipLayer = LayerHandle<ClipRectLayer>();
+
+  /// Whether the last paint clipped.
+  var _clipped = false;
+
+  double get _sizeFactor => math.max(_factor.value, 0.0);
+
+  /// Whether the child moves: smaller than its own size, or slid off.
+  bool get _moving => _sizeFactor < 1 || _slide.value != Offset.zero;
+
+  /// A slide moves only the paint, so it repaints when the clip turns on
+  /// or off; a size change lays out, which repaints.
+  void _onSlide() {
+    if (_moving != _clipped) markNeedsPaint();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _factor.addListener(markNeedsLayout);
+    _slide.addListener(_onSlide);
+  }
+
+  @override
+  void detach() {
+    _factor.removeListener(markNeedsLayout);
+    _slide.removeListener(_onSlide);
+    super.detach();
+  }
+
+  @override
+  void dispose() {
+    _clipLayer.layer = null;
+    super.dispose();
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) =>
+      super.computeMinIntrinsicWidth(height) * _sizeFactor;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      super.computeMaxIntrinsicWidth(height) * _sizeFactor;
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      super.computeMinIntrinsicHeight(width) * _sizeFactor;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      super.computeMaxIntrinsicHeight(width) * _sizeFactor;
+
+  @override
+  Size computeDryLayout(covariant BoxConstraints constraints) {
+    final child = this.child;
+    if (child == null) return constraints.smallest;
+    return constraints.constrain(child.getDryLayout(constraints) * _sizeFactor);
+  }
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    child.layout(constraints, parentUsesSize: true);
+    size = constraints.constrain(child.size * _sizeFactor);
+    alignChild();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    _clipped = child != null && _moving;
+    if (!_clipped) {
+      _clipLayer.layer = null;
+      super.paint(context, offset);
+      return;
+    }
+    _clipLayer.layer = context.pushClipRect(
+      needsCompositing,
+      offset,
+      Offset.zero & size,
+      super.paint,
+      oldLayer: _clipLayer.layer,
     );
   }
+
+  @override
+  Rect? describeApproximatePaintClip(RenderObject child) =>
+      _clipped ? Offset.zero & size : null;
 }
 
 /// The offset, in the child's own size, of [direction]'s edge (invariant
