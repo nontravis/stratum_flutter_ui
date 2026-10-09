@@ -31,9 +31,12 @@ enum StratumShowSlideDirection { top, bottom, start, end }
 /// show duration and back over the hide duration, so a flip of [visible]
 /// mid-motion continues from where the motion is. A size change anchors
 /// at the top start corner. Hidden content has no size on either axis and
-/// is unmounted after its hide motion; shown again, it builds fresh. It
-/// extends no component base, so the base's disabled wrapper never wraps
-/// it.
+/// is unmounted after its hide motion, so it builds fresh when shown again,
+/// unless [maintainState] keeps it. From the frame [visible] turns false,
+/// the leaving content takes no pointer, focus, or semantics; focus held
+/// inside it moves, after the frame, to this widget's own node, which is
+/// not a Tab stop. It extends no component base, so the base's disabled
+/// wrapper never wraps it.
 class StratumShow extends StatefulWidget {
   const new({
     super.key,
@@ -44,6 +47,7 @@ class StratumShow extends StatefulWidget {
     this.duration,
     this.reverseDuration,
     this.curve,
+    this.maintainState = false,
   });
 
   /// True shows [child]; false hides it.
@@ -70,6 +74,12 @@ class StratumShow extends StatefulWidget {
   /// `standard` curve.
   final Curve? curve;
 
+  /// True keeps hidden content mounted, with no size, its tickers stopped,
+  /// out of focus and semantics, so it keeps its state; false, the default,
+  /// unmounts it after its hide motion. Changing it while mounted builds
+  /// the content fresh, as [Visibility.maintainState] does.
+  final bool maintainState;
+
   @override
   State<StratumShow> createState() => _StratumShowState();
 }
@@ -93,6 +103,17 @@ class _StratumShowState extends State<StratumShow>
   /// The controller through [_curve] and [_slide].
   late final Animation<Offset> _position = _value.drive(_slide);
 
+  /// Takes focus when focus sat inside content that hides; Tab skips it
+  /// (layout s03 invariant 46, the rule of `IndexedStackLayout`).
+  final _showNode = FocusNode(debugLabel: 'StratumShow', skipTraversal: true);
+
+  /// Marks the content's subtree only.
+  final _contentNode = FocusNode(
+    debugLabel: 'StratumShow content',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -113,11 +134,20 @@ class _StratumShowState extends State<StratumShow>
     super.didUpdateWidget(oldWidget);
     _applyMotion();
     if (widget.visible == oldWidget.visible) return;
+    // The build below excludes the content from focus, so check now
+    // whether focus sits inside it (invariant 46).
+    if (!widget.visible && _contentNode.hasFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showNode.requestFocus();
+      });
+    }
     _move();
   }
 
   @override
   void dispose() {
+    _showNode.dispose();
+    _contentNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -168,11 +198,34 @@ class _StratumShowState extends State<StratumShow>
       : _value;
 
   @override
-  Widget build(BuildContext context) => Visibility(
-    // The content leaves the tree once its hide motion ends (invariant 46).
-    visible: !_controller.isDismissed,
-    child: _motion(),
-  );
+  Widget build(BuildContext context) {
+    final hidden = !widget.visible;
+    return Focus(
+      focusNode: _showNode,
+      includeSemantics: false,
+      child: Focus(
+        focusNode: _contentNode,
+        includeSemantics: false,
+        child: ExcludeFocus(
+          excluding: hidden,
+          child: ExcludeSemantics(
+            excluding: hidden,
+            child: IgnorePointer(
+              ignoring: hidden,
+              // Dismissed: the content leaves the tree, or with
+              // maintainState stays offstage under TickerMode(enabled:
+              // false) (invariant 46, PD8).
+              child: Visibility(
+                visible: !_controller.isDismissed,
+                maintainState: widget.maintainState,
+                child: _motion(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   /// One clip around a size change on both axes, anchored at the top
   /// start corner (layout s03 invariant 45; PD6, PD7).

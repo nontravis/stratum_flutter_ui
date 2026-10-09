@@ -22,20 +22,23 @@ class _BoxState extends State<_Box> {
   Widget build(BuildContext context) => const SizedBox(width: 100, height: 40);
 }
 
-/// A [StratumShow] around a [_Box] keyed [_content].
+/// A [StratumShow] around a [_Box] keyed [_content], or [child] when given.
 StratumShow _show({
   required bool visible,
   StratumShowTransition transition = StratumShowTransition.sizeAndFade,
   StratumShowSlideDirection slideDirection = StratumShowSlideDirection.end,
   Duration? duration,
   Duration? reverseDuration,
+  bool maintainState = false,
+  Widget? child,
 }) => StratumShow(
   visible: visible,
   transition: transition,
   slideDirection: slideDirection,
   duration: duration,
   reverseDuration: reverseDuration,
-  child: const KeyedSubtree(key: _content, child: _Box()),
+  maintainState: maintainState,
+  child: child ?? const KeyedSubtree(key: _content, child: _Box()),
 );
 
 /// [show] between two texts, in a themed row sized to its children, so a
@@ -71,6 +74,28 @@ Size _size(WidgetTester tester) => tester.getSize(find.byType(StratumShow));
 /// The opacity the one [FadeTransition] in the tree reads now.
 double _opacity(WidgetTester tester) =>
     tester.widget<FadeTransition>(find.byType(FadeTransition)).opacity.value;
+
+/// Every label in the live semantics tree, walked fresh. `find
+/// .bySemanticsLabel` reads each render object's own cached
+/// `debugSemantics`, which an ancestor's `ExcludeSemantics` toggle does not
+/// invalidate on its excluded descendants (`rendering/object.dart`:
+/// `visitChildrenForSemantics` returns before visiting them); walking the
+/// owner's root node reads what a screen reader receives instead.
+Set<String> _semanticsLabels(WidgetTester tester) {
+  final labels = <String>{};
+  void visit(SemanticsNode node) {
+    if (node.label.isNotEmpty) labels.add(node.label);
+    node.visitChildren((child) {
+      visit(child);
+      return true;
+    });
+  }
+
+  final root =
+      tester.binding.rootPipelineOwner.semanticsOwner?.rootSemanticsNode;
+  if (root != null) visit(root);
+  return labels;
+}
 
 void main() {
   group('StratumShow sizes and fades', () {
@@ -542,6 +567,220 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+  });
+
+  group('StratumShow input, focus, and maintainState', () {
+    testWidgets('us15/fr03/e04, us15/s10: a tap during the hide reaches '
+        'nothing inside the leaving content', (tester) async {
+      var taps = 0;
+      Widget build({required bool visible}) => _row(
+        _show(
+          visible: visible,
+          child: KeyedSubtree(
+            key: _content,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => taps++,
+              child: const SizedBox(width: 100, height: 40),
+            ),
+          ),
+        ),
+      );
+      await _toggle(tester, build(visible: true), build(visible: false));
+      await tester.pump(const Duration(milliseconds: 10));
+
+      await tester.tap(find.byKey(_content), warnIfMissed: false);
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(taps, 0);
+    });
+
+    testWidgets('us15/fr03: from the frame it turns hidden, the leaving '
+        'content is out of the semantics tree', (tester) async {
+      final handle = tester.ensureSemantics();
+      Widget build({required bool visible}) => _row(
+        _show(
+          visible: visible,
+          child: KeyedSubtree(
+            key: _content,
+            child: Semantics(
+              label: 'Inside',
+              child: const SizedBox(width: 100, height: 40),
+            ),
+          ),
+        ),
+      );
+      await _toggle(tester, build(visible: true), build(visible: false));
+      await tester.pump();
+
+      expect(_semanticsLabels(tester), isNot(contains('Inside')));
+      handle.dispose();
+    });
+
+    testWidgets('us15/fr03/e03, us15/s11: focus inside hiding content moves '
+        'to the show node, and Tab moves on from there', (tester) async {
+      final field = FocusNode(debugLabel: 'field');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(field.dispose);
+      addTearDown(after.dispose);
+      Widget build({required bool visible}) => themedHost(
+        Shortcuts(
+          shortcuts: WidgetsApp.defaultShortcuts,
+          child: Actions(
+            actions: WidgetsApp.defaultActions,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _show(
+                  visible: visible,
+                  child: KeyedSubtree(
+                    key: _content,
+                    child: Focus(
+                      focusNode: field,
+                      child: const SizedBox(width: 100, height: 40),
+                    ),
+                  ),
+                ),
+                Focus(
+                  focusNode: after,
+                  child: const SizedBox(width: 10, height: 10),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(build(visible: true));
+      field.requestFocus();
+      await tester.pump();
+
+      await tester.pumpWidget(build(visible: false));
+      await tester.pump();
+
+      expect(field.hasFocus, isFalse);
+      expect(FocusManager.instance.primaryFocus?.debugLabel, 'StratumShow');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(after.hasPrimaryFocus, isTrue);
+    });
+
+    testWidgets('focus outside the show stays where it is', (tester) async {
+      final outside = FocusNode(debugLabel: 'outside');
+      addTearDown(outside.dispose);
+      Widget build({required bool visible}) => themedHost(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Focus(
+              focusNode: outside,
+              child: const SizedBox(width: 10, height: 10),
+            ),
+            _show(visible: visible),
+          ],
+        ),
+      );
+      await tester.pumpWidget(build(visible: true));
+      outside.requestFocus();
+      await tester.pump();
+
+      await tester.pumpWidget(build(visible: false));
+      await tester.pump();
+
+      expect(outside.hasPrimaryFocus, isTrue);
+    });
+
+    testWidgets('us15/fr03/e05, us15/s12: content kept alive keeps its State '
+        'while hidden, with no size', (tester) async {
+      await tester.pumpWidget(_row(_show(visible: true, maintainState: true)));
+      final state = tester.state(find.byType(_Box));
+
+      await tester.pumpWidget(_row(_show(visible: false, maintainState: true)));
+      await tester.pumpAndSettle();
+      expect(_size(tester), Size.zero);
+      expect(find.byType(_Box), findsNothing);
+      expect(find.byType(_Box, skipOffstage: false), findsOneWidget);
+
+      await tester.pumpWidget(_row(_show(visible: true, maintainState: true)));
+      expect(tester.state(find.byType(_Box)), same(state));
+    });
+
+    testWidgets('us15/fr03/e05: content kept alive stops its tickers while '
+        'hidden', (tester) async {
+      bool ticking() => TickerMode.valuesOf(
+        tester.element(find.byType(_Box, skipOffstage: false)),
+      ).enabled;
+      await tester.pumpWidget(_row(_show(visible: true, maintainState: true)));
+      expect(ticking(), isTrue);
+
+      await tester.pumpWidget(_row(_show(visible: false, maintainState: true)));
+      await tester.pumpAndSettle();
+      expect(ticking(), isFalse);
+
+      await tester.pumpWidget(_row(_show(visible: true, maintainState: true)));
+      expect(ticking(), isTrue);
+    });
+
+    testWidgets('us15/fr03/e05, us15/s13: content kept alive takes no focus '
+        'and leaves the semantics tree', (tester) async {
+      final handle = tester.ensureSemantics();
+      final before = FocusNode(debugLabel: 'before');
+      final field = FocusNode(debugLabel: 'field');
+      final after = FocusNode(debugLabel: 'after');
+      addTearDown(before.dispose);
+      addTearDown(field.dispose);
+      addTearDown(after.dispose);
+      await tester.pumpWidget(
+        themedHost(
+          Shortcuts(
+            shortcuts: WidgetsApp.defaultShortcuts,
+            child: Actions(
+              actions: WidgetsApp.defaultActions,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Focus(
+                    focusNode: before,
+                    child: const SizedBox(width: 10, height: 10),
+                  ),
+                  _show(
+                    visible: false,
+                    maintainState: true,
+                    child: KeyedSubtree(
+                      key: _content,
+                      child: Semantics(
+                        label: 'Inside',
+                        child: Focus(
+                          focusNode: field,
+                          child: const SizedBox(width: 100, height: 40),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Focus(
+                    focusNode: after,
+                    child: const SizedBox(width: 10, height: 10),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.byKey(_content, skipOffstage: false), findsOneWidget);
+      expect(_semanticsLabels(tester), isNot(contains('Inside')));
+
+      field.requestFocus();
+      await tester.pump();
+      expect(field.hasFocus, isFalse);
+
+      before.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(after.hasPrimaryFocus, isTrue);
+      handle.dispose();
     });
   });
 }
