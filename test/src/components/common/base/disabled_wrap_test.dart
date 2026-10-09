@@ -297,7 +297,7 @@ void main() {
       expect(taps, 1);
     });
 
-    testWidgets('us07/fr02: it gets a tap on a disabled component, while the '
+    testWidgets('us07/fr02/e08: it gets a tap on a disabled component, while the '
         "component's own tap surface gets none", (tester) async {
       var outer = 0;
       var inner = 0;

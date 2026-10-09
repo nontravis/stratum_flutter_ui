@@ -241,7 +241,8 @@ void main() {
       ('AnimationStyle.noAnimation', AnimationStyle.noAnimation),
       ('an empty AnimationStyle', const AnimationStyle()),
     ]) {
-      testWidgets('themes s03 invariant 15: a default level of $name shows '
+      testWidgets('us15/fr01/e06, themes s03 invariant 15: a default level of '
+          '$name shows '
           'and hides at once', (tester) async {
         final levels = StratumMotionLevels(
           veryFast: level,
@@ -468,7 +469,8 @@ void main() {
 
   group('StratumShow at rest', () {
     for (final transition in StratumShowTransition.values) {
-      testWidgets('PD7: a shown child in a stretch column fills its width '
+      testWidgets('us15/fr03/e07, PD7: a shown child in a stretch column '
+          'fills its width '
           '(${transition.name})', (tester) async {
         await tester.pumpWidget(
           themedHost(
@@ -496,7 +498,8 @@ void main() {
         expect(tester.getSize(find.byKey(_content)).width, 300);
       });
 
-      testWidgets('PD6: a shown child paints outside its box, unclipped '
+      testWidgets('us15/fr03/e07, PD6: a shown child paints outside its box, '
+          'unclipped '
           '(${transition.name})', (tester) async {
         await tester.pumpWidget(
           _row(

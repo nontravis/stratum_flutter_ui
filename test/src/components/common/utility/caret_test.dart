@@ -620,7 +620,8 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('us07/fr03/e01, R11: a disabled caret adds no disabled node', (
+  testWidgets('us02/fr05/e02, us07/fr03/e01, R11: a disabled caret adds no '
+      'disabled node', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
