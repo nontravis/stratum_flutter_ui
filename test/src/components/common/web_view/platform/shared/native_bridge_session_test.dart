@@ -238,7 +238,7 @@ void main() {
         fromB.sender,
         isA<NativeHtmlDocumentSender>()
             .having((sender) => sender.documentId, 'documentId', documentB)
-            .having((sender) => sender.loadNonce, 'loadNonce', nonce),
+            .having((sender) => sender.load, 'load', 1),
       );
       expect(fromB.message, const StratumWebViewMessage(data: 'b1'));
       session.acceptMessage(envelope(nonce, 'hello', documentB));
@@ -247,7 +247,7 @@ void main() {
         fromA.sender,
         isA<NativeHtmlDocumentSender>()
             .having((sender) => sender.documentId, 'documentId', documentA)
-            .having((sender) => sender.loadNonce, 'loadNonce', nonce),
+            .having((sender) => sender.load, 'load', 1),
       );
       expect(fromA.message, const StratumWebViewMessage(data: 'a2'));
     });
@@ -637,6 +637,24 @@ void main() {
         big,
       );
     });
+
+    test('us03/fr05/e09, nf01/NFR-Sec03: a sender names its load by a '
+        'counter, one per loadHtml', () {
+      expect(session.currentLoad, isNull);
+      final first = nonceIn(session.willLoadHtml('<p>1</p>'));
+      session.acceptMessage(envelope(first, 'hello', documentA));
+      final one = session.acceptMessage(messageEnvelope(first, 'm'))!.sender;
+      final second = nonceIn(session.willLoadHtml('<p>2</p>'));
+      session.acceptMessage(envelope(second, 'hello', documentB));
+      final two = session
+          .acceptMessage(messageEnvelope(second, 'm', document: documentB))!
+          .sender;
+      expect((one as NativeHtmlDocumentSender).load, 1);
+      expect((two as NativeHtmlDocumentSender).load, 2);
+      expect(session.currentLoad, 2);
+      session.willLoadUrl();
+      expect(session.currentLoad, isNull);
+    });
   });
 
   group('scriptForMessage', () {
@@ -862,6 +880,34 @@ void main() {
       );
     });
 
+    test('us03/fr05/e08: a sender of an earlier load with the same document '
+        'id is gone', () {
+      final first = nonceIn(session.willLoadHtml('<p>1</p>'));
+      session.acceptMessage(envelope(first, 'hello', documentA));
+      final early =
+          session.acceptMessage(messageEnvelope(first, 'm'))!.sender
+              as PlatformHtmlDocumentSender;
+      final second = nonceIn(session.willLoadHtml('<p>2</p>'));
+      session.acceptMessage(envelope(second, 'hello', documentA));
+      expect(
+        () => session.scriptForReply('pong', early),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The HTML document that sent the message is gone.',
+          ),
+        ),
+      );
+      final current =
+          session.acceptMessage(messageEnvelope(second, 'm'))!.sender
+              as PlatformHtmlDocumentSender;
+      expect(
+        session.scriptForReply('pong', current).script,
+        contains(documentA),
+      );
+    });
+
     test('us03/fr02/e11: a reply while the bridge features are missing '
         'throws the bridge-disabled StateError', () {
       final html = session.willLoadHtml('<p>Hi</p>');
@@ -913,12 +959,13 @@ void main() {
         'reply proxy of the proving hello', () {
       final html = android.willLoadHtml('<p>Hi</p>');
       final nonce = nonceIn(html);
+      final load = android.currentLoad;
       android.acceptMessage(
         envelope(nonce, 'hello', documentA),
         sender: sentBy(proxyA),
       );
       expect(android.scriptForMessage('ping'), allowlistOnly('ping'));
-      expect(android.replyProxyScriptForMessage('ping', loadNonce: nonce), (
+      expect(android.replyProxyScriptForMessage('ping', load: load), (
         replyProxy: proxyA,
         script: tokenOnly('ping', html),
       ));
@@ -929,6 +976,7 @@ void main() {
         'nothing', () {
       final html = android.willLoadHtml('<p>Hi</p>');
       final nonce = nonceIn(html);
+      final load = android.currentLoad;
       android
         ..acceptMessage(
           envelope(nonce, 'hello', documentA),
@@ -943,9 +991,7 @@ void main() {
           sender: sentBy(proxyA),
         );
       expect(
-        android
-            .replyProxyScriptForMessage('ping', loadNonce: nonce)
-            ?.replyProxy,
+        android.replyProxyScriptForMessage('ping', load: load)?.replyProxy,
         proxyB,
       );
     });
@@ -954,6 +1000,7 @@ void main() {
         'records its reply proxy', () {
       final html = android.willLoadHtml('<p>Hi</p>');
       final nonce = nonceIn(html);
+      final load = android.currentLoad;
       android
         ..acceptMessage(
           envelope(nonce, 'hello', documentA),
@@ -966,9 +1013,7 @@ void main() {
           sender: sentBy(proxyB),
         );
       expect(
-        android
-            .replyProxyScriptForMessage('ping', loadNonce: nonce)
-            ?.replyProxy,
+        android.replyProxyScriptForMessage('ping', load: load)?.replyProxy,
         proxyA,
       );
     });
@@ -977,6 +1022,7 @@ void main() {
         'proof, after which no send runs through the reply proxy', () {
       final html = android.willLoadHtml('<p>Hi</p>');
       final nonce = nonceIn(html);
+      final load = android.currentLoad;
       android
         ..acceptMessage(
           envelope(nonce, 'hello', documentA),
@@ -987,40 +1033,29 @@ void main() {
           sender: sentBy(proxyA),
         );
       expect(android.scriptForMessage('ping'), allowlistOnly('ping'));
-      expect(
-        android.replyProxyScriptForMessage('ping', loadNonce: nonce),
-        isNull,
-      );
+      expect(android.replyProxyScriptForMessage('ping', load: load), isNull);
     });
 
     test('us03/fr02/e13: nothing runs through a reply proxy with no current '
         'nonce, before the proof, or after loadUrl or dispose', () {
-      expect(
-        android.replyProxyScriptForMessage('ping', loadNonce: null),
-        isNull,
-      );
+      expect(android.replyProxyScriptForMessage('ping', load: null), isNull);
       for (final revoke in <void Function()>[
         android.willLoadUrl,
         android.willDispose,
       ]) {
         final nonce = nonceIn(android.willLoadHtml('<p>Hi</p>'));
-        expect(
-          android.replyProxyScriptForMessage('ping', loadNonce: nonce),
-          isNull,
-        );
+        final load = android.currentLoad;
+        expect(android.replyProxyScriptForMessage('ping', load: load), isNull);
         android.acceptMessage(
           envelope(nonce, 'hello', documentA),
           sender: sentBy(proxyA),
         );
         expect(
-          android.replyProxyScriptForMessage('ping', loadNonce: nonce),
+          android.replyProxyScriptForMessage('ping', load: load),
           isNotNull,
         );
         revoke();
-        expect(
-          android.replyProxyScriptForMessage('ping', loadNonce: nonce),
-          isNull,
-        );
+        expect(android.replyProxyScriptForMessage('ping', load: load), isNull);
       }
     });
 
@@ -1028,6 +1063,7 @@ void main() {
         'began under; a hello of a later loadHtml that proves while the '
         "first script is pending does not get the earlier load's send", () {
       final nonceA = nonceIn(android.willLoadHtml('<p>A</p>'));
+      final loadA = android.currentLoad;
       android.acceptMessage(
         envelope(nonceA, 'hello', documentA),
         sender: sentBy(proxyA),
@@ -1039,10 +1075,7 @@ void main() {
         envelope(nonceB, 'hello', documentB),
         sender: sentBy(proxyB),
       );
-      expect(
-        android.replyProxyScriptForMessage('ping', loadNonce: nonceA),
-        isNull,
-      );
+      expect(android.replyProxyScriptForMessage('ping', load: loadA), isNull);
     });
 
     test('us03/fr05/e08, us03/fr04/e15: on Android the reply runs through '
@@ -1166,15 +1199,13 @@ void main() {
         'keep the token check on the page shown', () {
       final html = webKit.willLoadHtml('<p>Hi</p>');
       final nonce = nonceIn(html);
+      final load = webKit.currentLoad;
       webKit.acceptMessage(
         envelope(nonce, 'hello', documentA),
         sender: const BridgeMessageSender(origin: null, isMainFrame: true),
       );
       expect(webKit.scriptForMessage('ping'), contains(tokenIn(html)));
-      expect(
-        webKit.replyProxyScriptForMessage('ping', loadNonce: nonce),
-        isNull,
-      );
+      expect(webKit.replyProxyScriptForMessage('ping', load: load), isNull);
     });
 
     test('us03/fr04/e15: a message envelope with no reply proxy still '

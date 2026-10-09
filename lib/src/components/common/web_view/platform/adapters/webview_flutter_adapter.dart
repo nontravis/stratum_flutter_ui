@@ -120,7 +120,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   /// E13). A first script with no answer ends the send.
   ///
   /// The reply-proxy run is bound to the load the first script was built
-  /// for, by the nonce [NativeBridgeSession.currentLoadNonce] reads right
+  /// for, by the counter [NativeBridgeSession.currentLoad] reads right
   /// after [NativeBridgeSession.scriptForMessage] returns: a later
   /// `loadHtml` that proves while the first script is still pending does
   /// not receive this send (B1). A named send never runs the token check
@@ -129,12 +129,12 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   Future<void> postMessage(String data, {Uri? targetOrigin}) async {
     await _ready;
     final script = _session.scriptForMessage(data, targetOrigin: targetOrigin);
-    final loadNonce = _session.currentLoadNonce;
+    final load = _session.currentLoad;
     final answer = await dispatchScriptAnswer(
       _controller.runJavaScriptReturningResult(script),
     );
     final run = answer == false && targetOrigin == null
-        ? _session.replyProxyScriptForMessage(data, loadNonce: loadNonce)
+        ? _session.replyProxyScriptForMessage(data, load: load)
         : null;
     _session.confirmDelivery(
       run == null
