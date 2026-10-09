@@ -111,6 +111,27 @@ class _Plain extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox(width: 10, height: 10);
 }
 
+/// A stateless component that breaks the box-root rule (US-07 FR-01 E07).
+class _ExpandedStateless extends StratumStatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) => const Expanded(child: SizedBox());
+}
+
+/// A stateful component that breaks the box-root rule (US-07 FR-01 E07).
+class _ExpandedStateful extends StratumStatefulWidget {
+  const new();
+
+  @override
+  State<_ExpandedStateful> createState() => _ExpandedStatefulState();
+}
+
+class _ExpandedStatefulState extends State<_ExpandedStateful> {
+  @override
+  Widget build(BuildContext context) => const Expanded(child: SizedBox());
+}
+
 StratumDisabled _wrapOf(WidgetTester tester, Finder component) =>
     tester.widget<StratumDisabled>(
       find.descendant(of: component, matching: find.byType(StratumDisabled)),
@@ -221,18 +242,49 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('a component with no theme above builds while enabled', (
-      tester,
-    ) async {
+    testWidgets('a component with no theme above builds while enabled, on '
+        'either base', (tester) async {
       await tester.pumpWidget(
         const Directionality(
           textDirection: TextDirection.ltr,
-          child: _Button(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [_Button(), _Section()],
+          ),
         ),
       );
 
       expect(tester.takeException(), isNull);
     });
+  });
+
+  group('box root', () {
+    final cases = <(String, Widget, Type)>[
+      ('the stateless base', const _ExpandedStateless(), _ExpandedStateless),
+      ('the stateful base', const _ExpandedStateful(), _ExpandedStateful),
+    ];
+    for (final (name, component, type) in cases) {
+      testWidgets('us07/fr01/e07: a component on $name whose build returns '
+          'Expanded fails the debug assertion that names the fix', (
+        tester,
+      ) async {
+        await tester.pumpWidget(themedHost(component));
+
+        expect(
+          tester.takeException(),
+          isA<AssertionError>().having(
+            (error) => error.message.toString(),
+            'message',
+            allOf(
+              contains('Incorrect use of ParentDataWidget'),
+              contains(type.toString()),
+              contains('Expanded'),
+              contains('call site'),
+            ),
+          ),
+        );
+      });
+    }
   });
 
   group('dimsWhenDisabled', () {

@@ -224,6 +224,9 @@ scroll it, guarded so a text field inside keeps its own keys.
 - **A decorative component** — a component that gives a screen reader nothing to read, such as a caret, overrides
   `@protected bool get contributesSemantics => false`; while disabled it then gets no screen-reader node, and the
   dimming, cursor, input, and focus rules still hold.
+- **One box widget at its root** — a component on either base builds exactly one box widget at its root, never
+  `Expanded`, `Flexible`, `Positioned`, or a sliver; the base asserts this in debug builds, so move the parent-data
+  widget to the call site instead.
 
 ## Themes
 

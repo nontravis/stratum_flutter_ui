@@ -11,7 +11,9 @@ import 'package:stratum_ui/src/themes/constant/window_size.dart';
 /// Base class for a Stratum component without state.
 ///
 /// Holds the props of [StratumWidgetProps]; `build` reads them through the
-/// `resolve*` methods.
+/// `resolve*` methods. `build` returns one box widget at its root, never a
+/// `ParentDataWidget` (`Expanded`, `Flexible`, `Positioned`) or a sliver; the
+/// base's element asserts this in debug builds (US-07 FR-01 E07).
 abstract class StratumStatelessWidget extends StatelessWidget
     with StratumWidgetProps {
   const new({
@@ -78,11 +80,26 @@ class _StratumStatelessElement extends StatelessElement {
   @override
   Widget build() {
     final component = widget as StratumStatelessWidget;
+    final built = super.build();
+    assert(
+      built is! ParentDataWidget,
+      _boxRootAssertionMessage(component.runtimeType, built),
+    );
     return StratumDisabled(
       disabled: component.disabled,
       dims: component.dimsWhenDisabled,
       contributesSemantics: component.contributesSemantics,
-      child: super.build(),
+      child: built,
     );
   }
 }
+
+/// The message a base element's debug assertion raises when [built], what
+/// [component] built at its root, is a `ParentDataWidget` (base s03
+/// invariant 12, US-07 FR-01 E07).
+String _boxRootAssertionMessage(Type component, Widget built) =>
+    'Incorrect use of ParentDataWidget: $component builds a '
+    '${built.runtimeType} at its root.\n'
+    'A component on either base builds one box widget at its root, never a '
+    'ParentDataWidget (Expanded, Flexible, Positioned) or a sliver.\n'
+    "Move the ${built.runtimeType} to $component's call site instead.";
