@@ -777,6 +777,140 @@ void main() {
     );
 
     testWidgets(
+      'us14/fr03/e09, s03/inv39: select-all and copy under a SelectionArea '
+      'leave the text of hidden children out',
+      (tester) async {
+        String? copied;
+        Future<Object?> clipboard(MethodCall call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied =
+                (call.arguments as Map<Object?, Object?>)['text'] as String?;
+          }
+          return null;
+        }
+
+        final messenger = tester.binding.defaultBinaryMessenger
+          ..setMockMethodCallHandler(SystemChannels.platform, clipboard);
+        addTearDown(
+          () =>
+              messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: SelectionArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 230,
+                  child: _wrap(
+                    maxChildren: 2,
+                    children: [
+                      for (var i = 0; i < 4; i++)
+                        SizedBox(width: 40, height: 20, child: Text('w$i')),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        // The region's own shortcuts' intents, invoked under it.
+        final inside = tester.element(find.byType(WrapLayout));
+
+        Actions.invoke(
+          inside,
+          const SelectAllTextIntent(SelectionChangedCause.keyboard),
+        );
+        await tester.pump();
+        Actions.invoke(inside, CopySelectionTextIntent.copy);
+        await tester.pump();
+
+        expect(copied, allOf(contains('w0'), contains('w1'), contains('+2')));
+        expect(copied, isNot(anyOf(contains('w2'), contains('w3'))));
+      },
+    );
+
+    testWidgets(
+      'us14/fr03/e09, s03/inv39: a route push finds no Hero in a hidden '
+      'child',
+      (tester) async {
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navigator,
+            home: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 230,
+                child: _wrap(
+                  maxChildren: 1,
+                  children: [
+                    _tag(0),
+                    const Hero(
+                      tag: 'hidden',
+                      child: SizedBox(width: 40, height: 20),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        navigator.currentState!.push(
+          MaterialPageRoute<void>(
+            builder: (context) => Hero(
+              tag: 'hidden',
+              flightShuttleBuilder: (_, _, _, _, _) =>
+                  const SizedBox(key: ValueKey('shuttle')),
+              child: const SizedBox(width: 40, height: 20),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 10));
+
+        expect(find.byKey(const ValueKey('shuttle')), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us14/fr03/e09, s03/inv39: under a SelectionArea a child keeps its '
+      'State and its text render object while a limit hides and shows it',
+      (tester) async {
+        Widget build(int? maxChildren) => MaterialApp(
+          home: SelectionArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 230,
+                child: _wrap(
+                  maxChildren: maxChildren,
+                  children: [
+                    _tag(0),
+                    const _Chip(key: ValueKey('chip 1')),
+                    const SizedBox(width: 40, height: 20, child: Text('w2')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(build(null));
+        final chip = tester.state(find.byKey(const ValueKey('chip 1')));
+        final text = tester.renderObject(find.text('w2'));
+
+        await tester.pumpWidget(build(1));
+        await tester.pumpWidget(build(null));
+        await tester.pumpAndSettle();
+
+        expect(tester.state(find.byKey(const ValueKey('chip 1'))), same(chip));
+        expect(tester.renderObject(find.text('w2')), same(text));
+      },
+    );
+
+    testWidgets(
       'us14/fr03/e04, s03/inv39: a focused child that a children change '
       'moves past the old cut keeps focus when the new cut still shows it',
       (tester) async {

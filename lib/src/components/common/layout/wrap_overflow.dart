@@ -14,7 +14,9 @@ import 'package:flutter/rendering.dart'
         RenderBox,
         RenderBoxContainerDefaultsMixin,
         RenderObjectVisitor,
-        RenderObjectWithLayoutCallbackMixin;
+        RenderObjectWithLayoutCallbackMixin,
+        Selectable,
+        SelectionRegistrar;
 import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/wrap_cut.dart';
@@ -466,16 +468,7 @@ class _WrapOverflowElement extends RenderObjectElement {
       }
       _probeHiddenCount = hiddenCount;
       _probeWidget = built;
-      _probe = updateChild(
-        _probe,
-        _hideable(
-          SelectionContainer.disabled(
-            child: HeroMode(enabled: false, child: built),
-          ),
-          hidden: true,
-        ),
-        _probeSlot,
-      );
+      _probe = updateChild(_probe, _hideable(built, hidden: true), _probeSlot);
     });
   }
 
@@ -684,8 +677,9 @@ class _WrapOverflowElement extends RenderObjectElement {
 }
 
 /// One child of the wrap: shown, or hidden with its tickers stopped and
-/// out of focus, keeping its State, as [IndexedStack] hides a child with
-/// [ExcludeFocus] and `IndexedStackLayout` adds [TickerMode].
+/// out of focus, selection, and Hero flights, keeping its State, as
+/// [IndexedStack] hides a child with [ExcludeFocus] and
+/// `IndexedStackLayout` adds [TickerMode].
 class _WrapSlot extends StatefulWidget {
   const new({super.key, required this.hidden, required this.child});
 
@@ -732,13 +726,56 @@ class _WrapSlotState extends State<_WrapSlot> {
   }
 }
 
-/// [child] with its tickers stopped and out of focus while [hidden]; the
+/// [child] with its tickers stopped and out of focus, an enclosing
+/// [SelectionArea], and Hero flights while [hidden] (US-14 FR-03 E09); the
 /// one wrapper of a [_WrapSlot] and of the probe (owner ruling R8), so
-/// both leave tickers and focus the same way.
+/// both leave them the same way. Only flags flip, so the child keeps the
+/// same element tree, and its State, whether hidden or shown.
 Widget _hideable(Widget child, {required bool hidden}) => TickerMode(
   enabled: !hidden,
-  child: ExcludeFocus(excluding: hidden, child: child),
+  child: ExcludeFocus(
+    excluding: hidden,
+    child: HeroMode(
+      enabled: !hidden,
+      child: _ExcludeSelection(excluding: hidden, child: child),
+    ),
+  ),
 );
+
+/// Keeps the text of [child] out of an enclosing [SelectionArea] while
+/// [excluding], by registering its selectables with [_NoSelection].
+///
+/// Not [SelectionContainer.disabled]: a null registrar rebuilds a [Text]
+/// with no [MouseRegion], so a flip would remount it. With no enclosing
+/// registrar there is nothing to leave, and [child] passes through.
+class _ExcludeSelection extends StatelessWidget {
+  const new({required this.excluding, required this.child});
+
+  final bool excluding;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final registrar = SelectionContainer.maybeOf(context);
+    if (registrar == null) return child;
+    return SelectionRegistrarScope(
+      registrar: excluding ? const _NoSelection() : registrar,
+      child: child,
+    );
+  }
+}
+
+/// A [SelectionRegistrar] that takes in no selectable, so select-all and
+/// copy never reach the text under it.
+final class _NoSelection implements SelectionRegistrar {
+  const new();
+
+  @override
+  void add(Selectable selectable) {}
+
+  @override
+  void remove(Selectable selectable) {}
+}
 
 class _WrapOverflowParentData extends ContainerBoxParentData<RenderBox> {
   /// Whether the last layout showed the child.
