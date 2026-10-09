@@ -558,8 +558,24 @@ Future<void> _altNow(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
 }
 
+/// The list's sliver: the widgets `SliverReorderableList` or a subtype of
+/// it. `find.byType` matches the exact runtime type, so it would miss a
+/// subtype (D11).
+Finder _reorderSliver() =>
+    find.byWidgetPredicate((widget) => widget is SliverReorderableList);
+
 void main() {
   group('ReorderableListViewLayout pointer', () {
+    testWidgets(
+      'us11/fr01: the list builds one SliverReorderableList, found by a '
+      'subtype predicate',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 3)));
+
+        expect(_reorderSliver(), findsOneWidget);
+      },
+    );
+
     testWidgets('a drag on a handle reorders', (tester) async {
       await tester.pumpWidget(
         _app(const _Harness(count: 5, handles: true, longPressDrag: false)),
@@ -1326,7 +1342,7 @@ void main() {
         expect(_offsetBetween(tester, 0, 1), 80);
         expect(
           find.descendant(
-            of: find.byType(SliverReorderableList),
+            of: _reorderSliver(),
             matching: find.byType(SizeTransition),
           ),
           findsNothing,
@@ -1361,7 +1377,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           find.descendant(
-            of: find.byType(SliverReorderableList),
+            of: _reorderSliver(),
             matching: find.byType(SizeTransition),
           ),
           findsNothing,
@@ -1594,7 +1610,7 @@ void main() {
       expect(_offsetBetween(tester, 9, 0), 40);
       expect(
         find.descendant(
-          of: find.byType(SliverReorderableList),
+          of: _reorderSliver(),
           matching: find.byType(SizeTransition),
         ),
         findsNothing,
@@ -1899,10 +1915,8 @@ void main() {
           ),
         );
         final mid = Curves.easeInOutSine.transform(0.5);
-        Finder inList(Type type) => find.descendant(
-          of: find.byType(SliverReorderableList),
-          matching: find.byType(type),
-        );
+        Finder inList(Type type) =>
+            find.descendant(of: _reorderSliver(), matching: find.byType(type));
 
         _harness(tester).insert(1, 9);
         await tester.pump();
@@ -3914,7 +3928,7 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.byType(SliverReorderableList),
+          of: _reorderSliver(),
           matching: find.byType(FadeTransition),
         ),
         findsNothing,
@@ -4034,7 +4048,7 @@ void main() {
         await tester.pump();
         expect(
           find.descendant(
-            of: find.byType(SliverReorderableList),
+            of: _reorderSliver(),
             matching: find.byType(SizeTransition),
           ),
           findsNothing,
@@ -4065,7 +4079,7 @@ void main() {
         expect(_opacity(tester, 2), 0);
         expect(
           find.descendant(
-            of: find.byType(SliverReorderableList),
+            of: _reorderSliver(),
             matching: find.byType(SizeTransition),
           ),
           findsNothing,
