@@ -151,6 +151,44 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(_above(SlideTransition), findsWidgets);
     });
+
+    testWidgets('us05/fr05: rotate grows from the center and never throws', (
+      tester,
+    ) async {
+      await _open(tester, fadeTheme, ScreenTransitionType.rotate);
+
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.widget<RotationTransition>(_above(RotationTransition)).alignment,
+        Alignment.center,
+      );
+      expect(
+        tester.widget<ScaleTransition>(_above(ScaleTransition)).alignment,
+        Alignment.center,
+      );
+    });
+
+    testWidgets('us05/fr05: size grows from the center and never throws', (
+      tester,
+    ) async {
+      await _open(tester, fadeTheme, ScreenTransitionType.size);
+
+      expect(tester.takeException(), isNull);
+      // The Align nearest above the SizeTransition is the route's own;
+      // SizeTransition wraps its child in an inner Align of its own
+      // (transitions.dart:527@3.47.3).
+      final outer = find
+          .ancestor(of: _above(SizeTransition), matching: find.byType(Align))
+          .first;
+      expect(tester.widget<Align>(outer).alignment, Alignment.center);
+    });
+
+    testWidgets('us05/fr05: leftToRightJoined never throws', (tester) async {
+      await _open(tester, fadeTheme, ScreenTransitionType.leftToRightJoined);
+
+      expect(tester.takeException(), isNull);
+      expect(_above(SlideTransition), findsWidgets);
+    });
   });
 
   group('us05/fr01: the page below a new page', () {
@@ -173,6 +211,18 @@ void main() {
       expect(
         dxOf(tester, 'home'),
         closeTo(dxOf(tester, 'page') - tester.getSize(_page).width, 1e-6),
+      );
+    });
+
+    testWidgets('leftToRightJoined slides a MaterialPage out joined to it', (
+      tester,
+    ) async {
+      await _open(tester, fadeTheme, ScreenTransitionType.leftToRightJoined);
+
+      expect(dxOf(tester, 'home'), greaterThan(0));
+      expect(
+        dxOf(tester, 'home'),
+        closeTo(dxOf(tester, 'page') + tester.getSize(_page).width, 1e-6),
       );
     });
 
