@@ -93,12 +93,24 @@ final class MethodChannelNativeSenderChannel implements NativeSenderChannel {
     NativeSenderListener onMessage,
   ) async {
     final id = _webViewId(controller);
+    // Registered before the answer, so a message the platform sends while
+    // attach is pending still reaches the listener.
     _listeners[id] = onMessage;
-    final attached = await _channel.invokeMethod<bool>(
-      'attach',
-      <String, Object?>{'webViewId': id},
-    );
-    return attached ?? false;
+    var attached = false;
+    try {
+      attached =
+          await _channel.invokeMethod<bool>('attach', <String, Object?>{
+            'webViewId': id,
+          }) ??
+          false;
+    } finally {
+      // A failed attach leaves no listener behind; a later attach of the
+      // same view may already have replaced this one.
+      if (!attached && identical(_listeners[id], onMessage)) {
+        _listeners.remove(id);
+      }
+    }
+    return attached;
   }
 
   @override

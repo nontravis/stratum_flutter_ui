@@ -55,6 +55,64 @@ void main() {
     expect(calls.first.arguments, {'webViewId': 7});
   });
 
+  test('us03/fr01/e11: a failed attach removes the listener it registered '
+      'early', () async {
+    final received = <String>[];
+    attachAnswer = false;
+    expect(
+      await senders.attach(controller, (data, _) => received.add(data)),
+      isFalse,
+    );
+    await platformSends({
+      'webViewId': 7,
+      'data': 'late',
+      'origin': null,
+      'isMainFrame': true,
+    });
+    expect(received, isEmpty);
+  });
+
+  test('us03/fr01/e11: an attach the platform answers with an error removes '
+      'its listener and rethrows', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'attach') throw PlatformException(code: 'no-web-view');
+      return null;
+    });
+    final received = <String>[];
+    await expectLater(
+      senders.attach(controller, (data, _) => received.add(data)),
+      throwsA(isA<PlatformException>()),
+    );
+    await platformSends({
+      'webViewId': 7,
+      'data': 'late',
+      'origin': null,
+      'isMainFrame': true,
+    });
+    expect(received, isEmpty);
+  });
+
+  test('Q6: a message during a pending attach reaches the listener', () async {
+    final received = <String>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'attach') {
+        await platformSends({
+          'webViewId': 7,
+          'data': 'early',
+          'origin': null,
+          'isMainFrame': true,
+        });
+        return true;
+      }
+      return null;
+    });
+    expect(
+      await senders.attach(controller, (data, _) => received.add(data)),
+      isTrue,
+    );
+    expect(received, ['early']);
+  });
+
   test('Q6: a message reaches the listener of its web view with the sender '
       'the platform names', () async {
     final received = <(String, BridgeMessageSender)>[];
