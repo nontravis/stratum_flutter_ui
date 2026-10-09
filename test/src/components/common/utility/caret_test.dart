@@ -61,6 +61,39 @@ Widget _defaultThemeHost(Widget caret, {ThemeMode mode = ThemeMode.light}) =>
 
 const _custom = Color(0xFF123456);
 
+/// A caret pointing [direction] under [textDirection] on [theme], else on
+/// [fakeTheme], whose fast level is the package default 125 ms on
+/// easeInOutSine.
+Widget _turning(
+  StratumCaretDirection direction, {
+  TextDirection textDirection = TextDirection.ltr,
+  StratumThemeData? theme,
+  Color? customColor,
+}) => themedHost(
+  StratumCaret(direction: direction, customColor: customColor),
+  theme: theme,
+  textDirection: textDirection,
+);
+
+double _angle(WidgetTester tester) => _painter(tester).angle;
+
+/// [fakeTheme] with its fast level replaced by [fast].
+StratumThemeData _fastLevel(AnimationStyle fast) {
+  final motion = fakeTheme.animation;
+  return fakeTheme.copyWith(
+    animation: StratumAnimation(
+      veryFast: motion.veryFast,
+      fast: fast,
+      normal: motion.normal,
+      slow: motion.slow,
+      verySlow: motion.verySlow,
+      appear: motion.appear,
+      defaultLevel: motion.defaultLevel,
+      transition: motion.transition,
+    ),
+  );
+}
+
 void main() {
   group('StratumCaret glyph', () {
     testWidgets('us01/fr01/e01, us01/s1: with no values set it draws a '
@@ -472,5 +505,261 @@ void main() {
     );
     expect(node.childrenCount, 0);
     semantics.dispose();
+  });
+
+  group('StratumCaret turn', () {
+    testWidgets('us02/fr02/e02, us02/s1: the first half turn, down to up, '
+        'turns clockwise over the 125 ms fast level', (tester) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      await tester.pumpWidget(_turning(StratumCaretDirection.up));
+      expect(_angle(tester), 0);
+
+      await tester.pump(const Duration(milliseconds: 62));
+      expect(_angle(tester), allOf(greaterThan(0), lessThan(math.pi)));
+
+      await tester.pump(const Duration(milliseconds: 62));
+      expect(_angle(tester), lessThan(math.pi));
+
+      // 1 ms past the 125 ms fast level: AnimationController's isDone is
+      // strictly past its duration, so the ticker unregisters one tick
+      // after the value already reads its end.
+      await tester.pump(const Duration(milliseconds: 2));
+      expect(_angle(tester), math.pi);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('us02/fr02/e03, us02/s2: the next half turn, up to down, '
+        'turns back counterclockwise', (tester) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      await tester.pumpWidget(_turning(StratumCaretDirection.up));
+      await tester.pumpAndSettle();
+      expect(_angle(tester), math.pi);
+
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      await tester.pump(const Duration(milliseconds: 62));
+      expect(_angle(tester), allOf(greaterThan(0), lessThan(math.pi)));
+      await tester.pumpAndSettle();
+      expect(_angle(tester), 0);
+    });
+
+    testWidgets('us02/fr02/e03: a third half turn goes clockwise again, '
+        'opposite to the second', (tester) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      for (final direction in [
+        StratumCaretDirection.up,
+        StratumCaretDirection.down,
+        StratumCaretDirection.up,
+      ]) {
+        await tester.pumpWidget(_turning(direction));
+        await tester.pumpAndSettle();
+      }
+
+      expect(_angle(tester), math.pi);
+    });
+
+    testWidgets('us02/fr02/e01, us02/s3: end to down in a left-to-right app '
+        'turns a quarter clockwise, never three quarters back', (tester) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.end));
+      expect(_angle(tester), moreOrLessEquals(3 * math.pi / 2));
+
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      await tester.pump(const Duration(milliseconds: 62));
+      expect(
+        _angle(tester),
+        allOf(greaterThan(3 * math.pi / 2), lessThan(2 * math.pi)),
+      );
+      await tester.pumpAndSettle();
+      expect(_angle(tester), moreOrLessEquals(2 * math.pi));
+    });
+
+    testWidgets('us02/fr02/e04: down to start turns a quarter clockwise, '
+        'then start to end, the first half turn, turns clockwise', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      await tester.pumpWidget(_turning(StratumCaretDirection.start));
+      await tester.pumpAndSettle();
+      expect(_angle(tester), moreOrLessEquals(math.pi / 2));
+
+      await tester.pumpWidget(_turning(StratumCaretDirection.end));
+      await tester.pumpAndSettle();
+      expect(_angle(tester), moreOrLessEquals(3 * math.pi / 2));
+    });
+
+    testWidgets('us02/fr02/e04: a quarter turn between two half turns leaves '
+        'the next half turn opposite to the last one', (tester) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      for (final direction in [
+        StratumCaretDirection.up,
+        StratumCaretDirection.start,
+        StratumCaretDirection.end,
+      ]) {
+        await tester.pumpWidget(_turning(direction));
+        await tester.pumpAndSettle();
+      }
+
+      // down → up: +π, clockwise; up → start: −π/2, the short way;
+      // start → end: −π, opposite to the clockwise half turn.
+      expect(_angle(tester), moreOrLessEquals(-math.pi / 2));
+    });
+
+    testWidgets("us02/fr02: a turn runs over the theme's fast level on its "
+        'standard curve', (tester) async {
+      final theme = motionTheme(
+        fast: const Duration(milliseconds: 200),
+        standard: const StratumNamedCurve('easeIn'),
+      );
+      await tester.pumpWidget(
+        _turning(StratumCaretDirection.down, theme: theme),
+      );
+      await tester.pumpWidget(_turning(StratumCaretDirection.up, theme: theme));
+
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        _angle(tester),
+        moreOrLessEquals(math.pi * Curves.easeIn.transform(0.5)),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(_angle(tester), math.pi);
+    });
+
+    for (final (name, viaMediaQuery) in [
+      ('us02/fr03/e01, nfr-u03: the app disables animations', true),
+      (
+        'us02/fr03/e02, us02/s5, nfr-u03: the platform reduce-motion flag is '
+            'on',
+        false,
+      ),
+    ]) {
+      testWidgets('$name: the new direction shows in the next frame', (
+        tester,
+      ) async {
+        if (!viaMediaQuery) {
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(reduceMotion: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+        }
+        Widget host(StratumCaretDirection direction) => MediaQuery(
+          data: MediaQueryData.fromView(tester.view)
+              .copyWith(disableAnimations: viaMediaQuery),
+          child: _turning(direction),
+        );
+        await tester.pumpWidget(host(StratumCaretDirection.down));
+
+        await tester.pumpWidget(host(StratumCaretDirection.up));
+
+        expect(_angle(tester), math.pi);
+        expect(tester.hasRunningAnimations, isFalse);
+      });
+    }
+
+    testWidgets('us02/fr04/e01, us02/s6: end moves to the left at once when '
+        'the app switches to right to left', (tester) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.end));
+
+      await tester.pumpWidget(
+        _turning(StratumCaretDirection.end, textDirection: TextDirection.rtl),
+      );
+
+      expect(_angle(tester) % (2 * math.pi), moreOrLessEquals(math.pi / 2));
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    for (final direction in [
+      StratumCaretDirection.up,
+      StratumCaretDirection.down,
+    ]) {
+      testWidgets('us02/fr04/e02: ${direction.name} stays as it is when the '
+          'text direction flips', (tester) async {
+        await tester.pumpWidget(_turning(direction));
+        final before = _angle(tester);
+
+        await tester.pumpWidget(
+          _turning(direction, textDirection: TextDirection.rtl),
+        );
+
+        expect(_angle(tester), before);
+        expect(tester.hasRunningAnimations, isFalse);
+      });
+    }
+
+    testWidgets('us02/fr02: a new direction mid-turn turns on from the live '
+        'angle with no jump', (tester) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      await tester.pumpWidget(_turning(StratumCaretDirection.up));
+      await tester.pump(const Duration(milliseconds: 62));
+      final live = _angle(tester);
+
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+      expect(_angle(tester), moreOrLessEquals(live));
+
+      await tester.pump(const Duration(milliseconds: 62));
+      expect(_angle(tester), allOf(greaterThan(0), lessThan(live)));
+      await tester.pumpAndSettle();
+      expect(_angle(tester), 0);
+    });
+
+    testWidgets('us02/fr02: a rebuild that keeps the direction starts no '
+        'turn', (tester) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.up));
+
+      await tester.pumpWidget(
+        _turning(StratumCaretDirection.up, customColor: _custom),
+      );
+
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(_angle(tester), math.pi);
+      expect(_painter(tester).color, _custom);
+    });
+
+    testWidgets('us02/fr02, us02/fr04: a direction and a text direction that '
+        'change in one frame turn once, the short way to the new side', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+
+      await tester.pumpWidget(
+        _turning(StratumCaretDirection.start, textDirection: TextDirection.rtl),
+      );
+      expect(tester.hasRunningAnimations, isTrue);
+      await tester.pumpAndSettle();
+
+      // Right to left, start points right: a quarter counterclockwise
+      // from down.
+      expect(_angle(tester), moreOrLessEquals(-math.pi / 2));
+    });
+
+    testWidgets('us02/fr02: a fast level with no duration shows the new '
+        'direction at once (themes s03 inv. 15)', (tester) async {
+      final theme = _fastLevel(const AnimationStyle());
+      await tester.pumpWidget(
+        _turning(StratumCaretDirection.down, theme: theme),
+      );
+
+      await tester.pumpWidget(_turning(StratumCaretDirection.up, theme: theme));
+
+      expect(_angle(tester), math.pi);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('us02/fr02: a fast level with no curve turns on '
+        'easeInOutSine (themes s03 inv. 15)', (tester) async {
+      final theme = _fastLevel(
+        const AnimationStyle(duration: Duration(milliseconds: 200)),
+      );
+      await tester.pumpWidget(
+        _turning(StratumCaretDirection.down, theme: theme),
+      );
+      await tester.pumpWidget(_turning(StratumCaretDirection.up, theme: theme));
+
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(
+        _angle(tester),
+        moreOrLessEquals(math.pi * Curves.easeInOutSine.transform(0.5)),
+      );
+    });
   });
 }

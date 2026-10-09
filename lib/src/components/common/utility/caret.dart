@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// Which way a [StratumCaret] points.
@@ -106,13 +107,57 @@ class StratumCaret extends StratumStatefulWidget {
 }
 
 class _StratumCaretState extends State<StratumCaret> {
+  /// The turn value: quarter turns clockwise from pointing down, summed
+  /// over every turn, so a turn back unwinds the turn before it.
+  int _quarterTurns = 0;
+
+  /// The way of the last half turn: 1 clockwise, -1 counterclockwise, 0
+  /// before the first one.
+  int _halfTurnWay = 0;
+
+  /// The direction of the last build; null before the first build.
+  StratumCaretDirection? _direction;
+
+  /// Moves the turn value to [direction] under [textDirection]; true when
+  /// the glyph must show the new angle at once instead of turning to it.
+  ///
+  /// Runs in `build`, which sees a new `direction` and a new
+  /// [Directionality] of one frame together. A new direction turns the
+  /// shorter way, and a half turn the way opposite to the last half turn,
+  /// the first one clockwise (spec `s03_domain.md` invariants 7 and 8).
+  /// With the direction unchanged, a text-direction flip moves a `start`
+  /// or `end` glyph at once (invariant 10), and any other rebuild changes
+  /// nothing.
+  bool _follow(StratumCaretDirection direction, TextDirection textDirection) {
+    final previous = _direction;
+    _direction = direction;
+    final difference =
+        (_quarterTurnsOf(direction, textDirection) - _quarterTurns) % 4;
+    if (difference == 0) return false;
+    if (previous == null || previous == direction) {
+      _quarterTurns += difference;
+      return true;
+    }
+    switch (difference) {
+      case 1:
+        _quarterTurns += 1;
+      case 3:
+        _quarterTurns -= 1;
+      case 2:
+        _halfTurnWay = _halfTurnWay == 1 ? -1 : 1;
+        _quarterTurns += 2 * _halfTurnWay;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final jump = _follow(widget.direction, Directionality.of(context));
+    // Read on every build, so the MediaQuery dependency stays registered.
+    final reduce = reducesMotion(context);
+    final motion = widget.resolveTheme(context).animation.fast;
     final side = widget.customSize ?? _sideOf(widget.resolveSize(context));
-    final quarterTurns = _quarterTurnsOf(
-      widget.direction,
-      Directionality.of(context),
-    );
+    final color = _color(context);
     // A decorative glyph: the owning component announces expanded or
     // collapsed (US-02 FR-05).
     return ExcludeSemantics(
@@ -122,13 +167,24 @@ class _StratumCaretState extends State<StratumCaret> {
           WidgetStyle(width: side, height: side),
         ),
         debug: widget.debug,
-        child: CustomPaint(
-          size: Size.square(side),
-          painter: CaretPainter(
-            style: widget.style,
-            side: side,
-            color: _color(context),
-            angle: quarterTurns * math.pi / 2,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: _quarterTurns * math.pi / 2),
+          // The theme's fast level on its standard curve; a level built
+          // with no duration or curve takes none and easeInOutSine
+          // (themes s03 invariant 15). Reduced motion and a text-direction
+          // flip show the new angle at once (US-02 FR-03, FR-04).
+          duration: jump || reduce
+              ? Duration.zero
+              : motion.duration ?? Duration.zero,
+          curve: motion.curve ?? Curves.easeInOutSine,
+          builder: (context, angle, _) => CustomPaint(
+            size: Size.square(side),
+            painter: CaretPainter(
+              style: widget.style,
+              side: side,
+              color: color,
+              angle: angle,
+            ),
           ),
         ),
       ),
