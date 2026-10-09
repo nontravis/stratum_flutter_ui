@@ -6,6 +6,7 @@
 import 'dart:io';
 
 import 'package:stratum_ui/src/themes/config/transparent.dart';
+import 'package:stratum_ui/src/themes/constant/color.dart';
 import 'package:yaml/yaml.dart';
 
 /// The yaml the generator reads, from the package root.
@@ -93,9 +94,17 @@ String generateThemeTokens(String yaml) {
     ..writeln()
     ..writeln("import 'dart:ui' show Color;")
     ..writeln()
+    ..writeln("import 'package:stratum_ui/src/themes/config/theme_asset.dart';")
+    ..writeln("import 'package:stratum_ui/src/themes/constant/color.dart';")
+    ..writeln()
     ..writeln(
-      "import 'package:stratum_ui/src/themes/config/theme_asset.dart';",
-    );
+      '/// A `<group>.color` group that gives its token for a [ColorEnum] '
+      'name.',
+    )
+    ..writeln('abstract interface class StratumColorEnumTokens {')
+    ..writeln('  /// The token named [color]; null when this group holds none.')
+    ..writeln('  Color? operator [](ColorEnum color);')
+    ..writeln('}');
   final light = _map(_map(root['color'], 'color')['light'], 'color.light')
     ..remove('app');
   _colorClass(out, light, const []);
@@ -129,6 +138,9 @@ void _colorClass(
   final dartPath = [for (final (_, name) in path) name];
   final className = _colorClassName(dartPath);
   final inTransparent = path.length == 1 && path.single.$1 == 'transparent';
+  // A `<group>.color` class (spec FO-03 s03 invariant 33): the one depth
+  // whose classes hold the colors named after the palette.
+  final answersColorEnum = path.length == 2 && path.last.$1 == 'color';
   final names = _names(
     node.keys,
     yamlPath,
@@ -142,7 +154,10 @@ void _colorClass(
           ? '/// The colors of one color set, `color.<set>` without `app`.'
           : '/// The `$yamlPath` group of each color set.',
     )
-    ..writeln('final class $className {')
+    ..writeln(
+      'final class $className'
+      '${answersColorEnum ? ' implements StratumColorEnumTokens' : ''} {',
+    )
     ..writeln(
       path.isEmpty
           ? '  $className.fromMap(Map<String, Color> colors)'
@@ -173,10 +188,44 @@ void _colorClass(
       ..writeln('  /// `$keyPath`')
       ..writeln('  final $type $name;');
   }
+  if (answersColorEnum) _colorEnumLookup(out, node, names);
   out.writeln('}');
   for (final key in children) {
     _colorClass(out, _map(node[key], key), [...path, (key, names[key]!)]);
   }
+}
+
+/// The `operator []` of a `<group>.color` class (spec FO-03 s03
+/// invariant 33): one case per [ColorEnum] value, in enum order, whose
+/// name is the Dart name of a color of [node]; null for every other name.
+/// A semantic key such as `negative` is no [ColorEnum] name, so it never
+/// matches.
+void _colorEnumLookup(
+  StringBuffer out,
+  Map<String, Object?> node,
+  Map<String, String> names,
+) {
+  final colors = {
+    for (final MapEntry(:key, :value) in node.entries)
+      if (value is! YamlMap) names[key]!,
+  };
+  final held = [
+    for (final color in ColorEnum.values)
+      if (colors.contains(color.name)) color.name,
+  ];
+  out
+    ..writeln()
+    ..writeln('  @override');
+  if (held.isEmpty) {
+    out.writeln('  Color? operator [](ColorEnum color) => null;');
+    return;
+  }
+  out.writeln('  Color? operator [](ColorEnum color) => switch (color) {');
+  for (final name in held) {
+    out.writeln('    ColorEnum.$name => $name,');
+  }
+  if (held.length < ColorEnum.values.length) out.writeln('    _ => null,');
+  out.writeln('  };');
 }
 
 void _palette(StringBuffer out, Map<String, Object?> ramps) {
