@@ -305,8 +305,11 @@ final class NativeBridgeSession {
   ///   proves nothing instead, so a send still throws unproven rather than
   ///   trusting the page shown with the token (B2).
   /// - `bye` revokes only a proof whose id it carries (FR-04 E10).
-  /// - `message` passes only while proven, and only while its own document
-  ///   id is 32 lowercase hex characters (FR-04 E05).
+  /// - `message` passes only while proven; when the proving `hello` came
+  ///   with a reply proxy (Android), only through that same proxy, so a
+  ///   `message` another document posted drops whatever id it names (FR-04
+  ///   E15); and only while its own document id is 32 lowercase hex
+  ///   characters (FR-04 E05).
   AcceptedMessage? _receiveEnvelope(String body, BridgeReplyProxy? replyProxy) {
     final proof = _proof;
     if (proof is! _Load) return null;
@@ -317,7 +320,9 @@ final class NativeBridgeSession {
         _proof = _Proven(proof.nonce, proof.token, id, replyProxy);
       case ('bye', final id) when proof is _Proven && id == proof.documentId:
         _proof = _Revoked(proof.nonce, proof.token);
-      case ('message', final body) when proof is _Proven:
+      case ('message', final body)
+          when proof is _Proven &&
+              (proof.replyProxy == null || replyProxy == proof.replyProxy):
         final id = body.length > _secretLength && body[_secretLength] == ':'
             ? body.substring(0, _secretLength)
             : null;

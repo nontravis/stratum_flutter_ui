@@ -1087,6 +1087,68 @@ void main() {
         throwsA(isA<StateError>()),
       );
     });
+
+    test('us03/fr04/e15: a message envelope that another reply proxy carried '
+        'drops silently, whatever document id it names', () {
+      final nonce = nonceIn(android.willLoadHtml('<p>Hi</p>'));
+      android.acceptMessage(
+        envelope(nonce, 'hello', documentA),
+        sender: sentBy(proxyA),
+      );
+      expect(
+        android.acceptMessage(
+          messageEnvelope(nonce, 'a'),
+          sender: sentBy(proxyB),
+        ),
+        isNull,
+      );
+      expect(
+        android.acceptMessage(
+          messageEnvelope(nonce, 'b', document: documentB),
+          sender: sentBy(proxyB),
+        ),
+        isNull,
+      );
+      expect(
+        android
+            .acceptMessage(
+              messageEnvelope(nonce, 'real'),
+              sender: sentBy(proxyA),
+            )
+            ?.message,
+        const StratumWebViewMessage(data: 'real'),
+      );
+    });
+
+    test('us03/fr04/e03, us03/fr04/e15: a hello again from the same document '
+        'through a new reply proxy moves acceptance to that proxy', () {
+      final nonce = nonceIn(android.willLoadHtml('<p>Hi</p>'));
+      android
+        ..acceptMessage(
+          envelope(nonce, 'hello', documentA),
+          sender: sentBy(proxyA),
+        )
+        ..acceptMessage(
+          envelope(nonce, 'hello', documentA),
+          sender: sentBy(proxyB),
+        );
+      expect(
+        android.acceptMessage(
+          messageEnvelope(nonce, 'old'),
+          sender: sentBy(proxyA),
+        ),
+        isNull,
+      );
+      expect(
+        android
+            .acceptMessage(
+              messageEnvelope(nonce, 'new'),
+              sender: sentBy(proxyB),
+            )
+            ?.message,
+        const StratumWebViewMessage(data: 'new'),
+      );
+    });
   });
 
   group('WebKit senders with no reply proxy', () {
@@ -1112,6 +1174,22 @@ void main() {
       expect(
         webKit.replyProxyScriptForMessage('ping', loadNonce: nonce),
         isNull,
+      );
+    });
+
+    test('us03/fr04/e15: a message envelope with no reply proxy still '
+        'passes, because the proving hello came with none', () {
+      final nonce = nonceIn(webKit.willLoadHtml('<p>Hi</p>'));
+      const noProxy = BridgeMessageSender(origin: null, isMainFrame: true);
+      webKit.acceptMessage(
+        envelope(nonce, 'hello', documentA),
+        sender: noProxy,
+      );
+      expect(
+        webKit
+            .acceptMessage(messageEnvelope(nonce, 'm'), sender: noProxy)
+            ?.message,
+        const StratumWebViewMessage(data: 'm'),
       );
     });
   });
