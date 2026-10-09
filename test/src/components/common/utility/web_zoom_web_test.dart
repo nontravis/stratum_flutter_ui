@@ -138,4 +138,99 @@ void main() {
       );
     }
   });
+
+  group('the mouse wheel', () {
+    Future<void> wheel(
+      WidgetTester tester,
+      Offset delta, {
+      PointerDeviceKind kind = PointerDeviceKind.mouse,
+    }) async {
+      final pointer = TestPointer(1, kind);
+      await tester.sendEventToBinding(
+        pointer.hover(tester.getCenter(find.byType(StratumWebZoom))),
+      );
+      await tester.sendEventToBinding(pointer.scroll(delta));
+      await tester.pump();
+    }
+
+    Widget list(ScrollController controller) => _host(
+      StratumWebZoom(
+        child: ListView.builder(
+          controller: controller,
+          itemExtent: 50,
+          itemCount: 100,
+          itemBuilder: (_, index) => Text('$index'),
+        ),
+      ),
+    );
+
+    testWidgets('co01-04/us01/fr03, us01/fr03/e01, us01/s5: the wheel '
+        'scrolls a list and the scale stays', (tester) async {
+      final controller = ScrollController(initialScrollOffset: 100);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(list(controller));
+
+      await wheel(tester, const Offset(0, -20));
+
+      expect(_scale(tester), 1.0);
+      expect(controller.offset, lessThan(100));
+    });
+
+    testWidgets('us01/fr03/e02: the wheel over content that does not scroll '
+        'leaves the scale', (tester) async {
+      await tester.pumpWidget(
+        _host(const StratumWebZoom(child: SizedBox.expand())),
+      );
+
+      await wheel(tester, const Offset(0, -20));
+
+      expect(_scale(tester), 1.0);
+    });
+
+    testWidgets('us01/fr03/e03: zoomed in, the wheel scrolls the list and '
+        'the scale stays', (tester) async {
+      final controller = ScrollController(initialScrollOffset: 100);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(list(controller));
+      await _pinch(tester, 2);
+      final zoomed = _scale(tester);
+      final offset = controller.offset;
+      expect(zoomed, greaterThan(1.2));
+
+      await wheel(tester, const Offset(0, 20));
+
+      expect(_scale(tester), zoomed);
+      expect(controller.offset, greaterThan(offset));
+    });
+
+    testWidgets('a wheel over a list already at its end leaves the scale', (
+      tester,
+    ) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(list(controller));
+
+      await wheel(tester, const Offset(0, -20));
+
+      expect(_scale(tester), 1.0);
+      expect(controller.offset, 0);
+    });
+
+    testWidgets('a trackpad two-finger scroll over a zoomed app leaves the '
+        'scale', (tester) async {
+      await tester.pumpWidget(
+        _host(const StratumWebZoom(child: SizedBox.expand())),
+      );
+      await _pinch(tester, 2);
+      final zoomed = _scale(tester);
+
+      await wheel(
+        tester,
+        const Offset(0, 20),
+        kind: PointerDeviceKind.trackpad,
+      );
+
+      expect(_scale(tester), zoomed);
+    });
+  });
 }
