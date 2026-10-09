@@ -63,5 +63,6 @@ migrate_working_dir/
 .Trashes
 *.swp
 *.log
+!.claude/skills/flutter-device-test/scripts/tests/fixtures/*.log
 *.pyc
 *.class
