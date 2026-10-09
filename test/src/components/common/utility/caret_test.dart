@@ -15,10 +15,10 @@ final Finder _glyph = find.byWidgetPredicate(
 CaretPainter _painter(WidgetTester tester) =>
     tester.widget<CustomPaint>(_glyph).painter! as CaretPainter;
 
-/// The style, side, color, and angle the glyph paints with.
+/// The style, color, and angle the glyph paints with.
 List<Object> _look(WidgetTester tester) {
   final painter = _painter(tester);
-  return [painter.style, painter.side, painter.color, painter.angle];
+  return [painter.style, painter.color, painter.angle];
 }
 
 /// The path and the paint of the glyph's one `drawPath` call.
@@ -191,7 +191,14 @@ void main() {
         await tester.pumpWidget(themedHost(StratumCaret(size: size)));
 
         expect(tester.getSize(find.byType(StratumCaret)), Size.square(side));
-        expect(_painter(tester).side, side);
+        final (:path, paint: _) = _drawn();
+        final unit = side / 16;
+        expect(
+          path.getBounds(),
+          rectMoreOrLessEquals(
+            Rect.fromLTRB(-5 * unit, -2.5 * unit, 5 * unit, 2.5 * unit),
+          ),
+        );
       });
     }
 
@@ -215,7 +222,11 @@ void main() {
       );
 
       expect(tester.getSize(find.byType(StratumCaret)), const Size(40, 40));
-      expect(_painter(tester).side, 40);
+      final (:path, paint: _) = _drawn();
+      expect(
+        path.getBounds(),
+        rectMoreOrLessEquals(const Rect.fromLTRB(-12.5, -6.25, 12.5, 6.25)),
+      );
     });
 
     testWidgets('customSize of -1 fails the assertion', (tester) async {
@@ -262,11 +273,34 @@ void main() {
         ),
       );
 
-      expect(_glyph, paints..translate(x: 50, y: 50));
+      expect(tester.getSize(_glyph), const Size(16, 16));
+      expect(_glyph, paints..translate(x: 8, y: 8));
       final (:path, paint: _) = _drawn();
       expect(
         path.getBounds(),
         rectMoreOrLessEquals(const Rect.fromLTRB(-5, -2.5, 5, 2.5)),
+      );
+    });
+
+    testWidgets('a 5 x 5 parent tighter than the 16 px box scales the glyph '
+        'to fit it', (tester) async {
+      await tester.pumpWidget(
+        themedHost(const SizedBox(width: 5, height: 5, child: StratumCaret())),
+      );
+
+      expect(tester.getSize(find.byType(StratumCaret)), const Size(5, 5));
+      expect(_glyph, paints..translate(x: 2.5, y: 2.5));
+      final (:path, paint: _) = _drawn();
+      expect(
+        path.getBounds(),
+        rectMoreOrLessEquals(
+          const Rect.fromLTRB(
+            -5 / 16 * 5,
+            -2.5 / 16 * 5,
+            5 / 16 * 5,
+            2.5 / 16 * 5,
+          ),
+        ),
       );
     });
 

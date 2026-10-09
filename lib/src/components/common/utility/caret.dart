@@ -191,13 +191,23 @@ class _StratumCaretState extends State<StratumCaret> {
               ? Duration.zero
               : motion.duration ?? Duration.zero,
           curve: motion.curve ?? Curves.easeInOutSine,
-          builder: (context, angle, _) => CustomPaint(
-            size: Size.square(side),
-            painter: CaretPainter(
-              style: widget.style,
-              side: side,
-              color: color,
-              angle: angle,
+          // `Center` loosens whatever constraints `ContainerLayout` passes
+          // down before `SizedBox` re-tightens them to `side`: a tight
+          // ambient box bigger than `side` cannot otherwise be narrowed
+          // (`BoxConstraints.enforce` clamps a smaller desired tight range
+          // up to the ambient one), which left the glyph's own canvas
+          // larger than its box and the glyph centered by hand instead of
+          // by layout (US-01 FR-02 E03).
+          builder: (context, angle, _) => Center(
+            child: SizedBox.square(
+              dimension: side,
+              child: CustomPaint(
+                painter: CaretPainter(
+                  style: widget.style,
+                  color: color,
+                  angle: angle,
+                ),
+              ),
             ),
           ),
         ),
@@ -240,24 +250,15 @@ int _quarterTurnsOf(
   StratumCaretDirection.end => textDirection == TextDirection.ltr ? 3 : 1,
 };
 
-/// Paints one caret glyph of [side], turned [angle] radians clockwise from
-/// pointing down, centered in the area it is given.
+/// Paints one caret glyph, turned [angle] radians clockwise from pointing
+/// down, scaled to and centered in the area it is given.
 ///
 /// Library-internal: `utility.dart` hides it; tests read its fields.
 class CaretPainter extends CustomPainter {
-  const new({
-    required this.style,
-    required this.side,
-    required this.color,
-    required this.angle,
-  });
+  const new({required this.style, required this.color, required this.angle});
 
   /// The glyph: a chevron line or a triangle.
   final StratumCaretStyle style;
-
-  /// The caret's side in logical pixels; the glyph scales with it and
-  /// never with the area it is given (US-01 FR-02 E03).
-  final double side;
 
   /// The glyph color.
   final Color color;
@@ -269,9 +270,10 @@ class CaretPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // The Figma glyph in its 16 px frame, centered on the origin and
     // pointing down: a 10 x 5 chevron centerline or an 11 x 6 triangle
-    // (R8). The points scale with the side; the line width never does
-    // (R1).
-    final unit = side / 16;
+    // (R8). The points scale with the laid-out canvas, which a tighter
+    // ancestor can shrink below the requested side (US-01 FR-02 E03); the
+    // line width never scales (R1).
+    final unit = math.min(size.width, size.height) / 16;
     final paint = Paint()..color = color;
     final path = Path();
     switch (style) {
@@ -305,7 +307,6 @@ class CaretPainter extends CustomPainter {
   @override
   bool shouldRepaint(CaretPainter oldDelegate) =>
       oldDelegate.style != style ||
-      oldDelegate.side != side ||
       oldDelegate.color != color ||
       oldDelegate.angle != angle;
 }
