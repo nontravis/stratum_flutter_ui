@@ -395,6 +395,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// sliver ([_sliver]) through the list's own [_ReorderSliverState].
   final _listKey = GlobalKey<SliverReorderableListState>();
 
+  /// The index each item a move the list knows put in a slot the last
+  /// frame did not lay out takes in this build, by the item's key: the
+  /// sliver's `findChildIndexCallback` moves the item's element there in
+  /// place (invariant 35). Filled by [_resolvePending], emptied after the
+  /// frame.
+  final _movedTo = <Key, int>{};
+
+  /// The item key [_buildItem] read last, for [_rewrapped].
+  Key? _builtKey;
+
   ReorderableListViewLayout get _layout => widget.layout;
 
   @override
@@ -846,11 +856,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void _resolvePending(BuildContext context) {
     final layout = _layout;
     final count = layout.itemCount;
-    if (count != _dataCount) _resetMotion();
+    final explained = count == _dataCount;
+    if (!explained) _resetMotion();
     _dataCount = count;
     _pending.clear();
     Key? keyAt(_DataIndex index) =>
         layout.itemBuilder(context, index.value).key;
+    // A count the calls do not explain moves nothing the list can follow.
+    if (explained) _bookMovedKeys(keyAt);
     final returning = <Key>{};
     for (final insert in _pendingInserts) {
       final key = keyAt(insert.index);
@@ -888,6 +901,50 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         ..hostKey = keyAt(gap < _dataEnd ? gap : _dataEnd - 1)
         ..before = gap < _dataEnd;
     }
+  }
+
+  /// Maps each item a move the list knows put in a slot the last frame did
+  /// not lay out to its index in this build ([_movedTo]): a key move, a
+  /// screen-reader move, or a drop ([_moveTargets]), and a `moveItem` call
+  /// or a same-turn `removeItem` and `insertItem` of one key
+  /// ([_pendingInserts]). Read before the build settles the inserts and the
+  /// fresh exits, which [_enteredSlot] counts.
+  void _bookMovedKeys(Key? Function(_DataIndex index) keyAt) {
+    _movedTo.clear();
+    for (final target in _moveTargets) {
+      final at = target.index;
+      final key = at == null ? null : keyAt(at);
+      if (at != null && key != null) _bookMovedKey(key, at);
+    }
+    for (final insert in _pendingInserts) {
+      final key = keyAt(insert.index);
+      if (key != null) _bookMovedKey(key, insert.index);
+    }
+    if (_movedTo.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _movedTo.clear());
+  }
+
+  /// Maps the item [key], which a move put at [at] of the data, when the
+  /// last frame did not lay out the slot it enters (invariant 35); every
+  /// other item takes the delegate's default path.
+  void _bookMovedKey(Key key, _DataIndex at) {
+    if (_builtSlot(_enteredSlot(at))) return;
+    _movedTo[key] = at.value;
+  }
+
+  /// The SDK's item at [index], from [sdkBuilder], under a frame keyed by
+  /// the item's own key, never its index, so the sliver moves a mapped
+  /// item's element in place ([_movedTo]).
+  Widget? _rewrapped(
+    NullableIndexedWidgetBuilder sdkBuilder,
+    BuildContext context,
+    int index,
+  ) {
+    _builtKey = null;
+    final item = sdkBuilder(context, index);
+    final key = _builtKey;
+    if (item == null || key == null) return item;
+    return KeyedSubtree(key: _IndexFreeKey(key), child: item);
   }
 
   /// The items [keys] are in the data while their old copies still leave,
@@ -1219,6 +1276,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     } finally {
       _inReorderStart = false;
     }
+  }
+
+  /// The SDK's delegate [sdk] with each item framed by its own key and the
+  /// moves of this build mapped through `findChildIndexCallback`.
+  SliverChildBuilderDelegate _rebuiltDelegate(SliverChildBuilderDelegate sdk) {
+    return SliverChildBuilderDelegate(
+      (context, index) => _rewrapped(sdk.builder, context, index),
+      childCount: sdk.childCount,
+      findChildIndexCallback: (key) =>
+          key is _IndexFreeKey ? _movedTo[key.value] : null,
+    );
   }
 
   /// The SDK's own end of a drag, a drop: reported at once with the index
@@ -1919,6 +1987,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final item = _layout.itemBuilder(context, index);
     final key = item.key;
     assert(key != null, 'Every item of ReorderableListViewLayout needs a key');
+    _builtKey = key;
     // The global key holds the item's key and this State, never the index,
     // so a moved item keeps its State and focus, as in Material's
     // ReorderableListView. While the drag proxy still holds the item, its
@@ -2274,6 +2343,49 @@ class _ReorderSliverState extends SliverReorderableListState {
     super.cancelReorder();
     _body._handleListReset();
   }
+
+  // The SDK keys each item with its index (`_ReorderableItemGlobalKey`), so
+  // its sliver replaces a moved item's element. The same sliver over a
+  // delegate that frames each item by its own key, with
+  // `findChildIndexCallback`, moves that element in place (invariant 35).
+  @override
+  Widget build(BuildContext context) {
+    final sliver = super.build(context);
+    final body = _body;
+    final sdk = sliver is SliverMultiBoxAdaptorWidget ? sliver.delegate : null;
+    final rebuilt = sdk is SliverChildBuilderDelegate
+        ? _rebuilt(sliver, body._rebuiltDelegate(sdk))
+        : null;
+    assert(
+      rebuilt != null,
+      'SliverReorderableListState.build changed shape: '
+      'ReorderableListViewLayout cannot frame its items by key',
+    );
+    return rebuilt ?? sliver;
+  }
+
+  /// [sliver], one of the four slivers the SDK builds, over [delegate];
+  /// null for any other.
+  static Widget? _rebuilt(Widget sliver, SliverChildBuilderDelegate delegate) {
+    return switch (sliver) {
+      SliverFixedExtentList(:final itemExtent) => SliverFixedExtentList(
+        delegate: delegate,
+        itemExtent: itemExtent,
+      ),
+      SliverVariedExtentList(:final itemExtentBuilder) =>
+        SliverVariedExtentList(
+          delegate: delegate,
+          itemExtentBuilder: itemExtentBuilder,
+        ),
+      SliverPrototypeExtentList(:final prototypeItem) =>
+        SliverPrototypeExtentList(
+          delegate: delegate,
+          prototypeItem: prototypeItem,
+        ),
+      SliverList() => SliverList(delegate: delegate),
+      _ => null,
+    };
+  }
 }
 
 /// Forwards a drag to the SDK's own and reports its cancel, which the SDK
@@ -2474,6 +2586,12 @@ class _SlotKey extends ValueKey<Key> {
 /// The key of the gap a lifted item keeps in its slot, equal by the item's
 /// key.
 class _StandInKey extends ValueKey<Key> {
+  const new(super.value);
+}
+
+/// The key of the frame around an SDK item, equal by the item's own key,
+/// never its index: the sliver moves a mapped item's element in place.
+class _IndexFreeKey extends ValueKey<Key> {
   const new(super.value);
 }
 

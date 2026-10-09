@@ -7549,4 +7549,115 @@ void main() {
       },
     );
   });
+
+  group('ReorderableListViewLayout items framed by key', () {
+    testWidgets(
+      'us11/fr05/e12: two items moved in one turn to slots the frame does not '
+      'build, a focused one and one the app keeps alive, both keep their '
+      'State',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 1000,
+            itemsController: controller,
+            keepAliveIds: const {21},
+          ),
+          offset: 600,
+        );
+        final focusedState = _itemState(tester, 20)..expanded = true;
+        final keptState = _itemState(tester, 21)..expanded = true;
+        await _focusItem(tester, 20);
+
+        _harness(tester)
+          ..move(20, 500)
+          ..move(20, 600);
+        await tester.pumpAndSettle();
+        expect(_statesOf(tester, 20), [same(focusedState)]);
+        position.jumpTo(600 * 40.0 - 100);
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(_itemState(tester, 21), same(keptState));
+        expect(keptState.expanded, isTrue);
+        expect(focusedState.expanded, isTrue);
+      },
+    );
+
+    testWidgets(
+      's03/inv35: the list frames its items by key over each of the four '
+      'slivers the SDK builds, with findChildIndexCallback set',
+      (tester) async {
+        final harnesses = [
+          const _Harness(key: ValueKey(0), count: 5),
+          const _Harness(key: ValueKey(1), count: 5, itemExtent: 40),
+          _Harness(
+            key: const ValueKey(2),
+            count: 5,
+            itemExtentBuilder: (index, dimensions) => 40,
+          ),
+          const _Harness(
+            key: ValueKey(3),
+            count: 5,
+            prototypeItem: SizedBox(width: 40, height: 40),
+          ),
+        ];
+        final kinds = <Type>[];
+        for (final harness in harnesses) {
+          await tester.pumpWidget(_app(harness));
+          final sliver = tester.widget<SliverMultiBoxAdaptorWidget>(
+            find.byWidgetPredicate(
+              (widget) => widget is SliverMultiBoxAdaptorWidget,
+            ),
+          );
+          kinds.add(sliver.runtimeType);
+          final delegate = sliver.delegate;
+          expect(delegate, isA<SliverChildBuilderDelegate>());
+          expect(
+            (delegate as SliverChildBuilderDelegate).findChildIndexCallback,
+            isNotNull,
+          );
+        }
+
+        expect(tester.takeException(), isNull);
+        expect(kinds, [
+          SliverList,
+          SliverFixedExtentList,
+          SliverVariedExtentList,
+          SliverPrototypeExtentList,
+        ]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e05: an unfocused item the app keeps alive keeps its State '
+      'through a moveItem to a slot the frame does not build: its keep-alive '
+      'follows it to its new slot',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 1000,
+            itemsController: controller,
+            keepAliveIds: const {20},
+          ),
+          offset: 600,
+        );
+        final state = _itemState(tester, 20)..expanded = true;
+
+        _harness(tester).move(20, 500);
+        await tester.pumpAndSettle();
+        expect(state.mounted, isTrue);
+        position.jumpTo(500 * 40.0 - 100);
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(_itemState(tester, 20), same(state));
+        expect(state.expanded, isTrue);
+        expect(state.widget.index, 500);
+      },
+    );
+  });
 }
