@@ -1528,10 +1528,27 @@ final class StratumAssetTokens {
   final StratumThemeAsset? loading;
 }
 
+/// The `opacity` tokens, each from 0 to 1.
+final class StratumOpacityTokens {
+  StratumOpacityTokens.fromMap(Map<String, double> opacity)
+    : disabled = _opacity(opacity, 'disabled');
+
+  /// `opacity.disabled`
+  final double disabled;
+}
+
 Color _color(Map<String, Color> colors, String path) =>
     colors[path] ??
     (throw ArgumentError.value(
       path,
       'path',
       'no color at this path in the theme config',
+    ));
+
+double _opacity(Map<String, double> opacity, String key) =>
+    opacity[key] ??
+    (throw ArgumentError.value(
+      key,
+      'key',
+      'no opacity at this key in the theme config',
     ));
