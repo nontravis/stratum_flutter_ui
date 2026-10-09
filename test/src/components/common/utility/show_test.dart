@@ -26,11 +26,13 @@ class _BoxState extends State<_Box> {
 StratumShow _show({
   required bool visible,
   StratumShowTransition transition = StratumShowTransition.sizeAndFade,
+  StratumShowSlideDirection slideDirection = StratumShowSlideDirection.end,
   Duration? duration,
   Duration? reverseDuration,
 }) => StratumShow(
   visible: visible,
   transition: transition,
+  slideDirection: slideDirection,
   duration: duration,
   reverseDuration: reverseDuration,
   child: const KeyedSubtree(key: _content, child: _Box()),
@@ -371,6 +373,174 @@ void main() {
           matching: find.byType(StratumDisabled),
         ),
         findsNothing,
+      );
+    });
+  });
+
+  group('StratumShow slides', () {
+    double left(WidgetTester tester) =>
+        tester.getTopLeft(find.byKey(_content)).dx;
+    double top(WidgetTester tester) =>
+        tester.getTopLeft(find.byKey(_content)).dy;
+    double showLeft(WidgetTester tester) =>
+        tester.getTopLeft(find.byType(StratumShow)).dx;
+    double showTop(WidgetTester tester) =>
+        tester.getTopLeft(find.byType(StratumShow)).dy;
+
+    Future<void> slideIn(
+      WidgetTester tester,
+      StratumShowSlideDirection direction, {
+      TextDirection text = TextDirection.ltr,
+    }) => _toggle(
+      tester,
+      _row(
+        _show(
+          visible: false,
+          transition: StratumShowTransition.slide,
+          slideDirection: direction,
+        ),
+        direction: text,
+      ),
+      _row(
+        _show(
+          visible: true,
+          transition: StratumShowTransition.slide,
+          slideDirection: direction,
+        ),
+        direction: text,
+      ),
+    );
+
+    testWidgets('us15/fr02/e01, us15/s5: no direction in a left-to-right app '
+        'slides in from the right by its own width while it fades in', (
+      tester,
+    ) async {
+      await _toggle(
+        tester,
+        _row(_show(visible: false, transition: StratumShowTransition.slide)),
+        _row(_show(visible: true, transition: StratumShowTransition.slide)),
+      );
+      await tester.pump();
+      expect(left(tester), showLeft(tester) + 100);
+      expect(_size(tester), const Size(100, 40));
+
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(
+        left(tester),
+        inExclusiveRange(showLeft(tester), showLeft(tester) + 100),
+      );
+      expect(_opacity(tester), inExclusiveRange(0, 1));
+
+      await tester.pump(const Duration(milliseconds: 65));
+      expect(left(tester), showLeft(tester));
+      expect(_opacity(tester), 1.0);
+    });
+
+    testWidgets('us15/fr02/e02, us15/s6: end under right to left comes from '
+        'the left; start comes from the right', (tester) async {
+      await slideIn(
+        tester,
+        StratumShowSlideDirection.end,
+        text: TextDirection.rtl,
+      );
+      await tester.pump();
+      expect(left(tester), showLeft(tester) - 100);
+
+      await slideIn(
+        tester,
+        StratumShowSlideDirection.start,
+        text: TextDirection.rtl,
+      );
+      await tester.pump();
+      expect(left(tester), showLeft(tester) + 100);
+    });
+
+    for (final (direction, sign) in [
+      (StratumShowSlideDirection.top, -1),
+      (StratumShowSlideDirection.bottom, 1),
+    ]) {
+      for (final text in TextDirection.values) {
+        testWidgets('us15/fr02/e03: ${direction.name} moves by its own height '
+            'in ${text.name}', (tester) async {
+          await slideIn(tester, direction, text: text);
+          await tester.pump();
+
+          expect(top(tester), showTop(tester) + sign * 40);
+          expect(left(tester), showLeft(tester));
+        });
+      }
+    }
+
+    testWidgets('us15/fr02: a hide slides out toward the same edge, then '
+        'takes no space', (tester) async {
+      await _toggle(
+        tester,
+        _row(_show(visible: true, transition: StratumShowTransition.slide)),
+        _row(_show(visible: false, transition: StratumShowTransition.slide)),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(left(tester), greaterThan(showLeft(tester)));
+      expect(_size(tester), const Size(100, 40));
+
+      await tester.pump(const Duration(milliseconds: 40));
+      // One more tick past the 80 ms hide: AnimationController reports
+      // dismissed a tick after its value reaches 0 (isDone is strict `>`).
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(_size(tester), Size.zero);
+      expect(find.byKey(_content, skipOffstage: false), findsNothing);
+    });
+
+    testWidgets('a hide during a show reverses from where it is', (
+      tester,
+    ) async {
+      await _toggle(
+        tester,
+        _row(_show(visible: false, transition: StratumShowTransition.slide)),
+        _row(_show(visible: true, transition: StratumShowTransition.slide)),
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+      final at = left(tester);
+      final opacity = _opacity(tester);
+
+      await tester.pumpWidget(
+        _row(_show(visible: false, transition: StratumShowTransition.slide)),
+      );
+      await tester.pump(const Duration(milliseconds: 1));
+
+      expect(left(tester), closeTo(at, 3));
+      expect(_opacity(tester), closeTo(opacity, 0.03));
+    });
+
+    testWidgets('us15/fr02/e04: a slide direction with another transition '
+        'has no effect', (tester) async {
+      await _toggle(
+        tester,
+        _row(
+          _show(visible: false, slideDirection: StratumShowSlideDirection.top),
+        ),
+        _row(
+          _show(visible: true, slideDirection: StratumShowSlideDirection.top),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(top(tester), showTop(tester));
+      expect(left(tester), showLeft(tester));
+    });
+
+    testWidgets('PD6: one clip bounds the slide to the show box', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _row(_show(visible: true, transition: StratumShowTransition.slide)),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byType(StratumShow),
+          matching: find.byType(ClipRect),
+        ),
+        findsOneWidget,
       );
     });
   });

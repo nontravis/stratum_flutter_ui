@@ -86,6 +86,13 @@ class _StratumShowState extends State<StratumShow>
   /// The controller through [_curve]; every transition reads it.
   late final Animation<double> _value = _controller.drive(_curve);
 
+  /// The slide's start, in the child's own size; `Offset.zero` holds the
+  /// content in place (layout s03 invariant 42).
+  final _slide = Tween<Offset>(begin: Offset.zero, end: Offset.zero);
+
+  /// The controller through [_curve] and [_slide].
+  late final Animation<Offset> _position = _value.drive(_slide);
+
   @override
   void initState() {
     super.initState();
@@ -126,6 +133,10 @@ class _StratumShowState extends State<StratumShow>
       ..duration = widget.duration ?? style.duration
       ..reverseDuration = widget.reverseDuration ?? style.reverseDuration;
     _curve.curve = widget.curve ?? style.curve!;
+    // Only `slide` moves the content (FR-02 E04).
+    _slide.begin = widget.transition == StratumShowTransition.slide
+        ? _edge(widget.slideDirection, Directionality.of(context))
+        : Offset.zero;
   }
 
   /// Runs the show or the hide from where the motion is now.
@@ -179,8 +190,23 @@ class _StratumShowState extends State<StratumShow>
             child: child,
           );
         },
-        child: FadeTransition(opacity: _opacity, child: widget.child),
+        child: FadeTransition(
+          opacity: _opacity,
+          child: SlideTransition(position: _position, child: widget.child),
+        ),
       ),
     );
   }
+}
+
+/// The offset, in the child's own size, of [direction]'s edge (invariant
+/// 42); `start` and `end` resolve through [text].
+Offset _edge(StratumShowSlideDirection direction, TextDirection text) {
+  final rtl = text == TextDirection.rtl;
+  return switch (direction) {
+    StratumShowSlideDirection.top => const Offset(0, -1),
+    StratumShowSlideDirection.bottom => const Offset(0, 1),
+    StratumShowSlideDirection.start => Offset(rtl ? 1 : -1, 0),
+    StratumShowSlideDirection.end => Offset(rtl ? -1 : 1, 0),
+  };
 }
