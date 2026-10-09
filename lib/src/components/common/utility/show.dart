@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// How a [StratumShow] moves between shown and hidden (FO-06 US-15 FR-01).
@@ -160,7 +159,7 @@ class _StratumShowState extends State<StratumShow>
   /// Takes the show and hide durations and the curve from the theme's
   /// `defaultStyle`, unless this instance sets them (invariant 43).
   void _applyMotion() {
-    _reduced = reducesMotion(context);
+    _reduced = context.reducesMotion;
     final style =
         (StratumThemeApplication.maybeOf(context)?.animation ??
                 StratumAnimation.packageDefault)
