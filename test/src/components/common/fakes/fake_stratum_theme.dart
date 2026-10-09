@@ -1,6 +1,6 @@
-import 'dart:io';
-
 import 'package:stratum_ui/src/src.dart';
+
+import 'default_theme_yaml.g.dart';
 
 /// Hover overlay color of [fakeTheme].
 const fakeHover = Color(0x11000000);
@@ -26,13 +26,14 @@ const fakeTextColors = <FontColor, Color>{
   FontColor.tertiaryInverse: Color(0xFF000007),
 };
 
-/// The package default `theme.yaml`, read from disk.
-final String defaultThemeSource = File('assets/themes/default/theme.yaml')
-    .readAsStringSync();
+/// The package default `theme.yaml`, from the generated copy
+/// [defaultThemeYaml]; the `@TestOn('vm')` guard in
+/// `default_theme_yaml_test.dart` pins the copy equal to the file.
+const String defaultThemeSource = defaultThemeYaml;
 
 /// The package default theme, parsed once per test file.
 final StratumThemeConfig defaultThemeConfig = StratumThemeConfig.parse(
-  base: StratumThemeSource(
+  base: const StratumThemeSource(
     id: 'stratum-default',
     folder: 'packages/stratum_ui/assets/themes/default',
     yaml: defaultThemeSource,

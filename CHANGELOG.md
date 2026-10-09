@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The empty `assets/fonts/` asset declaration is removed from `pubspec.yaml`; the package ships no font from it.
 - Breaking: the theme animation scale gains a sixth duration level, `micro`, first and shortest: 30 ms forward and
   19.2 ms back in the package default (its 64% `reverseDuration`), read as `StratumTheme.of(context).animation.micro`
   and `StratumMotionLevel.micro`, and valid as `animation.duration.default`. `StratumMotionLevels` and
