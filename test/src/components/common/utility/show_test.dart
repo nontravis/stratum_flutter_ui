@@ -695,6 +695,124 @@ void main() {
     }
   });
 
+  group('StratumShow changes its transition mid-motion', () {
+    /// The show's size, the content's offset inside it, and the opacity.
+    ({Size size, Offset offset, double opacity}) look(WidgetTester tester) => (
+      size: _size(tester),
+      offset:
+          tester.getTopLeft(find.byKey(_content)) -
+          tester.getTopLeft(find.byType(StratumShow)),
+      opacity: _opacity(tester),
+    );
+
+    void expectLook(
+      ({Size size, Offset offset, double opacity}) actual,
+      ({Size size, Offset offset, double opacity}) expected,
+    ) {
+      expect(actual.size.width, closeTo(expected.size.width, 0.01));
+      expect(actual.size.height, closeTo(expected.size.height, 0.01));
+      expect(actual.offset, offsetMoreOrLessEquals(expected.offset));
+      expect(actual.opacity, closeTo(expected.opacity, 1e-6));
+    }
+
+    /// What [transition] shows at the end of a show, or of a hide.
+    ({Size size, Offset offset, double opacity}) endOf(
+      StratumShowTransition transition, {
+      required bool shown,
+    }) {
+      if (shown) {
+        return (size: const Size(100, 40), offset: Offset.zero, opacity: 1);
+      }
+      final resizes =
+          transition == StratumShowTransition.size ||
+          transition == StratumShowTransition.sizeAndFade;
+      return (
+        size: resizes ? Size.zero : const Size(100, 40),
+        offset: transition == StratumShowTransition.slide
+            ? const Offset(100, 0)
+            : Offset.zero,
+        opacity: transition == StratumShowTransition.size ? 1 : 0,
+      );
+    }
+
+    for (final (from, to) in [
+      (StratumShowTransition.slide, StratumShowTransition.size),
+      (StratumShowTransition.sizeAndFade, StratumShowTransition.fade),
+      (StratumShowTransition.fade, StratumShowTransition.slide),
+    ]) {
+      for (final visible in [true, false]) {
+        final motion = visible ? 'show' : 'hide';
+        testWidgets('us15/fr01/e07, us15/s15: ${from.name} to ${to.name} '
+            'mid-$motion continues from where it is to the end of '
+            '${to.name}', (tester) async {
+          await _toggle(
+            tester,
+            _row(_show(visible: !visible, transition: from)),
+            _row(_show(visible: visible, transition: from)),
+          );
+          // Midway: 60 ms of the 125 ms show, 40 ms of the 80 ms hide.
+          await tester.pump(Duration(milliseconds: visible ? 60 : 40));
+          final before = look(tester);
+
+          // The frame of the change advances no time, so it shows what
+          // the frame before showed.
+          await tester.pumpWidget(
+            _row(_show(visible: visible, transition: to)),
+          );
+          expectLook(look(tester), before);
+
+          // To the motion's last value, a tick before it settles.
+          await tester.pump(Duration(milliseconds: visible ? 65 : 40));
+          expectLook(look(tester), endOf(to, shown: visible));
+        });
+      }
+    }
+
+    testWidgets('us15/fr01/e07: a hide after the change reverses from where '
+        'it is to the end of the new transition', (tester) async {
+      await _toggle(
+        tester,
+        _row(_show(visible: false, transition: StratumShowTransition.slide)),
+        _row(_show(visible: true, transition: StratumShowTransition.slide)),
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.pumpWidget(
+        _row(_show(visible: true, transition: StratumShowTransition.size)),
+      );
+      // 75 ms of the 125 ms show: the controller reads 0.6.
+      await tester.pump(const Duration(milliseconds: 15));
+      final before = look(tester);
+
+      await tester.pumpWidget(
+        _row(_show(visible: false, transition: StratumShowTransition.size)),
+      );
+      expectLook(look(tester), before);
+
+      // 0.6 of the 80 ms hide.
+      await tester.pump(const Duration(milliseconds: 48));
+      expectLook(look(tester), endOf(StratumShowTransition.size, shown: false));
+    });
+
+    testWidgets('us15/fr01/e07: at rest the change takes effect at once', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _row(_show(visible: true, transition: StratumShowTransition.slide)),
+      );
+      await tester.pumpWidget(
+        _row(_show(visible: true, transition: StratumShowTransition.size)),
+      );
+      await tester.pumpWidget(
+        _row(_show(visible: false, transition: StratumShowTransition.size)),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(_size(tester).width, inExclusiveRange(0, 100));
+      expect(look(tester).offset, Offset.zero);
+      expect(_opacity(tester), 1.0);
+    });
+  });
+
   group('StratumShow input, focus, and maintainState', () {
     testWidgets('us15/fr03/e04, us15/s10: a tap during the hide reaches '
         'nothing inside the leaving content', (tester) async {

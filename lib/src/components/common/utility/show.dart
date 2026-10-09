@@ -33,7 +33,9 @@ enum StratumShowSlideDirection { top, bottom, start, end }
 ///
 /// One [AnimationController] drives every transition, forward over the
 /// show duration and back over the hide duration, so a flip of [visible]
-/// mid-motion continues from where the motion is. A size change anchors
+/// mid-motion continues from where the motion is; a [transition] changed
+/// mid-motion carries the size, the fade, and the slide from where they
+/// are to the new transition's track by the motion's end. A size change anchors
 /// at the top start corner. Hidden content has no size on either axis and
 /// is unmounted after its hide motion, so it builds fresh when shown again,
 /// unless [maintainState] keeps it. From the frame [visible] turns false,
@@ -97,19 +99,30 @@ class _StratumShowState extends State<StratumShow>
   /// The curve both ways (PD9).
   final _curve = CurveTween(curve: Curves.easeInOutSine);
 
-  /// The controller through [_curve]; every transition reads it.
+  /// The controller through [_curve]; every channel reads it.
   late final Animation<double> _value = _controller.drive(_curve);
 
-  /// The slide's start, in the child's own size; `Offset.zero` holds the
-  /// content in place (layout s03 invariant 42).
-  final _slide = Tween<Offset>(begin: Offset.zero, end: Offset.zero);
+  /// The size factor's line over [_value], set by [_aim].
+  final _sizeLine = Tween<double>(begin: 1, end: 1);
 
-  /// The controller through [_curve] and [_slide].
-  late final Animation<Offset> _position = _value.drive(_slide);
+  /// The opacity's line over [_value], set by [_aim].
+  final _opacityLine = Tween<double>(begin: 1, end: 1);
+
+  /// The slide offset's line over [_value], in the child's own size, set
+  /// by [_aim].
+  final _slideLine = Tween<Offset>(begin: Offset.zero, end: Offset.zero);
+
+  late final Animation<double> _sizeFactor = _value.drive(_sizeLine);
+  late final Animation<double> _opacity = _value.drive(_opacityLine);
+  late final Animation<Offset> _slide = _value.drive(_slideLine);
 
   /// Whether the app or the platform asks for less motion; read with the
   /// theme in [_applyMotion].
   var _reduced = false;
+
+  /// The edge [StratumShow.slideDirection] names, resolved through the
+  /// text direction in [_applyMotion] (invariant 42).
+  Offset _edgeOffset = Offset.zero;
 
   /// Takes focus when focus sat inside content that hides; Tab skips it
   /// (layout s03 invariant 46, the rule of `IndexedStackLayout`).
@@ -167,6 +180,7 @@ class _StratumShowState extends State<StratumShow>
   /// takes zero, its own forward duration, and `easeInOutSine` (themes s03
   /// invariant 15).
   void _applyMotion() {
+    final now = _look;
     _reduced = context.reducesMotion;
     final style =
         (StratumThemeApplication.maybeOf(context)?.animation ??
@@ -176,25 +190,22 @@ class _StratumShowState extends State<StratumShow>
       ..duration = widget.duration ?? durationOf(style)
       ..reverseDuration = widget.reverseDuration ?? reverseDurationOf(style);
     _curve.curve = widget.curve ?? curveOf(style);
-    // Only `slide` moves the content (FR-02 E04), and not under reduced
-    // motion (invariant 44).
-    _slide.begin = widget.transition == StratumShowTransition.slide && !_reduced
-        ? _edge(widget.slideDirection, Directionality.of(context))
-        : Offset.zero;
+    _edgeOffset = _edge(widget.slideDirection, Directionality.of(context));
+    _aim(now);
   }
 
   /// Runs the show or the hide from where the motion is now.
   void _move() {
+    final now = _look;
     if (_reduced && widget.transition == StratumShowTransition.size) {
       // `size` shows and hides at once under reduced motion (invariant 44).
       _controller.value = widget.visible ? 1 : 0;
-      return;
-    }
-    if (widget.visible) {
+    } else if (widget.visible) {
       _controller.forward();
     } else {
       _controller.reverse();
     }
+    _aim(now);
   }
 
   /// Rebuilds once the hide motion ends, so the content leaves the tree.
@@ -202,20 +213,70 @@ class _StratumShowState extends State<StratumShow>
     if (status.isDismissed) setState(() {});
   }
 
-  /// The size factor: the motion under `size` and `sizeAndFade`; the full
-  /// size under `fade` and `slide`, and under reduced motion (invariant
-  /// 44).
-  Animation<double> get _sizeFactor => switch (widget.transition) {
-    StratumShowTransition.size ||
-    StratumShowTransition.sizeAndFade when !_reduced => _value,
-    _ => kAlwaysCompleteAnimation,
-  };
+  /// What the content shows now.
+  _Look get _look =>
+      (size: _sizeFactor.value, opacity: _opacity.value, slide: _slide.value);
 
-  /// The opacity: the motion under every transition but `size`.
-  Animation<double> get _opacity =>
-      widget.transition == StratumShowTransition.size
-      ? kAlwaysCompleteAnimation
-      : _value;
+  /// What [StratumShow.transition] shows at the curved motion value [t].
+  ///
+  /// The size changes under `size` and `sizeAndFade`, the opacity under
+  /// all but `size`, and the content slides under `slide` alone (FR-02
+  /// E04); under reduced motion neither the size nor the slide moves
+  /// (invariant 44).
+  _Look _track(double t) {
+    final transition = widget.transition;
+    final resizes =
+        !_reduced &&
+        (transition == StratumShowTransition.size ||
+            transition == StratumShowTransition.sizeAndFade);
+    final slides = !_reduced && transition == StratumShowTransition.slide;
+    return (
+      size: resizes ? t : 1.0,
+      opacity: transition == StratumShowTransition.size ? 1.0 : t,
+      slide: slides ? _edgeOffset * (1 - t) : Offset.zero,
+    );
+  }
+
+  /// Sets each channel's line: at rest the track itself; mid-motion the
+  /// line from [now], what the content showed before the change, to the
+  /// track's value at the motion's end, so no change jumps (invariant 48).
+  ///
+  /// Every track is linear in the motion value, so a line through the
+  /// value now and the track's end reaches the track at the end.
+  void _aim(_Look now) {
+    final t = _value.value;
+    final end = _controller.status == AnimationStatus.forward ? 1.0 : 0.0;
+    if (!_controller.isAnimating || t == end) {
+      _setLines(hidden: _track(0), shown: _track(1));
+      return;
+    }
+    final target = _track(end);
+    // The line through (t, now) and (end, target), read at [at].
+    _Look line(double at) {
+      final k = (at - end) / (t - end);
+      return (
+        size: target.size + (now.size - target.size) * k,
+        opacity: target.opacity + (now.opacity - target.opacity) * k,
+        slide: target.slide + (now.slide - target.slide) * k,
+      );
+    }
+
+    _setLines(hidden: line(0), shown: line(1));
+  }
+
+  /// Sets each channel's value at motion value 0 to [hidden] and at 1 to
+  /// [shown].
+  void _setLines({required _Look hidden, required _Look shown}) {
+    _sizeLine
+      ..begin = hidden.size
+      ..end = shown.size;
+    _opacityLine
+      ..begin = hidden.opacity
+      ..end = shown.opacity;
+    _slideLine
+      ..begin = hidden.slide
+      ..end = shown.slide;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -251,13 +312,17 @@ class _StratumShowState extends State<StratumShow>
   /// the fade and the slide inside it (layout s03 invariant 45; PD6, PD7).
   Widget _motion() => _SizeFactorBox(
     factor: _sizeFactor,
-    slide: _position,
+    slide: _slide,
     child: FadeTransition(
       opacity: _opacity,
-      child: SlideTransition(position: _position, child: widget.child),
+      child: SlideTransition(position: _slide, child: widget.child),
     ),
   );
 }
+
+/// The size factor, the opacity, and the slide offset content shows at one
+/// point of a motion.
+typedef _Look = ({double size, double opacity, Offset slide});
 
 /// Sizes itself to its child's size times [factor] and places the child at
 /// the top start corner (layout s03 invariant 45; PD6, PD7).
@@ -309,9 +374,9 @@ class _RenderSizeFactorBox extends RenderAligningShiftedBox {
   Animation<double> _factor;
   set factor(Animation<double> value) {
     if (value == _factor) return;
-    if (attached) _factor.removeListener(markNeedsLayout);
+    if (attached) _factor.removeListener(_onFactor);
     _factor = value;
-    if (attached) _factor.addListener(markNeedsLayout);
+    if (attached) _factor.addListener(_onFactor);
     markNeedsLayout();
   }
 
@@ -335,6 +400,15 @@ class _RenderSizeFactorBox extends RenderAligningShiftedBox {
   /// Whether the child moves: smaller than its own size, or slid off.
   bool get _moving => _sizeFactor < 1 || _slide.value != Offset.zero;
 
+  /// The size factor of the last layout.
+  double? _laidOutFactor;
+
+  /// Lays out only when the factor changed, so a transition whose size
+  /// holds runs no layout per motion frame.
+  void _onFactor() {
+    if (_sizeFactor != _laidOutFactor) markNeedsLayout();
+  }
+
   /// A slide moves only the paint, so it repaints when the clip turns on
   /// or off; a size change lays out, which repaints.
   void _onSlide() {
@@ -344,13 +418,13 @@ class _RenderSizeFactorBox extends RenderAligningShiftedBox {
   @override
   void attach(PipelineOwner owner) {
     super.attach(owner);
-    _factor.addListener(markNeedsLayout);
+    _factor.addListener(_onFactor);
     _slide.addListener(_onSlide);
   }
 
   @override
   void detach() {
-    _factor.removeListener(markNeedsLayout);
+    _factor.removeListener(_onFactor);
     _slide.removeListener(_onSlide);
     super.detach();
   }
@@ -392,6 +466,7 @@ class _RenderSizeFactorBox extends RenderAligningShiftedBox {
       return;
     }
     child.layout(constraints, parentUsesSize: true);
+    _laidOutFactor = _sizeFactor;
     size = constraints.constrain(child.size * _sizeFactor);
     alignChild();
   }
