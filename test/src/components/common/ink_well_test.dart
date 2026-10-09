@@ -1692,7 +1692,7 @@ void main() {
   });
 
   group('StratumInkWell context-menu key', () {
-    testWidgets('the context-menu key and Shift+F10 call onSecondaryTap', (
+    testWidgets('us05/s1: the context-menu key calls onSecondaryTap', (
       tester,
     ) async {
       var calls = 0;
@@ -1710,9 +1710,28 @@ void main() {
       await tester.pump();
 
       await tester.sendKeyEvent(LogicalKeyboardKey.contextMenu);
+
+      expect(calls, 1);
+    });
+
+    testWidgets('us05/s2: Shift+F10 calls onSecondaryTap', (tester) async {
+      var calls = 0;
+      final node = _node();
+      await tester.pumpWidget(
+        themedHost(
+          StratumInkWell(
+            onSecondaryTap: () => calls++,
+            focusNode: node,
+            child: _box,
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pump();
+
       await _shiftF10(tester);
 
-      expect(calls, 2);
+      expect(calls, 1);
     });
 
     testWidgets('neither key fires while disabled', (tester) async {
@@ -1947,7 +1966,7 @@ void main() {
   });
 
   group('StratumInkWell shortcuts', () {
-    testWidgets('a binding fires only while the surface has focus', (
+    testWidgets('us05/s4: a binding fires only while the surface has focus', (
       tester,
     ) async {
       var calls = 0;
@@ -2011,29 +2030,62 @@ void main() {
       expect(find.byType(CallbackShortcuts), findsOneWidget);
     });
 
-    testWidgets('an unmodified binding is skipped inside a TextField', (
-      tester,
-    ) async {
-      var letters = 0;
-      var commands = 0;
-      final field = _node();
+    testWidgets(
+      'us05/s5: an unmodified binding is skipped inside a TextField',
+      (tester) async {
+        var letters = 0;
+        var commands = 0;
+        final field = _node();
+        await tester.pumpWidget(
+          _appHost(
+            StratumInkWell(
+              onTap: _noop,
+              shortcuts: {
+                _keyA: () => letters++,
+                _controlKey: () => commands++,
+              },
+              child: SizedBox(width: 200, child: TextField(focusNode: field)),
+            ),
+          ),
+        );
+        field.requestFocus();
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+        await _controlK(tester);
+
+        expect(letters, 0);
+        expect(commands, 1);
+      },
+    );
+
+    testWidgets('us05/s6: a binding does not fire while focus rests on '
+        'another surface', (tester) async {
+      var calls = 0;
+      final rowNode = _node();
+      final otherNode = _node();
       await tester.pumpWidget(
-        _appHost(
-          StratumInkWell(
-            onTap: _noop,
-            shortcuts: {_keyA: () => letters++, _controlKey: () => commands++},
-            child: SizedBox(width: 200, child: TextField(focusNode: field)),
+        themedHost(
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StratumInkWell(
+                onTap: _noop,
+                shortcuts: {_controlKey: () => calls++},
+                focusNode: rowNode,
+                child: _box,
+              ),
+              StratumInkWell(onTap: _noop, focusNode: otherNode, child: _box),
+            ],
           ),
         ),
       );
-      field.requestFocus();
-      await tester.pump();
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+      otherNode.requestFocus();
+      await tester.pump();
       await _controlK(tester);
 
-      expect(letters, 0);
-      expect(commands, 1);
+      expect(calls, 0);
     });
 
     testWidgets('a shortcut-only surface takes focus on the caller node', (
