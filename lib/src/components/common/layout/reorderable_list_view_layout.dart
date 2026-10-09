@@ -1137,19 +1137,40 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _movedTo.putIfAbsent(key, () => at.value);
   }
 
-  /// Maps the item that holds focus, among [watched], to its index after
-  /// this turn's calls when a call shifted it into a slot the next frame
-  /// does not lay out, so its element, which the list keeps alive off screen
-  /// (R29), follows the call in place: its State and focus stay, with no
-  /// jump and no reach (R35). With the app's `findChildIndexCallback`, the
-  /// sliver's own answer for the key follows it ([_appIndexOf]).
+  /// Books a call's shift of the item that holds focus, among [watched],
+  /// into a slot the next frame does not lay out, with no app
+  /// `findChildIndexCallback`: from a laid-out slot, the list follows and
+  /// reveals it ([_followShiftOutOfView]); kept alive off screen (R29), its
+  /// element follows the call in place, mapped to its index after this
+  /// turn's calls, so its State and focus stay, with no jump and no reach
+  /// (R35). With the callback, [_bookRawMoves] books the first, and the
+  /// sliver's own answer for the key follows the second ([_appIndexOf]).
   void _bookFocusedKey(List<_Watched> watched) {
     if (_layout.findChildIndexCallback != null) return;
-    for (final (:key, :at, :frame, node: _) in watched) {
+    for (final focused in watched) {
+      final (:key, :at, :frame, node: _) = focused;
       if (frame == null || at.value == frame.value) continue;
       if (_builtSlot(_enteredSlot(at))) continue;
+      if (_followShiftOutOfView(focused)) continue;
       _movedTo.putIfAbsent(key, () => at.value);
     }
+  }
+
+  /// Follows the shift this turn's calls gave the item that holds focus,
+  /// [watched], from a slot the last frame laid out to one the next frame
+  /// does not: booked as a raw move to the item's new index (D17), so the
+  /// list keeps the item, jumps toward it at the next frame's start, and
+  /// reveals it, as it reveals a moved item (FR-05 E04). An item with a move
+  /// of its own running ([_focusOwned]), or one not laid out when the data
+  /// changed (R36), books nothing. Returns whether it booked the follow.
+  bool _followShiftOutOfView(_Watched watched) {
+    final (:key, :at, :node, :frame) = watched;
+    if (frame == null || at.value == frame.value || _focusOwned(key)) {
+      return false;
+    }
+    if (!_builtSlot(frame.slot) || _builtSlot(_enteredSlot(at))) return false;
+    _bookRawMove(key, node, from: at, to: at);
+    return true;
   }
 
   /// The keys a build follows by key, each with its key node and the index
@@ -1203,11 +1224,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// kept alive off screen (R29), with no move of its own running
   /// ([_focusOwned]), books no raw move: the sliver's own answer for its key
   /// follows its shift or raw move in place, silently, with no park, jump,
-  /// or reach, and the next focus move or reorder key reveals it (R36).
+  /// or reach, and the next focus move or reorder key reveals it (R36). An
+  /// answer that confirms a call's shift of it out of view from a laid-out
+  /// slot follows it ([_followShiftOutOfView]).
   void _bookRawMoves(List<_Watched> watched, Set<Key> known, Set<Key> dropped) {
     final app = _layout.findChildIndexCallback;
     if (app == null) return;
-    for (final (:key, :at, :node, :frame) in watched) {
+    for (final entry in watched) {
+      final (:key, :at, :node, :frame) = entry;
       if (known.contains(key)) continue;
       final answer = app(key);
       if (answer == null || answer < 0 || answer >= _dataCount) {
@@ -1216,7 +1240,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       }
       final to = _DataIndex(answer);
       final rebooked = dropped.contains(key);
-      if (to == at && !rebooked) continue;
+      if (to == at && !rebooked) {
+        _followShiftOutOfView(entry);
+        continue;
+      }
       final offScreen = frame != null && !_builtSlot(frame.slot);
       if (offScreen && !rebooked && !_focusOwned(key)) continue;
       _bookRawMove(key, node, from: at, to: to);
@@ -1244,7 +1271,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// knows: mapped and parked when the last frame did not lay out the slot
   /// it enters, then followed ([_followRawMove]); a lifted item's follow
   /// waits for the drag proxy to let it go ([_liftedFollow]). A shift that
-  /// another item's raw move gives the item books the same way. The move
+  /// another item's raw move gives the item books the same way, and so does
+  /// a call's shift of the focused item out of view, from [to] to [to]
+  /// ([_followShiftOutOfView]). The move
   /// re-aims a reach that looks for the item, as `moveItem` does, and an
   /// earlier move of the item reveals nothing (invariant 35).
   void _bookRawMove(

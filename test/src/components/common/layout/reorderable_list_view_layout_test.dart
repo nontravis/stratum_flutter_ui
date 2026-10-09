@@ -9791,6 +9791,57 @@ void main() {
       variant: shiftingCalls,
     );
 
+    // Calls that shift the focused item, shown whole at an edge of a list
+    // with no cache extent, past the slots the frame laid out, with or
+    // without the app index: the item focused, the offset, and the calls.
+    // The sliver keeps the slot that ends at the list's top edge, so a
+    // shift up leaves the laid-out slots only past it.
+    final shiftedOut = ValueVariant<(int, double, String, bool)>({
+      for (final withIndex in [false, true]) ...{
+        (107, 4020, 'insertItem', withIndex),
+        (100, 4000, 'removeItem twice', withIndex),
+      },
+    });
+    testWidgets(
+      'us11/fr05/e04 and s03/inv35: a call that shifts the focused item from '
+      'a laid-out slot to one the frame does not lay out keeps its State and '
+      'focus, and the list reveals it at its new slot',
+      (tester) async {
+        final (id, offset, call, withIndex) = shiftedOut.currentValue!;
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 1000,
+            appIndex: withIndex,
+            scrollCacheExtent: const ScrollCacheExtent.pixels(0),
+            itemsController: StratumReorderableItemsController(),
+          ),
+          offset: offset,
+        );
+        final state = _itemState(tester, id);
+        await _focusItem(tester, id);
+        expect(_builtInView(tester, id), isTrue);
+        expect(position.pixels, offset);
+
+        final harness = _harness(tester);
+        if (call == 'insertItem') {
+          harness.insert(0, 5000);
+        } else {
+          harness
+            ..remove(0)
+            ..remove(0);
+        }
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ids.indexOf(id), call == 'insertItem' ? 108 : 98);
+        expect(_statesOf(tester, id), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, id), isTrue);
+      },
+      variant: shiftedOut,
+    );
+
     testWidgets(
       'us11/fr03/e11 and s03/inv35: a focused item the frame builds anew, '
       'with no focus move, stays alive when scrolled out of view',
