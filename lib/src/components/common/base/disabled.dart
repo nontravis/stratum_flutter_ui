@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show GestureBinding;
 import 'package:flutter/material.dart';
 import 'package:stratum_ui/src/themes/theme_application.dart';
 
@@ -18,8 +19,10 @@ import 'package:stratum_ui/src/themes/theme_application.dart';
 /// `opacity.disabled` unless [dims] is false, shows
 /// `SystemMouseCursors.forbidden`, lets no pointer event reach the
 /// component, and keeps the component and every node inside it out of
-/// focus and Tab order.
-class StratumDisabled extends StatelessWidget {
+/// focus and Tab order. A gesture already in progress when [disabled]
+/// turns true is cancelled, so a press runs no tap and a drag gets no
+/// further update.
+class StratumDisabled extends StatefulWidget {
   const new({
     super.key,
     required this.disabled,
@@ -42,15 +45,42 @@ class StratumDisabled extends StatelessWidget {
 
   final Widget child;
 
+  @override
+  State<StratumDisabled> createState() => _StratumDisabledState();
+}
+
+class _StratumDisabledState extends State<StratumDisabled> {
+  /// The pointers down inside the component now.
+  final _down = <int>{};
+
+  @override
+  void didUpdateWidget(StratumDisabled oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.disabled || !widget.disabled) return;
+    // IgnorePointer refuses only new pointers: Flutter routes a pointer
+    // already down along the path hit at its down, so cancel each one
+    // (gestures/binding.dart:340@3.47.7). A drag recognizer reports the
+    // cancel of an accepted drag as its end (monodrag.dart:753-766).
+    _down
+      ..forEach(GestureBinding.instance.cancelPointer)
+      ..clear();
+  }
+
+  void _onDown(PointerDownEvent event) => _down.add(event.pointer);
+
+  void _onEnd(PointerEvent event) => _down.remove(event.pointer);
+
   /// The same layers in every build: the `Semantics` layer, which while it
   /// reports is a container node with `enabled` false and otherwise adds
   /// no node and no flag (US-07 FR-03 E01, E02), then the cursor, pointer,
-  /// focus, and opacity layers. It reads the theme only while it dims, so
-  /// a widget on either base with no theme above it builds while enabled.
+  /// pointer-tracking, focus, and opacity layers. It reads the theme only
+  /// while it dims, so a widget on either base with no theme above it
+  /// builds while enabled.
   @override
   Widget build(BuildContext context) {
-    final reports = disabled && contributesSemantics;
-    final opacity = disabled && dims
+    final disabled = widget.disabled;
+    final reports = disabled && widget.contributesSemantics;
+    final opacity = disabled && widget.dims
         ? StratumThemeApplication.of(context).opacity.disabled
         : 1.0;
     return Semantics(
@@ -61,12 +91,17 @@ class StratumDisabled extends StatelessWidget {
         cursor: disabled ? SystemMouseCursors.forbidden : MouseCursor.defer,
         child: IgnorePointer(
           ignoring: disabled,
-          child: ExcludeFocus(
-            excluding: disabled,
-            child: Opacity(
-              opacity: opacity,
-              alwaysIncludeSemantics: true,
-              child: child,
+          child: Listener(
+            onPointerDown: _onDown,
+            onPointerUp: _onEnd,
+            onPointerCancel: _onEnd,
+            child: ExcludeFocus(
+              excluding: disabled,
+              child: Opacity(
+                opacity: opacity,
+                alwaysIncludeSemantics: true,
+                child: widget.child,
+              ),
             ),
           ),
         ),

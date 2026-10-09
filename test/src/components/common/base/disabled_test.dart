@@ -62,6 +62,43 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('us07/fr03: a disabled component inside another disabled '
+        'one reports one node each, unmerged', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _host(
+          StratumDisabled(
+            disabled: true,
+            child: Semantics(
+              label: 'Form',
+              child: StratumDisabled(
+                disabled: true,
+                child: Semantics(button: true, label: 'Save', child: _box),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final outer = tester.getSemantics(find.byType(StratumDisabled).first);
+      final inner = tester.getSemantics(find.byType(StratumDisabled).last);
+      expect(
+        outer,
+        isSemantics(label: 'Form', hasEnabledState: true, isEnabled: false),
+      );
+      expect(
+        inner,
+        isSemantics(
+          label: 'Save',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+        ),
+      );
+      expect(outer.childrenCount, 1);
+      handle.dispose();
+    });
+
     testWidgets('us07/fr03: a component node of its own sits inside the '
         'disabled node', (tester) async {
       final handle = tester.ensureSemantics();
@@ -333,6 +370,20 @@ void main() {
       expect(opacityOf(tester), 0.3);
     });
 
+    testWidgets('a theme dimming of 1 paints at full opacity', (tester) async {
+      final theme = fakeTheme.copyWith(
+        opacity: StratumOpacityTokens.fromMap(const {'disabled': 1.0}),
+      );
+      await tester.pumpWidget(
+        themedHost(
+          theme: theme,
+          const StratumDisabled(disabled: true, child: _box),
+        ),
+      );
+
+      expect(opacityOf(tester), 1.0);
+    });
+
     testWidgets('full opacity while enabled, and while dims is off', (
       tester,
     ) async {
@@ -521,6 +572,69 @@ void main() {
         expect(calls, 0);
       });
     }
+
+    testWidgets('us07/fr02: a drag in progress when it turns disabled gets '
+        'no update; it ends at the flip, as a cancelled drag does', (
+      tester,
+    ) async {
+      final log = <String>[];
+      Widget build({required bool disabled}) => themedHost(
+        StratumDisabled(
+          disabled: disabled,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragUpdate: (_) => log.add('update'),
+            onHorizontalDragEnd: (_) => log.add('end'),
+            child: const SizedBox(width: 100, height: 100),
+          ),
+        ),
+      );
+      await tester.pumpWidget(build(disabled: false));
+      final drag = await tester.startGesture(
+        tester.getCenter(find.byType(StratumDisabled)),
+      );
+      await drag.moveBy(const Offset(30, 0));
+      await drag.moveBy(const Offset(10, 0));
+      expect(log, contains('update'));
+      log.clear();
+
+      await tester.pumpWidget(build(disabled: true));
+      expect(log, ['end']);
+
+      await drag.moveBy(const Offset(10, 0));
+      await drag.up();
+      await tester.pump();
+      expect(log, ['end']);
+    });
+
+    testWidgets('us07/fr02: a press in progress when it turns disabled runs '
+        'no tap on release', (tester) async {
+      var taps = 0;
+      var cancels = 0;
+      Widget build({required bool disabled}) => themedHost(
+        StratumDisabled(
+          disabled: disabled,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => taps++,
+            onTapCancel: () => cancels++,
+            child: const SizedBox(width: 100, height: 100),
+          ),
+        ),
+      );
+      await tester.pumpWidget(build(disabled: false));
+      final press = await tester.startGesture(
+        tester.getCenter(find.byType(StratumDisabled)),
+      );
+      await tester.pump(kPressTimeout);
+
+      await tester.pumpWidget(build(disabled: true));
+      await press.up();
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(taps, 0);
+      expect(cancels, 1);
+    });
 
     testWidgets('us07/fr02/e06: enabled again, it takes taps', (tester) async {
       var taps = 0;
