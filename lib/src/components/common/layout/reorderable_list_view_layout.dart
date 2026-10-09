@@ -405,6 +405,26 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The item key [_buildItem] read last, for [_rewrapped].
   Key? _builtKey;
 
+  /// The frame of each built item, by the item's key: the keep-alive client
+  /// a park flags (invariant 35).
+  final _frames = <Key, _ParkFrameState>{};
+
+  /// The key of the focused moved item kept alive off screen until it is
+  /// laid out and revealed (invariant 35); null with none. Only the item
+  /// that holds focus parks, so at most one item is parked.
+  Key? _parkedKey;
+
+  /// The parked item's index in the current data, which every later
+  /// `insertItem`, `removeItem`, and `moveItem` shifts until its release,
+  /// so its element follows the data in place; null once a call takes the
+  /// item out.
+  _DataIndex? _parkedAt;
+
+  /// The frame the park flagged: the client that existed when the item
+  /// parked, since a client built later that asks for a keep-alive in its
+  /// first build trips a framework assert when it is released first.
+  _ParkFrameState? _parkedFrame;
+
   ReorderableListViewLayout get _layout => widget.layout;
 
   @override
@@ -505,6 +525,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
             node != null &&
             node.context != null &&
             _itemNodes.containsValue(node)) {
+          // Parked off screen: registered, but not laid out (E17).
+          if (returnAt != null && !_builtSlot(returnAt.slot)) {
+            if (node.hasFocus || primary == null) {
+              _startReach(returnAt, key, gap);
+            } else {
+              _releasePark(key);
+            }
+            return;
+          }
+          _releasePark(key);
           if (node.hasFocus) {
             _revealReturned(node, key);
           } else if (primary == null) {
@@ -556,6 +586,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final node = built == null ? null : _nodeAt(built);
     final key = built == null ? null : _lookAt(built)?.key;
     final focused = node?.hasFocus ?? false;
+    // A move of the item a reach looks for re-aims it: the move's own
+    // follow takes over, and the item stays parked (invariant 32).
+    if (key != null && key == _reachKey) _stopReach();
     // A leaving item drawn beside the moved item would travel with it.
     if (built != null) _endExitsBeside(built);
     final box = node?.context?.findRenderObject();
@@ -808,6 +841,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     final follow = _followGap;
     if (follow != null && follow > index) _followGap = follow + 1;
+    final parked = _parkedAt;
+    if (parked != null && parked >= index) _parkedAt = parked + 1;
     for (final target in _moveTargets) {
       final at = target.index;
       if (at != null && at >= index) target.index = at + 1;
@@ -840,6 +875,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     final follow = _followGap;
     if (follow != null && follow > index) _followGap = follow - 1;
+    final parked = _parkedAt;
+    if (parked != null && parked >= index) {
+      // A call that takes the parked item out releases it at the next build.
+      _parkedAt = parked == index ? null : parked - 1;
+    }
     for (final target in _moveTargets) {
       final gap = target.gap;
       if (gap != null && gap > index) target.gap = gap - 1;
@@ -862,8 +902,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _pending.clear();
     Key? keyAt(_DataIndex index) =>
         layout.itemBuilder(context, index.value).key;
-    // A count the calls do not explain moves nothing the list can follow.
-    if (explained) _bookMovedKeys(keyAt);
+    // A count the calls do not explain moves nothing the list can follow,
+    // and ends the park (E12).
+    if (explained) {
+      _bookMovedKeys(keyAt);
+    } else {
+      _movedTo.clear();
+      _releasePark();
+    }
     final returning = <Key>{};
     for (final insert in _pendingInserts) {
       final key = keyAt(insert.index);
@@ -920,16 +966,61 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       final key = keyAt(insert.index);
       if (key != null) _bookMovedKey(key, insert.index);
     }
+    _bookParkedKey();
     if (_movedTo.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) => _movedTo.clear());
   }
 
   /// Maps the item [key], which a move put at [at] of the data, when the
-  /// last frame did not lay out the slot it enters (invariant 35); every
-  /// other item takes the delegate's default path.
+  /// last frame did not lay out the slot it enters (invariant 35), and
+  /// parks it when it holds focus; every other item takes the delegate's
+  /// default path.
   void _bookMovedKey(Key key, _DataIndex at) {
     if (_builtSlot(_enteredSlot(at))) return;
     _movedTo[key] = at.value;
+    if (_holdsFocus(key)) _park(key, at);
+  }
+
+  /// Maps the parked item to its index after this turn's calls, so its
+  /// element follows an insert or remove in place; a parked item a call
+  /// took out is released.
+  void _bookParkedKey() {
+    final key = _parkedKey;
+    if (key == null) return;
+    final at = _parkedAt;
+    if (at == null) {
+      _releasePark();
+      return;
+    }
+    _movedTo.putIfAbsent(key, () => at.value);
+  }
+
+  /// Whether a node inside the item [key] holds focus, by the node the last
+  /// build registered for it.
+  bool _holdsFocus(Key key) {
+    for (final MapEntry(key: index, value: look) in _itemLooks.entries) {
+      if (look.key == key) return _nodeAt(index)?.hasFocus ?? false;
+    }
+    return false;
+  }
+
+  /// Keeps the existing element of item [key], at [at] of the data, alive
+  /// until it is laid out and revealed, releasing any other parked item.
+  void _park(Key key, _DataIndex at) {
+    if (_parkedKey != key) _releasePark();
+    _parkedKey = key;
+    _parkedAt = at;
+    _parkedFrame ??= _frames[key]?..setParked(parked: true);
+  }
+
+  /// Stops keeping the parked item alive: [key]'s, or any when null.
+  void _releasePark([Key? key]) {
+    if (key != null && key != _parkedKey) return;
+    final frame = _parkedFrame;
+    _parkedKey = null;
+    _parkedAt = null;
+    _parkedFrame = null;
+    if (frame != null && frame.mounted) frame.setParked(parked: false);
   }
 
   /// The SDK's item at [index], from [sdkBuilder], under a frame keyed by
@@ -944,7 +1035,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final item = sdkBuilder(context, index);
     final key = _builtKey;
     if (item == null || key == null) return item;
-    return KeyedSubtree(key: _IndexFreeKey(key), child: item);
+    return _ParkFrame(
+      key: _IndexFreeKey(key),
+      body: this,
+      itemKey: key,
+      child: item,
+    );
   }
 
   /// The items [keys] are in the data while their old copies still leave,
@@ -1137,7 +1233,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       target,
       intent: intent,
       node: _nodeAt(index),
-      edgeJump: edge && _nodeAt(to) == null,
+      edgeJump: edge && !_builtSlot(to.slot),
       byKey: false,
     );
   }
@@ -1200,10 +1296,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// The record the frame after a key or screen-reader move reads, for a
-  /// move booked from [from] to [to] of the current data. A one-slot move,
-  /// [intent] previous or next, of an item that holds focus, whose key
-  /// node is [node], keeps the item's [key] and the gap it left, for the
-  /// reach should the frame still not build its slot ([_reachStep]).
+  /// move booked from [from] to [to] of the current data. A move of an item
+  /// that holds focus, whose key node is [node], keeps the item's [key] and
+  /// the gap it left, for the reach should the frame not lay its slot out
+  /// ([_reachStep]); [intent] previous or next also readies the slot
+  /// ([_readySlot]).
   _MoveTarget _targetFor(
     _MoveIntent? intent,
     _DataIndex from,
@@ -1211,9 +1308,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     FocusNode? node,
     Key? key,
   ) {
+    if (node == null || key == null || !node.hasFocus) return _MoveTarget(to);
     final step = intent == _MoveIntent.previous || intent == _MoveIntent.next;
-    if (!step || node == null || key == null || !node.hasFocus) {
-      return _MoveTarget(to);
+    if (!step) {
+      return _MoveTarget(to, key: key, gap: from < to ? from : from + 1)
+        ..readies = false;
     }
     // The slot the item left, by the index of the item now after it.
     return _MoveTarget(to, key: key, gap: from < to ? from : from + 1);
@@ -1235,7 +1334,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final at = moved.index;
     final item = node?.context;
     if (at == null || node == null || item == null) return;
-    if (moved.key != null) {
+    if (moved.key != null && moved.readies) {
       moved.origin = _buildAheadOrJump(at, node);
       return;
     }
@@ -1409,10 +1508,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final built = _builtIndexOf(index);
     if (built == null) return;
     final node = _nodeAt(built);
-    if (node == null || node.context == null) {
-      _reachStep(moved, built);
+    // A parked item keeps its registered node off screen: built means laid
+    // out (invariant 35).
+    if (node == null || node.context == null || !_builtSlot(built.slot)) {
+      _reachStep(moved, built, node);
       return;
     }
+    final key = moved.key;
+    if (key != null) _releasePark(key);
     final noFocusOwnerElsewhere = FocusManager.instance.primaryFocus == null;
     if (byKey && noFocusOwnerElsewhere) firstTabStopIn(node)?.requestFocus();
     revealInViewports(node);
@@ -1422,16 +1525,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
   }
 
-  /// The frame did not build the slot a focused one-slot move readied
-  /// ([_readySlot]), now [at]: the estimate missed, so the list reaches the
-  /// slot as a move call's follow does, with the gap the item left (FR-03
-  /// E09, FR-05 E04), unless a node holds primary focus, which the app
-  /// moved there in the move's turn (R13).
-  void _reachStep(_MoveTarget moved, _FrameIndex at) {
+  /// The frame did not lay out the slot of a focused move, now [at]: the
+  /// list reaches the slot as a move call's follow does, with the gap the
+  /// item left (FR-03 E09, FR-05 E04). The item is parked, its key node
+  /// [node] still holding focus, or its State is gone and no node holds
+  /// primary focus; a focus the app moved elsewhere in the move's turn
+  /// stays, and the park ends (R13).
+  void _reachStep(_MoveTarget moved, _FrameIndex at, FocusNode? node) {
     final key = moved.key;
     final gap = moved.gap;
     if (key == null || gap == null) return;
-    if (FocusManager.instance.primaryFocus != null) return;
+    final parked = node != null && node.context != null && node.hasFocus;
+    if (!parked && FocusManager.instance.primaryFocus != null) {
+      _releasePark(key);
+      return;
+    }
     _startReach(at, key, gap, origin: moved.origin);
   }
 
@@ -1528,6 +1636,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// each call moves it, as it moves [_handoffGap].
   _DataIndex? _reachGap;
 
+  /// The key of the item the reach in progress looks for: its end releases
+  /// that item's park (invariant 35).
+  Key? _reachKey;
+
   /// The gap of each reach given up away from where it started, as an
   /// index of the current data, until the frame after the list jumps back
   /// hands focus on from it: each call moves them, as it moves
@@ -1547,18 +1659,29 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     ({ScrollPosition position, double pixels})? origin,
   }) {
     final token = Object();
+    final previous = _reachKey;
+    if (previous != null && previous != key) _releasePark(previous);
     _reachToken = token;
     _reachGap = gap;
+    _reachKey = key;
     scheduleMicrotask(() {
       final settled = FocusManager.instance.primaryFocus;
       _reach(token, index, key, settled, _reachFrames, origin);
     });
   }
 
-  /// Ends the reach in progress.
+  /// Ends the reach in progress and the park of the item it looked for.
   void _endReach() {
+    final key = _reachKey;
+    _stopReach();
+    if (key != null) _releasePark(key);
+  }
+
+  /// Ends the reach in progress and leaves its item parked.
+  void _stopReach() {
     _reachToken = null;
     _reachGap = null;
+    _reachKey = null;
   }
 
   /// Reaches slot [index], where the item [key] came back after a frame
@@ -1584,13 +1707,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       return;
     }
     final node = _nodeAt(index);
-    if (node != null && node.context != null) {
+    // A parked item is registered but not laid out (invariant 35).
+    if (node != null && node.context != null && _builtSlot(index.slot)) {
       if (_lookAt(index)?.key != key) {
         _giveUpReach(origin);
         return;
       }
       _endReach();
-      firstTabStopIn(node)?.requestFocus();
+      // A parked item kept its State and the node that holds focus.
+      if (!node.hasFocus) firstTabStopIn(node)?.requestFocus();
       _revealReturned(node, key);
       return;
     }
@@ -1667,11 +1792,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// reversed, horizontal, or right-to-left axis. Slots are the only
   /// geometry: the sliver keeps each slot's offset by its number.
   ({ScrollPosition position, double offset})? _estimateTowards(int slot) {
+    // A parked box keeps a stale slot and no layout offset: laid-out boxes
+    // only (invariant 35).
     final boxes = <int, ({FocusNode node, RenderBox box})>{
       for (final MapEntry(key: index, value: node) in _itemNodes.entries)
-        if (node.context?.findRenderObject() case final RenderBox box
-            when box.attached && box.hasSize)
-          index.slot: (node: node, box: box),
+        if (_builtSlot(index.slot))
+          if (node.context?.findRenderObject() case final RenderBox box
+              when box.attached && box.hasSize)
+            index.slot: (node: node, box: box),
     };
     if (boxes.isEmpty) return null;
     final slots = boxes.keys.toList()..sort();
@@ -1925,6 +2053,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _followAt = null;
     if (!mounted) return;
     if (node.context != null && _itemNodes.containsValue(node)) {
+      // Parked off screen: registered, but not laid out (invariant 35).
+      if (at != null && !_builtSlot(at.slot)) {
+        if (node.hasFocus && gap != null) {
+          _startReach(at, key, gap, origin: origin);
+        } else {
+          _releasePark(key);
+        }
+        return;
+      }
+      _releasePark(key);
       if (node.hasFocus) _revealReturned(node, key);
       return;
     }
@@ -2595,6 +2733,67 @@ class _IndexFreeKey extends ValueKey<Key> {
   const new(super.value);
 }
 
+/// The frame around an SDK item, keyed by the item's own key: it moves in
+/// place across indices, and keeps the item alive while the body parks it
+/// (invariant 35).
+class _ParkFrame extends StatefulWidget {
+  const new({
+    required _IndexFreeKey super.key,
+    required this.body,
+    required this.itemKey,
+    required this.child,
+  });
+
+  final _ReorderableBodyState body;
+  final Key itemKey;
+  final Widget child;
+
+  @override
+  State<_ParkFrame> createState() => _ParkFrameState();
+}
+
+class _ParkFrameState extends State<_ParkFrame>
+    with AutomaticKeepAliveClientMixin {
+  /// Whether the body parked this very State; a frame built later starts
+  /// unparked.
+  var _parked = false;
+
+  @override
+  bool get wantKeepAlive => _parked;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.body._frames[widget.itemKey] = this;
+  }
+
+  @override
+  void didUpdateWidget(_ParkFrame oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    widget.body._frames[widget.itemKey] = this;
+  }
+
+  @override
+  void dispose() {
+    final frames = widget.body._frames;
+    if (frames[widget.itemKey] == this) frames.remove(widget.itemKey);
+    super.dispose();
+  }
+
+  /// Parks or releases this State now.
+  void setParked({required bool parked}) {
+    if (_parked == parked) return;
+    _parked = parked;
+    updateKeepAlive();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 /// An insert or remove animation: its controller and the curved view of it
 /// that the transition reads.
 class _ItemMotion {
@@ -2731,9 +2930,13 @@ class _MoveTarget {
 
   _DataIndex? index;
 
-  /// For a focused one-slot move (FR-03 E09): the item's key, which the
+  /// For a move of an item that holds focus: the item's key, which the
   /// reach looks for.
   final Key? key;
+
+  /// Whether a focused move readies its slot ([key] set): a one-slot move
+  /// does; a move to either end keeps its exact jump (FR-03 E02).
+  bool readies = true;
 
   /// For a focused one-slot move: the gap the item left, before the item at
   /// this index of the current data, moved by each later call as [index]

@@ -3557,14 +3557,15 @@ void main() {
 
     testWidgets(
       'us11/s14: a button inside the first item of a long list the app '
-      'takes out and puts back at the last slot: the list scrolls there and '
-      'focus lands on the first control',
+      'takes out and puts back at the last slot: the list scrolls there, the '
+      'button keeps focus, and the item shows on screen',
       (tester) async {
         final controller = StratumReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller, innerAt: 0)),
         );
-        _itemState(tester, 0).inner.requestFocus();
+        final state = _itemState(tester, 0);
+        state.inner.requestFocus();
         await tester.pump();
 
         _harness(tester)
@@ -3572,7 +3573,8 @@ void main() {
           ..insert(199, 0);
         await tester.pumpAndSettle();
 
-        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 0');
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'inner 0');
+        expect(_statesOf(tester, 0), [same(state)]);
         expect(_itemInView(tester, 0), isTrue);
       },
     );
@@ -5940,24 +5942,24 @@ void main() {
 
     testWidgets(
       'us11/fr05/e04: a near move whose unbuilt items run taller than the '
-      'laid-out average falls back to the reach: State reset, focus on the '
-      'fresh item, the item in view',
+      'laid-out average falls back to the reach, and the item keeps its '
+      'State and focus off screen and shows on screen',
       (tester) async {
         // Items 114 and 115 are 200 px, so slot 117, which item 100 enters,
-        // lies past the frame that the 40 px average widens.
+        // lies past the frame that the 40 px average lays out.
         final position = await _pumpScrolled(
           tester,
           list(heights: const {114: 200, 115: 200}),
         );
         final state = _itemState(tester, 100);
-        await _focusItem(tester, 100);
+        final focused = await _focusItem(tester, 100);
 
         _harness(tester).move(100, 116);
         expect(position.pixels, 4000);
         await tester.pumpAndSettle();
 
-        expect(_statesOf(tester, 100), isNot(contains(state)));
-        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 100');
+        expect(_statesOf(tester, 100), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(focused));
         expect(_builtInView(tester, 100), isTrue);
       },
     );
@@ -6320,24 +6322,24 @@ void main() {
 
     testWidgets(
       'us11/fr03/e09: Alt and an arrow past an unbuilt item taller than the '
-      'laid-out average falls back to the reach: State reset, focus on the '
-      'fresh item, the item in view',
+      'laid-out average falls back to the reach, and the item keeps its '
+      'State and focus off screen and shows on screen',
       (tester) async {
         // Item 114 is 400 px, so after Alt+Down item 113 sits past the frame
-        // the 40 px average widens.
+        // the 40 px average lays out.
         final position = await _pumpScrolled(
           tester,
           const _Harness(count: 200, heights: {114: 400}),
         );
         final state = _itemState(tester, 113);
-        await _focusItem(tester, 113);
+        final focused = await _focusItem(tester, 113);
 
         await _altNow(tester, LogicalKeyboardKey.arrowDown);
         expect(position.pixels, 4000);
         await tester.pumpAndSettle();
 
-        expect(_statesOf(tester, 113), isNot(contains(state)));
-        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 113');
+        expect(_statesOf(tester, 113), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(focused));
         expect(_builtInView(tester, 113), isTrue);
       },
     );
@@ -7657,6 +7659,235 @@ void main() {
         expect(_itemState(tester, 20), same(state));
         expect(state.expanded, isTrue);
         expect(state.widget.index, 500);
+      },
+    );
+  });
+
+  group('ReorderableListViewLayout parked moved item', () {
+    testWidgets(
+      'us11/fr04/e17: a node that takes focus while a focused item waits off '
+      'screen ends its park, so the item, never laid out, leaves with its '
+      'State',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        final state = _itemState(tester, 0);
+        final other = _itemState(tester, 2).node;
+        await _focusItem(tester, 0);
+        // Held at 0, the list never lays the new slot out, so the item stays
+        // parked off screen while the reach runs.
+        _pinScroll(tester, 0);
+        _harness(tester)
+          ..remove(0)
+          ..insert(199, 0);
+        await tester.pump();
+        expect(_statesOf(tester, 0), [same(state)]);
+
+        other.requestFocus();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(FocusManager.instance.primaryFocus, same(other));
+        expect(state.mounted, isFalse);
+      },
+    );
+
+    // A list shape the parked item's element follows its key in.
+    final shapes = ValueVariant<String>({
+      'itemExtent',
+      'itemExtentBuilder',
+      'prototypeItem',
+      'reversed',
+      'horizontal',
+      'right-to-left',
+    });
+    testWidgets(
+      'us11/fr04/e17: a focused item the app takes out and puts back far down '
+      'keeps its State and focus off screen under a fixed, built, or '
+      'prototype extent, and on a reversed, horizontal, or right-to-left '
+      'list',
+      (tester) async {
+        final shape = shapes.currentValue!;
+        final horizontal = shape == 'horizontal' || shape == 'right-to-left';
+        await _returnFocused(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            axis: horizontal ? Axis.horizontal : Axis.vertical,
+            reverse: shape == 'reversed',
+            itemExtent: shape == 'itemExtent' ? 40 : null,
+            itemExtentBuilder: shape == 'itemExtentBuilder'
+                ? (index, dimensions) => 40
+                : null,
+            prototypeItem: shape == 'prototypeItem'
+                ? const SizedBox(width: 40, height: 40)
+                : null,
+          ),
+          offset: 0,
+          id: 0,
+          slot: 199,
+          textDirection: shape == 'right-to-left'
+              ? TextDirection.rtl
+              : TextDirection.ltr,
+        );
+        final state = _statesOf(tester, 0).single;
+        final focused = FocusManager.instance.primaryFocus;
+        await tester.pump();
+        expect(_statesOf(tester, 0), [same(state)]);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 0), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 0), isTrue);
+      },
+      variant: shapes,
+    );
+
+    testWidgets(
+      'us11/fr04/e17: an insertItem before an item that waits off screen '
+      'carries its kept-alive State to its new index, until the reach gives '
+      'up and hands focus on',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        final state = _itemState(tester, 0);
+        await _focusItem(tester, 0);
+        // Held at 0, the list never lays the new slot out, so the item stays
+        // parked off screen until the reach gives up.
+        _pinScroll(tester, 0);
+        _harness(tester)
+          ..remove(0)
+          ..insert(199, 0);
+        await tester.pump();
+        expect(_statesOf(tester, 0), [same(state)]);
+
+        _harness(tester).insert(0, 900);
+        await tester.pump();
+        expect(_statesOf(tester, 0), [same(state)]);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids[200], 0);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 900');
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: a focused item the app takes out and puts back far '
+      'down waits off screen with its State and the node that holds focus, '
+      'then shows on screen',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        final state = _itemState(tester, 0)..expanded = true;
+        final focused = await _focusItem(tester, 0);
+
+        _harness(tester)
+          ..remove(0)
+          ..insert(199, 0);
+        await tester.pump();
+        expect(_laidOut(tester).last, lessThan(199));
+        expect(_statesOf(tester, 0), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 0), [same(state)]);
+        expect(state.expanded, isTrue);
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 0), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/s04: on a lazy list whose unbuilt items run taller than the '
+      'built ones, Alt+End moves the focused item to the last slot with its '
+      'State and focus, and shows it',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            heights: {for (var id = 150; id < 200; id += 1) id: 120},
+          ),
+          offset: 4200,
+        );
+        final state = _itemState(tester, 105)..expanded = true;
+        final focused = await _focusItem(tester, 105);
+
+        await _alt(tester, LogicalKeyboardKey.end);
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids.last, 105);
+        expect(_statesOf(tester, 105), [same(state)]);
+        expect(state.expanded, isTrue);
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(position.pixels, position.maxScrollExtent);
+        expect(_builtInView(tester, 105), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e12: an item-count change with no call while a focused '
+      'item waits off screen for its slot ends its State and hands focus '
+      'on',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        final state = _itemState(tester, 0);
+        await _focusItem(tester, 0);
+        _harness(tester)
+          ..remove(0)
+          ..insert(199, 0);
+        await tester.pump();
+        expect(_statesOf(tester, 0), [same(state)]);
+
+        _harness(tester).removeData(5);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(state.mounted, isFalse);
+        final primary = FocusManager.instance.primaryFocus;
+        expect(primary?.debugLabel, startsWith('item '));
+        expect(primary?.debugLabel, isNot('item 0'));
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e17: a moveItem of the item that waits off screen keeps it '
+      'alive for its new slot, with its State and focus, and shows it there',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(_Harness(count: 200, itemsController: controller)),
+        );
+        final state = _itemState(tester, 0)..expanded = true;
+        final focused = await _focusItem(tester, 0);
+        _harness(tester)
+          ..remove(0)
+          ..insert(199, 0);
+        await tester.pump();
+        expect(_statesOf(tester, 0), [same(state)]);
+
+        _harness(tester).move(199, 150);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids[150], 0);
+        expect(_statesOf(tester, 0), [same(state)]);
+        expect(state.expanded, isTrue);
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 0), isTrue);
       },
     );
   });
