@@ -400,7 +400,8 @@ scroll it, guarded so a text field inside keeps its own keys.
   size change drops: a type with a fade, `fadeThrough`, the shared-axis types, and `platform` on Android, Windows,
   and Linux included, still fades over its full duration on the caller's curve, else the theme's `standard` curve, and
   any other type shows the page at once.
-- **Flutter floor** — `stratum_ui` needs Flutter 3.44 or later, which package `animations` 3.0.0 needs.
+- **Flutter floor** — `stratum_ui` needs Flutter 3.47 or later, which packages `google_fonts` 9.0.0, `badges`
+  ^4.0.1, and `webview_flutter_wkwebview` ^3.27.0 need.
 
 ## Web view
 
