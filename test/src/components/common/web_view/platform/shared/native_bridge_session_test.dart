@@ -1281,6 +1281,34 @@ void main() {
         const StratumWebViewMessage(data: 'm'),
       );
     });
+
+    test('us03/fr04/e15: bindsSendsToDocument false, a hello that names a '
+        'reply proxy anyway still drops a message another proxy carried', () {
+      final other = NativeBridgeSession(
+        allowedOrigins: () => allowed,
+        platform: TargetPlatform.iOS,
+      );
+      final nonce = nonceIn(other.willLoadHtml('<p>Hi</p>'));
+      other.acceptMessage(
+        envelope(nonce, 'hello', documentA),
+        sender: const BridgeMessageSender(
+          origin: null,
+          isMainFrame: true,
+          replyProxy: BridgeReplyProxy(1),
+        ),
+      );
+      expect(
+        other.acceptMessage(
+          messageEnvelope(nonce, 'forged'),
+          sender: const BridgeMessageSender(
+            origin: null,
+            isMainFrame: true,
+            replyProxy: BridgeReplyProxy(2),
+          ),
+        ),
+        isNull,
+      );
+    });
   });
 
   group('dispatchScriptAnswer', () {
