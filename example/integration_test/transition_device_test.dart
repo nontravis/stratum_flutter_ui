@@ -83,16 +83,16 @@ void main() {
     await _openAndClose(tester, "the theme's transition");
   });
 
-  testWidgets('us11/s1, us11/s3, us11/fr01, us11/fr01/e01, us11/fr01/e03: '
-      'each of the nineteen transitions opens and closes a page inside the '
-      'shell while the tab bar stays where it is', (tester) async {
-    await tester.pumpWidget(TransitionDemoApp(themes: themes));
-    await tester.pumpAndSettle();
+  for (final type in ScreenTransitionType.values) {
+    testWidgets('us11/s1, us11/s3, us11/fr01, us11/fr01/e01, us11/fr01/e03: '
+        '${type.name} opens and closes a page inside the shell while the tab '
+        'bar stays where it is', (tester) async {
+      await tester.pumpWidget(TransitionDemoApp(themes: themes));
+      await tester.pumpAndSettle();
 
-    for (final type in ScreenTransitionType.values) {
       await _tap(tester, 'pick-${type.name}');
       await tester.pumpAndSettle();
       await _openAndClose(tester, type.name);
-    }
-  });
+    });
+  }
 }
