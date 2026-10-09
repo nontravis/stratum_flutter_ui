@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:stratum_ui/src/themes/theme_application.dart';
 
 /// The disabled look and behavior the component bases wrap around every
 /// component (FO-08 US-07; base s03 invariants 12 to 18).
@@ -12,6 +13,12 @@ import 'package:flutter/material.dart';
 /// is right in every frame.
 ///
 /// It extends no component base, so the bases never wrap it in itself.
+///
+/// While [disabled] is true it paints the component at the theme's
+/// `opacity.disabled` unless [dims] is false, shows
+/// `SystemMouseCursors.forbidden`, lets no pointer event reach the
+/// component, and keeps the component and every node inside it out of
+/// focus and Tab order.
 class StratumDisabled extends StatelessWidget {
   const new({
     super.key,
@@ -35,16 +42,35 @@ class StratumDisabled extends StatelessWidget {
 
   final Widget child;
 
-  /// A `Semantics` layer that always stays: while it reports, a container
-  /// node with `enabled` false; otherwise it sets no property, so it adds
-  /// no node and no flag (US-07 FR-03 E01, E02).
+  /// The same layers in every build: the `Semantics` layer, which while it
+  /// reports is a container node with `enabled` false and otherwise adds
+  /// no node and no flag (US-07 FR-03 E01, E02), then the cursor, pointer,
+  /// focus, and opacity layers. It reads the theme only while it dims, so
+  /// a widget on either base with no theme above it builds while enabled.
   @override
   Widget build(BuildContext context) {
     final reports = disabled && contributesSemantics;
+    final opacity = disabled && dims
+        ? StratumThemeApplication.of(context).opacity.disabled
+        : 1.0;
     return Semantics(
       container: reports,
       enabled: reports ? !disabled : null,
-      child: child,
+      child: MouseRegion(
+        opaque: false,
+        cursor: disabled ? SystemMouseCursors.forbidden : MouseCursor.defer,
+        child: IgnorePointer(
+          ignoring: disabled,
+          child: ExcludeFocus(
+            excluding: disabled,
+            child: Opacity(
+              opacity: opacity,
+              alwaysIncludeSemantics: true,
+              child: child,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
