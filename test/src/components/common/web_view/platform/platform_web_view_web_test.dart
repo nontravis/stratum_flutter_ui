@@ -358,6 +358,53 @@ void main() {
     );
   });
 
+  test(
+    'us03/fr03, nf01/NFR-Sec03: the render nonce leaves the frame '
+    "document's live DOM once the bootstrap runs, and srcdoc keeps it",
+    () async {
+      final dom = Completer<String>();
+      listener.onMessageCallback = (message) {
+        if (!dom.isCompleted) dom.complete(message.data);
+      };
+      await view.load(
+        const StratumWebViewSource.html(
+          '<p>Hi</p><script>\n'
+          'StratumBridge.postMessage(document.documentElement.outerHTML);\n'
+          '</script>',
+        ),
+      );
+      attach();
+      final live = await dom.future.timeout(const Duration(seconds: 5));
+      final srcdocValue = view.iframe.srcdoc;
+      if (!srcdocValue.isA<JSString>()) fail('expected a string srcdoc');
+      final srcdoc = (srcdocValue as JSString).toDart;
+      final nonce = RegExp('stratum-bridge-handshake:([0-9a-f]{32})')
+          .firstMatch(srcdoc)!
+          .group(1)!;
+      expect(live, contains('<p>Hi</p>'));
+      expect(live, isNot(contains(nonce)));
+      expect(live, isNot(contains('stratum-bridge-handshake')));
+    },
+  );
+
+  test('us03/fr03: a page script after the bootstrap still runs, and the '
+      "document keeps the page's own script element", () async {
+    final counted = Completer<String>();
+    listener.onMessageCallback = (message) {
+      if (!counted.isCompleted) counted.complete(message.data);
+    };
+    await view.load(
+      const StratumWebViewSource.html(
+        '<script id="own">\n'
+        'StratumBridge.postMessage(document.scripts.length + ":" + '
+        '(document.getElementById("own") !== null));\n'
+        '</script>',
+      ),
+    );
+    attach();
+    expect(await counted.future.timeout(const Duration(seconds: 5)), '1:true');
+  });
+
   test('drops a direct postMessage, keeps the bridge message', () async {
     final viaBridge = Completer<void>();
     listener.onMessageCallback = (message) {
@@ -559,34 +606,31 @@ location.href = 'data:text/html,' + encodeURIComponent(
     expect(listener.messages.last.data, 'echo:pong');
   });
 
-  test(
-    'us03/fr05/e06: a reply throws once the view leaves the tree, with no '
-    're-insertion',
-    () async {
-      await view.load(
-        const StratumWebViewSource.html(
-          "<script>StratumBridge.postMessage('ready');</script>",
-        ),
-      );
-      attach();
-      await waitForMessages(1);
-      final first = listener.senders.last as PlatformHtmlDocumentSender;
+  test('us03/fr05/e06: a reply throws once the view leaves the tree, with no '
+      're-insertion', () async {
+    await view.load(
+      const StratumWebViewSource.html(
+        "<script>StratumBridge.postMessage('ready');</script>",
+      ),
+    );
+    attach();
+    await waitForMessages(1);
+    final first = listener.senders.last as PlatformHtmlDocumentSender;
 
-      view.iframe.remove();
-      // No re-insertion follows: `attachTo` never runs, so only the
-      // disconnected iframe itself can close this window (US-03 FR-05 E06).
-      await expectLater(
-        view.replyToDocument(first, 'late'),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            'The HTML document that sent the message is gone.',
-          ),
+    view.iframe.remove();
+    // No re-insertion follows: `attachTo` never runs, so only the
+    // disconnected iframe itself can close this window (US-03 FR-05 E06).
+    await expectLater(
+      view.replyToDocument(first, 'late'),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'The HTML document that sent the message is gone.',
         ),
-      );
-    },
-  );
+      ),
+    );
+  });
 
   test(
     'us03/fr05/e06: a reply throws once a load leaves the HTML entry',

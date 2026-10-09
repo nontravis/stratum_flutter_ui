@@ -2,6 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 
 void main() {
+  const removal =
+      '(function(){var e=document.currentScript;if(e)e.remove();})();\n';
+
   group('injectBridgeBootstrap', () {
     test('inserts the script after a leading doctype', () {
       final result = injectBridgeBootstrap(
@@ -87,18 +90,26 @@ void main() {
         html,
       );
     });
+
+    test('us03/fr03, nf01/NFR-Sec03: the web bootstrap removes its own '
+        'element before its handshake script runs', () {
+      expect(
+        injectBridgeBootstrap('<p>Hi</p>', 'n1'),
+        startsWith('<script>$removal(function(){var c=new MessageChannel();\n'),
+      );
+    });
   });
 
   group('placeBridgeBootstrap', () {
     test('us02/fr01/e02: one placement for the web and native scripts', () {
       const html = '<!-- a -->\n<!doctype html><p>Hi</p>';
       expect(
-        placeBridgeBootstrap(html, '<script>x</script>'),
-        '<!-- a -->\n<!doctype html><script>x</script><p>Hi</p>',
+        placeBridgeBootstrap(html, 'x'),
+        '<!-- a -->\n<!doctype html><script>${removal}x</script><p>Hi</p>',
       );
       expect(
-        placeBridgeBootstrap('<p>Hi</p>', '<script>x</script>'),
-        '<script>x</script><p>Hi</p>',
+        placeBridgeBootstrap('<p>Hi</p>', 'x'),
+        '<script>${removal}x</script><p>Hi</p>',
       );
     });
 
@@ -111,8 +122,8 @@ void main() {
         '<!---><script>A</script><!---->\n<!doctype html><p>Hi</p>',
       ]) {
         expect(
-          placeBridgeBootstrap(html, '<script>x</script>'),
-          '<script>x</script>$html',
+          placeBridgeBootstrap(html, 'x'),
+          '<script>${removal}x</script>$html',
           reason: html,
         );
       }
@@ -130,11 +141,8 @@ void main() {
         '<!-- d --!-->',
       ]) {
         expect(
-          placeBridgeBootstrap(
-            '$comment\n<!doctype html><p>Hi</p>',
-            '<script>x</script>',
-          ),
-          '$comment\n<!doctype html><script>x</script><p>Hi</p>',
+          placeBridgeBootstrap('$comment\n<!doctype html><p>Hi</p>', 'x'),
+          '$comment\n<!doctype html><script>${removal}x</script><p>Hi</p>',
           reason: comment,
         );
       }
@@ -144,10 +152,18 @@ void main() {
         'form with no doctype', () {
       final html = '${'<!----><!--><!---><!--a--!>' * 5000}<p>Hi</p>';
       final stopwatch = Stopwatch()..start();
-      final result = placeBridgeBootstrap(html, '<script>x</script>');
+      final result = placeBridgeBootstrap(html, 'x');
       stopwatch.stop();
-      expect(result, '<script>x</script>$html');
+      expect(result, '<script>${removal}x</script>$html');
       expect(stopwatch.elapsedMilliseconds, lessThan(1000));
+    });
+
+    test('us03/fr03, us03/fr04/e11, nf01/NFR-Sec03: wraps the source in one '
+        'script element whose first statement removes that element', () {
+      expect(
+        placeBridgeBootstrap('<!doctype html><p>Hi</p>', 'x();'),
+        '<!doctype html><script>${removal}x();</script><p>Hi</p>',
+      );
     });
   });
 
@@ -161,11 +177,11 @@ void main() {
     test('us02/fr01/e02: goes right after a leading doctype, or first', () {
       expect(
         inject('<!DOCTYPE html><p>Hi</p>'),
-        startsWith("<!DOCTYPE html><script>(function(){'use strict';"),
+        startsWith("<!DOCTYPE html><script>$removal(function(){'use strict';"),
       );
       expect(
         inject('<p>Hi</p>'),
-        startsWith("<script>(function(){'use strict';"),
+        startsWith("<script>$removal(function(){'use strict';"),
       );
       expect(inject('<p>Hi</p>'), endsWith('})();</script><p>Hi</p>'));
     });
@@ -175,11 +191,23 @@ void main() {
       expect(
         inject('<p>Hi</p>'),
         startsWith(
-          "<script>(function(){'use strict';\n"
-          'var e=document.currentScript;if(e)e.remove();\n'
+          "<script>$removal(function(){'use strict';\n"
           'var b=window.StratumBridge;\n',
         ),
       );
+    });
+
+    test('us03/fr04/e11: every bootstrap carries the removal once, from '
+        'the placement function', () {
+      final native = inject('<p>Hi</p>');
+      final web = injectBridgeBootstrap('<p>Hi</p>', nonce);
+      for (final html in [native, web]) {
+        expect(
+          RegExp(r'document\.currentScript').allMatches(html),
+          hasLength(1),
+        );
+        expect(html, startsWith('<script>$removal'));
+      }
     });
 
     test('us03/fr04/e11: binds the platform sender and String once, and '

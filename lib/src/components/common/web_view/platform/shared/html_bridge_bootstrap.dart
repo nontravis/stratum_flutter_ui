@@ -17,6 +17,12 @@ const String nativeBridgeTokenProperty = '__stratumBridgeToken';
 /// script compares it (US-03 FR-05 E08).
 const String nativeBridgeDocumentProperty = '__stratumBridgeDocument';
 
+/// The first statement of every bootstrap element: it removes that element,
+/// so no page script finds the bootstrap or a secret in the live DOM
+/// (US-03 FR-03, FR-04 E11, NFR-Sec03).
+const String _selfRemoval =
+    '(function(){var e=document.currentScript;if(e)e.remove();})();\n';
+
 /// Builds the bootstrap script injected into HTML content rendered on web.
 ///
 /// The web implementation renders HTML in a `srcdoc` iframe with an opaque
@@ -33,14 +39,15 @@ const String nativeBridgeDocumentProperty = '__stratumBridgeDocument';
 /// nonce — never obtains a working bridge, even if it forges the
 /// `stratum-bridge-handshake:` prefix.
 ///
-/// Returns [html] with the script placed by [placeBridgeBootstrap].
+/// The placement function removes the element before the handshake script
+/// runs. Returns [html] with the source placed by [placeBridgeBootstrap].
 String injectBridgeBootstrap(String html, String nonce) {
   // Each piece below ends with an explicit `\n`. A blank line between
   // statements is valid, whitespace-insensitive JavaScript, and it gives
   // every adjacent string literal a real separator instead of an implicit
   // (and lint-flagged) concatenation boundary.
-  final script =
-      '<script>(function(){var c=new MessageChannel();\n'
+  final source =
+      '(function(){var c=new MessageChannel();\n'
       'var p=c.port1;\n'
       'window.StratumBridge={postMessage:function(d){\n'
       'p.postMessage(String(d));}};\n'
@@ -49,37 +56,37 @@ String injectBridgeBootstrap(String html, String nonce) {
       '{data:e.data}));};\n'
       "parent.postMessage('stratum-bridge-handshake:$nonce',\n"
       "'*',[c.port2]);\n"
-      '})();</script>';
-  return placeBridgeBootstrap(html, script);
+      '})();';
+  return placeBridgeBootstrap(html, source);
 }
 
 /// Builds the bootstrap script injected into HTML that a native adapter
 /// loads (US-03 FR-04).
 ///
-/// Before any page script runs, the script removes its own element, binds
-/// the platform sender and `String` once, keeps [token] in the
-/// [nativeBridgeTokenProperty] window property, and defines
-/// `window.StratumBridge` as a frozen, non-writable, non-configurable
-/// wrapper that sends each message as an envelope carrying [nonce] (see
-/// [nativeBridgeEnvelopeTag]). It draws a document id of 16 random bytes in
-/// lowercase hex, posts `hello` with it to prove [nonce] for this document,
-/// `bye` on `pagehide` or once a page script removes the document root, even
-/// if it puts the same root back, and `hello` again on a `pageshow` that
-/// restores the document from the back-forward cache (E03, E10, E11, E14).
-/// Every `message` envelope carries the document id before the text. No
-/// envelope carries [token]. Without the platform object the bridge stays
-/// closed. It keeps the document id in [nativeBridgeDocumentProperty] too,
-/// for a reply's dispatch script to compare.
+/// Its element is gone before any page script runs (the placement function
+/// removes it); the script binds the platform sender and `String` once,
+/// keeps [token] in the [nativeBridgeTokenProperty] window property, and
+/// defines `window.StratumBridge` as a frozen, non-writable,
+/// non-configurable wrapper that sends each message as an envelope carrying
+/// [nonce] (see [nativeBridgeEnvelopeTag]). It draws a document id of 16
+/// random bytes in lowercase hex, posts `hello` with it to prove [nonce] for
+/// this document, `bye` on `pagehide` or once a page script removes the
+/// document root, even if it puts the same root back, and `hello` again on
+/// a `pageshow` that restores the document from the back-forward cache (E03,
+/// E10, E11, E14). Every `message` envelope carries the document id before
+/// the text. No envelope carries [token]. Without the platform object the
+/// bridge stays closed. It keeps the document id in
+/// [nativeBridgeDocumentProperty] too, for a reply's dispatch script to
+/// compare.
 ///
-/// Returns [html] with the script placed by [placeBridgeBootstrap].
+/// Returns [html] with the source placed by [placeBridgeBootstrap].
 String injectNativeBridgeBootstrap(
   String html, {
   required String nonce,
   required String token,
 }) {
-  final script =
-      "<script>(function(){'use strict';\n"
-      'var e=document.currentScript;if(e)e.remove();\n'
+  final source =
+      "(function(){'use strict';\n"
       'var b=window.StratumBridge;\n'
       "if(!b||typeof b.postMessage!=='function')return;\n"
       'var send=b.postMessage.bind(b),S=String;\n'
@@ -112,20 +119,25 @@ String injectNativeBridgeBootstrap(
       "if(n[j]===root){s('bye',id);return;}}})\n"
       '.observe(doc,{childList:true});\n'
       "s('hello',id);\n"
-      '})();</script>';
-  return placeBridgeBootstrap(html, script);
+      '})();';
+  return placeBridgeBootstrap(html, source);
 }
 
-/// Places [script] before any page script of [html]: right after a leading
+/// Places the bootstrap [source], the bootstrap's JavaScript, before any
+/// page script of [html]: in one `<script>` element right after a leading
 /// `<!DOCTYPE ...>` declaration (matched case-insensitively, allowing
 /// leading whitespace and HTML comments before it), or first when [html]
-/// has none.
+/// has none. The element's first statement removes the element itself, for
+/// every bootstrap, web and native; the web frame's `srcdoc` attribute in
+/// the app window keeps the render's nonce, so a re-insertion reloads the
+/// document and its handshake (US-03 FR-03 E03).
 ///
 /// One placement serves the web and native bootstraps (US-03 FR-03 E04): a
 /// script before the doctype would put a top-level native document in
 /// quirks mode. Each comment ends where the HTML tokenizer ends it, so
 /// markup after an early end keeps a later doctype from leading (FR-04 E12).
-String placeBridgeBootstrap(String html, String script) {
+String placeBridgeBootstrap(String html, String source) {
+  final script = '<script>$_selfRemoval$source</script>';
   final match = _leadingDoctype.firstMatch(html);
   if (match == null) return '$script$html';
   return html.replaceRange(match.end, match.end, script);
