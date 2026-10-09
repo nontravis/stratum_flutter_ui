@@ -90,7 +90,9 @@ class WrapLayout extends BoxLayout {
   /// more wins, and children hide from the end. A hidden child stays
   /// mounted with its State but does not paint, take hits, take focus, or
   /// appear in semantics, and its tickers stop until a limit change shows
-  /// it again.
+  /// it again. A child whose size changes as it shows or hides, and that
+  /// does not fit shown but fits hidden, stays hidden until the children,
+  /// the limits, or the constraints change; debug builds report it once.
   final int? maxRuns;
 
   /// Shows only the first [maxChildren] children; null sets no child

@@ -292,6 +292,29 @@ Rect _rectIn(WidgetTester tester, String key) => tester
     .getRect(find.byKey(ValueKey(key)))
     .shift(-tester.getTopLeft(find.byType(WrapOverflowFrame)));
 
+/// Pumps each of [widgets], then up to ten more frames while one is
+/// scheduled; the errors reported meanwhile.
+Future<List<FlutterErrorDetails>> _settleReporting(
+  WidgetTester tester,
+  List<Widget> widgets,
+) async {
+  final reports = <FlutterErrorDetails>[];
+  final previous = FlutterError.onError;
+  FlutterError.onError = reports.add;
+  try {
+    for (final widget in widgets) {
+      await tester.pumpWidget(widget);
+    }
+    for (var frame = 0; frame < 10; frame++) {
+      if (!tester.binding.hasScheduledFrame) break;
+      await tester.pump();
+    }
+  } finally {
+    FlutterError.onError = previous;
+  }
+  return reports;
+}
+
 void main() {
   group('WrapLayout overflow (US-14)', () {
     testWidgets(
@@ -918,6 +941,50 @@ void main() {
         ),
       );
     });
+
+    testWidgets(
+      'us14/fr01/e08: a child that fits only while hidden stays hidden, '
+      '"+N" counts it, and the wrap settles after one report',
+      (tester) async {
+        final reports = await _settleReporting(tester, [
+          _host(
+            _wrap(
+              maxRuns: 1,
+              children: [_tag(0), _swapTag(1, on: 200, off: 40)],
+            ),
+          ),
+        ]);
+
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(_shownTags(), [0]);
+        expect(find.text('+1'), findsOneWidget);
+        expect(reports, hasLength(1));
+        expect(
+          '${reports.single.exception}',
+          contains('changed its render object or size'),
+        );
+      },
+    );
+
+    testWidgets(
+      'us14/fr01/e08: a limit change that shows a child that fits only '
+      'while hidden keeps it hidden, and the wrap settles after one report',
+      (tester) async {
+        Widget build(int? maxChildren) => _host(
+          _wrap(
+            maxRuns: 1,
+            maxChildren: maxChildren,
+            children: [_tag(0), _swapTag(1, on: 200, off: 40)],
+          ),
+        );
+        final reports = await _settleReporting(tester, [build(1), build(null)]);
+
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(_shownTags(), [0]);
+        expect(find.text('+1'), findsOneWidget);
+        expect(reports, hasLength(1));
+      },
+    );
   });
 
   group('WrapLayout focus after a limit change (US-14 FR-03, R5, R6)', () {

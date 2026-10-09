@@ -565,8 +565,13 @@ class _WrapOverflowElement extends RenderObjectElement {
   /// leaves focus in the frame of the cut (s03 invariant 39), which
   /// [handOffFocus] then hands on. The one place a built child's flag
   /// flips.
-  void applyCut(int shown) {
+  ///
+  /// Returns the index of the first child it hid that was shown, so
+  /// measured shown before this cut (US-14 FR-01 E08); null when it hid
+  /// none.
+  int? applyCut(int shown) {
     _shown = shown;
+    int? hid;
     owner!.buildScope(this, () {
       for (final (i, child) in _children.indexed) {
         final slot = _stateOf(child);
@@ -574,12 +579,14 @@ class _WrapOverflowElement extends RenderObjectElement {
         if (slot.hidden == hidden) continue;
         slot.hidden = hidden;
         if (hidden) {
+          hid ??= i;
           _newlyShown.remove(child);
         } else {
           _newlyShown.add(child);
         }
       }
     });
+    return hid;
   }
 
   /// Hands focus on after the frame when this layout dropped it (s03
@@ -784,6 +791,14 @@ class _RenderWrapOverflow extends RenderBox
   /// Whether the last [configure] changed `maxRuns` or `maxChildren`.
   bool _limitsChanged = false;
 
+  /// How many children an unsettled cut left shown (US-14 FR-01 E08): a
+  /// child that showing or hiding resizes, and that does not fit shown,
+  /// stays hidden though it fits hidden. Caps every cut under the child
+  /// constraints [_settledConstraints] until the children or the limits
+  /// change ([configure]); null caps none.
+  int? _settledShown;
+  BoxConstraints? _settledConstraints;
+
   /// The size the last layout gave the frame, null before the first:
   /// [computeDryLayout] reads it, since it must not read [size]
   /// (`rendering/box.dart:2276-2286`, Flutter 3.47.3), as
@@ -811,7 +826,9 @@ class _RenderWrapOverflow extends RenderBox
     if (frame.maxRuns != _frame.maxRuns ||
         frame.maxChildren != _frame.maxChildren) {
       _limitsChanged = true;
+      _settledShown = null;
     }
+    if (!listEquals(frame.children, _frame.children)) _settledShown = null;
     _frame = frame;
     _textDirection = widget.textDirection;
     _duration = widget.duration;
@@ -948,7 +965,7 @@ class _RenderWrapOverflow extends RenderBox
   /// layout callback records once, as a child does); the layout that mark
   /// asks for rebuilds nothing unless a new change made it dirty, and its
   /// flips, which follow from the parent's new read, do not record either
-  /// ([_cutAndApply]).
+  /// ([_apply]).
   void _reconcileAfterFrame() {
     final changed = _childChanged;
     _childChanged = false;
@@ -1060,13 +1077,30 @@ class _RenderWrapOverflow extends RenderBox
     return _horizontal ? (horizontal, vertical) : (vertical, horizontal);
   }
 
-  WrapCut _cutOf(List<Size> sizes, BoxConstraints constraints) => cutWrap(
+  /// Cuts the children's [sizes] under [childConstraints], showing at most
+  /// [cap] of them; [overflowExtent] gives the overflow child's main-axis
+  /// extent for a hidden count, and null cuts with no overflow child.
+  WrapCut _cut(
+    List<Size> sizes,
+    BoxConstraints childConstraints, {
+    int? cap,
+    double Function(int hiddenCount)? overflowExtent,
+  }) => cutWrap(
     extents: [for (final size in sizes) _main(size)],
-    limit: _limit(constraints),
+    limit: _limit(childConstraints),
     spacing: _frame.spacing,
     maxRuns: _frame.maxRuns,
-    maxChildren: _frame.maxChildren,
+    maxChildren: switch ((_frame.maxChildren, cap)) {
+      (final maxChildren?, final cap?) => math.min(maxChildren, cap),
+      (final maxChildren, null) => maxChildren,
+      (null, final cap) => cap,
+    },
+    overflowExtent: overflowExtent,
   );
+
+  /// The cap [_settledShown] sets on a cut under [childConstraints].
+  int? _capOf(BoxConstraints childConstraints) =>
+      childConstraints == _settledConstraints ? _settledShown : null;
 
   /// The runs of [cut] over the children's [sizes], with the overflow
   /// child's [overflow] size at the end of its run.
@@ -1118,18 +1152,30 @@ class _RenderWrapOverflow extends RenderBox
   void _layOut() {
     _changeChildren(runLayoutCallback);
     final childConstraints = _childConstraints(constraints);
+    final cap = _capOf(childConstraints);
     var measured = _measure(childConstraints);
-    var cut = _cutAndApply(measured.sizes, childConstraints);
+    var cut = _cutMeasuring(measured.sizes, childConstraints, cap);
+    final hid = _apply(cut, measured.sizes.length);
     // Flipping a child's TickerMode rebuilds what reads it; a child whose
     // root does can take another render object or size, so the cut runs
-    // once more over what the flip left, and reports a second change
-    // rather than cutting on.
+    // once more over what the flip left.
     var now = _measure(childConstraints);
     if (!now.matches(measured)) {
       measured = now;
-      cut = _cutAndApply(measured.sizes, childConstraints);
+      cut = _cutMeasuring(measured.sizes, childConstraints, cap);
+      // A child the first cut hid while it measured shown does not fit
+      // shown, though it may fit hidden: it stays hidden (US-14 FR-01 E08).
+      final keptHidden = hid != null && cut.shown > hid;
+      if (keptHidden) {
+        cut = _cutMeasuring(measured.sizes, childConstraints, hid);
+      }
+      _apply(cut, measured.sizes.length);
+      // A child this cut hid or showed resized again, so the next layout
+      // would cut it back; settle on this cut instead of cutting on.
       now = _measure(childConstraints);
-      if (!now.matches(measured)) _debugReportUnsettledCut();
+      if (keptHidden || !now.matches(measured)) {
+        _settle(cut.shown, childConstraints);
+      }
     }
     element!.handOffFocus();
     final overflowRun = cut.overflowRun;
@@ -1149,39 +1195,59 @@ class _RenderWrapOverflow extends RenderBox
     return (boxes: boxes, sizes: [for (final box in boxes) box.size]);
   }
 
-  /// Cuts the children's [sizes], measuring each candidate count on the
-  /// probe, then builds the overflow child and flips the children's slots
-  /// to the cut, inside this layout.
-  WrapCut _cutAndApply(List<Size> sizes, BoxConstraints childConstraints) {
+  /// Cuts the children's [sizes], at most [cap] shown, measuring each
+  /// candidate count on the probe, inside this layout.
+  WrapCut _cutMeasuring(
+    List<Size> sizes,
+    BoxConstraints childConstraints,
+    int? cap,
+  ) => _cut(
+    sizes,
+    childConstraints,
+    cap: cap,
+    overflowExtent: _frame.overflowBuilder == null
+        ? null
+        : (count) => _layOutProbe(count, childConstraints),
+  );
+
+  /// Builds the overflow child of [cut] over [count] children and flips
+  /// the children's slots to it, inside this layout; the index of the
+  /// first child the flip hid that was shown, null when it hid none.
+  int? _apply(WrapCut cut, int count) {
     final element = this.element!;
-    final cut = cutWrap(
-      extents: [for (final size in sizes) _main(size)],
-      limit: _limit(constraints),
-      spacing: _frame.spacing,
-      maxRuns: _frame.maxRuns,
-      maxChildren: _frame.maxChildren,
-      overflowExtent: _frame.overflowBuilder == null
-          ? null
-          : (count) => _layOutProbe(count, childConstraints),
-    );
+    int? hid;
     invokeLayoutCallback<BoxConstraints>((_) {
       if (cut.overflowRun == null) {
         element.buildOverflow(0, null);
       } else {
-        element.buildOverflow(sizes.length - cut.shown, element._probeWidget);
+        element.buildOverflow(count - cut.shown, element._probeWidget);
       }
       // A flip in the layout a post-frame mark asked for follows from the
       // parent's new read; recording it could flip a child back and forth
       // with each new read.
-      _changeChildren(() => element.applyCut(cut.shown), record: !_reconciling);
+      _changeChildren(
+        () => hid = element.applyCut(cut.shown),
+        record: !_reconciling,
+      );
       element.dropProbe();
     });
-    return cut;
+    return hid;
   }
 
-  /// Reports, debug-only, a cut that a second flip changed again: the
-  /// frame places the children as they are now by the last cut, which may
-  /// overflow a run, instead of cutting without end.
+  /// Caps every later cut under [childConstraints] at [shown] (US-14
+  /// FR-01 E08), so a child that showing or hiding resizes stays where
+  /// this cut left it, and the layout flips nothing and schedules no
+  /// frame; reports the misuse, debug-only, once until the children or
+  /// the limits change.
+  void _settle(int shown, BoxConstraints childConstraints) {
+    if (_settledShown == null) _debugReportUnsettledCut();
+    _settledShown = shown;
+    _settledConstraints = childConstraints;
+  }
+
+  /// Reports, debug-only, a cut that a flip moved for good: the frame
+  /// keeps hidden a child that does not fit shown, though it fits hidden,
+  /// instead of cutting without end.
   void _debugReportUnsettledCut() {
     assert(() {
       FlutterError.reportError(
@@ -1195,8 +1261,9 @@ class _RenderWrapOverflow extends RenderBox
               'Showing or hiding a child flips its TickerMode, which '
               'rebuilds what reads it. A child whose root reads TickerMode '
               'and so takes another render object or size moves the cut; '
-              'the frame cut twice, then placed the children by the last '
-              'cut.',
+              'the frame keeps hidden a child that does not fit shown, '
+              'though it fits hidden, until its children, limits, or '
+              'constraints change.',
             ),
             ErrorHint(
               'Keep the render object and the size of a child the same '
@@ -1399,7 +1466,7 @@ class _RenderWrapOverflow extends RenderBox
       for (final child in getChildrenAsList())
         child.getDryLayout(childConstraints),
     ];
-    final cut = _cutOf(sizes, constraints);
+    final cut = _cut(sizes, childConstraints, cap: _capOf(childConstraints));
     return constraints.constrain(_extentOf(_runsOf(cut, sizes, null)));
   }
 
@@ -1416,7 +1483,7 @@ class _RenderWrapOverflow extends RenderBox
     final sizes = [
       for (final child in children) child.getDryLayout(childConstraints),
     ];
-    final cut = _cutOf(sizes, constraints);
+    final cut = _cut(sizes, childConstraints, cap: _capOf(childConstraints));
     final runs = _runsOf(cut, sizes, null);
     final content = _extentOf(runs);
     final box = constraints.constrain(content);

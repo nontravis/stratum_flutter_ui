@@ -40,6 +40,8 @@ Each entry: usage, key parameters, keyboard behavior.
   and take no paint, hits, focus, or semantics, their tickers stopped. With `overflowBuilder` set, switching both limits
   to null keeps the children's `State`; without it the switch remounts them. A limit or `overflowBuilder` with `scroll`
   fails an assertion.
+  Keep a child's size the same shown or hidden: one that does not fit shown but fits hidden stays hidden, counted in
+  "+N", until the children, the limits, or the constraints change (debug builds report it once).
   While measuring, the wrap calls `overflowBuilder` once per hidden count it tries, then shows the widget built for the
   last; that widget must not carry a `GlobalKey` or a `FocusNode` the app owns (debug builds report it), while a key or
   node a `State` inside the "+N" child creates for itself is safe.
