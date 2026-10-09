@@ -1,4 +1,6 @@
 import 'package:flutter/rendering.dart' show RenderSemanticsAnnotations;
+import 'package:stratum_ui/src/components/common/base/disabled.dart'
+    show StratumDisabledScope;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -143,6 +145,9 @@ class StratumInkWell extends StatefulWidget {
 
   /// Turns off every callback, the overlay, the ring, and focus; semantics
   /// then report a disabled button unless [semantics] sets `enabled`.
+  ///
+  /// Inside a disabled component the surface acts as if this were true, and
+  /// a press already down on it is cancelled at the flip (FR-02 E10).
   final bool disabled;
 
   /// Receives the interaction states from [InkWell] and drives the overlay.
@@ -241,6 +246,11 @@ class _StratumInkWellState extends State<StratumInkWell>
       widget.statesController ??
       (_internalStatesController ??= WidgetStatesController());
 
+  /// [StratumInkWell.disabled], or inside a disabled component. A flip of
+  /// the scope rebuilds the surface, and [InkWell] then disposes the
+  /// recognizers of a press already down (FR-02 E10).
+  bool get _disabled => widget.disabled || StratumDisabledScope.of(context);
+
   bool get _hasActivation => _activates(widget);
 
   bool get _shortcutOnly => _isShortcutOnly(widget);
@@ -263,7 +273,7 @@ class _StratumInkWellState extends State<StratumInkWell>
   bool get wantKeepAlive => _focusNode.hasFocus;
 
   bool get _canFocus => tapSurfaceTakesFocus(
-    disabled: widget.disabled,
+    disabled: _disabled,
     canRequestFocus: widget.canRequestFocus,
     focusType: widget.focusType,
     onTap: widget.onTap,
@@ -273,14 +283,14 @@ class _StratumInkWellState extends State<StratumInkWell>
     shortcuts: widget.shortcuts,
   );
 
-  /// Whether [StratumInkWell.autofocus] may request focus: not
-  /// [StratumInkWell.disabled], a [StratumInkWell.focusType] other than
-  /// [FocusType.none], and [StratumInkWell.canRequestFocus] true. Looser
-  /// than [_canFocus]: it skips the activation-callback check, because a
-  /// directional [NavigationMode] honors autofocus on its own, ignoring
-  /// that check either way (`material/ink_well.dart:1292-1311`, `:1333-1336`).
+  /// Whether [StratumInkWell.autofocus] may request focus: not [_disabled],
+  /// a [StratumInkWell.focusType] other than [FocusType.none], and
+  /// [StratumInkWell.canRequestFocus] true. Looser than [_canFocus]: it
+  /// skips the activation-callback check, because a directional
+  /// [NavigationMode] honors autofocus on its own, ignoring that check
+  /// either way (`material/ink_well.dart:1292-1311`, `:1333-1336`).
   bool get _autofocusEligible =>
-      !widget.disabled &&
+      !_disabled &&
       widget.focusType != FocusType.none &&
       widget.canRequestFocus;
 
@@ -289,7 +299,7 @@ class _StratumInkWellState extends State<StratumInkWell>
       widget.focusType == FocusType.focusedVisible;
 
   bool get _ringVisible {
-    if (widget.disabled) return false;
+    if (_disabled) return false;
     final node = _focusNode;
     final focused = widget.showFocusOnPrimary
         ? node.hasPrimaryFocus
@@ -371,7 +381,7 @@ class _StratumInkWellState extends State<StratumInkWell>
   /// The key bindings while this widget or a descendant has focus; none
   /// while disabled.
   Map<ShortcutActivator, VoidCallback> get _bindings {
-    if (widget.disabled) return const {};
+    if (_disabled) return const {};
     final secondary = widget.onSecondaryTap;
     return {
       if (secondary != null)
@@ -425,7 +435,7 @@ class _StratumInkWellState extends State<StratumInkWell>
   Widget build(BuildContext context) {
     super.build(context);
     final colors = context.theme.color;
-    final disabled = widget.disabled;
+    final disabled = _disabled;
     final canFocus = _canFocus;
     final onHover = widget.onHover;
     final shortcutOnly = _shortcutOnly;
