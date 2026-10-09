@@ -235,15 +235,16 @@ scroll it, guarded so a text field inside keeps its own keys.
 ## Disabled components
 
 - **`disabled: true`** — on any component built on `StratumStatelessWidget` or `StratumStatefulWidget`, the
-  package's or your own, the base paints it at the theme's `opacity.disabled` (0.5 by default), shows the forbidden
-  cursor, lets no tap, long press, drag, or hover reach it, and keeps it and every node inside it out of focus and Tab
-  order, so a focused one loses focus. A screen reader reads it as disabled on a node of its own. Turning `disabled`
-  off keeps the component's state. A press already down on a `StratumInkWell` inside it when it turns disabled is
-  cancelled and runs no action, while a scroll that already took the finger goes on; a `GestureDetector` you write
-  inside it finishes a gesture already under way.
-- **Your own disabled look** — a component whose design draws its own disabled look overrides
-  `@protected bool get dimsWhenDisabled => false`; the cursor, input, focus, and screen-reader rules still hold. A
-  widget that extends neither base gets none of this.
+  base paints it at the theme's `opacity.disabled` (0.5 by default), shows the forbidden cursor, lets no tap,
+  long press, drag, or hover run its action — a tap reaches a gesture detector wrapped around it, as with a
+  Flutter button whose `onPressed` is null — and keeps it and every node inside it out of focus and Tab order,
+  losing focus if focused. A screen reader marks it disabled on its own node. Turning `disabled` off keeps the
+  component's state. A `StratumInkWell` press already down when it turns disabled is cancelled and runs no action; a
+  scroll already holding the finger goes on, and a `GestureDetector` you write inside it finishes its gesture
+  underway.
+- **Your own disabled look** — a component overrides `@protected bool get dimsWhenDisabled => false` to draw its
+  own; the cursor, input, focus, and screen-reader rules still hold. A widget extending neither base gets none of
+  this.
 - **A decorative component** — a component that gives a screen reader nothing to read, such as a caret, overrides
   `@protected bool get contributesSemantics => false`; while disabled it then gets no screen-reader node, and the
   dimming, cursor, input, and focus rules still hold.
