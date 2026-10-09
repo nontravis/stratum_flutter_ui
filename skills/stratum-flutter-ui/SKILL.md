@@ -306,6 +306,13 @@ scroll it, guarded so a text field inside keeps its own keys.
   stratum_ui allows only the google_fonts version its CLI family list came from, so the CLI and your app accept the same
   `Google/<Name>` families. When `pub get` reports a google_fonts conflict, let your own google_fonts constraint allow
   the version stratum_ui's `pubspec.yaml` names.
+- **Disabled opacity** — `opacity.disabled` in `theme.yaml`, a number from 0 to 1, is the opacity every disabled
+  component paints at; the package default sets 0.5, and an app theme may leave the group out. Read it as
+  `StratumThemeApplication.of(context).opacity.disabled`. A value outside 0 to 1 throws
+  `StratumThemeFormatException` with `expected_opacity` at its path, and a second key under `opacity` is
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.1.0`; this package reads every `v1.0` and
+  `v1.1` theme, while a package build that reads only `v1.0` refuses a `v1.1` theme as `unsupported_schema`, so a
+  theme that must load on both writes `v1.0.0` and leaves `opacity` out.
 
 ## Page transitions
 
