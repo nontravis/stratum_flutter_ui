@@ -1,5 +1,7 @@
 import 'package:flutter/rendering.dart'
     show BoxHitTestEntry, BoxHitTestResult, RenderProxyBox;
+import 'package:stratum_ui/src/animations/screen_transition.dart'
+    show curveOf, durationOf;
 import 'package:stratum_ui/src/src.dart';
 
 /// Lets the EndUser pinch to zoom a web app between [minScale] and
@@ -7,9 +9,11 @@ import 'package:stratum_ui/src/src.dart';
 /// Android, iOS, macOS, Windows, and Linux it builds [child] alone
 /// (CO-01-04 US-01).
 ///
-/// In debug builds on every platform the constructor asserts that
-/// [minScale] is above 0 and [maxScale] is at least [minScale]. It extends
-/// no component base, as [Slot] does.
+/// - In debug builds on every platform the constructor asserts that
+///   [minScale] is above 0 and [maxScale] is at least [minScale].
+/// - New limits that leave the zoom outside them ease it to the nearest
+///   limit about the viewport's center, at once under reduced motion.
+/// - It extends no component base, as [Slot] does.
 class StratumWebZoom extends StatelessWidget {
   const new({
     super.key,
@@ -60,11 +64,34 @@ class _WebZoomViewer extends StatefulWidget {
   State<_WebZoomViewer> createState() => _WebZoomViewerState();
 }
 
-class _WebZoomViewerState extends State<_WebZoomViewer> {
+class _WebZoomViewerState extends State<_WebZoomViewer>
+    with SingleTickerProviderStateMixin {
   final _controller = _HeldTransformationController();
+
+  /// Eases the scale into new limits (web_zoom s03 invariant 7).
+  late final _ease = AnimationController(vsync: this)..addListener(_onEase);
+
+  /// The theme's `standard` curve, set in [_easeIntoLimits].
+  final _curve = CurveTween(curve: Curves.easeInOutSine);
+
+  /// From the scale the ease starts at to the nearest new limit.
+  final _scales = Tween<double>(begin: 1, end: 1);
+
+  /// The scale the ease shows now.
+  late final Animation<double> _scale = _ease.drive(_curve).drive(_scales);
+
+  @override
+  void didUpdateWidget(_WebZoomViewer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.minScale != oldWidget.minScale ||
+        widget.maxScale != oldWidget.maxScale) {
+      _easeIntoLimits();
+    }
+  }
 
   @override
   void dispose() {
+    _ease.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -79,6 +106,52 @@ class _WebZoomViewerState extends State<_WebZoomViewer> {
       child: widget.child,
     ),
   );
+
+  /// Takes a scale outside the limits to the nearest one, over the theme's
+  /// default motion level, or at once under reduced motion (US-01 FR-01
+  /// E05). `InteractiveViewer` never re-clamps on new limits.
+  void _easeIntoLimits() {
+    _ease.stop();
+    final scale = _controller.value.getMaxScaleOnAxis();
+    final limit = clampDouble(scale, widget.minScale, widget.maxScale);
+    if (limit == scale) return;
+    if (context.reducesMotion) {
+      _zoomTo(limit);
+      return;
+    }
+    final style =
+        (StratumThemeApplication.maybeOf(context)?.animation ??
+                StratumAnimation.packageDefault)
+            .defaultStyle;
+    _ease.duration = durationOf(style);
+    _curve.curve = curveOf(style);
+    _scales
+      ..begin = scale
+      ..end = limit;
+    _ease.forward(from: 0);
+  }
+
+  void _onEase() => _zoomTo(_scale.value);
+
+  /// Sets the scale to [scale] about the viewport's center, so the point of
+  /// the app there stays in place; before the first layout it does nothing.
+  ///
+  /// The viewport's size is the last layout's; `BuildContext.size` throws
+  /// during the build that calls [didUpdateWidget].
+  void _zoomTo(double scale) {
+    final viewport = context.findRenderObject();
+    if (viewport is! RenderBox || !viewport.hasSize) return;
+    final center = viewport.size.center(Offset.zero);
+    final matrix = _controller.value;
+    final ratio = scale / matrix.getMaxScaleOnAxis();
+    final translation = matrix.getTranslation();
+    _controller.value = Matrix4.diagonal3Values(scale, scale, scale)
+      ..setTranslationRaw(
+        center.dx + (translation.x - center.dx) * ratio,
+        center.dy + (translation.y - center.dy) * ratio,
+        0,
+      );
+  }
 }
 
 /// Ignores every new transform while [held].

@@ -4,9 +4,13 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
-Widget _host(Widget child) => Directionality(
-  textDirection: TextDirection.ltr,
-  child: Center(child: SizedBox(width: 400, height: 300, child: child)),
+/// [child] in a 400 by 300 box; [reduced] asks for `disableAnimations`.
+Widget _host(Widget child, {bool reduced = false}) => MediaQuery(
+  data: MediaQueryData(disableAnimations: reduced),
+  child: Directionality(
+    textDirection: TextDirection.ltr,
+    child: Center(child: SizedBox(width: 400, height: 300, child: child)),
+  ),
 );
 
 Finder get _viewer => find.byType(InteractiveViewer);
@@ -18,6 +22,12 @@ Matrix4 _transform(WidgetTester tester) => tester
     .transform;
 
 double _scale(WidgetTester tester) => _transform(tester).getMaxScaleOnAxis();
+
+/// The point of the app under the center of the 400 by 300 viewport.
+Offset _sceneCenter(WidgetTester tester) => MatrixUtils.transformPoint(
+  Matrix4.inverted(_transform(tester)),
+  const Offset(200, 150),
+);
 
 /// Two fingers that start 80 px apart and end [factor] times as far.
 Future<void> _pinch(WidgetTester tester, double factor) async {
@@ -136,6 +146,71 @@ void main() {
         throwsAssertionError,
       );
     }
+  });
+
+  group('new scale limits', () {
+    Widget zoom({double minScale = 1, double maxScale = 2.5}) => StratumWebZoom(
+      minScale: minScale,
+      maxScale: maxScale,
+      child: const SizedBox.expand(),
+    );
+
+    testWidgets('us01/fr01/e05, us01/s10: a maximum lowered below the zoom '
+        'eases it back to the maximum, its center fixed', (tester) async {
+      await tester.pumpWidget(_host(zoom()));
+      await _pinch(tester, 2);
+      final zoomed = _scale(tester);
+      final center = _sceneCenter(tester);
+      expect(zoomed, greaterThan(1.8));
+
+      await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(_scale(tester), inExclusiveRange(1.5, zoomed));
+      expect(_sceneCenter(tester), offsetMoreOrLessEquals(center));
+
+      await tester.pumpAndSettle();
+      expect(_scale(tester), 1.5);
+      expect(_sceneCenter(tester), offsetMoreOrLessEquals(center));
+    });
+
+    testWidgets('us01/fr01/e05: a minimum raised above the zoom eases it up '
+        'to the minimum, its center fixed', (tester) async {
+      await tester.pumpWidget(_host(zoom()));
+      final center = _sceneCenter(tester);
+
+      await tester.pumpWidget(_host(zoom(minScale: 1.8)));
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(_scale(tester), inExclusiveRange(1, 1.8));
+
+      await tester.pumpAndSettle();
+      expect(_scale(tester), 1.8);
+      expect(_sceneCenter(tester), offsetMoreOrLessEquals(center));
+    });
+
+    testWidgets('us01/fr01/e05: under reduced motion the zoom jumps to the '
+        'new limit', (tester) async {
+      await tester.pumpWidget(_host(zoom(), reduced: true));
+      await _pinch(tester, 2);
+      final center = _sceneCenter(tester);
+
+      await tester.pumpWidget(_host(zoom(maxScale: 1.5), reduced: true));
+
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(_scale(tester), 1.5);
+      expect(_sceneCenter(tester), offsetMoreOrLessEquals(center));
+    });
+
+    testWidgets('us01/fr01/e05: limits widened around the zoom leave it '
+        'alone', (tester) async {
+      await tester.pumpWidget(_host(zoom()));
+      await _pinch(tester, 2);
+      final zoomed = _scale(tester);
+
+      await tester.pumpWidget(_host(zoom(minScale: 0.5, maxScale: 4)));
+
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(_scale(tester), zoomed);
+    });
   });
 
   group('the mouse wheel', () {
