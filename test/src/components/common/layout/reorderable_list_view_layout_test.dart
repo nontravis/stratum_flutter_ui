@@ -4526,9 +4526,10 @@ void main() {
       'its offset from before the move and hands focus on from the slot the '
       'item left',
       (tester) async {
-        // As above, the jump in the call turn lands short of slot 40. Each
-        // jump of the reach then springs back to that landing, so the reach
-        // fails; the list's return to 8000 is the first move let through.
+        // As above, the jump at the next frame's start lands short of slot
+        // 40. Each jump of the reach then springs back to that landing, so
+        // the reach fails; the list's return to 8000 is the first move let
+        // through.
         final controller = StratumReorderableItemsController();
         await tester.pumpWidget(
           _app(
@@ -4546,12 +4547,19 @@ void main() {
         await _focusItem(tester, 100);
 
         _harness(tester).move(100, 40);
-        final landing = position.pixels;
+        expect(position.pixels, 8000);
+        double? landing;
         var springs = 0;
         position.addListener(() {
-          if (springs == 4 || position.pixels == landing) return;
+          final at = landing;
+          // The first move is the move's own jump at the frame's start.
+          if (at == null) {
+            landing = position.pixels;
+            return;
+          }
+          if (springs == 4 || position.pixels == at) return;
           springs += 1;
-          position.jumpTo(landing);
+          position.jumpTo(at);
         });
         await tester.pumpAndSettle();
 
@@ -5922,15 +5930,17 @@ void main() {
     final farPast = ValueVariant<int>({7, 10, 30});
     testWidgets(
       'us11/fr05/e04: a focused move to a slot whose distance plus one slot '
-      'exceeds one viewport jumps in the call turn and keeps State and focus',
+      'exceeds one viewport scrolls nothing in the call turn, jumps at the '
+      "next frame's start, and keeps State and focus",
       (tester) async {
         final position = await _pumpScrolled(tester, list());
         final state = _itemState(tester, 100);
         final focused = await _focusItem(tester, 100);
 
         _harness(tester).move(100, 112 + farPast.currentValue!);
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 4000);
         await tester.pump();
+        expect(position.pixels, isNot(4000));
 
         expect(_statesOf(tester, 100), contains(state));
         await tester.pumpAndSettle();
@@ -6013,8 +6023,8 @@ void main() {
 
     testWidgets(
       's03/inv35: when two average extents exceed one viewport, the same-turn '
-      'remove and insert over-count can still make one far-path jump, with '
-      'State and focus kept',
+      'remove and insert over-count can still book one far-path jump for the '
+      "next frame's start, with State and focus kept",
       (tester) async {
         // 200 px items: the sliver lays out 18 to 22 at 4000 px, and one slot
         // plus the margin, 400 px, exceeds the 300 px viewport.
@@ -6032,8 +6042,9 @@ void main() {
           ..remove(19)
           ..insert(19, 19)
           ..move(20, 22);
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 4000);
         await tester.pump();
+        expect(position.pixels, isNot(4000));
 
         expect(_statesOf(tester, 20), contains(state));
         await tester.pumpAndSettle();
@@ -6293,8 +6304,9 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr03/e09: Alt and an arrow whose near test fails jumps in the '
-      'turn of the key and keeps State and focus',
+      'us11/fr03/e09: Alt and an arrow whose near test fails scrolls nothing '
+      "in the turn of the key, jumps at the next frame's start, and keeps "
+      'State and focus',
       (tester) async {
         // 200 px items: one slot plus the margin, 400 px, exceeds the 300 px
         // viewport. The sliver lays out 18 to 22 at 4000 px.
@@ -6310,8 +6322,9 @@ void main() {
         final focused = await _focusItem(tester, 22);
 
         await _altNow(tester, LogicalKeyboardKey.arrowDown);
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 4000);
         await tester.pump();
+        expect(position.pixels, isNot(4000));
 
         expect(_statesOf(tester, 22), contains(state));
         await tester.pumpAndSettle();
@@ -6346,8 +6359,8 @@ void main() {
 
     testWidgets(
       'us11/fr03/e09: Alt and an arrow to an edge slot whose near test fails '
-      'jumps exactly to that edge in the turn of the key and keeps State and '
-      'focus',
+      "jumps exactly to that edge at the next frame's start and keeps State "
+      'and focus',
       (tester) async {
         // Item 0 is 2000 px and the rest 200 px. At 2300 px the sliver lays
         // out from slot 1, whose 200 px average puts slot 0 at 1800 px, short
@@ -6367,8 +6380,9 @@ void main() {
         final focused = await _focusItem(tester, 1);
 
         await _altNow(tester, LogicalKeyboardKey.arrowUp);
-        expect(position.pixels, 0);
+        expect(position.pixels, 2300);
         await tester.pump();
+        expect(position.pixels, 0);
 
         expect(_statesOf(tester, 1), contains(state));
         await tester.pumpAndSettle();
@@ -6415,13 +6429,13 @@ void main() {
 
     testWidgets(
       'us11/fr03/e09: when the reach after a far key move gives up, the list '
-      'returns to the offset before the jump in the turn of the key and hands '
-      'focus on from the slot the item left',
+      "returns to the offset before the jump at the next frame's start and "
+      'hands focus on from the slot the item left',
       (tester) async {
         // 200 px items and item 23 at 1200 px: the sliver lays out 18 to 22
-        // at 4000 px. Alt+Down on item 22 fails the near test, so the key's
-        // turn jumps by the 200 px average to 4600, where item 23, now in
-        // slot 22, leaves slot 23 at 5600, past the frame.
+        // at 4000 px. Alt+Down on item 22 fails the near test, so the next
+        // frame's start jumps by the 200 px average to 4600, where item 23,
+        // now in slot 22, leaves slot 23 at 5600, past the frame.
         final position = await _pumpScrolled(
           tester,
           _Harness(
@@ -6435,17 +6449,16 @@ void main() {
         await _focusItem(tester, 22);
 
         await _altNow(tester, LogicalKeyboardKey.arrowDown);
-        final landing = position.pixels;
+        expect(position.pixels, 4000);
         final moves = <double>[];
         position.addListener(() => moves.add(position.pixels));
         await tester.pumpAndSettle();
 
         // The 200 px average still puts slot 23 at 4600, so each jump of the
         // reach lands where the key's jump did and the reach gives up: the
-        // list's first move is back to 4000, and item 23, now in the slot
+        // list's next move is back to 4000, and item 23, now in the slot
         // item 22 left, takes focus.
-        expect(landing, 4600);
-        expect(moves.first, 4000);
+        expect(moves.take(2), [4600, 4000]);
         expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 23');
       },
     );
@@ -6492,7 +6505,8 @@ void main() {
       'scroll listener', () {
     // The app's listener on the list's scroll position inserts item 900 at
     // index 0, through the controller and its data, on the first
-    // notification it gets: the one the move's call-turn jump sends.
+    // notification it gets: the one the move's jump at the next frame's
+    // start sends.
     void insertOnFirstScroll(WidgetTester tester, ScrollPosition position) {
       final harness = _harness(tester);
       var inserted = false;
@@ -6666,15 +6680,16 @@ void main() {
 
     testWidgets(
       'us11/fr05/e12: a kept-alive item never counts as built, so a far move '
-      'into its slot jumps in the call turn and keeps its State',
+      "into its slot jumps at the next frame's start and keeps its State",
       (tester) async {
         final position = await pumpKeptAlive(tester);
         final state = _itemState(tester, 100);
         final focused = await _focusItem(tester, 100);
 
         _harness(tester).move(100, 50);
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 4000);
         await tester.pump();
+        expect(position.pixels, isNot(4000));
 
         expect(_statesOf(tester, 100), contains(state));
         await tester.pumpAndSettle();
@@ -6737,7 +6752,7 @@ void main() {
 
     testWidgets(
       'us11/fr05/e11: a focus the app moves in the turn of a far move stays, '
-      'and the list returns to the offset before the call-turn jump',
+      "and the list skips the move's jump at the next frame's start",
       (tester) async {
         final position = await _pumpScrolled(
           tester,
@@ -6748,13 +6763,15 @@ void main() {
         );
         await _focusItem(tester, 100);
         final other = _itemState(tester, 101).node;
+        final moves = <double>[];
+        position.addListener(() => moves.add(position.pixels));
 
         _harness(tester).move(100, 150);
         other.requestFocus();
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 4000);
         await tester.pump();
 
-        expect(position.pixels, 4000);
+        expect(moves, isEmpty);
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(other));
         expect(_builtInView(tester, 101), isTrue);
@@ -6804,8 +6821,8 @@ void main() {
 
     testWidgets(
       'us11/fr05/e11: a far move of a first item the app refocuses after a '
-      "second item's far move in the same turn returns to the second's "
-      'origin, where the first is built',
+      "second item's far move in the same turn runs only the first item's "
+      "jump at the next frame's start, toward its slot after both calls",
       (tester) async {
         final position = await _pumpScrolled(
           tester,
@@ -6818,24 +6835,21 @@ void main() {
         final a = await _focusItem(tester, 100);
         final b = _itemState(tester, 101).node;
 
-        // Both far moves run before any frame: the first (item 100) queues
-        // its own origin, 4000; the app then focuses item 101 and moves it
-        // far too, queuing an origin that is already item 100's jumped
-        // offset. The app then puts focus back on item 100 before the
-        // frame runs, so the unwind must stop there instead of at 101.
+        // Both far moves run before any frame and each books a jump; the
+        // app then puts focus back on item 100 before the frame runs.
         _harness(tester).move(100, 150);
         b.requestFocus();
         FocusManager.instance.applyFocusChangesIfNeeded();
         _harness(tester).move(_harness(tester).ids.indexOf(101), 160);
         a.requestFocus();
         FocusManager.instance.applyFocusChangesIfNeeded();
+        expect(position.pixels, 4000);
         await tester.pump();
 
-        // The unwind meets item 101 first (unfocused) and returns to its
-        // own origin, the offset right after item 100's jump, where item
-        // 100's slot is built; it then meets item 100 (focused) and stops,
-        // never reaching item 100's own origin, 4000.
-        expect(position.pixels, 6000.0);
+        // Item 101's jump is skipped, since the app took its focus; item
+        // 100's runs toward index 149, where item 101's move from before it
+        // left it, by the 40 px average.
+        expect(position.pixels, 149 * 40.0);
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(a));
         expect(_statesOf(tester, 100), contains(aState));
@@ -6844,9 +6858,9 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr05/e11: a far move of a third item the app focuses after two '
-      'earlier far moves in the same turn, with the app refocusing the '
-      'middle one, unwinds only the third move and stops there',
+      'us11/fr05/e11: three far moves in one turn, with the app refocusing '
+      "the middle item, run only the middle item's jump at the next frame's "
+      'start',
       (tester) async {
         final position = await _pumpScrolled(
           tester,
@@ -6860,28 +6874,24 @@ void main() {
         final b = bState.node;
         final c = _itemState(tester, 102).node;
 
-        // Three far moves run before any frame, each queuing an origin at
-        // the offset the one before it left: item 100's (origin 4000),
-        // item 101's (origin at item 100's landing), item 102's (origin at
-        // item 101's landing). The app then puts focus back on item 101,
-        // the middle move, before the frame runs.
+        // Three far moves run before any frame, each booking a jump. The
+        // app then puts focus back on item 101, the middle move, before the
+        // frame runs.
         _harness(tester).move(100, 150);
         b.requestFocus();
         FocusManager.instance.applyFocusChangesIfNeeded();
         _harness(tester).move(_harness(tester).ids.indexOf(101), 160);
-        final afterSecondJump = position.pixels;
         c.requestFocus();
         FocusManager.instance.applyFocusChangesIfNeeded();
         _harness(tester).move(_harness(tester).ids.indexOf(102), 170);
         b.requestFocus();
         FocusManager.instance.applyFocusChangesIfNeeded();
+        expect(position.pixels, 4000);
         await tester.pump();
 
-        // The unwind meets item 102 first (unfocused) and returns to its
-        // own origin, item 101's own landing; it then meets item 101
-        // (focused) and stops there, never reaching item 100's jump or its
-        // own origin, 4000.
-        expect(position.pixels, afterSecondJump);
+        // Only item 101's jump runs, toward index 159, where item 102's move
+        // from before it left it, by the 40 px average.
+        expect(position.pixels, 159 * 40.0);
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(b));
         expect(_statesOf(tester, 101), contains(bState));
@@ -6916,8 +6926,7 @@ void main() {
 
     testWidgets(
       'us11/fr03/e09: a focus the app moves in the turn of a far Alt+Down '
-      'stays, and the list returns to the offset before the jump in the turn '
-      'of the key',
+      "stays, and the list skips the move's jump at the next frame's start",
       (tester) async {
         // 200 px items: the sliver lays out 18 to 22 at 4000 px, and one slot
         // plus the margin exceeds the viewport, so Alt+Down on 22 jumps.
@@ -6933,7 +6942,7 @@ void main() {
         _harness(tester).onMove = (_, _) => other.requestFocus();
 
         await _altNow(tester, LogicalKeyboardKey.arrowDown);
-        expect(position.pixels, isNot(4000));
+        expect(position.pixels, 4000);
         await tester.pump();
 
         expect(position.pixels, 4000);
@@ -6985,8 +6994,8 @@ void main() {
     );
 
     testWidgets('us11/fr03/e09: a focus the app moves in the turn of a far '
-        'screen-reader move stays, and the list returns to the offset before '
-        'the jump in the turn of the action', (tester) async {
+        "screen-reader move stays, and the list skips the move's jump at the "
+        "next frame's start", (tester) async {
       final handle = tester.ensureSemantics();
       // 200 px items with no cache extent: the sliver lays out 20 and 21
       // at 4050 px, the built range the viewport itself, so the first
@@ -7014,7 +7023,7 @@ void main() {
           const CustomSemanticsAction(label: 'Move up'),
         ),
       );
-      expect(position.pixels, isNot(4050));
+      expect(position.pixels, 4050);
       await tester.pump();
 
       expect(position.pixels, 4050);
@@ -7888,6 +7897,130 @@ void main() {
         expect(state.expanded, isTrue);
         expect(FocusManager.instance.primaryFocus, same(focused));
         expect(_builtInView(tester, 0), isTrue);
+      },
+    );
+  });
+
+  group("ReorderableListViewLayout jumps at the next frame's start", () {
+    /// Pumps 200 items scrolled to 4200 px, items 105 to 112 in view, with
+    /// item 105 focused; [moves] records each scroll offset from then on.
+    Future<ScrollPosition> pumpFocused(
+      WidgetTester tester,
+      List<double> moves,
+    ) async {
+      final position = await _pumpScrolled(
+        tester,
+        _Harness(
+          count: 200,
+          itemsController: StratumReorderableItemsController(),
+        ),
+        offset: 4200,
+      );
+      await _focusItem(tester, 105);
+      position.addListener(() => moves.add(position.pixels));
+      return position;
+    }
+
+    // A move to the end: by Alt+End, or by the "Move to the end" action.
+    final endMove = ValueVariant<String>({'Alt+End', 'Move to the end'});
+    testWidgets('us11/fr03/e01: a focus the app moves to another item in '
+        'onReorderItem of a move to the end stays where the app put it, in '
+        'view, and the list never scrolls', (tester) async {
+      final handle = tester.ensureSemantics();
+      final moves = <double>[];
+      await pumpFocused(tester, moves);
+      final other = _itemState(tester, 110).node;
+      _harness(tester).onMove = (_, _) => other.requestFocus();
+
+      if (endMove.currentValue == 'Alt+End') {
+        await _alt(tester, LogicalKeyboardKey.end);
+      } else {
+        await _moveAction(tester, 105, 'Move to the end');
+      }
+
+      expect(tester.takeException(), isNull);
+      expect(_harness(tester).ids.last, 105);
+      expect(FocusManager.instance.primaryFocus, same(other));
+      expect(_builtInView(tester, 110), isTrue);
+      expect(moves, isEmpty);
+      handle.dispose();
+    }, variant: endMove);
+
+    testWidgets('us11/fr03/e01: a focus the app moves to another item in '
+        'onReorderItem of Alt+Home stays where the app put it, in view, and '
+        'the list never scrolls', (tester) async {
+      final moves = <double>[];
+      await pumpFocused(tester, moves);
+      final other = _itemState(tester, 110).node;
+      _harness(tester).onMove = (_, _) => other.requestFocus();
+
+      await _alt(tester, LogicalKeyboardKey.home);
+
+      expect(tester.takeException(), isNull);
+      expect(_harness(tester).ids.first, 105);
+      expect(FocusManager.instance.primaryFocus, same(other));
+      expect(_builtInView(tester, 110), isTrue);
+      expect(moves, isEmpty);
+    });
+
+    testWidgets(
+      'us11/fr03/e02: the scroll offset read in onReorderItem of Alt+End has '
+      "not moved; the list jumps to the end at the next frame's start and "
+      'keeps the item State and focus',
+      (tester) async {
+        final moves = <double>[];
+        final position = await pumpFocused(tester, moves);
+        final state = _itemState(tester, 105);
+        final focused = FocusManager.instance.primaryFocus;
+        double? read;
+        _harness(tester).onMove = (_, _) => read = position.pixels;
+
+        await _altNow(tester, LogicalKeyboardKey.end);
+        expect(read, 4200);
+        expect(position.pixels, 4200);
+        await tester.pump();
+        expect(moves.first, position.maxScrollExtent);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 105), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 105), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: the scroll offset read right after a far moveItem has '
+      "not moved; it moves at the next frame's start, before that frame "
+      'builds',
+      (tester) async {
+        double? atBuild;
+        var armed = false;
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            // The first build of an item inside the list, past the body's
+            // own reads of the data.
+            onItemBuild: (context) {
+              final pixels = Scrollable.maybeOf(context)?.position.pixels;
+              if (armed && pixels != null) atBuild ??= pixels;
+            },
+          ),
+        );
+        await _focusItem(tester, 100);
+        armed = true;
+
+        _harness(tester).move(100, 150);
+        expect(position.pixels, 4000);
+        await tester.pump();
+
+        expect(atBuild, isNot(4000));
+        expect(atBuild, position.pixels);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(_builtInView(tester, 100), isTrue);
       },
     );
   });

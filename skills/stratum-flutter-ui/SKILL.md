@@ -194,10 +194,11 @@ scroll it, guarded so a text field inside keeps its own keys.
   theme's `normal` level (under reduced motion or a fixed extent the slot closes at once and the item only fades in);
   the item keeps its State and focus, and a focused item keeps its State at every distance and shows on screen even
   when its new slot is far off screen, unless the app moves focus in the same turn: that focus stays, and the item
-  keeps its State only when the list has built its new slot. `onReorderItem` does not fire. Prefer it to `removeItem`
-  plus `insertItem`, which keeps an unfocused item's State only when the list has built its new slot; a focused item
-  the app removes and inserts back in the same turn keeps its State too. The Move up and Move down buttons above can
-  call it.
+  keeps its State only when the list has built its new slot. The list scrolls toward a moved item at the next frame's
+  start: `position.pixels` read right after `moveItem`, or inside `onReorderItem` of a key or screen-reader move, has
+  not moved yet. `onReorderItem` does not fire. Prefer it to `removeItem` plus `insertItem`, which keeps an unfocused
+  item's State only when the list has built its new slot; a focused item the app removes and inserts back in the same
+  turn keeps its State too. The Move up and Move down buttons above can call it.
 
   ```dart
   void moveTask(int from, int to) {

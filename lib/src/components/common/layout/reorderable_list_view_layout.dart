@@ -366,11 +366,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// list's viewport alone listens to them.
   final _aheadAsks = _AheadAsks();
 
-  /// The far moves of this turn that jumped for a focused item, each with
-  /// the item's key node and the offset before the jump, until the next
-  /// frame starts and reads whether the item still holds focus (R13).
-  final _farJumps =
-      <({FocusNode node, ({ScrollPosition position, double pixels}) origin})>[];
+  /// The reveal jumps booked for the next frame's start, in booking order
+  /// (invariant 35): a move's turn scrolls nothing.
+  final _frameJumps = <_FrameJump>[];
 
   /// Whether `onReorderStart` is running: the SDK sets the drag up only
   /// after it returns, so a cancel waits for a microtask.
@@ -619,17 +617,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       // this gap and the item's slot live in fields each call in this turn
       // shifts, and the build that settles the move re-reads the slot by
       // key, so the post-frame follow follows the data, not frozen indices.
-      // Set before the jump below: its scroll notifications may reach an
-      // app listener that calls the controller at once.
       _followKey = key;
       _followGap = from < to ? from : from + 1;
       // A focused item whose new slot is not built has the next frame build
-      // ahead to a near slot, or jumps toward a far one first, so the frame
-      // that moves it builds the slot and keeps its State (E04). Asked after
-      // the booking, which starts the boxes that slot counts.
-      final origin = _buildAheadOrJump(to, node);
+      // ahead to a near slot, or books a jump toward a far one at the next
+      // frame's start (E04). Asked after the booking, which starts the
+      // boxes that slot counts. The target lives among [_moveTargets], so
+      // each later call shifts it until the jump reads it.
+      final target = _MoveTarget(to);
+      _buildAheadOrJump(to, node, target, owned: true);
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _followMoved(node, key, origin),
+        (_) => _followMoved(node, key, target.origin),
       );
     }
     setState(() {});
@@ -1240,11 +1238,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Books the move of the item the last build drew at [index], whose key
   /// node is [node], from [from] to [to] of the current data, registers its
-  /// target, reports it through `onReorderItem`, and only then makes its
-  /// call-turn jump ([_readySlot]): that jump's scroll notifications reach
-  /// an app listener at once, so a call the listener makes moves the
-  /// target and sees the data after the move. With [edgeJump] the jump
-  /// goes to the edge [to] lies at.
+  /// target, reports it through `onReorderItem`, and only then books its
+  /// jump for the next frame's start ([_readySlot]), so a call the app's
+  /// report handler makes moves the target before the jump reads it. With
+  /// [edgeJump] the jump goes to the edge [to] lies at.
   void _reportMove(
     _FrameIndex index,
     _DataIndex from,
@@ -1318,13 +1315,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return _MoveTarget(to, key: key, gap: from < to ? from : from + 1);
   }
 
-  /// Makes the call-turn jump of the reported move [moved], whose item's
-  /// key node is [node], at the index the calls so far left its target at:
-  /// a focused one-slot move readies its slot as a move call does
-  /// ([_buildAheadOrJump], FR-03 E09) and keeps the offset before any jump
-  /// on [moved]; else, with [edgeJump], the list jumps to the start when
-  /// [toStart], else to the end, so the moved item keeps its State (FR-03
-  /// E02). A target a call took out readies nothing.
+  /// Readies the slot of the reported move [moved], whose item's key node
+  /// is [node], at the index the calls so far left its target at: a
+  /// focused one-slot move readies it as a move call does
+  /// ([_buildAheadOrJump], FR-03 E09); else, with [edgeJump], the list
+  /// books a jump to the start when [toStart], else to the end, so the
+  /// moved item keeps its State (FR-03 E02). Each jump runs at the next
+  /// frame's start ([_runFrameJumps]). A target a call took out readies
+  /// nothing.
   void _readySlot(
     _MoveTarget moved,
     FocusNode? node, {
@@ -1335,12 +1333,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final item = node?.context;
     if (at == null || node == null || item == null) return;
     if (moved.key != null && moved.readies) {
-      moved.origin = _buildAheadOrJump(at, node);
+      _buildAheadOrJump(at, node, moved);
       return;
     }
-    final position = Scrollable.maybeOf(item)?.position;
-    if (!edgeJump || position == null) return;
-    _jumpTowards(item, position, toStart: toStart);
+    if (edgeJump) _bookFrameJump(node, moved, toStart: toStart);
   }
 
   /// Ends at once the removed items drawn in the slot of the built item at
@@ -1829,58 +1825,86 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// [to] of the current data for the next frame, when the last frame did
   /// not lay that slot number out ([_enteredSlot], invariant 35): a near
   /// slot ([_nearExtra]) has the next frame build ahead to it, with no
-  /// scroll in this turn ([_askAhead], D1); a farther one takes the jump of
-  /// [_jumpForMove]. The item's key comes from its built slot, so the list
-  /// never calls `itemBuilder` here. Returns the offset before the jump,
-  /// where a failed reach returns (R5); null with no jump.
-  ({ScrollPosition position, double pixels})? _buildAheadOrJump(
+  /// scroll in this turn ([_askAhead], D1); a farther one books the jump of
+  /// [_jumpForMove] toward [target] for the next frame's start, and
+  /// registers [target] among [_moveTargets] until then when [owned]. The
+  /// item's key comes from its built slot, so the list never calls
+  /// `itemBuilder` here.
+  void _buildAheadOrJump(
     _DataIndex to,
     FocusNode node,
-  ) {
+    _MoveTarget target, {
+    bool owned = false,
+  }) {
     final entered = _enteredSlot(to);
-    if (_builtSlot(entered)) return null;
+    if (_builtSlot(entered)) return;
     final item = node.context;
     final position = item == null ? null : Scrollable.maybeOf(item)?.position;
-    if (item == null || position == null) return null;
+    if (item == null || position == null) return;
     final extra = _nearExtra(entered, position);
     if (extra != null) {
       _askAhead(node, _baseCacheExtent(position) + extra);
-      return null;
+      return;
     }
-    final origin = _jumpForMove(to, item, position);
-    if (origin != null) _watchFarJump(node, origin);
-    return origin;
+    if (owned) _moveTargets.add(target);
+    _bookFrameJump(node, target, owned: owned);
   }
 
-  /// Has the next frame, at its start, read whether the item whose key node
-  /// is [node] still holds focus after the turn of its far move's jump,
-  /// whose offset before the jump is [origin] (R13).
-  void _watchFarJump(
+  /// Books a reveal jump toward [target], the move of the item whose key
+  /// node is [node], for the next frame's start ([_runFrameJumps]): exactly
+  /// to the start when [toStart] is true, to the end when false, else
+  /// through [_jumpForMove].
+  void _bookFrameJump(
     FocusNode node,
-    ({ScrollPosition position, double pixels}) origin,
-  ) {
-    if (_farJumps.isEmpty) {
-      WidgetsBinding.instance.scheduleFrameCallback((_) => _readFarJumps());
+    _MoveTarget target, {
+    bool? toStart,
+    bool owned = false,
+  }) {
+    if (_frameJumps.isEmpty) {
+      WidgetsBinding.instance.scheduleFrameCallback((_) => _runFrameJumps());
     }
-    _farJumps.add((node: node, origin: origin));
+    _frameJumps.add(
+      _FrameJump(
+        node,
+        target,
+        toStart: toStart,
+        owned: owned,
+        focusAtCall: FocusManager.instance.primaryFocus,
+      ),
+    );
   }
 
-  /// At the start of the frame after far moves, before its build and its
-  /// layout: unwound newest first, an item that no longer holds focus
-  /// returns the list to its own origin, since the app moved focus off it
-  /// in the move's turn. The unwind stops at the first item that still
-  /// holds focus (R13): that item's own jump already left the list where
-  /// it belongs, and every older jump's origin is subsumed by it.
-  void _readFarJumps() {
-    final jumps = [..._farJumps];
-    _farJumps.clear();
+  /// At the next frame's start, after the turn's focus settled and before
+  /// the build and the layout: runs the booked jumps in booking order, each
+  /// toward its target where the calls since its move left it, and records
+  /// the offset before it on the target, where a reach that gives up
+  /// returns. A jump is skipped when its target was taken out, or when a
+  /// node outside the moved item took primary focus since the call: the
+  /// app's focus wins. An item that never held focus, as under a screen
+  /// reader's start or end action, still jumps (invariant 35).
+  void _runFrameJumps() {
+    final jumps = [..._frameJumps];
+    _frameJumps.clear();
+    for (final jump in jumps) {
+      if (jump.owned) _moveTargets.remove(jump.target);
+    }
     if (!mounted) return;
-    for (final jump in jumps.reversed) {
-      if (jump.node.hasFocus) break;
-      final live = _livePositionOf(jump.origin.position);
-      live?.jumpTo(
-        jump.origin.pixels.clamp(live.minScrollExtent, live.maxScrollExtent),
-      );
+    for (final jump in jumps) {
+      final at = jump.target.index;
+      if (at == null) continue;
+      final primary = FocusManager.instance.primaryFocus;
+      final appFocused = primary != null && primary != jump.focusAtCall;
+      if (appFocused && !jump.node.hasFocus) continue;
+      final item = jump.node.context;
+      final position = item == null ? null : Scrollable.maybeOf(item)?.position;
+      if (item == null || position == null) continue;
+      final toStart = jump.toStart;
+      if (toStart == null) {
+        jump.target.origin = _jumpForMove(at, item, position);
+        continue;
+      }
+      jump.target.origin = (position: position, pixels: position.pixels);
+      _jumpTowards(item, position, toStart: toStart);
     }
   }
 
@@ -1924,12 +1948,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     );
   }
 
-  /// Jumps in a move's turn toward the slot the focused item [item] enters
-  /// at [to] of the current data, when that slot is not near: exactly to
-  /// the start or end for an edge slot, as a key move to either end does,
-  /// else by [_estimateTowards] at slot [to] (FR-05 E04). Returns the
-  /// offset before the jump, where a failed reach returns (R5); null with
-  /// no jump.
+  /// Jumps at the next frame's start toward the slot the focused item
+  /// [item] enters at [to] of the current data: exactly to the start or end
+  /// for an edge slot, as a key move to either end does, else by
+  /// [_estimateTowards] at slot [to] (FR-05 E04). Returns the offset before
+  /// the jump, where a failed reach returns (R5); null with no jump.
   ({ScrollPosition position, double pixels})? _jumpForMove(
     _DataIndex to,
     BuildContext item,
@@ -2035,8 +2058,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// move's own turn may have shifted the data under the move's own
   /// indices. With no settled slot for the key, a later call took the item
   /// or a count change reset the frame (E12), the follow runs the give-up
-  /// path: it returns to [origin], the offset before the call-turn jump,
-  /// else the one before the reach's own first jump, and hands focus on
+  /// path: it returns to [origin], the offset before the move's jump at
+  /// the next frame's start, else the one before the reach's own first
+  /// jump, and hands focus on
   /// from the gap the frame left, the slot the item left (R5). The follow
   /// fields belong to the newest move: a follow whose key they no longer
   /// name waits for that move's own callback and does nothing here.
@@ -2943,9 +2967,8 @@ class _MoveTarget {
   /// is; the reach hands focus on from it when it gives up.
   _DataIndex? gap;
 
-  /// For a focused one-slot move that jumped in its turn: the offset before
-  /// the jump, where a reach that gives up returns (R5). Set by the jump,
-  /// which runs once the move is reported.
+  /// The offset before the move's jump, where a reach that gives up
+  /// returns (R5). Set by the jump at the next frame's start.
   ({ScrollPosition position, double pixels})? origin;
 }
 
@@ -3055,6 +3078,34 @@ class _AheadAsk {
   /// The cache extent in pixels the frame builds with on both sides of the
   /// viewport: the layout's own plus the near slot's extra.
   final double cache;
+}
+
+/// A reveal jump a move booked for the next frame's start (invariant 35).
+class _FrameJump {
+  new(
+    this.node,
+    this.target, {
+    required this.toStart,
+    required this.owned,
+    required this.focusAtCall,
+  });
+
+  /// The moved item's key node.
+  final FocusNode node;
+
+  /// Where the move put the item, shifted by each later call until the jump
+  /// reads it; the jump records the offset before it there.
+  final _MoveTarget target;
+
+  /// True or false for an exact jump to the start or the end; null for
+  /// [_ReorderableBodyState._jumpForMove].
+  final bool? toStart;
+
+  /// Whether [target] sits among the moves' targets only for this jump.
+  final bool owned;
+
+  /// The node that held primary focus at the move's call.
+  final FocusNode? focusAtCall;
 }
 
 /// A gap of the app's data, before the item at [index], that a reader
