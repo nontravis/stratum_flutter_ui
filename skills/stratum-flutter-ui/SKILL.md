@@ -34,7 +34,25 @@ Each entry: usage, key parameters, keyboard behavior.
   Keyboard: when `index` changes while focus sits in the outgoing child, focus moves after the frame to the first
   Tab-order node of the incoming child, else to the stack's own (non-Tab-stop) node.
 - **`WrapLayout`** — a `Wrap` that lays children in runs across `direction`, with `gap`, `runGap`, and `focusGroup`.
-  Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`.
+  `maxRuns` (at least 1) and `maxChildren` (at least 0) cut it, the limit that hides more winning, and
+  `overflowBuilder(context, hiddenCount)` builds a "+N" child during layout with the exact hidden count, after the last
+  shown child in the last allowed run; more children hide until it fits. Hidden children stay mounted with their `State`
+  and take no paint, hits, focus, or semantics, their tickers stopped. With `overflowBuilder` set, switching both limits
+  to null keeps the children's `State`; without it the switch remounts them. A limit or `overflowBuilder` with `scroll`
+  fails an assertion.
+  While measuring, the wrap calls `overflowBuilder` once per hidden count it tries, then shows the widget built for the
+  last; that widget must not carry a `GlobalKey` or a `FocusNode` the app owns (debug builds report it), while a key or
+  node a `State` inside the "+N" child creates for itself is safe.
+  Inside an app's own scrollable along `direction` (a horizontal wrap in a horizontal `SingleChildScrollView`), the
+  main axis is unbounded, so runs never break and `maxRuns` never cuts; use `maxChildren` there.
+  Expand or collapse by changing the limits: the size moves over the theme's default level (`fast`, 125 ms in the
+  package default) on the `standard` curve, clipped, and changes at once under reduced motion.
+  Keyboard: `focusGroup` roving group (K3), same as `FlexLayout`; Tab and the group's arrows skip hidden children,
+  and End lands on the last item in reading order, the "+N" child in a horizontal, downward wrap. When a collapse hides
+  the focused child, or a collapse or rebuild replaces the focused "+N" child with a new one, focus moves after the
+  frame to the "+N" child, else to the last shown child, else to the wrap's own node, which is not a Tab stop; when an
+  expand that shows hidden children drops the focused "+N" child, focus moves to the first child it shows, else to the
+  wrap's own node.
 
 ## Scroll views
 
