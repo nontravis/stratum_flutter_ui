@@ -211,6 +211,20 @@ scroll it, guarded so a text field inside keeps its own keys.
   customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
   took effect.
 
+## Disabled components
+
+- **`disabled: true`** — on any component built on `StratumStatelessWidget` or `StratumStatefulWidget`, the
+  package's or your own, the base paints it at the theme's `opacity.disabled` (0.5 by default), shows the forbidden
+  cursor, lets no tap, long press, drag, or hover reach it, and keeps it and every node inside it out of focus and Tab
+  order, so a focused one loses focus. A screen reader reads it as disabled on a node of its own. Turning `disabled`
+  off keeps the component's state.
+- **Your own disabled look** — a component whose design draws its own disabled look overrides
+  `@protected bool get dimsWhenDisabled => false`; the cursor, input, focus, and screen-reader rules still hold. A
+  widget that extends neither base gets none of this.
+- **A decorative component** — a component that gives a screen reader nothing to read, such as a caret, overrides
+  `@protected bool get contributesSemantics => false`; while disabled it then gets no screen-reader node, and the
+  dimming, cursor, input, and focus rules still hold.
+
 ## Themes
 
 - **Theme font files** — a theme ships its own fonts by listing them under `typography.fonts.<key>.files` in its
