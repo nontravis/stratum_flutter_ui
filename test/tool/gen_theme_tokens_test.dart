@@ -41,6 +41,7 @@ space: { md: 4 }
 radius: { md: 10 }
 layouts: { max-width-read: 720 }
 assets: { loading: }
+opacity: { disabled: 0.5 }
 ''';
 
 /// The yaml key whose Dart name is [color]'s name.
