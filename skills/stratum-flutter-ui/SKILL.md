@@ -203,26 +203,29 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   ),
   ```
 
-  Insert and remove: pass a `ReorderableItemsController` as `itemsController` (the scroll `controller` stays
-  separate) and call `insertItem(index)` or `removeItem(index)` in the same turn as the data change, outside a build
-  and `onReorderItem`, `onReorderStart`, and `onReorderEnd`; from those, call after the frame.
-  An added item grows and fades in over the theme's `normal` level, and a removed one shrinks and fades out in the
-  look it had, unless `removeItem`'s `builder` gives it another; `itemTransitionBuilder(context, animation, child)`
-  replaces the size and fade both ways. Without `builder`, a removed item's leaving copy ends at once if its key comes
-  back; a `builder` keeps it fading on its own look. The leaving item keeps its State and rebuilds, so an item reading
-  its data through `context` (a `watch` or `select` by id or index, a provider family) needs a `builder` capturing that
-  data. Under reduced motion, or with `itemExtent`, `itemExtentBuilder`, or `prototypeItem`, the size jumps and the fade
-  plays. Focus on a removed item moves to the next item, else the previous, else the nearest item that has a focusable
-  node, else the list's Tab stop when the list is focusable, and the list shows it, unless the app moves focus in the
-  same turn or after the frame; the same holds when
-  the app takes the focused item out of its data with no call, by a remove, a replace, or, with no
-  `findChildIndexCallback`, a reorder. A focused item the app removes and inserts back with its key in the same turn
-  keeps focus instead, and the list scrolls to it and shows it. A reorder of a leaving item's neighbor
-  ends that leaving item. An `insertItem`, `removeItem`, `moveItem`, key or screen-reader move, item-count change, or
-  data change at the same count that moves or replaces the dragged item during a drag ends it first, and a pointer
-  cancel or a second pointer that takes the drag over ends it, each with `onReorderEnd` at its start index and no
-  `onReorderItem`; key and screen-reader moves then report their own. Every drag ends with exactly one `onReorderEnd`;
-  a drop reports the index Flutter's reorderable list gives it.
+  Insert and remove: pass a `ReorderableItemsController` as `itemsController` (not the scroll `controller`) and call
+  `insertItem(index)` or `removeItem(index)` in the turn of the data change, outside a build and `onReorderItem`,
+  `onReorderStart`, and `onReorderEnd`; from those, call after the frame.
+  An added item grows and fades in over the theme's `normal` level; a removed one shrinks and fades out in its current
+  look unless `removeItem`'s `builder` gives another; `itemTransitionBuilder(context, animation, child)` replaces size
+  and fade both ways. Without `builder`, a removed item's leaving copy ends at once if its key returns; a `builder`
+  keeps it fading in its own look. The leaving item keeps its State and rebuilds: an item reading data through `context`
+  (`watch` or `select` by id or index, a provider family) needs a `builder` capturing that data. Under reduced motion,
+  or with `itemExtent`, `itemExtentBuilder`, or `prototypeItem`, the size jumps and the fade plays.
+  Until flutter/flutter#193710 ships, an item with its own semantics boundary (nested scroll view, tappable
+  `StratumInkWell`, `Semantics(container: true)`) asserts at `object.dart:6723` in debug with semantics on (every
+  `testWidgets`) when an `itemTransitionBuilder` fades it through opacity 0 or a focused far `moveItem` lands where the
+  frame does not lay it out (uneven heights, app-held scroll). Check a removed item's semantics after its exit, or walk
+  the live semantics tree: `find.bySemanticsLabel` reads a stale debug cache for excluded subtrees.
+  Focus on a removed item, or on one dropped from the data with no call (a remove, a replace, or, with no
+  `findChildIndexCallback`, a reorder), moves to the next item, else the previous, else the nearest item with a
+  focusable node, else a focusable list's Tab stop, and the list shows it, unless the app moves focus in the same turn
+  or after the frame. A focused item removed and inserted back with its key in the same turn keeps focus instead and
+  shows on screen. Reordering a leaving item's neighbor ends the leaving item. During a drag, an `insertItem`,
+  `removeItem`, `moveItem`, key or screen-reader move, item-count change, or same-count data change that moves or
+  replaces the dragged item ends it first, and a pointer cancel or a second pointer's takeover ends it, each with
+  `onReorderEnd` at its start index and no `onReorderItem`; key and screen-reader moves then report their own. Every
+  drag ends with exactly one `onReorderEnd`; a drop reports the index Flutter's reorderable list gives it.
 
   ```dart
   final itemsController = ReorderableItemsController();
@@ -238,21 +241,20 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   }
   ```
 
-  Move: call `moveItem(from, to)` in the same turn as moving the item in the data, where `to` is the index the item
-  ends at, as `onReorderItem` reports it. The old slot closes while the item grows and fades into its new one over the
-  theme's `normal` level (under reduced motion or a fixed extent the slot closes at once and the item only fades in);
-  the item keeps its State and focus, and a focused item keeps its State at every distance and shows on screen even
-  when its new slot is far off screen, unless the app moves focus in the same turn: that focus stays, and the item
-  keeps its State only when the list has built its new slot. The list scrolls toward a moved item at the next frame's
-  start: `position.pixels` read right after `moveItem`, or inside `onReorderItem` of a key or screen-reader move, has
-  not moved yet. `onReorderItem` does not fire. Prefer it to `removeItem` plus `insertItem`, which keeps an unfocused
-  item's State only when the list has built its new slot; a focused item the app removes and inserts back in the same
-  turn keeps its State too. The Move up and Move down buttons above can call it.
-  An app that reorders its data with no `moveItem` call, as a live sync does, passes `findChildIndexCallback`, which
-  reads an O(1) key-to-index map the app keeps in sync with its data: a focused moved item then keeps its State and
-  focus at every distance and shows on screen, and an item the app keeps alive follows the reorder. A focused item
-  already out of view follows its new place off screen with its State and focus, and the list scrolls nothing for it
-  until the next focus move or reorder key brings it back.
+  Move: call `moveItem(from, to)` in the turn of the data move, where `to` is the item's final index, as `onReorderItem`
+  reports it. The old slot closes while the item grows and fades into its new one over the theme's `normal` level (at
+  once under reduced motion or a fixed extent, where the item only fades in); the item keeps its State and focus, and a
+  focused item keeps its State and shows on screen at every distance, unless the app moves focus in the same turn: that
+  focus stays, and the item keeps its State only when its new slot is built. At the next frame's start, the list scrolls
+  toward a moved item: `position.pixels` read right after `moveItem`, or inside `onReorderItem` of a key or
+  screen-reader move, has not moved yet. `onReorderItem` does not fire. Prefer it to `removeItem` plus `insertItem`,
+  which keeps an unfocused item's State only when its new slot is built; a focused item removed and inserted back in the
+  same turn keeps its State too. The buttons above can call it.
+  An app reordering its data without `moveItem`, as a live sync does, passes `findChildIndexCallback`, which reads the
+  app's O(1) key-to-index map, kept in sync: a focused moved item then keeps its State and focus at every distance and
+  shows on screen, and an item the app keeps alive follows the reorder. A focused item already out of view follows its
+  new place off screen with its State and focus; the list scrolls nothing for it until the next focus move or reorder
+  key brings it back.
 
   ```dart
   void moveTask(int from, int to) {
