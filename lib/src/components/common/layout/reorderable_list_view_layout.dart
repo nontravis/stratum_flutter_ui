@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart'
         RenderAbstractViewport,
         RenderSliverMultiBoxAdaptor,
         ScrollCacheExtent;
+import 'package:flutter/scheduler.dart' show Ticker, TickerCallback;
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/src.dart';
@@ -2987,6 +2988,22 @@ class _ReorderSliver extends SliverReorderableList {
 class _ReorderSliverState extends SliverReorderableListState {
   _ReorderableBodyState get _body => (widget as _ReorderSliver).body;
 
+  /// Whether the app or the platform asked for less motion at the last
+  /// build; a ticker callback runs outside the build, so it reads this.
+  var _reducesMotion = false;
+
+  // Every SDK reorder controller ticks on this State: each item's reflow
+  // (`updateForGap`) and the drop's settle (`_DragInfo.startDrag`). Under
+  // reduced motion each reads a long elapsed time and ends on its first
+  // tick, the end state the platform's `disableAnimations` scale reaches
+  // (R38, invariant 51). The lifted item's fade runs on its own box.
+  @override
+  Ticker createTicker(TickerCallback onTick) {
+    return super.createTicker(
+      (elapsed) => onTick(_reducesMotion ? _endAtOnce : elapsed),
+    );
+  }
+
   // Wraps after super: the recognizer reads onStart only when the arena
   // accepts, after the pointer-down dispatch (multidrag.dart, _startDrag).
   @override
@@ -3023,6 +3040,7 @@ class _ReorderSliverState extends SliverReorderableListState {
   // `findChildIndexCallback`, moves that element in place (invariant 35).
   @override
   Widget build(BuildContext context) {
+    _reducesMotion = context.reducesMotion;
     final sliver = super.build(context);
     final body = _body;
     final sdk = sliver is SliverMultiBoxAdaptorWidget ? sliver.delegate : null;
@@ -3558,6 +3576,10 @@ typedef _Watched = ({
   FocusNode node,
   _FrameIndex? frame,
 });
+
+/// An elapsed time past the end of every SDK reorder controller (250 ms):
+/// under reduced motion each one ends on its first tick.
+const _endAtOnce = Duration(hours: 1);
 
 /// The work each list queued for the end of the next frame's layout, before
 /// that frame's post-frame callbacks ([_runAfterLayout]).

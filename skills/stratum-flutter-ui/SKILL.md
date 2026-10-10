@@ -130,6 +130,8 @@ scroll it, guarded so a text field inside keeps its own keys.
   `SliverReorderableList` subtype, which `find.byType(SliverReorderableList)` misses: a test finds it with
   `find.byWidgetPredicate((widget) => widget is SliverReorderableList)`.
   A drag held near a viewport edge scrolls the list toward that edge; `autoScrollerVelocityScalar` scales its speed.
+  Under reduced motion the neighbors a drag passes and a dropped item take their slots at once; the lifted look
+  still fades.
   Keyboard: Alt+arrow along the axis moves the focused item one slot, Alt+Home/Alt+End move it to either end; a move
   past either end is still handled, so it never reaches the browser (Chrome's Alt+Left/Alt+Right Back/Forward).
   An item that holds focus, on its own node or one inside it, stays alive with its State and focus when a scroll, the

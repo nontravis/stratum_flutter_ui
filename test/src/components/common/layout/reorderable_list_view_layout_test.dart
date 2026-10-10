@@ -629,6 +629,21 @@ Future<TestGesture> _liftItem(
   return gesture;
 }
 
+/// Steps a lifted item 0 down 10 px at a time, each step pumped over 16 ms
+/// of real time, until item 1's top leaves 40: the SDK's own gap trigger is
+/// a dead zone past a single big jump (it compares against each item's own
+/// *current* target, not its original slot), so a slow drag finds the
+/// crossing the way an EndUser's drag would. The step that crosses it also
+/// delivers that gap controller's first real tick: reduced motion's seam
+/// ends it there at once; plain motion leaves it partway, still sliding.
+Future<void> _dragPastNeighbor(WidgetTester tester, TestGesture gesture) async {
+  for (var i = 0; i < 10; i++) {
+    await gesture.moveBy(const Offset(0, 10));
+    await tester.pump(const Duration(milliseconds: 16));
+    if (_top(tester, 1) != 40) return;
+  }
+}
+
 /// Drags item [id] by its handle past the touch slop, on [pointer] when
 /// given.
 Future<TestGesture> _grabHandle(
@@ -10457,6 +10472,97 @@ void main() {
 
         handle.dispose();
       },
+    );
+  });
+
+  group('ReorderableListViewLayout reduced motion', () {
+    final motion = ValueVariant<String>({'no', 'app', 'platform'});
+
+    testWidgets(
+      'NFR-U03, us11/fr01/e09, and s03/inv51: a neighbor a drag passes '
+      'takes its slot at once only under reduced motion',
+      (tester) async {
+        if (motion.currentValue == 'platform') {
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(reduceMotion: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+        }
+        await tester.pumpWidget(
+          motion.currentValue == 'app'
+              ? _app(
+                  Builder(
+                    builder: (context) => MediaQuery(
+                      data: MediaQuery.of(context)
+                          .copyWith(disableAnimations: true),
+                      child: const _Harness(count: 5),
+                    ),
+                  ),
+                )
+              : _app(const _Harness(count: 5)),
+        );
+
+        final gesture = await _liftItem(tester, 0);
+        await _dragPastNeighbor(tester, gesture);
+
+        if (motion.currentValue == 'no') {
+          expect(_top(tester, 1), allOf(greaterThan(0), lessThan(40)));
+        } else {
+          expect(_top(tester, 1), 0);
+        }
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+      variant: motion,
+    );
+
+    testWidgets(
+      'NFR-U03, us11/fr01/e09, and s03/inv51: a dropped item settles at '
+      'once only under reduced motion',
+      (tester) async {
+        if (motion.currentValue == 'platform') {
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(reduceMotion: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+        }
+        await tester.pumpWidget(
+          motion.currentValue == 'app'
+              ? _app(
+                  Builder(
+                    builder: (context) => MediaQuery(
+                      data: MediaQuery.of(context)
+                          .copyWith(disableAnimations: true),
+                      child: const _Harness(count: 5),
+                    ),
+                  ),
+                )
+              : _app(const _Harness(count: 5)),
+        );
+
+        final gesture = await _liftItem(tester, 0);
+        await _dragPastNeighbor(tester, gesture);
+        await tester.pumpAndSettle();
+
+        await gesture.up();
+        await tester.pump();
+        // `onReorderEnd` always fires at once (FR-04 E06, `_endDrag`), so it
+        // cannot tell reduced motion from plain; the drop's own 250 ms
+        // settle, ticked on the same seamed State as the gap reflow, only
+        // lands `onReorderItem` (`moves`) once it ends.
+        expect(
+          _harness(tester).moves,
+          motion.currentValue == 'no' ? isEmpty : [(0, 1)],
+        );
+
+        await tester.pumpAndSettle();
+        expect(_harness(tester).ends, isNotEmpty);
+        expect(_harness(tester).moves, [(0, 1)]);
+      },
+      variant: motion,
     );
   });
 }
