@@ -91,10 +91,7 @@ void main() {
           SizedBox(
             width: 100,
             height: 60,
-            child: WrapLayout(
-              scroll: const StratumScroll(),
-              children: _tiles(),
-            ),
+            child: WrapLayout(scroll: const Scroll(), children: _tiles()),
           ),
         ),
       );
@@ -120,7 +117,7 @@ void main() {
             height: 100,
             child: WrapLayout(
               direction: Axis.vertical,
-              scroll: const StratumScroll(),
+              scroll: const Scroll(),
               children: _tiles(),
             ),
           ),

@@ -3,7 +3,10 @@ export 'column_layout.dart';
 export 'container_layout.dart';
 export 'custom_scroll_view_layout.dart';
 export 'flex_layout.dart';
-export 'focus_group.dart' show StratumFocusGroup;
+// Re-exporting the deprecated alias itself, so ignore the deprecation
+// warning on naming it in this show clause.
+// ignore: deprecated_member_use_from_same_package
+export 'focus_group.dart' show FocusGroup, StratumFocusGroup;
 export 'grid_view_layout.dart';
 export 'indexed_stack_layout.dart';
 export 'list_view_layout.dart';

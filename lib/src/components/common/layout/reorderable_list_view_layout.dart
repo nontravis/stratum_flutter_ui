@@ -49,7 +49,7 @@ import 'package:stratum_ui/src/src.dart';
 /// shows it at its new slot. A reorder of the item a leaving item is drawn
 /// beside ends that leaving item at once.
 /// [itemTransitionBuilder] replaces the built-in transition.
-/// [StratumReorderableItemsController.moveItem] closes a moved item's old
+/// [ReorderableItemsController.moveItem] closes a moved item's old
 /// slot while the item grows into its new one, and the item keeps its
 /// State and focus.
 ///
@@ -134,7 +134,7 @@ class ReorderableListViewLayout extends StatelessWidget {
   /// separate from the scroll [controller]. Null shows every data change
   /// at once. One controller drives one list at a time: hand it to
   /// another list only after this one drops it, or in a later frame.
-  final StratumReorderableItemsController? itemsController;
+  final ReorderableItemsController? itemsController;
 
   /// Replaces the built-in grow-or-shrink and fade of an inserted or
   /// removed item, for both directions.
@@ -193,7 +193,7 @@ class ReorderableListViewLayout extends StatelessWidget {
 /// data indices: an item still growing in counts, and an item playing its
 /// remove animation does not. One controller drives one list at a time;
 /// it holds no resource, so it needs no `dispose`.
-class StratumReorderableItemsController {
+class ReorderableItemsController {
   _ReorderableBodyState? _body;
 
   /// Grows and fades in the item the app inserted at [index] of its data,
@@ -203,7 +203,7 @@ class StratumReorderableItemsController {
   void insertItem(int index) {
     assert(
       _body != null,
-      'insertItem on a StratumReorderableItemsController attached to no '
+      'insertItem on a ReorderableItemsController attached to no '
       'ReorderableListViewLayout',
     );
     _body?._insertItem(_DataIndex(index));
@@ -220,7 +220,7 @@ class StratumReorderableItemsController {
   void removeItem(int index, {WidgetBuilder? builder}) {
     assert(
       _body != null,
-      'removeItem on a StratumReorderableItemsController attached to no '
+      'removeItem on a ReorderableItemsController attached to no '
       'ReorderableListViewLayout',
     );
     _body?._removeItem(_DataIndex(index), builder);
@@ -237,7 +237,7 @@ class StratumReorderableItemsController {
   void moveItem(int from, int to) {
     assert(
       _body != null,
-      'moveItem on a StratumReorderableItemsController attached to no '
+      'moveItem on a ReorderableItemsController attached to no '
       'ReorderableListViewLayout',
     );
     _body?._moveItem(_DataIndex(from), _DataIndex(to));
@@ -246,7 +246,7 @@ class StratumReorderableItemsController {
   void _attach(_ReorderableBodyState body) {
     assert(
       _body == null || _body == body,
-      'One StratumReorderableItemsController is attached to two '
+      'One ReorderableItemsController is attached to two '
       'ReorderableListViewLayouts at once',
     );
     _body = body;
@@ -256,6 +256,15 @@ class StratumReorderableItemsController {
     if (_body == body) _body = null;
   }
 }
+
+/// [ReorderableItemsController]'s name before naming rule R2, kept one
+/// minor version.
+@Deprecated(
+  'Use ReorderableItemsController instead. '
+  'StratumReorderableItemsController will be removed after one minor '
+  'version.',
+)
+typedef StratumReorderableItemsController = ReorderableItemsController;
 
 /// The reorderable list, a [SliverReorderableList] in its own scroll view,
 /// with the per-item wrappers and the reorder keys.
@@ -432,7 +441,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     super.dispose();
   }
 
-  /// [StratumReorderableItemsController.insertItem]: the app inserted an
+  /// [ReorderableItemsController.insertItem]: the app inserted an
   /// item at [index] of its data in this turn.
   void _insertItem(_DataIndex index) {
     assert(
@@ -453,7 +462,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     setState(() {});
   }
 
-  /// [StratumReorderableItemsController.removeItem]: the app removed the
+  /// [ReorderableItemsController.removeItem]: the app removed the
   /// item at [index] of its data in this turn.
   void _removeItem(_DataIndex index, WidgetBuilder? builder) {
     assert(
@@ -520,7 +529,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     setState(() {});
   }
 
-  /// [StratumReorderableItemsController.moveItem]: the app moved the item
+  /// [ReorderableItemsController.moveItem]: the app moved the item
   /// at [from] of its data to [to] in this turn (FR-05). Booked in
   /// [_pending] as one move entry, which both converters follow, and as an
   /// insert at [to] in [_pendingInserts], so the item's global key carries

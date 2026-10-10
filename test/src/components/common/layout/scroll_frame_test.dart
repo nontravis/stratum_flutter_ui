@@ -174,12 +174,12 @@ Widget _groupRow(List<FocusNode> items) {
   return RowLayout(
     mainAxisSize: MainAxisSize.min,
     gap: 8,
-    focusGroup: const StratumFocusGroup(),
+    focusGroup: const FocusGroup(),
     children: [
       for (final item in items)
         ContainerLayout(
           style: const WidgetStyle(width: 64, height: 48),
-          interaction: StratumInteraction(onTap: () {}, focusNode: item),
+          interaction: Interaction(onTap: () {}, focusNode: item),
         ),
     ],
   );
@@ -825,7 +825,7 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.iOS),
     );
 
-    testWidgets("a box layout's keys scroll through StratumScroll.controller", (
+    testWidgets("a box layout's keys scroll through Scroll.controller", (
       tester,
     ) async {
       final before = _node();
@@ -835,7 +835,7 @@ void main() {
           _keyboardHost(
             ColumnLayout(
               style: const WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
-              scroll: StratumScroll(controller: controller),
+              scroll: Scroll(controller: controller),
               children: const [SizedBox(height: 2000)],
             ),
             before: before,
@@ -858,7 +858,7 @@ void main() {
           themedHost(
             _keyboardHost(
               const RowLayout(
-                scroll: StratumScroll(),
+                scroll: Scroll(),
                 children: [SizedBox(width: 2000, height: 20)],
               ),
               before: before,
@@ -887,8 +887,8 @@ void main() {
           _keyboardHost(
             ColumnLayout(
               style: const WidgetStyle(),
-              interaction: StratumInteraction(onTap: () {}, focusNode: surface),
-              scroll: const StratumScroll(),
+              interaction: Interaction(onTap: () {}, focusNode: surface),
+              scroll: const Scroll(),
               children: const [SizedBox(height: 2000)],
             ),
             before: before,
@@ -919,8 +919,8 @@ void main() {
           _keyboardHost(
             ColumnLayout(
               style: const WidgetStyle(),
-              interaction: StratumInteraction(onHover: (_) {}),
-              scroll: const StratumScroll(),
+              interaction: Interaction(onHover: (_) {}),
+              scroll: const Scroll(),
               children: const [SizedBox(height: 2000)],
             ),
             before: before,
@@ -943,8 +943,8 @@ void main() {
           _keyboardHost(
             ColumnLayout(
               style: const WidgetStyle(),
-              interaction: StratumInteraction(onTap: () {}, disabled: true),
-              scroll: const StratumScroll(),
+              interaction: Interaction(onTap: () {}, disabled: true),
+              scroll: const Scroll(),
               children: const [SizedBox(height: 2000)],
             ),
             before: before,
@@ -972,11 +972,8 @@ void main() {
               height: 300,
               child: ColumnLayout(
                 style: const WidgetStyle(),
-                interaction: StratumInteraction(
-                  onTap: () {},
-                  disabled: disabled,
-                ),
-                scroll: StratumScroll(controller: controller),
+                interaction: Interaction(onTap: () {}, disabled: disabled),
+                scroll: Scroll(controller: controller),
                 children: const [_Probe()],
               ),
             ),
@@ -1015,12 +1012,12 @@ void main() {
             _keyboardHost(
               ColumnLayout(
                 style: const WidgetStyle(),
-                interaction: StratumInteraction(
+                interaction: Interaction(
                   onTap: () => taps++,
                   focusNode: surface,
                   disabled: disabled,
                 ),
-                scroll: const StratumScroll(),
+                scroll: const Scroll(),
                 children: const [SizedBox(height: 2000)],
               ),
               before: before,
@@ -1061,12 +1058,12 @@ void main() {
             _keyboardHost(
               ColumnLayout(
                 style: const WidgetStyle(),
-                interaction: StratumInteraction(
+                interaction: Interaction(
                   onTap: () {},
                   focusNode: surface,
                   disabled: disabled,
                 ),
-                scroll: const StratumScroll(),
+                scroll: const Scroll(),
                 children: [
                   StratumInkWell(
                     onTap: () {},
@@ -1111,7 +1108,7 @@ void main() {
         themedHost(
           _keyboardHost(
             const RowLayout(
-              scroll: StratumScroll(),
+              scroll: Scroll(),
               children: [SizedBox(width: 2000, height: 20)],
             ),
             before: before,
@@ -1587,7 +1584,7 @@ void main() {
           _webHost(
             ColumnLayout(
               style: const WidgetStyle(padding: EdgeInsets.all(24)),
-              scroll: const StratumScroll(),
+              scroll: const Scroll(),
               crossAxisAlignment: CrossAxisAlignment.start,
               gap: 16,
               children: [
@@ -1672,7 +1669,7 @@ void main() {
 
     final scrollers = <String, Widget Function(List<Widget> items)>{
       'ColumnLayout': (items) => ColumnLayout(
-        scroll: const StratumScroll(),
+        scroll: const Scroll(),
         children: [...items, const SizedBox(height: 400)],
       ),
       'ListViewLayout': (items) => ListViewLayout.builder(
@@ -1786,7 +1783,7 @@ void main() {
                         height: 50,
                         child: RowLayout(
                           style: const WidgetStyle(),
-                          scroll: const StratumScroll(),
+                          scroll: const Scroll(),
                           children: [
                             for (final card in cards)
                               Focus(
@@ -1914,7 +1911,7 @@ void main() {
                   width: 200,
                   height: 200,
                   child: ColumnLayout(
-                    scroll: StratumScroll(controller: page),
+                    scroll: Scroll(controller: page),
                     children: [
                       const SizedBox(height: 50),
                       SizedBox(
@@ -1969,7 +1966,7 @@ void main() {
         // scroller of three 60 px chips.
         final scroller = RowLayout(
           style: const WidgetStyle(),
-          scroll: const StratumScroll(),
+          scroll: const Scroll(),
           children: [
             for (final chip in chips)
               Focus(
@@ -1988,7 +1985,7 @@ void main() {
                   width: 200,
                   height: 200,
                   child: ColumnLayout(
-                    scroll: StratumScroll(controller: page),
+                    scroll: Scroll(controller: page),
                     children: [
                       const SizedBox(height: 50),
                       SizedBox(
@@ -2052,7 +2049,7 @@ void main() {
                     width: 200,
                     height: 200,
                     child: ColumnLayout(
-                      scroll: StratumScroll(controller: view),
+                      scroll: Scroll(controller: view),
                       children: [
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2143,7 +2140,7 @@ void main() {
                     width: 200,
                     height: 200,
                     child: ColumnLayout(
-                      scroll: StratumScroll(controller: view),
+                      scroll: Scroll(controller: view),
                       children: [
                         for (final item in items)
                           Focus(
@@ -2236,18 +2233,12 @@ void main() {
 
   group('ScrollFocus ring placement', () {
     const fullWindow = SizedBox.expand(
-      child: ColumnLayout(
-        scroll: StratumScroll(),
-        children: [SizedBox(height: 2000)],
-      ),
+      child: ColumnLayout(scroll: Scroll(), children: [SizedBox(height: 2000)]),
     );
     const smallBox = SizedBox(
       width: 200,
       height: 300,
-      child: ColumnLayout(
-        scroll: StratumScroll(),
-        children: [SizedBox(height: 2000)],
-      ),
+      child: ColumnLayout(scroll: Scroll(), children: [SizedBox(height: 2000)]),
     );
 
     testWidgets(
@@ -2330,7 +2321,7 @@ void main() {
               width: 200,
               height: 300,
               child: ColumnLayout(
-                scroll: StratumScroll(controller: controller),
+                scroll: Scroll(controller: controller),
                 children: const [_Probe()],
               ),
             ),
@@ -2369,7 +2360,7 @@ void main() {
                 width: 800 - 2 * margin,
                 height: 600 - 2 * margin,
                 child: const ColumnLayout(
-                  scroll: StratumScroll(),
+                  scroll: Scroll(),
                   children: [SizedBox(height: 2000)],
                 ),
               ),
@@ -2408,7 +2399,7 @@ void main() {
                 width: 800 - 2 * margin,
                 height: 600 - 2 * margin,
                 child: const ColumnLayout(
-                  scroll: StratumScroll(),
+                  scroll: Scroll(),
                   children: [SizedBox(height: 2000)],
                 ),
               ),
@@ -2445,7 +2436,7 @@ void main() {
               width: 800 - 12,
               height: 600 - 12,
               child: ColumnLayout(
-                scroll: StratumScroll(),
+                scroll: Scroll(),
                 children: [SizedBox(height: 2000)],
               ),
             ),

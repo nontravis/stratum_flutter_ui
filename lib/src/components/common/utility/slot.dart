@@ -1,6 +1,6 @@
 import 'package:stratum_ui/src/src.dart';
 
-class Slot extends StatelessWidget {
+class StratumSlot extends StatelessWidget {
   const new({
     super.key,
     this.height,
@@ -40,3 +40,9 @@ class Slot extends StatelessWidget {
     ),
   );
 }
+
+/// [StratumSlot]'s name before naming rule R2, kept one minor version.
+@Deprecated(
+  'Use StratumSlot instead. Slot will be removed after one minor version.',
+)
+typedef Slot = StratumSlot;

@@ -20,7 +20,7 @@ class _ProbeState extends State<_Probe> {
 }
 
 typedef _Build = Widget Function({
-  required StratumInteraction interaction,
+  required Interaction interaction,
   WidgetStyle? style,
   Widget child,
 });
@@ -63,7 +63,7 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           const ContainerLayout(
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
             semantics: SemanticsProperties(label: 'card'),
             child: _child,
           ),
@@ -88,7 +88,7 @@ void main() {
       Widget build(GestureTapCallback? onTap) => themedHost(
         ContainerLayout(
           semantics: const SemanticsProperties(label: 'card'),
-          interaction: StratumInteraction(onTap: onTap),
+          interaction: Interaction(onTap: onTap),
           child: const _Probe(),
         ),
       );
@@ -111,9 +111,9 @@ void main() {
             ),
             // shrinkWrap: this test's subject is the margin, not the
             // platform tap-target padding (NFR-U05).
-            interaction: StratumInteraction(
+            interaction: Interaction(
               onTap: _noop,
-              tapTargetSize: StratumTapTargetSize.shrinkWrap,
+              tapTargetSize: TapTargetSize.shrinkWrap,
             ),
             child: SizedBox.expand(),
           ),
@@ -129,7 +129,7 @@ void main() {
         themedHost(
           const ContainerLayout(
             rotate: 45,
-            interaction: StratumInteraction(onTap: _noop),
+            interaction: Interaction(onTap: _noop),
             child: _child,
           ),
         ),
@@ -153,7 +153,7 @@ void main() {
           const ContainerLayout(
             style: WidgetStyle(borderRadius: radius),
             semantics: SemanticsProperties(label: 'card'),
-            interaction: StratumInteraction(onTap: _noop),
+            interaction: Interaction(onTap: _noop),
             child: _child,
           ),
         ),
@@ -180,9 +180,7 @@ void main() {
         var count = 0;
         await tester.pumpWidget(
           themedHost(
-            build(
-              interaction: StratumInteraction(onSecondaryTap: () => count++),
-            ),
+            build(interaction: Interaction(onSecondaryTap: () => count++)),
           ),
         );
 
@@ -202,12 +200,7 @@ void main() {
         final handle = tester.ensureSemantics();
         await tester.pumpWidget(
           themedHost(
-            build(
-              interaction: const StratumInteraction(
-                onTap: _noop,
-                disabled: true,
-              ),
-            ),
+            build(interaction: const Interaction(onTap: _noop, disabled: true)),
           ),
         );
 
@@ -228,7 +221,7 @@ void main() {
       ) async {
         Widget host(GestureTapCallback? onTap) => themedHost(
           build(
-            interaction: StratumInteraction(onTap: onTap),
+            interaction: Interaction(onTap: onTap),
             child: const _Probe(),
           ),
         );
@@ -249,7 +242,7 @@ void main() {
         await tester.pumpWidget(
           themedHost(
             build(
-              interaction: const StratumInteraction(),
+              interaction: const Interaction(),
               style: const WidgetStyle(width: 40, height: 20),
             ),
           ),
@@ -264,5 +257,28 @@ void main() {
         );
       });
     }
+  });
+
+  group('renames', () {
+    testWidgets('renames: a StratumInteraction still builds the tap '
+        'surface', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        themedHost(
+          ContainerLayout(
+            // Testing the deprecated alias itself, so ignore the
+            // deprecation warning.
+            // ignore: deprecated_member_use_from_same_package
+            interaction: StratumInteraction(onTap: () => taps++),
+            child: _child,
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(StratumInkWell));
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(taps, 1);
+    });
   });
 }

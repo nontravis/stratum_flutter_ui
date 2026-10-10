@@ -86,7 +86,7 @@ Widget semanticsWithoutHeading({
 
 /// How far [StratumInkWell] pads its layout and hit area toward the
 /// platform's minimum tap target (NFR-U05).
-enum StratumTapTargetSize {
+enum TapTargetSize {
   /// Pads to [minimumFor] when [StratumInkWell.child] is smaller.
   platform,
 
@@ -107,6 +107,13 @@ enum StratumTapTargetSize {
     };
   }
 }
+
+/// [TapTargetSize]'s name before naming rule R2, kept one minor version.
+@Deprecated(
+  'Use TapTargetSize instead. StratumTapTargetSize will be removed after '
+  'one minor version.',
+)
+typedef StratumTapTargetSize = TapTargetSize;
 
 /// The tap surface of the design system.
 ///
@@ -141,7 +148,7 @@ class StratumInkWell extends StatefulWidget {
     this.disabled = false,
     this.statesController,
     this.borderRadius,
-    this.tapTargetSize = StratumTapTargetSize.platform,
+    this.tapTargetSize = TapTargetSize.platform,
     this.disabledPressAnimation = false,
     this.mouseCursor,
     this.focusNode,
@@ -194,11 +201,11 @@ class StratumInkWell extends StatefulWidget {
   /// Shape of the overlay and the focus ring.
   final BorderRadiusGeometry? borderRadius;
 
-  /// Grows the layout footprint to [StratumTapTargetSize.minimumFor] when
+  /// Grows the layout footprint to [TapTargetSize.minimumFor] when
   /// [child] is smaller than the platform minimum; the painted child does
-  /// not grow (NFR-U05). [StratumTapTargetSize.shrinkWrap] opts a dense UI
+  /// not grow (NFR-U05). [TapTargetSize.shrinkWrap] opts a dense UI
   /// out, keeping [child]'s own size.
-  final StratumTapTargetSize tapTargetSize;
+  final TapTargetSize tapTargetSize;
 
   /// Turns off the hover and press overlay.
   final bool disabledPressAnimation;
@@ -522,9 +529,9 @@ class _StratumInkWellState extends State<StratumInkWell>
         child: result,
       );
     }
-    if (widget.tapTargetSize != StratumTapTargetSize.shrinkWrap) {
+    if (widget.tapTargetSize != TapTargetSize.shrinkWrap) {
       result = _TapTargetPadding(
-        minimumSize: StratumTapTargetSize.minimumFor(
+        minimumSize: TapTargetSize.minimumFor(
           defaultTargetPlatform,
           web: kIsWeb,
         ),

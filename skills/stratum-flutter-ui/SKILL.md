@@ -1,14 +1,21 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
+description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, ReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, Show, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
 ---
 
 # Stratum Flutter UI
 
 Every screen and component in an app that depends on `stratum_ui` builds on this layout family. Each primitive styles
-its own box (`style: WidgetStyle`), takes one interaction (`interaction: StratumInteraction`) for taps, hover, and
-shortcuts, and scrolls through one `scroll: StratumScroll` model — never a raw `Container`, `Column`, `Row`, or
+its own box (`style: WidgetStyle`), takes one interaction (`interaction: Interaction`) for taps, hover, and
+shortcuts, and scrolls through one `scroll: Scroll` model — never a raw `Container`, `Column`, `Row`, or
 `ListView`. Import the barrel: `package:stratum_ui/src/src.dart`.
+
+Names: screen-building blocks carry no `Stratum` prefix (`Interaction`, `Scroll`, `TapTargetSize`, `FocusGroup`,
+`ReorderableItemsController`, `Show`, `ShowTransition`, `ShowSlideDirection`), while design-drawn components and theme
+or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old names `StratumInteraction`,
+`StratumScroll`, `StratumTapTargetSize`, `StratumFocusGroup`, `StratumReorderableItemsController`, `StratumShow`,
+`StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` still compile for one minor version
+as deprecated aliases; write the new names.
 
 ## Box layouts
 
@@ -106,14 +113,14 @@ scroll it, guarded so a text field inside keeps its own keys.
         children: [
           ContainerLayout(
             semantics: const SemanticsProperties(button: true, label: 'Previous slide'),
-            interaction: StratumInteraction(
+            interaction: Interaction(
               onTap: () => turn(context, forward: false),
             ),
             child: const Icon(Icons.chevron_left),
           ),
           ContainerLayout(
             semantics: const SemanticsProperties(button: true, label: 'Next slide'),
-            interaction: StratumInteraction(
+            interaction: Interaction(
               onTap: () => turn(context, forward: true),
             ),
             child: const Icon(Icons.chevron_right),
@@ -142,19 +149,19 @@ scroll it, guarded so a text field inside keeps its own keys.
       Expanded(child: Text(tasks[index].title)),
       ContainerLayout(
         semantics: const SemanticsProperties(button: true, label: 'Move up'),
-        interaction: StratumInteraction(onTap: () => moveTask(index, index - 1)),
+        interaction: Interaction(onTap: () => moveTask(index, index - 1)),
         child: const Icon(Icons.arrow_upward),
       ),
       ContainerLayout(
         semantics: const SemanticsProperties(button: true, label: 'Move down'),
-        interaction: StratumInteraction(onTap: () => moveTask(index, index + 1)),
+        interaction: Interaction(onTap: () => moveTask(index, index + 1)),
         child: const Icon(Icons.arrow_downward),
       ),
     ],
   ),
   ```
 
-  Insert and remove: pass a `StratumReorderableItemsController` as `itemsController` (the scroll `controller` stays
+  Insert and remove: pass a `ReorderableItemsController` as `itemsController` (the scroll `controller` stays
   separate) and call `insertItem(index)` or `removeItem(index)` in the same turn as the data change, outside a build
   and `onReorderItem`, `onReorderStart`, and `onReorderEnd`; from those, call after the frame.
   An added item grows and fades in over the theme's `normal` level, and a removed one shrinks and fades out in the
@@ -171,7 +178,7 @@ scroll it, guarded so a text field inside keeps its own keys.
   then report their own.
 
   ```dart
-  final itemsController = StratumReorderableItemsController();
+  final itemsController = ReorderableItemsController();
 
   void addTask(int index, Task task) {
     setState(() => tasks.insert(index, task));
@@ -227,9 +234,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   1.4.11 by design; pass `customColor` where an app needs that ratio.
 - **`StratumInkWell`** — the tap surface every `interaction` builds on. Its own hover and press overlay fades over
   the theme's `fast` level and snaps straight to its target color under reduced motion, same as the ring above it.
-  `tapTargetSize` (default `StratumTapTargetSize.platform`) grows its layout and hit area to the platform minimum
-  when `child` is smaller; pass `StratumTapTargetSize.shrinkWrap` to keep `child`'s own size in a dense UI.
-  `StratumInteraction.tapTargetSize` carries the same choice to every `BoxLayout` (`ContainerLayout`, `ColumnLayout`,
+  `tapTargetSize` (default `TapTargetSize.platform`) grows its layout and hit area to the platform minimum
+  when `child` is smaller; pass `TapTargetSize.shrinkWrap` to keep `child`'s own size in a dense UI.
+  `Interaction.tapTargetSize` carries the same choice to every `BoxLayout` (`ContainerLayout`, `ColumnLayout`,
   `RowLayout`, `StackLayout`, `WrapLayout`) with a tap surface, so a dense `BoxLayout` opts out the same way.
 - **`FocusSpread`** — deprecated in 1.1.0, and removed after one minor version: it builds `StratumFocusBorder`, so
   it already draws the new look. Its `color` now colors only the ring, as `customColor`, and no longer fills the
@@ -450,11 +457,11 @@ scroll it, guarded so a text field inside keeps its own keys.
 
 ## Show and hide
 
-- **`StratumShow`** — `StratumShow(visible: v, child: c)` shows `c` while `v` is true and hides it while false, by
-  `transition`: `StratumShowTransition.sizeAndFade` (the default), `.fade`, `.size`, or `.slide`, over the theme's
+- **`Show`** — `Show(visible: v, child: c)` shows `c` while `v` is true and hides it while false, by
+  `transition`: `ShowTransition.sizeAndFade` (the default), `.fade`, `.size`, or `.slide`, over the theme's
   default motion level (125 ms to show and 80 ms to hide in the package default) on its `standard` curve; `duration`,
   `reverseDuration`, and `curve` each replace one of them. A slide moves the content by its own size from
-  `slideDirection`: `StratumShowSlideDirection.end` (the default), `.start`, `.top`, or `.bottom`, with start and end
+  `slideDirection`: `ShowSlideDirection.end` (the default), `.start`, `.top`, or `.bottom`, with start and end
   mirrored under right-to-left text, and fades as it moves. Hidden content takes no space in a row or a column and is
   unmounted after its hide motion, so it builds fresh when shown again; `maintainState: true` keeps it mounted
   instead, with its state, its tickers stopped, and no size. From the frame it turns hidden, leaving or hidden content

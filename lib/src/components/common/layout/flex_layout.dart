@@ -62,9 +62,9 @@ class FlexLayout extends BoxLayout {
   final double? gap;
 
   /// Makes the focusable children one roving Tab stop with arrow, Home,
-  /// and End keys; see [StratumFocusGroup]. Switching between null and a
+  /// and End keys; see [FocusGroup]. Switching between null and a
   /// value remounts the children.
-  final StratumFocusGroup? focusGroup;
+  final FocusGroup? focusGroup;
   final List<Widget> children;
 
   @override

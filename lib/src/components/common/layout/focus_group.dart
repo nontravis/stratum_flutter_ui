@@ -26,7 +26,7 @@ import 'package:stratum_ui/src/src.dart';
 /// them while focus is inside a text field. It covers built children only;
 /// a lazy list uses Tab and its own keyboard scrolling instead.
 @immutable
-class StratumFocusGroup {
+class FocusGroup {
   const new({this.role, this.loop = false});
 
   /// The semantics role of the group node.
@@ -44,10 +44,17 @@ class StratumFocusGroup {
   final bool loop;
 }
 
+/// [FocusGroup]'s name before naming rule R2, kept one minor version.
+@Deprecated(
+  'Use FocusGroup instead. StratumFocusGroup will be removed after one '
+  'minor version.',
+)
+typedef StratumFocusGroup = FocusGroup;
+
 /// How a [FocusGroupFrame] lays its items out on screen.
 enum FocusGroupAxis { vertical, horizontal, wrap }
 
-/// Builds a [StratumFocusGroup] around a layout's content.
+/// Builds a [FocusGroup] around a layout's content.
 ///
 /// Not exported: [FlexLayout], and so [ColumnLayout] and [RowLayout], and
 /// [WrapLayout] build it from their `focusGroup`.
@@ -60,7 +67,7 @@ class FocusGroupFrame extends StatefulWidget {
     required this.child,
   });
 
-  final StratumFocusGroup group;
+  final FocusGroup group;
   final FocusGroupAxis axis;
 
   /// The layout's own text direction; null reads the ambient
@@ -77,7 +84,7 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
   FocusNode? _last;
   late final _policy = _FocusGroupPolicy(() => _last);
   final _keys = FocusNode(
-    debugLabel: 'StratumFocusGroup',
+    debugLabel: 'FocusGroup',
     canRequestFocus: false,
     skipTraversal: true,
   );

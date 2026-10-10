@@ -9,13 +9,13 @@ import 'package:stratum_ui/src/src.dart';
 /// [onHighlightChanged], or [onFocusChange] is set, or [shortcuts] is not
 /// empty. A value with none of them still animates the layout's style over
 /// the theme's `fast` level and adds no tap surface, so pass
-/// `const StratumInteraction()` when callbacks come and go: switching
+/// `const Interaction()` when callbacks come and go: switching
 /// `interaction` between null and a value remounts the content on an
 /// otherwise bare layout; see `BoxLayout`'s tier rule for the full case.
 ///
 /// The class does not override `==`: callbacks compare by identity.
 @immutable
-class StratumInteraction {
+class Interaction {
   const new({
     this.onTap,
     this.onDoubleTap,
@@ -25,7 +25,7 @@ class StratumInteraction {
     this.onHighlightChanged,
     this.mouseCursor,
     this.enableFeedback = true,
-    this.tapTargetSize = StratumTapTargetSize.platform,
+    this.tapTargetSize = TapTargetSize.platform,
     this.disabledPressAnimation = false,
     this.focusNode,
     this.focusType = FocusType.focusedVisible,
@@ -57,7 +57,7 @@ class StratumInteraction {
   final bool enableFeedback;
 
   /// See [StratumInkWell.tapTargetSize].
-  final StratumTapTargetSize tapTargetSize;
+  final TapTargetSize tapTargetSize;
   final bool disabledPressAnimation;
   final FocusNode? focusNode;
   final FocusType focusType;
@@ -81,3 +81,10 @@ class StratumInteraction {
   /// focus; see `StratumInkWell.shortcuts`.
   final Map<ShortcutActivator, VoidCallback> shortcuts;
 }
+
+/// [Interaction]'s name before naming rule R2, kept one minor version.
+@Deprecated(
+  'Use Interaction instead. StratumInteraction will be removed after one '
+  'minor version.',
+)
+typedef StratumInteraction = Interaction;

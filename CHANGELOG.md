@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Renamed under one naming rule: screen-building blocks carry no `Stratum` prefix, while design-drawn components and
+  theme or app-setup types keep it. `StratumInteraction` is now `Interaction`, `StratumScroll` is `Scroll`,
+  `StratumTapTargetSize` is `TapTargetSize`, `StratumFocusGroup` is `FocusGroup`, `StratumReorderableItemsController`
+  is `ReorderableItemsController`, `StratumShow` is `Show`, `StratumShowTransition` is `ShowTransition`,
+  `StratumShowSlideDirection` is `ShowSlideDirection`, `Slot` is `StratumSlot`, and `HighContrastMode` is
+  `StratumHighContrastMode`. Each old name stays one minor version as a `@Deprecated` alias, so existing code compiles
+  with a deprecation hint.
 - The empty `assets/fonts/` asset declaration is removed from `pubspec.yaml`; the package ships no font from it.
 - Breaking: the theme animation scale gains a sixth duration level, `micro`, first and shortest: 30 ms forward and
   19.2 ms back in the package default (its 64% `reverseDuration`), read as `StratumTheme.of(context).animation.micro`

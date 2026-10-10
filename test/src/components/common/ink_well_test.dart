@@ -2686,7 +2686,7 @@ void main() {
           themedHost(
             const StratumInkWell(
               onTap: _noop,
-              tapTargetSize: StratumTapTargetSize.shrinkWrap,
+              tapTargetSize: TapTargetSize.shrinkWrap,
               child: _small,
             ),
           ),
@@ -2864,5 +2864,20 @@ void main() {
         });
       },
     );
+  });
+
+  group('renames', () {
+    test('renames: StratumTapTargetSize still reads the platform minimum', () {
+      expect(
+        // Testing the deprecated alias itself, so ignore the deprecation
+        // warning.
+        // ignore: deprecated_member_use_from_same_package
+        StratumTapTargetSize.minimumFor(TargetPlatform.iOS, web: false),
+        const Size(44, 44),
+      );
+      // Same alias test as above.
+      // ignore: deprecated_member_use_from_same_package
+      expect(StratumTapTargetSize.shrinkWrap, TapTargetSize.shrinkWrap);
+    });
   });
 }

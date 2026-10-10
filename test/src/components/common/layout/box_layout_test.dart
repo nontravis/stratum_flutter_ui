@@ -100,8 +100,8 @@ void main() {
       'ratio': const _Layout(ratio: 2),
       'rotate': const _Layout(rotate: 0),
       'transform': _Layout(transform: Matrix4.identity()),
-      'interaction': const _Layout(interaction: StratumInteraction()),
-      'scroll': const _Layout(scroll: StratumScroll()),
+      'interaction': const _Layout(interaction: Interaction()),
+      'scroll': const _Layout(scroll: Scroll()),
     };
     for (final MapEntry(key: name, value: layout) in rules.entries) {
       testWidgets('$name alone builds the box', (tester) async {
@@ -197,21 +197,21 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        themedHost(const _Layout(interaction: StratumInteraction())),
+        themedHost(const _Layout(interaction: Interaction())),
       );
 
       expect(find.byType(StratumInkWell), findsNothing);
     });
 
-    final surfaces = <String, StratumInteraction>{
-      'onTap': const StratumInteraction(onTap: _noop),
-      'onDoubleTap': const StratumInteraction(onDoubleTap: _noop),
-      'onLongPress': const StratumInteraction(onLongPress: _noop),
-      'onSecondaryTap': const StratumInteraction(onSecondaryTap: _noop),
-      'onHover': StratumInteraction(onHover: (_) {}),
-      'onHighlightChanged': StratumInteraction(onHighlightChanged: (_) {}),
-      'onFocusChange': StratumInteraction(onFocusChange: (_) {}),
-      'shortcuts': const StratumInteraction(
+    final surfaces = <String, Interaction>{
+      'onTap': const Interaction(onTap: _noop),
+      'onDoubleTap': const Interaction(onDoubleTap: _noop),
+      'onLongPress': const Interaction(onLongPress: _noop),
+      'onSecondaryTap': const Interaction(onSecondaryTap: _noop),
+      'onHover': Interaction(onHover: (_) {}),
+      'onHighlightChanged': Interaction(onHighlightChanged: (_) {}),
+      'onFocusChange': Interaction(onFocusChange: (_) {}),
+      'shortcuts': const Interaction(
         shortcuts: {SingleActivator(LogicalKeyboardKey.keyA): _noop},
       ),
     };
@@ -245,7 +245,7 @@ void main() {
               borderRadius: BorderRadius.all(Radius.circular(6)),
             ),
             semantics: label,
-            interaction: StratumInteraction(
+            interaction: Interaction(
               onTap: _noop,
               onDoubleTap: doubleTap,
               onLongPress: longPress,
@@ -254,7 +254,7 @@ void main() {
               onHighlightChanged: highlight,
               mouseCursor: SystemMouseCursors.grab,
               enableFeedback: false,
-              tapTargetSize: StratumTapTargetSize.shrinkWrap,
+              tapTargetSize: TapTargetSize.shrinkWrap,
               disabledPressAnimation: true,
               focusNode: node,
               focusType: FocusType.focused,
@@ -281,7 +281,7 @@ void main() {
       expect(ink.onHighlightChanged, highlight);
       expect(ink.mouseCursor, SystemMouseCursors.grab);
       expect(ink.enableFeedback, isFalse);
-      expect(ink.tapTargetSize, StratumTapTargetSize.shrinkWrap);
+      expect(ink.tapTargetSize, TapTargetSize.shrinkWrap);
       expect(ink.disabledPressAnimation, isTrue);
       expect(ink.focusNode, same(node));
       expect(ink.focusType, FocusType.focused);
@@ -306,7 +306,7 @@ void main() {
           await tester.pumpWidget(
             themedHost(
               const ContainerLayout(
-                interaction: StratumInteraction(onTap: _noop),
+                interaction: Interaction(onTap: _noop),
                 child: _small,
               ),
             ),
@@ -320,9 +320,9 @@ void main() {
           await tester.pumpWidget(
             themedHost(
               const ContainerLayout(
-                interaction: StratumInteraction(
+                interaction: Interaction(
                   onTap: _noop,
-                  tapTargetSize: StratumTapTargetSize.shrinkWrap,
+                  tapTargetSize: TapTargetSize.shrinkWrap,
                 ),
                 child: _small,
               ),
@@ -343,7 +343,7 @@ void main() {
         themedHost(
           const _Layout(
             style: WidgetStyle(width: 40),
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
           ),
           theme: motionTheme(),
         ),
@@ -365,7 +365,7 @@ void main() {
           textDirection: TextDirection.ltr,
           child: _Layout(
             style: WidgetStyle(width: 40),
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
           ),
         ),
       );
@@ -391,7 +391,7 @@ void main() {
         themedHost(
           const _Layout(
             style: WidgetStyle(width: 40),
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
           ),
           theme: motionTheme(),
         ),
@@ -415,7 +415,7 @@ void main() {
         themedHost(
           const _Layout(
             style: WidgetStyle(animationStyle: own),
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
           ),
         ),
       );
@@ -433,7 +433,7 @@ void main() {
       Widget build(Color color) => themedHost(
         _Layout(
           style: WidgetStyle(backgroundColor: color),
-          interaction: const StratumInteraction(),
+          interaction: const Interaction(),
           onEndAnimate: () => ends++,
         ),
       );
@@ -479,7 +479,7 @@ void main() {
         themedHost(
           const _Layout(
             style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
-            scroll: StratumScroll(),
+            scroll: Scroll(),
             axis: Axis.horizontal,
           ),
         ),
@@ -507,16 +507,14 @@ void main() {
       expect(find.byType(ScrollFrame), findsNothing);
     });
 
-    testWidgets('every StratumScroll field reaches the scroll view', (
-      tester,
-    ) async {
+    testWidgets('every Scroll field reaches the scroll view', (tester) async {
       final controller = ScrollController();
       addTearDown(controller.dispose);
       const physics = BouncingScrollPhysics();
       await tester.pumpWidget(
         themedHost(
           _Layout(
-            scroll: StratumScroll(
+            scroll: Scroll(
               direction: Axis.horizontal,
               reverse: true,
               controller: controller,
@@ -556,7 +554,7 @@ void main() {
             width: 100,
             height: 100,
             child: ColumnLayout(
-              scroll: StratumScroll(physics: BouncingScrollPhysics()),
+              scroll: Scroll(physics: BouncingScrollPhysics()),
               children: [SizedBox(height: 500)],
             ),
           ),
@@ -582,11 +580,11 @@ void main() {
 
     final horizontal = <String, Widget>{
       'ContainerLayout': const ContainerLayout(
-        scroll: StratumScroll(direction: Axis.horizontal),
+        scroll: Scroll(direction: Axis.horizontal),
         child: SizedBox(width: 500, height: 20),
       ),
       'StackLayout': const StackLayout(
-        scroll: StratumScroll(direction: Axis.horizontal),
+        scroll: Scroll(direction: Axis.horizontal),
         children: [SizedBox(width: 500, height: 20)],
       ),
     };
@@ -616,15 +614,15 @@ void main() {
 
     final dialogs = <String, Widget>{
       'StackLayout': const StackLayout(
-        scroll: StratumScroll(),
+        scroll: Scroll(),
         children: [SizedBox(width: 200, height: 40)],
       ),
       'WrapLayout': const WrapLayout(
-        scroll: StratumScroll(),
+        scroll: Scroll(),
         children: [SizedBox(width: 200, height: 40)],
       ),
       'ColumnLayout': const ColumnLayout(
-        scroll: StratumScroll(),
+        scroll: Scroll(),
         children: [SizedBox(width: 200, height: 40)],
       ),
     };
@@ -651,7 +649,7 @@ void main() {
             child: ColumnLayout(
               ratio: 16 / 9,
               style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
-              scroll: StratumScroll(),
+              scroll: Scroll(),
               children: [SizedBox(height: 600)],
             ),
           ),
@@ -673,65 +671,54 @@ void main() {
     // shortcut. The box gives up its own Tab stop exactly when it holds.
     const shortcut = {SingleActivator(LogicalKeyboardKey.keyA): _noop};
     for (final (name, surfaceStop, interaction)
-        in <(String, bool, StratumInteraction Function(FocusNode))>[
-          (
-            'onTap',
-            true,
-            (n) => StratumInteraction(onTap: _noop, focusNode: n),
-          ),
+        in <(String, bool, Interaction Function(FocusNode))>[
+          ('onTap', true, (n) => Interaction(onTap: _noop, focusNode: n)),
           (
             'onDoubleTap',
             true,
-            (n) => StratumInteraction(onDoubleTap: _noop, focusNode: n),
+            (n) => Interaction(onDoubleTap: _noop, focusNode: n),
           ),
           (
             'onLongPress',
             true,
-            (n) => StratumInteraction(onLongPress: _noop, focusNode: n),
+            (n) => Interaction(onLongPress: _noop, focusNode: n),
           ),
           (
             'onSecondaryTap',
             true,
-            (n) => StratumInteraction(onSecondaryTap: _noop, focusNode: n),
+            (n) => Interaction(onSecondaryTap: _noop, focusNode: n),
           ),
           (
             'shortcuts only',
             true,
-            (n) => StratumInteraction(shortcuts: shortcut, focusNode: n),
+            (n) => Interaction(shortcuts: shortcut, focusNode: n),
           ),
           (
             'onHover only',
             false,
-            (n) => StratumInteraction(onHover: (_) {}, focusNode: n),
+            (n) => Interaction(onHover: (_) {}, focusNode: n),
           ),
           (
             'disabled',
             false,
-            (n) =>
-                StratumInteraction(onTap: _noop, disabled: true, focusNode: n),
+            (n) => Interaction(onTap: _noop, disabled: true, focusNode: n),
           ),
           (
             'disabled shortcuts',
             false,
-            (n) => StratumInteraction(
-              shortcuts: shortcut,
-              disabled: true,
-              focusNode: n,
-            ),
+            (n) =>
+                Interaction(shortcuts: shortcut, disabled: true, focusNode: n),
           ),
           (
             'canRequestFocus false',
             false,
-            (n) => StratumInteraction(
-              onTap: _noop,
-              canRequestFocus: false,
-              focusNode: n,
-            ),
+            (n) =>
+                Interaction(onTap: _noop, canRequestFocus: false, focusNode: n),
           ),
           (
             'FocusType.none',
             false,
-            (n) => StratumInteraction(
+            (n) => Interaction(
               onTap: _noop,
               focusType: FocusType.none,
               focusNode: n,
@@ -746,7 +733,7 @@ void main() {
           themedHost(
             _Layout(
               style: const WidgetStyle(),
-              scroll: const StratumScroll(),
+              scroll: const Scroll(),
               interaction: interaction(surface),
             ),
           ),
@@ -775,10 +762,7 @@ void main() {
             height: 100,
             child: ColumnLayout(
               style: const WidgetStyle(),
-              scroll: StratumScroll(
-                reverse: reverse,
-                showScrollbar: showScrollbar,
-              ),
+              scroll: Scroll(reverse: reverse, showScrollbar: showScrollbar),
               children: const [SizedBox(height: 500)],
             ),
           ),
