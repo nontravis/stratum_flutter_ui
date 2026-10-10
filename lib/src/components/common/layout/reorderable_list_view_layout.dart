@@ -1269,7 +1269,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
           at: parkedAt,
           node: parkedNode,
           frame: null,
-          shown: _shownLastFrame(parkedNode),
+          shown: false,
         ),
     ];
     // Another item takes a lifted item's registration while the proxy
@@ -1279,13 +1279,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       final (key, at) = (target.key, target.index);
       if (key != null && at != null && key != parkedKey) {
         liftedKey = key;
-        watched.add((
-          key: key,
-          at: at,
-          node: node,
-          frame: null,
-          shown: _shownLastFrame(node),
-        ));
+        watched.add((key: key, at: at, node: node, frame: null, shown: false));
       }
     }
     for (final MapEntry(key: index, value: node) in _itemNodes.entries) {
@@ -3885,9 +3879,12 @@ extension type const _FrameIndex(int value) {
 }
 
 /// A key a build follows by key, with its key node, the index of the
-/// current data the calls of the turn put it at, whether its box showed in
-/// the list's viewport in the last frame, and, for the item that holds
-/// focus, the frame index the last build drew it at (invariant 35).
+/// current data the calls of the turn put it at, and, for the item that
+/// holds focus, the frame index the last build drew it at and whether its
+/// box showed in the list's viewport in the last frame (invariant 35). The
+/// parked and lifted entries carry no frame and read as not shown: every
+/// reader of `shown` asks only an entry with a frame, so they skip the
+/// geometry read.
 typedef _Watched = ({
   Key key,
   _DataIndex at,
