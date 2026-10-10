@@ -461,12 +461,15 @@ void requestFocusInViewports(
 /// stay cut off. The group arrows, [firstTabStopIn], and the traversal of
 /// a focus group or a scroller's content group reveal through this.
 ///
-/// With [origin], the level whose own [ScrollPosition] is [origin]'s
-/// jumps to the offset nearest [origin]'s pixels that shows what that
-/// level reveals whole ([_jumpToLeastScroll]) in place of the edge rule;
-/// every other level keeps the edge rule, so a target behind its own
-/// nested scrollable lands at the least scroll only where [origin] was
-/// read, never at the nested scrollable's edge. A target kept alive off
+/// With [origin], the level whose [Scrollable] is [origin]'s own
+/// [ScrollPosition.context] jumps to the offset nearest [origin]'s pixels
+/// that shows what that level reveals whole ([_jumpToLeastScroll]) in
+/// place of the edge rule; every other level keeps the edge rule, so a
+/// target behind its own nested scrollable lands at the least scroll only
+/// where [origin] was read, never at the nested scrollable's edge. The
+/// match survives a physics or controller swap mid-reach, which disposes
+/// and replaces [origin]'s own [ScrollPosition] but keeps its
+/// [ScrollableState] (G5). A target kept alive off
 /// screen, whose rect reads NaN, takes that jump, from the current offset
 /// without [origin], at the level that reveals its own render object and
 /// at every level that keeps the box around it alive, as for a field in a
@@ -493,7 +496,7 @@ void revealInViewports(
     scrollable = Scrollable.maybeOf(scrollable.context)
   ) {
     final reveal = _inViewportOf(shown, scrollable) ? shown : revealed;
-    final fromOrigin = origin != null && scrollable.position == origin.position;
+    final fromOrigin = origin != null && scrollable == origin.position.context;
     if (fromOrigin ||
         (kept && (reveal == object || _keptAliveIn(reveal, scrollable)))) {
       final from = fromOrigin ? origin.pixels : scrollable.position.pixels;

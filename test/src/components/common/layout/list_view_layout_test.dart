@@ -114,6 +114,61 @@ class _KeptItemState extends State<_KeptItem>
   }
 }
 
+/// A 40 px item whose node is labeled `item <id>`, before a second node
+/// labeled `second <id>`, both under an app's own [FocusTraversalGroup]
+/// running [OrderedTraversalPolicy], never Stratum's own focus group. It
+/// keeps itself alive when it leaves the built range.
+class _AppGroupItem extends StatefulWidget {
+  const new({super.key, required this.id});
+
+  final int id;
+
+  @override
+  State<_AppGroupItem> createState() => _AppGroupItemState();
+}
+
+class _AppGroupItemState extends State<_AppGroupItem>
+    with AutomaticKeepAliveClientMixin {
+  late final node = FocusNode(debugLabel: 'item ${widget.id}');
+  late final second = FocusNode(debugLabel: 'second ${widget.id}');
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
+    node.dispose();
+    second.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      child: RowLayout(
+        children: [
+          FocusTraversalOrder(
+            order: const NumericFocusOrder(0),
+            child: Focus(
+              focusNode: node,
+              child: const SizedBox(width: 40, height: 40),
+            ),
+          ),
+          FocusTraversalOrder(
+            order: const NumericFocusOrder(1),
+            child: Focus(
+              focusNode: second,
+              child: const SizedBox(width: 40, height: 40),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 void main() {
   group('ListViewLayout', () {
     testWidgets('builds its items', (tester) async {
@@ -626,6 +681,48 @@ void main() {
         expect(showsWhole(tester, target), isTrue);
       },
       variant: groupMoves,
+    );
+
+    final appGroupMoves = ValueVariant<String>({'Tab', 'Shift+Tab'});
+    testWidgets(
+      'us07/fr01/e07 and us07/fr01/e08: Tab or Shift+Tab from a node inside '
+      "an app's own FocusTraversalGroup, inside an item kept alive off "
+      'screen, brings the item back before moving inside its own order',
+      (tester) async {
+        await tester.pumpWidget(
+          app(
+            ListViewLayout.builder(
+              itemCount: 1000,
+              itemBuilder: (context, index) => index == 103
+                  ? _AppGroupItem(key: ValueKey(index), id: index)
+                  : SizedBox(key: ValueKey(index), height: 40),
+            ),
+          ),
+        );
+        await jump(tester, 4000);
+        final item = tester.state<_AppGroupItemState>(
+          find.byKey(const ValueKey(103)),
+        );
+        final move = appGroupMoves.currentValue!;
+        (move == 'Tab' ? item.node : item.second).requestFocus();
+        await tester.pump();
+        await jump(tester, 20000);
+
+        if (move == 'Tab') {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        } else {
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        }
+        await tester.pumpAndSettle();
+
+        final label = move == 'Tab' ? 'second 103' : 'item 103';
+        expect(tester.takeException(), isNull);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, label);
+        expect(showsWhole(tester, 103), isTrue);
+      },
+      variant: appGroupMoves,
     );
 
     testWidgets(

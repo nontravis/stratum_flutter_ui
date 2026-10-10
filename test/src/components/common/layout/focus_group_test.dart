@@ -1413,6 +1413,49 @@ void main() {
       },
     );
 
+    testWidgets(
+      'with an origin whose own ScrollPosition a physics swap disposes, '
+      'still jumps the level the Scrollable it survives on was read from, '
+      'not the stale position (G5)',
+      (tester) async {
+        final controller = _controller();
+        final boxes = _nodes(30);
+        Widget list(ScrollPhysics? physics) => themedHost(
+          SizedBox(
+            height: 300,
+            child: ListView(
+              controller: controller,
+              physics: physics,
+              scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+              children: [
+                for (final node in boxes)
+                  Focus(focusNode: node, child: const SizedBox(height: 40)),
+              ],
+            ),
+          ),
+        );
+        await tester.pumpWidget(list(null));
+        controller.jumpTo(1000);
+        await tester.pump();
+        final origin = (position: controller.position, pixels: 0.0);
+
+        // A physics the Scrollable tells apart from the default by type
+        // makes it dispose and replace the position [origin] still holds;
+        // the Scrollable itself, the level [origin] was read from, survives
+        // the swap.
+        await tester.pumpWidget(list(const NeverScrollableScrollPhysics()));
+
+        revealInViewports(boxes[20], origin: origin);
+
+        // Box 20's trailing edge, 540, the least scroll from the origin's
+        // 0 (G5): the edge rule from the current offset, 1000, would give
+        // its leading edge, 800, instead, the level's loss when the match
+        // reads the stale position identity rather than the surviving
+        // Scrollable.
+        expect(controller.offset, 540);
+      },
+    );
+
     testWidgets('shows a target kept alive off screen with the least scroll', (
       tester,
     ) async {
