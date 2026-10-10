@@ -10420,4 +10420,43 @@ void main() {
       variant: fallback,
     );
   });
+
+  group('ReorderableListViewLayout screen reader', () {
+    testWidgets(
+      'us11/fr06 and s03/inv50: a screen reader reads the item count, also '
+      'after an insert and a remove',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              itemsController: StratumReorderableItemsController(),
+            ),
+          ),
+        );
+
+        SemanticsNode scrollNode() => find.semantics
+            .byFlag(SemanticsFlag.hasImplicitScrolling)
+            .evaluate()
+            .single;
+
+        expect(scrollNode().scrollChildCount, 5);
+
+        _harness(tester).insert(0, 9);
+        await tester.pumpAndSettle();
+        expect(scrollNode().scrollChildCount, 6);
+
+        _harness(tester).remove(0);
+        await tester.pump();
+        // A leaving item counts no more: `itemCount` drops to the new data
+        // count before the item's own removal animation ends.
+        expect(scrollNode().scrollChildCount, 5);
+        await tester.pumpAndSettle();
+        expect(scrollNode().scrollChildCount, 5);
+
+        handle.dispose();
+      },
+    );
+  });
 }

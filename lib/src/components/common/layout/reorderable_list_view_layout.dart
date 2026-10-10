@@ -2927,6 +2927,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       keyboardDismissBehavior: layout.keyboardDismissBehavior,
       restorationId: layout.restorationId,
       clipBehavior: layout.clipBehavior,
+      // Each leaving item and closing gap sits inside its host's slot, so
+      // the count and every semantic index stay indices of the app's data
+      // (invariant 50).
+      semanticChildCount: layout.itemCount,
       slivers: [
         SliverPadding(
           padding: widget.padding ?? EdgeInsets.zero,
@@ -3632,6 +3636,7 @@ class _ReorderScrollView extends CustomScrollView {
     super.restorationId,
     super.clipBehavior,
     super.slivers,
+    super.semanticChildCount,
   });
 }
 
