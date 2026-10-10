@@ -368,11 +368,13 @@ scroll it, guarded so a text field inside keeps its own keys.
   not a folder, or a zip that fails to write. Names starting with `.` and `__MACOSX/` stay out of a pack. An install
   refuses an entry name holding any character outside printable ASCII, U+0020 to U+007E (a control character, an
   accented letter, or a Thai letter alike), or a name Windows would not create unchanged (a part ending in a dot or a
-  space, a part of dots only, any of `:`, `<`, `>`, `"`, `|`, `?`, `*`, or a device name such as `CON`, `aux.txt`, or
-  `NUL.svg` in any letter case), and a folder entry that holds bytes; `pack` refuses such a file or folder name under
-  the folder before it writes anything, so rename it. stratum_ui allows only the google_fonts version its CLI
-  family list came from, so the CLI and your app accept the same `Google/<Name>` families. When `pub get` reports a
-  google_fonts conflict, let your own google_fonts constraint allow the version stratum_ui's `pubspec.yaml` names.
+  space, a part of dots only, any of `:`, `<`, `>`, `"`, `|`, `?`, `*`, a device name such as `CON`, `aux.txt`, or
+  `CONIN$` in any letter case with trailing spaces before the dot trimmed, or a part holding `~` before a digit, an
+  8.3 short-name marker such as `THEME~1.YAM`), and a folder entry that holds bytes; `pack` refuses such a file or
+  folder name under the folder before it writes anything, so rename it. stratum_ui allows only the google_fonts
+  version its CLI family list came from, so the CLI and your app accept the same `Google/<Name>` families. When
+  `pub get` reports a google_fonts conflict, let your own google_fonts constraint allow the version stratum_ui's
+  `pubspec.yaml` names.
 
 ## Page transitions
 

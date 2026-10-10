@@ -502,20 +502,34 @@ void main() {
         'aux/logo.svg',
         'names the device AUX',
       ),
+      (
+        'a file name matching a console device with trailing spaces',
+        'images/CON .svg',
+        'names the device CON',
+      ),
+      (
+        'a file name holding a short-name marker',
+        'images/icon~2.svg',
+        'holding "~" before a digit',
+      ),
     ]) {
-      test('us02/fr01/e10, us02/fr03/e14, rzf3: $label fails the pack with one '
-          'unsafe_entry_path line, no defaults line, and no zip', () async {
-        _folder('brand', {..._theme(), file: _svg});
+      test(
+        'us02/fr01/e10, us02/fr03/e14, rzf3, rzf9: $label fails the pack '
+        'with one unsafe_entry_path line, no defaults line, and no zip',
+        () async {
+          _folder('brand', {..._theme(), file: _svg});
 
-        final run = await _run(['pack', 'brand']);
+          final run = await _run(['pack', 'brand']);
 
-        expect(run.code, exitFailed);
-        expect(run.out, isEmpty);
-        expect(run.err, hasLength(1));
-        expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
-        expect(run.err.single, contains(why));
-        expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
-      }, skip: Platform.isWindows ? 'no such file name on Windows' : false);
+          expect(run.code, exitFailed);
+          expect(run.out, isEmpty);
+          expect(run.err, hasLength(1));
+          expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
+          expect(run.err.single, contains(why));
+          expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
+        },
+        skip: Platform.isWindows ? 'no such file name on Windows' : false,
+      );
     }
 
     test('us02/fr01/e10, us02/fr03/e14, rz2: a folder holding an emoji '

@@ -14,12 +14,18 @@ bool _outsidePrintableAscii(String path) =>
 const _windowsForbidden = ':<>"|?*';
 
 /// The device names Windows reserves, upper case (FO-04 US-01 FR-02 E01;
-/// design FU3, RZF3).
+/// design FU3, RZF3, RZF9): `CONIN$` and `CONOUT$` open a console handle,
+/// as CPython's `ntpath.isreserved` also reserves them.
 const _reservedDeviceNames = {
-  'CON', 'PRN', 'AUX', 'NUL', //
+  'CON', 'PRN', 'AUX', 'NUL', r'CONIN$', r'CONOUT$', //
   'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
   'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
 };
+
+/// A segment's 8.3 short-name marker (design RZF9): `~` before an ASCII
+/// digit, as NTFS builds a short name when one is needed, and as git's
+/// `core.protectNTFS` refuses on extraction (CVE-2014-9390's `GIT~1`).
+final _shortNameMarker = RegExp('~[0-9]');
 
 /// Checks one entry path (FO-04 US-01 FR-02 E01, E14) is printable ASCII,
 /// canonical, relative, and made of names Windows creates unchanged.
@@ -29,10 +35,11 @@ const _reservedDeviceNames = {
 /// trailing `/` set aside, the path is not empty, holds no `\`, starts
 /// with no drive letter, and splits on `/` into segments none of which is
 /// empty, `.`, or `..`. Then every segment is a name Windows creates
-/// unchanged (design FU3, RZF3): the path holds no `:`, `<`, `>`, `"`,
-/// `|`, `?`, or `*`; no segment is dots only, ends in `.` or a space, or
-/// is a reserved device name before its first `.`, compared ignoring ASCII
-/// letter case, with no space or dot trimmed. Throws `RemoteThemeFailure`
+/// unchanged (design FU3, RZF3, RZF9): the path holds no `:`, `<`, `>`,
+/// `"`, `|`, `?`, or `*`; no segment is dots only, ends in `.` or a space,
+/// holds `~` before an ASCII digit, or is a reserved device name before
+/// its first `.`, trailing spaces before that dot trimmed, compared
+/// ignoring ASCII letter case. Throws `RemoteThemeFailure`
 /// `unsafeEntryPath` with the path.
 void checkEntryPath(String path) {
   if (_outsidePrintableAscii(path)) {
@@ -71,9 +78,9 @@ void checkEntryPath(String path) {
 
 /// Why the canonical path [trimmed], split into [segments], holds a name
 /// Windows would not create unchanged, or null when every segment is one
-/// (FO-04 US-01 FR-02 E01; design FU3, RZF3): rules 3 and 4 read the whole
-/// name, then rules 2, 1, and 5 each segment, dots only before a trailing
-/// dot so `...` names its own rule.
+/// (FO-04 US-01 FR-02 E01; design FU3, RZF3, RZF9): rules 3 and 4 read the
+/// whole name, then rules 2, 1, 6, and 5 each segment, dots only before a
+/// trailing dot so `...` names its own rule.
 String? _windowsNameFault(String trimmed, List<String> segments) {
   for (final unit in trimmed.codeUnits) {
     final char = String.fromCharCode(unit);
@@ -88,7 +95,11 @@ String? _windowsNameFault(String trimmed, List<String> segments) {
     if (segment.endsWith('.') || segment.endsWith(' ')) {
       return 'has a segment ending in a dot or a space, which Windows drops';
     }
-    final device = segment.split('.').first.toUpperCase();
+    if (_shortNameMarker.hasMatch(segment)) {
+      return 'has a segment holding "~" before a digit, which Windows '
+          'reads as a short name';
+    }
+    final device = segment.split('.').first.trimRight().toUpperCase();
     if (_reservedDeviceNames.contains(device)) {
       return 'names the device $device, which Windows reserves';
     }

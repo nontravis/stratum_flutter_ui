@@ -91,10 +91,11 @@
   codes now decode through zlib's two-level tables.
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse as `unsafe_entry_path` an entry
   name Windows would not create unchanged: a name part ending in a dot or a space, a part of dots only, any of `:`,
-  `<`, `>`, `"`, `|`, `?`, and `*` anywhere in the name, or a part whose text before its first dot is a reserved
-  device name, `CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, or `LPT1` to `LPT9`, in any letter case, such as `con`,
-  `Con.txt`, or `images/NUL.svg`; `pack` refuses such a file or folder name under the theme folder before it writes
-  anything.
+  `<`, `>`, `"`, `|`, `?`, and `*` anywhere in the name, a part whose text before its first dot, trailing spaces
+  trimmed, is a reserved device name in any letter case — `CON`, `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`, `COM1` to
+  `COM9`, or `LPT1` to `LPT9`, such as `con`, `Con.txt`, `CON .txt`, or `images/NUL.svg` — or a part holding `~`
+  before an ASCII digit, the 8.3 short-name marker, such as `THEME~1.YAM`; `pack` refuses such a file or folder name
+  under the theme folder before it writes anything.
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse as `invalid_archive` a zip entry
   whose allowed extra-field record fits neither its id's local nor its central layout, read on either side: a
   0x000a record other than 4 reserved bytes and one tag-0x0001 attribute of 24 bytes; a 0x5455 record with no flags

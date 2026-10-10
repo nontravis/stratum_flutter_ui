@@ -25,8 +25,10 @@ void main() {
     'com0',
     'x.con',
     '.con',
-    'CON .txt',
     'images/nul-icon.svg',
+    'a~b.svg',
+    'x~',
+    '~.svg',
   ]) {
     test('us01/fr02: "$path" is safe', () {
       expect(() => checkEntryPath(path), returnsNormally);
@@ -116,13 +118,15 @@ void main() {
     }
   }
 
-  for (final (rule, paths) in [
-    ('a segment of dots only', ['.../x', 'a/..../b', '...', 'a/.../']),
+  for (final (tag, rule, paths) in [
+    ('rzf3', 'a segment of dots only', ['.../x', 'a/..../b', '...', 'a/.../']),
     (
+      'rzf3',
       'a segment ending in a dot or a space',
       ['images/logo.', 'images/logo.svg ', 'fonts./a.ttf', 'a /b', 'dir./'],
     ),
     (
+      'rzf3, rzf9',
       'names the device',
       [
         'con',
@@ -134,11 +138,21 @@ void main() {
         'com1.png',
         'COM9/x',
         'fonts/LpT1.ttf',
+        'CON .txt',
+        'nul .svg',
+        'COM1  .png',
+        r'conin$',
+        r'CONOUT$.txt',
       ],
+    ),
+    (
+      'rzf9',
+      'a segment holding "~" before a digit',
+      ['THEME~1.YAM', 'icon~2.svg', 'fonts/A~0/x.ttf'],
     ),
   ]) {
     for (final path in paths) {
-      test('us01/s15, us01/fr02/e01, rzf3: "$path", $rule, is '
+      test('us01/s15, us01/fr02/e01, $tag: "$path", $rule, is '
           'unsafe_entry_path', () {
         expect(
           () => checkEntryPath(path),
