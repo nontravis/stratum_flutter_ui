@@ -11029,6 +11029,93 @@ void main() {
       variant: rowPlaces,
     );
 
+    testWidgets(
+      's03/inv21: Tab from a text field that a row scrolled out of view, at '
+      'the bottom of a laid-out item taller than the list, brings only the '
+      'field back and scrolls the list nothing',
+      (tester) async {
+        final fields = [
+          for (var index = 0; index < 100; index++)
+            FocusNode(debugLabel: 'field $index'),
+        ];
+        addTearDown(() {
+          for (final field in fields) {
+            field.dispose();
+          }
+        });
+        const rowKey = Key('row');
+        await tester.pumpWidget(
+          _app(
+            ReorderableListViewLayout.builder(
+              itemCount: 1000,
+              onReorderItem: (from, to) {},
+              itemBuilder: (context, index) => SizedBox(
+                key: ValueKey(index),
+                // Item 103 runs 600 px in a 300 px list, its row at the
+                // bottom.
+                height: index == 103 ? 600 : 40,
+                child: index == 103
+                    ? Align(
+                        alignment: Alignment.bottomCenter,
+                        child: SizedBox(
+                          height: 40,
+                          child: ListViewLayout.builder(
+                            key: rowKey,
+                            scrollDirection: Axis.horizontal,
+                            itemCount: fields.length,
+                            itemBuilder: (context, field) => SizedBox(
+                              width: 40,
+                              child: TextField(focusNode: fields[field]),
+                            ),
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+          ),
+        );
+        // The row's own Scrollable, above the one each text field holds.
+        final rowView = find
+            .descendant(
+              of: find.byKey(rowKey),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        final listView = find.byType(Scrollable).first;
+        // Item 103 runs from 4120 to 4720: the list shows its bottom 220 px,
+        // so a focused field's own caret reveal stays inside the list.
+        final list = tester.state<ScrollableState>(listView).position
+          ..jumpTo(4500);
+        await tester.pump();
+        final row = tester.state<ScrollableState>(rowView).position
+          ..jumpTo(1100);
+        await tester.pump();
+        fields[30].requestFocus();
+        await tester.pump();
+        row.jumpTo(3000);
+        await tester.pump();
+        expect(fields[30].rect.isFinite, isFalse);
+        final jumps = <double>[];
+        list.addListener(() => jumps.add(list.pixels));
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'field 31');
+        final field = tester.getRect(
+          find.byWidgetPredicate(
+            (widget) => widget is TextField && widget.focusNode == fields[31],
+          ),
+        );
+        expect(tester.getRect(rowView).intersect(field), field);
+        expect(tester.getRect(listView).intersect(field), field);
+        expect(jumps, isEmpty);
+        expect(list.pixels, 4500);
+      },
+    );
+
     final fallback = ValueVariant<String>({'route scope', 'outside'});
     testWidgets(
       'us11/fr04/e19 and s03/inv26: when the reach toward the gap finds no '

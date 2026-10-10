@@ -3248,9 +3248,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// [_bringBack] for an item it keeps alive off screen, else one jump.
   /// A node of a scroll view inside the item, which that view may keep
   /// alive off screen too, is then revealed in its own viewport while it
-  /// still reads NaN. Either way [then] runs after the next frame, whose
-  /// layout holds the last jump, so the move reveals its target from the
-  /// new offset.
+  /// still reads NaN; when this list lays the item out, only that view
+  /// keeps the node, so the item takes no bring-back of its own, which
+  /// would jump an item taller than the list to its leading edge. Either
+  /// way [then] runs after the next frame, whose layout holds the last
+  /// jump, so the move reveals its target from the new offset.
   void _bringBackNode(FocusNode node, VoidCallback then) {
     void afterFrame() {
       WidgetsBinding.instance
@@ -3267,6 +3269,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     if (Scrollable.maybeOf(context) == Scrollable.maybeOf(keys.context)) {
       _bringBack(keys, afterFrame);
+      return;
+    }
+    if (keys._node.rect.isFinite) {
+      revealInViewports(node);
+      afterFrame();
       return;
     }
     _bringBack(keys, () {
