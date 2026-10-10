@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom, StratumPlaceholderPage.
+description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom, StratumPlaceholderPage, StratumUpdateGate, UpdateChecker, UpdateStatus, UpdateGateState.
 ---
 
 # Stratum Flutter UI
@@ -507,3 +507,41 @@ scroll it, guarded so a text field inside keeps its own keys.
   above it, sized 48 in the theme's secondary icon color and skipped by screen readers. The title reads as a heading.
   It adds no app bar or back button: the app's own page and navigation carry them. Text wraps, and the page scrolls
   when it is taller than its space.
+
+## Update gate
+
+- **`StratumUpdateGate`** — wrap the app's navigator in `MaterialApp.builder`, below `StratumThemeApplication`, so the
+  gate covers every route. It asks your `UpdateChecker` and draws nothing itself: `builder` returns your own screen
+  for each `UpdateGateState`.
+
+  ```dart
+  MaterialApp(
+    builder: (context, child) => StratumThemeApplication(
+      themes: themes,
+      themeMode: ThemeMode.system,
+      child: StratumUpdateGate(
+        checker: AppUpdateChecker(),
+        builder: (context, gate) => switch (gate) {
+          UpdateGateRequired() => const ForceUpdateScreen(),
+          UpdateGateMaintenance(:final retry, :final checking) =>
+            MaintenanceScreen(onRetry: checking ? null : retry),
+          UpdateGateAvailable(:final dismiss, :final checking) =>
+            UpdateDialog(onLater: dismiss, busy: checking),
+        },
+        child: child!,
+      ),
+    ),
+  );
+  ```
+
+- **`UpdateChecker`** — implement `Future<UpdateStatus> check()`: read your remote settings, package version, and
+  store version, and answer `UpdateStatus.upToDate`, `.available`, `.required`, or `.maintenance`. The package calls
+  no store, plugin, or backend. A thrown error shows the app, never a lockout; log it in your checker. The gate asks
+  when it mounts, on each return to the foreground, and on `retry`, one ask at a time, and sets no time limit: give
+  `check` your own timeout.
+- **Full screens** — `UpdateGateRequired` (no way on) and `UpdateGateMaintenance` (call `retry`) replace the
+  navigator, so the app's pages start over from the first page once the gate shows the app again; screens swap with
+  no animation. While a later ask runs, the gate keeps the shown screen and sets `checking`: show a busy cue and
+  disable retry, since a retry during an ask does nothing. Your update button runs your own store or installer code;
+  the gate takes no update callback. Each screen opens as a screen of its own: focus moves in, and a screen reader
+  announces it. A tooltip or a text field works on it, since it sits in an overlay of the gate's own.
