@@ -748,7 +748,7 @@ void main() {
       return Curves.easeInOutSine.transform(visible ? raw : 1 - raw);
     }
 
-    /// The line a change aims at (invariant 48), read at the motion value
+    /// The line a change aims at (invariant 50), read at the motion value
     /// [elapsed] ms carries, given it was [atChange] ms in when [now] was
     /// captured and [target] is the new transition's track at the
     /// motion's end.
@@ -802,7 +802,7 @@ void main() {
           expectLook(look(tester), before);
 
           // One motion step later: the blended line, not the held value
-          // and not the end (invariant 48).
+          // and not the end (invariant 50).
           await tester.pump(const Duration(milliseconds: 16));
           expectLook(
             look(tester),
@@ -1073,7 +1073,7 @@ void main() {
       );
 
       // The flip advances no time: still at the hidden size, not the
-      // stale full size the old `fade` layout left behind (invariant 48).
+      // stale full size the old `fade` layout left behind (invariant 50).
       expect(_size(tester), Size.zero);
     });
 

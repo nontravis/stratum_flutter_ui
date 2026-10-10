@@ -242,7 +242,7 @@ class _StratumShowState extends State<StratumShow>
 
   /// Sets each channel's line: at rest the track itself; mid-motion the
   /// line from [now], what the content showed before the change, to the
-  /// track's value at the motion's end, so no change jumps (invariant 48).
+  /// track's value at the motion's end, so no change jumps (invariant 50).
   /// While [_reduced], the size and the slide skip the line and go
   /// straight to the reduced track; only the opacity still refits
   /// (invariant 44).
@@ -377,7 +377,7 @@ class _SizeFactorBox extends SingleChildRenderObjectWidget {
       ..slide = slide
       ..textDirection = Directionality.of(context)
       // The setters above return early when [factor] or [slide] keep the
-      // same Animation object, as a rewrite at rest does (invariant 48);
+      // same Animation object, as a rewrite at rest does (invariant 50);
       // re-check both so a value change with no new object still marks
       // layout or paint.
       .._onFactor()

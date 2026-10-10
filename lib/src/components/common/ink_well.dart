@@ -1,4 +1,12 @@
-import 'package:flutter/rendering.dart' show RenderSemanticsAnnotations;
+import 'package:flutter/rendering.dart'
+    show
+        BoxHitTestResult,
+        BoxParentData,
+        ChildLayoutHelper,
+        ChildLayouter,
+        RenderBox,
+        RenderSemanticsAnnotations,
+        RenderShiftedBox;
 import 'package:stratum_ui/src/components/common/base/disabled.dart'
     show StratumDisabledScope;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
@@ -76,6 +84,30 @@ Widget semanticsWithoutHeading({
   required Widget child,
 }) => _SemanticsWithoutHeading(properties: properties, child: child);
 
+/// How far [StratumInkWell] pads its layout and hit area toward the
+/// platform's minimum tap target (NFR-U05).
+enum StratumTapTargetSize {
+  /// Pads to [minimumFor] when [StratumInkWell.child] is smaller.
+  platform,
+
+  /// Keeps [StratumInkWell.child]'s own size, opting a dense UI out of the
+  /// padding.
+  shrinkWrap;
+
+  /// The minimum tap target on [platform]: 44 x 44 on iOS, 48 x 48 on
+  /// Android and Fuchsia, 24 x 24 on macOS, Windows, Linux, and [web].
+  static Size minimumFor(TargetPlatform platform, {bool web = kIsWeb}) {
+    if (web) return const Size(24, 24);
+    return switch (platform) {
+      TargetPlatform.iOS => const Size(44, 44),
+      TargetPlatform.android || TargetPlatform.fuchsia => const Size(48, 48),
+      TargetPlatform.macOS ||
+      TargetPlatform.windows ||
+      TargetPlatform.linux => const Size(24, 24),
+    };
+  }
+}
+
 /// The tap surface of the design system.
 ///
 /// Builds on [InkWell] for gestures, keyboard activation, focus, and hover,
@@ -109,6 +141,7 @@ class StratumInkWell extends StatefulWidget {
     this.disabled = false,
     this.statesController,
     this.borderRadius,
+    this.tapTargetSize = StratumTapTargetSize.platform,
     this.disabledPressAnimation = false,
     this.mouseCursor,
     this.focusNode,
@@ -160,6 +193,12 @@ class StratumInkWell extends StatefulWidget {
 
   /// Shape of the overlay and the focus ring.
   final BorderRadiusGeometry? borderRadius;
+
+  /// Grows the layout footprint to [StratumTapTargetSize.minimumFor] when
+  /// [child] is smaller than the platform minimum; the painted child does
+  /// not grow (NFR-U05). [StratumTapTargetSize.shrinkWrap] opts a dense UI
+  /// out, keeping [child]'s own size.
+  final StratumTapTargetSize tapTargetSize;
 
   /// Turns off the hover and press overlay.
   final bool disabledPressAnimation;
@@ -474,6 +513,24 @@ class _StratumInkWellState extends State<StratumInkWell>
       type: MaterialType.transparency,
       child: result,
     );
+    // Wraps the ring around the real visual child, ahead of the padding
+    // below, so the ring hugs it (B2) and not the grown hit box.
+    if (_hasRing) {
+      result = StratumFocusBorder(
+        state: _ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
+        borderRadius: widget.borderRadius,
+        child: result,
+      );
+    }
+    if (widget.tapTargetSize != StratumTapTargetSize.shrinkWrap) {
+      result = _TapTargetPadding(
+        minimumSize: StratumTapTargetSize.minimumFor(
+          defaultTargetPlatform,
+          web: kIsWeb,
+        ),
+        child: result,
+      );
+    }
     if (shortcutOnly) {
       // InkWell grants focus only when enabled and forces canRequestFocus
       // off on a node it receives otherwise, so the node lives here.
@@ -498,13 +555,6 @@ class _StratumInkWellState extends State<StratumInkWell>
       onExit: reportsHover ? (_) => onHover(false) : null,
       child: result,
     );
-    if (_hasRing) {
-      result = StratumFocusBorder(
-        state: _ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
-        borderRadius: widget.borderRadius,
-        child: result,
-      );
-    }
     // A caller's semantics apply even with excludeFromSemantics, the usual
     // way to replace the gesture semantics with a custom label and actions.
     final properties = widget.semantics;
@@ -642,6 +692,131 @@ class _RenderSemanticsWithoutHeading extends RenderSemanticsAnnotations {
   }
 }
 
+/// Pads [child]'s layout footprint to [minimumSize] and redirects a hit
+/// outside it, but inside the padded box, to its center (NFR-U05).
+///
+/// Ported from the SDK's `_InputPadding` (`material/button.dart`): only the
+/// hit area and the reserved space grow, never the painted child.
+class _TapTargetPadding extends SingleChildRenderObjectWidget {
+  const new({required this.minimumSize, super.child});
+
+  final Size minimumSize;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderTapTargetPadding(minimumSize);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderTapTargetPadding renderObject,
+  ) {
+    renderObject.minimumSize = minimumSize;
+  }
+}
+
+/// Lays [child] out at `constraints.constrain(max(child, minimumSize))`,
+/// centers it, and falls a hit outside it through to its center.
+class _RenderTapTargetPadding extends RenderShiftedBox {
+  new(this._minimumSize, [RenderBox? child]) : super(child);
+
+  Size get minimumSize => _minimumSize;
+  Size _minimumSize;
+  set minimumSize(Size value) {
+    if (_minimumSize == value) return;
+    _minimumSize = value;
+    markNeedsLayout();
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) {
+    final child = this.child;
+    if (child == null) return 0;
+    return max(child.getMinIntrinsicWidth(height), minimumSize.width);
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) {
+    final child = this.child;
+    if (child == null) return 0;
+    return max(child.getMinIntrinsicHeight(width), minimumSize.height);
+  }
+
+  @override
+  double computeMaxIntrinsicWidth(double height) {
+    final child = this.child;
+    if (child == null) return 0;
+    return max(child.getMaxIntrinsicWidth(height), minimumSize.width);
+  }
+
+  @override
+  double computeMaxIntrinsicHeight(double width) {
+    final child = this.child;
+    if (child == null) return 0;
+    return max(child.getMaxIntrinsicHeight(width), minimumSize.height);
+  }
+
+  Size _computeSize({
+    required BoxConstraints constraints,
+    required ChildLayouter layoutChild,
+  }) {
+    final child = this.child;
+    if (child == null) return Size.zero;
+    final childSize = layoutChild(child, constraints);
+    final width = max(childSize.width, minimumSize.width);
+    final height = max(childSize.height, minimumSize.height);
+    return constraints.constrain(Size(width, height));
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => _computeSize(
+    constraints: constraints,
+    layoutChild: ChildLayoutHelper.dryLayoutChild,
+  );
+
+  @override
+  double? computeDryBaseline(
+    covariant BoxConstraints constraints,
+    TextBaseline baseline,
+  ) {
+    final child = this.child;
+    if (child == null) return null;
+    final result = child.getDryBaseline(constraints, baseline);
+    if (result == null) return null;
+    final childSize = child.getDryLayout(constraints);
+    return result +
+        Alignment.center
+            .alongOffset(getDryLayout(constraints) - childSize as Offset)
+            .dy;
+  }
+
+  @override
+  void performLayout() {
+    size = _computeSize(
+      constraints: constraints,
+      layoutChild: ChildLayoutHelper.layoutChild,
+    );
+    final child = this.child;
+    if (child == null) return;
+    (child.parentData! as BoxParentData).offset = Alignment.center.alongOffset(
+      size - child.size as Offset,
+    );
+  }
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    if (super.hitTest(result, position: position)) return true;
+    final child = this.child;
+    if (child == null) return false;
+    final center = child.size.center(Offset.zero);
+    return result.addWithRawTransform(
+      transform: MatrixUtils.forceToPoint(center),
+      position: center,
+      hitTest: (result, position) => child.hitTest(result, position: center),
+    );
+  }
+}
+
 /// Paints the hover and press overlay over [child] from [states].
 ///
 /// It listens to [states] itself, below [InkWell]: [InkWell] updates the
@@ -682,11 +857,14 @@ class _StateOverlay extends StatelessWidget {
         (StratumThemeApplication.maybeOf(context)?.animation ??
                 StratumAnimation.packageDefault)
             .fast;
+    // No duration is exempt from reduced motion (NFR-U03); the curve stays,
+    // since a zero-duration tween never samples it.
+    final duration = context.reducesMotion ? Duration.zero : _durationOf(fast);
     return ListenableBuilder(
       listenable: states,
       builder: (context, child) => TweenAnimationBuilder<Color?>(
         tween: ColorTween(end: _target(states.value)),
-        duration: _durationOf(fast),
+        duration: duration,
         curve: _curveOf(fast),
         // Alpha 0 becomes no color, so an idle surface paints nothing.
         builder: (context, color, child) => DecoratedBox(
