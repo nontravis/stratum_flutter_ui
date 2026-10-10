@@ -1,7 +1,8 @@
 // NFR-U01, NFR-U07 n/a: the splash paints no text, border, focus ring, or
 // icon of its own; the app's builder draws every frame.
-// NFR-U02 n/a: headless; the splash owns no interactive node; the app's
-// builder owns focus.
+// NFR-U02: proven below — Tab reaches a focusable retry button in a failed
+// frame, and Enter activates it, through the splash's own default
+// Shortcuts/Actions.
 // NFR-U04 n/a: the splash paints no text; the loading label is semantics
 // only.
 // NFR-U05 n/a: the splash has no interactive target.
@@ -532,6 +533,48 @@ void main() {
         expect(find.text('done ready'), findsOneWidget);
       },
     );
+
+    testWidgets('us12/fr06: a postload failure keeps its stack trace', (
+      tester,
+    ) async {
+      final states = <StratumSplashState<String>>[];
+      await tester.pumpWidget(
+        _splash(
+          FakeThemeBundle(),
+          states: states,
+          postload: () async {
+            throw StateError('offline');
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        (_last(states) as StratumSplashFailed<String>).stackTrace,
+        isNot(StackTrace.empty),
+      );
+    });
+
+    testWidgets(
+      'us12/fr06/e01: a theme format failure keeps its stack trace too',
+      (tester) async {
+        final states = <StratumSplashState<String>>[];
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(themes: {'brand': brokenTheme()}),
+            initialThemeId: 'brand',
+            postload: () async => 'never',
+            states: states,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          (_last(states) as StratumSplashFailed<String>).stackTrace,
+          isNot(StackTrace.empty),
+        );
+      },
+    );
   });
 
   group('StratumSplashScreen hosts its frames', () {
@@ -707,6 +750,44 @@ void main() {
       expect(tester.binding.sendFramesToEngine, isTrue);
       expect(_last(states), isA<StratumSplashFailed<String>>());
     });
+
+    testWidgets(
+      "NFR-U02, us12/fr07: Tab reaches a failed frame's retry button, and "
+      'Enter activates it',
+      (tester) async {
+        var calls = 0;
+        await tester.pumpWidget(
+          DefaultAssetBundle(
+            bundle: FakeThemeBundle(),
+            child: StratumSplashScreen<String>(
+              postload: (context, controller) async {
+                calls += 1;
+                throw StateError('offline');
+              },
+              builder: (context, state) => switch (state) {
+                StratumSplashFailed(:final retry) => TextButton(
+                  onPressed: retry,
+                  child: const Text('Retry'),
+                ),
+                _ => const SizedBox.shrink(),
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(calls, 1);
+        expect(Focus.of(tester.element(find.text('Retry'))).hasFocus, isFalse);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(Focus.of(tester.element(find.text('Retry'))).hasFocus, isTrue);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(calls, 2);
+      },
+    );
   });
 
   group('StratumSplashScreen exit in place', () {

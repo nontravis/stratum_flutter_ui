@@ -393,15 +393,24 @@ scroll it, guarded so a text field inside keeps its own keys.
   ```
 
   `postload`'s context sits above the splash's own theme scope: read the active theme through `controller`, never
-  `StratumTheme.of(context)`.
+  `StratumTheme.of(context)`. If your own `AssetBundle` cannot read the package's embedded default theme either, the
+  failed frame has no theme above it at all, and the read failure reaches `FlutterError.reportError` on its own; fix
+  the bundle, since the package has nothing left to fall back to.
+
+  Every frame before done has no `Overlay` and no `Localizations` above it — no `Tooltip`, no `TextField` — until
+  the app's own `MaterialApp`. The splash wraps those frames in its own `Shortcuts`/`Actions` of
+  `WidgetsApp.defaultShortcuts`/`defaultActions`, so Tab still reaches a focusable retry button and Enter or Space
+  still activates it.
 
   `StratumSplashFailed.phase` says which step failed, `StratumSplashPhase.theme` (its `error` is the theme file's
   `StratumThemeFormatException`) or `StratumSplashPhase.postload` (what `postload` threw); `retry` runs that step
-  again and the builder gets its loading state, while `minimumDuration` keeps counting from the first frame. After a
-  theme failure the builder's frames read the package default theme alone. Screen readers hear the built-in "Loading"
-  label (Thai on a Thai device), or your `loadingLabel`, on every loading frame your builder draws. The app takes over
-  in place by `exitTransition`, default `ScreenTransitionType.fadeThrough`, on the theme's `slow` level and `standard`
-  curve unless you pass `exitDuration` and `exitCurve`; every type but `platform` and `cupertino` works, and reduced
+  again and the builder gets its loading state, while `minimumDuration` keeps counting from the first frame.
+  `StratumSplashFailed.stackTrace` is `error`'s stack trace, `StackTrace.empty` when none was caught with it, for
+  your own crash reporting. After a theme failure the builder's frames read the package default theme alone. Screen
+  readers hear the built-in "Loading" label (Thai on a Thai device), or your `loadingLabel`, on every loading frame
+  your builder draws. The app takes over in place by `exitTransition`, default `ScreenTransitionType.fadeThrough`,
+  on the theme's `slow` level and `standard` curve unless you pass `exitDuration` and `exitCurve`; every type but
+  `platform` and `cupertino` works, and reduced
   motion keeps only the fade a type has, as page routes do. Above `MaterialApp` the platform locale picks the text
   direction. On the web, remove your page's loader when `window` dispatches `stratum-splash-shown`:
   `window.addEventListener('stratum-splash-shown', () => document.getElementById('loader')?.remove());`. Keep

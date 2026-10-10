@@ -39,12 +39,27 @@ final class StratumSplashLoadingApp<T> extends StratumSplashState<T> {
 
 /// A step failed: [error] is what it threw, unchanged, [phase] is the step,
 /// and [retry] runs that step again on the EndUser's tap (FR-06).
+///
+/// If the app's own [AssetBundle] cannot read the package's embedded
+/// default theme either, this frame has no theme above it at all —
+/// `StratumThemeApplication.of` throws inside it — and the read failure
+/// reaches `FlutterError.reportError` on its own; fix the bundle, since the
+/// package has nothing left to fall back to (FR-07 E01).
 final class StratumSplashFailed<T> extends StratumSplashState<T> {
-  const new(this.error, this.phase, this.retry);
+  const new(
+    this.error,
+    this.phase,
+    this.retry, {
+    this.stackTrace = StackTrace.empty,
+  });
 
   /// What the step threw: a `StratumThemeFormatException` for a start theme
   /// file with problems, else what `postload` threw (FR-01 E01, E02).
   final Object error;
+
+  /// [error]'s stack trace, for your own crash reporting; `StackTrace.empty`
+  /// when none was caught with it.
+  final StackTrace stackTrace;
 
   /// The step that failed.
   final StratumSplashPhase phase;
@@ -126,7 +141,11 @@ class StratumSplashScreen<T> extends StatefulWidget {
   postload;
 
   /// Draws the frame of every state, [StratumSplashDone]'s the app itself
-  /// (FR-01 E04, E05).
+  /// (FR-01 E04, E05). Every frame before done has no `Overlay` and no
+  /// `Localizations` above it — no `Tooltip`, no `TextField` — until the
+  /// app's own `MaterialApp`; Tab and Enter or Space still reach a
+  /// focusable node in it, through the splash's own default `Shortcuts`
+  /// and `Actions` (NFR-U02).
   final Widget Function(BuildContext context, StratumSplashState<T> state)
   builder;
 
@@ -227,9 +246,11 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
         remoteThemes: widget.remoteThemes,
         onRemoteThemeError: widget.onRemoteThemeError,
       );
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
       await _readPackageDefault();
-      if (mounted) _show(_failed(error, StratumSplashPhase.theme));
+      if (mounted) {
+        _show(_failed(error, StratumSplashPhase.theme, stackTrace));
+      }
       return;
     }
     if (!mounted) {
@@ -273,8 +294,10 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     final T data;
     try {
       data = await widget.postload(context, controller);
-    } on Object catch (error) {
-      if (mounted) _show(_failed(error, StratumSplashPhase.postload));
+    } on Object catch (error, stackTrace) {
+      if (mounted) {
+        _show(_failed(error, StratumSplashPhase.postload, stackTrace));
+      }
       return;
     }
     if (!mounted) return;
@@ -285,7 +308,11 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
   /// A [StratumSplashFailed] whose retry runs [phase] again, only while it
   /// is the state on screen (FR-06); the package itself retries nothing
   /// (E03).
-  StratumSplashFailed<T> _failed(Object error, StratumSplashPhase phase) {
+  StratumSplashFailed<T> _failed(
+    Object error,
+    StratumSplashPhase phase,
+    StackTrace stackTrace,
+  ) {
     late final StratumSplashFailed<T> failed;
     return failed = StratumSplashFailed<T>(error, phase, () {
       if (!mounted || !identical(_state, failed)) return;
@@ -296,7 +323,7 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
         case StratumSplashPhase.postload:
           unawaited(_runPostload(_controller!));
       }
-    });
+    }, stackTrace: stackTrace);
   }
 
   /// Shows [state]. The first call ends the first-frame hold, signals the
@@ -369,6 +396,27 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
           : null,
       child: Builder(builder: (context) => widget.builder(context, state)),
     );
+    final done = state is StratumSplashDone<T>;
+    // Every non-done frame has no `Overlay` and no `Localizations` above
+    // it, so Tab and Enter or Space would otherwise reach nothing: the
+    // splash gives it the same default bindings `WidgetsApp` gives every
+    // route (NFR-U02). `MaterialApp` supplies its own at done, so this
+    // wrapper sits inside the keyed subtree, present at every non-done
+    // state alike, never swapped in or out on a loading-to-failed change.
+    final content = done
+        ? frame
+        : Shortcuts(
+            shortcuts: WidgetsApp.defaultShortcuts,
+            child: Actions(
+              actions: WidgetsApp.defaultActions,
+              // `WidgetsApp` autofocuses its own Navigator scope the same
+              // way: with nothing focused, Tab's `primaryFocus` falls back
+              // to the engine's root scope, above this Shortcuts, and the
+              // key event never reaches it (`FocusNode.ancestors`
+              // dartdoc, "Key Event Propagation").
+              child: FocusScope(autofocus: true, child: frame),
+            ),
+          );
     return Directionality(
       textDirection: _directionOf(locale),
       child: _themed(
@@ -381,10 +429,7 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
           // once, at done, but a later change in the exit's own widget
           // type reparents whichever one is on screen instead of
           // unmounting it.
-          child: KeyedSubtree(
-            key: state is StratumSplashDone<T> ? _appKey : _frameKey,
-            child: frame,
-          ),
+          child: KeyedSubtree(key: done ? _appKey : _frameKey, child: content),
         ),
       ),
     );
