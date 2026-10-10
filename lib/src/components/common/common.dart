@@ -9,6 +9,7 @@ export 'ink_well.dart'
 export 'layout/layout.dart';
 export 'model/model.dart';
 export 'responsive/responsive.dart';
+export 'splash_screen.dart';
 export 'style/style.dart';
 export 'text_entry_guard.dart';
 export 'utility/utility.dart';

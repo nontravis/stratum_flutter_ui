@@ -37,4 +37,27 @@ void main() {
     expect(ShowSlideDirection.values, hasLength(4));
     expect(const StratumWebZoom(child: SizedBox()), isA<StatelessWidget>());
   });
+
+  test('us12/fr01: the package exports StratumSplashScreen and its four '
+      'states, which a switch covers', () {
+    String nameOf(StratumSplashState<int> state) => switch (state) {
+      StratumSplashLoadingTheme() => 'loading theme',
+      StratumSplashLoadingApp() => 'loading app',
+      StratumSplashFailed() => 'failed',
+      StratumSplashDone() => 'done',
+    };
+
+    expect(
+      StratumSplashScreen<int>(
+        postload: (context, controller) async => 1,
+        builder: (context, state) => Text(nameOf(state)),
+      ),
+      isA<StatefulWidget>(),
+    );
+    expect(nameOf(const StratumSplashLoadingTheme<int>()), 'loading theme');
+    expect(StratumSplashPhase.values, [
+      StratumSplashPhase.theme,
+      StratumSplashPhase.postload,
+    ]);
+  });
 }

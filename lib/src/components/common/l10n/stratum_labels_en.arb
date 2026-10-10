@@ -32,44 +32,24 @@
   "@retryLabel": {
     "description": "Retry label."
   },
-  "failureMessage": "Something went wrong",
-  "@failureMessage": {
-    "description": "Failure message."
-  },
   "placeholderPageTitle": "Coming soon",
   "@placeholderPageTitle": {
     "description": "Placeholder page title."
   },
-  "forceUpdateTitle": "Update required",
-  "@forceUpdateTitle": {
-    "description": "Force update title."
+  "reorderMoveAnnouncement": "Moved to position {position} of {count}",
+  "@reorderMoveAnnouncement": {
+    "description": "Announced after the user moves a list item: its new position, counted from 1, and the item count.",
+    "placeholders": {
+      "position": {"type": "int"},
+      "count": {"type": "int"}
+    }
   },
-  "forceUpdateMessage": "Please update to the latest version to continue.",
-  "@forceUpdateMessage": {
-    "description": "Force update message."
+  "reorderAtStartAnnouncement": "Already at the start of the list",
+  "@reorderAtStartAnnouncement": {
+    "description": "Announced when a reorder key would move the first list item before the start."
   },
-  "maintenanceTitle": "Under maintenance",
-  "@maintenanceTitle": {
-    "description": "Maintenance title."
-  },
-  "maintenanceMessage": "We'll be back soon. Please try again later.",
-  "@maintenanceMessage": {
-    "description": "Maintenance message."
-  },
-  "softUpdateTitle": "Update available",
-  "@softUpdateTitle": {
-    "description": "Soft update title."
-  },
-  "softUpdateMessage": "A new version is ready. Update now for the latest improvements.",
-  "@softUpdateMessage": {
-    "description": "Soft update message."
-  },
-  "updateLabel": "Update",
-  "@updateLabel": {
-    "description": "Update label."
-  },
-  "laterLabel": "Later",
-  "@laterLabel": {
-    "description": "Later label."
+  "reorderAtEndAnnouncement": "Already at the end of the list",
+  "@reorderAtEndAnnouncement": {
+    "description": "Announced when a reorder key would move the last list item past the end."
   }
 }

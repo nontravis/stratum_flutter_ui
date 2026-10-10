@@ -34,33 +34,16 @@ class StratumLabelsTh extends StratumLabels {
   String get retryLabel => 'ลองอีกครั้ง';
 
   @override
-  String get failureMessage => 'เกิดข้อผิดพลาด';
-
-  @override
   String get placeholderPageTitle => 'เร็วๆ นี้';
 
   @override
-  String get forceUpdateTitle => 'ต้องอัปเดตแอป';
+  String reorderMoveAnnouncement(int position, int count) {
+    return 'ย้ายไปลำดับที่ $position จาก $count';
+  }
 
   @override
-  String get forceUpdateMessage =>
-      'กรุณาอัปเดตแอปเป็นเวอร์ชันล่าสุดเพื่อใช้งานต่อ';
+  String get reorderAtStartAnnouncement => 'อยู่ต้นรายการแล้ว';
 
   @override
-  String get maintenanceTitle => 'ปิดปรับปรุงชั่วคราว';
-
-  @override
-  String get maintenanceMessage => 'ระบบกำลังปรับปรุง กรุณาลองใหม่ภายหลัง';
-
-  @override
-  String get softUpdateTitle => 'มีเวอร์ชันใหม่';
-
-  @override
-  String get softUpdateMessage => 'มีเวอร์ชันใหม่พร้อมให้อัปเดตแล้ว';
-
-  @override
-  String get updateLabel => 'อัปเดต';
-
-  @override
-  String get laterLabel => 'ไว้ทีหลัง';
+  String get reorderAtEndAnnouncement => 'อยู่ท้ายรายการแล้ว';
 }

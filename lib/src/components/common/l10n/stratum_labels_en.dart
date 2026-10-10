@@ -34,35 +34,16 @@ class StratumLabelsEn extends StratumLabels {
   String get retryLabel => 'Retry';
 
   @override
-  String get failureMessage => 'Something went wrong';
-
-  @override
   String get placeholderPageTitle => 'Coming soon';
 
   @override
-  String get forceUpdateTitle => 'Update required';
+  String reorderMoveAnnouncement(int position, int count) {
+    return 'Moved to position $position of $count';
+  }
 
   @override
-  String get forceUpdateMessage =>
-      'Please update to the latest version to continue.';
+  String get reorderAtStartAnnouncement => 'Already at the start of the list';
 
   @override
-  String get maintenanceTitle => 'Under maintenance';
-
-  @override
-  String get maintenanceMessage =>
-      'We\'ll be back soon. Please try again later.';
-
-  @override
-  String get softUpdateTitle => 'Update available';
-
-  @override
-  String get softUpdateMessage =>
-      'A new version is ready. Update now for the latest improvements.';
-
-  @override
-  String get updateLabel => 'Update';
-
-  @override
-  String get laterLabel => 'Later';
+  String get reorderAtEndAnnouncement => 'Already at the end of the list';
 }

@@ -1,4 +1,7 @@
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/layout/focus_group.dart'
+    show firstTabStopIn, revealInViewports;
 import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
@@ -287,6 +290,28 @@ void _expectInRow(WidgetTester tester, FocusNode node) {
     isTrue,
     reason: '${node.debugLabel} at $rect, row $row',
   );
+}
+
+/// [child], kept alive when it leaves its list's built range.
+class _KeptAlive extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeptAlive> createState() => _KeptAliveState();
+}
+
+class _KeptAliveState extends State<_KeptAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
 }
 
 void main() {
@@ -1198,6 +1223,276 @@ void main() {
         contains('Children of TabBar must have the tab role'),
       );
       handle.dispose();
+    });
+  });
+
+  group('firstTabStopIn', () {
+    testWidgets(
+      'finds the first Tab stop below the viewport and scrolls to it only '
+      'when reveal is true',
+      (tester) async {
+        final controller = _controller();
+        final container = _node('container');
+        final item = _node('item');
+        await tester.pumpWidget(
+          _belowAndAbove(
+            Focus(
+              focusNode: container,
+              skipTraversal: true,
+              child: Focus(focusNode: item, child: _dot),
+            ),
+            controller,
+          ),
+        );
+
+        expect(firstTabStopIn(container, reveal: false), same(item));
+        await tester.pump();
+        expect(controller.offset, 0);
+
+        expect(firstTabStopIn(container), same(item));
+        await tester.pump();
+        expect(controller.offset, 310 - 200);
+      },
+    );
+  });
+
+  group('revealInViewports', () {
+    testWidgets(
+      'with an origin away from the current offset, lands the target at '
+      'the offset nearest the origin that shows it whole, clamped to the '
+      'scroll extent',
+      (tester) async {
+        final controller = _controller();
+        final boxes = _nodes(30);
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              height: 300,
+              child: ListView(
+                controller: controller,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+                children: [
+                  for (final node in boxes)
+                    Focus(focusNode: node, child: const SizedBox(height: 40)),
+                ],
+              ),
+            ),
+          ),
+        );
+        controller.jumpTo(1000);
+        await tester.pump();
+
+        revealInViewports(
+          boxes[20],
+          origin: (position: controller.position, pixels: 0),
+        );
+        // Box 20's trailing edge, 540, the least scroll from 0: the edge
+        // rule from the current offset, 1000, would give its leading
+        // edge, 800.
+        expect(controller.offset, 540);
+
+        revealInViewports(
+          boxes[29],
+          origin: (position: controller.position, pixels: 5000),
+        );
+        // Box 29's leading edge, 1160, clamped to this Scrollable's
+        // maxScrollExtent, 900: an origin past the extent never lands
+        // past it either.
+        expect(controller.offset, 900);
+      },
+    );
+
+    testWidgets(
+      'with an object taller than the viewport, lands its leading edge '
+      'whatever the origin',
+      (tester) async {
+        final controller = _controller();
+        final boxes = _nodes(31);
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              height: 300,
+              child: ListView(
+                controller: controller,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+                children: [
+                  for (final node in boxes.take(30))
+                    Focus(focusNode: node, child: const SizedBox(height: 40)),
+                  Focus(
+                    focusNode: boxes[30],
+                    child: const SizedBox(height: 400),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        controller.jumpTo(0);
+        await tester.pump();
+
+        revealInViewports(
+          boxes[30],
+          origin: (position: controller.position, pixels: 50),
+        );
+        // Box 30 is 400 px tall, past the 300 px viewport: its leading
+        // edge, 1200, not an offset the origin, 50, would clamp to.
+        expect(controller.offset, 1200);
+      },
+    );
+
+    testWidgets(
+      "with an origin, jumps only the level it was read from: a target's "
+      'own nested scrollable keeps the edge rule',
+      (tester) async {
+        final controller = _controller();
+        final inner = _controller();
+        final boxes = _nodes(30);
+        final nested = _node('nested');
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              height: 300,
+              child: ListView(
+                controller: controller,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+                children: [
+                  for (var i = 0; i < 20; i++)
+                    Focus(
+                      focusNode: boxes[i],
+                      child: const SizedBox(height: 40),
+                    ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: 100,
+                      height: 40,
+                      child: ListView(
+                        controller: inner,
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          const SizedBox(width: 40, height: 40),
+                          const SizedBox(width: 40, height: 40),
+                          Focus(
+                            focusNode: nested,
+                            child: const SizedBox(width: 40, height: 40),
+                          ),
+                          const SizedBox(width: 40, height: 40),
+                        ],
+                      ),
+                    ),
+                  ),
+                  for (var i = 21; i < 30; i++)
+                    Focus(
+                      focusNode: boxes[i],
+                      child: const SizedBox(height: 40),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+        controller.jumpTo(1000);
+        // Box 2 of the nested row, 80 to 120 of its own 100 px viewport,
+        // already shows whole at 50: the edge rule asks nothing of it.
+        inner.jumpTo(50);
+        await tester.pump();
+
+        revealInViewports(
+          nested,
+          origin: (position: controller.position, pixels: 0),
+        );
+
+        // The target's row, slot 20: its trailing edge, 540, the least
+        // scroll from the origin the outer list was read at (G5).
+        expect(controller.offset, 540);
+        // The origin was read from the outer list, not this nested one:
+        // it keeps the edge rule, and the target already shows whole, so
+        // it never moves to where the origin, misread as its own, would
+        // clamp it, 20.
+        expect(inner.offset, 50);
+      },
+    );
+
+    testWidgets(
+      'with an origin whose own ScrollPosition a physics swap disposes, '
+      'still jumps the level the Scrollable it survives on was read from, '
+      'not the stale position (G5)',
+      (tester) async {
+        final controller = _controller();
+        final boxes = _nodes(30);
+        Widget list(ScrollPhysics? physics) => themedHost(
+          SizedBox(
+            height: 300,
+            child: ListView(
+              controller: controller,
+              physics: physics,
+              scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+              children: [
+                for (final node in boxes)
+                  Focus(focusNode: node, child: const SizedBox(height: 40)),
+              ],
+            ),
+          ),
+        );
+        await tester.pumpWidget(list(null));
+        controller.jumpTo(1000);
+        await tester.pump();
+        final origin = (position: controller.position, pixels: 0.0);
+
+        // A physics the Scrollable tells apart from the default by type
+        // makes it dispose and replace the position [origin] still holds;
+        // the Scrollable itself, the level [origin] was read from, survives
+        // the swap.
+        await tester.pumpWidget(list(const NeverScrollableScrollPhysics()));
+
+        revealInViewports(boxes[20], origin: origin);
+
+        // Box 20's trailing edge, 540, the least scroll from the origin's
+        // 0 (G5): the edge rule from the current offset, 1000, would give
+        // its leading edge, 800, instead, the level's loss when the match
+        // reads the stale position identity rather than the surviving
+        // Scrollable.
+        expect(controller.offset, 540);
+      },
+    );
+
+    testWidgets('shows a target kept alive off screen with the least scroll', (
+      tester,
+    ) async {
+      final boxes = _nodes(1000);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: themedHost(
+              SizedBox(
+                width: 200,
+                height: 300,
+                child: ListViewLayout.builder(
+                  itemCount: 1000,
+                  itemBuilder: (context, index) => _KeptAlive(
+                    child: Focus(
+                      focusNode: boxes[index],
+                      child: const SizedBox(height: 40),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final position =
+          tester.state<ScrollableState>(find.byType(Scrollable)).position
+            ..jumpTo(4000);
+      await tester.pump();
+      position.jumpTo(20000);
+      await tester.pump();
+
+      revealInViewports(boxes[103]);
+
+      // Box 103's leading edge: the least scroll from 20000 that shows it
+      // whole.
+      expect(position.pixels, 4120);
     });
   });
 
