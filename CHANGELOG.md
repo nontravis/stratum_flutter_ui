@@ -89,6 +89,12 @@
   fixed, than 16, plus one per deflate entry, plus one per 512 bytes of their output, which no zip from a common zip
   tool does, so a hostile zip costs time in proportion to its entries and output rather than its size; long Huffman
   codes now decode through zlib's two-level tables.
+- Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse as `unsafe_entry_path` an entry
+  name Windows would not create unchanged: a name part ending in a dot or a space, a part of dots only, any of `:`,
+  `<`, `>`, `"`, `|`, `?`, and `*` anywhere in the name, or a part whose text before its first dot is a reserved
+  device name, `CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, or `LPT1` to `LPT9`, in any letter case, such as `con`,
+  `Con.txt`, or `images/NUL.svg`; `pack` refuses such a file or folder name under the theme folder before it writes
+  anything.
 - The tap surface's menu action label, `StratumInkWell`'s last fallback when neither `secondaryTapSemanticsLabel` nor
   the app's material localizations name it, now reads Stratum's built-in labels: Thai under a Thai locale, English
   under any other. The package now depends on `flutter_localizations` (SDK) and `intl` (`any`); an app whose own

@@ -475,6 +475,49 @@ void main() {
       });
     }
 
+    for (final (label, file, why) in [
+      (
+        'a file name ending in a dot',
+        'images/logo.svg.',
+        'ending in a dot or a space',
+      ),
+      (
+        'a file name ending in a space',
+        'images/logo.svg ',
+        'ending in a dot or a space',
+      ),
+      (
+        'a file name holding a colon',
+        'images/a:b.svg',
+        'which no Windows name holds',
+      ),
+      (
+        'a file name holding "?"',
+        'images/a?b.svg',
+        'which no Windows name holds',
+      ),
+      ('a reserved device name', 'images/CON.svg', 'names the device CON'),
+      (
+        'a folder named after a reserved device',
+        'aux/logo.svg',
+        'names the device AUX',
+      ),
+    ]) {
+      test('us02/fr01/e10, us02/fr03/e14, rzf3: $label fails the pack with one '
+          'unsafe_entry_path line, no defaults line, and no zip', () async {
+        _folder('brand', {..._theme(), file: _svg});
+
+        final run = await _run(['pack', 'brand']);
+
+        expect(run.code, exitFailed);
+        expect(run.out, isEmpty);
+        expect(run.err, hasLength(1));
+        expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
+        expect(run.err.single, contains(why));
+        expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
+      }, skip: Platform.isWindows ? 'no such file name on Windows' : false);
+    }
+
     test('us02/fr01/e10, us02/fr03/e14, rz2: a folder holding an emoji '
         'name and a DEL (0x7F) name fails the pack with one '
         'unsafe_entry_path line naming the first offending path, before '

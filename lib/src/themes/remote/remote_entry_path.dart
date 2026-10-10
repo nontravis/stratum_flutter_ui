@@ -8,15 +8,32 @@ final _driveLetter = RegExp('^[A-Za-z]:');
 bool _outsidePrintableAscii(String path) =>
     path.codeUnits.any((unit) => unit < 0x20 || unit > 0x7E);
 
+/// The characters no Windows name may hold, anywhere in an entry path
+/// (FO-04 US-01 FR-02 E01; design FU3, RZF3): `:` takes in the drive
+/// letter, and `\` and `/` are refused or split on elsewhere.
+const _windowsForbidden = ':<>"|?*';
+
+/// The device names Windows reserves, upper case (FO-04 US-01 FR-02 E01;
+/// design FU3, RZF3).
+const _reservedDeviceNames = {
+  'CON', 'PRN', 'AUX', 'NUL', //
+  'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+  'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+};
+
 /// Checks one entry path (FO-04 US-01 FR-02 E01, E14) is printable ASCII,
-/// canonical, and relative.
+/// canonical, relative, and made of names Windows creates unchanged.
 ///
 /// Every character is U+0020 to U+007E, so no tool that decodes a name's
 /// bytes another way reads another name; with a directory entry's one
 /// trailing `/` set aside, the path is not empty, holds no `\`, starts
 /// with no drive letter, and splits on `/` into segments none of which is
-/// empty, `.`, or `..`. Throws `RemoteThemeFailure` `unsafeEntryPath` with
-/// the path.
+/// empty, `.`, or `..`. Then every segment is a name Windows creates
+/// unchanged (design FU3, RZF3): the path holds no `:`, `<`, `>`, `"`,
+/// `|`, `?`, or `*`; no segment is dots only, ends in `.` or a space, or
+/// is a reserved device name before its first `.`, compared ignoring ASCII
+/// letter case, with no space or dot trimmed. Throws `RemoteThemeFailure`
+/// `unsafeEntryPath` with the path.
 void checkEntryPath(String path) {
   if (_outsidePrintableAscii(path)) {
     throw RemoteThemeFailure(
@@ -29,20 +46,54 @@ void checkEntryPath(String path) {
   final trimmed = path.endsWith('/')
       ? path.substring(0, path.length - 1)
       : path;
+  final segments = trimmed.split('/');
   if (trimmed.isEmpty ||
       trimmed.contains(r'\') ||
       _driveLetter.hasMatch(trimmed) ||
-      trimmed
-          .split('/')
-          .any(
-            (segment) => segment.isEmpty || segment == '.' || segment == '..',
-          )) {
+      segments.any(
+        (segment) => segment.isEmpty || segment == '.' || segment == '..',
+      )) {
     throw RemoteThemeFailure(
       StratumRemoteThemeErrorCode.unsafeEntryPath,
       'entry "${escapeZipText(path)}" is no canonical relative path',
       path: path,
     );
   }
+  final why = _windowsNameFault(trimmed, segments);
+  if (why != null) {
+    throw RemoteThemeFailure(
+      StratumRemoteThemeErrorCode.unsafeEntryPath,
+      'entry "${escapeZipText(path)}" $why',
+      path: path,
+    );
+  }
+}
+
+/// Why the canonical path [trimmed], split into [segments], holds a name
+/// Windows would not create unchanged, or null when every segment is one
+/// (FO-04 US-01 FR-02 E01; design FU3, RZF3): rules 3 and 4 read the whole
+/// name, then rules 2, 1, and 5 each segment, dots only before a trailing
+/// dot so `...` names its own rule.
+String? _windowsNameFault(String trimmed, List<String> segments) {
+  for (final unit in trimmed.codeUnits) {
+    final char = String.fromCharCode(unit);
+    if (_windowsForbidden.contains(char)) {
+      return 'holds "${escapeZipText(char)}", which no Windows name holds';
+    }
+  }
+  for (final segment in segments) {
+    if (segment.codeUnits.every((unit) => unit == 0x2E)) {
+      return 'has a segment of dots only, which Windows does not create';
+    }
+    if (segment.endsWith('.') || segment.endsWith(' ')) {
+      return 'has a segment ending in a dot or a space, which Windows drops';
+    }
+    final device = segment.split('.').first.toUpperCase();
+    if (_reservedDeviceNames.contains(device)) {
+      return 'names the device $device, which Windows reserves';
+    }
+  }
+  return null;
 }
 
 /// The hosts whose attributes the install reads, the high byte of an

@@ -19,8 +19,14 @@ void main() {
     'brand/theme.yaml',
     'fonts/',
     '__MACOSX/._theme.yaml',
-    '.../x',
     'a..b/.c',
+    'console.txt',
+    'com10',
+    'com0',
+    'x.con',
+    '.con',
+    'CON .txt',
+    'images/nul-icon.svg',
   ]) {
     test('us01/fr02: "$path" is safe', () {
       expect(() => checkEntryPath(path), returnsNormally);
@@ -81,14 +87,98 @@ void main() {
     });
   }
 
-  test(r'us01/fr02/e14, rz2: every printable ASCII character but "\" and '
-      '"/" passes in a segment', () {
+  test(r'us01/fr02/e14, rz2, rzf3: every printable ASCII character but "\", '
+      '"/", and the seven no Windows name holds passes in a segment', () {
     final segment = String.fromCharCodes([
       for (var unit = 0x20; unit <= 0x7E; unit++)
-        if (unit != 0x5C && unit != 0x2F) unit,
+        if (!r'\/:<>"|?*'.codeUnits.contains(unit)) unit,
     ]);
 
     expect(() => checkEntryPath('a/$segment'), returnsNormally);
+  });
+
+  for (final char in ':<>"|?*'.split('')) {
+    for (final path in ['images/a${char}b.svg', '${char}x', 'fonts/$char/']) {
+      test('us01/s15, us01/fr02/e01, rzf3: "$path" holds a character no '
+          'Windows name holds and is unsafe_entry_path', () {
+        expect(() => checkEntryPath(path), _unsafe(path));
+        expect(
+          () => checkEntryPath(path),
+          throwsA(
+            isA<RemoteThemeFailure>().having(
+              (f) => f.message,
+              'message',
+              contains('which no Windows name holds'),
+            ),
+          ),
+        );
+      });
+    }
+  }
+
+  for (final (rule, paths) in [
+    ('a segment of dots only', ['.../x', 'a/..../b', '...', 'a/.../']),
+    (
+      'a segment ending in a dot or a space',
+      ['images/logo.', 'images/logo.svg ', 'fonts./a.ttf', 'a /b', 'dir./'],
+    ),
+    (
+      'names the device',
+      [
+        'con',
+        'Con.txt',
+        'aux.tar.gz',
+        'lpt9/',
+        'images/NUL.svg',
+        'PRN',
+        'com1.png',
+        'COM9/x',
+        'fonts/LpT1.ttf',
+      ],
+    ),
+  ]) {
+    for (final path in paths) {
+      test('us01/s15, us01/fr02/e01, rzf3: "$path", $rule, is '
+          'unsafe_entry_path', () {
+        expect(
+          () => checkEntryPath(path),
+          throwsA(
+            isA<RemoteThemeFailure>()
+                .having(
+                  (f) => f.code,
+                  'code',
+                  StratumRemoteThemeErrorCode.unsafeEntryPath,
+                )
+                .having((f) => f.path, 'path', path)
+                .having((f) => f.message, 'message', contains(rule)),
+          ),
+        );
+      });
+    }
+  }
+
+  test('rzf3: a drive letter keeps its canonical-path message, and a quote '
+      'reaches the message escaped', () {
+    expect(
+      () => checkEntryPath('C:x.png'),
+      throwsA(
+        isA<RemoteThemeFailure>().having(
+          (f) => f.message,
+          'message',
+          'entry "C:x.png" is no canonical relative path',
+        ),
+      ),
+    );
+    expect(
+      () => checkEntryPath('a"b.svg'),
+      throwsA(
+        isA<RemoteThemeFailure>().having(
+          (f) => f.message,
+          'message',
+          r'entry "a\u0022b.svg" holds "\u0022", which no Windows name holds',
+        ),
+      ),
+    );
   });
 
   for (final (path, type) in [
