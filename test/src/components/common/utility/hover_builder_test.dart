@@ -245,7 +245,10 @@ void main() {
     });
 
     testWidgets('us16/fr03, D1: taps, the cursor, and hover reach the widgets '
-        'it wraps and the widgets behind it', (tester) async {
+        'it wraps, and the opaque wrapped widget keeps blocking the widget '
+        'behind it (RQ1: same footprint as no wrapper at all)', (
+      tester,
+    ) async {
       var taps = 0;
       final behind = <bool>[];
       await tester.pumpWidget(
@@ -284,12 +287,157 @@ void main() {
       await _enter(tester, await _mouse(tester));
       await tester.tap(find.byType(HoverBuilder));
 
-      expect(behind, [true]);
+      // The wrapped GestureDetector is opaque, so it absorbs the hit at the
+      // HoverBuilder's own position: the Stack sibling behind gets no
+      // `onEnter`, exactly as it would with no HoverBuilder there at all.
+      expect(behind, isEmpty);
       expect(
         tester.binding.mouseTracker.debugDeviceActiveCursor(1),
         SystemMouseCursors.click,
       );
       expect(taps, 1);
+    });
+
+    testWidgets('us16/fr03, RQ1: an ancestor GestureDetector above the '
+        'builder gets the tap on the wrapped Text', (tester) async {
+      var aboveTaps = 0;
+      await tester.pumpWidget(
+        themedHost(
+          GestureDetector(
+            onTap: () => aboveTaps++,
+            child: HoverBuilder(
+              builder: (context, hovered, child) => const Text('x'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('x'));
+
+      expect(aboveTaps, 1);
+    });
+
+    testWidgets('us16/fr03, RQ1: a Stack sibling behind the wrapped opaque '
+        'child gets no tap', (tester) async {
+      var front = 0;
+      var behind = 0;
+      const hostKey = Key('rq1B');
+      await tester.pumpWidget(
+        themedHost(
+          SizedBox(
+            key: hostKey,
+            width: 200,
+            height: 200,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: () => behind++,
+                    behavior: HitTestBehavior.opaque,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+                Positioned(
+                  left: 50,
+                  top: 50,
+                  width: 100,
+                  height: 100,
+                  child: GestureDetector(
+                    onTap: () => front++,
+                    child: HoverBuilder(
+                      builder: (context, hovered, child) => child!,
+                      child: const ColoredBox(color: Colors.red),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final topLeft = tester.getTopLeft(find.byKey(hostKey));
+      await tester.tapAt(topLeft + const Offset(100, 100));
+
+      expect(front, 1);
+      expect(behind, 0);
+    });
+
+    testWidgets('us16/fr03, RQ1: a Stack sibling behind the wrapped opaque '
+        'child gets no hover enter', (tester) async {
+      final frontHover = <bool>[];
+      final behindHover = <bool>[];
+      const hostKey = Key('rq1D');
+      await tester.pumpWidget(
+        themedHost(
+          SizedBox(
+            key: hostKey,
+            width: 200,
+            height: 200,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: MouseRegion(
+                    onEnter: (_) => behindHover.add(true),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+                Positioned(
+                  left: 50,
+                  top: 50,
+                  width: 100,
+                  height: 100,
+                  child: HoverBuilder(
+                    onHover: frontHover.add,
+                    builder: (context, hovered, child) => child!,
+                    child: const ColoredBox(color: Colors.red),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final topLeft = tester.getTopLeft(find.byKey(hostKey));
+      final mouse = await _mouse(tester);
+      await mouse.moveTo(topLeft + const Offset(100, 100));
+      await tester.pump();
+
+      expect(frontHover, [true]);
+      expect(behindHover, isEmpty);
+    });
+
+    testWidgets('us16/fr03, RQ1: the whole box still reports hover, '
+        'including a padding gap outside the painted content', (
+      tester,
+    ) async {
+      final hovers = <bool>[];
+      const hostKey = Key('rq1E');
+      await tester.pumpWidget(
+        themedHost(
+          SizedBox(
+            key: hostKey,
+            width: 100,
+            height: 60,
+            child: HoverBuilder(
+              onHover: hovers.add,
+              builder: (context, hovered, child) => child!,
+              child: const Padding(
+                padding: EdgeInsets.all(20),
+                child: Text('x'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final topLeft = tester.getTopLeft(find.byKey(hostKey));
+      final mouse = await _mouse(tester);
+      await mouse.moveTo(topLeft + const Offset(5, 5));
+      await tester.pump();
+
+      expect(hovers, [true]);
     });
 
     testWidgets('us16/fr04/e01, NFR-U06: semantics label the wrapped group '
@@ -346,9 +494,57 @@ void main() {
           of: find.byType(HoverBuilder),
           matching: find.byType(Semantics),
         ),
-        findsOneWidget,
+        // Minor 2: HoverBuilder always builds its own `container: false`
+        // `Semantics.fromProperties` wrapper (one), plus the wrapped
+        // child's own `Semantics` (one) — two widgets, but still no extra
+        // accessibility node, proven above by the unchanged 'Card' node.
+        findsNWidgets(2),
       );
       handle.dispose();
+    });
+
+    testWidgets('us16/fr04, Minor 2: toggling semantics null <-> a value '
+        "keeps a TextField's State and typed text, instead of remounting "
+        'it', (tester) async {
+      SemanticsProperties? semantics;
+      late StateSetter setSemantics;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: themedHost(
+              StatefulBuilder(
+                builder: (context, setter) {
+                  setSemantics = setter;
+                  return HoverBuilder(
+                    semantics: semantics,
+                    builder: (context, hovered, child) => child!,
+                    child: const SizedBox(width: 200, child: TextField()),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.enterText(find.byType(TextField), 'hi');
+      await tester.pump();
+      final before = tester.state(find.byType(EditableText));
+
+      setSemantics(() => semantics = const SemanticsProperties(label: 'Card'));
+      await tester.pump();
+      expect(tester.state(find.byType(EditableText)), same(before));
+      expect(
+        tester.widget<EditableText>(find.byType(EditableText)).controller.text,
+        'hi',
+      );
+
+      setSemantics(() => semantics = null);
+      await tester.pump();
+      expect(tester.state(find.byType(EditableText)), same(before));
+      expect(
+        tester.widget<EditableText>(find.byType(EditableText)).controller.text,
+        'hi',
+      );
     });
 
     testWidgets('us16/s8, us16/fr05/e01, BP3: inside a disabled component a '
@@ -386,6 +582,35 @@ void main() {
       expect(find.text('idle'), findsOneWidget);
       expect(seen.last, isFalse);
       expect(hovers, [true]);
+    });
+
+    testWidgets('us16/fr05, BP3: a component re-enabling under a still '
+        'pointer rebuilds the hovered look and calls onHover(true) again', (
+      tester,
+    ) async {
+      final hovers = <bool>[];
+      final seen = <bool>[];
+      final card = _card(hovers, seen);
+      await tester.pumpWidget(
+        themedHost(_Component(disabled: false, child: card)),
+      );
+      await _enter(tester, await _mouse(tester));
+      expect(hovers, [true]);
+
+      await tester.pumpWidget(
+        themedHost(_Component(disabled: true, child: card)),
+      );
+      await tester.pump();
+      expect(hovers, [true]);
+
+      // Re-enable; the pointer never moved.
+      await tester.pumpWidget(
+        themedHost(_Component(disabled: false, child: card)),
+      );
+      await tester.pump();
+
+      expect(find.text('hovered'), findsOneWidget);
+      expect(hovers, [true, true]);
     });
 
     testWidgets("NFR-U08: under high contrast the app's text cue for hover "

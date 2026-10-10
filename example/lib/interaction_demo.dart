@@ -113,11 +113,12 @@ class _InteractionDemoPageState extends State<_InteractionDemoPage> {
   }
 
   void _toggleLater(VoidCallback flip) {
-    _timers.add(
-      Timer(toggleDelay, () {
-        if (mounted) setState(flip);
-      }),
-    );
+    late final Timer timer;
+    timer = Timer(toggleDelay, () {
+      _timers.remove(timer);
+      if (mounted) setState(flip);
+    });
+    _timers.add(timer);
   }
 
   Widget _stateCard(

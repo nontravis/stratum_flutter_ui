@@ -70,22 +70,26 @@ class _HoverBuilderState extends State<HoverBuilder> {
 
   @override
   Widget build(BuildContext context) {
-    // A pass-through region: the regions under it keep their hover and
-    // cursor, and it sets no cursor of its own.
-    Widget result = MouseRegion(
-      opaque: false,
+    final semantics = widget.semantics;
+    // A pass-through region: `translucent` adds this region across its own
+    // bounds (so hover still spans the whole box, RQ1) without changing
+    // what the wrapped widget's own hit-test returns, so an ancestor
+    // detector or a Stack sibling behind sees exactly what it would with
+    // no HoverBuilder there at all; it sets no cursor of its own.
+    final result = MouseRegion(
+      hitTestBehavior: HitTestBehavior.translucent,
       onEnter: (_) => _handlePointer(inside: true),
       onExit: (_) => _handlePointer(inside: false),
       child: widget.builder(context, _hovered, widget.child),
     );
-    final semantics = widget.semantics;
-    if (semantics != null) {
-      result = Semantics.fromProperties(
-        container: true,
-        properties: semantics,
-        child: result,
-      );
-    }
-    return result;
+    // Always built as the same widget type, so toggling [semantics] null
+    // <-> a value keeps the wrapped subtree mounted instead of remounting
+    // it (Minor 2); `container: false` with no properties set still adds
+    // no semantics node (FR-04 E02 stays green).
+    return Semantics.fromProperties(
+      container: semantics != null,
+      properties: semantics ?? const SemanticsProperties(),
+      child: result,
+    );
   }
 }

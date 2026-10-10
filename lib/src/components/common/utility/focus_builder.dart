@@ -92,21 +92,20 @@ class _FocusBuilderState extends State<FocusBuilder> {
 
   @override
   Widget build(BuildContext context) {
-    // No semantics of its own: a null [FocusBuilder.semantics] adds no
-    // node (US-16 FR-04 E02).
-    Widget result = Focus(
+    final semantics = widget.semantics;
+    final result = Focus(
       focusNode: _node,
       includeSemantics: false,
       child: widget.builder(context, _focused, widget.child),
     );
-    final semantics = widget.semantics;
-    if (semantics != null) {
-      result = Semantics.fromProperties(
-        container: true,
-        properties: semantics,
-        child: result,
-      );
-    }
-    return result;
+    // Always built as the same widget type, so toggling [semantics] null
+    // <-> a value keeps the wrapped subtree mounted instead of remounting
+    // it (Minor 2); `container: false` with no properties set still adds
+    // no semantics node (US-16 FR-04 E02 stays green).
+    return Semantics.fromProperties(
+      container: semantics != null,
+      properties: semantics ?? const SemanticsProperties(),
+      child: result,
+    );
   }
 }

@@ -393,9 +393,48 @@ void main() {
           of: find.byType(FocusBuilder),
           matching: find.byType(Semantics),
         ),
-        findsOneWidget,
+        // Minor 2: FocusBuilder always builds its own `container: false`
+        // `Semantics.fromProperties` wrapper (one), plus the wrapped
+        // field's own `Semantics` (one) — two widgets, but still no extra
+        // accessibility node, proven above by the unchanged 'Field' node.
+        findsNWidgets(2),
       );
       handle.dispose();
+    });
+
+    testWidgets('us16/fr04, Minor 2: toggling semantics null <-> a value '
+        "keeps a focused field's State and focus, instead of remounting "
+        'it', (tester) async {
+      SemanticsProperties? semantics;
+      late StateSetter setSemantics;
+      final field = _node('field');
+      await tester.pumpWidget(
+        _app(
+          StatefulBuilder(
+            builder: (context, setter) {
+              setSemantics = setter;
+              return FocusBuilder(
+                semantics: semantics,
+                builder: (context, focused, child) => child!,
+                child: SizedBox(width: 200, child: TextField(focusNode: field)),
+              );
+            },
+          ),
+        ),
+      );
+      field.requestFocus();
+      await tester.pump();
+      final before = tester.state(find.byType(EditableText));
+
+      setSemantics(() => semantics = const SemanticsProperties(label: 'Field'));
+      await tester.pump();
+      expect(tester.state(find.byType(EditableText)), same(before));
+      expect(field.hasFocus, isTrue);
+
+      setSemantics(() => semantics = null);
+      await tester.pump();
+      expect(tester.state(find.byType(EditableText)), same(before));
+      expect(field.hasFocus, isTrue);
     });
 
     testWidgets('us16/fr05/e03, BP3: a focused field whose component turns '
