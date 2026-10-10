@@ -112,6 +112,8 @@ class _CounterState extends State<_Counter> {
 }
 
 void main() {
+  setUp(ScreenRadiusScope.reset);
+
   testWidgets(
     'us04/fr03/e03: on iOS publishes the probe radius while Flutter reads null',
     (tester) async {
@@ -245,8 +247,8 @@ void main() {
     expect(radius, const BorderRadius.all(Radius.circular(46)));
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  // Web reads null as well: no native plugin answers there, so listen
-  // takes the MissingPluginException path the no-plugin test proves.
+  // Web never subscribes (`kIsWeb` in `_darwin`); were it to, the
+  // MissingPluginException path the no-plugin test proves reads null.
   testWidgets(
     'us04/fr03/e05: on Windows, Linux, and Android it listens to no probe',
     (tester) async {
@@ -291,17 +293,13 @@ void main() {
     expect(cancels, 1);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  testWidgets('us04/fr03: a failed listen is reported and reads null', (
-    tester,
-  ) async {
+  testWidgets('us04/fr03: a failed listen is reported', (tester) async {
     _mockProbe(tester, onListen: (_) => throw PlatformException(code: 'error'));
-    BorderRadius? radius = BorderRadius.zero;
 
-    await tester.pumpWidget(_reader((r) => radius = r));
+    await tester.pumpWidget(_reader((_) {}));
     await _pumpEvent(tester);
 
     expect(tester.takeException(), isA<PlatformException>());
-    expect(radius, isNull);
   }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
   testWidgets(

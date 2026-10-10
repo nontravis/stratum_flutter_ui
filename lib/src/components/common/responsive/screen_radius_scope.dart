@@ -26,6 +26,13 @@ class ScreenRadiusScope extends StatefulWidget {
   static bool hasScope(BuildContext context) =>
       context.getInheritedWidgetOfExactType<_ScreenRadiusMarker>() != null;
 
+  /// Forgets every subscribed scope and the last radius, and clears the
+  /// probe's handler: a failed test skips its unmount and leaves its scope
+  /// subscribed, which would keep the next test's scope from sending
+  /// `listen`.
+  @visibleForTesting
+  static void reset() => _RadiusProbeSubscription.reset();
+
   @override
   State<ScreenRadiusScope> createState() => _ScreenRadiusScopeState();
 }
@@ -110,6 +117,13 @@ abstract final class _RadiusProbeSubscription {
     _channel.binaryMessenger.setMessageHandler(_channel.name, null);
     _last = null;
     unawaited(_call('cancel'));
+  }
+
+  /// See [ScreenRadiusScope.reset].
+  static void reset() {
+    _scopes.clear();
+    _last = null;
+    _channel.binaryMessenger.setMessageHandler(_channel.name, null);
   }
 
   /// Takes one probe event; a null message ends the stream and keeps the
