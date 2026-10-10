@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
+description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, the border, shadow, and blur theme tokens, StratumWebZoom.
 ---
 
 # Stratum Flutter UI
@@ -409,6 +409,22 @@ scroll it, guarded so a text field inside keeps its own keys.
   `unknown_key`. The package default reads `$schema: stratum-theme/v1.2.0`; this package reads every `v1.0`, `v1.1`,
   and `v1.2` theme, while a package build that reads only `v1.0` refuses a `v1.1` theme as `unsupported_schema`, so a
   theme that must load on both writes `v1.0.0` and leaves `opacity` out.
+- **Border, shadow, and blur tokens** — `border`, `shadow`, and `blur` in `theme.yaml` (format
+  `stratum-theme/v1.2.0`) set every border width, drop shadow, and background blur, and the package default carries
+  the Figma values. Read them in `build`: `StratumTheme.of(context).border.md` (a `double`; `sm` 0.5, `md` 1, `lg`
+  1.5, and `md` is the usual width), `.shadow.level1` to `.level6` (each a `List<BoxShadow>` for
+  `WidgetStyle.dropShadow`, colored from the active color set, so dark and high-contrast themes get their own), and
+  `.blur.level1` to `.level6` (each an `ImageBlurFilter` for `WidgetStyle.backgroundBlur`, sigma half the Figma
+  radius): `WidgetStyle(border: Border.all(width: theme.border.md, color: theme.color.border.defaults.normal),
+  dropShadow: theme.shadow.level2, backgroundBlur: theme.blur.level3)`. A theme sets `border: {md: 2}`,
+  `blur: {"3": 24}`, or a `shadow."2"` list of layers such as
+  `{x: 0, y: 4, blur: 8, spread: 0, color: "{color.shadow.secondary}"}`, where `blur` is the Figma blur radius and
+  `color` is a quoted hex, a `{palette...}` or `{transparent...}` alias, or `"{color.<group>.<name>}"`, a token of
+  each color set; a list replaces the default's whole, and `[]` is no shadow. A bad value throws
+  `StratumThemeFormatException` with `expected_dimension`, `expected_shadow`, or `expected_color` at its path, and a
+  key the default lacks, such as `shadow.7`, is `unknown_key`. A package build that reads only up to `v1.1` refuses a
+  `v1.2` theme as `unsupported_schema`, so a theme that must load there writes `v1.1.0` and leaves the three groups
+  out. `AppBorder`, `AppShadow`, `AppFilter`, `StratumThemeData.filter`, and `screenBorderRadius` no longer exist.
 
 ## Page transitions
 

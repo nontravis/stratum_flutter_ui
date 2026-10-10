@@ -250,7 +250,9 @@ void main() {
     expect(theme.themeMode, ThemeMode.light);
     expect(theme.physics, same(data.physics));
     expect(theme.defaultWidgetSize, data.defaultWidgetSize);
-    expect(theme.screenBorderRadius, isNull);
+    expect(theme.border, same(data.border));
+    expect(theme.shadow, same(data.shadow));
+    expect(theme.blur, same(data.blur));
   });
 
   testWidgets('maybeOf is null with no application', (tester) async {

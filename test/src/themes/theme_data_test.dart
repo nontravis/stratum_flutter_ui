@@ -87,7 +87,9 @@ void main() {
       expect(copy.physics, same(data.physics));
       expect(copy.animation, same(data.animation));
       expect(copy.opacity, same(data.opacity));
-      expect(copy.screenBorderRadius, data.screenBorderRadius);
+      expect(copy.border, same(data.border));
+      expect(copy.shadow, same(data.shadow));
+      expect(copy.blur, same(data.blur));
     });
 
     test('covers every field, physics included', () {
@@ -111,12 +113,18 @@ void main() {
         'y': {'500': Color(0xFF000002)},
       };
       const extensions = <String, Object?>{'z': 1};
-      const border = AppBorder();
-      const shadow = AppShadow(baseColor: Color(0xFF000003));
-      const filter = AppFilter();
+      final border = StratumBorderTokens.fromMap(const {
+        'sm': 2,
+        'md': 3,
+        'lg': 4,
+      });
+      final shadow = other.shadow;
+      final blur = StratumBlurTokens.fromMap({
+        for (final level in ['1', '2', '3', '4', '5', '6'])
+          level: const ImageBlurFilter(sigmaX: 1, sigmaY: 1),
+      });
       const scrollBehavior = ScrollBehavior();
       const physics = BouncingScrollPhysics();
-      const screenBorderRadius = BorderRadius.all(Radius.circular(42));
 
       final copy = base.copyWith(
         themeMode: ThemeMode.dark,
@@ -136,13 +144,12 @@ void main() {
         defaultWidgetSize: WidgetSize.huge,
         border: border,
         shadow: shadow,
-        filter: filter,
+        blur: blur,
         systemOverlayStyle: AppSystemUI.dark,
         systemOverlayInverseStyle: AppSystemUI.light,
         splashFactory: InkRipple.splashFactory,
         scrollBehavior: scrollBehavior,
         physics: physics,
-        screenBorderRadius: screenBorderRadius,
       );
 
       expect(copy.themeMode, ThemeMode.dark);
@@ -162,13 +169,12 @@ void main() {
       expect(copy.defaultWidgetSize, WidgetSize.huge);
       expect(copy.border, same(border));
       expect(copy.shadow, same(shadow));
-      expect(copy.filter, same(filter));
+      expect(copy.blur, same(blur));
       expect(copy.systemOverlayStyle, AppSystemUI.dark);
       expect(copy.systemOverlayInverseStyle, AppSystemUI.light);
       expect(copy.splashFactory, same(InkRipple.splashFactory));
       expect(copy.scrollBehavior, same(scrollBehavior));
       expect(copy.physics, same(physics));
-      expect(copy.screenBorderRadius, screenBorderRadius);
     });
   });
 }

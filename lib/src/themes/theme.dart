@@ -68,11 +68,14 @@ class StratumTheme {
 
   WidgetSize get defaultWidgetSize => data.defaultWidgetSize;
 
-  AppBorder get border => data.border;
+  /// `data.border`: border widths in logical pixels.
+  StratumBorderTokens get border => data.border;
 
-  AppShadow get shadow => data.shadow;
+  /// `data.shadow`: the shadows of the active color set.
+  StratumShadowTokens get shadow => data.shadow;
 
-  AppFilter get filter => data.filter;
+  /// `data.blur`: background blurs.
+  StratumBlurTokens get blur => data.blur;
 
   SystemUiOverlayStyle get systemOverlayStyle => data.systemOverlayStyle;
 
@@ -84,8 +87,6 @@ class StratumTheme {
   ScrollBehavior get scrollBehavior => data.scrollBehavior;
 
   ScrollPhysics get physics => data.physics;
-
-  BorderRadius? get screenBorderRadius => data.screenBorderRadius;
 
   /// The token [name] of [group] in logical pixels. Throws an
   /// [ArgumentError] naming `<groupName>.<name>` when the data lacks it.
