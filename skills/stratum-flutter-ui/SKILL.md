@@ -392,6 +392,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   );
   ```
 
+  `postload`'s context sits above the splash's own theme scope: read the active theme through `controller`, never
+  `StratumTheme.of(context)`.
+
   `StratumSplashFailed.phase` says which step failed, `StratumSplashPhase.theme` (its `error` is the theme file's
   `StratumThemeFormatException`) or `StratumSplashPhase.postload` (what `postload` threw); `retry` runs that step
   again and the builder gets its loading state, while `minimumDuration` keeps counting from the first frame. After a

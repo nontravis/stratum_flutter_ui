@@ -116,7 +116,9 @@ class StratumSplashScreen<T> extends StatefulWidget {
 
   /// The app's own start-up work, run with the controller once the start
   /// theme is active; what it returns reaches [StratumSplashDone.data]. The
-  /// package fetches no data and bounds no time of it (FR-06 E02).
+  /// package fetches no data and bounds no time of it (FR-06 E02). This
+  /// [BuildContext] sits above the splash's own theme scope: read the
+  /// active theme through `controller`, never `StratumTheme.of(context)`.
   final Future<T> Function(
     BuildContext context,
     StratumThemeController controller,
@@ -186,6 +188,16 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
 
   /// What `postload` returned, once it returned.
   ({T data})? _result;
+
+  /// Keys the non-done frame, [_appKey] the app at done, both for the
+  /// whole life of this State: a [GlobalKey] moves its Element to a new
+  /// slot instead of unmounting it, so a change in the exit's own widget
+  /// type (for example, reduced motion flipping `FadeThroughTransition` to
+  /// `FadeTransition`) reparents the frame or the app rather than
+  /// rebuilding it from scratch (mirrors Flutter's own routes,
+  /// `routes.dart:1228-1229`).
+  final GlobalKey _frameKey = GlobalKey();
+  final GlobalKey _appKey = GlobalKey();
 
   @override
   void initState() {
@@ -288,14 +300,18 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
   }
 
   /// Shows [state]. The first call ends the first-frame hold, signals the
-  /// page on the web (FR-02, E02), and starts the minimum display time
-  /// (FR-03).
+  /// page on the web once that frame is drawn (FR-02, E02), and starts the
+  /// minimum display time (FR-03).
   void _show(StratumSplashState<T> state) {
     setState(() => _state = state);
     if (!_holding) return;
     _holding = false;
     WidgetsBinding.instance.allowFirstFrame();
-    signalSplashShown();
+    // `allowFirstFrame` only schedules the warm-up frame; on the web both
+    // halves of it run on later tasks. A post-frame callback of the next
+    // frame still runs before the page's own next paint, which is as
+    // close as the framework's own signals get.
+    WidgetsBinding.instance.addPostFrameCallback((_) => signalSplashShown());
     if (widget.minimumDuration <= Duration.zero) {
       _minimumPassed = true;
       return;
@@ -360,10 +376,13 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
           type: exit,
           duration: widget.exitDuration,
           curve: widget.exitCurve,
-          // A new key only at done: the app comes in once, by the exit,
-          // while every other state redraws the frame in place.
+          // The frame and the app each keep one GlobalKey for this
+          // State's whole life (FR-04): the exit still swaps between them
+          // once, at done, but a later change in the exit's own widget
+          // type reparents whichever one is on screen instead of
+          // unmounting it.
           child: KeyedSubtree(
-            key: ValueKey(state is StratumSplashDone<T>),
+            key: state is StratumSplashDone<T> ? _appKey : _frameKey,
             child: frame,
           ),
         ),
@@ -418,6 +437,11 @@ class _SplashExit extends StatelessWidget {
     return PageTransitionSwitcher(
       duration:
           duration ?? transitionDurationOf(type, platformOf(context), slow),
+      // The default layout is `Stack(alignment: Alignment.center)`, loose
+      // constraints: a frame with no intrinsic size (a plain ColoredBox,
+      // for example) would lay out at 0x0 instead of the view's size.
+      layoutBuilder: (entries) =>
+          Stack(fit: StackFit.expand, children: entries),
       transitionBuilder: (child, animation, secondaryAnimation) =>
           buildScreenTransition<void>(
             type,

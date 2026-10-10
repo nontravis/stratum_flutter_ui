@@ -496,6 +496,42 @@ void main() {
 
       expect(calls, 2);
     });
+
+    testWidgets(
+      'a stale retry after the screen moved on to done runs nothing',
+      (tester) async {
+        final states = <StratumSplashState<String>>[];
+        var calls = 0;
+        final second = Completer<String>();
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            states: states,
+            postload: () {
+              calls += 1;
+              if (calls == 1) return Future.error(StateError('offline'));
+              return second.future;
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+        final first = _last(states) as StratumSplashFailed<String>;
+
+        first.retry();
+        await tester.pump();
+        expect(calls, 2);
+
+        second.complete('ready');
+        await tester.pump(Duration.zero);
+        expect(find.text('done ready'), findsOneWidget);
+
+        first.retry();
+        await tester.pump();
+
+        expect(calls, 2);
+        expect(find.text('done ready'), findsOneWidget);
+      },
+    );
   });
 
   group('StratumSplashScreen hosts its frames', () {
@@ -767,6 +803,98 @@ void main() {
 
       expect(find.byKey(_frame), findsNothing);
       expect(tester.state(find.byType(MaterialApp)), same(during));
+    });
+
+    testWidgets('the app keeps its own state through a disableAnimations flip '
+        'after the exit', (tester) async {
+      final work = Completer<String>();
+      var reduced = false;
+      Widget host() => Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
+          child: DefaultAssetBundle(
+            bundle: FakeThemeBundle(),
+            child: StratumSplashScreen<String>(
+              postload: (context, controller) => work.future,
+              builder: (context, state) => switch (state) {
+                StratumSplashDone() => const MaterialApp(home: Text('home')),
+                _ => const SizedBox.expand(key: _frame),
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
+      work.complete('ready');
+      await tester.pump(Duration.zero);
+      await tester.pumpAndSettle();
+      final during = tester.state(find.byType(MaterialApp));
+
+      reduced = true;
+      await tester.pumpWidget(host());
+      await tester.pump();
+
+      expect(tester.state(find.byType(MaterialApp)), same(during));
+    });
+
+    testWidgets(
+      'the app keeps its own state through platform reduced motion plus '
+      'a theme switchTo after the exit',
+      (tester) async {
+        final work = Completer<String>();
+        final states = <StratumSplashState<String>>[];
+        await tester.pumpWidget(
+          DefaultAssetBundle(
+            bundle: FakeThemeBundle(themes: {'brand': appTheme()}),
+            child: StratumSplashScreen<String>(
+              postload: (context, controller) => work.future,
+              builder: (context, state) {
+                states.add(state);
+                return switch (state) {
+                  StratumSplashDone() => const MaterialApp(home: Text('home')),
+                  _ => const SizedBox.expand(key: _frame),
+                };
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        work.complete('ready');
+        await tester.pump(Duration.zero);
+        await tester.pumpAndSettle();
+        final during = tester.state(find.byType(MaterialApp));
+
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        final controller =
+            (_last(states) as StratumSplashDone<String>).controller;
+        await controller.switchTo('brand');
+        await tester.pump();
+
+        expect(tester.state(find.byType(MaterialApp)), same(during));
+      },
+    );
+
+    testWidgets('a childless frame lays out at the size of the view', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        DefaultAssetBundle(
+          bundle: FakeThemeBundle(),
+          child: StratumSplashScreen<String>(
+            postload: (context, controller) => Completer<String>().future,
+            builder: (context, state) =>
+                const ColoredBox(color: Color(0xFF000000), key: _frame),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.getSize(find.byKey(_frame)), _screen.size);
     });
 
     testWidgets('us12/fr04/e02: none shows the app at once', (tester) async {
