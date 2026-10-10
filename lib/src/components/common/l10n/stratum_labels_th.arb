@@ -9,13 +9,5 @@
   "showMenuLabel": "แสดงเมนู",
   "retryLabel": "ลองอีกครั้ง",
   "failureMessage": "เกิดข้อผิดพลาด",
-  "placeholderPageTitle": "เร็วๆ นี้",
-  "forceUpdateTitle": "ต้องอัปเดตแอป",
-  "forceUpdateMessage": "กรุณาอัปเดตแอปเป็นเวอร์ชันล่าสุดเพื่อใช้งานต่อ",
-  "maintenanceTitle": "ปิดปรับปรุงชั่วคราว",
-  "maintenanceMessage": "ระบบกำลังปรับปรุง กรุณาลองใหม่ภายหลัง",
-  "softUpdateTitle": "มีเวอร์ชันใหม่",
-  "softUpdateMessage": "มีเวอร์ชันใหม่พร้อมให้อัปเดตแล้ว",
-  "updateLabel": "อัปเดต",
-  "laterLabel": "ไว้ทีหลัง"
+  "placeholderPageTitle": "เร็วๆ นี้"
 }

@@ -39,37 +39,5 @@
   "placeholderPageTitle": "Coming soon",
   "@placeholderPageTitle": {
     "description": "Placeholder page title."
-  },
-  "forceUpdateTitle": "Update required",
-  "@forceUpdateTitle": {
-    "description": "Force update title."
-  },
-  "forceUpdateMessage": "Please update to the latest version to continue.",
-  "@forceUpdateMessage": {
-    "description": "Force update message."
-  },
-  "maintenanceTitle": "Under maintenance",
-  "@maintenanceTitle": {
-    "description": "Maintenance title."
-  },
-  "maintenanceMessage": "We'll be back soon. Please try again later.",
-  "@maintenanceMessage": {
-    "description": "Maintenance message."
-  },
-  "softUpdateTitle": "Update available",
-  "@softUpdateTitle": {
-    "description": "Soft update title."
-  },
-  "softUpdateMessage": "A new version is ready. Update now for the latest improvements.",
-  "@softUpdateMessage": {
-    "description": "Soft update message."
-  },
-  "updateLabel": "Update",
-  "@updateLabel": {
-    "description": "Update label."
-  },
-  "laterLabel": "Later",
-  "@laterLabel": {
-    "description": "Later label."
   }
 }

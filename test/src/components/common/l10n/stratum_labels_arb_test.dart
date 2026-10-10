@@ -21,14 +21,6 @@ final _getters = <String, String Function(StratumLabels)>{
   'retryLabel': (labels) => labels.retryLabel,
   'failureMessage': (labels) => labels.failureMessage,
   'placeholderPageTitle': (labels) => labels.placeholderPageTitle,
-  'forceUpdateTitle': (labels) => labels.forceUpdateTitle,
-  'forceUpdateMessage': (labels) => labels.forceUpdateMessage,
-  'maintenanceTitle': (labels) => labels.maintenanceTitle,
-  'maintenanceMessage': (labels) => labels.maintenanceMessage,
-  'softUpdateTitle': (labels) => labels.softUpdateTitle,
-  'softUpdateMessage': (labels) => labels.softUpdateMessage,
-  'updateLabel': (labels) => labels.updateLabel,
-  'laterLabel': (labels) => labels.laterLabel,
 };
 
 /// The message entries of the ARB file [name]: every key not starting
@@ -47,9 +39,22 @@ void main() {
   final en = _messages('stratum_labels_en.arb');
   final th = _messages('stratum_labels_th.arb');
 
-  test('us01/fr01: the table holds exactly the 18 built-in string kinds', () {
+  test('us01/fr01: the table holds exactly the 10 built-in string kinds', () {
     expect(en.keys.toSet(), _getters.keys.toSet());
-    expect(_getters, hasLength(18));
+    expect(_getters, hasLength(10));
+  });
+
+  test('us01/fr01/e05: the retry label stays in both tables', () {
+    expect(en, contains('retryLabel'));
+    expect(th, contains('retryLabel'));
+  });
+
+  test('us01/fr01/e06: the failure message and the placeholder page title '
+      'stay in both tables', () {
+    for (final key in ['failureMessage', 'placeholderPageTitle']) {
+      expect(en, contains(key));
+      expect(th, contains(key));
+    }
   });
 
   test('us01/fr01/e02: every English entry is non-empty', () {
