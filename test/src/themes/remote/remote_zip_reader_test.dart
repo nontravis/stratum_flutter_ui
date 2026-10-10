@@ -1407,6 +1407,88 @@ void main() {
       });
     }
 
+    test('us01/fr02/e02, rzf7 (t6): a central directory that lists two '
+        'valid entries out of their local-header order installs', () {
+      final first = ZipEntryFixture('theme.yaml', yaml).localBytes;
+      final zip = buildZip(
+        [
+          ZipEntryFixture('a.txt', [1], localAt: first.length),
+          ZipEntryFixture('theme.yaml', yaml, localAt: 0),
+        ],
+        prefix: [
+          ...first,
+          ...ZipEntryFixture('a.txt', [1]).localBytes,
+        ],
+      );
+
+      expect(_read(zip).keys, ['a.txt', 'theme.yaml']);
+    });
+
+    for (final (label, zip, message) in [
+      (
+        'one byte between two spans',
+        () => buildZip(
+          [
+            ZipEntryFixture('theme.yaml', yaml),
+            ZipEntryFixture('a.txt', [1]),
+          ],
+          gaps: {
+            1: [0],
+          },
+        ),
+        'bytes after entry "theme.yaml" belong to no entry',
+      ),
+      (
+        'one byte before the first span',
+        () => buildZip([ZipEntryFixture('theme.yaml', yaml)], prefix: [0]),
+        'bytes before entry "theme.yaml" belong to no entry',
+      ),
+      (
+        "an end record whose comment length runs past the zip's last byte",
+        () {
+          final whole = buildZip([
+            ZipEntryFixture('theme.yaml', yaml),
+          ], comment: utf8.encode('note'));
+          return Uint8List.sublistView(whole, 0, whole.length - 2);
+        },
+        'bytes follow the end record',
+      ),
+      (
+        'an 8-byte data descriptor after a flags-bit-3 deflate entry',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            flags: 0x8,
+            descriptor: dataDescriptor(yaml, signed: false).sublist(0, 8),
+          ),
+        ]),
+        'has no 12-byte or signed 16-byte data descriptor',
+      ),
+      (
+        'a 20-byte data descriptor after a flags-bit-3 deflate entry',
+        () => buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            flags: 0x8,
+            descriptor: dataDescriptor(yaml, signed: false, zip64: true),
+          ),
+        ]),
+        'has no 12-byte or signed 16-byte data descriptor',
+      ),
+    ]) {
+      test('us01/fr02/e02, rzf7 (t6): $label is invalid_archive', () {
+        expect(
+          () => _read(zip()),
+          _fails(
+            StratumRemoteThemeErrorCode.invalidArchive,
+            message: contains(message),
+          ),
+        );
+      });
+    }
+
     test('z8: a cap fault and a local header fault give archive_too_large '
         'first, before any local header is read', () {
       final zip = buildZip([
