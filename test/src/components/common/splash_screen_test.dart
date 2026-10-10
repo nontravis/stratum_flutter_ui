@@ -8,6 +8,10 @@
 // NFR-U08 n/a: each state reaches the app's builder as a sealed type, never
 // as a color.
 // NFR-U09 n/a: the splash takes no gesture.
+// NFR-E01 n/a: the splash draws no visual value of its own; the app's
+// builder draws every frame from the app's theme.
+// NFR-E02 n/a: the splash draws nothing a customStyle could style; the
+// widgets the app's builder returns take their own customStyle.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 import 'package:stratum_ui/src/src.dart';
