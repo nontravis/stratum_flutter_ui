@@ -450,8 +450,8 @@ void main() {
           _nested(
             before: _node('before'),
             body: ColumnLayout(
-              scroll: const StratumScroll(),
-              focusGroup: const StratumFocusGroup(),
+              scroll: const Scroll(),
+              focusGroup: const FocusGroup(),
               children: [
                 for (final item in items)
                   Focus(
@@ -791,8 +791,8 @@ void main() {
                 SliverPersistentHeader(pinned: true, delegate: _PinnedHeader()),
               ],
               body: ColumnLayout(
-                scroll: const StratumScroll(),
-                focusGroup: const StratumFocusGroup(),
+                scroll: const Scroll(),
+                focusGroup: const FocusGroup(),
                 children: [
                   for (final item in items)
                     Focus(

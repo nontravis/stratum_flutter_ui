@@ -81,9 +81,9 @@ class WrapLayout extends BoxLayout {
   final Clip clipBehavior;
 
   /// Makes the focusable children one roving Tab stop with arrow, Home,
-  /// and End keys; see [StratumFocusGroup]. Switching between null and a
+  /// and End keys; see [FocusGroup]. Switching between null and a
   /// value remounts the children.
-  final StratumFocusGroup? focusGroup;
+  final FocusGroup? focusGroup;
 
   /// Shows only the children of the first [maxRuns] runs; null sets no run
   /// limit. At least 1. With [maxChildren] also set, the limit that hides

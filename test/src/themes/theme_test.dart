@@ -7,7 +7,7 @@ import '../components/common/fakes/fake_stratum_theme.dart';
 /// desktop) and `layouts.max-width-content` at 80%.
 final StratumThemeData _data = StratumThemeSet.fromConfig(
   StratumThemeConfig.parse(
-    base: StratumThemeSource(
+    base: const StratumThemeSource(
       id: 'stratum-default',
       folder: 'packages/stratum_ui/assets/themes/default',
       yaml: defaultThemeSource,

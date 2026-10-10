@@ -304,7 +304,7 @@ void main() {
             children: [
               _focusable(outgoing),
               RowLayout(
-                focusGroup: const StratumFocusGroup(),
+                focusGroup: const FocusGroup(),
                 children: [for (final item in items) _focusable(item)],
               ),
             ],
@@ -414,7 +414,7 @@ void main() {
           _keyboardHost(
             const IndexedStackLayout(
               style: WidgetStyle(width: 200, height: 100),
-              scroll: StratumScroll(),
+              scroll: Scroll(),
               children: [SizedBox(width: 200, height: 1000)],
             ),
             before: before,

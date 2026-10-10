@@ -25,6 +25,21 @@
   number. A `shadow` level holds at most 8 layers, else `expected_shadow`. The messages of `border`, `blur`, and the
   layer numbers now name the range (`expected a number from 0 to 10000, got <value>`). A downloaded theme can no
   longer ask for an unbounded stack of blurred shadows or hand the renderer an infinite size.
+- New `HoverBuilder` and `FocusBuilder` build a look, or run a listener, from whether a pointer is over a widget or
+  focus sits anywhere inside it. They add no Tab stop, focus ring, tap handling, cursor, or size, read false inside a
+  disabled component, and take an optional `semantics` that labels the wrapped group for screen readers.
+  `ContainerLayout(builder: (context, state) => ...)` builds its content from the new `InteractionState` of its tap
+  surface (`hovered`, `pressed`, `focused`, `disabled`), in place of `child`.
+- `StratumInkWell`, and so every box layout with an `interaction`, now calls `onHover(false)` once when it turns
+  disabled under the pointer, by its own `disabled` or a disabled component around it, and `onHover(true)` once when it
+  turns enabled again under the pointer; before, a disabled flip left `onHover` without its `false`.
+- Renamed under one naming rule: screen-building blocks carry no `Stratum` prefix, while design-drawn components and
+  theme or app-setup types keep it. `StratumInteraction` is now `Interaction`, `StratumScroll` is `Scroll`,
+  `StratumTapTargetSize` is `TapTargetSize`, `StratumFocusGroup` is `FocusGroup`, `StratumReorderableItemsController`
+  is `ReorderableItemsController`, `StratumShow` is `Show`, `StratumShowTransition` is `ShowTransition`,
+  `StratumShowSlideDirection` is `ShowSlideDirection`, `Slot` is `StratumSlot`, and `HighContrastMode` is
+  `StratumHighContrastMode`. Each old name stays one minor version as a `@Deprecated` alias, so existing code compiles
+  with a deprecation hint.
 - The empty `assets/fonts/` asset declaration is removed from `pubspec.yaml`; the package ships no font from it.
 - Breaking: the theme animation scale gains a sixth duration level, `micro`, first and shortest: 30 ms forward and
   19.2 ms back in the package default (its 64% `reverseDuration`), read as `StratumTheme.of(context).animation.micro`

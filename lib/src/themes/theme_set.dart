@@ -2,7 +2,7 @@ import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 
 /// Whether the application shows a theme's high-contrast data.
-enum HighContrastMode {
+enum StratumHighContrastMode {
   /// The platform setting, `MediaQuery.maybeHighContrastOf`; off when no
   /// media query is above. The default.
   system,
@@ -13,6 +13,14 @@ enum HighContrastMode {
   /// Never the high-contrast data.
   off,
 }
+
+/// [StratumHighContrastMode]'s name before naming rule R2, kept one minor
+/// version.
+@Deprecated(
+  'Use StratumHighContrastMode instead. HighContrastMode will be removed '
+  'after one minor version.',
+)
+typedef HighContrastMode = StratumHighContrastMode;
 
 /// The four theme data of one theme, one per color set (spec section 7.1).
 @immutable

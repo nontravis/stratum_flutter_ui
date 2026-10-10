@@ -365,7 +365,7 @@ void main() {
         await tester.pumpWidget(
           webThemedHost(
             const ContainerLayout(
-              interaction: StratumInteraction(onTap: _noop),
+              interaction: Interaction(onTap: _noop),
               semantics: SemanticsProperties(header: true, label: 'Recent'),
               child: _box,
             ),

@@ -23,7 +23,7 @@ Map<Type, WidgetStyle> _defaults(StratumTheme theme) => const {};
 Widget _host(
   void Function(StratumThemeData? data) found, {
   ThemeMode themeMode = ThemeMode.light,
-  HighContrastMode highContrast = HighContrastMode.system,
+  StratumHighContrastMode highContrast = StratumHighContrastMode.system,
   StratumThemeSet? themes,
   MediaQueryData media = const MediaQueryData(
     platformBrightness: Brightness.dark,
@@ -46,16 +46,16 @@ Widget _host(
 
 void main() {
   group('StratumThemeApplication.maybeOf', () {
-    final cases = <(ThemeMode, HighContrastMode, StratumThemeData)>[
-      (ThemeMode.light, HighContrastMode.off, _light),
-      (ThemeMode.light, HighContrastMode.on, _contrastLight),
-      (ThemeMode.light, HighContrastMode.system, _contrastLight),
-      (ThemeMode.dark, HighContrastMode.off, _dark),
-      (ThemeMode.dark, HighContrastMode.on, _contrastDark),
-      (ThemeMode.dark, HighContrastMode.system, _contrastDark),
-      (ThemeMode.system, HighContrastMode.off, _dark),
-      (ThemeMode.system, HighContrastMode.on, _contrastDark),
-      (ThemeMode.system, HighContrastMode.system, _contrastDark),
+    final cases = <(ThemeMode, StratumHighContrastMode, StratumThemeData)>[
+      (ThemeMode.light, StratumHighContrastMode.off, _light),
+      (ThemeMode.light, StratumHighContrastMode.on, _contrastLight),
+      (ThemeMode.light, StratumHighContrastMode.system, _contrastLight),
+      (ThemeMode.dark, StratumHighContrastMode.off, _dark),
+      (ThemeMode.dark, StratumHighContrastMode.on, _contrastDark),
+      (ThemeMode.dark, StratumHighContrastMode.system, _contrastDark),
+      (ThemeMode.system, StratumHighContrastMode.off, _dark),
+      (ThemeMode.system, StratumHighContrastMode.on, _contrastDark),
+      (ThemeMode.system, StratumHighContrastMode.system, _contrastDark),
     ];
     for (final (themeMode, highContrast, expected) in cases) {
       testWidgets('fr01: ${themeMode.name} with high contrast '
@@ -298,7 +298,7 @@ void main() {
           (child) => StratumThemeApplication(
             themes: _set,
             themeMode: ThemeMode.light,
-            highContrast: HighContrastMode.on,
+            highContrast: StratumHighContrastMode.on,
             child: child,
           ),
         ),
@@ -358,7 +358,7 @@ void main() {
         StratumThemeApplication(
           themes: _set,
           themeMode: ThemeMode.dark,
-          highContrast: HighContrastMode.on,
+          highContrast: StratumHighContrastMode.on,
           componentDefaults: _defaults,
           child: Builder(
             builder: (context) {
@@ -377,7 +377,7 @@ void main() {
             .having(
               (app) => app.highContrast,
               'highContrast',
-              HighContrastMode.on,
+              StratumHighContrastMode.on,
             )
             .having(
               (app) => app.componentDefaults,
@@ -411,7 +411,7 @@ void main() {
       StratumThemeApplication(
         themes: _set,
         themeMode: ThemeMode.light,
-        highContrast: HighContrastMode.off,
+        highContrast: StratumHighContrastMode.off,
         child: Builder(
           builder: (context) {
             found = ThemeMode.dark.theme(context).data;
@@ -646,7 +646,7 @@ void main() {
         StratumThemeApplication.controlled(
           controller: controller,
           themeMode: ThemeMode.dark,
-          highContrast: HighContrastMode.on,
+          highContrast: StratumHighContrastMode.on,
           componentDefaults: _defaults,
           child: Builder(
             builder: (context) {
@@ -669,7 +669,7 @@ void main() {
             .having(
               (app) => app.highContrast,
               'highContrast',
-              HighContrastMode.on,
+              StratumHighContrastMode.on,
             )
             .having(
               (app) => app.componentDefaults,
@@ -719,6 +719,24 @@ void main() {
         [waited.fontWeight, unwaited.fontWeight],
         [FontWeight.w600, FontWeight.w600],
       );
+    });
+  });
+
+  group('renames', () {
+    testWidgets('renames: HighContrastMode.on still picks the high-contrast '
+        'data', (tester) async {
+      StratumThemeData? found;
+      await tester.pumpWidget(
+        _host(
+          (data) => found = data,
+          themeMode: ThemeMode.light,
+          // Tests the deprecated alias and its replacement.
+          // ignore: deprecated_member_use_from_same_package
+          highContrast: HighContrastMode.on,
+        ),
+      );
+
+      expect(found, same(_contrastLight));
     });
   });
 }

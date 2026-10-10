@@ -6,8 +6,8 @@ import 'package:stratum_ui/src/animations/screen_transition.dart'
     show curveOf, durationOf, reverseDurationOf;
 import 'package:stratum_ui/src/src.dart';
 
-/// How a [StratumShow] moves between shown and hidden (FO-06 US-15 FR-01).
-enum StratumShowTransition {
+/// How a [Show] moves between shown and hidden (FO-06 US-15 FR-01).
+enum ShowTransition {
   /// Takes its full size at once and fades; hides by fading, then takes no
   /// space.
   fade,
@@ -18,14 +18,29 @@ enum StratumShowTransition {
   /// Changes its size and fades together; the default.
   sizeAndFade,
 
-  /// Slides by its own full size from [StratumShow.slideDirection] while it
+  /// Slides by its own full size from [Show.slideDirection] while it
   /// fades (FR-02).
   slide,
 }
 
-/// The edge a [StratumShowTransition.slide] comes from and leaves toward;
+/// [ShowTransition]'s name before naming rule R2, kept one minor version.
+@Deprecated(
+  'Use ShowTransition instead. StratumShowTransition will be removed after '
+  'one minor version.',
+)
+typedef StratumShowTransition = ShowTransition;
+
+/// The edge a [ShowTransition.slide] comes from and leaves toward;
 /// [start] and [end] follow the text direction (US-15 FR-02).
-enum StratumShowSlideDirection { top, bottom, start, end }
+enum ShowSlideDirection { top, bottom, start, end }
+
+/// [ShowSlideDirection]'s name before naming rule R2, kept one minor
+/// version.
+@Deprecated(
+  'Use ShowSlideDirection instead. StratumShowSlideDirection will be '
+  'removed after one minor version.',
+)
+typedef StratumShowSlideDirection = ShowSlideDirection;
 
 /// Shows [child] while [visible] is true and hides it while false, by
 /// [transition], over the theme's default motion level on its `standard`
@@ -43,13 +58,13 @@ enum StratumShowSlideDirection { top, bottom, start, end }
 /// inside it moves, after the frame, to this widget's own node, which is
 /// not a Tab stop. It extends no component base, so the base's disabled
 /// wrapper never wraps it.
-class StratumShow extends StatefulWidget {
+class Show extends StatefulWidget {
   const new({
     super.key,
     required this.visible,
     required this.child,
-    this.transition = StratumShowTransition.sizeAndFade,
-    this.slideDirection = StratumShowSlideDirection.end,
+    this.transition = ShowTransition.sizeAndFade,
+    this.slideDirection = ShowSlideDirection.end,
     this.duration,
     this.reverseDuration,
     this.curve,
@@ -62,11 +77,11 @@ class StratumShow extends StatefulWidget {
   /// The content.
   final Widget child;
 
-  /// How the content moves; [StratumShowTransition.sizeAndFade] by default.
-  final StratumShowTransition transition;
+  /// How the content moves; [ShowTransition.sizeAndFade] by default.
+  final ShowTransition transition;
 
-  /// Used by [StratumShowTransition.slide] alone (FR-02 E04).
-  final StratumShowSlideDirection slideDirection;
+  /// Used by [ShowTransition.slide] alone (FR-02 E04).
+  final ShowSlideDirection slideDirection;
 
   /// The show duration; null takes the forward duration of the theme's
   /// default level, 125 ms in the package default.
@@ -87,11 +102,16 @@ class StratumShow extends StatefulWidget {
   final bool maintainState;
 
   @override
-  State<StratumShow> createState() => _StratumShowState();
+  State<Show> createState() => _ShowState();
 }
 
-class _StratumShowState extends State<StratumShow>
-    with SingleTickerProviderStateMixin {
+/// [Show]'s name before naming rule R2, kept one minor version.
+@Deprecated(
+  'Use Show instead. StratumShow will be removed after one minor version.',
+)
+typedef StratumShow = Show;
+
+class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
   /// 0 hidden, 1 shown; forward over the show duration, reverse over the
   /// hide duration (layout s03 invariant 43).
   late final AnimationController _controller;
@@ -120,17 +140,17 @@ class _StratumShowState extends State<StratumShow>
   /// theme in [_applyMotion].
   var _reduced = false;
 
-  /// The edge [StratumShow.slideDirection] names, resolved through the
+  /// The edge [Show.slideDirection] names, resolved through the
   /// text direction in [_applyMotion] (invariant 42).
   Offset _edgeOffset = Offset.zero;
 
   /// Takes focus when focus sat inside content that hides; Tab skips it
   /// (layout s03 invariant 46, the rule of `IndexedStackLayout`).
-  final _showNode = FocusNode(debugLabel: 'StratumShow', skipTraversal: true);
+  final _showNode = FocusNode(debugLabel: 'Show', skipTraversal: true);
 
   /// Marks the content's subtree only.
   final _contentNode = FocusNode(
-    debugLabel: 'StratumShow content',
+    debugLabel: 'Show content',
     canRequestFocus: false,
     skipTraversal: true,
   );
@@ -151,7 +171,7 @@ class _StratumShowState extends State<StratumShow>
   }
 
   @override
-  void didUpdateWidget(StratumShow oldWidget) {
+  void didUpdateWidget(Show oldWidget) {
     super.didUpdateWidget(oldWidget);
     _applyMotion();
     if (widget.visible == oldWidget.visible) return;
@@ -197,7 +217,7 @@ class _StratumShowState extends State<StratumShow>
   /// Runs the show or the hide from where the motion is now.
   void _move() {
     final now = _look;
-    if (_reduced && widget.transition == StratumShowTransition.size) {
+    if (_reduced && widget.transition == ShowTransition.size) {
       // `size` shows and hides at once under reduced motion (invariant 44).
       _controller.value = widget.visible ? 1 : 0;
     } else if (widget.visible) {
@@ -220,7 +240,7 @@ class _StratumShowState extends State<StratumShow>
   _Look get _look =>
       (size: _sizeFactor.value, opacity: _opacity.value, slide: _slide.value);
 
-  /// What [StratumShow.transition] shows at the curved motion value [t].
+  /// What [Show.transition] shows at the curved motion value [t].
   ///
   /// The size changes under `size` and `sizeAndFade`, the opacity under
   /// all but `size`, and the content slides under `slide` alone (FR-02
@@ -230,12 +250,12 @@ class _StratumShowState extends State<StratumShow>
     final transition = widget.transition;
     final resizes =
         !_reduced &&
-        (transition == StratumShowTransition.size ||
-            transition == StratumShowTransition.sizeAndFade);
-    final slides = !_reduced && transition == StratumShowTransition.slide;
+        (transition == ShowTransition.size ||
+            transition == ShowTransition.sizeAndFade);
+    final slides = !_reduced && transition == ShowTransition.slide;
     return (
       size: resizes ? t : 1.0,
-      opacity: transition == StratumShowTransition.size ? 1.0 : t,
+      opacity: transition == ShowTransition.size ? 1.0 : t,
       slide: slides ? _edgeOffset * (1 - t) : Offset.zero,
     );
   }
@@ -520,12 +540,12 @@ class _RenderSizeFactorBox extends RenderAligningShiftedBox {
 
 /// The offset, in the child's own size, of [direction]'s edge (invariant
 /// 42); `start` and `end` resolve through [text].
-Offset _edge(StratumShowSlideDirection direction, TextDirection text) {
+Offset _edge(ShowSlideDirection direction, TextDirection text) {
   final rtl = text == TextDirection.rtl;
   return switch (direction) {
-    StratumShowSlideDirection.top => const Offset(0, -1),
-    StratumShowSlideDirection.bottom => const Offset(0, 1),
-    StratumShowSlideDirection.start => Offset(rtl ? 1 : -1, 0),
-    StratumShowSlideDirection.end => Offset(rtl ? -1 : 1, 0),
+    ShowSlideDirection.top => const Offset(0, -1),
+    ShowSlideDirection.bottom => const Offset(0, 1),
+    ShowSlideDirection.start => Offset(rtl ? 1 : -1, 0),
+    ShowSlideDirection.end => Offset(rtl ? -1 : 1, 0),
   };
 }
