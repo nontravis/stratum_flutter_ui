@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, ReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, Show, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
+description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, InteractionState, HoverBuilder, FocusBuilder, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, ReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, Show, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
 ---
 
 # Stratum Flutter UI
@@ -21,10 +21,31 @@ as deprecated aliases; write the new names.
 
 Each entry: usage, key parameters, keyboard behavior.
 
-- **`ContainerLayout`** — a styled box around one `child`.
-  Key parameters: `style`, `child`, `fit` (a `BoxFit` that scales `child` into the padded area through a
-  `FittedBox`; asserts `fit == null || scroll == null`, because a scrolling box has no extent to fit into).
+- **`ContainerLayout`** — a styled box around one `child`, or around the content `builder: (context, state)` builds
+  from its tap surface's `InteractionState`.
+  Key parameters: `style`, `child` or `builder` (never both: a debug assertion names the fix), `fit` (a `BoxFit` that
+  scales the content into the padded area through a `FittedBox`; asserts `fit == null || scroll == null`, because a
+  scrolling box has no extent to fit into).
+  `state.hovered` is true while a pointer is over the surface, with or without `onTap`, or while the app sets
+  `WidgetState.hovered` through `statesController` (a preview); `state.pressed` while it is held; both stay false
+  while `state.disabled`, which is the interaction's own `disabled` or a disabled component around it.
+  `state.focused` is true exactly while the focus ring shows: Tab focus under the default focus type, so a mouse click
+  does not set it, and any focus under `FocusType.focused`. With no `interaction`, or one with no callback and no
+  shortcut, every value is false and no tap surface is added. `builder` runs only when a value changes. Pair every
+  state color with text, an icon, or a shape.
   Keyboard: none of its own; a tap surface comes from `interaction`.
+
+  ```dart
+  ContainerLayout(
+    interaction: Interaction(onTap: openProduct),
+    builder: (context, state) => Text(
+      product.title,
+      style: TextStyle(
+        decoration: state.hovered ? TextDecoration.underline : null,
+      ),
+    ),
+  )
+  ```
 - **`FlexLayout`** — the base of `ColumnLayout` and `RowLayout`: a `Flex` whose `direction` may change between
   builds without remounting children, with `mainAxisAlignment`, `crossAxisAlignment`, `gap` (maps to `Flex.spacing`),
   and `crossAxisIntrinsic` (sizes the cross axis to the largest child, unless `style` sets that cross size; a
@@ -238,6 +259,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   when `child` is smaller; pass `TapTargetSize.shrinkWrap` to keep `child`'s own size in a dense UI.
   `Interaction.tapTargetSize` carries the same choice to every `BoxLayout` (`ContainerLayout`, `ColumnLayout`,
   `RowLayout`, `StackLayout`, `WrapLayout`) with a tap surface, so a dense `BoxLayout` opts out the same way.
+  `onHover` reports a pointer over the surface while it is enabled: turning disabled under a still pointer, by its own
+  `disabled` or a disabled component around it, calls `onHover(false)` once, and turning enabled again under it calls
+  `onHover(true)` once.
 - **`FocusSpread`** — deprecated in 1.1.0, and removed after one minor version: it builds `StratumFocusBorder`, so
   it already draws the new look. Its `color` now colors only the ring, as `customColor`, and no longer fills the
   box; a box that needs a fill takes it from its own style. Replace `FocusSpread(focus: f, color: c, inside: i,
@@ -468,6 +492,32 @@ scroll it, guarded so a text field inside keeps its own keys.
   takes no tap, focus, or screen-reader attention; focus inside it moves to the show, which Tab never stops on. Under
   reduced motion nothing moves or resizes: `fade`, `sizeAndFade`, and `slide` keep their fade, and `size` shows and
   hides at once.
+
+## Hover and focus observers
+
+- **`HoverBuilder`** — `HoverBuilder(builder: (context, hovered, child) => ..., child: c, onHover: (hovered) {})`
+  builds a look from whether a pointer is over what it builds. It only observes: no Tab stop, focus ring, tap, hover
+  overlay, cursor, or size of its own; for those, use `ContainerLayout(interaction:)`. `builder` and `onHover` run only
+  when `hovered` changes, also when content scrolls under a still mouse, never on each pointer move; `child` reaches
+  `builder` without rebuilding. Touch screens have no hover, so never put content or an action behind hover alone.
+- **`FocusBuilder`** — `FocusBuilder(builder: (context, focused, child) => ..., onFocusChange: (focused) {})` builds a
+  look from whether focus sits anywhere inside, a tap's focus included, as the web's `:focus-within` does; moving
+  focus between fields inside calls nothing. It adds no Tab stop. Its `focused` differs on purpose from
+  `InteractionState.focused`, which follows the focus ring.
+- **Both** — `semantics: SemanticsProperties(label: ...)` labels the wrapped group in one node a screen reader reads
+  before the fields inside; null adds no node. Inside a disabled component both read false and call no listener. Pair
+  every hover or focus color with text, an icon, or a shape.
+
+  ```dart
+  FocusBuilder(
+    semantics: const SemanticsProperties(label: 'ที่อยู่จัดส่ง'),
+    builder: (context, focused, child) => ContainerLayout(
+      style: focused ? focusedSectionStyle : sectionStyle,
+      child: child,
+    ),
+    child: ColumnLayout(children: [streetField, cityField]),
+  )
+  ```
 
 ## Web zoom
 

@@ -41,6 +41,32 @@ bool tapSurfaceTakesFocus({
           shortcuts.isNotEmpty);
 }
 
+/// Whether a box layout builds the tap surface for [interaction]: an
+/// activation callback, `onHover`, `onHighlightChanged`, `onFocusChange`,
+/// or a non-empty `shortcuts` map (layout s03 invariant 2).
+///
+/// The one tap-surface build rule: `BoxLayout` builds a [StratumInkWell]
+/// exactly when it holds, and `ContainerLayout.builder` reads the surface's
+/// [InteractionState] only then. Not exported: `common/common.dart` hides
+/// it, and the layouts import this file by path.
+bool interactionNeedsTapSurface(Interaction interaction) =>
+    interaction.onTap != null ||
+    interaction.onDoubleTap != null ||
+    interaction.onLongPress != null ||
+    interaction.onSecondaryTap != null ||
+    interaction.onHover != null ||
+    interaction.onHighlightChanged != null ||
+    interaction.onFocusChange != null ||
+    interaction.shortcuts.isNotEmpty;
+
+/// The [InteractionState] of the [StratumInkWell] nearest above [context],
+/// or null when none is above; [context] rebuilds when it changes.
+///
+/// Not exported: `common/common.dart` hides it, and `container_layout.dart`
+/// imports this file by path.
+InteractionState? tapSurfaceStateOf(BuildContext context) =>
+    context.dependOnInheritedWidgetOfExactType<_InteractionStateScope>()?.state;
+
 /// The heading level of the node that holds a [StratumInkWell]'s button
 /// node, or null when the surface builds no heading node.
 ///
@@ -179,7 +205,10 @@ class StratumInkWell extends StatefulWidget {
   final GestureTapCallback? onSecondaryTap;
 
   /// Called with true when a pointer enters and false when it leaves, also
-  /// when no activation callback is set.
+  /// when no activation callback is set, and never while the surface is
+  /// disabled. Turning disabled under the pointer calls it once with false,
+  /// and turning enabled again under it calls it once with true, after the
+  /// frame that applies the change (US-04 FR-04 E05, E06).
   final ValueChanged<bool>? onHover;
   final ValueChanged<bool>? onHighlightChanged;
 
@@ -285,6 +314,20 @@ class _StratumInkWellState extends State<StratumInkWell>
   // State.
   final GlobalKey _surfaceKey = GlobalKey(debugLabel: 'StratumInkWell.surface');
 
+  // Whether a mouse pointer is over the surface, disabled or not: the
+  // region in `build` reports it in every state, so a disabled flip under
+  // a still pointer knows the pointer is there (US-04 FR-04 E05, E06).
+  final ValueNotifier<bool> _pointerInside = ValueNotifier(false);
+
+  // The value `onHover` last reported: a pointer over the surface while it
+  // is not disabled.
+  bool _hoverReported = false;
+
+  // [_disabled] at the last dependency change or widget update, null
+  // before the first. The pointer handlers and the post-frame report read
+  // it, since they run outside a build.
+  bool? _trackedDisabled;
+
   FocusNode get _focusNode =>
       widget.focusNode ?? (_internalFocusNode ??= FocusNode());
 
@@ -367,6 +410,12 @@ class _StratumInkWellState extends State<StratumInkWell>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _trackDisabled();
+  }
+
+  @override
   void didUpdateWidget(StratumInkWell oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.focusNode != widget.focusNode) {
@@ -382,6 +431,7 @@ class _StratumInkWellState extends State<StratumInkWell>
       // internal controller held before the caller's took over is stale.
       _internalStatesController?.value = <WidgetState>{};
     }
+    _trackDisabled();
   }
 
   @override
@@ -391,6 +441,7 @@ class _StratumInkWellState extends State<StratumInkWell>
     _internalFocusNode?.dispose();
     _inkFocusNode?.dispose();
     _internalStatesController?.dispose();
+    _pointerInside.dispose();
     super.dispose();
   }
 
@@ -417,6 +468,34 @@ class _StratumInkWellState extends State<StratumInkWell>
     if (widget.focusType == FocusType.focusedVisible && _focusNode.hasFocus) {
       setState(() {});
     }
+  }
+
+  /// Tracks [_disabled]; when it flipped, reports hover after the frame,
+  /// since a listener that calls an ancestor's `setState` during a build
+  /// fails.
+  void _trackDisabled() {
+    final disabled = _disabled;
+    final flipped = _trackedDisabled != null && _trackedDisabled != disabled;
+    _trackedDisabled = disabled;
+    if (!flipped) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _reportHover();
+    });
+  }
+
+  /// Calls `onHover` when "a pointer over the surface while it is not
+  /// disabled" changed since the last call: on enter and exit, and on a
+  /// disabled flip under the pointer (US-04 FR-04 E03, E05, E06).
+  void _reportHover() {
+    final hovered = _pointerInside.value && !(_trackedDisabled ?? false);
+    if (hovered == _hoverReported) return;
+    _hoverReported = hovered;
+    widget.onHover?.call(hovered);
+  }
+
+  void _handlePointer({required bool inside}) {
+    _pointerInside.value = inside;
+    _reportHover();
   }
 
   void _handleTap() {
@@ -483,8 +562,8 @@ class _StratumInkWellState extends State<StratumInkWell>
     final colors = context.theme.color;
     final disabled = _disabled;
     final canFocus = _canFocus;
-    final onHover = widget.onHover;
     final shortcutOnly = _shortcutOnly;
+    final ringVisible = _ringVisible;
 
     Widget result = InkWell(
       onTap: disabled || widget.onTap == null ? null : _handleTap,
@@ -512,7 +591,13 @@ class _StratumInkWellState extends State<StratumInkWell>
         pressedColor: colors.state.press,
         enabled: !disabled && !widget.disabledPressAnimation,
         borderRadius: widget.borderRadius,
-        child: widget.child,
+        child: _InteractionStateReport(
+          states: _statesController,
+          pointerInside: _pointerInside,
+          disabled: disabled,
+          focused: ringVisible,
+          child: widget.child,
+        ),
       ),
     );
     result = Material(
@@ -524,7 +609,7 @@ class _StratumInkWellState extends State<StratumInkWell>
     // below, so the ring hugs it (B2) and not the grown hit box.
     if (_hasRing) {
       result = StratumFocusBorder(
-        state: _ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
+        state: ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
         borderRadius: widget.borderRadius,
         child: result,
       );
@@ -554,12 +639,12 @@ class _StratumInkWellState extends State<StratumInkWell>
     if (widget.onSecondaryTap != null || widget.shortcuts.isNotEmpty) {
       result = CallbackShortcuts(bindings: _bindings, child: result);
     }
-    // Always built, with null handlers when unused, so toggling onHover or
-    // disabled never changes the structure below.
-    final reportsHover = onHover != null && !disabled;
+    // Always built with its handlers, so toggling onHover or disabled never
+    // changes the structure below and the pointer stays tracked while
+    // disabled (US-04 FR-04 E05, E06).
     result = MouseRegion(
-      onEnter: reportsHover ? (_) => onHover(true) : null,
-      onExit: reportsHover ? (_) => onHover(false) : null,
+      onEnter: (_) => _handlePointer(inside: true),
+      onExit: (_) => _handlePointer(inside: false),
       child: result,
     );
     // A caller's semantics apply even with excludeFromSemantics, the usual
@@ -887,4 +972,61 @@ class _StateOverlay extends StatelessWidget {
       child: child,
     );
   }
+}
+
+/// Reports the surface's [InteractionState] to the content below
+/// [InkWell].
+///
+/// It listens to [states] below [InkWell], as [_StateOverlay] does, since
+/// [InkWell] updates the controller inside its own update.
+class _InteractionStateReport extends StatelessWidget {
+  const new({
+    required this.states,
+    required this.pointerInside,
+    required this.disabled,
+    required this.focused,
+    required this.child,
+  });
+
+  final WidgetStatesController states;
+  final ValueListenable<bool> pointerInside;
+  final bool disabled;
+  final bool focused;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: pointerInside,
+    builder: (context, child) => ListenableBuilder(
+      listenable: states,
+      builder: (context, child) {
+        final value = states.value;
+        return _InteractionStateScope(
+          state: InteractionState(
+            hovered:
+                !disabled &&
+                (pointerInside.value || value.contains(WidgetState.hovered)),
+            pressed: !disabled && value.contains(WidgetState.pressed),
+            focused: focused,
+            disabled: disabled,
+          ),
+          child: child!,
+        );
+      },
+      child: child,
+    ),
+    child: child,
+  );
+}
+
+/// Holds the [InteractionState] [tapSurfaceStateOf] reads; notifies its
+/// readers only when a value changes.
+class _InteractionStateScope extends InheritedWidget {
+  const new({required this.state, required super.child});
+
+  final InteractionState state;
+
+  @override
+  bool updateShouldNotify(_InteractionStateScope oldWidget) =>
+      state != oldWidget.state;
 }

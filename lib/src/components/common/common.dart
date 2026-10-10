@@ -1,6 +1,11 @@
 export 'base/base.dart';
 export 'ink_well.dart'
-    hide semanticsWithoutHeading, tapSurfaceHeadingLevel, tapSurfaceTakesFocus;
+    hide
+        interactionNeedsTapSurface,
+        semanticsWithoutHeading,
+        tapSurfaceHeadingLevel,
+        tapSurfaceStateOf,
+        tapSurfaceTakesFocus;
 export 'layout/layout.dart';
 export 'model/model.dart';
 export 'responsive/responsive.dart';

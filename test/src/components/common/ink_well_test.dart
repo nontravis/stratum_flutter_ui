@@ -1857,6 +1857,196 @@ void main() {
     });
   });
 
+  group('StratumInkWell hover on a disabled flip', () {
+    Future<TestGesture> hoverOver(WidgetTester tester) async {
+      final mouse = await _mouse(tester);
+      await mouse.moveTo(tester.getCenter(find.byType(StratumInkWell)));
+      await tester.pump();
+      return mouse;
+    }
+
+    testWidgets('us04/fr04/e05: turning disabled under the pointer calls '
+        'onHover(false) once', (tester) async {
+      final hovers = <bool>[];
+      Widget build({required bool disabled}) => themedHost(
+        StratumInkWell(
+          onTap: _noop,
+          onHover: hovers.add,
+          disabled: disabled,
+          child: _box,
+        ),
+      );
+      await tester.pumpWidget(build(disabled: false));
+      await hoverOver(tester);
+
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pump();
+
+      expect(hovers, [true, false]);
+    });
+
+    testWidgets('us04/fr04/e05: a component turning disabled under the '
+        'pointer calls onHover(false) once', (tester) async {
+      final hovers = <bool>[];
+      // One instance across the pumps, so only the disabled scope tells
+      // the surface about the flip.
+      final surface = StratumInkWell(
+        onTap: _noop,
+        onHover: hovers.add,
+        child: _box,
+      );
+      Widget build({required bool disabled}) =>
+          themedHost(_Component(disabled: disabled, child: surface));
+      await tester.pumpWidget(build(disabled: false));
+      await hoverOver(tester);
+
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pump();
+
+      expect(hovers, [true, false]);
+    });
+
+    testWidgets('us04/fr04/e05: while disabled, the pointer leaving and '
+        'coming back calls nothing', (tester) async {
+      final hovers = <bool>[];
+      Widget build({required bool disabled}) => themedHost(
+        StratumInkWell(
+          onTap: _noop,
+          onHover: hovers.add,
+          disabled: disabled,
+          child: _box,
+        ),
+      );
+      await tester.pumpWidget(build(disabled: false));
+      final mouse = await hoverOver(tester);
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pump();
+
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+      await mouse.moveTo(tester.getCenter(find.byType(StratumInkWell)));
+      await tester.pump();
+
+      expect(hovers, [true, false]);
+    });
+
+    testWidgets('us04/fr04/e06: enabled again under a still pointer, '
+        'onHover(true) fires once within one frame', (tester) async {
+      final hovers = <bool>[];
+      Widget build({required bool disabled}) => themedHost(
+        StratumInkWell(
+          onTap: _noop,
+          onHover: hovers.add,
+          disabled: disabled,
+          child: _box,
+        ),
+      );
+      await tester.pumpWidget(build(disabled: false));
+      await hoverOver(tester);
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pump();
+
+      await tester.pumpWidget(build(disabled: false));
+      await tester.pump();
+
+      expect(hovers, [true, false, true]);
+    });
+
+    testWidgets('us04/fr04/e06: a component enabled again under a still '
+        'pointer calls onHover(true) once within one frame', (tester) async {
+      final hovers = <bool>[];
+      final surface = StratumInkWell(
+        onTap: _noop,
+        onHover: hovers.add,
+        child: _box,
+      );
+      Widget build({required bool disabled}) =>
+          themedHost(_Component(disabled: disabled, child: surface));
+      await tester.pumpWidget(build(disabled: false));
+      await hoverOver(tester);
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pump();
+
+      await tester.pumpWidget(build(disabled: false));
+      await tester.pump();
+
+      expect(hovers, [true, false, true]);
+    });
+
+    testWidgets('us04/fr04/e06: enabled again after the pointer left, '
+        'onHover is not called', (tester) async {
+      final hovers = <bool>[];
+      Widget build({required bool disabled}) => themedHost(
+        StratumInkWell(
+          onTap: _noop,
+          onHover: hovers.add,
+          disabled: disabled,
+          child: _box,
+        ),
+      );
+      await tester.pumpWidget(build(disabled: false));
+      final mouse = await hoverOver(tester);
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pump();
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+
+      await tester.pumpWidget(build(disabled: false));
+      await tester.pump();
+
+      expect(hovers, [true, false]);
+    });
+
+    testWidgets('us04/fr04/e03, us04/fr04/e05, us04/fr04/e06: with no '
+        'activation callback, onHover follows the flip both ways', (
+      tester,
+    ) async {
+      final hovers = <bool>[];
+      Widget build({required bool disabled}) => themedHost(
+        StratumInkWell(onHover: hovers.add, disabled: disabled, child: _box),
+      );
+      await tester.pumpWidget(build(disabled: false));
+      await hoverOver(tester);
+
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pump();
+      await tester.pumpWidget(build(disabled: false));
+      await tester.pump();
+
+      expect(hovers, [true, false, true]);
+    });
+
+    testWidgets("us04/fr04/e05: an onHover that sets an ancestor's state on "
+        'the flip runs after the frame, with no build error', (tester) async {
+      final hovers = <bool>[];
+      var disabled = false;
+      late StateSetter setHost;
+      await tester.pumpWidget(
+        themedHost(
+          StatefulBuilder(
+            builder: (context, setState) {
+              setHost = setState;
+              return StratumInkWell(
+                onTap: _noop,
+                disabled: disabled,
+                onHover: (value) => setState(() => hovers.add(value)),
+                child: _box,
+              );
+            },
+          ),
+        ),
+      );
+      await hoverOver(tester);
+
+      setHost(() => disabled = true);
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(hovers, [true, false]);
+    });
+  });
+
   group('StratumInkWell context-menu key', () {
     testWidgets('us05/s1: the context-menu key calls onSecondaryTap', (
       tester,

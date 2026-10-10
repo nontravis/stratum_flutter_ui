@@ -173,7 +173,7 @@ abstract class BoxLayout extends StatelessWidget {
 
   StyledBoxBuilder? get _boxBuilder {
     final interaction = this.interaction;
-    if (interaction != null && _needsTapSurface(interaction)) {
+    if (interaction != null && interactionNeedsTapSurface(interaction)) {
       return (style, box) => _buildInkWell(interaction, style, box);
     }
     if (semantics != null) return _buildSemantics;
@@ -212,16 +212,6 @@ abstract class BoxLayout extends StatelessWidget {
       child: inner == null ? box : inner(style, box),
     );
   }
-
-  static bool _needsTapSurface(Interaction interaction) =>
-      interaction.onTap != null ||
-      interaction.onDoubleTap != null ||
-      interaction.onLongPress != null ||
-      interaction.onSecondaryTap != null ||
-      interaction.onHover != null ||
-      interaction.onHighlightChanged != null ||
-      interaction.onFocusChange != null ||
-      interaction.shortcuts.isNotEmpty;
 
   Widget _buildSemantics(WidgetStyle style, Widget box) {
     return Semantics.fromProperties(properties: semantics!, child: box);

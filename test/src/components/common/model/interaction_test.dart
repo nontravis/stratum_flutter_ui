@@ -281,4 +281,26 @@ void main() {
       expect(taps, 1);
     });
   });
+
+  group('InteractionState', () {
+    InteractionState state({required bool hovered}) =>
+        InteractionState(hovered: hovered, focused: true);
+
+    test('us17/fr04: a default state has every value false', () {
+      const value = InteractionState();
+
+      expect(value.hovered, isFalse);
+      expect(value.pressed, isFalse);
+      expect(value.focused, isFalse);
+      expect(value.disabled, isFalse);
+    });
+
+    test('us17/fr01, PD11: states with the same values are equal and hash '
+        'alike; one different value is not equal', () {
+      expect(state(hovered: true), state(hovered: true));
+      expect(state(hovered: true), isNot(same(state(hovered: true))));
+      expect(state(hovered: true).hashCode, state(hovered: true).hashCode);
+      expect(state(hovered: true), isNot(state(hovered: false)));
+    });
+  });
 }
