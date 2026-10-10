@@ -4,7 +4,7 @@
 
 /// The package default theme yaml, for tests that run on the web,
 /// where neither dart:io nor an asset bundle exists.
-const defaultThemeYaml = r"""$schema: stratum-theme/v1.0.0
+const defaultThemeYaml = r"""$schema: stratum-theme/v1.1.0
 name: stratum-default
 
 assets:
@@ -710,6 +710,9 @@ animation:
     standard: easeInOutSine  # forward and reverse of every level
     enter: easeOut           # forward of animation.appear
     exit: easeIn             # reverse of animation.appear
+
+opacity:
+  disabled: 0.5              # a disabled component's opacity, from 0 to 1 (FO-08 US-07)
 
 extensions: {}
 """;

@@ -621,6 +621,27 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('us02/fr05/e02, us07/fr03/e01, R11: a disabled caret adds no '
+      'disabled node', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      themedHost(
+        Semantics(
+          container: true,
+          label: 'Details',
+          child: const StratumCaret(disabled: true),
+        ),
+      ),
+    );
+
+    final node = tester.getSemantics(find.bySemanticsLabel('Details'));
+    expect(node, matchesSemantics(label: 'Details', hasEnabledState: false));
+    expect(node.childrenCount, 0);
+    semantics.dispose();
+  });
+
   group('StratumCaret turn', () {
     testWidgets('us02/fr02/e02, us02/s1: the first half turn, down to up, '
         'turns clockwise over the 125 ms fast level', (tester) async {

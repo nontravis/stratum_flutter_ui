@@ -103,16 +103,16 @@ void main() {
       ),
       (
         'a newer minor',
-        r'$schema: stratum-theme/v1.1.0',
+        r'$schema: stratum-theme/v1.2.0',
         StratumThemeErrorCode.unsupportedSchema,
-        'theme needs stratum-theme v1.1; this app reads up to v1.0',
+        'theme needs stratum-theme v1.2; this app reads up to v1.1',
         10,
       ),
       (
         'another major',
         r'$schema: stratum-theme/v2.0.0',
         StratumThemeErrorCode.unsupportedSchema,
-        'theme needs stratum-theme v2.0; this app reads up to v1.0',
+        'theme needs stratum-theme v2.0; this app reads up to v1.1',
         10,
       ),
     ];
@@ -138,6 +138,15 @@ void main() {
 
       expect(problems(errors), isEmpty);
       expect(roots, hasLength(2));
+    });
+
+    test('fo01/us01/fr01/e08: accepts every v1.0 and v1.1 patch', () {
+      for (final version in ['v1.0.0', 'v1.0.7', 'v1.1.0', 'v1.1.4']) {
+        final (roots, errors) = _load(['\$schema: stratum-theme/$version']);
+
+        expect(problems(errors), isEmpty, reason: version);
+        expect(roots, hasLength(2), reason: version);
+      }
     });
   });
 }

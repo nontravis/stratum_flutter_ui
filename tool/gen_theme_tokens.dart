@@ -114,6 +114,7 @@ String generateThemeTokens(String yaml) {
     _dimensions(out, group, _map(root[group], group).keys);
   }
   _assets(out, _map(root['assets'], 'assets').keys);
+  _opacityClass(out, _map(root['opacity'], 'opacity').keys);
   out
     ..writeln()
     ..writeln('Color _color(Map<String, Color> colors, String path) =>')
@@ -122,6 +123,14 @@ String generateThemeTokens(String yaml) {
     ..writeln('      path,')
     ..writeln("      'path',")
     ..writeln("      'no color at this path in the theme config',")
+    ..writeln('    ));')
+    ..writeln()
+    ..writeln('double _opacity(Map<String, double> opacity, String key) =>')
+    ..writeln('    opacity[key] ??')
+    ..writeln('    (throw ArgumentError.value(')
+    ..writeln('      key,')
+    ..writeln("      'key',")
+    ..writeln("      'no opacity at this key in the theme config',")
     ..writeln('    ));');
   return out.toString();
 }
@@ -392,6 +401,28 @@ void _assets(StringBuffer out, Iterable<String> slots) {
       ..writeln()
       ..writeln('  /// `assets.$key`; null when the slot is empty.')
       ..writeln('  final StratumThemeAsset? $name;');
+  }
+  out.writeln('}');
+}
+
+/// The `opacity` group as `StratumOpacityTokens`, one `double` per key
+/// (themes s01 "Token generator"; config s03 invariant 11).
+void _opacityClass(StringBuffer out, Iterable<String> keys) {
+  final names = _names(keys, 'opacity');
+  out
+    ..writeln()
+    ..writeln('/// The `opacity` tokens, each from 0 to 1.')
+    ..writeln('final class StratumOpacityTokens {')
+    ..writeln('  StratumOpacityTokens.fromMap(Map<String, double> opacity)');
+  _initializers(out, [
+    for (final MapEntry(:key, value: name) in names.entries)
+      "$name = _opacity(opacity, '$key')",
+  ]);
+  for (final MapEntry(:key, value: name) in names.entries) {
+    out
+      ..writeln()
+      ..writeln('  /// `opacity.$key`')
+      ..writeln('  final double $name;');
   }
   out.writeln('}');
 }

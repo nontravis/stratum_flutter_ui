@@ -48,10 +48,10 @@ void main() {
     test('StratumSchemaVersion gains copyWith and keeps its text', () {
       final next = StratumSchemaVersion.current.copyWith(patch: 7);
 
-      expect(next.toString(), 'stratum-theme/v1.0.7');
+      expect(next.toString(), 'stratum-theme/v1.1.7');
       expect(next.isSupported, isTrue);
       expect(
-        StratumSchemaVersion.current.copyWith(minor: 1).isSupported,
+        StratumSchemaVersion.current.copyWith(minor: 2).isSupported,
         isFalse,
       );
     });

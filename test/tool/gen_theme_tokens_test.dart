@@ -20,6 +20,7 @@ $space
 radius: { md: 10 }
 layouts: { max-width-read: 720 }
 assets: { loading: }
+opacity: { disabled: 0.5 }
 ''';
 
 /// `#RRGGBBAA` as the Dart color `0xAARRGGBB`.
@@ -40,6 +41,7 @@ space: { md: 4 }
 radius: { md: 10 }
 layouts: { max-width-read: 720 }
 assets: { loading: }
+opacity: { disabled: 0.5 }
 ''';
 
 /// The yaml key whose Dart name is [color]'s name.
@@ -143,14 +145,15 @@ void main() {
       );
     });
 
-    test('the package default gives the 38 classes of spec section 6.3', () {
+    test('the package default gives the 39 classes of spec section 6.3 and the '
+        'opacity class', () {
       final generated = generateThemeTokens(File(themePath).readAsStringSync());
       final names = RegExp(
         r'^final class (\w+)',
         multiLine: true,
       ).allMatches(generated).map((match) => match[1]!).toList();
 
-      expect(names, hasLength(38));
+      expect(names, hasLength(39));
       expect(
         names.where((name) => name.startsWith('StratumColor')),
         hasLength(30),
@@ -164,6 +167,7 @@ void main() {
         'StratumRadiusTokens',
         'StratumLayoutTokens',
         'StratumAssetTokens',
+        'StratumOpacityTokens',
       ]);
       expect(names, contains('StratumColorTextDefaultsTokens'));
       expect(names, contains('StratumColorBackgroundDefaultsTokens'));
@@ -343,5 +347,27 @@ void main() {
     expect(builtIn.black.p3, _color('#00000008'));
     expect(builtIn.white.p100, _color('#FFFFFFFF'));
     expect(builtIn.black.p0, const Color(0x00000000));
+  });
+
+  test('fo01/us01/fr01: StratumOpacityTokens reads opacity.disabled', () {
+    expect(StratumOpacityTokens.fromMap(const {'disabled': 0.3}).disabled, 0.3);
+    expect(
+      () => StratumOpacityTokens.fromMap(const {}),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => error.invalidValue,
+          'invalidValue',
+          'disabled',
+        ),
+      ),
+    );
+  });
+
+  test('the opacity class takes its keys from the yaml', () {
+    final generated = generateThemeTokens(_yaml('  md: 1'));
+
+    expect(generated, contains('final class StratumOpacityTokens {'));
+    expect(generated, contains("disabled = _opacity(opacity, 'disabled');"));
+    expect(generated, contains('  final double disabled;'));
   });
 }

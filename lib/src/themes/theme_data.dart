@@ -18,6 +18,7 @@ class StratumThemeData {
     required this.extensions,
     required this.typography,
     required this.animation,
+    required this.opacity,
     this.transparent = StratumTransparentTokens.builtIn,
     this.defaultWidgetSize = WidgetSize.medium,
     this.border = const AppBorder(),
@@ -61,6 +62,10 @@ class StratumThemeData {
   /// The yaml values; `StratumTheme.animation` returns them unchanged,
   /// reduced motion included (spec C1).
   final StratumAnimation animation;
+
+  /// `opacity`: `disabled`, the opacity of a disabled component, which the
+  /// component base's disabled wrapper paints (FO-08 US-07).
+  final StratumOpacityTokens opacity;
 
   final WidgetSize defaultWidgetSize;
   final AppBorder border;
@@ -210,6 +215,7 @@ class StratumThemeData {
     Map<String, Object?>? extensions,
     StratumTypography? typography,
     StratumAnimation? animation,
+    StratumOpacityTokens? opacity,
     WidgetSize? defaultWidgetSize,
     AppBorder? border,
     AppShadow? shadow,
@@ -235,6 +241,7 @@ class StratumThemeData {
       extensions: extensions ?? this.extensions,
       typography: typography ?? this.typography,
       animation: animation ?? this.animation,
+      opacity: opacity ?? this.opacity,
       defaultWidgetSize: defaultWidgetSize ?? this.defaultWidgetSize,
       border: border ?? this.border,
       shadow: shadow ?? this.shadow,
