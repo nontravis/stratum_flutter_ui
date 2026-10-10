@@ -10,7 +10,6 @@
 // NFR-U09 n/a: the splash takes no gesture.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
-import 'package:stratum_ui/src/components/common/splash_screen.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 

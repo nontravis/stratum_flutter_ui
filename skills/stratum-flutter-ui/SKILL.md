@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
+description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumSplashScreen, StratumSplashState, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
 ---
 
 # Stratum Flutter UI
@@ -331,7 +331,7 @@ scroll it, guarded so a text field inside keeps its own keys.
 - **Before `preload`** — call `WidgetsFlutterBinding.ensureInitialized()` first: `preload` reads the asset manifest
   through `rootBundle`, which needs the binding. In a `testWidgets` test, the background parse runs on a real
   isolate, which the test's fake-async zone never finishes; run `preload`, or pump a tree rooted in
-  `StratumThemePreloader`, under `tester.runAsync`.
+  `StratumThemePreloader` or `StratumSplashScreen`, under `tester.runAsync`.
 - **`StratumThemeController`** — the registered themes and the active one. Build it before the first themed frame
   with `await StratumThemeController.preload(initialThemeId: savedId, onThemeChanged: save)`; `googleFontsTimeout`
   (default 3 s, also the limit of every switch) and `bundle` are optional. It registers every
@@ -360,6 +360,49 @@ scroll it, guarded so a text field inside keeps its own keys.
   until the start theme is active, then `builder`, or `error` with what preload threw; it reads its asset bundle from
   `DefaultAssetBundle` and disposes its controller when it leaves the tree. Pick it or `await preload(...)` before
   `runApp`, not both.
+- **`StratumSplashScreen`** — the splash an app shows while it starts: place it above `MaterialApp` as the root of
+  `runApp`, instead of `StratumThemePreloader` or an awaited `preload`. It keeps the platform's launch screen, or on
+  the web the page's own loader, until the start theme is active, then runs `postload` with the controller and hands
+  the one required `builder` one `StratumSplashState` at a time; the package draws no splash look, so the builder
+  draws every state, the failure and its retry button included, and returns the app itself, never a route, at
+  `StratumSplashDone`:
+
+  ```dart
+  runApp(
+    StratumSplashScreen<AppData>(
+      initialThemeId: savedThemeId,
+      onThemeChanged: saveThemeId,
+      themeMode: ThemeMode.system, // the modes the app gives its theme application
+      postload: (context, controller) => loadAppData(), // bound its own time limits
+      minimumDuration: firstLaunch ? const Duration(seconds: 2) : Duration.zero,
+      builder: (context, state) => switch (state) {
+        StratumSplashLoadingTheme() || StratumSplashLoadingApp() => const BrandSplash(),
+        StratumSplashFailed(:final error, :final retry) =>
+          BrandFailure(error: error, onRetry: retry),
+        StratumSplashDone(:final controller, :final data) => MaterialApp(
+          builder: (context, child) => StratumThemeApplication.controlled(
+            controller: controller,
+            themeMode: ThemeMode.system,
+            child: child!,
+          ),
+          home: HomePage(data: data),
+        ),
+      },
+    ),
+  );
+  ```
+
+  `StratumSplashFailed.phase` says which step failed, `StratumSplashPhase.theme` (its `error` is the theme file's
+  `StratumThemeFormatException`) or `StratumSplashPhase.postload` (what `postload` threw); `retry` runs that step
+  again and the builder gets its loading state, while `minimumDuration` keeps counting from the first frame. After a
+  theme failure the builder's frames read the package default theme alone. Screen readers hear the built-in "Loading"
+  label (Thai on a Thai device), or your `loadingLabel`, on every loading frame your builder draws. The app takes over
+  in place by `exitTransition`, default `ScreenTransitionType.fadeThrough`, on the theme's `slow` level and `standard`
+  curve unless you pass `exitDuration` and `exitCurve`; every type but `platform` and `cupertino` works, and reduced
+  motion keeps only the fade a type has, as page routes do. Above `MaterialApp` the platform locale picks the text
+  direction. On the web, remove your page's loader when `window` dispatches `stratum-splash-shown`:
+  `window.addEventListener('stratum-splash-shown', () => document.getElementById('loader')?.remove());`. Keep
+  first-launch timing in your own storage: the package stores nothing.
 - **Remote theme zips** — hand a downloaded `<id>.zip` with the checksum your own API serves (never a file beside the
   zip): `StratumRemoteTheme(id:, bytes:, checksum: 'sha256:<64 hex>')`, caps `maxBytes` 20 MB and `maxEntries` 200 by
   default. Pass kept zips to `preload(remoteThemes: [...], onRemoteThemeError: (id, error) => ...)` or the same two

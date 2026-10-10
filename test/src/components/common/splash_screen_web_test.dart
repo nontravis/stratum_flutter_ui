@@ -4,7 +4,6 @@ library;
 import 'dart:js_interop';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stratum_ui/src/components/common/splash_screen.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:web/web.dart' as web;
 
