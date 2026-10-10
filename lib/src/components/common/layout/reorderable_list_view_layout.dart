@@ -566,18 +566,23 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Brings the item of [keys], kept alive off screen with focus inside,
   /// back into view, then runs [then]: jumps toward its slot by
-  /// [_estimateTowards] each frame until a frame lays it out, for up to
-  /// [frames] frames, then reveals it by its own box. Stops when focus left
-  /// the item; after the last jump, runs [then] where the item stands.
+  /// [_estimateTowards] each frame, moving to the plain edge each time so
+  /// a new layout pass measures it, until a frame lays it out, for up to
+  /// [frames] frames, then reveals it, from [origin], the offset this call
+  /// started at, read once and carried through its retries, by its own
+  /// box. Stops when focus left the item; after the last jump, runs [then]
+  /// where the item stands.
   void _bringBack(
     _ReorderKeysState keys,
     VoidCallback then, {
     int frames = _reachFrames,
+    double? origin,
   }) {
     if (!mounted || !keys.mounted || !keys._node.hasFocus) return;
+    final start = origin ?? _scrollPosition?.pixels;
     final slot = keys.widget.index.slot;
     if (_builtSlot(slot)) {
-      revealInViewports(keys._node);
+      revealInViewports(keys._node, origin: start);
       then();
       return;
     }
@@ -588,7 +593,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     estimate.position.jumpTo(estimate.offset);
     WidgetsBinding.instance
-      ..addPostFrameCallback((_) => _bringBack(keys, then, frames: frames - 1))
+      ..addPostFrameCallback(
+        (_) => _bringBack(keys, then, frames: frames - 1, origin: start),
+      )
       ..scheduleFrame();
   }
 
@@ -2095,7 +2102,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (key != null) _releasePark(key);
     final noFocusOwnerElsewhere = FocusManager.instance.primaryFocus == null;
     if (byKey && noFocusOwnerElsewhere) firstTabStopIn(node)?.requestFocus();
-    revealInViewports(node);
+    revealInViewports(node, origin: moved.origin?.pixels);
     for (final MapEntry(key: at, value: look) in _itemLooks.entries) {
       final motion = at < built ? _incoming[look.key] : null;
       if (motion != null) _revealAfterGrowIn(node, motion, byKey: byKey);
@@ -2162,16 +2169,22 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// reaches, a focus the app moves off it ends the handoff (R13,
   /// invariant 32); when nothing in the list can take focus, [interim] lets
   /// it go and Flutter's own fallback applies, the scope's previous child or
-  /// the scope itself, as when a focused node detaches (R33).
+  /// the scope itself, as when a focused node detaches (R33). [origin] is
+  /// the offset this handoff started at, read once and carried through its
+  /// retries unchanged; each probe jump still moves to the plain edge
+  /// ([_estimateTowards]), and only the landing reveal ([_revealHandOff])
+  /// clamps to the least scroll from [origin] (D29, G5).
   void _handOffFocus(
     _DataIndex gap, {
     int frames = _reachFrames,
     FocusNode? interim,
+    double? origin,
   }) {
     if (!mounted) return;
     if (interim != null && FocusManager.instance.primaryFocus != interim) {
       return;
     }
+    final start = origin ?? _scrollPosition?.pixels;
     final next = _builtNear(gap, 1);
     final previous = _builtNear(gap - 1, -1);
     final target =
@@ -2179,7 +2192,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         (previous == null ? null : _firstStopOf(previous, reveal: false));
     if (target != null) {
       target.requestFocus();
-      _revealHandOff(target);
+      _revealHandOff(target, origin: start);
       return;
     }
     bool laidOut(_FrameIndex? index) => index != null && _builtSlot(index.slot);
@@ -2194,7 +2207,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         WidgetsBinding.instance
           ..addPostFrameCallback((_) {
             _givenUpGaps.remove(held);
-            _handOffFocus(held.index, frames: frames - 1, interim: interim);
+            _handOffFocus(
+              held.index,
+              frames: frames - 1,
+              interim: interim,
+              origin: start,
+            );
           })
           ..scheduleFrame();
         return;
@@ -2203,7 +2221,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final nearest = _nearestStopTo(gap);
     if (nearest != null) {
       nearest.requestFocus();
-      _revealHandOff(nearest);
+      _revealHandOff(nearest, origin: start);
       return;
     }
     final own = _ownTabStop();
@@ -2214,14 +2232,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
   }
 
-  /// Reveals [node], the node a handoff focuses, now and again after the
-  /// frame in which each motion running now ends, an exit shrinking or an
-  /// item growing in, while [node] keeps focus: either may shift it past
+  /// Reveals [node], the node a handoff focuses, from [origin] when a
+  /// reach gave it, now and again after the frame in which each motion
+  /// running now ends, an exit shrinking or an item growing in, by the
+  /// plain edge rule, while [node] keeps focus: either may shift it past
   /// the edge it was revealed at, as a returned item's own grow-in does
   /// (invariant 26). Under reduced motion no size animates, so the first
   /// reveal stands and each later one finds [node] whole.
-  void _revealHandOff(FocusNode node) {
-    revealInViewports(node);
+  void _revealHandOff(FocusNode node, {double? origin}) {
+    revealInViewports(node, origin: origin);
     final motions = {
       for (final exit in _exits) exit.motion,
       ..._incoming.values,
@@ -2278,11 +2297,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return null;
   }
 
-  /// Reveals the item whose key node is [node] by [revealInViewports],
-  /// now and again in the frame its grow-in motion under [key] completes:
-  /// the item grows past the viewport's edge as it enters (E16).
-  void _revealReturned(FocusNode node, Key key) {
-    revealInViewports(node);
+  /// Reveals the item whose key node is [node] by [revealInViewports], from
+  /// [origin] when a reach gave it, now and again in the frame its grow-in
+  /// motion under [key] completes, by the plain edge rule: the item grows
+  /// past the viewport's edge as it enters (E16).
+  void _revealReturned(FocusNode node, Key key, {double? origin}) {
+    revealInViewports(node, origin: origin);
     final motion = _incoming[key];
     if (motion == null) return;
     void grown(AnimationStatus status) {
@@ -2394,7 +2414,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _endReach();
       // A parked item kept its State and the node that holds focus.
       if (!node.hasFocus) firstTabStopIn(node)?.requestFocus();
-      _revealReturned(node, key);
+      _revealReturned(node, key, origin: origin?.pixels);
       return;
     }
     final estimate = frames == 0 ? null : _estimateTowards(index.slot);
@@ -2469,6 +2489,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// [RenderAbstractViewport.getOffsetToReveal], so the estimate follows a
   /// reversed, horizontal, or right-to-left axis. Slots are the only
   /// geometry: the sliver keeps each slot's offset by its number.
+  ///
+  /// This is a probe, never a landing: it always moves to the edge, so
+  /// each retry forces a new layout pass that measures an unbuilt item's
+  /// real extent; [revealInViewports]'s own `origin` clamp does the least
+  /// scroll once a slot is actually built (D29, G5).
   ({ScrollPosition position, double offset})? _estimateTowards(int slot) {
     // A parked box keeps a stale slot and no layout offset: laid-out boxes
     // only (invariant 35).
@@ -2501,6 +2526,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       position.maxScrollExtent,
     );
     return (position: position, offset: offset);
+  }
+
+  /// The position of this list's own [Scrollable], from the sliver's own
+  /// context ([_listKey]), live with no item built (invariant 35), never
+  /// an item's: an item's context is gone exactly when this is needed.
+  ScrollPosition? get _scrollPosition {
+    final context = _listKey.currentContext;
+    return context == null ? null : Scrollable.maybeOf(context)?.position;
   }
 
   /// Books the jump of [_jumpForMove] toward [target] for the next frame's
@@ -2722,7 +2755,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         return;
       }
       _releasePark(key);
-      if (node.hasFocus) _revealReturned(node, key);
+      if (node.hasFocus) _revealReturned(node, key, origin: origin?.pixels);
       return;
     }
     // Focus the app moved in the same turn stays where the app put it.

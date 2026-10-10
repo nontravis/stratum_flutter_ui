@@ -432,7 +432,12 @@ void requestFocusInViewports(
 /// scrolls to its end inside a page whose top the row extends past would
 /// stay cut off. The group arrows, [firstTabStopIn], and the traversal of
 /// a focus group or a scroller's content group reveal through this.
-void revealInViewports(FocusNode target) {
+///
+/// With [origin], the level that reveals [target]'s own render object
+/// jumps to the offset nearest [origin] that shows it whole
+/// ([_jumpToLeastScroll]) in place of the edge rule; every outer level
+/// keeps the edge rule.
+void revealInViewports(FocusNode target, {double? origin}) {
   final context = target.context;
   final object = context?.findRenderObject();
   if (context == null || object == null || !object.attached) return;
@@ -449,17 +454,42 @@ void revealInViewports(FocusNode target) {
     scrollable = Scrollable.maybeOf(scrollable.context)
   ) {
     final reveal = _inViewportOf(shown, scrollable) ? shown : revealed;
-    final policy = _edgePolicy(target.rect, scrollable);
-    if (policy != null) {
-      scrollable.position.ensureVisible(
-        reveal,
-        alignmentPolicy: policy,
-        targetRenderObject: reveal == object ? null : object,
-      );
+    if (origin != null && reveal == object) {
+      _jumpToLeastScroll(object, scrollable, origin);
+    } else {
+      final policy = _edgePolicy(target.rect, scrollable);
+      if (policy != null) {
+        scrollable.position.ensureVisible(
+          reveal,
+          alignmentPolicy: policy,
+          targetRenderObject: reveal == object ? null : object,
+        );
+      }
     }
     revealed = reveal;
     shown = scrollable.context.findRenderObject();
   }
+}
+
+/// Jumps [scrollable] to the offset nearest [from] that shows [object]
+/// whole, from its viewport's offsets that align the object's leading and
+/// trailing edges (`getOffsetToReveal` at 0 and 1), clamped to the scroll
+/// extent; an object longer than the viewport takes its leading alignment.
+void _jumpToLeastScroll(
+  RenderObject object,
+  ScrollableState scrollable,
+  double from,
+) {
+  final viewport = RenderAbstractViewport.of(object);
+  final lead = viewport.getOffsetToReveal(object, 0).offset;
+  final trail = viewport.getOffsetToReveal(object, 1).offset;
+  final target = trail > lead ? lead : from.clamp(trail, lead);
+  final position = scrollable.position;
+  final offset = target.clamp(
+    position.minScrollExtent,
+    position.maxScrollExtent,
+  );
+  if (offset != position.pixels) position.jumpTo(offset);
 }
 
 /// Whether [object]'s nearest viewport lies below [scrollable].

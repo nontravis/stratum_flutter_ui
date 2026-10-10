@@ -1,6 +1,7 @@
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart'
-    show firstTabStopIn;
+    show firstTabStopIn, revealInViewports;
 import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
@@ -1229,6 +1230,44 @@ void main() {
         expect(firstTabStopIn(container), same(item));
         await tester.pump();
         expect(controller.offset, 310 - 200);
+      },
+    );
+  });
+
+  group('revealInViewports', () {
+    testWidgets(
+      'with an origin, lands the target at the offset nearest it that '
+      'shows it whole',
+      (tester) async {
+        final controller = _controller();
+        final boxes = _nodes(30);
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              height: 300,
+              child: ListView(
+                controller: controller,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+                children: [
+                  for (final node in boxes)
+                    Focus(focusNode: node, child: const SizedBox(height: 40)),
+                ],
+              ),
+            ),
+          ),
+        );
+        controller.jumpTo(0);
+        await tester.pump();
+
+        revealInViewports(boxes[20], origin: 0);
+        // Box 20's trailing edge, past the leading edge a plain reveal
+        // would pick: the least scroll from 0.
+        expect(controller.offset, 20 * 40 + 40 - 300);
+
+        revealInViewports(boxes[5], origin: 540);
+        // Box 5's leading edge, past its trailing edge: the least scroll
+        // from 540.
+        expect(controller.offset, 200);
       },
     );
   });

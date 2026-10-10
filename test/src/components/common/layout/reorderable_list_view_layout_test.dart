@@ -6533,9 +6533,10 @@ void main() {
         await tester.pumpAndSettle();
 
         // The 200 px average still puts slot 23 at 4600, so each jump of the
-        // reach lands where the key's jump did and the reach gives up: the
-        // list's next move is back to 4000, and item 23, now in the slot
-        // item 22 left, takes focus.
+        // reach, a probe that always moves to the plain edge, lands where
+        // the key's jump did and the reach gives up: the list's next move
+        // is back to 4000, and item 23, now in the slot item 22 left,
+        // takes focus.
         expect(moves.take(2), [4600, 4000]);
         expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 23');
       },
@@ -6576,6 +6577,115 @@ void main() {
         expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 112');
       },
       variant: laterCall,
+    );
+
+    testWidgets(
+      'us11/fr03/e09 and s03/inv32: Alt+Down from item 113 at 4000 lands '
+      'item 114 at the bottom edge',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 1000),
+        );
+        await _focusItem(tester, 113);
+
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+
+        // Slot 114's 40 px average puts its leading edge at 4560; the
+        // least scroll landing from below stops at the trailing edge.
+        expect(position.pixels, 4300);
+        expect(_builtInView(tester, 113), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04 and s03/inv32: a moveItem far down lands the item at '
+      'the bottom edge',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 1000,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 150);
+        await tester.pumpAndSettle();
+
+        // Slot 150's 40 px average puts its leading edge at 6000, the
+        // probe's landing; the landing reveal clamps to the least scroll
+        // from 4000, the trailing edge, 5740, and the item's own grow-in
+        // reveal, once settled, corrects the estimate by one more 40 px
+        // step.
+        expect(position.pixels, 5780);
+      },
+    );
+
+    // The same three landings, run over a list whose items from id 110 on
+    // are 60 px: Alt+Down from item 113, a far moveItem of item 100, and
+    // an insertItem that shifts item 107 past the laid-out slots (D29, G5).
+    final tallerScenes = ValueVariant<String>({
+      'Alt+Down',
+      'moveItem',
+      'insertItem',
+    });
+    testWidgets(
+      'us11/fr05/e04 and s03/inv32: with taller items past the built ones, '
+      'the landing still ends at the bottom edge',
+      (tester) async {
+        final heights = {for (var id = 110; id < 1000; id++) id: 60.0};
+        late int id;
+        switch (tallerScenes.currentValue) {
+          case 'Alt+Down':
+            id = 113;
+            // Item 113's own top, 4580, sits just inside the cache past
+            // the taller items from 110 on; item 114's, 4640, sits just
+            // past it, unbuilt.
+            await _pumpScrolled(
+              tester,
+              _Harness(count: 1000, heights: heights),
+              offset: 4070,
+            );
+            await _focusItem(tester, id);
+            await _alt(tester, LogicalKeyboardKey.arrowDown);
+          case 'moveItem':
+            id = 100;
+            await _pumpScrolled(
+              tester,
+              _Harness(
+                count: 1000,
+                heights: heights,
+                itemsController: StratumReorderableItemsController(),
+              ),
+            );
+            await _focusItem(tester, id);
+            _harness(tester).move(100, 150);
+            await tester.pumpAndSettle();
+          default:
+            id = 107;
+            await _pumpScrolled(
+              tester,
+              _Harness(
+                count: 1000,
+                heights: heights,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(0),
+                itemsController: StratumReorderableItemsController(),
+              ),
+              offset: 4020,
+            );
+            await _focusItem(tester, id);
+            _harness(tester).insert(0, 5000);
+            await tester.pumpAndSettle();
+        }
+
+        final bottom = tester.getBottomLeft(find.byKey(ValueKey(id))).dy;
+        final viewBottom = tester.getBottomLeft(find.byType(Scrollable)).dy;
+        expect(bottom, viewBottom);
+        expect(_itemInView(tester, id), isTrue);
+      },
+      variant: tallerScenes,
     );
   });
 
@@ -6894,8 +7004,9 @@ void main() {
 
         // Item 101's own jump stays, at its own estimate: the frame never
         // reverts to item 100's origin of 4000, which would scroll item
-        // 101 back off screen.
-        expect(position.pixels, 6400.0);
+        // 101 back off screen. Its own grow-in reveal, mid-animation by
+        // this one pump, already corrects the estimate by 20 px.
+        expect(position.pixels, 6160.0);
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(other));
         expect(_statesOf(tester, 101), contains(otherState));
@@ -6931,8 +7042,8 @@ void main() {
         await tester.pump();
 
         // Item 101's jump is skipped, since the app took its focus; item
-        // 100's runs toward index 149, where item 101's move from before it
-        // left it, by the 40 px average.
+        // 100's probe runs toward index 149, where item 101's move from
+        // before it left it, by the 40 px average.
         expect(position.pixels, 149 * 40.0);
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(a));
@@ -6973,8 +7084,8 @@ void main() {
         expect(position.pixels, 4000);
         await tester.pump();
 
-        // Only item 101's jump runs, toward index 159, where item 102's move
-        // from before it left it, by the 40 px average.
+        // Only item 101's probe jump runs, toward index 159, where item
+        // 102's move from before it left it, by the 40 px average.
         expect(position.pixels, 159 * 40.0);
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(b));
@@ -8092,9 +8203,10 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr05/e04: the scroll offset read right after a far moveItem has '
-      "not moved; it moves at the next frame's start, before that frame "
-      'builds',
+      'us11/fr05/e04 and s03/inv32: the scroll offset read right after a '
+      "far moveItem has not moved; the probe moves it at the next frame's "
+      'start, before that frame builds, and the landing reveal then '
+      'corrects it to the least scroll in the same frame',
       (tester) async {
         double? atBuild;
         var armed = false;
@@ -8118,8 +8230,14 @@ void main() {
         expect(position.pixels, 4000);
         await tester.pump();
 
-        expect(atBuild, isNot(4000));
-        expect(atBuild, position.pixels);
+        // The probe's plain-edge jump moves the list before the frame
+        // builds slot 150, landing at its leading edge, 6000 (D29, G5): the
+        // build sees it there, not at 4000. The landing reveal then runs,
+        // in the same frame, clamping to the least scroll from 4000, the
+        // trailing edge, so by the time this line reads it the offset has
+        // moved again, past where the build saw it.
+        expect(atBuild, 6000.0);
+        expect(position.pixels, 5760.0);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         expect(_builtInView(tester, 100), isTrue);
@@ -9967,6 +10085,9 @@ void main() {
         expect(_statesOf(tester, id), [same(state)]);
         expect(FocusManager.instance.primaryFocus, same(state.node));
         expect(_builtInView(tester, id), isTrue);
+        // Slot 108's 40 px average puts its leading edge at 4320; the least
+        // scroll landing from below stops at the trailing edge instead.
+        if (call == 'insertItem') expect(position.pixels, 4060);
       },
       variant: shiftedOut,
     );
