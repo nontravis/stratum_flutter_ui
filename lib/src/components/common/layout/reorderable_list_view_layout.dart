@@ -780,6 +780,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (built != null) _endExitsBeside(built);
     final box = node?.context?.findRenderObject();
     final size = box is RenderBox && box.hasSize ? box.size : null;
+    // A key an earlier call this turn already booked a jump for sits among
+    // [_moveTargets] at [from]: this call moves it again, so its target
+    // follows it to [to] (D8), instead of `_shiftForRemove`'s ordinary
+    // "taken out" null below.
+    final reaimed = _moveTargets
+        .where((target) => target.index == from)
+        .toList(growable: false);
     _shiftForRemove(from);
     // A remove while the insert side below reads the data without the
     // item, then one move entry.
@@ -794,6 +801,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _joinGap(from, [_startClosingGap(from, key, size)]);
     }
     _shiftForInsert(to);
+    // `_shiftForRemove` above left each reaimed target's index null, the
+    // "taken out" case; this call re-inserts the same key at [to], so the
+    // target follows it there instead (D8).
+    for (final target in reaimed) {
+      target.index = to;
+    }
     _pending.last = (from: from, to: to, reported: false);
     _dataCount += 1;
     final motion = _newMotion(value: 0);
@@ -3039,7 +3052,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     if (incoming == null && before.isEmpty && after.isEmpty) return body;
     if (incoming != null) {
-      body = _transition(context, incoming.curved, body);
+      body = _transition(context, incoming.curved, body, subject: key);
     }
     final slotted = KeyedSubtree(
       key: const ValueKey<String>('item'),
@@ -3100,6 +3113,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       );
     }
     final look = exit.builder?.call(context) ?? exit.look;
+    // The leaving item's own subtree, when it moves here under its global
+    // key: it lands in semantics first (R1).
+    final subject = exit.keepsState ? exit.subKey : null;
     Widget item = KeyedSubtree(
       key: exit.keepsState
           ? _ReorderItemKey(exit.subKey, this)
@@ -3122,8 +3138,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       // screen-reader node (E05), nor does a caller transition around it.
       child: IgnorePointer(
         child: ExcludeFocus(
-          child: ExcludeSemantics(
-            child: _transition(context, exit.motion.curved, item),
+          child: _Landing(
+            subject: subject,
+            builder: (landed) => ExcludeSemantics(
+              excluding: landed,
+              child: _transition(
+                context,
+                exit.motion.curved,
+                item,
+                subject: subject,
+              ),
+            ),
           ),
         ),
       ),
@@ -3137,14 +3162,26 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// jumps and the fade keeps its full duration (E01, E11). A caller
   /// `itemTransitionBuilder` replaces all of it and gets [animation]
   /// unchanged (E02).
+  ///
+  /// [subject] is the item's key when [child] holds the item's subtree
+  /// under its global key: the built-in fade keeps it in semantics in the
+  /// frame it lands, at any opacity (R1, [_Landing]).
   Widget _transition(
     BuildContext context,
     Animation<double> animation,
-    Widget child,
-  ) {
+    Widget child, {
+    Key? subject,
+  }) {
     final builder = _layout.itemTransitionBuilder;
     if (builder != null) return builder(context, animation, child);
-    final fade = FadeTransition(opacity: animation, child: _stretched(child));
+    final fade = _Landing(
+      subject: subject,
+      builder: (landed) => FadeTransition(
+        opacity: animation,
+        alwaysIncludeSemantics: !landed,
+        child: _stretched(child),
+      ),
+    );
     if (_fixedExtent || context.reducesMotion) return fade;
     return SizeTransition(
       axis: _layout.scrollDirection,
@@ -3703,6 +3740,69 @@ class _LiftedItemState extends State<_LiftedItem> {
       child: widget.child,
     );
   }
+}
+
+// WORKAROUND: `RenderObject.dropChild` keeps the old semantics parent on a
+// subtree that moves under its global key (flutter/flutter#193706); a
+// semantics boundary inside it then measures against that detached parent
+// and trips `object.dart:6723`. `_Landing` lands the subtree in semantics
+// for one frame before the caller hides it, so the semantics walk that
+// refreshes the stale parent always runs. Flutter PR #193710 fixes the SDK
+// side; remove `_Landing` and its two call sites once the floor carries it.
+/// Builds a wrapper that hides an item's subtree from semantics so that the
+/// subtree stays in semantics in the frame it lands under the wrapper, and
+/// hides from the next frame on (owner ruling R1, 2026-10-10).
+///
+/// A subtree that moves under its global key keeps the semantics parent of
+/// the place it left, and Flutter refreshes that parent only when a
+/// semantics walk reaches the subtree. Landing hidden, the walk never
+/// comes. The wrapper keeps one shape across both frames; only [builder]'s
+/// flag flips, so the subtree moves once.
+class _Landing extends StatefulWidget {
+  const new({required this.subject, required this.builder});
+
+  /// The key of the item whose subtree the wrapper holds under its global
+  /// key; a new subject lands again. Null holds no such subtree, so it
+  /// hides from the first frame.
+  final Key? subject;
+
+  /// The hiding wrapper; `landed` is false in the frame the subject lands.
+  final Widget Function(bool landed) builder;
+
+  @override
+  State<_Landing> createState() => _LandingState();
+}
+
+class _LandingState extends State<_Landing> {
+  late bool _landed = widget.subject == null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_landed) _landAfterFrame();
+  }
+
+  @override
+  void didUpdateWidget(_Landing oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.subject == oldWidget.subject) return;
+    _landed = widget.subject == null;
+    if (!_landed) _landAfterFrame();
+  }
+
+  /// Flips [_landed] after the frame that builds this State, unless a newer
+  /// subject lands first or the State is gone.
+  void _landAfterFrame() {
+    final subject = widget.subject;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_landed && widget.subject == subject) {
+        setState(() => _landed = true);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(_landed);
 }
 
 /// The key of a slot that shows removed items around an item, equal by the

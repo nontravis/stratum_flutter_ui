@@ -68,6 +68,8 @@ class _Harness extends StatefulWidget {
     this.moveAnnouncement,
     this.atStartAnnouncement,
     this.atEndAnnouncement,
+    this.boundaryAt,
+    this.boundary,
   });
 
   final int count;
@@ -151,6 +153,15 @@ class _Harness extends StatefulWidget {
 
   /// The list's `atEndAnnouncement`; null keeps the built-in text.
   final String? atEndAnnouncement;
+
+  /// The id of the item whose focusable content [boundary] wraps, so the
+  /// moved or removed subtree holds its own semantics boundary (FR-05 E04,
+  /// FR-04 E05).
+  final int? boundaryAt;
+
+  /// Wraps item [boundaryAt]'s focusable content in a nested semantics
+  /// boundary; null keeps the plain content.
+  final Widget Function(Widget child)? boundary;
 
   @override
   State<_Harness> createState() => _HarnessState();
@@ -283,6 +294,7 @@ class _HarnessState extends State<_Harness> {
           height: widget.heights?[ids[index]] ?? 40,
           keepAlive: widget.keepAliveIds?.contains(ids[index]) ?? false,
           plain: widget.plainIds?.contains(ids[index]) ?? false,
+          boundary: widget.boundaryAt == ids[index] ? widget.boundary : null,
         );
       },
     );
@@ -304,6 +316,7 @@ class _Item extends StatefulWidget {
     this.height = 40,
     this.keepAlive = false,
     this.plain = false,
+    this.boundary,
   });
 
   final int id;
@@ -330,6 +343,10 @@ class _Item extends StatefulWidget {
 
   /// Whether the item holds no focus node, only its label.
   final bool plain;
+
+  /// Wraps the item's focusable content in a nested semantics boundary, for
+  /// FR-05 E04 and FR-04 E05 pins; null keeps the plain content.
+  final Widget Function(Widget child)? boundary;
 
   @override
   State<_Item> createState() => _ItemState();
@@ -376,6 +393,15 @@ class _ItemState extends State<_Item> with AutomaticKeepAliveClientMixin {
             )
           : label,
     );
+    final boundary = widget.boundary;
+    // A plain RenderObject between the moved subtree's reparenting key and
+    // its semantics boundary, as the RCA probe's own SizedBox(key: id) ...
+    // boundary wrapper sits: `Semantics(container: true)` and
+    // `StratumInkWell` repro R1's bug only with one above them (fr05/e04,
+    // fr04/e05); a nested ListView's own RenderObjects stand in for it.
+    if (boundary != null) {
+      item = SizedBox(height: widget.height, child: boundary(item));
+    }
     if (widget.handle) {
       item = Row(
         children: [
@@ -725,6 +751,42 @@ void _sendPointer(WidgetTester tester, PointerEvent event) {
     source: TestBindingEventSource.test,
   );
 }
+
+/// Whether a node labeled [label] sits in the live semantics tree, walked
+/// from the root. `find.bySemanticsLabel` reads `RenderObject.debugSemantics`
+/// instead, which keeps a stale node once its subtree stops rebuilding
+/// (`ExcludeSemantics`), so it answers the landing frame only (FR-04 E05).
+bool _liveSemanticsLabel(WidgetTester tester, String label) {
+  var found = false;
+  bool visit(SemanticsNode node) {
+    if (node.label == label) found = true;
+    node.visitChildren(visit);
+    return true;
+  }
+
+  visit(
+    tester.binding.renderViews.first.owner!.semanticsOwner!.rootSemanticsNode!,
+  );
+  return found;
+}
+
+/// Wraps [child] in a nested horizontal [ListView], one child wide, so the
+/// moved or removed subtree holds its own semantics boundary (R1's base
+/// case: a `RenderViewportBase` sets `isSemanticBoundary`).
+Widget _nestedListBoundary(Widget child) => SizedBox(
+  width: 40,
+  height: 40,
+  child: ListView(scrollDirection: Axis.horizontal, children: [child]),
+);
+
+/// Wraps [child] in its own semantics boundary with no nested scrollable.
+Widget _semanticsContainerBoundary(Widget child) =>
+    Semantics(container: true, child: child);
+
+/// Wraps [child] in a tappable [StratumInkWell], which builds its own
+/// `Semantics(container: true)` (`ink_well.dart:575`).
+Widget _inkWellBoundary(Widget child) =>
+    StratumInkWell(onTap: () {}, child: child);
 
 void main() {
   void pointerTests() {
@@ -2456,8 +2518,8 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr04/e05: a leaving item takes no focus and has no screen-reader '
-      'node',
+      'us11/fr04/e05: a leaving item takes no focus and, once its removeItem '
+      'landing frame passes, has no screen-reader node',
       (tester) async {
         final handle = tester.ensureSemantics();
         final controller = StratumReorderableItemsController();
@@ -2471,13 +2533,21 @@ void main() {
 
         _harness(tester).remove(2);
         await tester.pump();
+        // The removeItem frame: R1 keeps the leaving item live so the
+        // semantics walk that refreshes its stale parent always runs.
+        expect(_liveSemanticsLabel(tester, '2'), isTrue);
+        await tester.pump(const Duration(milliseconds: 16));
+        // `find.bySemanticsLabel` would still match here: it reads a
+        // RenderObject's own cached node, which a subtree that stops
+        // rebuilding never refreshes. The live tree is the live answer.
+        expect(_liveSemanticsLabel(tester, '2'), isFalse);
         await tester.pump(const Duration(milliseconds: 100));
         final node = _itemState(tester, 2).node..requestFocus();
         await tester.pump();
 
         expect(node.hasFocus, isFalse);
         expect(find.text('2'), findsOneWidget);
-        expect(find.bySemanticsLabel('2'), findsNothing);
+        expect(_liveSemanticsLabel(tester, '2'), isFalse);
         await tester.pumpAndSettle();
         handle.dispose();
       },
@@ -7342,6 +7412,69 @@ void main() {
     );
   });
 
+  group(
+    'ReorderableListViewLayout two or more moveItem calls on one focused '
+    "key in one turn re-aim the move's jump (R4)",
+    () {
+      testWidgets(
+        'us11/fr05/e04: a second moveItem call on the key the first call '
+        "moved re-aims the frame-start jump to the second call's slot, "
+        "laid out in the move's own frame, with no reach a later frame "
+        'corrects',
+        (tester) async {
+          final position = await _pumpScrolled(
+            tester,
+            _Harness(
+              count: 200,
+              itemsController: StratumReorderableItemsController(),
+            ),
+          );
+          await _focusItem(tester, 100);
+
+          _harness(tester)
+            ..move(100, 150)
+            ..move(150, 160);
+          expect(position.pixels, 4000);
+          await tester.pump();
+
+          // The second call's own slot by the built items' average extent,
+          // not the first call's 150, and not left at 4000 for a later
+          // frame's reach to correct: a later move re-aims the booked
+          // target (D8), so the one frame-start jump already lands the
+          // item in view.
+          expect(position.pixels, 6160.0);
+          expect(_builtInView(tester, 100), isTrue);
+        },
+      );
+
+      testWidgets(
+        'us11/fr05/e04: a third moveItem call on the same key re-aims the '
+        "frame-start jump again, to the third call's slot, in the move's "
+        'own frame',
+        (tester) async {
+          final position = await _pumpScrolled(
+            tester,
+            _Harness(
+              count: 200,
+              itemsController: StratumReorderableItemsController(),
+            ),
+          );
+          await _focusItem(tester, 100);
+
+          _harness(tester)
+            ..move(100, 150)
+            ..move(150, 160)
+            ..move(160, 170);
+          expect(position.pixels, 4000);
+          await tester.pump();
+
+          expect(position.pixels, 6560.0);
+          expect(_builtInView(tester, 100), isTrue);
+        },
+      );
+    },
+  );
+
   void dragEndsTests() {
     testWidgets(
       'us11/fr04/e06: a second pointer that takes a long-press drag over '
@@ -9498,6 +9631,338 @@ void main() {
       },
       variant: keptAliveDragged,
     );
+  });
+
+  group('ReorderableListViewLayout reparents an item holding its own semantics '
+      'boundary into a hidden branch (R1)', () {
+    /// Pumps a 200-item [_Harness] whose item 100 wraps in [boundary],
+    /// scrolled to 4000 px, with item 100 focused unless [focus] is
+    /// false.
+    Future<void> pumpBoundary(
+      WidgetTester tester, {
+      required Widget Function(Widget child) boundary,
+      bool focus = true,
+      Widget Function(BuildContext, Animation<double>, Widget)?
+      itemTransitionBuilder,
+      Map<int, double>? heights,
+    }) async {
+      await tester.pumpWidget(
+        _app(
+          _Harness(
+            count: 200,
+            itemsController: StratumReorderableItemsController(),
+            boundaryAt: 100,
+            boundary: boundary,
+            itemTransitionBuilder: itemTransitionBuilder,
+            heights: heights,
+          ),
+        ),
+      );
+      tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .jumpTo(4000);
+      await tester.pump();
+      if (focus) await _focusItem(tester, 100);
+    }
+
+    testWidgets(
+      'us11/fr05/e04: a far move of an item whose first Tab stop sits in '
+      'a nested horizontal ListView lands in semantics with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(tester, boundary: _nestedListBoundary);
+
+        _harness(tester).move(100, 150);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: a near move of an item whose first Tab stop sits in '
+      'a nested horizontal ListView lands in semantics with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(tester, boundary: _nestedListBoundary);
+
+        _harness(tester).move(100, 103);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('us11/fr05/e04: a far move of an item under a nested '
+        'Semantics(container: true) lands in semantics with no assert', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpBoundary(tester, boundary: _semanticsContainerBoundary);
+
+      _harness(tester).move(100, 150);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
+
+    testWidgets(
+      'us11/fr05/e04: a far move of an item under a nested StratumInkWell '
+      'lands in semantics with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(tester, boundary: _inkWellBoundary);
+
+        _harness(tester).move(100, 150);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e05: removeItem of an item under a nested StratumInkWell '
+      'exits with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(tester, boundary: _inkWellBoundary, focus: false);
+
+        _harness(tester).remove(100);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e05: removeItem then insertItem of the same id, around an '
+      'item whose first Tab stop sits in a nested horizontal ListView, '
+      'exits with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(tester, boundary: _nestedListBoundary, focus: false);
+
+        _harness(tester).remove(100);
+        await tester.pump();
+        _harness(tester).insert(100, 100);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04: two moveItem calls on one key in one turn, around an '
+      'item whose first Tab stop sits in a nested horizontal ListView, land '
+      'it in semantics with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(tester, boundary: _nestedListBoundary);
+
+        _harness(tester)
+          ..move(100, 150)
+          ..move(150, 160);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids[160], 100);
+        handle.dispose();
+      },
+    );
+
+    // WORKAROUND: a far move whose slot the landing frame does not lay out
+    // parks the item in the sliver's keep-alive bucket, which semantics
+    // never visits, so R1's `_Landing` has no hidden branch it owns to flip
+    // (fix-1.findings.md, Root cause). This is R3's second stated limit
+    // beside the caller fade (ledger R3): it fails until Flutter ships
+    // flutter/flutter#193710; remove this tripwire once the floor carries
+    // that fix and this case joins the pins above instead.
+    testWidgets(
+      'us11/fr05/e04 limit: a far move whose jump misses the new slot, '
+      'past taller items, of an item whose first Tab stop sits in a '
+      'nested horizontal ListView, still asserts',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        // Items past 100 are three times as tall as the ones the list laid
+        // out, so the frame-start jump estimate falls short of slot 150 and
+        // the move's frame parks the item (D7).
+        await pumpBoundary(
+          tester,
+          boundary: _nestedListBoundary,
+          heights: {for (var id = 101; id < 200; id++) id: 120},
+        );
+
+        _harness(tester).move(100, 150);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isAssertionError);
+        handle.dispose();
+      },
+    );
+
+    // WORKAROUND: the same parked landing as above (R3), forced instead by
+    // the app holding the scroll at a fixed offset, so the move's own
+    // reveal springs back and the sliver keeps the item in its keep-alive
+    // bucket. It fails until Flutter ships flutter/flutter#193710; remove
+    // this tripwire once the floor carries that fix and this case joins
+    // the pins above instead.
+    testWidgets(
+      'us11/fr05/e04 limit: a far move while the app holds the scroll, of '
+      'an item whose first Tab stop sits in a nested horizontal ListView, '
+      'still asserts',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(tester, boundary: _nestedListBoundary);
+        final position = tester
+            .state<ScrollableState>(find.byType(Scrollable).first)
+            .position;
+        position.addListener(() {
+          if (position.pixels != 4000) position.jumpTo(4000);
+        });
+
+        _harness(tester).move(100, 150);
+        await tester.pump();
+
+        expect(tester.takeException(), isAssertionError);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04 and fr04/e05: moveItem then removeItem of one key in '
+      'one turn, around an item whose first Tab stop sits in a nested '
+      'horizontal ListView, leaves with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(tester, boundary: _nestedListBoundary);
+
+        _harness(tester)
+          ..move(100, 103)
+          ..remove(103);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids.contains(100), isFalse);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e05 and fr05/e04: removeItem of an item whose first Tab '
+      'stop sits in a nested horizontal ListView, then a far moveItem of '
+      'the neighbor it leaves beside, in one turn, settles with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(tester, boundary: _nestedListBoundary, focus: false);
+
+        // Item 100 leaves before item 101, which hosts its exit; the move
+        // of 101 ends the exits beside it (`_endExitsBeside`).
+        _harness(tester)
+          ..remove(100)
+          ..move(100, 150);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ids[150], 101);
+        handle.dispose();
+      },
+    );
+
+    final reducedOps = ValueVariant<String>({'far move', 'removeItem'});
+    testWidgets("NFR-U03, us11/fr05/e04 and fr04/e05: under the platform's "
+        'disableAnimations flag, an item whose first Tab stop sits in a '
+        'nested horizontal ListView lands in semantics with no assert', (
+      tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final handle = tester.ensureSemantics();
+      final move = reducedOps.currentValue == 'far move';
+      await pumpBoundary(tester, boundary: _nestedListBoundary, focus: move);
+
+      if (move) {
+        _harness(tester).move(100, 150);
+      } else {
+        _harness(tester).remove(100);
+      }
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    }, variant: reducedOps);
+
+    final midOps = ValueVariant<String>({'far move', 'removeItem'});
+    testWidgets(
+      'us11/fr05/e04 and fr04/e05: semantics that turns on after the '
+      'landing frame, mid-animation, finds an item whose first Tab stop '
+      'sits in a nested horizontal ListView with no assert',
+      semanticsEnabled: false,
+      (tester) async {
+        final move = midOps.currentValue == 'far move';
+        await pumpBoundary(tester, boundary: _nestedListBoundary, focus: move);
+
+        if (move) {
+          _harness(tester).move(100, 150);
+        } else {
+          _harness(tester).remove(100);
+        }
+        await tester.pump();
+        expect(tester.binding.renderViews.first.owner!.semanticsOwner, isNull);
+        final handle = tester.ensureSemantics();
+        await tester.pump(const Duration(milliseconds: 16));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+      variant: midOps,
+    );
+
+    // WORKAROUND: a caller `itemTransitionBuilder` that fades through 0
+    // hides the item below the point where R1's `_Landing` lands it, so
+    // R1 has no flag to flip for it. This is the stated limit (ledger
+    // "Requirement changes", Limit): it fails until Flutter ships
+    // flutter/flutter#193710; remove this tripwire once the floor carries
+    // that fix and the caller fade joins the pins above instead.
+    testWidgets('us11/fr04 and fr05 limit: a caller itemTransitionBuilder that '
+        'fades through 0, around an item holding its own semantics '
+        'boundary, still asserts', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpBoundary(
+        tester,
+        boundary: _nestedListBoundary,
+        itemTransitionBuilder: (context, animation, child) =>
+            FadeTransition(opacity: animation, child: child),
+      );
+
+      _harness(tester).move(100, 150);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isAssertionError);
+      handle.dispose();
+    });
   });
 
   group('ReorderableListViewLayout given findChildIndexCallback', () {
