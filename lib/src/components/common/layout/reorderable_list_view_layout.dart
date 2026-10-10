@@ -1213,7 +1213,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// [watched], that showed in the last frame ([_shownLastFrame]): booked
   /// as a raw move to the item's new index (D17), so the list keeps the
   /// item, jumps toward it at the next frame's start when its new slot is
-  /// not laid out, and reveals it, as it reveals a moved item (FR-05 E04).
+  /// not laid out, and reveals it, as it reveals a moved item (FR-05 E04),
+  /// in the list's own viewport only: whether it showed was read there,
+  /// and the viewports around the list are the app's (D28).
   /// An item with a move of its own running ([_focusOwned]), or one that
   /// did not show when the data changed (R36), books nothing. Returns
   /// whether it booked the follow.
@@ -1223,7 +1225,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       return false;
     }
     if (!shown) return false;
-    _bookRawMove(key, node, from: at, to: at);
+    _bookRawMove(key, node, from: at, to: at, listOnly: true);
     return true;
   }
 
@@ -1379,7 +1381,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// waits for the drag proxy to let it go ([_liftedFollow]). A shift that
   /// another item's raw move gives the item books the same way, and so does
   /// a call's shift of the focused item out of view, from [to] to [to]
-  /// ([_followShiftOutOfView]). The move
+  /// ([_followShiftOutOfView]), which reveals it with [listOnly]. The move
   /// re-aims a reach that looks for the item, as `moveItem` does, and an
   /// earlier move of the item reveals nothing (invariant 35).
   void _bookRawMove(
@@ -1387,6 +1389,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     FocusNode node, {
     required _DataIndex from,
     required _DataIndex to,
+    bool listOnly = false,
   }) {
     if (key == _reachKey) _stopReach();
     for (final target in _moveTargets) {
@@ -1398,7 +1401,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     } else if (key == _parkedKey) {
       _parkedAt = to;
     }
-    final target = _MoveTarget(to, key: key, gap: from < to ? from : from + 1);
+    final target = _MoveTarget(
+      to,
+      key: key,
+      gap: from < to ? from : from + 1,
+      listOnly: listOnly,
+    );
     _moveTargets.add(target);
     if (key == _liftedKey) {
       _liftedFollow = (target: target, node: node);
@@ -2161,7 +2169,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// the app moved to another node in the move's turn, a bare
   /// [FocusScopeNode] included, stays there instead (R13). An item still
   /// growing in before it pushes it past the edge it was revealed at, so
-  /// it is revealed again as each such grow-in ends (R10).
+  /// it is revealed again as each such grow-in ends (R10). A
+  /// [_MoveTarget.listOnly] move reveals in the list's own viewport only,
+  /// through the reach too.
   void _afterMove(_MoveTarget moved, {required bool byKey}) {
     _moveTargets.remove(moved);
     final index = moved.index;
@@ -2179,10 +2189,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (key != null) _releasePark(key);
     final noFocusOwnerElsewhere = FocusManager.instance.primaryFocus == null;
     if (byKey && noFocusOwnerElsewhere) firstTabStopIn(node)?.requestFocus();
-    revealInViewports(node, origin: moved.origin);
+    final listOnly = moved.listOnly;
+    revealInViewports(node, origin: moved.origin, nearestOnly: listOnly);
     for (final MapEntry(key: at, value: look) in _itemLooks.entries) {
       final motion = at < built ? _incoming[look.key] : null;
-      if (motion != null) _revealAfterGrowIn(node, motion, byKey: byKey);
+      if (motion == null) continue;
+      _revealAfterGrowIn(node, motion, byKey: byKey, listOnly: listOnly);
     }
   }
 
@@ -2201,17 +2213,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _releasePark(key);
       return;
     }
-    _startReach(at, key, gap, origin: moved.origin);
+    _startReach(at, key, gap, origin: moved.origin, listOnly: moved.listOnly);
   }
 
   /// Reveals the moved item whose key node is [node] again in the frame
   /// [motion], the grow-in of an item before it, completes (R10): after a
-  /// key move only while the item keeps focus, as E16's second reveal.
+  /// key move only while the item keeps focus, as E16's second reveal;
+  /// with [listOnly], in the list's own viewport only.
   /// Disposing [motion] before it completes drops the listener with it.
   void _revealAfterGrowIn(
     FocusNode node,
     _ItemMotion motion, {
     required bool byKey,
+    bool listOnly = false,
   }) {
     void grown(AnimationStatus status) {
       if (!status.isCompleted) return;
@@ -2220,7 +2234,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         // A FocusNode keeps its context once disposed: the item is live
         // only while its node is registered.
         if (!mounted || !_itemNodes.containsValue(node)) return;
-        if (!byKey || node.hasFocus) revealInViewports(node);
+        if (!byKey || node.hasFocus) {
+          revealInViewports(node, nearestOnly: listOnly);
+        }
       });
     }
 
@@ -2380,13 +2396,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// Reveals the item whose key node is [node] by [revealInViewports], from
   /// [origin] when a reach gave it, now and again in the frame its grow-in
   /// motion under [key] completes, by the plain edge rule: the item grows
-  /// past the viewport's edge as it enters (E16).
+  /// past the viewport's edge as it enters (E16). With [listOnly], only in
+  /// the list's own viewport.
   void _revealReturned(
     FocusNode node,
     Key key, {
     ({ScrollPosition position, double pixels})? origin,
+    bool listOnly = false,
   }) {
-    revealInViewports(node, origin: origin);
+    revealInViewports(node, origin: origin, nearestOnly: listOnly);
     final motion = _incoming[key];
     if (motion == null) return;
     void grown(AnimationStatus status) {
@@ -2394,7 +2412,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       motion.dropGrown();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _itemNodes.containsValue(node) && node.hasFocus) {
-          revealInViewports(node);
+          revealInViewports(node, nearestOnly: listOnly);
         }
       });
     }
@@ -2433,12 +2451,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// microtask, queued earlier in the frame, so the reach starts from the
   /// focus Flutter settled on, and only a later move ends it.
   /// [origin], when given, is the offset a failed reach returns to, in place
-  /// of the one before its own first jump (R5 for moves).
+  /// of the one before its own first jump (R5 for moves); [listOnly] reveals
+  /// the reached item in the list's own viewport only.
   void _startReach(
     _FrameIndex index,
     Key key,
     _DataIndex gap, {
     ({ScrollPosition position, double pixels})? origin,
+    bool listOnly = false,
   }) {
     final token = Object();
     final previous = _reachKey;
@@ -2448,7 +2468,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _reachKey = key;
     scheduleMicrotask(() {
       final settled = FocusManager.instance.primaryFocus;
-      _reach(token, index, key, settled, _reachFrames, origin);
+      _reach(
+        token,
+        index,
+        key,
+        settled,
+        _reachFrames,
+        origin,
+        listOnly: listOnly,
+      );
     });
   }
 
@@ -2473,15 +2501,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// a scope, ends the reach and keeps that focus. A slot that holds
   /// another key, or a slot not built after [frames] jumps, gives the
   /// reach up through [_giveUpReach]; [origin] is the list's offset before
-  /// the reach's first jump.
+  /// the reach's first jump. [listOnly] reveals in the list's own viewport
+  /// only.
   void _reach(
     Object token,
     _FrameIndex index,
     Key key,
     FocusNode? settled,
     int frames,
-    ({ScrollPosition position, double pixels})? origin,
-  ) {
+    ({ScrollPosition position, double pixels})? origin, {
+    bool listOnly = false,
+  }) {
     if (!mounted || _reachToken != token) return;
     final primary = FocusManager.instance.primaryFocus;
     if (primary != null && primary != settled && primary is! FocusScopeNode) {
@@ -2498,7 +2528,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _endReach();
       // A parked item kept its State and the node that holds focus.
       if (!node.hasFocus) firstTabStopIn(node)?.requestFocus();
-      _revealReturned(node, key, origin: origin);
+      _revealReturned(node, key, origin: origin, listOnly: listOnly);
       return;
     }
     final estimate = frames == 0 ? null : _estimateTowards(index.slot);
@@ -2514,7 +2544,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     position.jumpTo(estimate.offset);
     WidgetsBinding.instance
       ..addPostFrameCallback(
-        (_) => _reach(token, index, key, settled, frames - 1, start),
+        (_) => _reach(
+          token,
+          index,
+          key,
+          settled,
+          frames - 1,
+          start,
+          listOnly: listOnly,
+        ),
       )
       ..scheduleFrame();
   }
@@ -3876,7 +3914,7 @@ enum _MoveIntent { start, previous, next, end }
 /// put its item at, moved by each later call until the frame after the
 /// move reads it; null once a call takes the item out.
 class _MoveTarget {
-  new(this.index, {this.key, this.gap});
+  new(this.index, {this.key, this.gap, this.listOnly = false});
 
   _DataIndex? index;
 
@@ -3892,6 +3930,11 @@ class _MoveTarget {
   /// The offset before the move's jump, where a reach that gives up
   /// returns (R5). Set by the jump at the next frame's start.
   ({ScrollPosition position, double pixels})? origin;
+
+  /// Whether the move follows a call's shift of a focused item that showed
+  /// in the list's own viewport (D28): its reveal scrolls that viewport
+  /// only, never one of the app's around the list.
+  final bool listOnly;
 }
 
 /// A reorder key press, from its key-down through its repeats to its

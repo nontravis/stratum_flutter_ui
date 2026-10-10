@@ -475,9 +475,14 @@ void requestFocusInViewports(
 /// at every level that keeps the box around it alive, as for a field in a
 /// row inside an item scrolled away; every other level leaves it: its box
 /// paints nowhere until the next layout.
+///
+/// With [nearestOnly], only the nearest level, the viewport [target]
+/// answers to, scrolls: the viewports around it are the app's, as for a
+/// shown item a reorderable list follows after a call shifts it (D28).
 void revealInViewports(
   FocusNode target, {
   ({ScrollPosition position, double pixels})? origin,
+  bool nearestOnly = false,
 }) {
   final context = target.context;
   final object = context?.findRenderObject();
@@ -511,6 +516,7 @@ void revealInViewports(
         );
       }
     }
+    if (nearestOnly) return;
     revealed = reveal;
     shown = scrollable.context.findRenderObject();
   }

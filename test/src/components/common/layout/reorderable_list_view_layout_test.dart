@@ -8863,6 +8863,68 @@ void main() {
       },
     );
 
+    // Whether the list gets the app index, and the call that shifts.
+    final outerShifts = ValueVariant<({bool appIndex, String call})>({
+      for (final appIndex in [false, true])
+        for (final call in ['insertItem', 'removeItem'])
+          (appIndex: appIndex, call: call),
+    });
+    testWidgets(
+      's03/inv35 and us11/fr03/e11: a call that shifts a shown focused item '
+      'that stays whole scrolls neither the list nor the page the app '
+      'scrolled the list out of',
+      (tester) async {
+        final (:appIndex, :call) = outerShifts.currentValue!;
+        await tester.pumpWidget(
+          _app(
+            SingleChildScrollView(
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 200,
+                    child: _Harness(
+                      count: 20,
+                      appIndex: appIndex,
+                      itemsController: StratumReorderableItemsController(),
+                    ),
+                  ),
+                  const SizedBox(height: 1000),
+                ],
+              ),
+            ),
+          ),
+        );
+        final state = _itemState(tester, 3);
+        await _focusItem(tester, 3);
+        final scrollables = find.byType(Scrollable);
+        final page = tester.state<ScrollableState>(scrollables.first).position
+          ..jumpTo(800);
+        await tester.pump();
+        final list = tester
+            .state<ScrollableState>(
+              find.byType(Scrollable, skipOffstage: false).at(1),
+            )
+            .position;
+        final pages = <double>[];
+        page.addListener(() => pages.add(page.pixels));
+
+        if (call == 'insertItem') {
+          _harness(tester).insert(0, 99);
+        } else {
+          _harness(tester).remove(0);
+        }
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 3), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(pages, isEmpty);
+        expect(page.pixels, 800);
+        expect(list.pixels, 0);
+      },
+      variant: outerShifts,
+    );
+
     testWidgets(
       's03/inv35 and us11/fr05/e13: with the app index, a data move of a '
       'focused item laid out but not shown follows it silently',
