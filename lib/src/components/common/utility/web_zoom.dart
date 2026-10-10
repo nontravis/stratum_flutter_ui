@@ -15,7 +15,7 @@ import 'package:stratum_ui/src/src.dart';
 ///   limit about the viewport's center, at once under reduced motion; the
 ///   center stays fixed only as far as the app's bounds allow, as a pinch
 ///   does (R16).
-/// - It extends no component base, as [Slot] does.
+/// - It extends no component base, as [StratumSlot] does.
 class StratumWebZoom extends StatelessWidget {
   const new({
     super.key,

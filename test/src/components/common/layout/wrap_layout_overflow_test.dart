@@ -46,7 +46,7 @@ WrapLayout _wrap({
   int? maxRuns,
   int? maxChildren,
   Widget Function(BuildContext, int)? overflowBuilder = _more,
-  StratumFocusGroup? focusGroup,
+  FocusGroup? focusGroup,
   WidgetStyle? style,
   required List<Widget> children,
 }) {
@@ -368,7 +368,7 @@ void main() {
         expect(
           () => WrapLayout(
             maxRuns: 2,
-            scroll: const StratumScroll(),
+            scroll: const Scroll(),
             children: const [],
           ),
           _assertionNaming(names),
@@ -376,7 +376,7 @@ void main() {
         expect(
           () => WrapLayout(
             maxChildren: 3,
-            scroll: const StratumScroll(),
+            scroll: const Scroll(),
             children: const [],
           ),
           _assertionNaming(names),
@@ -384,7 +384,7 @@ void main() {
         expect(
           () => WrapLayout(
             overflowBuilder: _more,
-            scroll: const StratumScroll(),
+            scroll: const Scroll(),
             children: const [],
           ),
           _assertionNaming(names),
@@ -533,7 +533,7 @@ void main() {
           _host(
             _wrap(
               maxRuns: 2,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               style: const WidgetStyle(),
               children: _tags(12),
             ),
@@ -1361,7 +1361,7 @@ void main() {
               textDirection: textDirection,
               _wrap(
                 maxRuns: 2,
-                focusGroup: const StratumFocusGroup(),
+                focusGroup: const FocusGroup(),
                 overflowBuilder: _focusMore,
                 children: [
                   for (final (i, node) in nodes.indexed) _focusTag(i, node),
@@ -1389,7 +1389,7 @@ void main() {
           _host(
             _wrap(
               maxRuns: 2,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               overflowBuilder: _focusMore,
               children: [
                 for (final (i, node) in nodes.indexed) _focusTag(i, node),
@@ -1426,7 +1426,7 @@ void main() {
               runGap: 6,
               verticalDirection: VerticalDirection.up,
               maxRuns: 2,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               overflowBuilder: _focusMore,
               children: [
                 for (final (i, node) in nodes.indexed) _focusTag(i, node),

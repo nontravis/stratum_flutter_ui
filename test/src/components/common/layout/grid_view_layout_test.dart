@@ -3,9 +3,7 @@ import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
 
-const _delegate = SliverGridDelegateWithFixedCrossAxisCount(
-  crossAxisCount: 2,
-);
+const _delegate = SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2);
 
 Widget _item(BuildContext context, int index) {
   return SizedBox(key: ValueKey(index));
@@ -18,9 +16,11 @@ Widget _sized(Widget child) {
 List<Type> _physicsChain(WidgetTester tester) {
   final state = tester.state<ScrollableState>(find.byType(Scrollable).first);
   final chain = <Type>[];
-  for (ScrollPhysics? physics = state.position.physics;
-      physics != null;
-      physics = physics.parent) {
+  for (
+    ScrollPhysics? physics = state.position.physics;
+    physics != null;
+    physics = physics.parent
+  ) {
     chain.add(physics.runtimeType);
   }
   return chain;
@@ -32,7 +32,7 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           _sized(
-            GridViewLayout.builder(
+            const GridViewLayout.builder(
               gridDelegate: _delegate,
               itemCount: 4,
               itemBuilder: _item,
@@ -49,8 +49,8 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           _sized(
-            GridViewLayout.builder(
-              style: const WidgetStyle(padding: EdgeInsets.all(16)),
+            const GridViewLayout.builder(
+              style: WidgetStyle(padding: EdgeInsets.all(16)),
               gridDelegate: _delegate,
               itemCount: 4,
               itemBuilder: _item,
@@ -67,13 +67,14 @@ void main() {
       expect(box.style?.padding, isNull);
     });
 
-    testWidgets('applies the physics parameter on top of the theme',
-        (tester) async {
+    testWidgets('applies the physics parameter on top of the theme', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         themedHost(
           _sized(
-            GridViewLayout.builder(
-              physics: const NeverScrollableScrollPhysics(),
+            const GridViewLayout.builder(
+              physics: NeverScrollableScrollPhysics(),
               gridDelegate: _delegate,
               itemCount: 4,
               itemBuilder: _item,
@@ -87,12 +88,13 @@ void main() {
       expect(chain, contains(ClampingScrollPhysics));
     });
 
-    testWidgets('builds no overscroll indicator under the theme',
-        (tester) async {
+    testWidgets('builds no overscroll indicator under the theme', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         themedHost(
           _sized(
-            GridViewLayout.builder(
+            const GridViewLayout.builder(
               gridDelegate: _delegate,
               itemCount: 40,
               itemBuilder: _item,

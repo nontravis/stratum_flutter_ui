@@ -106,7 +106,7 @@ class StratumSplashScreen<T> extends StatefulWidget {
     this.exitDuration,
     this.exitCurve,
     this.themeMode = ThemeMode.system,
-    this.highContrast = HighContrastMode.system,
+    this.highContrast = StratumHighContrastMode.system,
     this.loadingLabel,
   });
 
@@ -176,7 +176,7 @@ class StratumSplashScreen<T> extends StatefulWidget {
 
   /// The high-contrast mode of the splash frames: pass the one the app
   /// gives its `StratumThemeApplication` (FR-07 E02).
-  final HighContrastMode highContrast;
+  final StratumHighContrastMode highContrast;
 
   /// What screen readers hear on every loading frame, the app's own frames
   /// included; null reads FO-09's built-in loading label in the platform

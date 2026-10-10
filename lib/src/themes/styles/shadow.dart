@@ -1,9 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
 
 class AppShadow {
-  const AppShadow({
-    this.baseColor = Colors.black,
-  });
+  const new({this.baseColor = Colors.black});
 
   final Color baseColor;
 

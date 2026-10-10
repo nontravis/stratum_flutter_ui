@@ -803,7 +803,7 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
 /// starts from the node's own place (R40, invariant 21): the policy does so
 /// for a move it runs itself, and [_PlaceFirstActions] for a Tab,
 /// Shift+Tab, or arrow from a node whose nearest group lies inside, such as
-/// a [StratumFocusGroup] in an item.
+/// a [FocusGroup] in an item.
 class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   new() : super(requestFocusCallback: requestFocusInViewports);
 
@@ -1003,7 +1003,7 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
 
 /// Runs [move] from [origin]'s own place as a scroller's content group
 /// does ([_ScrollContentPolicy._placeFirst]), for a stratum policy of a
-/// group that may sit inside an item, such as a [StratumFocusGroup]'s.
+/// group that may sit inside an item, such as a [FocusGroup]'s.
 bool placeOriginFirst(
   FocusNode origin,
   bool Function() move, {

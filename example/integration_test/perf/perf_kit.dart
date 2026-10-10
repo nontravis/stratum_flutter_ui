@@ -43,7 +43,7 @@ class CurrentKit implements PerfKit {
   }) {
     return RowLayout(
       style: style,
-      interaction: onTap == null ? null : StratumInteraction(onTap: onTap),
+      interaction: onTap == null ? null : Interaction(onTap: onTap),
       mainAxisAlignment: mainAxisAlignment,
       children: children,
     );
@@ -76,7 +76,7 @@ class CurrentKit implements PerfKit {
 /// each frozen file's header names: a tappable row is a
 /// `BaselineRowLayout` on `BaselineFlexLayout`, whose tap surface is
 /// `BaselineStratumInkWell` with its `BaselineFocusSpread` ring, and the
-/// shared `StratumInteraction`, which the focus border does not change.
+/// shared `Interaction`, which the focus border does not change.
 class BaselineKit implements PerfKit {
   const new();
 
@@ -89,7 +89,7 @@ class BaselineKit implements PerfKit {
   }) {
     return BaselineRowLayout(
       style: style,
-      interaction: onTap == null ? null : StratumInteraction(onTap: onTap),
+      interaction: onTap == null ? null : Interaction(onTap: onTap),
       mainAxisAlignment: mainAxisAlignment,
       children: children,
     );

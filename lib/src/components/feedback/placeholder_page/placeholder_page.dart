@@ -40,7 +40,7 @@ class StratumPlaceholderPage extends StatelessWidget {
     final message = this.message;
     return ColumnLayout(
       style: const WidgetStyle(width: double.infinity, height: double.infinity),
-      scroll: const StratumScroll(fillViewport: true),
+      scroll: const Scroll(fillViewport: true),
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [

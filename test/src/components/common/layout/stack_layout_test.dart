@@ -114,7 +114,7 @@ void main() {
             width: 100,
             height: 100,
             child: StackLayout(
-              scroll: StratumScroll(),
+              scroll: Scroll(),
               style: _style,
               children: [SizedBox(width: 20, height: 400)],
             ),

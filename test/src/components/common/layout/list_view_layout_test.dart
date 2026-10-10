@@ -35,7 +35,7 @@ List<Type> _physicsChain(WidgetTester tester) {
   return chain;
 }
 
-final _indicator = find.byWidgetPredicate(
+final Finder _indicator = find.byWidgetPredicate(
   (widget) =>
       widget is StretchingOverscrollIndicator ||
       widget is GlowingOverscrollIndicator,
@@ -105,7 +105,7 @@ class _KeptItemState extends State<_KeptItem>
       return Focus(focusNode: node, child: const SizedBox(height: 40));
     }
     return RowLayout(
-      focusGroup: const StratumFocusGroup(),
+      focusGroup: const FocusGroup(),
       children: [
         for (final each in [node, second])
           Focus(focusNode: each, child: const SizedBox(width: 40, height: 40)),
@@ -174,7 +174,9 @@ void main() {
     testWidgets('builds its items', (tester) async {
       await tester.pumpWidget(
         themedHost(
-          _sized(ListViewLayout.builder(itemCount: 3, itemBuilder: _item)),
+          _sized(
+            const ListViewLayout.builder(itemCount: 3, itemBuilder: _item),
+          ),
         ),
       );
 
@@ -184,7 +186,9 @@ void main() {
     testWidgets('builds no box without a style', (tester) async {
       await tester.pumpWidget(
         themedHost(
-          _sized(ListViewLayout.builder(itemCount: 3, itemBuilder: _item)),
+          _sized(
+            const ListViewLayout.builder(itemCount: 3, itemBuilder: _item),
+          ),
         ),
       );
 
@@ -197,8 +201,8 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           _sized(
-            ListViewLayout.builder(
-              style: const WidgetStyle(
+            const ListViewLayout.builder(
+              style: WidgetStyle(
                 padding: EdgeInsets.all(16),
                 backgroundColor: Color(0xFFFFFFFF),
               ),
@@ -233,8 +237,8 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           _sized(
-            ListViewLayout.builder(
-              style: const WidgetStyle(
+            const ListViewLayout.builder(
+              style: WidgetStyle(
                 borderRadius: BorderRadius.all(Radius.circular(12)),
               ),
               itemCount: 3,
@@ -263,8 +267,8 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           _sized(
-            ListViewLayout.builder(
-              physics: const NeverScrollableScrollPhysics(),
+            const ListViewLayout.builder(
+              physics: NeverScrollableScrollPhysics(),
               itemCount: 3,
               itemBuilder: _item,
             ),
@@ -280,7 +284,9 @@ void main() {
     testWidgets('reads the theme physics', (tester) async {
       await tester.pumpWidget(
         themedHost(
-          _sized(ListViewLayout.builder(itemCount: 3, itemBuilder: _item)),
+          _sized(
+            const ListViewLayout.builder(itemCount: 3, itemBuilder: _item),
+          ),
           theme: fakeStratumTheme(physics: const BouncingScrollPhysics()),
         ),
       );
@@ -293,7 +299,9 @@ void main() {
     ) async {
       await tester.pumpWidget(
         themedHost(
-          _sized(ListViewLayout.builder(itemCount: 50, itemBuilder: _item)),
+          _sized(
+            const ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
+          ),
         ),
       );
 
@@ -312,7 +320,10 @@ void main() {
               heard++;
               return false;
             },
-            child: ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
+            child: const ListViewLayout.builder(
+              itemCount: 50,
+              itemBuilder: _item,
+            ),
           ),
         ),
       );
@@ -327,7 +338,11 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           _sized(
-            ListViewLayout.builder(gap: 8, itemCount: 3, itemBuilder: _item),
+            const ListViewLayout.builder(
+              gap: 8,
+              itemCount: 3,
+              itemBuilder: _item,
+            ),
           ),
         ),
       );
@@ -341,7 +356,7 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           _sized(
-            ListViewLayout.builder(
+            const ListViewLayout.builder(
               scrollDirection: Axis.horizontal,
               gap: 8,
               itemCount: 3,
@@ -427,7 +442,7 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           _sized(
-            ListViewLayout.builder(
+            const ListViewLayout.builder(
               scrollCacheExtent: extent,
               itemCount: 3,
               itemBuilder: _item,
@@ -448,7 +463,7 @@ void main() {
               ListViewLayout.builder(
                 showScrollbar: false,
                 itemCount: 1,
-                itemBuilder: (context, index) => SizedBox(
+                itemBuilder: (context, index) => const SizedBox(
                   height: 200,
                   child: ListViewLayout.builder(
                     itemCount: 50,
@@ -475,7 +490,7 @@ void main() {
               ListViewLayout.builder(
                 showScrollbar: false,
                 itemCount: 1,
-                itemBuilder: (context, index) => SizedBox(
+                itemBuilder: (context, index) => const SizedBox(
                   height: 200,
                   child: ListViewLayout.builder(
                     itemCount: 50,

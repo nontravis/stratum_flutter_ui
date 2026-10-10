@@ -74,7 +74,7 @@ class _FocusDemoPageState extends State<_FocusDemoPage> {
     return RowLayout(
       mainAxisSize: MainAxisSize.min,
       gap: 8,
-      focusGroup: const StratumFocusGroup(),
+      focusGroup: const FocusGroup(),
       children: [
         for (var i = 1; i <= 5; i++)
           ContainerLayout(
@@ -85,7 +85,7 @@ class _FocusDemoPageState extends State<_FocusDemoPage> {
               backgroundColor: Color(0xFFE3E8F4),
               borderRadius: BorderRadius.all(Radius.circular(8)),
             ),
-            interaction: StratumInteraction(
+            interaction: Interaction(
               onTap: () => _report('$name: item $i activated.'),
             ),
             child: Text('$i'),
@@ -110,7 +110,7 @@ class _FocusDemoPageState extends State<_FocusDemoPage> {
       ),
       body: ColumnLayout(
         style: const WidgetStyle(padding: EdgeInsets.all(24)),
-        scroll: const StratumScroll(),
+        scroll: const Scroll(),
         crossAxisAlignment: CrossAxisAlignment.start,
         gap: 16,
         children: [
@@ -154,11 +154,11 @@ class _FocusDemoPageState extends State<_FocusDemoPage> {
                 backgroundColor: Color(0xFFF1F3F8),
                 borderRadius: BorderRadius.all(Radius.circular(12)),
               ),
-              interaction: StratumInteraction(
+              interaction: Interaction(
                 onTap: () => _report('Box tapped.'),
                 disabled: _boxDisabled,
               ),
-              scroll: const StratumScroll(),
+              scroll: const Scroll(),
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [for (var i = 1; i <= 30; i++) Text('Box line $i')],
             ),

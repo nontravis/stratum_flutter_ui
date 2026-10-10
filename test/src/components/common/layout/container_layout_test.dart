@@ -276,7 +276,7 @@ void main() {
       expect(
         () => ContainerLayout(
           fit: BoxFit.cover,
-          scroll: const StratumScroll(),
+          scroll: const Scroll(),
           child: const SizedBox(),
         ),
         throwsAssertionError,

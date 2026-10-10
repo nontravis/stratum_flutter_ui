@@ -6,19 +6,16 @@ part 'generated/image_blur_filter.freezed.dart';
 
 @freezed
 abstract class ImageBlurFilter with _$ImageBlurFilter {
-  const factory ImageBlurFilter({
+  const factory({
     @Default(0.0) double sigmaX,
     @Default(0.0) double sigmaY,
     TileMode? tileMode,
   }) = _ImageBlurFilter;
 
-  const ImageBlurFilter._();
+  const new _();
 
-  ImageFilter get blur => ImageFilter.blur(
-        sigmaX: sigmaX,
-        sigmaY: sigmaY,
-        tileMode: tileMode,
-      );
+  ImageFilter get blur =>
+      ImageFilter.blur(sigmaX: sigmaX, sigmaY: sigmaY, tileMode: tileMode);
 
   /// Interpolates the sigmas; a null side counts as sigma 0.
   ///

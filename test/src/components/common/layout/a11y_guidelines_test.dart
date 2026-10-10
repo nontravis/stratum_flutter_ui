@@ -14,7 +14,7 @@ Widget _row({double minHeight = 48, bool labeled = true}) {
       minHeight: minHeight,
       padding: const EdgeInsets.symmetric(horizontal: 16),
     ),
-    interaction: const StratumInteraction(onTap: _noop),
+    interaction: const Interaction(onTap: _noop),
     children: [
       if (labeled)
         const ColumnLayout(
