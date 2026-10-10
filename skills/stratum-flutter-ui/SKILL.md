@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
+description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom, StratumPlaceholderPage.
 ---
 
 # Stratum Flutter UI
@@ -498,3 +498,12 @@ scroll it, guarded so a text field inside keeps its own keys.
   Web: `onMessage`'s origin names the page that sent the message, even a URL page the view has moved away from, and
   `currentUrl()` reports the requested URL until the frame finishes loading it. On the web, load only content the app
   trusts on the app's own origin: such a page runs with the app's privileges.
+
+## Placeholder page
+
+- **`StratumPlaceholderPage`** — put `StratumPlaceholderPage()` in the body of a page whose screen is not built yet.
+  It fills the space it gets and shows the built-in title "Coming soon" (Thai "เร็วๆ นี้" for a Thai locale), centered.
+  `title` replaces that title, also for screen readers; `message` adds centered text below it; `icon` adds an icon
+  above it, sized 48 in the theme's secondary icon color and skipped by screen readers. The title reads as a heading.
+  It adds no app bar or back button: the app's own page and navigation carry them. Text wraps, and the page scrolls
+  when it is taller than its space.
