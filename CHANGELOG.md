@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Breaking: `AppBorder`, `AppShadow`, and `AppFilter` are removed, with no `@Deprecated` step, since no release has
+  shipped them. Border widths, shadows, and blurs now come from the theme file: read
+  `StratumTheme.of(context).border` (`StratumBorderTokens`: `sm`, `md`, `lg` as `double` widths, no longer `Border`
+  objects), `.shadow` (`StratumShadowTokens`, `level1` to `level6`, each a `List<BoxShadow>`), and `.blur`
+  (`StratumBlurTokens`, `level1` to `level6`, each an `ImageBlurFilter`). A blur's sigma is half its Figma radius, so
+  each blur is half as strong as the `AppFilter` step of the same number.
+- Breaking: `StratumThemeData.filter` and the `StratumTheme.filter` getter are renamed `blur`, and `StratumThemeData`
+  now takes `border`, `shadow`, and `blur` as required parameters with no built-in default.
+- Breaking: `StratumThemeData.screenBorderRadius`, its constructor and `copyWith` parameters, and the
+  `StratumTheme.screenBorderRadius` getter are removed; nothing read it, and Flutter gives no screen corner radius.
+- Breaking: the theme format `stratum-theme/v1.2.0` adds the `border`, `shadow`, and `blur` groups, and the package
+  default reads `v1.2.0`. This package reads every `v1.0`, `v1.1`, and `v1.2` theme; a package build that reads only
+  up to `v1.1` refuses a `v1.2` theme as `unsupported_schema`. A theme that leaves the three groups out takes the
+  package default's Figma values. The new problem code `expected_shadow` reports a `shadow` level that is not a list
+  of layers of exactly `x`, `y`, `blur`, `spread`, and `color`.
 - The empty `assets/fonts/` asset declaration is removed from `pubspec.yaml`; the package ships no font from it.
 - Breaking: the theme animation scale gains a sixth duration level, `micro`, first and shortest: 30 ms forward and
   19.2 ms back in the package default (its 64% `reverseDuration`), read as `StratumTheme.of(context).animation.micro`
