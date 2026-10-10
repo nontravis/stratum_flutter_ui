@@ -11317,6 +11317,69 @@ void main() {
       },
     );
 
+    // Where the text goes, and the two moves that land in one frame.
+    final frameMoves = ValueVariant<({bool live, String moves})>({
+      for (final live in [false, true])
+        for (final moves in ['two actions', 'a key and an action', 'two items'])
+          (live: live, moves: moves),
+    });
+    testWidgets('us11/fr06/e09 and s03/inv52: two moves that land in one frame '
+        'announce once, where the last one put its item', (tester) async {
+      final (:live, :moves) = frameMoves.currentValue!;
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _app(
+          Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(supportsAnnounce: !live),
+              child: const _Harness(count: 10),
+            ),
+          ),
+        ),
+      );
+      final log = _announcements(tester);
+
+      /// Performs the move action [label] on item [id] with no frame.
+      void act(int id, String label) {
+        final node = tester.getSemantics(find.byKey(ValueKey(id)));
+        node.owner!.performAction(
+          node.id,
+          SemanticsAction.customAction,
+          CustomSemanticsAction.getIdentifier(
+            CustomSemanticsAction(label: label),
+          ),
+        );
+      }
+
+      switch (moves) {
+        case 'two actions':
+          act(2, 'Move down');
+          act(2, 'Move down');
+        case 'a key and an action':
+          await _focusItem(tester, 2);
+          await _altNow(tester, LogicalKeyboardKey.arrowDown);
+          act(2, 'Move down');
+        default:
+          act(2, 'Move down');
+          act(6, 'Move down');
+      }
+      await tester.pumpAndSettle();
+
+      final last = moves == 'two items'
+          ? 'Moved to position 8 of 10'
+          : 'Moved to position 5 of 10';
+      final spoken = find.semantics.byLabel(RegExp('^Moved to position'));
+      if (live) {
+        expect(log, isEmpty);
+        expect(spoken, findsOne);
+        expect(spoken.evaluate().single.label, last);
+      } else {
+        expect(log, [last]);
+        expect(spoken, findsNothing);
+      }
+      handle.dispose();
+    }, variant: frameMoves);
+
     final appMoves = ValueVariant<String>({
       'moveItem',
       'data move',

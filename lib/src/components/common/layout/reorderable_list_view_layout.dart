@@ -521,6 +521,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// Whether [_handleKeyUp] listens to [HardwareKeyboard].
   var _hearsKeyUp = false;
 
+  /// The last move [_reportMove] reported, until the frame after it: moves
+  /// that land in one frame paint once, so only this one speaks, on every
+  /// path (R42).
+  _MoveTarget? _lastReported;
+
   ReorderableListViewLayout get _layout => widget.layout;
 
   @override
@@ -1739,10 +1744,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// Marks the press whose last move is [moved] as landed, once the frame
-  /// after that move has run, and announces what is ready.
-  void _landPress(_MoveTarget moved) {
-    for (final press in _presses) {
-      if (press.target == moved) press.landed = true;
+  /// after that move has run, and announces what is ready; a press whose
+  /// move a later one in the same frame outdid, [silent], speaks never.
+  void _landPress(_MoveTarget moved, {required bool silent}) {
+    if (silent) {
+      _presses.removeWhere((press) => press.target == moved);
+    } else {
+      for (final press in _presses) {
+        if (press.target == moved) press.landed = true;
+      }
     }
     _announcePresses();
   }
@@ -1849,7 +1859,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// report handler makes moves the target before the jump reads it. With
   /// [edgeJump] the jump goes to the edge [to] lies at. A screen-reader
   /// move or a drop is announced after that frame; a key move, [byKey],
-  /// once its press ends ([_pressMoved]). Returns the move's target.
+  /// once its press ends ([_pressMoved]); of the moves that land in one
+  /// frame, only the last ([_lastReported]). Returns the move's target.
   _MoveTarget _reportMove(
     _FrameIndex index,
     _DataIndex from,
@@ -1864,14 +1875,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _bookReportedMove(from, to);
     final moved = _targetFor(from, to, node, key);
     _moveTargets.add(moved);
+    _lastReported = moved;
     _layout.onReorderItem(from.value, to.value);
     final toStart = to == const _DataIndex(0);
     _readySlot(moved, node, edgeJump: edgeJump, toStart: toStart);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _afterMove(moved, byKey: byKey);
+      final last = moved == _lastReported;
+      if (last) _lastReported = null;
       if (byKey) {
-        _landPress(moved);
-      } else {
+        _landPress(moved, silent: !last);
+      } else if (last) {
         _announceMove(moved);
       }
     });
