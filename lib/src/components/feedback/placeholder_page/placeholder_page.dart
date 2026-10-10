@@ -7,19 +7,27 @@ import 'package:stratum_ui/src/src.dart';
 ///
 /// The title defaults to the built-in placeholder page title, in Thai for
 /// a Thai locale and in English otherwise. The text wraps, and the page
-/// scrolls when it is taller than its space.
+/// scrolls when it is taller than its space. The page fixes [icon]'s slot
+/// at [iconSize] whatever size the icon itself asks for; the theme's
+/// secondary icon color is only a default an icon with its own color
+/// overrides.
 class StratumPlaceholderPage extends StatelessWidget {
   const new({super.key, this.title, this.message, this.icon});
 
   /// Replaces the built-in placeholder page title, on screen and for a
-  /// screen reader.
+  /// screen reader; an empty string shows as given, not as the default —
+  /// pass null for the default title.
   final String? title;
 
-  /// Shown below the title only when passed; it has no built-in text.
+  /// Shown below the title only when passed; it has no built-in text. An
+  /// empty string shows as given, not as absent — pass null for no message.
   final String? message;
 
-  /// Shown above the title only when passed, at [iconSize] in the theme's
-  /// secondary icon color, and skipped by a screen reader.
+  /// Shown above the title only when passed, laid out at [iconSize]
+  /// whatever size [icon] itself asks for, and skipped by a screen reader.
+  ///
+  /// The page's secondary icon color is only a default: an [icon] that
+  /// sets its own `color` keeps it.
   final Widget? icon;
 
   /// The size the page gives [icon], whatever the text scale.
@@ -38,12 +46,16 @@ class StratumPlaceholderPage extends StatelessWidget {
       children: [
         if (icon != null) ...[
           ExcludeSemantics(
-            child: IconTheme.merge(
-              data: IconThemeData(
-                size: iconSize,
-                color: theme.color.icon.defaults.secondary,
+            child: ContainerLayout(
+              style: const WidgetStyle(width: iconSize, height: iconSize),
+              fit: BoxFit.contain,
+              child: IconTheme.merge(
+                data: IconThemeData(
+                  size: iconSize,
+                  color: theme.color.icon.defaults.secondary,
+                ),
+                child: icon,
               ),
-              child: icon,
             ),
           ),
           Space.gap(theme.space.md),

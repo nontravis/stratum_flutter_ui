@@ -192,6 +192,41 @@ void main() {
       expect(find.bySemanticsLabel(_iconLabel), findsNothing);
       handle.dispose();
     });
+
+    testWidgets('us01/fr01/s03-6: a caller icon with its own size still '
+        'lays out at 48', (tester) async {
+      await tester.pumpWidget(
+        themedHost(
+          const StratumPlaceholderPage(
+            title: _title,
+            icon: Icon(Icons.construction, size: 96, semanticLabel: _iconLabel),
+          ),
+        ),
+      );
+      expect(tester.getRect(find.byType(Icon)).size, const Size(48, 48));
+    });
+
+    testWidgets('us01/fr01/e04: an unbroken token at twice the text size '
+        'wraps with no exception and the page scrolls', (tester) async {
+      final token = 'x' * 200;
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+          child: themedHost(
+            SizedBox(
+              width: 200,
+              height: 150,
+              child: _widget(title: _title, message: token),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final scroll = tester.state<ScrollableState>(
+        find.descendant(of: _page, matching: find.byType(Scrollable)),
+      );
+      expect(scroll.position.maxScrollExtent, greaterThan(0));
+    });
   });
 
   group('us01/fr02: a default title in English or Thai', () {
