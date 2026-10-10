@@ -8678,8 +8678,8 @@ void main() {
     );
 
     testWidgets(
-      's03/inv35: an insertItem that shifts the focused item, with no '
-      'reorder, books no move: the list does not scroll for the item',
+      's03/inv35 and us11/fr05/e13: an insertItem that shifts the shown '
+      'focused item into the cache band reveals it whole',
       (tester) async {
         final (state, position) = await pumpItem(
           tester,
@@ -8697,7 +8697,83 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(_statesOf(tester, 107), [same(state)]);
-        expect(position.pixels, 4000);
+        expect(position.pixels, 4060);
+        expect(_itemInView(tester, 107), isTrue);
+      },
+    );
+
+    testWidgets(
+      's03/inv35: with no app index, two inserts that shift a fully shown '
+      'focused item into the cache band reveal it',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            itemsController: StratumReorderableItemsController(),
+          ),
+          id: 106,
+        );
+        final focused = FocusManager.instance.primaryFocus;
+        expect(_itemInView(tester, 106), isTrue);
+
+        _harness(tester)
+          ..insert(101, 5000)
+          ..insert(101, 5001);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 106), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(position.pixels, 4060);
+      },
+    );
+
+    testWidgets(
+      's03/inv35 and us11/fr05/e13: with the app index, a data move of a '
+      'focused item laid out but not shown follows it silently',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          const _Harness(count: 1000, appIndex: true),
+        );
+        final focused = FocusManager.instance.primaryFocus;
+        position.jumpTo(4200);
+        await tester.pump();
+
+        _harness(tester).moveData(103, 100);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(position.pixels, 4200);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_builtInView(tester, 103), isFalse);
+      },
+    );
+
+    testWidgets(
+      's03/inv35: with no app index, a moveItem of another item past a '
+      'focused item laid out but not shown scrolls nothing',
+      (tester) async {
+        final (state, position) = await pumpItem(
+          tester,
+          _Harness(
+            count: 1000,
+            itemsController: StratumReorderableItemsController(),
+          ),
+        );
+        final focused = FocusManager.instance.primaryFocus;
+        position.jumpTo(4200);
+        await tester.pump();
+
+        _harness(tester).move(90, 120);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(position.pixels, 4200);
+        expect(_statesOf(tester, 103), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(focused));
       },
     );
 

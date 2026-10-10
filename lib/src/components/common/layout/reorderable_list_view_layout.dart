@@ -1168,46 +1168,54 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// Books a call's shift of the item that holds focus, among [watched],
-  /// into a slot the next frame does not lay out, with no app
-  /// `findChildIndexCallback`: from a laid-out slot, the list follows and
-  /// reveals it ([_followShiftOutOfView]); kept alive off screen (R29), its
-  /// element follows the call in place, mapped to its index after this
-  /// turn's calls, so its State and focus stay, with no jump and no reach
-  /// (R35). With the callback, [_bookRawMoves] books the first, and the
-  /// sliver's own answer for the key follows the second ([_appIndexOf]).
+  /// with no app `findChildIndexCallback`: shown in the last frame
+  /// ([_shownLastFrame]), the list follows and reveals it
+  /// ([_followShiftOutOfView]), whether or not the slot it enters is laid
+  /// out; not shown, kept alive off screen (R29), its element follows the
+  /// call in place when the slot it enters is laid out, else is mapped to
+  /// its index after this turn's calls, so its State and focus stay, with
+  /// no jump and no reach (R35). With the callback, [_bookRawMoves] books
+  /// the first, and the sliver's own answer for the key follows the second
+  /// ([_appIndexOf]).
   void _bookFocusedKey(List<_Watched> watched) {
     if (_layout.findChildIndexCallback != null) return;
     for (final focused in watched) {
-      final (:key, :at, :frame, node: _) = focused;
+      final (:key, :at, :frame, :shown, node: _) = focused;
       if (frame == null || at.value == frame.value) continue;
+      if (shown) {
+        _followShiftOutOfView(focused);
+        continue;
+      }
       if (_builtSlot(_enteredSlot(at))) continue;
-      if (_followShiftOutOfView(focused)) continue;
       _movedTo.putIfAbsent(key, () => at.value);
     }
   }
 
   /// Follows the shift this turn's calls gave the item that holds focus,
-  /// [watched], from a slot the last frame laid out to one the next frame
-  /// does not: booked as a raw move to the item's new index (D17), so the
-  /// list keeps the item, jumps toward it at the next frame's start, and
-  /// reveals it, as it reveals a moved item (FR-05 E04). An item with a move
-  /// of its own running ([_focusOwned]), or one not laid out when the data
-  /// changed (R36), books nothing. Returns whether it booked the follow.
+  /// [watched], that showed in the last frame ([_shownLastFrame]): booked
+  /// as a raw move to the item's new index (D17), so the list keeps the
+  /// item, jumps toward it at the next frame's start when its new slot is
+  /// not laid out, and reveals it, as it reveals a moved item (FR-05 E04).
+  /// An item with a move of its own running ([_focusOwned]), or one that
+  /// did not show when the data changed (R36), books nothing. Returns
+  /// whether it booked the follow.
   bool _followShiftOutOfView(_Watched watched) {
-    final (:key, :at, :node, :frame) = watched;
+    final (:key, :at, :node, :frame, :shown) = watched;
     if (frame == null || at.value == frame.value || _focusOwned(key)) {
       return false;
     }
-    if (!_builtSlot(frame.slot) || _builtSlot(_enteredSlot(at))) return false;
+    if (!shown) return false;
     _bookRawMove(key, node, from: at, to: at);
     return true;
   }
 
-  /// The keys a build follows by key, each with its key node and the index
-  /// of the current data this turn's calls put it at: the parked item, by
-  /// [_parkedAt]; the lifted item a raw move took, by its follow's target
-  /// ([_liftedFollow]); and the item that holds primary focus, by
-  /// [_dataIndexOf], with the frame index it drew at. The app's
+  /// The keys a build follows by key, each with its key node, the index of
+  /// the current data this turn's calls put it at, and, for the item that
+  /// holds primary focus, the frame index it drew at and whether its box
+  /// showed in the viewport then ([_shownLastFrame], read before this
+  /// frame's layout): the parked item, by [_parkedAt]; the lifted item a
+  /// raw move took, by its follow's target ([_liftedFollow]); and the item
+  /// that holds primary focus, by [_dataIndexOf]. The app's
   /// `findChildIndexCallback` answers for each of them ([_bookRawMoves]);
   /// with no callback, only a call can shift the focused item
   /// ([_bookFocusedKey]), so a turn with none watches nothing. Read before
@@ -1221,7 +1229,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final parkedNode = _parkedNode;
     final watched = <_Watched>[
       if (parkedKey != null && parkedAt != null && parkedNode != null)
-        (key: parkedKey, at: parkedAt, node: parkedNode, frame: null),
+        (
+          key: parkedKey,
+          at: parkedAt,
+          node: parkedNode,
+          frame: null,
+          shown: _shownLastFrame(parkedNode),
+        ),
     ];
     // Another item takes a lifted item's registration while the proxy
     // holds it, so the walk would miss the item a raw move took.
@@ -1230,7 +1244,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       final (key, at) = (target.key, target.index);
       if (key != null && at != null && key != parkedKey) {
         liftedKey = key;
-        watched.add((key: key, at: at, node: node, frame: null));
+        watched.add((
+          key: key,
+          at: at,
+          node: node,
+          frame: null,
+          shown: _shownLastFrame(node),
+        ));
       }
     }
     for (final MapEntry(key: index, value: node) in _itemNodes.entries) {
@@ -1238,9 +1258,48 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       if (key == null || key == parkedKey || !node.hasFocus) continue;
       if (key == liftedKey) continue;
       final at = _dataIndexOf(index);
-      if (at != null) watched.add((key: key, at: at, node: node, frame: index));
+      if (at != null) {
+        // The drag proxy's overlay sits outside the list's own Scrollable,
+        // so a lifted item's node reads no view to overlap: always shown,
+        // as the proxy keeps it on screen for the drag's whole run.
+        final shown = key == _liftedKey || _shownLastFrame(node);
+        watched.add((key: key, at: at, node: node, frame: index, shown: shown));
+      }
     }
     return watched;
+  }
+
+  /// Whether the box of the item whose key node is [node] showed inside
+  /// the list's own viewport in the last frame, by more than 0 px along
+  /// its axis (D28, invariant 35). A kept-alive box reads a NaN rect, and
+  /// a null context counts as not shown; so does one whose element the
+  /// drag proxy reparents between inactive and active in the same frame
+  /// (a GlobalKey move), which [FocusNode.rect] reads as a thrown error.
+  /// Outer viewports are the app's.
+  bool _shownLastFrame(FocusNode node) {
+    final context = node.context;
+    if (context == null || !context.mounted) return false;
+    Rect rect;
+    try {
+      rect = node.rect;
+      // [FocusNode.rect] asserts the element active in debug mode and
+      // throws from inside that assert when it is not, with no
+      // non-debug-only API that reads the same lifecycle state: debug
+      // mode is the only one this ever runs in, so the catch never masks
+      // a release-mode fault.
+      // ignore: avoid_catching_errors
+    } on FlutterError {
+      return false;
+    }
+    final view = Scrollable.maybeOf(context)?.context.findRenderObject();
+    if (!rect.isFinite || view is! RenderBox || !view.hasSize) return false;
+    final viewport = MatrixUtils.transformRect(
+      view.getTransformTo(null),
+      Offset.zero & view.size,
+    );
+    return _layout.scrollDirection == Axis.vertical
+        ? rect.top < viewport.bottom && rect.bottom > viewport.top
+        : rect.left < viewport.right && rect.right > viewport.left;
   }
 
   /// Asks the app where each [watched] key sits in its data: an answer that
@@ -1250,18 +1309,18 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// A null answer, or one past the data, books none; for the parked key it
   /// means the key left the data ([_releaseGone]).
   ///
-  /// The item that holds focus from a slot the last frame did not lay out,
-  /// kept alive off screen (R29), with no move of its own running
-  /// ([_focusOwned]), books no raw move: the sliver's own answer for its key
-  /// follows its shift or raw move in place, silently, with no park, jump,
-  /// or reach, and the next focus move or reorder key reveals it (R36). An
-  /// answer that confirms a call's shift of it out of view from a laid-out
-  /// slot follows it ([_followShiftOutOfView]).
+  /// The item that holds focus, that did not show when the data changed
+  /// ([_shownLastFrame]), kept alive off screen (R29), with no move of its
+  /// own running ([_focusOwned]), books no raw move: the sliver's own
+  /// answer for its key follows its shift or raw move in place, silently,
+  /// with no park, jump, or reach, and the next focus move or reorder key
+  /// reveals it (R36). An answer that confirms a call's shift of a shown
+  /// item out of view follows it ([_followShiftOutOfView]).
   void _bookRawMoves(List<_Watched> watched, Set<Key> known, Set<Key> dropped) {
     final app = _layout.findChildIndexCallback;
     if (app == null) return;
     for (final entry in watched) {
-      final (:key, :at, :node, :frame) = entry;
+      final (:key, :at, :node, :frame, :shown) = entry;
       if (known.contains(key)) continue;
       final answer = app(key);
       if (answer == null || answer < 0 || answer >= _dataCount) {
@@ -1274,7 +1333,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         _followShiftOutOfView(entry);
         continue;
       }
-      final offScreen = frame != null && !_builtSlot(frame.slot);
+      final offScreen = frame != null && !shown;
       if (offScreen && !rebooked && !_focusOwned(key)) continue;
       _bookRawMove(key, node, from: at, to: to);
     }
@@ -3672,13 +3731,15 @@ extension type const _FrameIndex(int value) {
 }
 
 /// A key a build follows by key, with its key node, the index of the
-/// current data the calls of the turn put it at, and, for the item that
-/// holds focus, the frame index the last build drew it at (invariant 35).
+/// current data the calls of the turn put it at, whether its box showed in
+/// the list's viewport in the last frame, and, for the item that holds
+/// focus, the frame index the last build drew it at (invariant 35).
 typedef _Watched = ({
   Key key,
   _DataIndex at,
   FocusNode node,
   _FrameIndex? frame,
+  bool shown,
 });
 
 /// An elapsed time past the end of every SDK reorder controller (250 ms):
