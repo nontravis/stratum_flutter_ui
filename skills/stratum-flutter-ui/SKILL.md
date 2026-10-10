@@ -243,8 +243,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   inner edge, for a box whose ring around it would leave the window), and per-ring `customColor`, `width`, and `gap`.
   Look: outside, 3 px in `border.subtle.blue` after a 2 px gap, only when focused; inside, `border.default.normal`
   on the inner edge, 3 px when hovered and 2 px when focused. It fades over the theme's `fast` level, shows at once
-  under reduced motion, and never changes the child's layout size. Its colors stay below the 3:1 contrast of WCAG
-  1.4.11 by design; pass `customColor` where an app needs that ratio.
+  under reduced motion, and never changes the child's layout size. Its colors stay below 3:1 by design in the light
+  and dark themes (WCAG 1.4.11), and both high-contrast themes give the outside ring 3:1 or more; pass `customColor`
+  where an app needs that ratio in light or dark.
 - **`StratumInkWell`** — the tap surface every `interaction` builds on. Its own hover and press overlay fades over
   the theme's `fast` level and snaps straight to its target color under reduced motion, same as the ring above it.
   `tapTargetSize` (default `StratumTapTargetSize.platform`) grows its layout and hit area to the platform minimum
