@@ -379,14 +379,7 @@ class StratumThemeController extends ChangeNotifier {
         for (final id in bundled)
           id: (sourceId: id, folder: 'assets/themes/$id'),
       },
-      StratumThemeSource(
-        id: _packageDefaultId,
-        folder: _packageDefaultFolder,
-        yaml: await assets.loadString(
-          '$_packageDefaultFolder/theme.yaml',
-          cache: false,
-        ),
-      ),
+      await _packageDefaultSource(assets),
       bundled.contains('default')
           ? StratumThemeSource(
               id: 'default',
@@ -440,6 +433,34 @@ class StratumThemeController extends ChangeNotifier {
     if (fellBack) controller._onThemeChanged?.call('default');
     return controller;
   }
+
+  /// The package's embedded default theme read alone, with neither the
+  /// app's `default` nor a start theme over it: the theme of the splash
+  /// screen's frames after a theme-phase failure (FO-03 US-12 FR-07 E01;
+  /// themes `s03_domain.md` invariant 29). [bundle] defaults to
+  /// [rootBundle]. Registers no font file and waits for no Google font.
+  @internal
+  static Future<StratumThemeSet> packageDefaultThemes({
+    AssetBundle? bundle,
+  }) async {
+    final source = await _packageDefaultSource(bundle ?? rootBundle);
+    return StratumThemeSet.fromConfig(
+      convertThemeConfig(await ThemeParse.run(source, const [])),
+    );
+  }
+
+  /// The package default theme file in [assets], the first layer of every
+  /// read.
+  static Future<StratumThemeSource> _packageDefaultSource(
+    AssetBundle assets,
+  ) async => StratumThemeSource(
+    id: _packageDefaultId,
+    folder: _packageDefaultFolder,
+    yaml: await assets.loadString(
+      '$_packageDefaultFolder/theme.yaml',
+      cache: false,
+    ),
+  );
 
   /// Reads the theme of [entry] merged over the package default and the
   /// app's `default`, registers its font files, waits for its Google
