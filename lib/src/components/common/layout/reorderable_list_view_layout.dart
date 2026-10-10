@@ -498,6 +498,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// that the platform reads even when its text repeats (invariant 52).
   var _liveCount = 0;
 
+  /// Each reorder key press whose move is not yet announced, in press
+  /// order: a press announces once, where its last move put the item, when
+  /// that move's frame has landed and the key is up, so a held key's repeat
+  /// moves speak once (R42).
+  final _presses = <_KeyPress>[];
+
+  /// Whether [_handleKeyUp] listens to [HardwareKeyboard].
+  var _hearsKeyUp = false;
+
   ReorderableListViewLayout get _layout => widget.layout;
 
   @override
@@ -538,6 +547,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   @override
   void dispose() {
     FocusManager.instance.removeListener(_holdFocusedFrame);
+    if (_hearsKeyUp) HardwareKeyboard.instance.removeHandler(_handleKeyUp);
     _layout.itemsController?._detach(this);
     _resetMotion();
     _holdNode.dispose();
@@ -1671,13 +1681,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (_dataCount < 2) return KeyEventResult.ignored;
     final target = _targetOf(from, intent);
     if (target == null) {
-      _announceBlocked(intent);
+      // A repeat of a held key is the same blocked attempt (R42).
+      if (event is KeyDownEvent) _announceBlocked(intent);
       return KeyEventResult.handled;
     }
     // A drag, or a drop still settling, ends first, as a call ends it
     // (invariant 28): the move changes the data under it.
     _cancelDrag();
-    _reportMove(
+    final moved = _reportMove(
       index,
       from,
       target,
@@ -1686,7 +1697,65 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       edgeJump: intent == _MoveIntent.start || intent == _MoveIntent.end,
       byKey: true,
     );
+    _pressMoved(event, moved);
     return KeyEventResult.handled;
+  }
+
+  /// Books [moved] as the last move of the press [event] belongs to: a
+  /// key-down starts a press, a repeat moves the open press of its key on
+  /// to [moved] (R42).
+  void _pressMoved(KeyEvent event, _MoveTarget moved) {
+    final key = event.physicalKey;
+    if (event is KeyRepeatEvent) {
+      for (final press in _presses) {
+        if (press.key != key || press.up) continue;
+        press
+          ..target = moved
+          ..landed = false;
+        return;
+      }
+    }
+    _presses.add(_KeyPress(key, moved));
+    if (_hearsKeyUp) return;
+    _hearsKeyUp = true;
+    HardwareKeyboard.instance.addHandler(_handleKeyUp);
+  }
+
+  /// Marks the press whose last move is [moved] as landed, once the frame
+  /// after that move has run, and announces what is ready.
+  void _landPress(_MoveTarget moved) {
+    for (final press in _presses) {
+      if (press.target == moved) press.landed = true;
+    }
+    _announcePresses();
+  }
+
+  /// Ends the open press of the key [event] lets go, wherever focus is,
+  /// and announces what is ready. Handles nothing.
+  bool _handleKeyUp(KeyEvent event) {
+    if (event is! KeyUpEvent) return false;
+    for (final press in _presses) {
+      if (press.key == event.physicalKey) press.up = true;
+    }
+    _announcePresses();
+    return false;
+  }
+
+  /// Announces, in press order, each press whose last move has landed and
+  /// whose key is up, and stops listening for key-ups once every press is
+  /// up.
+  void _announcePresses() {
+    final ready = [
+      for (final press in _presses)
+        if (press.landed && press.up) press,
+    ];
+    _presses.removeWhere(ready.contains);
+    for (final press in ready) {
+      _announceMove(press.target);
+    }
+    if (!_hearsKeyUp || _presses.any((press) => !press.up)) return;
+    _hearsKeyUp = false;
+    HardwareKeyboard.instance.removeHandler(_handleKeyUp);
   }
 
   /// The index of the app's data that [intent] moves the item at [from]
@@ -1761,8 +1830,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// target, reports it through `onReorderItem`, and only then books its
   /// jump for the next frame's start ([_readySlot]), so a call the app's
   /// report handler makes moves the target before the jump reads it. With
-  /// [edgeJump] the jump goes to the edge [to] lies at.
-  void _reportMove(
+  /// [edgeJump] the jump goes to the edge [to] lies at. A screen-reader
+  /// move or a drop is announced after that frame; a key move, [byKey],
+  /// once its press ends ([_pressMoved]). Returns the move's target.
+  _MoveTarget _reportMove(
     _FrameIndex index,
     _DataIndex from,
     _DataIndex to, {
@@ -1781,8 +1852,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _readySlot(moved, node, edgeJump: edgeJump, toStart: toStart);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _afterMove(moved, byKey: byKey);
-      _announceMove(moved);
+      if (byKey) {
+        _landPress(moved);
+      } else {
+        _announceMove(moved);
+      }
     });
+    return moved;
   }
 
   /// Announces where [moved] put its item, in the frame after the move,
@@ -3816,6 +3892,24 @@ class _MoveTarget {
   /// The offset before the move's jump, where a reach that gives up
   /// returns (R5). Set by the jump at the next frame's start.
   ({ScrollPosition position, double pixels})? origin;
+}
+
+/// A reorder key press, from its key-down through its repeats to its
+/// key-up: it announces once, where its last move put the item (R42).
+class _KeyPress {
+  new(this.key, this.target);
+
+  /// The key pressed, by its place on the keyboard, as its key-up names it.
+  final PhysicalKeyboardKey key;
+
+  /// The press's last move.
+  _MoveTarget target;
+
+  /// Whether the frame after [target]'s move has run.
+  bool landed = false;
+
+  /// Whether the key is up.
+  bool up = false;
 }
 
 /// The list's own scroll view: the body builds the widgets

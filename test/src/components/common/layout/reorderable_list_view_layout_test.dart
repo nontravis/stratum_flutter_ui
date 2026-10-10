@@ -11116,6 +11116,53 @@ void main() {
       variant: layouts,
     );
 
+    testWidgets('us11/fr06/e08 and s03/inv52: a reorder key held past an end '
+        'announces once, on its key-down', (tester) async {
+      await tester.pumpWidget(_app(const _Harness(count: 5)));
+      final log = _announcements(tester);
+      await _focusItem(tester, 0);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowUp);
+      for (var repeat = 0; repeat < 3; repeat += 1) {
+        await tester.pump(const Duration(milliseconds: 33));
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowUp);
+      }
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pumpAndSettle();
+
+      expect(log, ['Already at the start of the list']);
+      expect(_harness(tester).moves, isEmpty);
+    });
+
+    testWidgets(
+      'us11/fr06/e08 and s03/inv52: a reorder key held down announces once, '
+      'where the item ends, when the key is let go',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 10)));
+        final log = _announcements(tester);
+        await _focusItem(tester, 2);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        for (var repeat = 0; repeat < 3; repeat += 1) {
+          await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowDown);
+          await tester.pump();
+        }
+        // Each repeat moved the item, and the key is still down.
+        expect(_harness(tester).moves, [(2, 3), (3, 4), (4, 5), (5, 6)]);
+        expect(log, isEmpty);
+
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+        await tester.pumpAndSettle();
+
+        expect(log, ['Moved to position 7 of 10']);
+      },
+    );
+
     final appMoves = ValueVariant<String>({
       'moveItem',
       'data move',
