@@ -9,7 +9,8 @@
   (`StratumBlurTokens`, `level1` to `level6`, each an `ImageBlurFilter`). A blur's sigma is half its Figma radius, so
   each blur is half as strong as the `AppFilter` step of the same number.
 - Breaking: `StratumThemeData.filter` and the `StratumTheme.filter` getter are renamed `blur`, and `StratumThemeData`
-  now takes `border`, `shadow`, and `blur` as required parameters with no built-in default.
+  now takes `border`, `shadow`, and `blur` as required parameters with no built-in default, and `StratumThemeConfig`
+  takes `border`, `shadow`, and `blur` as required parameters, so a hand-built one passes them.
 - Breaking: `StratumThemeData.screenBorderRadius`, its constructor and `copyWith` parameters, and the
   `StratumTheme.screenBorderRadius` getter are removed; nothing read it, and Flutter gives no screen corner radius.
 - Breaking: the theme format `stratum-theme/v1.2.0` adds the `border`, `shadow`, and `blur` groups, and the package
