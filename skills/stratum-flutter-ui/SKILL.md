@@ -64,7 +64,8 @@ All six share one keyboard model (K4) through the internal `ScrollViewBox`: a `f
 web, macOS, Windows, and Linux) is one Tab stop whose arrows (50 px), Page Up/Page Down (0.8 viewport), Home, and End
 scroll it, guarded so a text field inside keeps its own keys. Any of them, focusable or not, brings a focused node it
 keeps alive off screen, such as a text field scrolled far away, back into view before a focus move from it: Tab,
-Shift+Tab, an arrow, or the app's own `nextFocus()`, `previousFocus()`, or `focusInDirection()`. Tab among the items
+Shift+Tab, an arrow, or the app's own `nextFocus()`, `previousFocus()`, or `focusInDirection()`, except a call on a
+node whose nearest traversal group is a `FocusTraversalGroup` the app adds with a policy of its own. Tab among the items
 of any of them follows reading order on every platform: an app's `FocusTraversalOrder` on the items does not reorder
 them, even under its own `OrderedTraversalPolicy` around the view; only a `FocusTraversalGroup` inside an item keeps its
 own order.

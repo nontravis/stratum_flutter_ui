@@ -813,7 +813,7 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
       return _placeFirst(
         currentNode,
         () => inDirection(currentNode, direction),
-        forward: _forward(direction),
+        forward: movesForward(direction),
       );
     }
     final enclosing = _enclosing(currentNode);
@@ -833,12 +833,6 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
     }
     return moved;
   }
-
-  /// Whether [direction] moves forward in reading order, which picks the
-  /// node that shows an origin still unplaced moves to ([_placeFirst]).
-  static bool _forward(TraversalDirection direction) =>
-      direction == TraversalDirection.down ||
-      direction == TraversalDirection.right;
 
   /// The node [scope] names as focused, through each nested scope it
   /// names to that scope's own focused node.
@@ -876,14 +870,19 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   /// kept alive off screen reads a NaN rect, so it is brought back first,
   /// by the nearest [ScrollContentBringBack], else by one jump; an origin
   /// the view still cannot place, as when the app holds the scroll, moves
-  /// to the first node that shows, the last when not [forward].
+  /// to the first node that shows, the last when not [forward]. An origin
+  /// under no scroll view moves at once.
   bool _placeFirst(
     FocusNode origin,
     bool Function() move, {
     required bool forward,
   }) {
     final context = origin.context;
-    if (context == null || origin.rect.isFinite) return move();
+    if (context == null ||
+        origin.rect.isFinite ||
+        Scrollable.maybeOf(context) == null) {
+      return move();
+    }
     final bringBack = ScrollContentBringBack.maybeOf(context) ?? _jumpBack;
     bringBack(origin, () {
       if (!origin.hasPrimaryFocus) return;
@@ -963,6 +962,21 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   }
 }
 
+/// Runs [move] from [origin]'s own place as a scroller's content group
+/// does ([_ScrollContentPolicy._placeFirst]), for a stratum policy of a
+/// group that may sit inside an item, such as a [StratumFocusGroup]'s.
+bool placeOriginFirst(
+  FocusNode origin,
+  bool Function() move, {
+  required bool forward,
+}) => ScrollFocus._contentPolicy._placeFirst(origin, move, forward: forward);
+
+/// Whether [direction] moves forward in reading order, which picks the node
+/// that shows an origin still unplaced moves to ([placeOriginFirst]).
+bool movesForward(TraversalDirection direction) =>
+    direction == TraversalDirection.down ||
+    direction == TraversalDirection.right;
+
 /// Binds Tab, Shift+Tab, and Flutter's arrows inside a content group, so a
 /// move from a node kept alive off screen waits for
 /// [_ScrollContentPolicy._placeFirst] even when a group inside owns the
@@ -986,7 +1000,7 @@ class _PlaceFirstActionsState extends State<_PlaceFirstActions> {
     ),
     DirectionalFocusIntent: _PlaceFirstTraversal<DirectionalFocusIntent>(
       this,
-      (intent) => _ScrollContentPolicy._forward(intent.direction),
+      (intent) => movesForward(intent.direction),
     ),
   };
 

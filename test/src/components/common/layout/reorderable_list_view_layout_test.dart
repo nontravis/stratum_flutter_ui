@@ -10802,10 +10802,15 @@ void main() {
       variant: groupMoves,
     );
 
+    // Where the item that holds the row stands when Tab is pressed.
+    final rowPlaces = ValueVariant<String>({
+      'in view',
+      'kept alive off screen',
+    });
     testWidgets(
       'us11/fr03/e11 and s03/inv21: Tab from a text field that a row inside '
-      'an item scrolled out of view brings the field back into the row, then '
-      'moves to the next field and shows it',
+      'an item scrolled out of view brings the item and then the field back, '
+      'then moves to the next field and shows it',
       (tester) async {
         final fields = [
           for (var index = 0; index < 100; index++)
@@ -10820,12 +10825,12 @@ void main() {
         await tester.pumpWidget(
           _app(
             ReorderableListViewLayout.builder(
-              itemCount: 5,
+              itemCount: 1000,
               onReorderItem: (from, to) {},
               itemBuilder: (context, index) => SizedBox(
                 key: ValueKey(index),
                 height: 40,
-                child: index == 0
+                child: index == 103
                     ? ListViewLayout.builder(
                         key: rowKey,
                         scrollDirection: Axis.horizontal,
@@ -10847,6 +10852,10 @@ void main() {
               matching: find.byType(Scrollable),
             )
             .first;
+        final listView = find.byType(Scrollable).first;
+        final list = tester.state<ScrollableState>(listView).position
+          ..jumpTo(4000);
+        await tester.pump();
         final row = tester.state<ScrollableState>(rowView).position
           ..jumpTo(1100);
         await tester.pump();
@@ -10854,6 +10863,10 @@ void main() {
         await tester.pump();
         row.jumpTo(3000);
         await tester.pump();
+        if (rowPlaces.currentValue == 'kept alive off screen') {
+          list.jumpTo(20000);
+          await tester.pump();
+        }
         expect(fields[30].rect.isFinite, isFalse);
 
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -10867,7 +10880,9 @@ void main() {
           ),
         );
         expect(tester.getRect(rowView).intersect(field), field);
+        expect(tester.getRect(listView).intersect(field), field);
       },
+      variant: rowPlaces,
     );
 
     final fallback = ValueVariant<String>({'route scope', 'outside'});

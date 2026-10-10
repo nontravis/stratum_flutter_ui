@@ -41,6 +41,27 @@ final _indicator = find.byWidgetPredicate(
       widget is GlowingOverscrollIndicator,
 );
 
+/// [child], kept alive when it leaves the built range.
+class _KeptBox extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeptBox> createState() => _KeptBoxState();
+}
+
+class _KeptBoxState extends State<_KeptBox> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 /// A 40 px item whose node is labeled `item <id>`; it keeps itself alive
 /// when it leaves the built range, unless [keepAlive] is false.
 class _KeptItem extends StatefulWidget {
@@ -546,11 +567,17 @@ void main() {
       },
     );
 
-    final groupMoves = ValueVariant<String>({'Tab', 'Shift+Tab'});
+    final groupMoves = ValueVariant<String>({
+      'Tab',
+      'Shift+Tab',
+      'nextFocus',
+      'previousFocus',
+      'focusInDirection down',
+    });
     testWidgets(
-      'us07/fr01/e07 and us07/fr01/e08: Tab or Shift+Tab from a focus group '
-      'inside a focused item kept alive off screen brings the item back, '
-      'then leaves the group for the item next in order',
+      'us07/fr01/e07 and us07/fr01/e08: a move from a focus group inside a '
+      'focused item kept alive off screen brings the item back, then leaves '
+      'the group for the item next in order',
       (tester) async {
         await tester.pumpWidget(
           app(
@@ -568,25 +595,109 @@ void main() {
           ),
         );
         await jump(tester, 4000);
-        tester
-            .state<_KeptItemState>(find.byKey(const ValueKey(103)))
-            .node
-            .requestFocus();
+        final node =
+            tester.state<_KeptItemState>(find.byKey(const ValueKey(103))).node
+              ..requestFocus();
         await tester.pump();
         await jump(tester, 20000);
 
-        final back = groupMoves.currentValue == 'Shift+Tab';
-        if (back) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-        if (back) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        final move = groupMoves.currentValue!;
+        switch (move) {
+          case 'Tab':
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          case 'Shift+Tab':
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+          case 'nextFocus':
+            node.nextFocus();
+          case 'previousFocus':
+            node.previousFocus();
+          default:
+            node.focusInDirection(TraversalDirection.down);
+        }
         await tester.pumpAndSettle();
 
-        final target = back ? 102 : 104;
+        final target = move == 'Shift+Tab' || move == 'previousFocus'
+            ? 102
+            : 104;
         expect(tester.takeException(), isNull);
         expect(FocusManager.instance.primaryFocus?.debugLabel, 'item $target');
         expect(showsWhole(tester, target), isTrue);
       },
       variant: groupMoves,
+    );
+
+    testWidgets(
+      'us07/fr01/e07: Tab from a text field that a row scrolled away, inside '
+      'an item kept alive off screen, brings back the item and then the '
+      'field, then moves to the next field and shows it',
+      (tester) async {
+        final fields = [
+          for (var index = 0; index < 100; index++)
+            FocusNode(debugLabel: 'field $index'),
+        ];
+        addTearDown(() {
+          for (final field in fields) {
+            field.dispose();
+          }
+        });
+        const rowKey = Key('row');
+        await tester.pumpWidget(
+          app(
+            ListViewLayout.builder(
+              itemCount: 1000,
+              itemBuilder: (context, index) => SizedBox(
+                key: ValueKey(index),
+                height: 40,
+                child: index == 103
+                    ? _KeptBox(
+                        child: ListViewLayout.builder(
+                          key: rowKey,
+                          scrollDirection: Axis.horizontal,
+                          itemCount: fields.length,
+                          itemBuilder: (context, field) => SizedBox(
+                            width: 40,
+                            child: TextField(focusNode: fields[field]),
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+          ),
+        );
+        // The row's own Scrollable, above the one each text field holds.
+        final rowView = find
+            .descendant(
+              of: find.byKey(rowKey),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        await jump(tester, 4000);
+        final row = tester.state<ScrollableState>(rowView).position
+          ..jumpTo(1100);
+        await tester.pump();
+        fields[30].requestFocus();
+        await tester.pump();
+        row.jumpTo(3000);
+        await tester.pump();
+        await jump(tester, 20000);
+        expect(fields[30].rect.isFinite, isFalse);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'field 31');
+        final field = tester.getRect(
+          find.byWidgetPredicate(
+            (widget) => widget is TextField && widget.focusNode == fields[31],
+          ),
+        );
+        expect(tester.getRect(rowView).intersect(field), field);
+        expect(tester.getRect(list).intersect(field), field);
+      },
     );
 
     testWidgets(

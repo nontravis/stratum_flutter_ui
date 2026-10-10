@@ -1,4 +1,7 @@
-import 'package:flutter/rendering.dart' show RenderAbstractViewport;
+import 'package:flutter/rendering.dart'
+    show KeepAliveParentDataMixin, RenderAbstractViewport;
+import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart'
+    show movesForward, placeOriginFirst;
 import 'package:stratum_ui/src/src.dart';
 
 /// Makes the focusable children of a [ColumnLayout], [RowLayout], or
@@ -354,12 +357,37 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
 /// in reading order, so Tab moves among them before it leaves the group.
 ///
 /// Tab, Shift+Tab, and Flutter's arrows from an item reveal the newly
-/// focused node by [requestFocusInViewports].
+/// focused node by [requestFocusInViewports]. A move from a node that a
+/// scroll view keeps alive off screen, the app's own `nextFocus()`,
+/// `previousFocus()`, or `focusInDirection()` too, first brings the node
+/// back ([placeOriginFirst]).
 class _FocusGroupPolicy extends ReadingOrderTraversalPolicy {
   new(this.lastFocused) : super(requestFocusCallback: requestFocusInViewports);
 
   /// The node inside the group that last held primary focus.
   final ValueGetter<FocusNode?> lastFocused;
+
+  @override
+  bool next(FocusNode currentNode) => placeOriginFirst(
+    currentNode,
+    () => super.next(currentNode),
+    forward: true,
+  );
+
+  @override
+  bool previous(FocusNode currentNode) => placeOriginFirst(
+    currentNode,
+    () => super.previous(currentNode),
+    forward: false,
+  );
+
+  @override
+  bool inDirection(FocusNode currentNode, TraversalDirection direction) =>
+      placeOriginFirst(
+        currentNode,
+        () => super.inDirection(currentNode, direction),
+        forward: movesForward(direction),
+      );
 
   @override
   Iterable<FocusNode> sortDescendants(
@@ -439,10 +467,11 @@ void requestFocusInViewports(
 /// every other level keeps the edge rule, so a target behind its own
 /// nested scrollable lands at the least scroll only where [origin] was
 /// read, never at the nested scrollable's edge. A target kept alive off
-/// screen, whose rect reads NaN, takes that jump at the level that
-/// reveals its own render object, from the current offset without
-/// [origin], and every outer level leaves it: its box paints nowhere
-/// until the next layout.
+/// screen, whose rect reads NaN, takes that jump, from the current offset
+/// without [origin], at the level that reveals its own render object and
+/// at every level that keeps the box around it alive, as for a field in a
+/// row inside an item scrolled away; every other level leaves it: its box
+/// paints nowhere until the next layout.
 void revealInViewports(
   FocusNode target, {
   ({ScrollPosition position, double pixels})? origin,
@@ -465,7 +494,8 @@ void revealInViewports(
   ) {
     final reveal = _inViewportOf(shown, scrollable) ? shown : revealed;
     final fromOrigin = origin != null && scrollable.position == origin.position;
-    if (fromOrigin || (kept && reveal == object)) {
+    if (fromOrigin ||
+        (kept && (reveal == object || _keptAliveIn(reveal, scrollable)))) {
       final from = fromOrigin ? origin.pixels : scrollable.position.pixels;
       _jumpToLeastScroll(reveal, scrollable, from);
     } else if (!kept) {
@@ -502,6 +532,22 @@ void _jumpToLeastScroll(
     position.maxScrollExtent,
   );
   if (offset != position.pixels) position.jumpTo(offset);
+}
+
+/// Whether [object] sits in a box that [scrollable]'s viewport keeps alive
+/// off screen, in the sliver's keep-alive bucket.
+bool _keptAliveIn(RenderObject object, ScrollableState scrollable) {
+  final top = scrollable.context.findRenderObject();
+  for (
+    RenderObject? node = object;
+    node != null && node != top;
+    node = node.parent
+  ) {
+    if (node.parentData case KeepAliveParentDataMixin(keptAlive: true)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /// Whether [object]'s nearest viewport lies below [scrollable].
