@@ -545,3 +545,10 @@ scroll it, guarded so a text field inside keeps its own keys.
   disable retry, since a retry during an ask does nothing. Your update button runs your own store or installer code;
   the gate takes no update callback. Each screen opens as a screen of its own: focus moves in, and a screen reader
   announces it. A tooltip or a text field works on it, since it sits in an overlay of the gate's own.
+- **The update dialog** — `UpdateGateAvailable` opens your dialog once per gate lifetime, as a route on your app's
+  navigator over the page it shows; a new launch may offer it again, since the package stores nothing. Draw its scrim
+  and card yourself: the route paints nothing and runs no transition. While it shows, taps, focus, and screen readers
+  stay away from the pages behind it, focus moves into it, and Tab stays inside it. The Android back button closes the
+  dialog alone, so the user stays on the page they were on, and Esc calls `dismiss`. Call `dismiss` from your later
+  button, and from a scrim tap if you want one. A later ask that answers up to date, or fails, closes it. The gate
+  needs a navigator below it, as `MaterialApp.builder` gives.

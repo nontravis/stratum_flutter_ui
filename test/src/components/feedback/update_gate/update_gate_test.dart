@@ -550,4 +550,584 @@ void main() {
       expect(taps, 1);
     });
   });
+
+  /// The Android back button, over `flutter/navigation`.
+  Future<void> systemBack(WidgetTester tester) async {
+    await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+      'flutter/navigation',
+      const JSONMessageCodec().encodeMessage(<String, Object?>{
+        'method': 'popRoute',
+      }),
+      (_) {},
+    );
+    await tester.pump();
+  }
+
+  /// Lets an answer open the dialog: the answer's frame shows the app, and
+  /// the route the gate pushes after that frame builds in the next one.
+  Future<void> dialogFrames(WidgetTester tester) async {
+    await tester.pump(Duration.zero);
+    await tester.pump();
+  }
+
+  /// Shows the dialog over the app: the first ask answers available.
+  Future<_Checker> available(
+    WidgetTester tester, {
+    _Builder builder = _screens,
+    VoidCallback? onBehind,
+  }) async {
+    final checker = _Checker();
+    await tester.pumpWidget(
+      _app(checker, builder: builder, onBehind: onBehind),
+    );
+    checker.answer(UpdateStatus.available);
+    await dialogFrames(tester);
+    return checker;
+  }
+
+  group('us02/fr01: offer the update once in a dialog', () {
+    testWidgets("us02/s1: available shows the app's dialog over the app", (
+      tester,
+    ) async {
+      await available(tester);
+      expect(find.text('Available'), findsOneWidget);
+      expect(find.text('Home'), findsOneWidget);
+    });
+
+    testWidgets('us02/fr01: the dialog is a route on the app navigator '
+        'that runs no transition', (tester) async {
+      await available(tester);
+      final route = ModalRoute.of(tester.element(find.text('Available')));
+      expect(route, isA<RawDialogRoute<void>>());
+      expect(route!.opaque, isFalse);
+      expect(route.barrierDismissible, isFalse);
+      expect(route.barrierColor, isNull);
+      expect(route.transitionDuration, Duration.zero);
+      expect(route.traversalEdgeBehavior, TraversalEdgeBehavior.closedLoop);
+      expect(
+        route.navigator,
+        same(Navigator.of(tester.element(find.text('Home')))),
+      );
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets("us02/fr01/e01: available again in the same gate's lifetime "
+        'shows no dialog', (tester) async {
+      final checker = await available(tester);
+      await tester.tap(find.text('Later'));
+      await tester.pump();
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      expect(find.text('Available'), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
+    });
+
+    testWidgets('us02/fr01/e02: a new gate offers the update again', (
+      tester,
+    ) async {
+      await available(tester);
+      await tester.tap(find.text('Later'));
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await available(tester);
+      expect(find.text('Available'), findsOneWidget);
+    });
+
+    testWidgets('us02/fr01/e03: three pages deep, Android back closes the '
+        'dialog alone and the page stays', (tester) async {
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker));
+      checker.answer(UpdateStatus.upToDate);
+      await tester.pumpAndSettle();
+      await _push(tester, 'Second');
+      Navigator.of(tester.element(find.text('Second'))).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Center(child: Text('Third'))),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      expect(find.text('Available'), findsOneWidget);
+      expect(find.text('Third'), findsOneWidget);
+      await systemBack(tester);
+      expect(find.text('Available'), findsNothing);
+      expect(find.text('Third'), findsOneWidget);
+      await systemBack(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('Second'), findsOneWidget);
+    });
+
+    testWidgets('us02/fr01/e03: under MaterialApp.router, Android back '
+        'closes the dialog alone and the page stays', (tester) async {
+      final checker = _Checker();
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: RouterConfig<Object>(
+            routerDelegate: _TwoPages(),
+            backButtonDispatcher: RootBackButtonDispatcher(),
+          ),
+          builder: (context, child) => StratumUpdateGate(
+            checker: checker,
+            builder: _screens,
+            child: child!,
+          ),
+        ),
+      );
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      expect(find.text('Available'), findsOneWidget);
+      expect(find.text('Second'), findsOneWidget);
+      await systemBack(tester);
+      expect(find.text('Available'), findsNothing);
+      expect(find.text('Second'), findsOneWidget);
+    });
+
+    testWidgets('us02/fr01/e03: later leaves the shown page as it was', (
+      tester,
+    ) async {
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker));
+      checker.answer(UpdateStatus.upToDate);
+      await tester.pumpAndSettle();
+      await _push(tester, 'Second');
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      expect(find.text('Available'), findsOneWidget);
+      expect(find.text('Second'), findsOneWidget);
+      await tester.tap(find.text('Later'));
+      await tester.pumpAndSettle();
+      expect(find.text('Second'), findsOneWidget);
+      expect(find.text('Home'), findsNothing);
+    });
+
+    testWidgets('us02/fr01/e04: Esc dismisses the dialog', (tester) async {
+      await available(tester);
+      expect(find.text('Available'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(find.text('Available'), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
+    });
+
+    testWidgets('us02/fr01/e04: the Android back button dismisses the '
+        'dialog', (tester) async {
+      await available(tester);
+      expect(find.text('Available'), findsOneWidget);
+      await systemBack(tester);
+      expect(find.text('Available'), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
+    });
+
+    testWidgets('us02/fr01/e04: Android lets the app handle back while the '
+        'dialog shows', (tester) async {
+      final handlesBack = <Object?>[];
+      final messenger = tester.binding.defaultBinaryMessenger
+        ..setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'SystemNavigator.setFrameworkHandlesBack') {
+            handlesBack.add(call.arguments);
+          }
+          return null;
+        });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await _lifecycle(tester, AppLifecycleState.resumed);
+      await available(tester);
+      expect(handlesBack.last, isTrue);
+      await tester.tap(find.text('Later'));
+      await tester.pump();
+      await tester.pump();
+      expect(handlesBack.last, isFalse);
+    });
+
+    testWidgets('us02/fr01/e05: focus moves into the dialog, and Tab from '
+        'its last control moves to its first', (tester) async {
+      await available(tester);
+      bool focused(String label) =>
+          Focus.of(tester.element(find.text(label))).hasFocus;
+      expect(
+        FocusScope.of(tester.element(find.text('Later'))).hasFocus,
+        isTrue,
+      );
+      for (final label in ['Later', 'Update', 'Later', 'Update']) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(focused(label), isTrue);
+        expect(focused('Behind'), isFalse);
+      }
+    });
+
+    testWidgets('us02/fr01/e06: a tap outside the dialog reaches nothing '
+        'behind it', (tester) async {
+      var behindTaps = 0;
+      await available(tester, onBehind: () => behindTaps++);
+      await tester.tap(find.text('Behind'), warnIfMissed: false);
+      await tester.pump();
+      expect(behindTaps, 0);
+      expect(find.text('Available'), findsOneWidget);
+    });
+
+    testWidgets('us02/fr01/e07: a screen reader reads the dialog alone', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await available(tester);
+      expect(find.semantics.byLabel('Behind'), findsNothing);
+      expect(find.semantics.byLabel('Home'), findsNothing);
+      expect(find.semantics.byLabel('Later'), findsOne);
+      await tester.tap(find.text('Later'));
+      await tester.pump();
+      expect(find.semantics.byLabel('Behind'), findsOne);
+      handle.dispose();
+    });
+
+    testWidgets("us02/fr01/e08: the app's update button runs the app's "
+        'code, and the gate leaves the dialog open', (tester) async {
+      var updates = 0;
+      await available(
+        tester,
+        builder: (context, gate) => switch (gate) {
+          UpdateGateAvailable() => Align(
+            alignment: Alignment.topCenter,
+            child: Material(
+              child: TextButton(
+                onPressed: () => updates++,
+                child: const Text('Update'),
+              ),
+            ),
+          ),
+          _ => _screens(context, gate),
+        },
+      );
+      await tester.tap(find.text('Update'));
+      await tester.pump();
+      expect(updates, 1);
+      expect(find.text('Update'), findsOneWidget);
+    });
+
+    for (final (label, settle) in <(String, void Function(_Checker))>[
+      ('up to date', (checker) => checker.answer(UpdateStatus.upToDate)),
+      ('a failure', (checker) => checker.fail()),
+    ]) {
+      testWidgets('us02/fr01/e09: a later ask that answers $label closes the '
+          'dialog', (tester) async {
+        final checker = await available(tester);
+        expect(find.text('Available'), findsOneWidget);
+        await _returnToForeground(tester);
+        settle(checker);
+        await tester.pump(Duration.zero);
+        expect(find.text('Available'), findsNothing);
+        expect(find.text('Home'), findsOneWidget);
+      });
+    }
+
+    testWidgets('us01/fr01/e06: a re-ask keeps the dialog, with checking', (
+      tester,
+    ) async {
+      final checker = await available(tester);
+      await _returnToForeground(tester);
+      expect(find.text('Available checking'), findsOneWidget);
+      checker.answer(UpdateStatus.available);
+      await tester.pump(Duration.zero);
+      expect(find.text('Available'), findsOneWidget);
+    });
+
+    testWidgets('us02/fr01: a full screen turns into the dialog on a first '
+        'available answer', (tester) async {
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker));
+      checker.answer(UpdateStatus.required);
+      await tester.pump(Duration.zero);
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      expect(find.text('Available'), findsOneWidget);
+      expect(find.text('Home'), findsOneWidget);
+    });
+
+    testWidgets('us01/fr02: a required answer while the dialog shows '
+        'replaces the navigator, dialog and all', (tester) async {
+      final checker = await available(tester);
+      expect(find.text('Available'), findsOneWidget);
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.required);
+      await tester.pump(Duration.zero);
+      expect(find.text('Required'), findsOneWidget);
+      expect(find.text('Available'), findsNothing);
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.upToDate);
+      await tester.pump(Duration.zero);
+      await tester.pump();
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Available'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('us02/fr01/e01: after the dialog showed, available from a '
+        'full screen shows the app alone', (tester) async {
+      final checker = await available(tester);
+      await tester.tap(find.text('Later'));
+      await tester.pump();
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.required);
+      await tester.pump(Duration.zero);
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      expect(find.text('Available'), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
+    });
+
+    testWidgets('the dialog hosts overlay widgets such as a tooltip', (
+      tester,
+    ) async {
+      await available(
+        tester,
+        builder: (context, gate) => const Align(
+          alignment: Alignment.topCenter,
+          child: Material(
+            child: Tooltip(message: 'Store', child: Text('Available')),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Tooltip), findsOneWidget);
+    });
+
+    testWidgets('us02/fr01: with no navigator below the gate no dialog shows, '
+        'and a debug assert names the placement', (tester) async {
+      final checker = _Checker();
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: StratumUpdateGate(
+            checker: checker,
+            builder: _screens,
+            child: const SizedBox(),
+          ),
+        ),
+      );
+      checker.answer(UpdateStatus.available);
+      await tester.pump(Duration.zero);
+      expect(tester.takeException(), isAssertionError);
+      expect(find.text('Available'), findsNothing);
+    });
+  });
+
+  group('StratumUpdateGate accessibility gate', () {
+    testWidgets('NFR-U02: focus moves into a full screen and into the '
+        'dialog; Tab stays in the dialog; Esc dismisses it', (tester) async {
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker));
+      checker.answer(UpdateStatus.maintenance);
+      await tester.pump(Duration.zero);
+      await tester.pump();
+      expect(
+        FocusScope.of(tester.element(find.text('Retry'))).hasFocus,
+        isTrue,
+      );
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      expect(
+        FocusScope.of(tester.element(find.text('Later'))).hasFocus,
+        isTrue,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(
+        FocusScope.of(tester.element(find.text('Later'))).hasFocus,
+        isTrue,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(find.text('Available'), findsNothing);
+    });
+
+    testWidgets('NFR-U06: a full screen and the dialog each open a route '
+        'scope, and the app behind the dialog leaves the semantics tree', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker));
+      checker.answer(UpdateStatus.maintenance);
+      await tester.pump(Duration.zero);
+      expect(
+        tester.getSemantics(_scopeOf('Maintenance')),
+        isSemantics(scopesRoute: true),
+      );
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      expect(
+        tester.getSemantics(_scopeOf('Available')),
+        isSemantics(scopesRoute: true),
+      );
+      expect(find.semantics.byLabel('Home'), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('NFR-U09: a barrier blocks pointers to the app behind the '
+        'dialog', (tester) async {
+      var behindTaps = 0;
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker, onBehind: () => behindTaps++));
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      await tester.tap(find.text('Behind'), warnIfMissed: false);
+      await tester.pump();
+      expect(behindTaps, 0);
+    });
+  });
+
+  group('us02: offer an optional update', () {
+    for (final (way, close) in <(String, Future<void> Function(WidgetTester))>[
+      (
+        "the app's later button",
+        (tester) async {
+          await tester.tap(find.text('Later'));
+          await tester.pump();
+        },
+      ),
+      (
+        'Esc',
+        (tester) async {
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pump();
+        },
+      ),
+      ('the Android back button', systemBack),
+    ]) {
+      testWidgets('us02/s2: $way closes the dialog and the app stays on its '
+          'page', (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pumpAndSettle();
+        await _push(tester, 'Second');
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.available);
+        await dialogFrames(tester);
+        expect(find.text('Available'), findsOneWidget);
+        await close(tester);
+        expect(find.text('Available'), findsNothing);
+        expect(find.text('Second'), findsOneWidget);
+      });
+    }
+
+    testWidgets('us02/s3: focus starts in the dialog and Tab moves only among '
+        'its controls', (tester) async {
+      await available(tester);
+      bool focused(String label) =>
+          Focus.of(tester.element(find.text(label))).hasFocus;
+      expect(
+        FocusScope.of(tester.element(find.text('Later'))).hasFocus,
+        isTrue,
+      );
+      for (var press = 0; press < 5; press++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(focused('Later') || focused('Update'), isTrue);
+        expect(focused('Behind'), isFalse);
+      }
+    });
+
+    testWidgets('us02/s4: after the dialog closed, a return to the app shows '
+        'no dialog', (tester) async {
+      final checker = await available(tester);
+      await tester.tap(find.text('Later'));
+      await tester.pump();
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      expect(find.text('Available'), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
+    });
+
+    testWidgets('us02/s5: a new launch offers the update again', (
+      tester,
+    ) async {
+      await available(tester);
+      await tester.tap(find.text('Later'));
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await available(tester);
+      expect(find.text('Available'), findsOneWidget);
+    });
+
+    testWidgets('us02/s6: a screen reader reads the dialog alone', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await available(tester);
+      expect(find.semantics.byLabel('Available'), findsOne);
+      expect(find.semantics.byLabel('Later'), findsOne);
+      expect(find.semantics.byLabel('Home'), findsNothing);
+      expect(find.semantics.byLabel('Behind'), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('us02/s7: a tap behind the dialog reaches no page, and only '
+        "the app's scrim closes the dialog", (tester) async {
+      var behindTaps = 0;
+      await available(
+        tester,
+        onBehind: () => behindTaps++,
+        builder: (context, gate) => switch (gate) {
+          UpdateGateAvailable(:final dismiss) => Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: dismiss,
+                ),
+              ),
+              const Align(
+                alignment: Alignment.topCenter,
+                child: Material(child: Text('Available')),
+              ),
+            ],
+          ),
+          _ => _screens(context, gate),
+        },
+      );
+      expect(find.text('Available'), findsOneWidget);
+      await tester.tap(find.text('Behind'), warnIfMissed: false);
+      await tester.pump();
+      expect(behindTaps, 0);
+      expect(find.text('Available'), findsNothing);
+    });
+  });
+}
+
+/// A router delegate with two fixed pages, "Home" under "Second", whose
+/// navigator takes the Android back button through the router.
+class _TwoPages extends RouterDelegate<Object>
+    with ChangeNotifier, PopNavigatorRouterDelegateMixin<Object> {
+  @override
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  Widget build(BuildContext context) => Navigator(
+    key: navigatorKey,
+    pages: const [
+      MaterialPage<void>(
+        child: Scaffold(body: Center(child: Text('Home'))),
+      ),
+      MaterialPage<void>(
+        child: Scaffold(body: Center(child: Text('Second'))),
+      ),
+    ],
+    onDidRemovePage: (_) {},
+  );
+
+  @override
+  Future<void> setNewRoutePath(Object configuration) async {}
 }
