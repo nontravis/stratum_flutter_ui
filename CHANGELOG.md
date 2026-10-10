@@ -153,9 +153,10 @@
 - New `context.themeData([ThemeMode? mode])`, `context.defaultWidgetSize([ThemeMode? mode])`, and `context.windowSize`
   read the theme data, the default widget size, and the window size at a context in one line each, each registering
   only the dependency of the lookup it wraps.
-- `StratumWidgetProps.resolveDefaultSize(context)` is the hook a component now calls for its default size;
-  `resolveSize` stays one minor version as a `@Deprecated` member that calls `resolveDefaultSize`, with no release
-  tag yet, so NFR-M04's major-version rule does not apply.
+- `StratumWidgetProps.resolveDefaultSize(context)` is the hook a component now calls for its default size: `size`
+  when set, else `resolveTheme(context).defaultWidgetSize`, so a subclass that overrides `resolveTheme` sets its own
+  default size, matching `resolveColor`. `resolveSize` stays one minor version as a `@Deprecated` member that calls
+  `resolveDefaultSize`, with no release tag yet, so NFR-M04's major-version rule does not apply.
 - `context.deviceWindow.radius` now reads the screen's corner radii: on Android API 31+ through Flutter's own value,
   and on iOS 26+ and macOS 27+ through the package's own native plugin under a `StratumThemeApplication`; every
   other platform and version reads null, and the caller supplies its own fallback.

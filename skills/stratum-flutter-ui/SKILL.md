@@ -356,8 +356,9 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `StratumTheme.of(context).color.icon.color[ColorEnum.blue]`, which gives null for a name the group lacks; a token
   the package's default theme gains joins the lookup in the next package release; an app's own theme can only
   restyle the names the package already has.
-- A component's size hook is `resolveDefaultSize(context)`: the widget's `size` when set, else the theme's default
-  widget size. `resolveSize` is its deprecated old name, kept one minor version.
+- A component's size hook is `resolveDefaultSize(context)`: the widget's `size` when set, else
+  `resolveTheme(context).defaultWidgetSize`, so a subclass that overrides `resolveTheme` sets its own default size.
+  `resolveSize` is its deprecated old name, kept one minor version.
 
 ## Built-in labels
 

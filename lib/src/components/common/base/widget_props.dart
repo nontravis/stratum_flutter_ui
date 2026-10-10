@@ -60,11 +60,12 @@ mixin StratumWidgetProps {
   StratumThemeData resolveTheme(BuildContext context) =>
       context.themeData(themeMode);
 
-  /// Returns [size] when set, else the theme's default widget size for
-  /// [themeMode]; a null [size] reads the theme, so it throws like
-  /// [resolveTheme] when no theme is above [context].
+  /// Returns [size] when set, else the default widget size of
+  /// [resolveTheme]; a subclass that overrides [resolveTheme] sets its
+  /// default size this way. A null [size] reads the theme, so it throws
+  /// like [resolveTheme] when no theme is above [context].
   WidgetSize resolveDefaultSize(BuildContext context) =>
-      size ?? context.defaultWidgetSize(themeMode);
+      size ?? resolveTheme(context).defaultWidgetSize;
 
   /// Renamed to [resolveDefaultSize]; kept one minor version.
   @Deprecated('Use resolveDefaultSize. Removed after one minor version.')

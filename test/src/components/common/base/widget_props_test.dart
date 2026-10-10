@@ -41,6 +41,40 @@ class _StatefulProbeState extends State<_StatefulProbe> {
   Widget build(BuildContext context) => const SizedBox();
 }
 
+/// Overrides [StratumWidgetProps.resolveTheme] to prove [resolveDefaultSize]
+/// and the deprecated `resolveSize` read through it (FO-08 US-01 FR-02).
+class _StatelessThemeOverrideProbe extends StratumStatelessWidget {
+  const new({required this.overrideTheme});
+
+  final StratumThemeData overrideTheme;
+
+  @override
+  StratumThemeData resolveTheme(BuildContext context) => overrideTheme;
+
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+/// The stateful twin of [_StatelessThemeOverrideProbe].
+class _StatefulThemeOverrideProbe extends StratumStatefulWidget {
+  const new({required this.overrideTheme});
+
+  final StratumThemeData overrideTheme;
+
+  @override
+  StratumThemeData resolveTheme(BuildContext context) => overrideTheme;
+
+  @override
+  State<_StatefulThemeOverrideProbe> createState() =>
+      _StatefulThemeOverrideProbeState();
+}
+
+class _StatefulThemeOverrideProbeState
+    extends State<_StatefulThemeOverrideProbe> {
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
 final StratumThemeData _light = fakeTheme.copyWith(
   defaultWidgetSize: WidgetSize.small,
 );
@@ -165,6 +199,36 @@ void main() {
       );
 
       expect(size, WidgetSize.large);
+    });
+
+    testWidgets('us01/fr02: a subclass that overrides resolveTheme sets '
+        'the default size', (tester) async {
+      final override = fakeTheme.copyWith(defaultWidgetSize: WidgetSize.huge);
+      final probe = _StatelessThemeOverrideProbe(overrideTheme: override);
+
+      final size = await _readInBuild(
+        tester,
+        probe.resolveDefaultSize,
+        wrap: _themed,
+      );
+
+      expect(size, WidgetSize.huge);
+    });
+
+    testWidgets('us01/fr02: the deprecated resolveSize follows an '
+        'overridden resolveTheme too', (tester) async {
+      final override = fakeTheme.copyWith(defaultWidgetSize: WidgetSize.huge);
+      final probe = _StatelessThemeOverrideProbe(overrideTheme: override);
+
+      final size = await _readInBuild(
+        tester,
+        // Pins the deprecated alias (FO-08 US-01 FR-02 E05).
+        // ignore: deprecated_member_use_from_same_package
+        probe.resolveSize,
+        wrap: _themed,
+      );
+
+      expect(size, WidgetSize.huge);
     });
   });
 
@@ -504,5 +568,19 @@ void main() {
         expect(size, WidgetSize.small);
       },
     );
+
+    testWidgets('us01/fr02: a subclass that overrides resolveTheme sets '
+        'the default size', (tester) async {
+      final override = fakeTheme.copyWith(defaultWidgetSize: WidgetSize.huge);
+      final probe = _StatefulThemeOverrideProbe(overrideTheme: override);
+
+      final size = await _readInBuild(
+        tester,
+        probe.resolveDefaultSize,
+        wrap: _themed,
+      );
+
+      expect(size, WidgetSize.huge);
+    });
   });
 }
