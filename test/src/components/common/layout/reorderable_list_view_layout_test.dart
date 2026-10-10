@@ -681,12 +681,17 @@ Future<TestGesture> _liftItem(
 /// crossing the way an EndUser's drag would. The step that crosses it also
 /// delivers that gap controller's first real tick: reduced motion's seam
 /// ends it there at once; plain motion leaves it partway, still sliding.
+/// Fails, naming the cause, when 10 steps never cross.
 Future<void> _dragPastNeighbor(WidgetTester tester, TestGesture gesture) async {
   for (var i = 0; i < 10; i++) {
     await gesture.moveBy(const Offset(0, 10));
     await tester.pump(const Duration(milliseconds: 16));
     if (_top(tester, 1) != 40) return;
   }
+  fail(
+    '_dragPastNeighbor: item 1 stayed at 40 px over 10 steps of 10 px; the '
+    "SDK's gap trigger never fired, so the drag crossed no neighbor",
+  );
 }
 
 /// Drags item [id] by its handle past the touch slop, on [pointer] when
