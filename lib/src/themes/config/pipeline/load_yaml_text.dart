@@ -40,6 +40,15 @@ const yamlKeyMessage =
 const yamlKeyCountMessage =
     'more than 256 keys in one mapping, or more than 2,048 in the text';
 
+/// The message of a key past a cap that [checkYamlGate] counts once its
+/// model has locked, when it counts every `:`, `,`, and `{` as a key
+/// (FO-01 US-01 FR-01 E07; design FU6, RZF6): the 1-based line and column
+/// of the construct where the model locked follow it, as
+/// `$yamlLockedKeyCountMessage <line>, column <column>`. Numbers only, so
+/// the message takes no escape.
+const yamlLockedKeyCountMessage =
+    'a key cap under the locked count, which began at line';
+
 /// The message of a byte-order mark anywhere but the text's first
 /// character (FO-01 US-01 FR-01 E07, design G4; security review round 2
 /// C1).
@@ -187,7 +196,12 @@ YamlTextFailure _nodeFailure(YamlNode node, String message) {
 /// [message] at the code unit [index] of [text], its line and column
 /// counted as package:yaml's spans count them: a line feed, a carriage
 /// return and line feed, and a lone carriage return each end a line.
-YamlTextFailure _refusal(String text, int index, String message) {
+YamlTextFailure _refusal(String text, int index, String message) =>
+    YamlTextFailure(message, at: _positionOf(text, index));
+
+/// The 1-based line and column of the code unit [index] of [text], counted
+/// as [_refusal] counts them.
+({int line, int column}) _positionOf(String text, int index) {
   var line = 1;
   var lineStart = 0;
   for (var i = 0; i < index; i++) {
@@ -199,10 +213,7 @@ YamlTextFailure _refusal(String text, int index, String message) {
       lineStart = i + 1;
     }
   }
-  return YamlTextFailure(
-    message,
-    at: (line: line, column: index - lineStart + 1),
-  );
+  return (line: line, column: index - lineStart + 1);
 }
 
 /// A yaml document [loadYamlText] could not parse: [message] is escaped
@@ -291,6 +302,10 @@ final class _YamlGate {
   /// line breaks followed it; else -1.
   var _lockedClose = -1;
   var _locked = false;
+
+  /// The code unit where the model locked, the construct it does not
+  /// model; -1 before the lock (design FU6).
+  var _lockedAt = -1;
   var _lockedCount = 0;
   _Open _open = _Open.none;
   var _openQuote = 0;
@@ -817,13 +832,24 @@ final class _YamlGate {
   }
 
   /// Counts one key at [index], the [inMapping]th of its mapping (design
-  /// G10), refusing the first key past either cap.
+  /// G10), refusing the first key past either cap: with
+  /// [yamlKeyCountMessage] before the lock, and with the message of
+  /// [_lockedKeyCountMessage] after it (design FU6, RZF6).
   void _countKey(int index, int inMapping) {
     keys++;
     if (inMapping > mostKeys) mostKeys = inMapping;
     if (inMapping > yamlMaxMappingKeys || keys > yamlMaxKeys) {
-      throw _Breach(index, yamlKeyCountMessage);
+      throw _Breach(
+        index,
+        _locked ? _lockedKeyCountMessage() : yamlKeyCountMessage,
+      );
     }
+  }
+
+  /// [yamlLockedKeyCountMessage] with the line and column of [_lockedAt].
+  String _lockedKeyCountMessage() {
+    final at = _positionOf(_text, _lockedAt);
+    return '$yamlLockedKeyCountMessage ${at.line}, column ${at.column}';
   }
 
   void _check(int index) {
@@ -834,6 +860,7 @@ final class _YamlGate {
 
   void _lock(int from, int start, int end) {
     _locked = true;
+    _lockedAt = from;
     for (final count in [..._blockKeys, ..._flowKeyCounts]) {
       if (count > _lockedKeys) _lockedKeys = count;
     }

@@ -75,7 +75,9 @@
   carries the MS-DOS folder attribute on a name that does not end in `/` as `unsafe_entry_path`.
 - Breaking: a theme yaml file, bundled, the app's own, or in a remote zip, now fails as `yaml_syntax` with `more than
   256 keys in one mapping, or more than 2,048 in the text` at the first key past either cap, before the yaml package
-  reads it; `stratum_theme` exits 66 on such a `pubspec.yaml`. Split a larger mapping into nested groups.
+  reads it; past a construct the check does not model, from where it counts every `:`, `,`, and `{` as a key, the
+  message reads `a key cap under the locked count, which began at line <line>, column <column>`, naming that
+  construct; `stratum_theme` exits 66 on such a `pubspec.yaml`. Split a larger mapping into nested groups.
 - Breaking: a remote theme install, and `stratum_theme pack` and `check`, now read an entry's host byte and attribute
   bits from an allowlist of what Finder, Info-ZIP, `tar`, Python, Java, 7-Zip, and Windows tools write, and refuse as
   `unsafe_entry_path` an entry made on a host other than 0 (MS-DOS and Windows) or 3 (Unix and macOS), one that

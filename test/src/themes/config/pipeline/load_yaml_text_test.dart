@@ -455,8 +455,36 @@ void main() {
 
       expect(() => checkYamlGate(locked(5)), returnsNormally);
       final failure = _gateFailure(locked(6));
-      expect(failure.message, yamlKeyCountMessage);
+      expect(failure.message, '$yamlLockedKeyCountMessage 251, column 1');
       expect(failure.at, (line: 257, column: 3));
+    });
+
+    test('rzf6 (t8b 2): a key cap under the locked count names the line '
+        'and column where that count began, not the key, and no count', () {
+      // "  : x" has no key on its line, so the pass locks at its ":", line
+      // 3, column 3; the commas after it then count as keys.
+      final commas = List.filled(300, 'x').join(', ');
+      final failure = _gateFailure('a:\n  b: 1\n  : x\n  $commas\n');
+
+      expect(failure.message, '$yamlLockedKeyCountMessage 3, column 3');
+      expect(failure.message, isNot(contains('256')));
+      expect(failure.message, isNot(contains('2,048')));
+      expect(failure.at, (line: 4, column: 766));
+    });
+
+    test('rzf6: a refusal before the lock, and the walk, keep the key-cap '
+        'message', () {
+      expect(_gateFailure(_blockKeys(257)).message, yamlKeyCountMessage);
+      expect(
+        () => checkYamlTree(loadYamlNode(_blockKeys(257))),
+        throwsA(
+          isA<YamlTextFailure>().having(
+            (f) => f.message,
+            'message',
+            yamlKeyCountMessage,
+          ),
+        ),
+      );
     });
 
     test('rz10 (m4-t8 security C2): 2,040 integer keys that share one VM '
