@@ -64,6 +64,7 @@ class _Harness extends StatefulWidget {
     this.plainIds,
     this.scrollCacheExtent,
     this.appIndex = false,
+    this.shrinkWrap = false,
     this.moveAnnouncement,
     this.atStartAnnouncement,
     this.atEndAnnouncement,
@@ -138,6 +139,9 @@ class _Harness extends StatefulWidget {
 
   /// Whether the list gets `findChildIndexCallback`, as under [_appIndex].
   final bool appIndex;
+
+  /// The list's `shrinkWrap`.
+  final bool shrinkWrap;
 
   /// The list's `moveAnnouncement`; null keeps the built-in text.
   final String Function(int position, int count)? moveAnnouncement;
@@ -244,6 +248,7 @@ class _HarnessState extends State<_Harness> {
       prototypeItem: widget.prototypeItem,
       scrollCacheExtent: widget.scrollCacheExtent,
       findChildIndexCallback: widget.appIndex || _appIndex ? indexOf : null,
+      shrinkWrap: widget.shrinkWrap,
       moveAnnouncement: widget.moveAnnouncement,
       atStartAnnouncement: widget.atStartAnnouncement,
       atEndAnnouncement: widget.atEndAnnouncement,
@@ -8930,6 +8935,48 @@ void main() {
       variant: outerShifts,
     );
 
+    // Whether the list gets the app index.
+    final foldShifts = ValueVariant<bool>({false, true});
+    testWidgets(
+      's03/inv35 and us11/fr03/e11: calls that push a shown focused item '
+      "past the fold of the app's page scroll the page to keep it shown",
+      (tester) async {
+        final appIndex = foldShifts.currentValue!;
+        await tester.pumpWidget(
+          _app(
+            SingleChildScrollView(
+              child: _Harness(
+                count: 20,
+                shrinkWrap: true,
+                appIndex: appIndex,
+                itemsController: StratumReorderableItemsController(),
+              ),
+            ),
+          ),
+        );
+        final state = _itemState(tester, 6);
+        await _focusItem(tester, 6);
+        final pageView = find.byType(Scrollable).first;
+        final page = tester.state<ScrollableState>(pageView).position;
+
+        // Item 6 runs from 240 to 280, whole above the page's 300 px fold.
+        _harness(tester)
+          ..insert(0, 97)
+          ..insert(0, 98)
+          ..insert(0, 99);
+        await tester.pumpAndSettle();
+
+        final view = tester.getRect(pageView);
+        final item = tester.getRect(find.byKey(const ValueKey(6)));
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 6), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(view.intersect(item), item);
+        expect(page.pixels, 100);
+      },
+      variant: foldShifts,
+    );
+
     testWidgets(
       's03/inv35 and us11/fr05/e13: with the app index, a data move of a '
       'focused item laid out but not shown follows it silently',
@@ -11379,6 +11426,60 @@ void main() {
       }
       handle.dispose();
     }, variant: frameMoves);
+
+    // How the hold ends: which key is let go first, or an app insert while
+    // the key is still down.
+    final overlaps = ValueVariant<String>({
+      'Up let go first',
+      'Down let go first',
+      'insert while held',
+    });
+    testWidgets(
+      'us11/fr06/e08 and s03/inv52: reorder keys held over each other, or a '
+      'call during a hold, announce once where the item ends',
+      (tester) async {
+        final overlap = overlaps.currentValue!;
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 10,
+              itemsController: StratumReorderableItemsController(),
+            ),
+          ),
+        );
+        final log = _announcements(tester);
+        await _focusItem(tester, 3);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        if (overlap == 'insert while held') {
+          _harness(tester).insert(0, 99);
+          await tester.pump();
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+        } else {
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowUp);
+          await tester.pump();
+          final (first, second) = overlap == 'Up let go first'
+              ? (LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowDown)
+              : (LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.arrowUp);
+          await tester.sendKeyUpEvent(first);
+          await tester.pump();
+          await tester.sendKeyUpEvent(second);
+        }
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+        await tester.pumpAndSettle();
+
+        if (overlap == 'insert while held') {
+          expect(_harness(tester).moves, [(3, 4)]);
+          expect(log, ['Moved to position 6 of 11']);
+        } else {
+          expect(_harness(tester).moves, [(3, 4), (4, 3)]);
+          expect(log, ['Moved to position 4 of 10']);
+        }
+      },
+      variant: overlaps,
+    );
 
     final appMoves = ValueVariant<String>({
       'moveItem',

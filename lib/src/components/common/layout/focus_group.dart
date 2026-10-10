@@ -476,13 +476,13 @@ void requestFocusInViewports(
 /// row inside an item scrolled away; every other level leaves it: its box
 /// paints nowhere until the next layout.
 ///
-/// With [nearestOnly], only the nearest level, the viewport [target]
-/// answers to, scrolls: the viewports around it are the app's, as for a
-/// shown item a reorderable list follows after a call shifts it (D28).
+/// With [levels], only the viewports it holds scroll; the walk passes the
+/// others by, as the app's, as for a shown item a reorderable list follows
+/// after a call shifts it, in the viewports that showed it (D28).
 void revealInViewports(
   FocusNode target, {
   ({ScrollPosition position, double pixels})? origin,
-  bool nearestOnly = false,
+  Set<ScrollableState>? levels,
 }) {
   final context = target.context;
   final object = context?.findRenderObject();
@@ -502,7 +502,9 @@ void revealInViewports(
   ) {
     final reveal = _inViewportOf(shown, scrollable) ? shown : revealed;
     final fromOrigin = origin != null && scrollable == origin.position.context;
-    if (fromOrigin ||
+    if (levels != null && !levels.contains(scrollable)) {
+      // Passed by: this viewport is the app's.
+    } else if (fromOrigin ||
         (kept && (reveal == object || _keptAliveIn(reveal, scrollable)))) {
       final from = fromOrigin ? origin.pixels : scrollable.position.pixels;
       _jumpToLeastScroll(reveal, scrollable, from);
@@ -516,7 +518,6 @@ void revealInViewports(
         );
       }
     }
-    if (nearestOnly) return;
     revealed = reveal;
     shown = scrollable.context.findRenderObject();
   }
