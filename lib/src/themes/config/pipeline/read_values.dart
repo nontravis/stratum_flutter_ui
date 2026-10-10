@@ -97,10 +97,11 @@ final class _Read {
   }
 
   /// Whether [value] reads as a `space`, `radius`, or `layouts` token: one
-  /// dimension, or a non-empty map of window sizes to dimensions; a
-  /// percent only when [percent] is set (spec section 8.3).
+  /// dimension within the length bound (config s03 invariant 15), or a
+  /// non-empty map of window sizes to such dimensions; a percent only when
+  /// [percent] is set (spec section 8.3).
   static bool _isTokenDimension(Object? value, {required bool percent}) {
-    bool fits(Object? entry) => switch (ThemeReader.parseDimension(entry)) {
+    bool fits(Object? entry) => switch (ThemeReader.parseLength(entry)) {
       null => false,
       PercentDimension() => percent,
       FixedDimension() => true,
@@ -226,7 +227,8 @@ final class _Read {
 
   /// [reader]'s dimension of [value] at [path]. Without [percent] (`space`
   /// and `radius`), a percent is reported as `expected_dimension` and
-  /// dropped (spec section 8.3).
+  /// dropped (spec section 8.3); so is a dimension past the length bound
+  /// (config s03 invariant 15).
   StratumDimension? _dimension(
     ThemeReader reader,
     Object? value,
@@ -234,12 +236,23 @@ final class _Read {
     required bool percent,
   }) {
     final dimension = reader.dimension(value, path, required: true);
-    if (percent || dimension is! PercentDimension) return dimension;
+    if (dimension == null) return null;
+    if (!percent && dimension is PercentDimension) {
+      reader.report(
+        StratumThemeErrorCode.expectedDimension,
+        path,
+        'expected a number, got ${ThemeReader.show(value)}; a percent is '
+        'allowed only in layouts',
+      );
+      return null;
+    }
+    if (ThemeReader.fitsLength(dimension)) return dimension;
+    const max = ThemeReader.maxLength;
+    final kind = percent ? 'a number or "N%"' : 'a number';
     reader.report(
       StratumThemeErrorCode.expectedDimension,
       path,
-      'expected a number, got ${ThemeReader.show(value)}; a percent is '
-      'allowed only in layouts',
+      'expected $kind from -$max to $max, got ${ThemeReader.show(value)}',
     );
     return null;
   }
@@ -481,10 +494,17 @@ final class _Read {
 
   static const _layerKeys = {'x', 'y', 'blur', 'spread', 'color'};
 
+  /// The most layers one `shadow` level holds (FO-01 US-01 FR-01 E14;
+  /// config s03 invariant 13). Each layer is one more blurred draw for
+  /// every box that paints the level, so the cap bounds the paint cost a
+  /// theme file the app did not write can ask for.
+  static const _maxShadowLayers = 8;
+
   /// The `border` or `blur` group [group] (FO-01 US-01 FR-01 E05, E13;
-  /// config s03 invariants 12 and 14): each key the merged tree holds, a
-  /// finite number of 0 or more; an alias resolved in stage 4 reads its
-  /// target's value, and one that failed there reports nothing here.
+  /// config s03 invariants 12, 14, and 15): each key the merged tree holds,
+  /// a number from 0 to the length bound; an alias resolved in stage 4
+  /// reads its target's value, and one that failed there reports nothing
+  /// here.
   Map<String, double> _effectNumbers(Object? value, String group) {
     final numbers = <String, double>{};
     final node = _reader.map(value, group);
@@ -500,7 +520,10 @@ final class _Read {
 
   /// The `shadow` group (FO-01 US-01 FR-01 E05, E13 to E15; config s03
   /// invariant 13): each level the merged tree holds, its layers in file
-  /// order; `[]` is no shadow.
+  /// order; `[]` is no shadow. A level of more than [_maxShadowLayers]
+  /// reports `expected_shadow` once and stage 5 reads none of its layers;
+  /// stage 4 still checks each layer's own color alias, so a bad alias in
+  /// an over-cap level reports there regardless.
   Map<String, List<StratumShadowLayer>> _shadow(Object? value) {
     final shadow = <String, List<StratumShadowLayer>>{};
     final node = _reader.map(value, 'shadow');
@@ -516,6 +539,15 @@ final class _Read {
           StratumThemeErrorCode.expectedShadow,
           path,
           'expected a list of shadow layers, got ${ThemeReader.show(entry)}',
+        );
+        continue;
+      }
+      if (entry.length > _maxShadowLayers) {
+        _reader.report(
+          StratumThemeErrorCode.expectedShadow,
+          path,
+          'expected at most $_maxShadowLayers shadow layers, got '
+          '${entry.length}',
         );
         continue;
       }
@@ -551,10 +583,10 @@ final class _Read {
       );
       return null;
     }
-    final x = _finite('$path.x', value['x']);
-    final y = _finite('$path.y', value['y']);
+    final x = _signedLength('$path.x', value['x']);
+    final y = _signedLength('$path.y', value['y']);
     final blur = _atLeastZero(_reader, '$path.blur', value['blur']);
-    final spread = _finite('$path.spread', value['spread']);
+    final spread = _signedLength('$path.spread', value['spread']);
     final color = _layerColor('$path.color', value['color']);
     if (x == null ||
         y == null ||
@@ -572,24 +604,27 @@ final class _Read {
     );
   }
 
-  /// A layer's `x`, `y`, or `spread` at [path]: a finite number, which may
-  /// be negative; `required` for an empty value, else `expected_dimension`.
-  double? _finite(String path, Object? value) {
-    if (value is num && value.isFinite) return value.toDouble();
+  /// A layer's `x`, `y`, or `spread` at [path]: a theme length (config s03
+  /// invariant 15), which may be negative; `required` for an empty value,
+  /// else `expected_dimension`.
+  double? _signedLength(String path, Object? value) {
+    if (value is num && ThemeReader.isLength(value)) return value.toDouble();
     if (value == null) {
       _reader.report(StratumThemeErrorCode.required, path, 'required');
       return null;
     }
+    const max = ThemeReader.maxLength;
     _reader.report(
       StratumThemeErrorCode.expectedDimension,
       path,
-      'expected a number, got ${ThemeReader.show(value)}',
+      'expected a number from -$max to $max, got ${ThemeReader.show(value)}',
     );
     return null;
   }
 
-  /// [value] at [path] as a finite number of 0 or more, reported through
-  /// [reader]: `required` for an empty value, else `expected_dimension`.
+  /// [value] at [path] as a number from 0 to the length bound, reported
+  /// through [reader]: `required` for an empty value, else
+  /// `expected_dimension`.
   static double? _atLeastZero(ThemeReader reader, String path, Object? value) {
     if (value is num && _isEffectNumber(value)) return value.toDouble();
     if (value == null) {
@@ -599,15 +634,16 @@ final class _Read {
     reader.report(
       StratumThemeErrorCode.expectedDimension,
       path,
-      'expected a number of 0 or more, got ${ThemeReader.show(value)}',
+      'expected a number from 0 to ${ThemeReader.maxLength}, got '
+      '${ThemeReader.show(value)}',
     );
     return null;
   }
 
-  /// Whether [value] is a `border` width or a blur radius: a finite number
-  /// of 0 or more.
+  /// Whether [value] is a `border` width or a blur radius: a theme length
+  /// (config s03 invariant 15) of 0 or more.
   static bool _isEffectNumber(Object? value) =>
-      value is num && value.isFinite && value >= 0;
+      value is num && ThemeReader.isLength(value) && value >= 0;
 
   /// The color of the layer at [path] (FO-01 US-01 FR-01 E15; US-03 FR-01
   /// E05, E06): `"{color.<group>.<name>}"`, which stage 4 checked in every
