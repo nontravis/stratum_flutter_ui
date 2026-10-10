@@ -34,16 +34,21 @@ final _digitsThenLetters = RegExp(r'^(\d+)([a-z]+)$');
 /// The Dart name of one yaml key [segment] at [path] (spec section 6.2).
 ///
 /// [digitPrefix] is `c` inside a palette ramp and `p` inside a
-/// `transparent` group; a digits-only first part elsewhere stops the
-/// generator, as does any other digit-led first part.
+/// `transparent` group. Elsewhere a key made only of digits gives
+/// `level<N>` (`shadow."2"` gives `level2`; themes s01 "Token generator"),
+/// a first part of digits then lower-case letters swaps them (`5xl` gives
+/// `xl5`), and any other digit-led key stops the generator.
 String dartName(String segment, {required String path, String? digitPrefix}) {
   final parts = segment.split('-');
   final first = parts.first;
   if (_digits.hasMatch(first)) {
-    if (digitPrefix == null) {
+    if (digitPrefix != null) {
+      parts[0] = '$digitPrefix$first';
+    } else if (parts.length == 1) {
+      parts[0] = 'level$first';
+    } else {
       throw FormatException('$path: a digit-led key needs a ramp or step');
     }
-    parts[0] = '$digitPrefix$first';
   } else if (_digitsThenLetters.firstMatch(first) case final match?) {
     parts[0] = '${match[2]}${match[1]}';
   } else if (first.startsWith(RegExp('[0-9]'))) {
@@ -94,6 +99,10 @@ String generateThemeTokens(String yaml) {
     ..writeln()
     ..writeln("import 'dart:ui' show Color;")
     ..writeln()
+    ..writeln("import 'package:flutter/painting.dart' show BoxShadow;")
+    ..writeln(
+      "import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';",
+    )
     ..writeln("import 'package:stratum_ui/src/themes/config/theme_asset.dart';")
     ..writeln("import 'package:stratum_ui/src/themes/constant/color.dart';")
     ..writeln()
@@ -115,6 +124,27 @@ String generateThemeTokens(String yaml) {
   }
   _assets(out, _map(root['assets'], 'assets').keys);
   _opacityClass(out, _map(root['opacity'], 'opacity').keys);
+  _tokenClass(
+    out,
+    group: 'border',
+    type: 'double',
+    doc: 'The `border` tokens: widths in logical pixels.',
+    keys: _map(root['border'], 'border').keys,
+  );
+  _tokenClass(
+    out,
+    group: 'shadow',
+    type: 'List<BoxShadow>',
+    doc: 'The `shadow` tokens: the shadows of each level, in Figma order.',
+    keys: _map(root['shadow'], 'shadow').keys,
+  );
+  _tokenClass(
+    out,
+    group: 'blur',
+    type: 'ImageBlurFilter',
+    doc: 'The `blur` tokens: background blurs at sigma half the Figma radius.',
+    keys: _map(root['blur'], 'blur').keys,
+  );
   out
     ..writeln()
     ..writeln('Color _color(Map<String, Color> colors, String path) =>')
@@ -131,6 +161,14 @@ String generateThemeTokens(String yaml) {
     ..writeln('      key,')
     ..writeln("      'key',")
     ..writeln("      'no opacity at this key in the theme config',")
+    ..writeln('    ));')
+    ..writeln()
+    ..writeln('T _token<T>(Map<String, T> tokens, String group, String key) =>')
+    ..writeln('    tokens[key] ??')
+    ..writeln('    (throw ArgumentError.value(')
+    ..writeln('      key,')
+    ..writeln("      'key',")
+    ..writeln(r"      'no $group token at this key in the theme config',")
     ..writeln('    ));');
   return out.toString();
 }
@@ -423,6 +461,37 @@ void _opacityClass(StringBuffer out, Iterable<String> keys) {
       ..writeln()
       ..writeln('  /// `opacity.$key`')
       ..writeln('  final double $name;');
+  }
+  out.writeln('}');
+}
+
+/// A class of one [type] field per key of the yaml group [group], built by
+/// `fromMap` from the theme data's map, which throws an `ArgumentError`
+/// naming a key the map lacks (themes s01 "Token generator"; config s03
+/// invariants 12 to 14). A key made only of digits is named `level<N>`.
+void _tokenClass(
+  StringBuffer out, {
+  required String group,
+  required String type,
+  required String doc,
+  required Iterable<String> keys,
+}) {
+  final className = 'Stratum${_pascal(group)}Tokens';
+  final names = _names(keys, group);
+  out
+    ..writeln()
+    ..writeln('/// $doc')
+    ..writeln('final class $className {')
+    ..writeln('  $className.fromMap(Map<String, $type> $group)');
+  _initializers(out, [
+    for (final MapEntry(:key, value: name) in names.entries)
+      "$name = _token($group, '$group', '$key')",
+  ]);
+  for (final MapEntry(:key, value: name) in names.entries) {
+    out
+      ..writeln()
+      ..writeln('  /// `$group.$key`')
+      ..writeln('  final $type $name;');
   }
   out.writeln('}');
 }
