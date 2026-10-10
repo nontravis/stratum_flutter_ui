@@ -46,4 +46,31 @@ class StratumLabelsTh extends StratumLabels {
 
   @override
   String get reorderAtEndAnnouncement => 'อยู่ท้ายรายการแล้ว';
+
+  @override
+  String get drawerLabel => 'เมนูการนำทาง';
+
+  @override
+  String get dismissLabel => 'ปิด';
+
+  @override
+  String get dialogLabel => 'กล่องโต้ตอบ';
+
+  @override
+  String get sheetLabel => 'ชีต';
+
+  @override
+  String get dividerLabel => 'ปรับขนาดแผง';
+
+  @override
+  String get noticePositiveLabel => 'สำเร็จ';
+
+  @override
+  String get noticeInfoLabel => 'ข้อมูล';
+
+  @override
+  String get noticeWarningLabel => 'คำเตือน';
+
+  @override
+  String get noticeNegativeLabel => 'ข้อผิดพลาด';
 }

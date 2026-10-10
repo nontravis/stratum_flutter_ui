@@ -169,6 +169,60 @@ abstract class StratumLabels {
   /// In en, this message translates to:
   /// **'Already at the end of the list'**
   String get reorderAtEndAnnouncement;
+
+  /// Drawer label: a page drawer's screen-reader name.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation menu'**
+  String get drawerLabel;
+
+  /// Dismiss label: the modal layout's scrim-closing control fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get dismissLabel;
+
+  /// Dialog label: the modal layout's screen-reader name when it opens as a dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Dialog'**
+  String get dialogLabel;
+
+  /// Sheet label: the modal layout's screen-reader name when it opens as a sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheet'**
+  String get sheetLabel;
+
+  /// Divider label: a resizable split's divider.
+  ///
+  /// In en, this message translates to:
+  /// **'Resize panes'**
+  String get dividerLabel;
+
+  /// Notice kind name: the notice host's announcement and the icon's accessible name for the positive kind.
+  ///
+  /// In en, this message translates to:
+  /// **'Success'**
+  String get noticePositiveLabel;
+
+  /// Notice kind name: the notice host's announcement and the icon's accessible name for the info kind.
+  ///
+  /// In en, this message translates to:
+  /// **'Information'**
+  String get noticeInfoLabel;
+
+  /// Notice kind name: the notice host's announcement and the icon's accessible name for the warning kind.
+  ///
+  /// In en, this message translates to:
+  /// **'Warning'**
+  String get noticeWarningLabel;
+
+  /// Notice kind name: the notice host's announcement and the icon's accessible name for the negative kind.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get noticeNegativeLabel;
 }
 
 class _StratumLabelsDelegate extends LocalizationsDelegate<StratumLabels> {

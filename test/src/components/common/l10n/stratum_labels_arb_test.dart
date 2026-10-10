@@ -30,6 +30,15 @@ final _getters = <String, String Function(StratumLabels)>{
   ),
   'reorderAtStartAnnouncement': (labels) => labels.reorderAtStartAnnouncement,
   'reorderAtEndAnnouncement': (labels) => labels.reorderAtEndAnnouncement,
+  'drawerLabel': (labels) => labels.drawerLabel,
+  'dismissLabel': (labels) => labels.dismissLabel,
+  'dialogLabel': (labels) => labels.dialogLabel,
+  'sheetLabel': (labels) => labels.sheetLabel,
+  'dividerLabel': (labels) => labels.dividerLabel,
+  'noticePositiveLabel': (labels) => labels.noticePositiveLabel,
+  'noticeInfoLabel': (labels) => labels.noticeInfoLabel,
+  'noticeWarningLabel': (labels) => labels.noticeWarningLabel,
+  'noticeNegativeLabel': (labels) => labels.noticeNegativeLabel,
 };
 
 /// The message entries of the ARB file [name]: every key not starting
@@ -58,9 +67,9 @@ void main() {
   final en = _messages('stratum_labels_en.arb');
   final th = _messages('stratum_labels_th.arb');
 
-  test('us01/fr01: the table holds exactly the 12 built-in string kinds', () {
+  test('us01/fr01: the table holds exactly the 21 built-in string kinds', () {
     expect(en.keys.toSet(), _getters.keys.toSet());
-    expect(_getters, hasLength(12));
+    expect(_getters, hasLength(21));
   });
 
   test('us01/fr01/e05: the retry label stays in both tables', () {

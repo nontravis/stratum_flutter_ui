@@ -51,5 +51,41 @@
   "reorderAtEndAnnouncement": "Already at the end of the list",
   "@reorderAtEndAnnouncement": {
     "description": "Announced when a reorder key would move the last list item past the end."
+  },
+  "drawerLabel": "Navigation menu",
+  "@drawerLabel": {
+    "description": "Drawer label: a page drawer's screen-reader name."
+  },
+  "dismissLabel": "Dismiss",
+  "@dismissLabel": {
+    "description": "Dismiss label: the modal layout's scrim-closing control fallback."
+  },
+  "dialogLabel": "Dialog",
+  "@dialogLabel": {
+    "description": "Dialog label: the modal layout's screen-reader name when it opens as a dialog."
+  },
+  "sheetLabel": "Sheet",
+  "@sheetLabel": {
+    "description": "Sheet label: the modal layout's screen-reader name when it opens as a sheet."
+  },
+  "dividerLabel": "Resize panes",
+  "@dividerLabel": {
+    "description": "Divider label: a resizable split's divider."
+  },
+  "noticePositiveLabel": "Success",
+  "@noticePositiveLabel": {
+    "description": "Notice kind name: the notice host's announcement and the icon's accessible name for the positive kind."
+  },
+  "noticeInfoLabel": "Information",
+  "@noticeInfoLabel": {
+    "description": "Notice kind name: the notice host's announcement and the icon's accessible name for the info kind."
+  },
+  "noticeWarningLabel": "Warning",
+  "@noticeWarningLabel": {
+    "description": "Notice kind name: the notice host's announcement and the icon's accessible name for the warning kind."
+  },
+  "noticeNegativeLabel": "Error",
+  "@noticeNegativeLabel": {
+    "description": "Notice kind name: the notice host's announcement and the icon's accessible name for the negative kind."
   }
 }

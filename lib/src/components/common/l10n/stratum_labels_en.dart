@@ -46,4 +46,31 @@ class StratumLabelsEn extends StratumLabels {
 
   @override
   String get reorderAtEndAnnouncement => 'Already at the end of the list';
+
+  @override
+  String get drawerLabel => 'Navigation menu';
+
+  @override
+  String get dismissLabel => 'Dismiss';
+
+  @override
+  String get dialogLabel => 'Dialog';
+
+  @override
+  String get sheetLabel => 'Sheet';
+
+  @override
+  String get dividerLabel => 'Resize panes';
+
+  @override
+  String get noticePositiveLabel => 'Success';
+
+  @override
+  String get noticeInfoLabel => 'Information';
+
+  @override
+  String get noticeWarningLabel => 'Warning';
+
+  @override
+  String get noticeNegativeLabel => 'Error';
 }
