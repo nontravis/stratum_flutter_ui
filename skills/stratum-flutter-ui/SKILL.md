@@ -406,8 +406,8 @@ scroll it, guarded so a text field inside keeps its own keys.
   component paints at; the package default sets 0.5, and an app theme may leave the group out. Read it as
   `StratumThemeApplication.of(context).opacity.disabled`. A value outside 0 to 1 throws
   `StratumThemeFormatException` with `expected_opacity` at its path, and a second key under `opacity` is
-  `unknown_key`. The package default reads `$schema: stratum-theme/v1.1.0`; this package reads every `v1.0` and
-  `v1.1` theme, while a package build that reads only `v1.0` refuses a `v1.1` theme as `unsupported_schema`, so a
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.2.0`; this package reads every `v1.0`, `v1.1`,
+  and `v1.2` theme, while a package build that reads only `v1.0` refuses a `v1.1` theme as `unsupported_schema`, so a
   theme that must load on both writes `v1.0.0` and leaves `opacity` out.
 
 ## Page transitions
