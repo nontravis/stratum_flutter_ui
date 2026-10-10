@@ -492,6 +492,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   version its CLI family list came from, so the CLI and your app accept the same `Google/<Name>` families. When
   `pub get` reports a google_fonts conflict, let your own google_fonts constraint allow the version stratum_ui's
   `pubspec.yaml` names.
+- **Supported zip tools** — make a theme zip with `pack` or with 7-Zip, the two zip tools measured against the install;
+  a zip Windows Explorer makes is not measured, so run `check` on it before you upload it.
 - **Disabled opacity** — `opacity.disabled` in `theme.yaml`, a number from 0 to 1, is the opacity every disabled
   component paints at; the package default sets 0.5, and an app theme may leave the group out. Read it as
   `StratumThemeApplication.of(context).opacity.disabled`. A value outside 0 to 1 throws
