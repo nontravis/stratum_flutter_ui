@@ -146,5 +146,21 @@ void main() {
         startsWith('${'a' * 194}\\u005c\\[cut 199 chars, id '),
       );
     });
+
+    for (final (label, unit) in [
+      ('printable ASCII', 0x61),
+      ('units that each escape', 0xE9),
+    ]) {
+      test('rzf5 (t3): one call on 1,048,576 code units of $label finishes '
+          'within 5 s', () {
+        final text = String.fromCharCodes(List<int>.filled(1048576, unit));
+        final clock = Stopwatch()..start();
+        final escaped = escapeZipText(text);
+        clock.stop();
+
+        expect(escaped, contains(r'\[cut 1048576 chars, id '));
+        expect(clock.elapsed, lessThan(const Duration(seconds: 5)));
+      });
+    }
   });
 }
