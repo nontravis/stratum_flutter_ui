@@ -150,3 +150,12 @@
   `intl` constraint excludes the version `flutter_localizations` requires must widen it to allow it.
 - The Flutter floor is now `>=3.47.0`, the floor `google_fonts` 9.0.0, `badges` 4.0.1, and
   `webview_flutter_wkwebview` 3.27.0 already required; no app below Flutter 3.47 could resolve the package before.
+- New `context.themeData([ThemeMode? mode])`, `context.defaultWidgetSize([ThemeMode? mode])`, and `context.windowSize`
+  read the theme data, the default widget size, and the window size at a context in one line each, each registering
+  only the dependency of the lookup it wraps.
+- `StratumWidgetProps.resolveDefaultSize(context)` is the hook a component now calls for its default size;
+  `resolveSize` stays one minor version as a `@Deprecated` member that calls `resolveDefaultSize`, with no release
+  tag yet, so NFR-M04's major-version rule does not apply.
+- `context.deviceWindow.radius` now reads the screen's corner radii: on Android API 31+ through Flutter's own value,
+  and on iOS 26+ and macOS 27+ through the package's own native plugin under a `StratumThemeApplication`; every
+  other platform and version reads null, and the caller supplies its own fallback.
