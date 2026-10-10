@@ -1,3 +1,5 @@
+import 'package:animations/animations.dart' show PageTransitionSwitcher;
+import 'package:stratum_ui/src/animations/screen_transition.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The step of [StratumSplashScreen] that failed, which
@@ -82,6 +84,9 @@ class StratumSplashScreen<T> extends StatefulWidget {
     required this.postload,
     required this.builder,
     this.minimumDuration = Duration.zero,
+    this.exitTransition = ScreenTransitionType.fadeThrough,
+    this.exitDuration,
+    this.exitCurve,
     this.themeMode = ThemeMode.system,
     this.highContrast = HighContrastMode.system,
   });
@@ -123,6 +128,21 @@ class StratumSplashScreen<T> extends StatefulWidget {
   /// shows and running beside [postload] (FR-03); a retry does not restart
   /// it.
   final Duration minimumDuration;
+
+  /// How the app takes over from the splash, in place with no route
+  /// (FR-04): every type of FO-05 US-05 FR-01 but `platform` and
+  /// `cupertino`, which need a page route and fail a debug assertion that
+  /// names the types an exit takes; a release build plays `fadeThrough`
+  /// for them. Under reduced motion it follows FO-05 US-05 FR-03 for its
+  /// type, as every page route does.
+  final ScreenTransitionType exitTransition;
+
+  /// The exit's duration; null takes the push duration a page route of
+  /// [exitTransition] takes, the theme's `slow` level (FR-04 E04).
+  final Duration? exitDuration;
+
+  /// The exit's curve; null takes the theme's `standard` curve (FR-04 E04).
+  final Curve? exitCurve;
 
   /// The theme mode of the splash frames: pass the one the app gives its
   /// `StratumThemeApplication`, so the splash and the app show the same
@@ -295,6 +315,7 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
 
   @override
   Widget build(BuildContext context) {
+    final exit = _exitTypeOf(widget.exitTransition);
     final state = _state;
     // The first frame is held: no frame of the theme preload at launch
     // reaches the screen, so the builder first runs when the hold ends
@@ -308,7 +329,19 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     final frame = Builder(builder: (context) => widget.builder(context, state));
     return Directionality(
       textDirection: _directionOf(locale),
-      child: _themed(frame),
+      child: _themed(
+        _SplashExit(
+          type: exit,
+          duration: widget.exitDuration,
+          curve: widget.exitCurve,
+          // A new key only at done: the app comes in once, by the exit,
+          // while every other state redraws the frame in place.
+          child: KeyedSubtree(
+            key: ValueKey(state is StratumSplashDone<T>),
+            child: frame,
+          ),
+        ),
+      ),
     );
   }
 
@@ -334,6 +367,65 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     }
     return child;
   }
+}
+
+/// Switches from the splash frame to the app in place, with no route, by
+/// [type] (FR-04): each side runs [buildScreenTransition] with no route,
+/// the one source of the per-type motion and its reduced-motion rule that
+/// every page route of FO-05 US-05 takes.
+class _SplashExit extends StatelessWidget {
+  const new({
+    required this.type,
+    required this.duration,
+    required this.curve,
+    required this.child,
+  });
+
+  final ScreenTransitionType type;
+  final Duration? duration;
+  final Curve? curve;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final slow = slowOf(context);
+    return PageTransitionSwitcher(
+      duration:
+          duration ?? transitionDurationOf(type, platformOf(context), slow),
+      transitionBuilder: (child, animation, secondaryAnimation) =>
+          buildScreenTransition<void>(
+            type,
+            context: context,
+            animation: animation,
+            secondaryAnimation: secondaryAnimation,
+            child: child,
+            standard: curveOf(slow),
+            curve: curve,
+            alignment: Alignment.center,
+            joinOnSecondary: true,
+          ),
+      child: child,
+    );
+  }
+}
+
+/// [type] when an exit in place takes it, else `fadeThrough` after a debug
+/// assertion that names the types an exit takes (FR-04 E01).
+ScreenTransitionType _exitTypeOf(ScreenTransitionType type) {
+  // `platform` and `cupertino` hand their motion to a Flutter page
+  // transition, which needs a page route.
+  bool inPlace(ScreenTransitionType type) =>
+      flutterTransitionsBuilder(type, defaultTargetPlatform) == null;
+  String inPlaceNames() => [
+    for (final type in ScreenTransitionType.values)
+      if (inPlace(type)) type.name,
+  ].join(', ');
+  assert(
+    inPlace(type),
+    'StratumSplashScreen.exitTransition is $type, which needs a page route; '
+    'an exit in place takes ${inPlaceNames()}.',
+  );
+  return inPlace(type) ? type : ScreenTransitionType.fadeThrough;
 }
 
 /// The text direction of [locale]'s language (FR-07 E03).

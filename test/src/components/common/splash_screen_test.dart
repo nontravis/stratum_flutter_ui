@@ -40,6 +40,51 @@ Widget _splash(
 StratumSplashState<String> _last(List<StratumSplashState<String>> states) =>
     states.last;
 
+const Key _frame = ValueKey('frame');
+const Key _app = ValueKey('app');
+
+/// A splash whose builder draws a full-size frame until done, then a
+/// full-size app, exiting by [type] (else the default), [duration], and
+/// [curve]; [work] ends its postload. Under app reduced motion when
+/// [reduced].
+Widget _exit(
+  Completer<String> work, {
+  ScreenTransitionType? type,
+  Duration? duration,
+  Curve? curve,
+  bool reduced = false,
+}) => Builder(
+  builder: (context) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
+    child: DefaultAssetBundle(
+      bundle: FakeThemeBundle(),
+      child: StratumSplashScreen<String>(
+        exitTransition: type ?? ScreenTransitionType.fadeThrough,
+        exitDuration: duration,
+        exitCurve: curve,
+        postload: (context, controller) => work.future,
+        builder: (context, state) => switch (state) {
+          StratumSplashDone() => const SizedBox.expand(key: _app),
+          _ => const SizedBox.expand(key: _frame),
+        },
+      ),
+    ),
+  ),
+);
+
+/// The rect a person sees [key]'s box take: its layout rect moved, scaled,
+/// and turned by every transition above it.
+Rect _seen(WidgetTester tester, Key key) {
+  final box = tester.renderObject<RenderBox>(find.byKey(key));
+  return MatrixUtils.transformRect(
+    box.getTransformTo(null),
+    Offset.zero & box.size,
+  );
+}
+
+/// The whole test view, where the app ends.
+const _screen = Rect.fromLTWH(0, 0, 800, 600);
+
 void main() {
   // Scoped to this file: `flutter test` runs each file in its own process.
   LeakTesting.enable();
@@ -613,5 +658,183 @@ void main() {
       expect(tester.binding.sendFramesToEngine, isTrue);
       expect(_last(states), isA<StratumSplashFailed<String>>());
     });
+  });
+
+  group('StratumSplashScreen exit in place', () {
+    testWidgets('us12/fr04, us12/s1: by default the app fades through in '
+        'place over the theme slow level, 300 ms', (tester) async {
+      final work = Completer<String>();
+      await tester.pumpWidget(_exit(work));
+      await tester.pumpAndSettle();
+
+      work.complete('ready');
+      await tester.pump(Duration.zero);
+      expect(find.byKey(_frame), findsOneWidget);
+      expect(find.byKey(_app), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 299));
+      expect(find.byKey(_frame), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(_seen(tester, _app), _screen);
+      // The exit ends on the first frame past its duration
+      // (`_InterpolationSimulation.isDone`), and the splash frame goes then.
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(find.byKey(_frame), findsNothing);
+      expect(find.byType(Navigator), findsNothing);
+    });
+
+    testWidgets('us12/fr04, us12/s5: a right-to-left exit slides the app in '
+        'from the right over the splash in 300 ms', (tester) async {
+      final work = Completer<String>();
+      await tester.pumpWidget(
+        _exit(work, type: ScreenTransitionType.rightToLeft),
+      );
+      await tester.pumpAndSettle();
+
+      work.complete('ready');
+      await tester.pump(Duration.zero);
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(_seen(tester, _app).left, inExclusiveRange(0, 800));
+      expect(_seen(tester, _frame), _screen);
+
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(_seen(tester, _app), _screen);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(find.byKey(_frame), findsNothing);
+    });
+
+    testWidgets('us12/fr04/e04: an exit duration and curve replace the '
+        "theme's", (tester) async {
+      final work = Completer<String>();
+      await tester.pumpWidget(
+        _exit(
+          work,
+          type: ScreenTransitionType.rightToLeft,
+          duration: const Duration(milliseconds: 100),
+          // A test may name another curve to measure a value.
+          curve: Curves.linear,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      work.complete('ready');
+      await tester.pump(Duration.zero);
+      await tester.pump(const Duration(milliseconds: 25));
+      expect(_seen(tester, _app).left, 600);
+
+      await tester.pump(const Duration(milliseconds: 75));
+      expect(_seen(tester, _app), _screen);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(find.byKey(_frame), findsNothing);
+    });
+
+    testWidgets('the app keeps its own state when the exit ends', (
+      tester,
+    ) async {
+      final work = Completer<String>();
+      await tester.pumpWidget(
+        DefaultAssetBundle(
+          bundle: FakeThemeBundle(),
+          child: StratumSplashScreen<String>(
+            postload: (context, controller) => work.future,
+            builder: (context, state) => switch (state) {
+              StratumSplashDone() => const MaterialApp(home: Text('home')),
+              _ => const SizedBox.expand(key: _frame),
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      work.complete('ready');
+      await tester.pump(Duration.zero);
+      final during = tester.state(find.byType(MaterialApp));
+
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(_frame), findsNothing);
+      expect(tester.state(find.byType(MaterialApp)), same(during));
+    });
+
+    testWidgets('us12/fr04/e02: none shows the app at once', (tester) async {
+      final work = Completer<String>();
+      await tester.pumpWidget(_exit(work, type: ScreenTransitionType.none));
+      await tester.pumpAndSettle();
+
+      work.complete('ready');
+      await tester.pump(Duration.zero);
+      await tester.pump();
+
+      expect(find.byKey(_frame), findsNothing);
+      expect(_seen(tester, _app), _screen);
+    });
+
+    for (final type in [
+      ScreenTransitionType.platform,
+      ScreenTransitionType.cupertino,
+    ]) {
+      testWidgets('us12/fr04/e01: $type fails an assertion that names the '
+          'types an exit takes', (tester) async {
+        await tester.pumpWidget(_exit(Completer<String>(), type: type));
+
+        expect(
+          tester.takeException(),
+          isA<AssertionError>().having(
+            (error) => '${error.message}',
+            'message',
+            allOf(
+              contains('needs a page route'),
+              contains('takes fade, rightToLeft,'),
+              contains('fadeThrough'),
+              isNot(contains(', platform')),
+              isNot(contains(', cupertino')),
+            ),
+          ),
+        );
+      });
+    }
+
+    for (final type in [
+      ScreenTransitionType.fadeThrough,
+      ScreenTransitionType.rightToLeft,
+    ]) {
+      for (final (source, app, platform) in [
+        ('no', false, false),
+        ('app', true, false),
+        ('platform', false, true),
+      ]) {
+        final reduced = app || platform;
+        testWidgets('NFR-U03, us12/fr04/e03, us12/s6: with $source reduced '
+            'motion, one frame after done, a ${type.name} exit '
+            '${reduced ? 'shows' : 'still moves or scales'} the app where it '
+            'ends', (tester) async {
+          if (platform) {
+            tester.platformDispatcher.accessibilityFeaturesTestValue =
+                const FakeAccessibilityFeatures(reduceMotion: true);
+            addTearDown(
+              tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+            );
+          }
+          // The target: where the app ends once the exit has settled.
+          final settled = Completer<String>();
+          await tester.pumpWidget(_exit(settled, type: type, reduced: app));
+          await tester.pumpAndSettle();
+          settled.complete('ready');
+          await tester.pumpAndSettle();
+          final target = _seen(tester, _app);
+          // A fresh splash; then the same change and one frame. The zero
+          // duration flushes postload's result before the frame
+          // (flutter_test binding.dart:2249-2263) and lets no time pass.
+          await tester.pumpWidget(const SizedBox.shrink());
+          final work = Completer<String>();
+          await tester.pumpWidget(_exit(work, type: type, reduced: app));
+          await tester.pumpAndSettle();
+          work.complete('ready');
+          await tester.pump(Duration.zero);
+
+          expect(_seen(tester, _app), reduced ? target : isNot(target));
+        });
+      }
+    }
   });
 }
