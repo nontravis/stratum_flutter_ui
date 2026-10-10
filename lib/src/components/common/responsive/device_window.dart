@@ -76,6 +76,15 @@ extension type DeviceWindow._(BuildContext _context) {
   /// The form factor from the nearest [WindowSizeScope]; switch on
   /// `(windowSize, orientation)` to tell portrait from landscape.
   WindowSize get windowSize => WindowSizeScope.of(_context);
+
+  /// The screen's corner radii, from the display corner radii aspect of
+  /// the nearest [MediaQuery] alone (FO-07 US-04 FR-03).
+  ///
+  /// Null when the platform reports no readable radius; the caller supplies
+  /// its own fallback. Android API 31+ reports it through Flutter; iOS 26+
+  /// and macOS 27+ report it through the package's native probe under a
+  /// `StratumThemeApplication`.
+  BorderRadius? get radius => MediaQuery.displayCornerRadiiOf(_context);
 }
 
 extension DeviceWindowContextExtension on BuildContext {

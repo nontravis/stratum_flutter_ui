@@ -246,6 +246,13 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 - **`SpaceDirectional`** — the same steps as `EdgeInsetsDirectional`, so start and end mirror under
   `TextDirection.rtl`.
 
+## Screen corner radius
+
+- `context.deviceWindow.radius` is the screen's corner radii as a `BorderRadius?`: Android API 31+, iOS 26+, and
+  macOS 27+ under a `StratumThemeApplication`; null everywhere else. Always pass a fallback:
+  `context.deviceWindow.radius ?? BorderRadius.zero`. A reader rebuilds only when the radius changes. The app writes
+  no setup code for it.
+
 ## Focus ring
 
 - **`StratumFocusBorder`** — the Figma `FocusBorder` ring around one `child`. `StratumInkWell`, and so every
