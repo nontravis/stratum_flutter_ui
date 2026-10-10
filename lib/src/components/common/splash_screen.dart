@@ -336,8 +336,9 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     WidgetsBinding.instance.allowFirstFrame();
     // `allowFirstFrame` only schedules the warm-up frame; on the web both
     // halves of it run on later tasks. A post-frame callback of the next
-    // frame still runs before the page's own next paint, which is as
-    // close as the framework's own signals get.
+    // frame still follows that frame being drawn, which is as close as
+    // the framework's own signals get; skwasm rasterizes off the main
+    // thread, so this does not promise the page's own paint either.
     WidgetsBinding.instance.addPostFrameCallback((_) => signalSplashShown());
     if (widget.minimumDuration <= Duration.zero) {
       _minimumPassed = true;

@@ -410,8 +410,8 @@ scroll it, guarded so a text field inside keeps its own keys.
   readers hear the built-in "Loading" label (Thai on a Thai device), or your `loadingLabel`, on every loading frame
   your builder draws. The app takes over in place by `exitTransition`, default `ScreenTransitionType.fadeThrough`,
   on the theme's `slow` level and `standard` curve unless you pass `exitDuration` and `exitCurve`; every type but
-  `platform` and `cupertino` works, and reduced
-  motion keeps only the fade a type has, as page routes do. Above `MaterialApp` the platform locale picks the text
+  `platform` and `cupertino` works, and reduced motion keeps only the fade a type has, as page routes do. Above
+  `MaterialApp` the platform locale picks the text
   direction. On the web, remove your page's loader when `window` dispatches `stratum-splash-shown`:
   `window.addEventListener('stratum-splash-shown', () => document.getElementById('loader')?.remove());`. Keep
   first-launch timing in your own storage: the package stores nothing.

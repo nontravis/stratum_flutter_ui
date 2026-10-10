@@ -99,6 +99,46 @@ Rect _seen(WidgetTester tester, Key key) {
 /// The whole test view, where the app ends.
 const _screen = Rect.fromLTWH(0, 0, 800, 600);
 
+/// A `RouteInformationParser` with one route: the app under test never
+/// navigates, so it never reads [RouteInformation].
+class _FixedRouteInformationParser extends RouteInformationParser<Object> {
+  @override
+  Future<Object> parseRouteInformation(RouteInformation information) async =>
+      Object();
+}
+
+/// A `RouterDelegate` whose one page is a button keyed [buttonKey], for a
+/// `MaterialApp.router` app with nothing to navigate to.
+class _FixedRouterDelegate extends RouterDelegate<Object>
+    with ChangeNotifier, PopNavigatorRouterDelegateMixin<Object> {
+  new(this.buttonKey);
+
+  final Key buttonKey;
+
+  @override
+  final navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  Widget build(BuildContext context) => Navigator(
+    key: navigatorKey,
+    pages: [
+      MaterialPage<void>(
+        child: Scaffold(
+          body: TextButton(
+            key: buttonKey,
+            onPressed: () {},
+            child: const Text('button'),
+          ),
+        ),
+      ),
+    ],
+    onDidRemovePage: (page) {},
+  );
+
+  @override
+  Future<void> setNewRoutePath(Object configuration) async {}
+}
+
 void main() {
   // Scoped to this file: `flutter test` runs each file in its own process.
   LeakTesting.enable();
@@ -977,6 +1017,92 @@ void main() {
 
       expect(tester.getSize(find.byKey(_frame)), _screen.size);
     });
+
+    for (final (label, shell)
+        in <(String, (Widget, List<ChangeNotifier>) Function(Key))>[
+          (
+            'MaterialApp(home:)',
+            (key) => (
+              MaterialApp(
+                home: Scaffold(
+                  body: TextButton(
+                    key: key,
+                    onPressed: () {},
+                    child: const Text('button'),
+                  ),
+                ),
+              ),
+              const [],
+            ),
+          ),
+          (
+            'MaterialApp.router',
+            (key) {
+              final provider = PlatformRouteInformationProvider(
+                initialRouteInformation: RouteInformation(uri: Uri.parse('/')),
+              );
+              final delegate = _FixedRouterDelegate(key);
+              return (
+                MaterialApp.router(
+                  routerConfig: RouterConfig<Object>(
+                    routeInformationProvider: provider,
+                    routeInformationParser: _FixedRouteInformationParser(),
+                    routerDelegate: delegate,
+                  ),
+                ),
+                [provider, delegate],
+              );
+            },
+          ),
+        ]) {
+      testWidgets(
+        'us12/fr04, NFR-U02: focus enters $label at the exit, and one Tab '
+        'reaches its button',
+        (tester) async {
+          final buttonKey = UniqueKey();
+          final work = Completer<String>();
+          // Built once: the splash's builder runs on every rebuild of the
+          // exit animation, and MaterialApp.router's delegate and route
+          // information provider are long-lived, not rebuilt each frame.
+          final (app, disposables) = shell(buttonKey);
+          for (final disposable in disposables) {
+            addTearDown(disposable.dispose);
+          }
+          await tester.pumpWidget(
+            DefaultAssetBundle(
+              bundle: FakeThemeBundle(),
+              child: StratumSplashScreen<String>(
+                postload: (context, controller) => work.future,
+                builder: (context, state) => switch (state) {
+                  StratumSplashDone() => app,
+                  _ => const SizedBox.expand(key: _frame),
+                },
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          work.complete('ready');
+          await tester.pumpAndSettle();
+
+          final focused = FocusManager.instance.primaryFocus!.context!;
+          expect(
+            focused.findAncestorWidgetOfExactType<Navigator>(),
+            isNotNull,
+            reason:
+                'primaryFocus should sit inside the app, under its '
+                'own Navigator, not the splash',
+          );
+
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+
+          expect(
+            Focus.of(tester.element(find.text('button'))).hasFocus,
+            isTrue,
+          );
+        },
+      );
+    }
 
     testWidgets('us12/fr04/e02: none shows the app at once', (tester) async {
       final work = Completer<String>();
