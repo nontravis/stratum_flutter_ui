@@ -23,16 +23,7 @@ final _getters = <String, String Function(StratumLabels)>{
   'requiredMarker': (labels) => labels.requiredMarker,
   'showMenuLabel': (labels) => labels.showMenuLabel,
   'retryLabel': (labels) => labels.retryLabel,
-  'failureMessage': (labels) => labels.failureMessage,
   'placeholderPageTitle': (labels) => labels.placeholderPageTitle,
-  'forceUpdateTitle': (labels) => labels.forceUpdateTitle,
-  'forceUpdateMessage': (labels) => labels.forceUpdateMessage,
-  'maintenanceTitle': (labels) => labels.maintenanceTitle,
-  'maintenanceMessage': (labels) => labels.maintenanceMessage,
-  'softUpdateTitle': (labels) => labels.softUpdateTitle,
-  'softUpdateMessage': (labels) => labels.softUpdateMessage,
-  'updateLabel': (labels) => labels.updateLabel,
-  'laterLabel': (labels) => labels.laterLabel,
   'reorderMoveAnnouncement': (labels) => labels.reorderMoveAnnouncement(
     _placeholders['position']!,
     _placeholders['count']!,
@@ -67,9 +58,14 @@ void main() {
   final en = _messages('stratum_labels_en.arb');
   final th = _messages('stratum_labels_th.arb');
 
-  test('us01/fr01: the table holds exactly the 21 built-in string kinds', () {
+  test('us01/fr01: the table holds exactly the 12 built-in string kinds', () {
     expect(en.keys.toSet(), _getters.keys.toSet());
-    expect(_getters, hasLength(21));
+    expect(_getters, hasLength(12));
+  });
+
+  test('us01/fr01/e05: the retry label stays in both tables', () {
+    expect(en, contains('retryLabel'));
+    expect(th, contains('retryLabel'));
   });
 
   test('us01/fr01/e02: every English entry is non-empty', () {

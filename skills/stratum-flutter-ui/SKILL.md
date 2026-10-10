@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: picking a layout primitive, its parameters or keyboard behavior, or starting, switching, or writing a Stratum theme. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, or StratumWebView, StratumWebViewController, its message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType, or StratumCaret, StratumCaretDirection, StratumCaretStyle, a named color via resolveColor or a ColorEnum lookup, or built-in Thai labels and supportedLocales.
+description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumSplashScreen, StratumSplashState, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
 ---
 
 # Stratum Flutter UI
@@ -273,6 +273,27 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
   took effect.
 
+## Disabled components
+
+- **`disabled: true`** — on any component built on `StratumStatelessWidget` or `StratumStatefulWidget`, the
+  base paints it at the theme's `opacity.disabled` (0.5 by default), shows the forbidden cursor, lets no tap,
+  long press, drag, or hover run its action — a tap reaches a gesture detector wrapped around it, as with a
+  Flutter button whose `onPressed` is null — and keeps it and every node inside it out of focus and Tab order,
+  losing focus if focused. A screen reader marks it disabled on its own node. Turning `disabled` off keeps the
+  component's state. A `StratumInkWell` press already down when it turns disabled is cancelled and runs no action; a
+  scroll already holding the finger goes on, and a `GestureDetector` you write inside it finishes its gesture
+  underway.
+- **Your own disabled look** — a component overrides `@protected bool get dimsWhenDisabled => false` to draw its
+  own; the cursor, input, focus, and screen-reader rules still hold. A widget extending neither base gets none of
+  this.
+- **A decorative component** — a component that gives a screen reader nothing to read, such as a caret, overrides
+  `@protected bool get contributesSemantics => false`; while disabled it then gets no screen-reader node, and the
+  dimming, cursor, input, and focus rules still hold.
+- **One box widget at its root** — a component on either base builds exactly one box widget at its root, never
+  `Expanded`, `Flexible`, or `Positioned`; the base asserts no `ParentDataWidget` root in debug builds, so move the
+  parent-data widget to the call site instead. A sliver root is not caught by this assertion; it fails Flutter's own
+  box-child assertion instead.
+
 ## Caret and named colors
 
 - **`StratumCaret`** — the Figma `Caret` glyph that marks a disclosure, select, or dropdown as open or closed; for
@@ -345,7 +366,7 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 - **Before `preload`** — call `WidgetsFlutterBinding.ensureInitialized()` first: `preload` reads the asset manifest
   through `rootBundle`, which needs the binding. In a `testWidgets` test, the background parse runs on a real
   isolate, which the test's fake-async zone never finishes; run `preload`, or pump a tree rooted in
-  `StratumThemePreloader`, under `tester.runAsync`.
+  `StratumThemePreloader` or `StratumSplashScreen`, under `tester.runAsync`.
 - **`StratumThemeController`** — the registered themes and the active one. Build it before the first themed frame
   with `await StratumThemeController.preload(initialThemeId: savedId, onThemeChanged: save)`; `googleFontsTimeout`
   (default 3 s, also the limit of every switch) and `bundle` are optional. It registers every
@@ -374,6 +395,61 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   until the start theme is active, then `builder`, or `error` with what preload threw; it reads its asset bundle from
   `DefaultAssetBundle` and disposes its controller when it leaves the tree. Pick it or `await preload(...)` before
   `runApp`, not both.
+- **`StratumSplashScreen`** — the splash an app shows while it starts: place it above `MaterialApp` as the root of
+  `runApp`, instead of `StratumThemePreloader` or an awaited `preload`. It keeps the platform's launch screen, or on
+  the web the page's own loader, until the start theme is active, then runs `postload` with the controller and hands
+  the one required `builder` one `StratumSplashState` at a time; the package draws no splash look, so the builder
+  draws every state, the failure and its retry button included, and returns the app itself, never a route, at
+  `StratumSplashDone`:
+
+  ```dart
+  runApp(
+    StratumSplashScreen<AppData>(
+      initialThemeId: savedThemeId,
+      onThemeChanged: saveThemeId,
+      themeMode: ThemeMode.system, // the modes the app gives its theme application
+      postload: (context, controller) => loadAppData(), // bound its own time limits
+      minimumDuration: firstLaunch ? const Duration(seconds: 2) : Duration.zero,
+      builder: (context, state) => switch (state) {
+        StratumSplashLoadingTheme() || StratumSplashLoadingApp() => const BrandSplash(),
+        StratumSplashFailed(:final error, :final retry) =>
+          BrandFailure(error: error, onRetry: retry),
+        StratumSplashDone(:final controller, :final data) => MaterialApp(
+          builder: (context, child) => StratumThemeApplication.controlled(
+            controller: controller,
+            themeMode: ThemeMode.system,
+            child: child!,
+          ),
+          home: HomePage(data: data),
+        ),
+      },
+    ),
+  );
+  ```
+
+  `postload`'s context sits above the splash's own theme scope: read the active theme through `controller`, never
+  `StratumTheme.of(context)`. If your own `AssetBundle` cannot read the package's embedded default theme either, the
+  failed frame has no theme above it at all, and the read failure reaches `FlutterError.reportError` on its own; fix
+  the bundle, since the package has nothing left to fall back to.
+
+  Every frame before done has no `Overlay` and no `Localizations` above it — no `Tooltip`, no `TextField` — until
+  the app's own `MaterialApp`. The splash wraps those frames in its own `Shortcuts`/`Actions` of
+  `WidgetsApp.defaultShortcuts`/`defaultActions`, so Tab still reaches a focusable retry button and Enter or Space
+  still activates it.
+
+  `StratumSplashFailed.phase` says which step failed, `StratumSplashPhase.theme` (its `error` is the theme file's
+  `StratumThemeFormatException`) or `StratumSplashPhase.postload` (what `postload` threw); `retry` runs that step
+  again and the builder gets its loading state, while `minimumDuration` keeps counting from the first frame.
+  `StratumSplashFailed.stackTrace` is `error`'s stack trace, `StackTrace.empty` when none was caught with it, for
+  your own crash reporting. After a theme failure the builder's frames read the package default theme alone. Screen
+  readers hear the built-in "Loading" label (Thai on a Thai device), or your `loadingLabel`, on every loading frame
+  your builder draws. The app takes over in place by `exitTransition`, default `ScreenTransitionType.fadeThrough`,
+  on the theme's `slow` level and `standard` curve unless you pass `exitDuration` and `exitCurve`; every type but
+  `platform` and `cupertino` works, and reduced motion keeps only the fade a type has, as page routes do. Above
+  `MaterialApp` the platform locale picks the text
+  direction. On the web, remove your page's loader when `window` dispatches `stratum-splash-shown`:
+  `window.addEventListener('stratum-splash-shown', () => document.getElementById('loader')?.remove());`. Keep
+  first-launch timing in your own storage: the package stores nothing.
 - **Remote theme zips** — hand a downloaded `<id>.zip` with the checksum your own API serves (never a file beside the
   zip): `StratumRemoteTheme(id:, bytes:, checksum: 'sha256:<64 hex>')`, caps `maxBytes` 20 MB and `maxEntries` 200 by
   default. Pass kept zips to `preload(remoteThemes: [...], onRemoteThemeError: (id, error) => ...)` or the same two
@@ -408,10 +484,21 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   be read, or is not yaml, such as one holding an anchor, alias, or tag or nesting deeper than 64), an `--out` that is
   not a folder, or a zip that fails to write. Names starting with `.` and `__MACOSX/` stay out of a pack. An install
   refuses an entry name holding any character outside printable ASCII, U+0020 to U+007E (a control character, an
-  accented letter, or a Thai letter alike), and a folder entry that holds bytes; `pack` refuses such a file or folder
-  name under the folder before it writes anything, so rename it. stratum_ui allows only the google_fonts version its CLI
-  family list came from, so the CLI and your app accept the same `Google/<Name>` families. When `pub get` reports a
-  google_fonts conflict, let your own google_fonts constraint allow the version stratum_ui's `pubspec.yaml` names.
+  accented letter, or a Thai letter alike), or a name Windows would not create unchanged (a part ending in a dot or a
+  space, a part of dots only, any of `:`, `<`, `>`, `"`, `|`, `?`, `*`, a device name such as `CON`, `aux.txt`, or
+  `CONIN$` in any letter case with trailing spaces before the dot trimmed, or a part holding `~` before a digit, an
+  8.3 short-name marker such as `THEME~1.YAM`), and a folder entry that holds bytes; `pack` refuses such a file or
+  folder name under the folder before it writes anything, so rename it. stratum_ui allows only the google_fonts
+  version its CLI family list came from, so the CLI and your app accept the same `Google/<Name>` families. When
+  `pub get` reports a google_fonts conflict, let your own google_fonts constraint allow the version stratum_ui's
+  `pubspec.yaml` names.
+- **Disabled opacity** — `opacity.disabled` in `theme.yaml`, a number from 0 to 1, is the opacity every disabled
+  component paints at; the package default sets 0.5, and an app theme may leave the group out. Read it as
+  `StratumThemeApplication.of(context).opacity.disabled`. A value outside 0 to 1 throws
+  `StratumThemeFormatException` with `expected_opacity` at its path, and a second key under `opacity` is
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.1.0`; this package reads every `v1.0` and
+  `v1.1` theme, while a package build that reads only `v1.0` refuses a `v1.1` theme as `unsupported_schema`, so a
+  theme that must load on both writes `v1.0.0` and leaves `opacity` out.
 
 ## Page transitions
 
@@ -450,6 +537,29 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   any other type shows the page at once.
 - **Flutter floor** — `stratum_ui` needs Flutter 3.47 or later, which packages `google_fonts` 9.0.0, `badges`
   ^4.0.1, and `webview_flutter_wkwebview` ^3.27.0 need.
+
+## Show and hide
+
+- **`StratumShow`** — `StratumShow(visible: v, child: c)` shows `c` while `v` is true and hides it while false, by
+  `transition`: `StratumShowTransition.sizeAndFade` (the default), `.fade`, `.size`, or `.slide`, over the theme's
+  default motion level (125 ms to show and 80 ms to hide in the package default) on its `standard` curve; `duration`,
+  `reverseDuration`, and `curve` each replace one of them. A slide moves the content by its own size from
+  `slideDirection`: `StratumShowSlideDirection.end` (the default), `.start`, `.top`, or `.bottom`, with start and end
+  mirrored under right-to-left text, and fades as it moves. Hidden content takes no space in a row or a column and is
+  unmounted after its hide motion, so it builds fresh when shown again; `maintainState: true` keeps it mounted
+  instead, with its state, its tickers stopped, and no size. From the frame it turns hidden, leaving or hidden content
+  takes no tap, focus, or screen-reader attention; focus inside it moves to the show, which Tab never stops on. Under
+  reduced motion nothing moves or resizes: `fade`, `sizeAndFade`, and `slide` keep their fade, and `size` shows and
+  hides at once.
+
+## Web zoom
+
+- **`StratumWebZoom`** — wrap a web app, or the part of it to zoom, in `StratumWebZoom(child: app)`. On the web the
+  EndUser pinches, on a touch screen or a trackpad, to zoom between `minScale` (default 1.0, so the app never shrinks
+  below its own layout) and `maxScale` (default 2.5), pans the zoomed app, and sees it clipped to the zoom's bounds;
+  the mouse wheel never zooms and keeps scrolling the list under the pointer. On Android, iOS, macOS, Windows, and
+  Linux it builds the child alone. A `maxScale` below `minScale`, or a `minScale` of 0 or less, fails an assertion in
+  debug builds on every platform. It does not zoom the page inside a `StratumWebView`.
 
 ## Web view
 

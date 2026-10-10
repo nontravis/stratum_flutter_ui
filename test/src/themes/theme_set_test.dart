@@ -112,8 +112,10 @@ void main() {
         expect(data.appPalettes, same(set.light.appPalettes));
         expect(data.animation, same(set.light.animation));
         expect(data.typography, same(set.light.typography));
+        expect(data.opacity, same(set.light.opacity));
       }
       expect(set.light.animation, StratumAnimation.packageDefault);
+      expect(set.light.opacity.disabled, 0.5);
     });
 
     test('app colors per set, app ramps shared, extensions, assets', () {
@@ -181,6 +183,38 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('fo08/us07/fr01/e02: an app theme that sets opacity.disabled to '
+        '0.3 gives every data 0.3', () {
+      final set = StratumThemeSet.fromConfig(
+        StratumThemeConfig.parse(
+          base: StratumThemeSource(
+            id: 'stratum-default',
+            folder: 'packages/stratum_ui/assets/themes/default',
+            yaml: defaultThemeSource,
+          ),
+          layers: const [
+            StratumThemeSource(
+              id: 'dim',
+              folder: 'themes/dim',
+              yaml:
+                  '\$schema: stratum-theme/v1.1.0\n'
+                  'opacity:\n'
+                  '  disabled: 0.3\n',
+            ),
+          ],
+        ),
+      );
+
+      expect(set.light.opacity.disabled, 0.3);
+      expect(set.dark!.opacity.disabled, 0.3);
+      expect(set.highContrastDark!.opacity.disabled, 0.3);
+    });
+
+    test('fo08/us07/fr01/e03: an app theme that leaves opacity out gives '
+        '0.5', () {
+      expect(_oceanSet().light.opacity.disabled, 0.5);
     });
   });
 

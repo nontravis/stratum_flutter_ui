@@ -41,6 +41,7 @@ class StratumThemeSet {
     final appPalettes = _appPalettes(config.palette);
     final assets = StratumAssetTokens.fromMap(config.assets);
     final animation = StratumAnimation.fromConfig(config.animation);
+    final opacity = StratumOpacityTokens.fromMap(config.opacity);
     StratumThemeData data(
       StratumColorTokens color,
       Map<String, Color> setColors, {
@@ -58,6 +59,7 @@ class StratumThemeSet {
       extensions: config.extensions,
       typography: config.typography,
       animation: animation,
+      opacity: opacity,
       systemOverlayStyle: dark ? AppSystemUI.dark : AppSystemUI.light,
       systemOverlayInverseStyle: dark ? AppSystemUI.light : AppSystemUI.dark,
     );

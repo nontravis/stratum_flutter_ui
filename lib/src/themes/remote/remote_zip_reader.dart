@@ -268,6 +268,50 @@ int _u32(ByteData view, int at) => view.getUint32(at, Endian.little);
 /// (0x7875), and the jar marker (0xcafe).
 const _allowedExtraIds = {0x000a, 0x5455, 0x5855, 0x7875, 0xcafe};
 
+/// Whether the [size]-byte body at [at] of an extra-field record of the
+/// allowed [id] fills EITHER of that id's two layouts, the local header's
+/// or the central one (FO-04 US-01 FR-02 E02, s03 invariant 14; design
+/// FU4, RZF4). A tool that copies one header's record into the other
+/// unchanged, such as Python's `zipfile` or Java's `ZipOutputStream`,
+/// writes a body that fills only one of the two layouts; this reads
+/// either, never a mix of their bytes. Only the length and the flag,
+/// version, and size bytes that fix a shape are judged, never a time, a
+/// user or group id, or a reserved byte:
+/// - 0x000a: 4 reserved bytes, then tag 0x0001 of size 24, 32 bytes in
+///   all, the same on both layouts (APPNOTE 4.5.5);
+/// - 0x5455: a flags byte with bits 3 to 7 clear, then 4 bytes for each
+///   of bits 0 to 2 set (the local layout) or 4 bytes only when bit 0 is
+///   set (the central layout);
+/// - 0x5855: 8 bytes (both layouts) or 12 (the local layout);
+/// - 0x7875: version 1, a user-id size, the user id, a group-id size, the
+///   group id, the same on both layouts;
+/// - 0xcafe: empty, the same on both layouts.
+bool _fitsExtraLayout(ByteData view, int id, int at, int size) {
+  int byte(int offset) => view.getUint8(at + offset);
+  switch (id) {
+    case 0x000a:
+      return size == 32 &&
+          _u16(view, at + 4) == 0x0001 &&
+          _u16(view, at + 6) == 24;
+    case 0x5455:
+      if (size < 1 || byte(0) & 0xF8 != 0) return false;
+      final flags = byte(0);
+      final localTimes =
+          (flags & 0x01) + (flags >> 1 & 0x01) + (flags >> 2 & 0x01);
+      return size == 1 + 4 * localTimes || size == 1 + 4 * (flags & 0x01);
+    case 0x5855:
+      return size == 8 || size == 12;
+    case 0x7875:
+      return size >= 3 &&
+          byte(0) == 1 &&
+          size >= 3 + byte(1) &&
+          size == 3 + byte(1) + byte(2 + byte(1));
+    case 0xcafe:
+      return size == 0;
+  }
+  return false;
+}
+
 /// An entry with the first byte of its data.
 typedef _Span = ({_Entry entry, int start});
 
@@ -559,7 +603,8 @@ final class _Entry {
   /// each of an id in [_allowedExtraIds] (design Z3, RZ9), so a ZIP64
   /// record (0x0001), an Info-ZIP Unicode Path record (0x7075), and a
   /// record that tells another tool a file type, such as libarchive's
-  /// 0x6c78, are refused.
+  /// 0x6c78, are refused; and each record's body fills either of its
+  /// id's two layouts, [_fitsExtraLayout] (design FU4, RZF4).
   void _checkExtra(ByteData view, int at, int length, String where) {
     final end = at + length;
     var i = at;
@@ -571,14 +616,21 @@ final class _Entry {
         );
       }
       final id = _u16(view, i);
+      final hex = '0x${id.toRadixString(16).padLeft(4, '0')}';
       if (!_allowedExtraIds.contains(id)) {
         throw _invalid(
-          'the $where extra field of $label holds a record of id '
-          '0x${id.toRadixString(16).padLeft(4, '0')}, which the install '
-          'does not read',
+          'the $where extra field of $label holds a record of id $hex, '
+          'which the install does not read',
         );
       }
-      i += 4 + _u16(view, i + 2);
+      final size = _u16(view, i + 2);
+      if (!_fitsExtraLayout(view, id, i + 4, size)) {
+        throw _invalid(
+          'the $where extra field of $label holds a record of id '
+          '$hex whose $size-byte body fits no layout of that id',
+        );
+      }
+      i += 4 + size;
     }
   }
 

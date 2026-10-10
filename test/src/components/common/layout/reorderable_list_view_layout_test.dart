@@ -11207,7 +11207,7 @@ void main() {
 
   group('ReorderableListViewLayout screen reader', () {
     testWidgets(
-      'us11/fr06 and s03/inv50: a screen reader reads the item count, also '
+      'us11/fr06 and s03/inv58: a screen reader reads the item count, also '
       'after an insert and a remove',
       (tester) async {
         final handle = tester.ensureSemantics();
@@ -11245,7 +11245,7 @@ void main() {
 
     final moveWays = ValueVariant<String>({'key', 'action', 'drop'});
     testWidgets(
-      'us11/fr06/e01 and s03/inv52: a reorder key, a screen-reader action, '
+      'us11/fr06/e01 and s03/inv60: a reorder key, a screen-reader action, '
       'and a drop each announce the new position',
       (tester) async {
         final handle = moveWays.currentValue == 'action'
@@ -11317,7 +11317,7 @@ void main() {
       variant: layouts,
     );
 
-    testWidgets('us11/fr06/e08 and s03/inv52: a reorder key held past an end '
+    testWidgets('us11/fr06/e08 and s03/inv60: a reorder key held past an end '
         'announces once, on its key-down', (tester) async {
       await tester.pumpWidget(_app(const _Harness(count: 5)));
       final log = _announcements(tester);
@@ -11338,7 +11338,7 @@ void main() {
     });
 
     testWidgets(
-      'us11/fr06/e08 and s03/inv52: a reorder key held down announces once, '
+      'us11/fr06/e08 and s03/inv60: a reorder key held down announces once, '
       'where the item ends, when the key is let go',
       (tester) async {
         await tester.pumpWidget(_app(const _Harness(count: 10)));
@@ -11370,7 +11370,7 @@ void main() {
         for (final moves in ['two actions', 'a key and an action', 'two items'])
           (live: live, moves: moves),
     });
-    testWidgets('us11/fr06/e09 and s03/inv52: two moves that land in one frame '
+    testWidgets('us11/fr06/e09 and s03/inv60: two moves that land in one frame '
         'announce once, where the last one put its item', (tester) async {
       final (:live, :moves) = frameMoves.currentValue!;
       final handle = tester.ensureSemantics();
@@ -11435,7 +11435,7 @@ void main() {
       'insert while held',
     });
     testWidgets(
-      'us11/fr06/e08 and s03/inv52: reorder keys held over each other, or a '
+      'us11/fr06/e08 and s03/inv60: reorder keys held over each other, or a '
       'call during a hold, announce once where the item ends',
       (tester) async {
         final overlap = overlaps.currentValue!;
@@ -11604,7 +11604,7 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr06/e06 and s03/inv52: the live-region node leaves the tree '
+      'us11/fr06/e06 and s03/inv60: the live-region node leaves the tree '
       '4 s after its announcement, so a later swipe never reads it',
       (tester) async {
         final handle = tester.ensureSemantics();
@@ -11686,7 +11686,7 @@ void main() {
     final motion = ValueVariant<String>({'no', 'app', 'platform'});
 
     testWidgets(
-      'NFR-U03, us11/fr01/e09, and s03/inv51: a neighbor a drag passes '
+      'NFR-U03, us11/fr01/e09, and s03/inv59: a neighbor a drag passes '
       'takes its slot at once only under reduced motion',
       (tester) async {
         if (motion.currentValue == 'platform') {
@@ -11726,7 +11726,7 @@ void main() {
     );
 
     testWidgets(
-      'NFR-U03, us11/fr01/e09, and s03/inv51: a dropped item settles at '
+      'NFR-U03, us11/fr01/e09, and s03/inv59: a dropped item settles at '
       'once only under reduced motion',
       (tester) async {
         if (motion.currentValue == 'platform') {

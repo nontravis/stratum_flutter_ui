@@ -19,6 +19,7 @@ final class PlainThemeConfig {
     required this.color,
     required this.typography,
     required this.animation,
+    required this.opacity,
     required this.extensions,
   });
 
@@ -35,6 +36,9 @@ final class PlainThemeConfig {
   final PlainColorSets color;
   final PlainTypography typography;
   final StratumAnimationConfig animation;
+
+  /// The `opacity` group, key to a number from 0 to 1.
+  final Map<String, double> opacity;
 
   /// The merged `extensions` group as plain, unmodifiable Dart values.
   final Map<String, Object?> extensions;

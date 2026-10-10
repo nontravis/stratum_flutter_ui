@@ -11,8 +11,9 @@ enum _Slot { splashScreen, loading }
 /// theme's asset. A slot a theme installed from a zip sets reads its file
 /// from that zip through the controller's overlay bundle; every other slot
 /// reads from [DefaultAssetBundle] (FO-03 US-07 FR-02 E04). Under reduced
-/// motion a Lottie asset holds a still frame; an animated GIF or WebP plays
-/// as Flutter's [Image] plays it.
+/// motion a Lottie asset holds a still frame, and an animated GIF or WebP
+/// pauses on its first frame too, by the same `context.reducesMotion` rule
+/// (FO-03 US-07 FR-02 E05).
 class StratumThemeAssetView extends StatelessWidget {
   /// The `loading` slot.
   const new loading({
@@ -52,13 +53,20 @@ class StratumThemeAssetView extends StatelessWidget {
         ? StratumThemeController.maybeOf(context)?.remoteBundle
         : null;
     return switch (asset.kind) {
-      StratumAssetKind.image => Image.asset(
-        asset.path,
-        bundle: bundle,
-        width: width,
-        height: height,
-        fit: fit,
-        errorBuilder: (context, error, stackTrace) => placeholder,
+      StratumAssetKind.image => TickerMode(
+        // Flutter's Image already pauses an animated GIF or WebP when
+        // MediaQueryData.disableAnimations is true; TickerMode.of(context)
+        // folds in the platform's reduce-motion flag too, the half
+        // context.reducesMotion adds (FO-03 US-07 FR-02 E05).
+        enabled: !context.reducesMotion,
+        child: Image.asset(
+          asset.path,
+          bundle: bundle,
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) => placeholder,
+        ),
       ),
       StratumAssetKind.svg => SvgPicture.asset(
         asset.path,

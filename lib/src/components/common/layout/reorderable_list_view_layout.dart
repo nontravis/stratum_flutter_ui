@@ -500,7 +500,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   Timer? _liveTimer;
 
   /// How long the live-region node stays in the semantics tree after its
-  /// announcement (invariant 52). TalkBack reads the node after the bridge's
+  /// announcement (invariant 60). TalkBack reads the node after the bridge's
   /// content-change event, asynchronously and possibly throttled, so the
   /// node must outlive that read; a node kept longer, a labeled node, is a
   /// stop of TalkBack's swipe that reads a stale move. No focus move marks
@@ -509,7 +509,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   static const _liveHold = Duration(seconds: 4);
 
   /// Counts the live-region announcements, so each one builds a new node
-  /// that the platform reads even when its text repeats (invariant 52).
+  /// that the platform reads even when its text repeats (invariant 60).
   var _liveCount = 0;
 
   /// The reorder keys, by their place on the keyboard, whose press moved
@@ -3356,7 +3356,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       clipBehavior: layout.clipBehavior,
       // Each leaving item and closing gap sits inside its host's slot, so
       // the count and every semantic index stay indices of the app's data
-      // (invariant 50).
+      // (invariant 58).
       semanticChildCount: layout.itemCount,
       slivers: [
         SliverPadding(
@@ -3422,7 +3422,7 @@ class _ReorderSliverState extends SliverReorderableListState {
   // (`updateForGap`) and the drop's settle (`_DragInfo.startDrag`). Under
   // reduced motion each reads a long elapsed time and ends on its first
   // tick, the end state the platform's `disableAnimations` scale reaches
-  // (R38, invariant 51). The lifted item's fade runs on its own box.
+  // (R38, invariant 59). The lifted item's fade runs on its own box.
   @override
   Ticker createTicker(TickerCallback onTick) {
     return super.createTicker(

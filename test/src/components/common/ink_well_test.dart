@@ -27,6 +27,17 @@ class _ProbeState extends State<_Probe> {
   Widget build(BuildContext context) => _box;
 }
 
+/// A component on the stateless base that holds a tap surface, as a button
+/// built on the base does.
+class _Component extends StratumStatelessWidget {
+  const new({super.disabled, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
 /// The overlay inside [InkWell]; the ring above it paints a foreground
 /// [DecoratedBox] too.
 Finder get _overlay => find.descendant(
@@ -1747,6 +1758,102 @@ void main() {
       await tester.pump();
 
       expect(hovers, [true, false]);
+    });
+  });
+
+  group('StratumInkWell inside a disabled component', () {
+    testWidgets('us04/fr02/e10, fo08 us07/s12: a press already down is '
+        'cancelled when the component turns disabled and runs no tap', (
+      tester,
+    ) async {
+      var taps = 0;
+      final states = _states({});
+      // One instance across both pumps, so only the disabled scope tells
+      // the surface about the flip.
+      final surface = StratumInkWell(
+        onTap: () => taps++,
+        statesController: states,
+        child: _box,
+      );
+      Widget build({required bool disabled}) =>
+          themedHost(_Component(disabled: disabled, child: surface));
+      await tester.pumpWidget(build(disabled: false));
+      final press = await tester.startGesture(
+        tester.getCenter(find.byType(StratumInkWell)),
+      );
+      await tester.pump(kPressTimeout);
+      expect(states.value, contains(WidgetState.pressed));
+
+      await tester.pumpWidget(build(disabled: true));
+      expect(states.value, isNot(contains(WidgetState.pressed)));
+      await press.up();
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(taps, 0);
+    });
+
+    testWidgets('us04/fr02/e10: a long press already down never fires once '
+        'the component turns disabled', (tester) async {
+      var longPresses = 0;
+      Widget build({required bool disabled}) => themedHost(
+        _Component(
+          disabled: disabled,
+          child: StratumInkWell(onLongPress: () => longPresses++, child: _box),
+        ),
+      );
+      await tester.pumpWidget(build(disabled: false));
+      final press = await tester.startGesture(
+        tester.getCenter(find.byType(StratumInkWell)),
+      );
+      await tester.pump(kPressTimeout);
+
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pump(kLongPressTimeout);
+      await press.up();
+      await tester.pumpAndSettle();
+
+      expect(longPresses, 0);
+    });
+
+    testWidgets('us04/fr02/e10: it reads as a dimmed button with no action, '
+        'as its own disabled gives', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const _Component(
+            disabled: true,
+            child: StratumInkWell(onTap: _noop, child: _box),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+          hasTapAction: false,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02/e10: enabled again, it takes taps', (tester) async {
+      var taps = 0;
+      Widget build({required bool disabled}) => themedHost(
+        _Component(
+          disabled: disabled,
+          child: StratumInkWell(onTap: () => taps++, child: _box),
+        ),
+      );
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pumpWidget(build(disabled: false));
+
+      await tester.tap(find.byType(StratumInkWell));
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(taps, 1);
     });
   });
 

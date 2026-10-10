@@ -152,16 +152,22 @@ void main() {
       ]);
     });
 
-    test('d4, sec f4: hostile zip-supplied names and yaml text reach the '
-        'CLI escaped', () async {
-      final check = await _check(
-        remoteTheme(
-          'brand',
-          files: {
-            'a"b.svg': [1],
-            'A"B.svg': [2],
-          },
-        ),
+    test('d4, sec f4, rzf3: hostile names and yaml text reach the CLI '
+        'escaped', () async {
+      // The check refuses a name holding '"' (us01/fr02/e01, rzf3), so the
+      // hostile names join a check that passed, to pin the escape itself.
+      final passed = await _check(remoteTheme('brand'));
+      final check = RemoteInstallCheck(
+        id: passed.id,
+        generation: passed.generation,
+        values: passed.values,
+        entries: {
+          ...passed.entries,
+          'a"b.svg': Uint8List.fromList([1]),
+          'A"B.svg': Uint8List.fromList([2]),
+        },
+        namedFiles: passed.namedFiles,
+        unreadEntries: ['x"y.html'],
       );
       final lines = cliWarnings(check);
       expect(lines.where((line) => line.contains(r'\u0022')), isNotEmpty);
@@ -234,21 +240,45 @@ void main() {
 
     test('minor6 edge, us02/fr03/e13: _unreadWarning escapes a quote in the '
         'path', () async {
+      final passed = await _check(remoteTheme('brand'));
+      final check = RemoteInstallCheck(
+        id: passed.id,
+        generation: passed.generation,
+        values: passed.values,
+        entries: passed.entries,
+        namedFiles: passed.namedFiles,
+        unreadEntries: ['a"b.html'],
+      );
+
+      const unread = 'is in the zip, but the app install never reads it';
+      expect(cliWarnings(check), ['warning: "a\\u0022b.html" $unread']);
+    });
+
+    test('us02/fr03/e13, us01/fr02/e01, rzf3: an entry name holding \'"\' '
+        'never reaches a warning: the check refuses it as the install '
+        'does', () async {
       final bytes = buildZip([
         ZipEntryFixture('brand/', const [], deflate: false),
         ZipEntryFixture('brand/theme.yaml', utf8.encode('$remoteSchemaLine\n')),
         ZipEntryFixture('a"b.html', [1]),
       ]);
-      final check = await _check(
-        StratumRemoteTheme(
-          id: 'brand',
-          bytes: bytes,
-          checksum: checksumOf(bytes),
+
+      await expectLater(
+        _check(
+          StratumRemoteTheme(
+            id: 'brand',
+            bytes: bytes,
+            checksum: checksumOf(bytes),
+          ),
+        ),
+        throwsA(
+          isA<StratumRemoteThemeException>().having(
+            (e) => e.code,
+            'code',
+            StratumRemoteThemeErrorCode.unsafeEntryPath,
+          ),
         ),
       );
-
-      const unread = 'is in the zip, but the app install never reads it';
-      expect(cliWarnings(check), ['warning: "a\\u0022b.html" $unread']);
     });
 
     test('us02/fr02/e08, us02/fr03/e06, rz2: names that differ only in '

@@ -86,6 +86,7 @@ void main() {
       expect(copy.color, same(data.color));
       expect(copy.physics, same(data.physics));
       expect(copy.animation, same(data.animation));
+      expect(copy.opacity, same(data.opacity));
       expect(copy.screenBorderRadius, data.screenBorderRadius);
     });
 
@@ -98,6 +99,7 @@ void main() {
         types: {},
       );
       final animation = motionTheme().animation;
+      final opacity = StratumOpacityTokens.fromMap(const {'disabled': 0.3});
       const transparent = StratumTransparentTokens.builtIn;
       const space = {'md': StratumByWindowSize.all(StratumDimension.fixed(1))};
       const radius = {'md': StratumByWindowSize.all(StratumDimension.fixed(2))};
@@ -130,6 +132,7 @@ void main() {
         extensions: extensions,
         typography: typography,
         animation: animation,
+        opacity: opacity,
         defaultWidgetSize: WidgetSize.huge,
         border: border,
         shadow: shadow,
@@ -155,6 +158,7 @@ void main() {
       expect(copy.extensions, same(extensions));
       expect(copy.typography, same(typography));
       expect(copy.animation, same(animation));
+      expect(copy.opacity, same(opacity));
       expect(copy.defaultWidgetSize, WidgetSize.huge);
       expect(copy.border, same(border));
       expect(copy.shadow, same(shadow));
