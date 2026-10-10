@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart'
         RenderSliverMultiBoxAdaptor,
         ScrollCacheExtent;
 import 'package:flutter/scheduler.dart' show Ticker, TickerCallback;
+import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/src.dart';
@@ -93,6 +94,9 @@ class ReorderableListViewLayout extends StatelessWidget {
     this.focusable,
     this.semanticsLabel,
     this.findChildIndexCallback,
+    this.moveAnnouncement,
+    this.atStartAnnouncement,
+    this.atEndAnnouncement,
   });
 
   final WidgetStyle? style;
@@ -179,6 +183,23 @@ class ReorderableListViewLayout extends StatelessWidget {
   /// scrolls, so read an O(1) key-to-index map the app keeps in sync with
   /// its data, never a search of the data.
   final ChildIndexGetter? findChildIndexCallback;
+
+  /// What a screen reader hears after the EndUser moves an item with a
+  /// reorder key, a screen-reader move action, or a drop: `position`
+  /// counts from 1 and `count` is [itemCount]. Null reads the built-in
+  /// "Moved to position {position} of {count}" in the locale's language;
+  /// an empty text announces nothing.
+  final String Function(int position, int count)? moveAnnouncement;
+
+  /// What a screen reader hears when a reorder key would move the first
+  /// item before the start; null reads the built-in "Already at the start
+  /// of the list"; an empty text announces nothing.
+  final String? atStartAnnouncement;
+
+  /// What a screen reader hears when a reorder key would move the last
+  /// item past the end; null reads the built-in "Already at the end of
+  /// the list"; an empty text announces nothing.
+  final String? atEndAnnouncement;
 
   @override
   Widget build(BuildContext context) {
@@ -468,6 +489,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Whether a [_holdFocusedFrame] waits for the end of the frame.
   var _focusFrameQueued = false;
+
+  /// The text of the live-region node, where the platform reports no
+  /// announce support; null before the first announcement.
+  String? _liveText;
+
+  /// Counts the live-region announcements, so each one builds a new node
+  /// that the platform reads even when its text repeats (invariant 52).
+  var _liveCount = 0;
 
   ReorderableListViewLayout get _layout => widget.layout;
 
@@ -1575,7 +1604,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (from == null) return KeyEventResult.handled;
     if (_dataCount < 2) return KeyEventResult.ignored;
     final target = _targetOf(from, intent);
-    if (target == null) return KeyEventResult.handled;
+    if (target == null) {
+      _announceBlocked(intent);
+      return KeyEventResult.handled;
+    }
     // A drag, or a drop still settling, ends first, as a call ends it
     // (invariant 28): the move changes the data under it.
     _cancelDrag();
@@ -1681,9 +1713,57 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _layout.onReorderItem(from.value, to.value);
     final toStart = to == const _DataIndex(0);
     _readySlot(moved, node, edgeJump: edgeJump, toStart: toStart);
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _afterMove(moved, byKey: byKey),
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _afterMove(moved, byKey: byKey);
+      _announceMove(moved);
+    });
+  }
+
+  /// Announces where [moved] put its item, in the frame after the move,
+  /// with the data count then; silent once a call took the item out.
+  void _announceMove(_MoveTarget moved) {
+    final index = moved.index;
+    if (!mounted || index == null) return;
+    final position = index.value + 1;
+    _announce(
+      _layout.moveAnnouncement?.call(position, _dataCount) ??
+          builtInLabelsOf(context)
+              .reorderMoveAnnouncement(position, _dataCount),
     );
+  }
+
+  /// Announces that a reorder key with [intent] meets an end of the list:
+  /// the start for `start` and `previous`, the end for `next` and `end`.
+  void _announceBlocked(_MoveIntent intent) {
+    _announce(switch (intent) {
+      _MoveIntent.start || _MoveIntent.previous =>
+        _layout.atStartAnnouncement ??
+            builtInLabelsOf(context).reorderAtStartAnnouncement,
+      _MoveIntent.next || _MoveIntent.end =>
+        _layout.atEndAnnouncement ??
+            builtInLabelsOf(context).reorderAtEndAnnouncement,
+    });
+  }
+
+  /// Sends [text] to the screen reader: as an announcement where the
+  /// platform supports one, else through the live-region node. An empty
+  /// text, an app override's way to word its own, sends nothing.
+  void _announce(String text) {
+    if (text.isEmpty || !mounted) return;
+    if (MediaQuery.maybeSupportsAnnounceOf(context) ?? false) {
+      unawaited(
+        SemanticsService.sendAnnouncement(
+          View.of(context),
+          text,
+          Directionality.of(context),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _liveText = text;
+      _liveCount += 1;
+    });
   }
 
   /// Books a move the list reports through `onReorderItem`, from [from] to
@@ -2911,7 +2991,31 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return Focus(
       focusNode: _holdNode,
       includeSemantics: false,
-      child: _scrollView(layout, listCount),
+      // The scroll view stays the first child, so the live-region leaf's
+      // arrival never remounts it.
+      child: StackLayout(
+        fit: StackFit.passthrough,
+        clipBehavior: Clip.none,
+        children: [
+          _scrollView(layout, listCount),
+          if (_liveText case final text?)
+            // One px: an empty node drops out of the semantics tree, and a
+            // larger one can take touch exploration over the items.
+            Positioned(
+              left: 0,
+              top: 0,
+              width: 1,
+              height: 1,
+              child: Semantics(
+                key: ValueKey(_liveCount),
+                container: true,
+                liveRegion: true,
+                label: text,
+                child: const SizedBox.shrink(),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -3529,8 +3633,8 @@ class _Exit {
 /// through `onReorderItem`. It becomes a [_FrameIndex] only through
 /// `_builtIndexOf`; its `value` leaves it only in `_builtIndexOf` (its
 /// argument and the entries of `_pending`), in `_dataIndexOf` (the entries
-/// of `_pending`), in [nextSlot], and at `onReorderItem` and
-/// `itemBuilder`.
+/// of `_pending`), in [nextSlot], and at `onReorderItem`, `itemBuilder`,
+/// and the move announcement.
 extension type const _DataIndex(int value) {
   /// The slot the item at this index takes in the next frame: the sliver
   /// keeps each slot's offset by its number across a rebuild.

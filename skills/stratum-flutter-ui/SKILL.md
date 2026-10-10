@@ -134,6 +134,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   still fades.
   Keyboard: Alt+arrow along the axis moves the focused item one slot, Alt+Home/Alt+End move it to either end; a move
   past either end is still handled, so it never reaches the browser (Chrome's Alt+Left/Alt+Right Back/Forward).
+  A screen reader hears each move by key, screen-reader action, or drop, and each reorder key past an end, in English
+  or Thai; `moveAnnouncement`, `atStartAnnouncement`, and `atEndAnnouncement` replace the texts, and an empty one
+  stays silent.
   An item that holds focus, on its own node or one inside it, stays alive with its State and focus when a scroll, the
   user's or the app's, takes it out of view, and the list scrolls nothing for it; Tab, Shift+Tab, or an arrow key from
   it brings it back into view first, then moves focus, but two known gaps skip that and land on the first laid-out

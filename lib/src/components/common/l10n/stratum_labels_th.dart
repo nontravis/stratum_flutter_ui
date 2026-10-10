@@ -63,4 +63,15 @@ class StratumLabelsTh extends StratumLabels {
 
   @override
   String get laterLabel => 'ไว้ทีหลัง';
+
+  @override
+  String reorderMoveAnnouncement(int position, int count) {
+    return 'ย้ายไปลำดับที่ $position จาก $count';
+  }
+
+  @override
+  String get reorderAtStartAnnouncement => 'อยู่ต้นรายการแล้ว';
+
+  @override
+  String get reorderAtEndAnnouncement => 'อยู่ท้ายรายการแล้ว';
 }

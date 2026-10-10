@@ -65,4 +65,15 @@ class StratumLabelsEn extends StratumLabels {
 
   @override
   String get laterLabel => 'Later';
+
+  @override
+  String reorderMoveAnnouncement(int position, int count) {
+    return 'Moved to position $position of $count';
+  }
+
+  @override
+  String get reorderAtStartAnnouncement => 'Already at the start of the list';
+
+  @override
+  String get reorderAtEndAnnouncement => 'Already at the end of the list';
 }

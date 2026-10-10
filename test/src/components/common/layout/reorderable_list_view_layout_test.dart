@@ -61,6 +61,9 @@ class _Harness extends StatefulWidget {
     this.plainIds,
     this.scrollCacheExtent,
     this.appIndex = false,
+    this.moveAnnouncement,
+    this.atStartAnnouncement,
+    this.atEndAnnouncement,
   });
 
   final int count;
@@ -129,6 +132,15 @@ class _Harness extends StatefulWidget {
 
   /// Whether the list gets `findChildIndexCallback`, as under [_appIndex].
   final bool appIndex;
+
+  /// The list's `moveAnnouncement`; null keeps the built-in text.
+  final String Function(int position, int count)? moveAnnouncement;
+
+  /// The list's `atStartAnnouncement`; null keeps the built-in text.
+  final String? atStartAnnouncement;
+
+  /// The list's `atEndAnnouncement`; null keeps the built-in text.
+  final String? atEndAnnouncement;
 
   @override
   State<_Harness> createState() => _HarnessState();
@@ -225,6 +237,9 @@ class _HarnessState extends State<_Harness> {
       prototypeItem: widget.prototypeItem,
       scrollCacheExtent: widget.scrollCacheExtent,
       findChildIndexCallback: widget.appIndex || _appIndex ? indexOf : null,
+      moveAnnouncement: widget.moveAnnouncement,
+      atStartAnnouncement: widget.atStartAnnouncement,
+      atEndAnnouncement: widget.atEndAnnouncement,
       onReorderStart: (index) {
         starts.add(index);
         events.add('start $index');
@@ -398,6 +413,29 @@ class _PaintLogger extends CustomPainter {
 
 _HarnessState _harness(WidgetTester tester) =>
     tester.state<_HarnessState>(find.byType(_Harness));
+
+/// The text of each announcement the app sends from now on.
+List<String> _announcements(WidgetTester tester) {
+  final log = <String>[];
+  final messenger = tester.binding.defaultBinaryMessenger
+    ..setMockDecodedMessageHandler<dynamic>(SystemChannels.accessibility, (
+      message,
+    ) async {
+      final event = message as Map<Object?, Object?>;
+      if (event['type'] == 'announce') {
+        final data = event['data']! as Map<Object?, Object?>;
+        log.add(data['message']! as String);
+      }
+      return null;
+    });
+  addTearDown(
+    () => messenger.setMockDecodedMessageHandler<dynamic>(
+      SystemChannels.accessibility,
+      null,
+    ),
+  );
+  return log;
+}
 
 /// The first [_Harness] in the tree, for a tree that holds more than one.
 _HarnessState _harnessA(WidgetTester tester) =>
@@ -10471,6 +10509,248 @@ void main() {
         expect(scrollNode().scrollChildCount, 5);
 
         handle.dispose();
+      },
+    );
+
+    final moveWays = ValueVariant<String>({'key', 'action', 'drop'});
+    testWidgets(
+      'us11/fr06/e01 and s03/inv52: a reorder key, a screen-reader action, '
+      'and a drop each announce the new position',
+      (tester) async {
+        final handle = moveWays.currentValue == 'action'
+            ? tester.ensureSemantics()
+            : null;
+        await tester.pumpWidget(_app(const _Harness(count: 5)));
+        final log = _announcements(tester);
+
+        switch (moveWays.currentValue) {
+          case 'key':
+            await _focusItem(tester, 2);
+            await _altNow(tester, LogicalKeyboardKey.arrowDown);
+            // The move lands in this turn and is heard after its frame.
+            expect(log, isEmpty);
+            await tester.pump();
+            expect(log, ['Moved to position 4 of 5']);
+          case 'action':
+            await _moveAction(tester, 2, 'Move down');
+            expect(log, ['Moved to position 4 of 5']);
+          case 'drop':
+            final gesture = await _liftItem(tester, 0);
+            await _dragPastNeighbor(tester, gesture);
+            await tester.pumpAndSettle();
+            await gesture.up();
+            await tester.pumpAndSettle();
+            expect(log, ['Moved to position 2 of 5']);
+        }
+        handle?.dispose();
+      },
+      variant: moveWays,
+    );
+
+    final layouts = ValueVariant<String>({'vertical', 'horizontal rtl'});
+    testWidgets(
+      'us11/fr06/e02 and us11/fr02/e01: a reorder key past either end '
+      'announces the end the item holds',
+      (tester) async {
+        final horizontal = layouts.currentValue == 'horizontal rtl';
+        await tester.pumpWidget(
+          horizontal
+              ? _app(
+                  const _Harness(count: 3, axis: Axis.horizontal),
+                  textDirection: TextDirection.rtl,
+                )
+              : _app(const _Harness(count: 5)),
+        );
+        final log = _announcements(tester);
+
+        await _focusItem(tester, 0);
+        // Toward the item's start on screen: right in a right-to-left row.
+        await _alt(
+          tester,
+          horizontal
+              ? LogicalKeyboardKey.arrowRight
+              : LogicalKeyboardKey.arrowUp,
+        );
+        await _focusItem(tester, horizontal ? 2 : 4);
+        await _alt(
+          tester,
+          horizontal ? LogicalKeyboardKey.arrowLeft : LogicalKeyboardKey.end,
+        );
+
+        expect(log, [
+          'Already at the start of the list',
+          'Already at the end of the list',
+        ]);
+        expect(_harness(tester).moves, isEmpty);
+      },
+      variant: layouts,
+    );
+
+    final appMoves = ValueVariant<String>({
+      'moveItem',
+      'data move',
+      'drag ended',
+    });
+    testWidgets(
+      'us11/fr06/e03: a moveItem, a data move the app index reports, and a '
+      'drag a data change ends announce nothing',
+      (tester) async {
+        final controller = StratumReorderableItemsController();
+        await tester.pumpWidget(
+          _app(switch (appMoves.currentValue) {
+            'moveItem' => _Harness(count: 5, itemsController: controller),
+            'data move' => const _Harness(count: 5, appIndex: true),
+            _ => const _Harness(count: 5),
+          }),
+        );
+        final log = _announcements(tester);
+
+        TestGesture? gesture;
+        switch (appMoves.currentValue) {
+          case 'moveItem':
+            _harness(tester).move(1, 3);
+          case 'data move':
+            await _focusItem(tester, 1);
+            _harness(tester).moveData(1, 3);
+          case 'drag ended':
+            gesture = await _liftItem(tester, 0);
+            _harness(tester).insertData(0, 9);
+        }
+        await tester.pumpAndSettle();
+
+        expect(log, isEmpty);
+        await gesture?.up();
+      },
+      variant: appMoves,
+    );
+
+    testWidgets(
+      'us11/fr06/e04: a drop that leaves the item at its slot announces '
+      'nothing',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 5)));
+        final log = _announcements(tester);
+
+        final gesture = await _liftItem(tester, 0);
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(log, isEmpty);
+        expect(_harness(tester).moves, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'us11/fr06/e05 and NFR-L01: each override replaces its text, and an '
+      'empty one announces nothing',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              moveAnnouncement: (position, count) => 'Row $position of $count',
+              atStartAnnouncement: 'Top',
+              atEndAnnouncement: '',
+            ),
+          ),
+        );
+        final log = _announcements(tester);
+
+        await _focusItem(tester, 0);
+        await _alt(tester, LogicalKeyboardKey.arrowUp);
+        await _focusItem(tester, 4);
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+        await _focusItem(tester, 0);
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+
+        expect(log, ['Top', 'Row 2 of 5']);
+      },
+    );
+
+    testWidgets(
+      'us11/fr06/e06: where the platform discourages announcements, each one '
+      'is a new live-region node',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _app(
+            Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(supportsAnnounce: false),
+                child: const _Harness(count: 5),
+              ),
+            ),
+          ),
+        );
+        final log = _announcements(tester);
+        const atStart = 'Already at the start of the list';
+
+        await _focusItem(tester, 0);
+        await _alt(tester, LogicalKeyboardKey.arrowUp);
+        expect(log, isEmpty);
+        // The semantics tree, not a render object's node: an empty node
+        // drops out of the tree the platform reads.
+        final first = find.semantics.byLabel(atStart).evaluate().single;
+        expect(first, isSemantics(isLiveRegion: true));
+
+        await _alt(tester, LogicalKeyboardKey.arrowUp);
+        final again = find.semantics.byLabel(atStart).evaluate().single;
+        expect(again, isSemantics(isLiveRegion: true));
+        expect(again.id, isNot(first.id));
+
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+        expect(
+          find.semantics.byLabel('Moved to position 2 of 5').evaluate().single,
+          isSemantics(isLiveRegion: true),
+        );
+        expect(find.semantics.byLabel(atStart), findsNothing);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      "us11/fr06/e06: under the platform's reduced motion, which reports no "
+      'announce support, a key move speaks through one live node',
+      (tester) async {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(_app(const _Harness(count: 5)));
+        final log = _announcements(tester);
+
+        await _focusItem(tester, 1);
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+
+        expect(log, isEmpty);
+        expect(find.semantics.byLabel(RegExp('^Moved to position')), findsOne);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr06/e07 and NFR-L01: under th the announcement reads the Thai '
+      'entry',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            Builder(
+              builder: (context) => Localizations.override(
+                context: context,
+                locale: const Locale('th'),
+                child: const _Harness(count: 5),
+              ),
+            ),
+          ),
+        );
+        final log = _announcements(tester);
+
+        await _focusItem(tester, 2);
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+
+        expect(log, ['ย้ายไปลำดับที่ 4 จาก 5']);
       },
     );
   });

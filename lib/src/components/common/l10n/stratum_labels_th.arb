@@ -17,5 +17,8 @@
   "softUpdateTitle": "มีเวอร์ชันใหม่",
   "softUpdateMessage": "มีเวอร์ชันใหม่พร้อมให้อัปเดตแล้ว",
   "updateLabel": "อัปเดต",
-  "laterLabel": "ไว้ทีหลัง"
+  "laterLabel": "ไว้ทีหลัง",
+  "reorderMoveAnnouncement": "ย้ายไปลำดับที่ {position} จาก {count}",
+  "reorderAtStartAnnouncement": "อยู่ต้นรายการแล้ว",
+  "reorderAtEndAnnouncement": "อยู่ท้ายรายการแล้ว"
 }
