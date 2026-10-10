@@ -550,5 +550,6 @@ scroll it, guarded so a text field inside keeps its own keys.
   and card yourself: the route paints nothing and runs no transition. While it shows, taps, focus, and screen readers
   stay away from the pages behind it, focus moves into it, and Tab stays inside it. The Android back button closes the
   dialog alone, so the user stays on the page they were on, and Esc calls `dismiss`. Call `dismiss` from your later
-  button, and from a scrim tap if you want one. A later ask that answers up to date, or fails, closes it. The gate
-  needs a navigator below it, as `MaterialApp.builder` gives.
+  button, and from a scrim tap if you want one. A later ask that answers anything but `available` — up to date,
+  required, maintenance, or a failure — closes it first. The gate needs a navigator below it, as `MaterialApp.builder`
+  gives.

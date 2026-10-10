@@ -941,6 +941,18 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('us01/fr02: a maintenance answer while the dialog shows '
+        'replaces the navigator, dialog and all', (tester) async {
+      final checker = await available(tester);
+      expect(find.text('Available'), findsOneWidget);
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.maintenance);
+      await tester.pump(Duration.zero);
+      expect(find.text('Maintenance'), findsOneWidget);
+      expect(find.text('Available'), findsNothing);
+      expect(find.byType(Navigator), findsNothing);
+    });
+
     testWidgets('us02/fr01/e01: after the dialog showed, available from a '
         'full screen shows the app alone', (tester) async {
       final checker = await available(tester);
@@ -989,6 +1001,47 @@ void main() {
       await tester.pump(Duration.zero);
       expect(tester.takeException(), isAssertionError);
       expect(find.text('Available'), findsNothing);
+    });
+
+    testWidgets('the gate unmounts with the dialog up', (tester) async {
+      await available(tester);
+      expect(find.text('Available'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('dismiss called twice closes the dialog once', (tester) async {
+      VoidCallback? dismiss;
+      await available(
+        tester,
+        builder: (context, gate) => switch (gate) {
+          UpdateGateAvailable(dismiss: final d) => Builder(
+            builder: (context) {
+              dismiss = d;
+              return _screens(context, gate);
+            },
+          ),
+          _ => _screens(context, gate),
+        },
+      );
+      dismiss!();
+      dismiss!();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Available'), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
+    });
+
+    testWidgets('the app pops the dialog route itself, with Navigator.pop', (
+      tester,
+    ) async {
+      await available(tester);
+      expect(find.text('Available'), findsOneWidget);
+      Navigator.of(tester.element(find.text('Available'))).pop();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Available'), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
     });
   });
 
