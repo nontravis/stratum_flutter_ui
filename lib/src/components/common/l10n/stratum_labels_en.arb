@@ -32,12 +32,24 @@
   "@retryLabel": {
     "description": "Retry label."
   },
-  "failureMessage": "Something went wrong",
-  "@failureMessage": {
-    "description": "Failure message."
-  },
   "placeholderPageTitle": "Coming soon",
   "@placeholderPageTitle": {
     "description": "Placeholder page title."
+  },
+  "reorderMoveAnnouncement": "Moved to position {position} of {count}",
+  "@reorderMoveAnnouncement": {
+    "description": "Announced after the user moves a list item: its new position, counted from 1, and the item count.",
+    "placeholders": {
+      "position": {"type": "int"},
+      "count": {"type": "int"}
+    }
+  },
+  "reorderAtStartAnnouncement": "Already at the start of the list",
+  "@reorderAtStartAnnouncement": {
+    "description": "Announced when a reorder key would move the first list item before the start."
+  },
+  "reorderAtEndAnnouncement": "Already at the end of the list",
+  "@reorderAtEndAnnouncement": {
+    "description": "Announced when a reorder key would move the last list item past the end."
   }
 }

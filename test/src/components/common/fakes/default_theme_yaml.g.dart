@@ -618,8 +618,14 @@ color:
       90: "{transparent.black.90}"
       90-inverse: "{transparent.white.90}"
     app: {}
-  highContrastLight: {}          # overlay on light; {} declares the key
-  highContrastDark: {}           # overlay on dark
+  highContrastLight:              # overlay on light: the focus ring at 3:1
+    border:
+      subtle:
+        blue: "{palette.blue.600}"
+  highContrastDark:               # overlay on dark: the focus ring at 3:1
+    border:
+      subtle:
+        blue: "{palette.blue.400}"
 
 typography:
   fonts:                         # font key: physical family plus its own tuning

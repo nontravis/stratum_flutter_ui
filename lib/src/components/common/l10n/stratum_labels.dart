@@ -146,17 +146,29 @@ abstract class StratumLabels {
   /// **'Retry'**
   String get retryLabel;
 
-  /// Failure message.
-  ///
-  /// In en, this message translates to:
-  /// **'Something went wrong'**
-  String get failureMessage;
-
   /// Placeholder page title.
   ///
   /// In en, this message translates to:
   /// **'Coming soon'**
   String get placeholderPageTitle;
+
+  /// Announced after the user moves a list item: its new position, counted from 1, and the item count.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved to position {position} of {count}'**
+  String reorderMoveAnnouncement(int position, int count);
+
+  /// Announced when a reorder key would move the first list item before the start.
+  ///
+  /// In en, this message translates to:
+  /// **'Already at the start of the list'**
+  String get reorderAtStartAnnouncement;
+
+  /// Announced when a reorder key would move the last list item past the end.
+  ///
+  /// In en, this message translates to:
+  /// **'Already at the end of the list'**
+  String get reorderAtEndAnnouncement;
 }
 
 class _StratumLabelsDelegate extends LocalizationsDelegate<StratumLabels> {
