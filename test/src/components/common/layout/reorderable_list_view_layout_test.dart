@@ -7379,7 +7379,7 @@ void main() {
             tester,
             _Harness(
               count: 200,
-              itemsController: StratumReorderableItemsController(),
+              itemsController: ReorderableItemsController(),
             ),
           );
           await _focusItem(tester, 100);
@@ -7409,7 +7409,7 @@ void main() {
             tester,
             _Harness(
               count: 200,
-              itemsController: StratumReorderableItemsController(),
+              itemsController: ReorderableItemsController(),
             ),
           );
           await _focusItem(tester, 100);
@@ -9591,7 +9591,7 @@ void main() {
         _app(
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             boundaryAt: 100,
             boundary: boundary,
             itemTransitionBuilder: itemTransitionBuilder,
