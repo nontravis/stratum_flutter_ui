@@ -1,12 +1,9 @@
 import 'package:stratum_ui/src/src.dart';
 
 class AppBorder {
-  const AppBorder({
+  const new({
     this.none = const Border.fromBorderSide(
-      BorderSide(
-        width: 0.0,
-        color: Colors.transparent,
-      ),
+      BorderSide(width: 0.0, color: Colors.transparent),
     ),
     this.xs = const Border.fromBorderSide(
       BorderSide(

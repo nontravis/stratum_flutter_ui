@@ -114,7 +114,7 @@ void main() {
     testWidgets('ratio, transform, and transformAlignment reach the box', (
       tester,
     ) async {
-      final matrix = Matrix4.identity()..scale(2.0);
+      final matrix = Matrix4.identity()..scaleByDouble(2.0, 2.0, 2.0, 1.0);
       await tester.pumpWidget(
         themedHost(
           _Layout(

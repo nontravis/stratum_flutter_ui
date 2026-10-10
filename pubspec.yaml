@@ -1,6 +1,7 @@
 name: stratum_ui
 description: "Stratum UI design system"
 version: 1.1.0
+publish_to: none
 homepage:
 
 executables:
@@ -11,35 +12,34 @@ environment:
   flutter: ">=3.47.0"
 
 dependencies:
+  act_thumbhash: ^1.1.0
+  animations: ^3.0.0
+  archive: ^4.3.0
+  badges: ^4.0.1
   country_flags: ^4.1.2
+  crypto: ^3.0.7
   dotted_border: ^3.1.0
+  extended_image: ^10.1.0
   flutter:
     sdk: flutter
-  flutter_localizations:
-    sdk: flutter
-  intl: any # flutter_localizations (SDK) bounds intl; never give this a range.
+  flutter_animate: ^4.5.2
   flutter_falconx:
     git:
       url: https://github.com/Nextzy/flutter-falconx
       ref: 4.1.0
       path: flutter_falconx
-  measure_size: ^5.0.2
-  freezed_annotation: ^3.1.0
-  json_annotation: ^4.12.0
-  badges: ^4.0.1
-  yaml: ^3.1.4
-  extended_image: ^10.1.0
-  flutter_animate: ^4.5.2
-  animations: ^3.0.0
+  flutter_localizations:
+    sdk: flutter
   flutter_svg: ^2.3.0
+  freezed_annotation: ^3.1.0
   gap: ^3.0.1
   google_fonts: ">=9.0.0 <=9.0.0"
+  intl: any # flutter_localizations (SDK) bounds intl; never give this a range.
+  json_annotation: ^4.12.0
   lottie: ^3.6.1
+  measure_size: ^5.0.2
   path: ^1.9.1
   smooth_page_indicator: ^3.0.0
-  act_thumbhash: ^1.1.0
-  archive: ^4.3.0
-  crypto: ^3.0.7
   web: ^1.1.1
   webview_all_linux: ^1.4.4
   webview_all_windows: ^1.4.4
@@ -47,6 +47,7 @@ dependencies:
   webview_flutter_android: ^4.14.1
   webview_flutter_wkwebview: ^3.27.0
   webview_platform_interface: ^1.4.4
+  yaml: ^3.1.4
 
 dev_dependencies:
   build_runner: ^2.16.2

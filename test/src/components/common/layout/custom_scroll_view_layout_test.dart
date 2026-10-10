@@ -17,13 +17,17 @@ Widget _sized(Widget child) {
 /// fallback theme keeps the platform of the first test, so desktop cases
 /// set it here.
 Widget _macOSTheme(Widget child) {
-  return Theme(data: ThemeData(platform: TargetPlatform.macOS), child: child);
+  return Theme(
+    data: ThemeData(platform: TargetPlatform.macOS),
+    child: child,
+  );
 }
 
 void main() {
   group('CustomScrollViewLayout', () {
-    testWidgets('builds children in one SliverList and counts them',
-        (tester) async {
+    testWidgets('builds children in one SliverList and counts them', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         themedHost(_sized(const CustomScrollViewLayout(children: _children))),
       );
@@ -91,51 +95,42 @@ void main() {
     });
 
     test('asserts exactly one of slivers and children', () {
-      expect(() => CustomScrollViewLayout(), throwsAssertionError);
+      expect(CustomScrollViewLayout.new, throwsAssertionError);
       expect(
-        () => CustomScrollViewLayout(
-          slivers: const [],
-          children: const [],
-        ),
+        () => CustomScrollViewLayout(slivers: const [], children: const []),
         throwsAssertionError,
       );
     });
 
-    testWidgets(
-      'hides the scrollbar when showScrollbar is false',
-      (tester) async {
-        await tester.pumpWidget(
-          themedHost(
-            _macOSTheme(
-              _sized(
-                const CustomScrollViewLayout(
-                  showScrollbar: false,
-                  children: _children,
-                ),
+    testWidgets('hides the scrollbar when showScrollbar is false', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        themedHost(
+          _macOSTheme(
+            _sized(
+              const CustomScrollViewLayout(
+                showScrollbar: false,
+                children: _children,
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        expect(find.byType(Scrollbar), findsNothing);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(find.byType(Scrollbar), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets(
-      'keeps the desktop scrollbar by default',
-      (tester) async {
-        await tester.pumpWidget(
-          themedHost(
-            _macOSTheme(
-              _sized(const CustomScrollViewLayout(children: _children)),
-            ),
+    testWidgets('keeps the desktop scrollbar by default', (tester) async {
+      await tester.pumpWidget(
+        themedHost(
+          _macOSTheme(
+            _sized(const CustomScrollViewLayout(children: _children)),
           ),
-        );
+        ),
+      );
 
-        expect(find.byType(Scrollbar), findsOneWidget);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(find.byType(Scrollbar), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 }

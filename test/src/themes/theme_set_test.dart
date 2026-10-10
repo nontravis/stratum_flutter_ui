@@ -25,7 +25,7 @@ extensions:
 
 StratumThemeSet _oceanSet() => StratumThemeSet.fromConfig(
   StratumThemeConfig.parse(
-    base: StratumThemeSource(
+    base: const StratumThemeSource(
       id: 'stratum-default',
       folder: 'packages/stratum_ui/assets/themes/default',
       yaml: defaultThemeSource,
@@ -189,7 +189,7 @@ void main() {
         '0.3 gives every data 0.3', () {
       final set = StratumThemeSet.fromConfig(
         StratumThemeConfig.parse(
-          base: StratumThemeSource(
+          base: const StratumThemeSource(
             id: 'stratum-default',
             folder: 'packages/stratum_ui/assets/themes/default',
             yaml: defaultThemeSource,
