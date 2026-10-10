@@ -151,54 +151,6 @@ abstract class StratumLabels {
   /// In en, this message translates to:
   /// **'Coming soon'**
   String get placeholderPageTitle;
-
-  /// Force update title.
-  ///
-  /// In en, this message translates to:
-  /// **'Update required'**
-  String get forceUpdateTitle;
-
-  /// Force update message.
-  ///
-  /// In en, this message translates to:
-  /// **'Please update to the latest version to continue.'**
-  String get forceUpdateMessage;
-
-  /// Maintenance title.
-  ///
-  /// In en, this message translates to:
-  /// **'Under maintenance'**
-  String get maintenanceTitle;
-
-  /// Maintenance message.
-  ///
-  /// In en, this message translates to:
-  /// **'We\'ll be back soon. Please try again later.'**
-  String get maintenanceMessage;
-
-  /// Soft update title.
-  ///
-  /// In en, this message translates to:
-  /// **'Update available'**
-  String get softUpdateTitle;
-
-  /// Soft update message.
-  ///
-  /// In en, this message translates to:
-  /// **'A new version is ready. Update now for the latest improvements.'**
-  String get softUpdateMessage;
-
-  /// Update label.
-  ///
-  /// In en, this message translates to:
-  /// **'Update'**
-  String get updateLabel;
-
-  /// Later label.
-  ///
-  /// In en, this message translates to:
-  /// **'Later'**
-  String get laterLabel;
 }
 
 class _StratumLabelsDelegate extends LocalizationsDelegate<StratumLabels> {

@@ -35,29 +35,4 @@ class StratumLabelsTh extends StratumLabels {
 
   @override
   String get placeholderPageTitle => 'เร็วๆ นี้';
-
-  @override
-  String get forceUpdateTitle => 'ต้องอัปเดตแอป';
-
-  @override
-  String get forceUpdateMessage =>
-      'กรุณาอัปเดตแอปเป็นเวอร์ชันล่าสุดเพื่อใช้งานต่อ';
-
-  @override
-  String get maintenanceTitle => 'ปิดปรับปรุงชั่วคราว';
-
-  @override
-  String get maintenanceMessage => 'ระบบกำลังปรับปรุง กรุณาลองใหม่ภายหลัง';
-
-  @override
-  String get softUpdateTitle => 'มีเวอร์ชันใหม่';
-
-  @override
-  String get softUpdateMessage => 'มีเวอร์ชันใหม่พร้อมให้อัปเดตแล้ว';
-
-  @override
-  String get updateLabel => 'อัปเดต';
-
-  @override
-  String get laterLabel => 'ไว้ทีหลัง';
 }
