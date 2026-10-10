@@ -1,6 +1,8 @@
 import 'package:animations/animations.dart' show PageTransitionSwitcher;
 import 'package:stratum_ui/src/animations/screen_transition.dart';
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
+import 'package:stratum_ui/src/components/common/splash_signal/splash_signal_none.dart'
+    if (dart.library.js_interop) 'package:stratum_ui/src/components/common/splash_signal/splash_signal_web.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The step of [StratumSplashScreen] that failed, which
@@ -285,13 +287,15 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     });
   }
 
-  /// Shows [state]. The first call ends the first-frame hold (FR-02) and
-  /// starts the minimum display time (FR-03).
+  /// Shows [state]. The first call ends the first-frame hold, signals the
+  /// page on the web (FR-02, E02), and starts the minimum display time
+  /// (FR-03).
   void _show(StratumSplashState<T> state) {
     setState(() => _state = state);
     if (!_holding) return;
     _holding = false;
     WidgetsBinding.instance.allowFirstFrame();
+    signalSplashShown();
     if (widget.minimumDuration <= Duration.zero) {
       _minimumPassed = true;
       return;
