@@ -873,4 +873,266 @@ typography:
       ]);
     });
   });
+
+  group('readThemeValues border, shadow, and blur', () {
+    test('fo01/us01/fr01: reads the three groups from the base', () {
+      final (config, errors) = _read([]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.border, {'sm': 0.5, 'md': 1.0, 'lg': 1.5});
+      expect(config.blur, {
+        '1': 4.0,
+        '2': 8.0,
+        '3': 16.0,
+        '4': 24.0,
+        '5': 40.0,
+        '6': 80.0,
+      });
+      expect(config.shadow.keys, ['1', '2', '3', '4', '5', '6']);
+      expect(config.shadow['1'], const [
+        StratumShadowLayer(
+          x: 0,
+          y: 1,
+          blur: 2,
+          spread: 0,
+          color: StratumSetLayerColor('brand.hover'),
+        ),
+        StratumShadowLayer(
+          x: 0,
+          y: 0,
+          blur: 1,
+          spread: 0,
+          color: StratumFixedLayerColor(0x26000000),
+        ),
+      ]);
+      expect(config.shadow['2'], isEmpty);
+    });
+
+    test('fo01/us01/fr01: a layer that leaves the three groups out keeps '
+        "the base's values", () {
+      final (config, errors) = _read([layer('name: ocean')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.border['md'], 1);
+      expect(config.shadow['1'], hasLength(2));
+      expect(config.blur['3'], 16);
+    });
+
+    test('fo01/us04/fr01: a layer that sets one border width keeps the '
+        'other two', () {
+      final (config, errors) = _read([layer('border:\n  md: 2')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.border, {'sm': 0.5, 'md': 2.0, 'lg': 1.5});
+    });
+
+    test('fo01/us04/fr01/e05: a list of three layers replaces the default '
+        'list whole; x, y, and spread may be negative', () {
+      final (config, errors) = _read([
+        layer('''
+shadow:
+  "1":
+    - {x: 1, y: 2, blur: 3, spread: 4, color: "#FF0000"}
+    - {x: -1, y: -2, blur: 0, spread: -4, color: "#00FF0080"}
+    - {x: 0, y: 0, blur: 0.5, spread: 0, color: "{color.brand.normal}"}'''),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.shadow['1'], const [
+        StratumShadowLayer(
+          x: 1,
+          y: 2,
+          blur: 3,
+          spread: 4,
+          color: StratumFixedLayerColor(0xFFFF0000),
+        ),
+        StratumShadowLayer(
+          x: -1,
+          y: -2,
+          blur: 0,
+          spread: -4,
+          color: StratumFixedLayerColor(0x8000FF00),
+        ),
+        StratumShadowLayer(
+          x: 0,
+          y: 0,
+          blur: 0.5,
+          spread: 0,
+          color: StratumSetLayerColor('brand.normal'),
+        ),
+      ]);
+    });
+
+    test('fo01/us04/fr01/e05: an empty list replaces the default list and '
+        'means no shadow', () {
+      final (config, errors) = _read([layer('shadow:\n  "1": []')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.shadow['1'], isEmpty);
+      expect(config.shadow, hasLength(6));
+    });
+
+    const layerOf = '{x: 0, y: 1, blur: 2, spread: 0, color: "#000000"}';
+    String level2(String item) => 'shadow:\n  "2":\n    - $item';
+    const atLeast0 = 'expected a number of 0 or more, got';
+    const aNumber = 'expected a number, got';
+    const keys = 'expected the keys x, y, blur, spread, and color, got';
+    final cases = <(String, String, String, String)>[
+      (
+        'fo01/us01/fr01/e13',
+        'a negative border width',
+        'border:\n  sm: -1',
+        'layer1 border.sm: $atLeast0 -1 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a border width that is a word',
+        'border:\n  md: thin',
+        'layer1 border.md: $atLeast0 "thin" [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a border width per window size',
+        'border:\n  md: { mobile: 1 }',
+        'layer1 border.md: $atLeast0 {mobile: 1} [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'an infinite border width',
+        'border:\n  lg: .inf',
+        'layer1 border.lg: $atLeast0 Infinity [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a negative blur radius',
+        'blur:\n  "3": -4',
+        'layer1 blur.3: $atLeast0 -4 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a quoted blur radius',
+        'blur:\n  "1": "4"',
+        'layer1 blur.1: $atLeast0 "4" [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a NaN blur radius',
+        'blur:\n  "2": .nan',
+        'layer1 blur.2: $atLeast0 NaN [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a negative layer blur',
+        level2(layerOf.replaceFirst('blur: 2', 'blur: -2')),
+        'layer1 shadow.2.0.blur: $atLeast0 -2 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a quoted layer x',
+        level2(layerOf.replaceFirst('x: 0', 'x: "0"')),
+        'layer1 shadow.2.0.x: $aNumber "0" [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a word for layer y',
+        level2(layerOf.replaceFirst('y: 1', 'y: one')),
+        'layer1 shadow.2.0.y: $aNumber "one" [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a boolean layer spread',
+        level2(layerOf.replaceFirst('spread: 0', 'spread: true')),
+        'layer1 shadow.2.0.spread: $aNumber true [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'an infinite layer x',
+        level2(layerOf.replaceFirst('x: 0', 'x: -.inf')),
+        'layer1 shadow.2.0.x: $aNumber -Infinity [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a shadow level that is a number',
+        'shadow:\n  "2": 4',
+        'layer1 shadow.2: expected a list of shadow layers, got 4 '
+            '[expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a shadow level that is one layer, not a list',
+        'shadow:\n  "2": $layerOf',
+        'layer1 shadow.2: expected a list of shadow layers, got {x: 0, y: 1, '
+            'blur: 2, spread: 0, color: #000000} [expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a layer that is a number',
+        level2('4'),
+        'layer1 shadow.2.0: expected a map of x, y, blur, spread, and color, '
+            'got 4 [expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a layer without a color',
+        level2('{x: 0, y: 1, blur: 2, spread: 0}'),
+        'layer1 shadow.2.0: $keys "x", "y", "blur", "spread" '
+            '[expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a layer with a sixth key',
+        level2(layerOf.replaceFirst('}', ', z: 1}')),
+        'layer1 shadow.2.0: $keys "x", "y", "blur", "spread", "color", "z" '
+            '[expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'an empty layer',
+        level2('{}'),
+        'layer1 shadow.2.0: $keys none [expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e15',
+        'a layer color that is a word',
+        level2(layerOf.replaceFirst('"#000000"', 'red')),
+        'layer1 shadow.2.0.color: $_hex "red" [expected_color]',
+      ),
+      (
+        'fo01/us01/fr01/e15',
+        'a layer color that is a number',
+        level2(layerOf.replaceFirst('"#000000"', '12')),
+        'layer1 shadow.2.0.color: $_hex 12 [expected_color]',
+      ),
+      (
+        'fo01/us01/fr01/e15',
+        'a bad color in the second layer, at its own index',
+        'shadow:\n  "2":\n    - $layerOf\n'
+            '    - ${layerOf.replaceFirst('"#000000"', 'nope')}',
+        'layer1 shadow.2.1.color: $_hex "nope" [expected_color]',
+      ),
+      (
+        'fo01/us01/fr01/e05',
+        'an empty border width',
+        'border:\n  sm:',
+        'layer1 border.sm: required [required]',
+      ),
+      (
+        'fo01/us01/fr01/e05',
+        'an empty shadow level',
+        'shadow:\n  "2":',
+        'layer1 shadow.2: required [required]',
+      ),
+      (
+        'fo01/us01/fr01/e05',
+        'an empty layer x',
+        level2(layerOf.replaceFirst('x: 0', 'x: null')),
+        'layer1 shadow.2.0.x: required [required]',
+      ),
+    ];
+    for (final (tag, name, body, expected) in cases) {
+      test('$tag: reports $name', () {
+        expect(_problems(body), [expected]);
+      });
+    }
+  });
 }

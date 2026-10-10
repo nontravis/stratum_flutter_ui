@@ -27,6 +27,9 @@ void main() {
       expect(config.palette, same(config.palette));
       expect(config.extensions, same(config.extensions));
       expect(config.opacity, same(config.opacity));
+      expect(config.border, same(config.border));
+      expect(config.shadow, same(config.shadow));
+      expect(config.blur, same(config.blur));
       expect(config.copyWith(name: 'brand').space, same(config.space));
     });
 

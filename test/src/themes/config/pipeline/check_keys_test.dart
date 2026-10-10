@@ -205,4 +205,49 @@ color:
       ));
     });
   });
+
+  group('checkThemeKeys border, shadow, and blur', () {
+    for (final (body, path) in [
+      ('border:\n  xl: 2', 'border.xl'),
+      ('shadow:\n  "7": []', 'shadow.7'),
+      ('blur:\n  "7": 96', 'blur.7'),
+    ]) {
+      test('fo01/us01/fr03/e04: $path, a key the default lacks, is '
+          'unknown_key', () {
+        expect(_problems(body), [
+          'layer1 $path: unknown key "${path.split('.').last}" [unknown_key]',
+        ]);
+      });
+    }
+
+    test('fo01/us01/fr03/e04: a shadow list passes whole, of any length, '
+        'its layer keys unchecked', () {
+      final (checked, errors) = _check([
+        layer('''
+shadow:
+  "1":
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "#000000", z: 1}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "#000000"}
+    - {x: 1, y: 1, blur: 1, spread: 0, color: "#000000"}'''),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(checked.files.last.tree, {
+        'shadow': {
+          '1': [
+            {
+              'x': 0,
+              'y': 1,
+              'blur': 2,
+              'spread': 0,
+              'color': '#000000',
+              'z': 1,
+            },
+            {'x': 0, 'y': 0, 'blur': 1, 'spread': 0, 'color': '#000000'},
+            {'x': 1, 'y': 1, 'blur': 1, 'spread': 0, 'color': '#000000'},
+          ],
+        },
+      });
+    });
+  });
 }

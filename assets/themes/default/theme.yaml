@@ -708,4 +708,37 @@ animation:
 opacity:
   disabled: 0.5              # a disabled component's opacity, from 0 to 1 (FO-08 US-07)
 
+border:                      # border widths in logical pixels, the Figma Border collection
+  sm: 0.5
+  md: 1                      # the usual width
+  lg: 1.5
+
+shadow:                      # Figma shadow/<n>: each level's layers in the Figma effects order
+  "1":
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+  "2":
+    - {x: 0, y: 4, blur: 8, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+  "3":
+    - {x: 0, y: 8, blur: 16, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+  "4":
+    - {x: 0, y: 12, blur: 24, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+  "5":
+    - {x: 0, y: 24, blur: 32, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+  "6":
+    - {x: 0, y: 40, blur: 64, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+
+blur:                        # Figma blur/<n>: a background blur radius; sigma is radius / 2
+  "1": 4
+  "2": 8
+  "3": 16
+  "4": 24
+  "5": 40
+  "6": 80
+
 extensions: {}

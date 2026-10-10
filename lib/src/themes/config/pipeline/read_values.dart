@@ -5,6 +5,7 @@ import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
 import 'package:stratum_ui/src/themes/config/plain_by_window_size.dart';
 import 'package:stratum_ui/src/themes/config/plain_theme_config.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
+import 'package:stratum_ui/src/themes/config/shadow_layer.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
 import 'package:stratum_ui/src/themes/config/transition_names.dart';
@@ -65,6 +66,9 @@ final class _Read {
       typography: _typography(tree['typography']),
       animation: _animation(tree['animation']),
       opacity: frozenMap(_opacity(tree['opacity'])),
+      border: frozenMap(_effectNumbers(tree['border'], 'border')),
+      shadow: frozenMap(_shadow(tree['shadow'])),
+      blur: frozenMap(_effectNumbers(tree['blur'], 'blur')),
       extensions: _extensions(tree['extensions']),
     );
   }
@@ -472,6 +476,157 @@ final class _Read {
       );
     }
     return opacity;
+  }
+
+  static const _layerKeys = {'x', 'y', 'blur', 'spread', 'color'};
+
+  /// The `border` or `blur` group [group] (FO-01 US-01 FR-01 E05, E13;
+  /// config s03 invariants 12 and 14): each key the merged tree holds, a
+  /// finite number of 0 or more; an alias resolved in stage 4 reads its
+  /// target's value, and one that failed there reports nothing here.
+  Map<String, double> _effectNumbers(Object? value, String group) {
+    final numbers = <String, double>{};
+    final node = _reader.map(value, group);
+    for (final MapEntry(:key, value: entry)
+        in (node ?? const <String, Object?>{}).entries) {
+      final path = '$group.$key';
+      if (_theme.failed.contains(path)) continue;
+      final number = _atLeastZero(_readerFor(path, entry), path, entry);
+      if (number != null) numbers[key] = number;
+    }
+    return numbers;
+  }
+
+  /// The `shadow` group (FO-01 US-01 FR-01 E05, E13 to E15; config s03
+  /// invariant 13): each level the merged tree holds, its layers in file
+  /// order; `[]` is no shadow.
+  Map<String, List<StratumShadowLayer>> _shadow(Object? value) {
+    final shadow = <String, List<StratumShadowLayer>>{};
+    final node = _reader.map(value, 'shadow');
+    for (final MapEntry(key: level, value: entry)
+        in (node ?? const <String, Object?>{}).entries) {
+      final path = 'shadow.$level';
+      if (entry == null) {
+        _reader.report(StratumThemeErrorCode.required, path, 'required');
+        continue;
+      }
+      if (entry is! List<Object?>) {
+        _reader.report(
+          StratumThemeErrorCode.expectedShadow,
+          path,
+          'expected a list of shadow layers, got ${ThemeReader.show(entry)}',
+        );
+        continue;
+      }
+      shadow[level] = List<StratumShadowLayer>.unmodifiable([
+        for (final (index, item) in entry.indexed)
+          ?_shadowLayer('$path.$index', item),
+      ]);
+    }
+    return shadow;
+  }
+
+  /// The layer at [path]: a map of exactly [_layerKeys], else
+  /// `expected_shadow` and no check of its values; null when any part
+  /// fails.
+  StratumShadowLayer? _shadowLayer(String path, Object? value) {
+    if (value is! Map<String, Object?>) {
+      _reader.report(
+        StratumThemeErrorCode.expectedShadow,
+        path,
+        'expected a map of x, y, blur, spread, and color, got '
+        '${ThemeReader.show(value)}',
+      );
+      return null;
+    }
+    if (value.length != _layerKeys.length ||
+        !value.keys.every(_layerKeys.contains)) {
+      final keys = value.keys.map(ThemeReader.show).join(', ');
+      _reader.report(
+        StratumThemeErrorCode.expectedShadow,
+        path,
+        'expected the keys x, y, blur, spread, and color, got '
+        '${keys.isEmpty ? 'none' : keys}',
+      );
+      return null;
+    }
+    final x = _finite('$path.x', value['x']);
+    final y = _finite('$path.y', value['y']);
+    final blur = _atLeastZero(_reader, '$path.blur', value['blur']);
+    final spread = _finite('$path.spread', value['spread']);
+    final color = _layerColor('$path.color', value['color']);
+    if (x == null ||
+        y == null ||
+        blur == null ||
+        spread == null ||
+        color == null) {
+      return null;
+    }
+    return StratumShadowLayer(
+      x: x,
+      y: y,
+      blur: blur,
+      spread: spread,
+      color: color,
+    );
+  }
+
+  /// A layer's `x`, `y`, or `spread` at [path]: a finite number, which may
+  /// be negative; `required` for an empty value, else `expected_dimension`.
+  double? _finite(String path, Object? value) {
+    if (value is num && value.isFinite) return value.toDouble();
+    if (value == null) {
+      _reader.report(StratumThemeErrorCode.required, path, 'required');
+      return null;
+    }
+    _reader.report(
+      StratumThemeErrorCode.expectedDimension,
+      path,
+      'expected a number, got ${ThemeReader.show(value)}',
+    );
+    return null;
+  }
+
+  /// [value] at [path] as a finite number of 0 or more, reported through
+  /// [reader]: `required` for an empty value, else `expected_dimension`.
+  static double? _atLeastZero(ThemeReader reader, String path, Object? value) {
+    if (value is num && _isEffectNumber(value)) return value.toDouble();
+    if (value == null) {
+      reader.report(StratumThemeErrorCode.required, path, 'required');
+      return null;
+    }
+    reader.report(
+      StratumThemeErrorCode.expectedDimension,
+      path,
+      'expected a number of 0 or more, got ${ThemeReader.show(value)}',
+    );
+    return null;
+  }
+
+  /// Whether [value] is a `border` width or a blur radius: a finite number
+  /// of 0 or more.
+  static bool _isEffectNumber(Object? value) =>
+      value is num && value.isFinite && value >= 0;
+
+  /// The color of the layer at [path] (FO-01 US-01 FR-01 E15; US-03 FR-01
+  /// E05, E06): `"{color.<group>.<name>}"`, which stage 4 checked in every
+  /// color set, stays a reference to that path inside the set; any other
+  /// value reads as a color, a palette or transparent alias holding its
+  /// stage-4 target's value. A path whose alias failed in stage 4 reports
+  /// nothing more.
+  StratumLayerColor? _layerColor(String path, Object? value) {
+    if (_theme.failed.contains(path)) return null;
+    const prefix = '{color.';
+    if (value is String && isAlias(value) && value.startsWith(prefix)) {
+      return StratumSetLayerColor(
+        value.substring(prefix.length, value.length - 1),
+      );
+    }
+    final argb = _readerFor(
+      path,
+      value,
+    ).color(value, path, alias: _theme.aliases[path]);
+    return argb == null ? null : StratumFixedLayerColor(argb);
   }
 
   PlainTypography _typography(Object? value) {

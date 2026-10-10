@@ -3,6 +3,7 @@ export 'by_window_size.dart';
 export 'curve_convert.dart';
 export 'format_error.dart';
 export 'schema_version.dart';
+export 'shadow_layer.dart';
 export 'theme_asset.dart';
 export 'theme_config.dart';
 export 'theme_source.dart';
