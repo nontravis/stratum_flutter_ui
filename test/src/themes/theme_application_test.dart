@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/responsive/screen_radius_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 
@@ -720,5 +721,109 @@ void main() {
         [FontWeight.w600, FontWeight.w600],
       );
     });
+  });
+
+  group('us04/fr03: the screen radius scope', () {
+    const channel = EventChannel('stratum_ui/screen_radius');
+    BorderRadius all(double r) => BorderRadius.all(Radius.circular(r));
+    Map<String, double> corners(double r) => {
+      'topLeft': r,
+      'topRight': r,
+      'bottomLeft': r,
+      'bottomRight': r,
+    };
+
+    late MockStreamHandlerEventSink sink;
+    var listens = 0;
+
+    /// Mocks the native probe: each listen counts and sends 46.
+    void mockProbe(WidgetTester tester) {
+      listens = 0;
+      tester.binding.defaultBinaryMessenger.setMockStreamHandler(
+        channel,
+        MockStreamHandler.inline(
+          onListen: (_, s) {
+            listens++;
+            sink = s..success(corners(46));
+          },
+        ),
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockStreamHandler(
+          channel,
+          null,
+        ),
+      );
+    }
+
+    Widget application(Widget child) => StratumThemeApplication(
+      themes: _set,
+      themeMode: ThemeMode.light,
+      child: child,
+    );
+
+    testWidgets(
+      'e07: with no application above the reader nothing publishes the '
+      'probe radius; e03: under the application it does',
+      (tester) async {
+        mockProbe(tester);
+        BorderRadius? radius = BorderRadius.zero;
+        final reader = Builder(
+          builder: (context) {
+            radius = context.deviceWindow.radius;
+            return const SizedBox();
+          },
+        );
+
+        await tester.pumpWidget(reader);
+        await tester.pump();
+        final bare = radius;
+        await tester.pumpWidget(application(reader));
+        await tester.pump();
+
+        expect(bare, isNull);
+        expect(find.byType(ScreenRadiusScope), findsOneWidget);
+        expect(radius, all(46));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
+    testWidgets(
+      'e06: nested applications keep one scope, and the radius follows '
+      'every change event, after the inner application leaves too',
+      (tester) async {
+        mockProbe(tester);
+        BorderRadius? radius;
+        var radiusBuilds = 0;
+        final reader = Builder(
+          builder: (context) {
+            radius = context.deviceWindow.radius;
+            radiusBuilds++;
+            return const SizedBox();
+          },
+        );
+        await tester.pumpWidget(application(application(reader)));
+        await tester.pump();
+        expect(find.byType(ScreenRadiusScope), findsOneWidget);
+        expect(radius, all(46));
+
+        radiusBuilds = 0;
+        sink.success(corners(12));
+        await tester.pump();
+        await tester.pump();
+        final changed = radius;
+        final changedBuilds = radiusBuilds;
+        await tester.pumpWidget(application(reader));
+        sink.success(corners(20));
+        await tester.pump();
+        await tester.pump();
+
+        expect(changed, all(12));
+        expect(changedBuilds, 1);
+        expect(radius, all(20));
+        expect(listens, 1);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 }
