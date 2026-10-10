@@ -38,7 +38,8 @@ final class ResolvedTheme {
 }
 
 /// Stage 4 (spec section 7.3): resolves every alias in the token groups of
-/// [merged]. Every problem goes to [errors].
+/// [merged], then each shadow layer's color alias (config s03 invariant
+/// 13). Every problem goes to [errors].
 ResolvedTheme resolveThemeAliases(
   MergedTheme merged,
   ThemeSchema schema,
@@ -64,6 +65,10 @@ final class _Resolve {
   /// The holders being followed, outermost first.
   final _visiting = <String>[];
 
+  /// The groups whose aliases name a token of their own group only (config
+  /// s03 invariant 4).
+  static const _ownGroupOnly = {'border', 'blur'};
+
   ResolvedTheme run() {
     for (final group in ThemeSchema.tokenGroups) {
       _collect(_merged.tree[group], [group]);
@@ -82,6 +87,7 @@ final class _Resolve {
       chains[path] = chain;
       _setAt(_holders[path]!, _valueOf(chain.last));
     }
+    _layerColors(chains, failed);
     return ResolvedTheme(
       tree: _merged.tree,
       origins: _merged.origins,
@@ -125,6 +131,18 @@ final class _Resolve {
 
   List<String>? _follow(String path, String alias) {
     final target = alias.substring(1, alias.length - 1).split('.');
+    final group = path.substring(0, path.indexOf('.'));
+    if (_ownGroupOnly.contains(group) &&
+        target.first != group &&
+        (ThemeSchema.tokenGroups.contains(target.first) ||
+            target.first == 'transparent')) {
+      _report(
+        path,
+        StratumThemeErrorCode.aliasNotToken,
+        'names a ${target.first} token, not a $group token',
+      );
+      return null;
+    }
     switch (_classify(target)) {
       case _Target.builtin:
         return [target.join('.')];
@@ -181,6 +199,103 @@ final class _Resolve {
     }
     if (insideToken || !_schema.isLeaf(path)) return _Target.group;
     return _Target.token;
+  }
+
+  /// Stage 4 for the `color` of each shadow layer (FO-01 US-03 FR-01 E05,
+  /// E06; config s03 invariant 13). A layer is no alias target, so this
+  /// runs once the token groups have resolved: a palette or transparent
+  /// alias takes its final target's value and records its chain; a
+  /// `"{color.<group>.<name>}"` reference stays as written once every
+  /// color set holds a token at that path; any other alias fails.
+  void _layerColors(Map<String, List<String>> chains, Set<String> failed) {
+    final shadow = _merged.tree['shadow'];
+    if (shadow is! Map<String, Object?>) return;
+    for (final MapEntry(key: level, value: layers) in shadow.entries) {
+      if (layers is! List<Object?>) continue;
+      for (final (index, layer) in layers.indexed) {
+        if (layer is! Map<String, Object?>) continue;
+        final alias = layer['color'];
+        if (alias is! String || !isAlias(alias)) continue;
+        final path = 'shadow.$level.$index.color';
+        _aliases[path] = alias;
+        final chain = _layerChain(
+          path,
+          alias.substring(1, alias.length - 1).split('.'),
+        );
+        if (chain == null) {
+          failed.add(path);
+        } else if (chain.isNotEmpty) {
+          chains[path] = chain;
+          layer['color'] = _valueOf(chain.last);
+        }
+      }
+    }
+  }
+
+  /// The chain of the layer color alias at [path] naming [target]: empty
+  /// for a color set reference, which each set resolves on its own; null
+  /// when the alias fails. A palette target whose own alias failed fails
+  /// here too, silently: the target reports it.
+  List<String>? _layerChain(String path, List<String> target) {
+    final group = target.first;
+    if (group == 'color') {
+      return _inEverySet(path, target.sublist(1)) ? const [] : null;
+    }
+    if (group != 'palette' && group != 'transparent') {
+      _report(
+        path,
+        StratumThemeErrorCode.aliasNotToken,
+        ThemeSchema.tokenGroups.contains(group)
+            ? 'names a $group token, not a color'
+            : 'is outside the token groups',
+      );
+      return null;
+    }
+    final kind = _classify(target);
+    if (kind == _Target.missing) {
+      _report(path, StratumThemeErrorCode.unknownAlias, 'names no token');
+      return null;
+    }
+    if (kind == _Target.group) {
+      _report(
+        path,
+        StratumThemeErrorCode.aliasNotToken,
+        'names a group, not a token',
+      );
+      return null;
+    }
+    final dotted = target.join('.');
+    if (kind == _Target.builtin || !_aliases.containsKey(dotted)) {
+      return [dotted];
+    }
+    final rest = _done[dotted];
+    return rest == null ? null : [dotted, ...rest];
+  }
+
+  /// Whether every color set of the merged tree holds a token at [rest], a
+  /// path inside a set; reports `unknown_alias` at [path] when a set lacks
+  /// it and `alias_not_token` when it names a group.
+  bool _inEverySet(String path, List<String> rest) {
+    final color = _merged.tree['color'];
+    for (final colorSet in ThemeSchema.colorSets.keys) {
+      var node = color is Map<String, Object?> ? color[colorSet] : null;
+      for (final key in rest) {
+        if (node is! Map<String, Object?> || !node.containsKey(key)) {
+          _report(path, StratumThemeErrorCode.unknownAlias, 'names no token');
+          return false;
+        }
+        node = node[key];
+      }
+      if (rest.isEmpty || !_schema.isLeaf(['color', colorSet, ...rest])) {
+        _report(
+          path,
+          StratumThemeErrorCode.aliasNotToken,
+          'names a group, not a token',
+        );
+        return false;
+      }
+    }
+    return true;
   }
 
   /// Reports one cycle once, at the member that sorts first by the error

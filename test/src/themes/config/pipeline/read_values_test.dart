@@ -1135,4 +1135,79 @@ shadow:
       });
     }
   });
+
+  group('readThemeValues border, blur, and shadow color aliases', () {
+    test('fo01/us01/fr01: a layer reads a color set reference, a palette '
+        'alias, a transparent alias, and a hex', () {
+      final (config, errors) = _read([
+        layer('''
+shadow:
+  "1":
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "{color.brand.normal}"}
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "{palette.brand.600}"}
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "{transparent.black.12}"}
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "#123456"}'''),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(
+        [for (final layer in config.shadow['1']!) layer.color],
+        const [
+          StratumSetLayerColor('brand.normal'),
+          StratumFixedLayerColor(0xFF2563EB),
+          StratumFixedLayerColor(0x1F000000),
+          StratumFixedLayerColor(0xFF123456),
+        ],
+      );
+    });
+
+    test('fo01/us03/fr01: an app theme that sets blur."4" to "{blur.3}" '
+        'reads radius 16', () {
+      final (config, errors) = _read([layer('blur:\n  "4": "{blur.3}"')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.blur['4'], 16);
+    });
+
+    test("fo01/us03/fr01: a border alias inside its group reads its target's "
+        'width', () {
+      final (config, errors) = _read([layer('border:\n  lg: "{border.md}"')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.border['lg'], 1);
+    });
+
+    test('fo01/us01/fr01/e13: a blur alias to a negative radius reports '
+        'once, at the target', () {
+      const expected =
+          'layer1 blur.3: expected a number of 0 or more, got -1 '
+          '[expected_dimension]';
+      expect(_problems('blur:\n  "3": -1\n  "4": "{blur.3}"'), [expected]);
+    });
+
+    test('fo01/us01/fr01/e04: a layer color alias to a bad shade reports '
+        'once, at the shade', () {
+      const layer =
+          'palette:\n  brand:\n    600: red\nshadow:\n  "1":\n'
+          '    - {x: 0, y: 1, blur: 2, spread: 0, '
+          'color: "{palette.brand.600}"}';
+      expect(_problems(layer), [
+        'layer1 palette.brand.600: $_hex "red" [expected_color]',
+      ]);
+    });
+
+    test('fo01/us03/fr01/e05: a layer color alias that fails in stage 4 '
+        'reports nothing in stage 5', () {
+      const expected =
+          'layer1 shadow.1.0.color: "{space.md}" names a space token, not a '
+          'color [alias_not_token]';
+      expect(
+        _problems(
+          'shadow:\n  "1":\n'
+          '    - {x: 0, y: 1, blur: 2, spread: 0, color: "{space.md}"}',
+        ),
+        [expected],
+      );
+    });
+  });
 }

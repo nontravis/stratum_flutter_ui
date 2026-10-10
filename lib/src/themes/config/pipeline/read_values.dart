@@ -91,6 +91,7 @@ final class _Read {
       'transparent' => true,
       'palette' || 'color' => ThemeReader.parseColor(value) != null,
       'layouts' => _isTokenDimension(value, percent: true),
+      'border' || 'blur' => _isEffectNumber(value),
       _ => _isTokenDimension(value, percent: false),
     };
   }
