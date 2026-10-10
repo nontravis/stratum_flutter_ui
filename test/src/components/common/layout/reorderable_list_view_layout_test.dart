@@ -6602,7 +6602,7 @@ void main() {
       'us11/fr05/e04 and s03/inv32: a moveItem far down lands the item at '
       'the bottom edge',
       (tester) async {
-        final position = await _pumpScrolled(
+        await _pumpScrolled(
           tester,
           _Harness(
             count: 1000,
@@ -6615,11 +6615,14 @@ void main() {
         await tester.pumpAndSettle();
 
         // Slot 150's 40 px average puts its leading edge at 6000, the
-        // probe's landing; the landing reveal clamps to the least scroll
-        // from 4000, the trailing edge, 5740, and the item's own grow-in
-        // reveal, once settled, corrects the estimate by one more 40 px
-        // step.
-        expect(position.pixels, 5780);
+        // probe's landing; the landing reveal clamps it to the least
+        // scroll from 4000, its trailing edge, and the item's own
+        // grow-in reveal, once settled, corrects that estimate to its
+        // real bottom edge.
+        final bottom = tester.getBottomLeft(find.byKey(const ValueKey(100))).dy;
+        final viewBottom = tester.getBottomLeft(find.byType(Scrollable)).dy;
+        expect(bottom, viewBottom);
+        expect(_itemInView(tester, 100), isTrue);
       },
     );
 
@@ -7004,8 +7007,9 @@ void main() {
 
         // Item 101's own jump stays, at its own estimate: the frame never
         // reverts to item 100's origin of 4000, which would scroll item
-        // 101 back off screen. Its own grow-in reveal, mid-animation by
-        // this one pump, already corrects the estimate by 20 px.
+        // 101 back off screen. The landing reveal that follows the jump,
+        // within this one pump, already clamps the estimate to the
+        // least scroll from item 101's own origin, 20 px short of it.
         expect(position.pixels, 6160.0);
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(other));

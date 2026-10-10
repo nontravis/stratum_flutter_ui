@@ -433,14 +433,20 @@ void requestFocusInViewports(
 /// stay cut off. The group arrows, [firstTabStopIn], and the traversal of
 /// a focus group or a scroller's content group reveal through this.
 ///
-/// With [origin], the level that reveals [target]'s own render object
-/// jumps to the offset nearest [origin] that shows it whole
-/// ([_jumpToLeastScroll]) in place of the edge rule; every outer level
-/// keeps the edge rule. A target kept alive off screen, whose rect reads
-/// NaN, takes that jump from the current offset without [origin], and
-/// every outer level leaves it: its box paints nowhere until the next
-/// layout.
-void revealInViewports(FocusNode target, {double? origin}) {
+/// With [origin], the level whose own [ScrollPosition] is [origin]'s
+/// jumps to the offset nearest [origin]'s pixels that shows what that
+/// level reveals whole ([_jumpToLeastScroll]) in place of the edge rule;
+/// every other level keeps the edge rule, so a target behind its own
+/// nested scrollable lands at the least scroll only where [origin] was
+/// read, never at the nested scrollable's edge. A target kept alive off
+/// screen, whose rect reads NaN, takes that jump at the level that
+/// reveals its own render object, from the current offset without
+/// [origin], and every outer level leaves it: its box paints nowhere
+/// until the next layout.
+void revealInViewports(
+  FocusNode target, {
+  ({ScrollPosition position, double pixels})? origin,
+}) {
   final context = target.context;
   final object = context?.findRenderObject();
   if (context == null || object == null || !object.attached) return;
@@ -458,9 +464,10 @@ void revealInViewports(FocusNode target, {double? origin}) {
     scrollable = Scrollable.maybeOf(scrollable.context)
   ) {
     final reveal = _inViewportOf(shown, scrollable) ? shown : revealed;
-    if (reveal == object && (origin != null || kept)) {
-      final from = origin ?? scrollable.position.pixels;
-      _jumpToLeastScroll(object, scrollable, from);
+    final fromOrigin = origin != null && scrollable.position == origin.position;
+    if (fromOrigin || (kept && reveal == object)) {
+      final from = fromOrigin ? origin.pixels : scrollable.position.pixels;
+      _jumpToLeastScroll(reveal, scrollable, from);
     } else if (!kept) {
       final policy = _edgePolicy(target.rect, scrollable);
       if (policy != null) {

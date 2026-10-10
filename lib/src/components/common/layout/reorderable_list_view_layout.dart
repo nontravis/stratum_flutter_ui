@@ -577,10 +577,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _ReorderKeysState keys,
     VoidCallback then, {
     int frames = _reachFrames,
-    double? origin,
+    ({ScrollPosition position, double pixels})? origin,
   }) {
     if (!mounted || !keys.mounted || !keys._node.hasFocus) return;
-    final start = origin ?? _scrollPosition?.pixels;
+    final start = origin ?? _currentOrigin;
     final slot = keys.widget.index.slot;
     if (_builtSlot(slot)) {
       revealInViewports(keys._node, origin: start);
@@ -2103,7 +2103,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (key != null) _releasePark(key);
     final noFocusOwnerElsewhere = FocusManager.instance.primaryFocus == null;
     if (byKey && noFocusOwnerElsewhere) firstTabStopIn(node)?.requestFocus();
-    revealInViewports(node, origin: moved.origin?.pixels);
+    revealInViewports(node, origin: moved.origin);
     for (final MapEntry(key: at, value: look) in _itemLooks.entries) {
       final motion = at < built ? _incoming[look.key] : null;
       if (motion != null) _revealAfterGrowIn(node, motion, byKey: byKey);
@@ -2179,13 +2179,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _DataIndex gap, {
     int frames = _reachFrames,
     FocusNode? interim,
-    double? origin,
+    ({ScrollPosition position, double pixels})? origin,
   }) {
     if (!mounted) return;
     if (interim != null && FocusManager.instance.primaryFocus != interim) {
       return;
     }
-    final start = origin ?? _scrollPosition?.pixels;
+    final start = origin ?? _currentOrigin;
     final next = _builtNear(gap, 1);
     final previous = _builtNear(gap - 1, -1);
     final target =
@@ -2240,7 +2240,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// the edge it was revealed at, as a returned item's own grow-in does
   /// (invariant 26). Under reduced motion no size animates, so the first
   /// reveal stands and each later one finds [node] whole.
-  void _revealHandOff(FocusNode node, {double? origin}) {
+  void _revealHandOff(
+    FocusNode node, {
+    ({ScrollPosition position, double pixels})? origin,
+  }) {
     revealInViewports(node, origin: origin);
     final motions = {
       for (final exit in _exits) exit.motion,
@@ -2302,7 +2305,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// [origin] when a reach gave it, now and again in the frame its grow-in
   /// motion under [key] completes, by the plain edge rule: the item grows
   /// past the viewport's edge as it enters (E16).
-  void _revealReturned(FocusNode node, Key key, {double? origin}) {
+  void _revealReturned(
+    FocusNode node,
+    Key key, {
+    ({ScrollPosition position, double pixels})? origin,
+  }) {
     revealInViewports(node, origin: origin);
     final motion = _incoming[key];
     if (motion == null) return;
@@ -2415,7 +2422,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _endReach();
       // A parked item kept its State and the node that holds focus.
       if (!node.hasFocus) firstTabStopIn(node)?.requestFocus();
-      _revealReturned(node, key, origin: origin?.pixels);
+      _revealReturned(node, key, origin: origin);
       return;
     }
     final estimate = frames == 0 ? null : _estimateTowards(index.slot);
@@ -2535,6 +2542,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   ScrollPosition? get _scrollPosition {
     final context = _listKey.currentContext;
     return context == null ? null : Scrollable.maybeOf(context)?.position;
+  }
+
+  /// [_scrollPosition] as an origin record, read now; null with no
+  /// position (invariant 35).
+  ({ScrollPosition position, double pixels})? get _currentOrigin {
+    final position = _scrollPosition;
+    return position == null
+        ? null
+        : (position: position, pixels: position.pixels);
   }
 
   /// Books the jump of [_jumpForMove] toward [target] for the next frame's
@@ -2756,7 +2772,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         return;
       }
       _releasePark(key);
-      if (node.hasFocus) _revealReturned(node, key, origin: origin?.pixels);
+      if (node.hasFocus) _revealReturned(node, key, origin: origin);
       return;
     }
     // Focus the app moved in the same turn stays where the app put it.

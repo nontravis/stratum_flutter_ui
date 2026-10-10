@@ -1258,8 +1258,9 @@ void main() {
 
   group('revealInViewports', () {
     testWidgets(
-      'with an origin, lands the target at the offset nearest it that '
-      'shows it whole',
+      'with an origin away from the current offset, lands the target at '
+      'the offset nearest the origin that shows it whole, clamped to the '
+      'scroll extent',
       (tester) async {
         final controller = _controller();
         final boxes = _nodes(30);
@@ -1278,18 +1279,137 @@ void main() {
             ),
           ),
         );
+        controller.jumpTo(1000);
+        await tester.pump();
+
+        revealInViewports(
+          boxes[20],
+          origin: (position: controller.position, pixels: 0),
+        );
+        // Box 20's trailing edge, 540, the least scroll from 0: the edge
+        // rule from the current offset, 1000, would give its leading
+        // edge, 800.
+        expect(controller.offset, 540);
+
+        revealInViewports(
+          boxes[29],
+          origin: (position: controller.position, pixels: 5000),
+        );
+        // Box 29's leading edge, 1160, clamped to this Scrollable's
+        // maxScrollExtent, 900: an origin past the extent never lands
+        // past it either.
+        expect(controller.offset, 900);
+      },
+    );
+
+    testWidgets(
+      'with an object taller than the viewport, lands its leading edge '
+      'whatever the origin',
+      (tester) async {
+        final controller = _controller();
+        final boxes = _nodes(31);
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              height: 300,
+              child: ListView(
+                controller: controller,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+                children: [
+                  for (final node in boxes.take(30))
+                    Focus(focusNode: node, child: const SizedBox(height: 40)),
+                  Focus(
+                    focusNode: boxes[30],
+                    child: const SizedBox(height: 400),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
         controller.jumpTo(0);
         await tester.pump();
 
-        revealInViewports(boxes[20], origin: 0);
-        // Box 20's trailing edge, past the leading edge a plain reveal
-        // would pick: the least scroll from 0.
-        expect(controller.offset, 20 * 40 + 40 - 300);
+        revealInViewports(
+          boxes[30],
+          origin: (position: controller.position, pixels: 50),
+        );
+        // Box 30 is 400 px tall, past the 300 px viewport: its leading
+        // edge, 1200, not an offset the origin, 50, would clamp to.
+        expect(controller.offset, 1200);
+      },
+    );
 
-        revealInViewports(boxes[5], origin: 540);
-        // Box 5's leading edge, past its trailing edge: the least scroll
-        // from 540.
-        expect(controller.offset, 200);
+    testWidgets(
+      "with an origin, jumps only the level it was read from: a target's "
+      'own nested scrollable keeps the edge rule',
+      (tester) async {
+        final controller = _controller();
+        final inner = _controller();
+        final boxes = _nodes(30);
+        final nested = _node('nested');
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              height: 300,
+              child: ListView(
+                controller: controller,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+                children: [
+                  for (var i = 0; i < 20; i++)
+                    Focus(
+                      focusNode: boxes[i],
+                      child: const SizedBox(height: 40),
+                    ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: 100,
+                      height: 40,
+                      child: ListView(
+                        controller: inner,
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          const SizedBox(width: 40, height: 40),
+                          const SizedBox(width: 40, height: 40),
+                          Focus(
+                            focusNode: nested,
+                            child: const SizedBox(width: 40, height: 40),
+                          ),
+                          const SizedBox(width: 40, height: 40),
+                        ],
+                      ),
+                    ),
+                  ),
+                  for (var i = 21; i < 30; i++)
+                    Focus(
+                      focusNode: boxes[i],
+                      child: const SizedBox(height: 40),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+        controller.jumpTo(1000);
+        // Box 2 of the nested row, 80 to 120 of its own 100 px viewport,
+        // already shows whole at 50: the edge rule asks nothing of it.
+        inner.jumpTo(50);
+        await tester.pump();
+
+        revealInViewports(
+          nested,
+          origin: (position: controller.position, pixels: 0),
+        );
+
+        // The target's row, slot 20: its trailing edge, 540, the least
+        // scroll from the origin the outer list was read at (G5).
+        expect(controller.offset, 540);
+        // The origin was read from the outer list, not this nested one:
+        // it keeps the edge rule, and the target already shows whole, so
+        // it never moves to where the origin, misread as its own, would
+        // clamp it, 20.
+        expect(inner.offset, 50);
       },
     );
 
