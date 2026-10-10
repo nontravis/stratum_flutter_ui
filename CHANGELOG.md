@@ -18,6 +18,13 @@
   up to `v1.1` refuses a `v1.2` theme as `unsupported_schema`. A theme that leaves the three groups out takes the
   package default's Figma values. The new problem code `expected_shadow` reports a `shadow` level that is not a list
   of layers of exactly `x`, `y`, `blur`, `spread`, and `color`.
+- Breaking: a theme file's lengths and shadow layers are bounded. Every `space`, `radius`, and `layouts` number (each
+  window-size entry included), the `N` of a `layouts` `"N%"`, and a shadow layer's `x`, `y`, and `spread` must be a
+  finite number from -10000 to 10000, and every `border` width, `blur` radius, and layer `blur` one from 0 to 10000;
+  anything else is `expected_dimension`, where `space`, `radius`, and `layouts` used to take an infinite, NaN, or huge
+  number. A `shadow` level holds at most 8 layers, else `expected_shadow`. The messages of `border`, `blur`, and the
+  layer numbers now name the range (`expected a number from 0 to 10000, got <value>`). A downloaded theme can no
+  longer ask for an unbounded stack of blurred shadows or hand the renderer an infinite size.
 - The empty `assets/fonts/` asset declaration is removed from `pubspec.yaml`; the package ships no font from it.
 - Breaking: the theme animation scale gains a sixth duration level, `micro`, first and shortest: 30 ms forward and
   19.2 ms back in the package default (its 64% `reverseDuration`), read as `StratumTheme.of(context).animation.micro`
