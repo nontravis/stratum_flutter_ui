@@ -10712,6 +10712,76 @@ void main() {
       },
     );
 
+    // Whether the list is a Tab stop, and the key that moves focus.
+    final leaves = ValueVariant<({bool focusable, String key})>({
+      for (final focusable in [false, true])
+        for (final key in ['Tab', 'Shift+Tab'])
+          (focusable: focusable, key: key),
+    });
+    testWidgets(
+      'us11/fr03/e11 and s03/inv21: when a list the app holds in place never '
+      'lays out the focused text field kept alive off screen and no other '
+      'node in it shows, Tab or Shift+Tab leaves the list in its direction',
+      (tester) async {
+        final (:focusable, :key) = leaves.currentValue!;
+        final before = FocusNode(debugLabel: 'before');
+        final after = FocusNode(debugLabel: 'after');
+        addTearDown(before.dispose);
+        addTearDown(after.dispose);
+        await tester.pumpWidget(
+          _app(
+            Column(
+              children: [
+                Focus(
+                  focusNode: before,
+                  child: const SizedBox(width: 40, height: 20),
+                ),
+                Expanded(
+                  child: _Harness(
+                    count: 1000,
+                    fieldAt: 103,
+                    plainIds: {for (var id = 0; id < 1000; id += 1) id},
+                    focusable: focusable,
+                  ),
+                ),
+                Focus(
+                  focusNode: after,
+                  child: const SizedBox(width: 40, height: 20),
+                ),
+              ],
+            ),
+          ),
+        );
+        final position =
+            tester.state<ScrollableState>(find.byType(Scrollable)).position
+              ..jumpTo(4000);
+        await tester.pump();
+        final state = _itemState(tester, 103);
+        await _focusItem(tester, 103);
+        position.jumpTo(20000);
+        await tester.pump();
+        _pinScroll(tester, 20000);
+
+        final back = key == 'Shift+Tab';
+        if (back) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        if (back) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pumpAndSettle();
+
+        // Backward, the list's own Tab stop comes before its content.
+        final target = !back
+            ? 'after'
+            : focusable
+            ? 'ScrollFocus'
+            : 'before';
+        expect(tester.takeException(), isNull);
+        expect(focused(), target);
+        expect(position.pixels, 20000);
+        expect(state.mounted, isFalse);
+      },
+      variant: leaves,
+    );
+
     testWidgets(
       'us11/fr03/e11 and s03/inv21: an action the app binds to Tab inside the '
       'focused item kept alive off screen runs in place of the move, and the '

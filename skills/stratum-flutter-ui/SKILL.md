@@ -147,7 +147,8 @@ own order.
   user's or the app's, takes it out of view, and the list scrolls nothing for it; Tab, Shift+Tab, or an arrow key from
   it brings it back into view first, then moves focus; an app's own `nextFocus()`, `previousFocus()`, or
   `focusInDirection()` on it brings it back the same way, and when the app holds the scroll so it cannot come back,
-  focus goes to the first item that shows (the last, going backward); a focus that moves elsewhere lets it go.
+  focus goes to the first item that shows (the last, going backward), and with none showing it leaves the list that
+  way; a focus that moves elsewhere lets it go.
   Without dragging: dragging is the list's only pointer path, so the app adds one that needs no drag (WCAG 2.5.7),
   such as Move up and Move down buttons or context-menu entries on each item, until a component in the package
   provides it. They call the handler the app passes to `onReorderItem`, with the indexes the keys pass, and that

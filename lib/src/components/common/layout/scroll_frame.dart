@@ -870,8 +870,9 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   /// kept alive off screen reads a NaN rect, so it is brought back first,
   /// by the nearest [ScrollContentBringBack], else by one jump; an origin
   /// the view still cannot place, as when the app holds the scroll, moves
-  /// to the first node that shows, the last when not [forward]. An origin
-  /// under no scroll view moves at once.
+  /// to the first node that shows, the last when not [forward], and with
+  /// none shown leaves the scroll content that way ([_leaveContent]). An
+  /// origin under no scroll view moves at once.
   bool _placeFirst(
     FocusNode origin,
     bool Function() move, {
@@ -906,7 +907,9 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
 
   /// Focuses the first node in reading order, or the last when not
   /// [forward], other than [origin], that shows inside the box of
-  /// [origin]'s own [Scrollable]; none, no move.
+  /// [origin]'s own [Scrollable]; with none, leaves the scroll content
+  /// ([_leaveContent]), so the key that asked never keeps focus where the
+  /// EndUser cannot see it (WCAG 2.1.2).
   void _focusShown(FocusNode origin, {required bool forward}) {
     final context = origin.context;
     final scrollable = context == null ? null : Scrollable.maybeOf(context);
@@ -921,9 +924,45 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
       for (final node in scope.traversalDescendants)
         if (node != origin && _showsIn(node, scrollable, view)) node,
     ];
-    if (shown.isEmpty) return;
+    if (shown.isEmpty) {
+      _leaveContent(origin, forward: forward);
+      return;
+    }
     final sorted = sortDescendants(shown, origin);
     requestFocusInViewports(forward ? sorted.first : sorted.last);
+  }
+
+  /// Moves focus from [origin] out of the content group around it, where
+  /// no node shows to move to: to the stop after the group, or when not
+  /// [forward] to the stop before it, the box's own Tab stop when the view
+  /// is one.
+  ///
+  /// The group's other nodes skip traversal for the one move, so Flutter's
+  /// own order of the scope, every enclosing policy included, holds the
+  /// group as [origin] alone, where the group sorts; [origin]'s NaN rect
+  /// then decides nothing.
+  void _leaveContent(FocusNode origin, {required bool forward}) {
+    final binding = origin.context
+        ?.findAncestorStateOfType<_PlaceFirstActionsState>();
+    final group = binding == null
+        ? null
+        : Focus.maybeOf(
+            binding.context,
+            scopeOk: true,
+            createDependency: false,
+          );
+    if (group == null) return;
+    final traversable = group.descendantsAreTraversable;
+    group.descendantsAreTraversable = false;
+    try {
+      if (forward) {
+        super.next(origin);
+      } else {
+        super.previous(origin);
+      }
+    } finally {
+      group.descendantsAreTraversable = traversable;
+    }
   }
 
   /// Whether [node] has a finite rect, lies under [scrollable], and

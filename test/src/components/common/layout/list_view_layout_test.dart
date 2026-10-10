@@ -622,6 +622,79 @@ void main() {
       },
     );
 
+    // Whether the list is a Tab stop, and the key that moves focus.
+    final leaves = ValueVariant<({bool focusable, String key})>({
+      for (final focusable in [false, true])
+        for (final key in ['Tab', 'Shift+Tab'])
+          (focusable: focusable, key: key),
+    });
+    testWidgets(
+      'us07/fr01/e07: when the app holds the scroll so a focused text field '
+      'kept alive off screen cannot come back and no other node in the list '
+      'shows, Tab or Shift+Tab leaves the list in its direction',
+      (tester) async {
+        final (:focusable, :key) = leaves.currentValue!;
+        final field = FocusNode(debugLabel: 'field');
+        final before = FocusNode(debugLabel: 'before');
+        final after = FocusNode(debugLabel: 'after');
+        addTearDown(field.dispose);
+        addTearDown(before.dispose);
+        addTearDown(after.dispose);
+        await tester.pumpWidget(
+          app(
+            Column(
+              children: [
+                Focus(
+                  focusNode: before,
+                  child: const SizedBox(width: 40, height: 20),
+                ),
+                Expanded(
+                  child: ListViewLayout.builder(
+                    focusable: focusable,
+                    itemCount: 1000,
+                    itemBuilder: (context, index) => SizedBox(
+                      key: ValueKey(index),
+                      height: 40,
+                      child: index == 103 ? TextField(focusNode: field) : null,
+                    ),
+                  ),
+                ),
+                Focus(
+                  focusNode: after,
+                  child: const SizedBox(width: 40, height: 20),
+                ),
+              ],
+            ),
+          ),
+        );
+        await jump(tester, 4000);
+        field.requestFocus();
+        await tester.pump();
+        final position = await jump(tester, 20000);
+        // The app holds the list there: each jump away springs back.
+        position.addListener(() {
+          if (position.pixels != 20000) position.jumpTo(20000);
+        });
+
+        final back = key == 'Shift+Tab';
+        if (back) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        if (back) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pumpAndSettle();
+
+        // Backward, the list's own Tab stop comes before its content.
+        final target = !back
+            ? 'after'
+            : focusable
+            ? 'ScrollFocus'
+            : 'before';
+        expect(tester.takeException(), isNull);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, target);
+        expect(position.pixels, 20000);
+      },
+      variant: leaves,
+    );
+
     final groupMoves = ValueVariant<String>({
       'Tab',
       'Shift+Tab',
