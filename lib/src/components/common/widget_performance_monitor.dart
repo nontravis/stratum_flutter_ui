@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 class WidgetPerformanceMonitor extends StatefulWidget {
-  const WidgetPerformanceMonitor({
+  const new({
     super.key,
     required this.child,
     this.debug = true,
@@ -33,8 +34,10 @@ class _WidgetPerformanceMonitorState extends State<WidgetPerformanceMonitor> {
           : 0;
       lastBuildTime = now;
 
-      debugPrint('${widget.name ?? widget.runtimeType} - Build #$buildCount, '
-          'Time since last build: ${timeSinceLastBuild}ms');
+      debugPrint(
+        '${widget.name ?? widget.runtimeType} - Build #$buildCount, '
+        'Time since last build: ${timeSinceLastBuild}ms',
+      );
       return Container(
         decoration: BoxDecoration(
           border: Border.all(color: widget.debugColor, width: 1),

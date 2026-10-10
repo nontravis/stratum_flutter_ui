@@ -1,23 +1,51 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI (layout primitives, keyboard behavior, or Stratum themes). Triggers on the *Layout primitives (ColumnLayout, RowLayout, ContainerLayout, ListViewLayout, GridViewLayout, ReorderableListViewLayout, NestedScrollViewLayout, ...), StratumReorderableItemsController, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController.install, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, theme.yaml tokens (typography.fonts, animation.transition, opacity.disabled), StratumSplashScreen, StratumSplashState, StratumWebView, StratumWebViewController, its message bridge, StratumWebZoom, page transitions (PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType), StratumCaret with its Direction and Style, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, StratumPlaceholderPage, StratumUpdateGate, UpdateChecker, UpdateStatus, UpdateGateState.
+description: Use when building a Flutter app on Stratum UI (stratum_ui). Triggers on any `*Layout` primitive (ColumnLayout, ContainerLayout.builder, ListViewLayout, reorderable lists), Space; taps, hover, focus, and keyboard behavior (Interaction, InteractionState, HoverBuilder, FocusBuilder, StratumInkWell, StratumFocusBorder, FocusSpread); disabled widgets (dimsWhenDisabled); Show and hide; theme setup and tokens (StratumTheme, StratumThemeApplication, StratumThemeController, preloading, remote themes, theme.yaml fonts, opacity, border, shadow, blur, ImageBlurFilter, transitions); the start-up splash (StratumSplashScreen, StratumSplashState); page transitions (PageTransition, StratumTransitionPage, ScreenTransitionType); StratumCaret; named colors (ColorEnum, resolveColor); Thai labels, supportedLocales; StratumWebView, its message bridge; StratumWebZoom; placeholder screens (StratumPlaceholderPage); update gates (StratumUpdateGate, UpdateChecker, UpdateStatus, UpdateGateState).
 ---
 
 # Stratum Flutter UI
 
 Every screen and component in an app that depends on `stratum_ui` builds on this layout family. Each primitive styles
-its own box (`style: WidgetStyle`), takes one interaction (`interaction: StratumInteraction`) for taps, hover, and
-shortcuts, and scrolls through one `scroll: StratumScroll` model — never a raw `Container`, `Column`, `Row`, or
+its own box (`style: WidgetStyle`), takes one interaction (`interaction: Interaction`) for taps, hover, and
+shortcuts, and scrolls through one `scroll: Scroll` model — never a raw `Container`, `Column`, `Row`, or
 `ListView`. Import the barrel: `package:stratum_ui/src/src.dart`.
+
+Names: screen-building blocks carry no `Stratum` prefix (`Interaction`, `Scroll`, `TapTargetSize`, `FocusGroup`,
+`ReorderableItemsController`, `Show`, `ShowTransition`, `ShowSlideDirection`), while design-drawn components and theme
+or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old names `StratumInteraction`,
+`StratumScroll`, `StratumTapTargetSize`, `StratumFocusGroup`, `StratumReorderableItemsController`, `StratumShow`,
+`StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` still compile for one minor version
+as deprecated aliases; write the new names.
 
 ## Box layouts
 
 Each entry: usage, key parameters, keyboard behavior.
 
-- **`ContainerLayout`** — a styled box around one `child`.
-  Key parameters: `style`, `child`, `fit` (a `BoxFit` that scales `child` into the padded area through a
-  `FittedBox`; asserts `fit == null || scroll == null`, because a scrolling box has no extent to fit into).
+- **`ContainerLayout`** — a styled box around one `child`, or around the content `builder: (context, state)` builds
+  from its tap surface's `InteractionState`.
+  Key parameters: `style`, `child` or `builder` (never both: a debug assertion names the fix), `fit` (a `BoxFit` that
+  scales the content into the padded area through a `FittedBox`; asserts `fit == null || scroll == null`, because a
+  scrolling box has no extent to fit into).
+  `state.hovered` is true while a pointer is over the surface, with or without `onTap`, or while the app sets
+  `WidgetState.hovered` through `statesController` (a preview); `state.pressed` while it is held; both stay false
+  while `state.disabled`, which is the interaction's own `disabled` or a disabled component around it.
+  `state.focused` is true exactly while the focus ring shows: Tab focus under the default focus type, so a mouse click
+  does not set it, and any focus under `FocusType.focused`. With no `interaction`, or one with no callback and no
+  shortcut, every value is false and no tap surface is added. `builder` runs only when a value changes. Pair every
+  state color with text, an icon, or a shape.
   Keyboard: none of its own; a tap surface comes from `interaction`.
+
+  ```dart
+  ContainerLayout(
+    interaction: Interaction(onTap: openProduct),
+    builder: (context, state) => Text(
+      product.title,
+      style: TextStyle(
+        decoration: state.hovered ? TextDecoration.underline : null,
+      ),
+    ),
+  )
+  ```
 - **`FlexLayout`** — the base of `ColumnLayout` and `RowLayout`: a `Flex` whose `direction` may change between
   builds without remounting children, with `mainAxisAlignment`, `crossAxisAlignment`, `gap` (maps to `Flex.spacing`),
   and `crossAxisIntrinsic` (sizes the cross axis to the largest child, unless `style` sets that cross size; a
@@ -114,14 +142,14 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
         children: [
           ContainerLayout(
             semantics: const SemanticsProperties(button: true, label: 'Previous slide'),
-            interaction: StratumInteraction(
+            interaction: Interaction(
               onTap: () => turn(context, forward: false),
             ),
             child: const Icon(Icons.chevron_left),
           ),
           ContainerLayout(
             semantics: const SemanticsProperties(button: true, label: 'Next slide'),
-            interaction: StratumInteraction(
+            interaction: Interaction(
               onTap: () => turn(context, forward: true),
             ),
             child: const Icon(Icons.chevron_right),
@@ -163,19 +191,19 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
       Expanded(child: Text(tasks[index].title)),
       ContainerLayout(
         semantics: const SemanticsProperties(button: true, label: 'Move up'),
-        interaction: StratumInteraction(onTap: () => moveTask(index, index - 1)),
+        interaction: Interaction(onTap: () => moveTask(index, index - 1)),
         child: const Icon(Icons.arrow_upward),
       ),
       ContainerLayout(
         semantics: const SemanticsProperties(button: true, label: 'Move down'),
-        interaction: StratumInteraction(onTap: () => moveTask(index, index + 1)),
+        interaction: Interaction(onTap: () => moveTask(index, index + 1)),
         child: const Icon(Icons.arrow_downward),
       ),
     ],
   ),
   ```
 
-  Insert and remove: pass a `StratumReorderableItemsController` as `itemsController` (the scroll `controller` stays
+  Insert and remove: pass a `ReorderableItemsController` as `itemsController` (the scroll `controller` stays
   separate) and call `insertItem(index)` or `removeItem(index)` in the same turn as the data change, outside a build
   and `onReorderItem`, `onReorderStart`, and `onReorderEnd`; from those, call after the frame.
   An added item grows and fades in over the theme's `normal` level, and a removed one shrinks and fades out in the
@@ -197,7 +225,7 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   a drop reports the index Flutter's reorderable list gives it.
 
   ```dart
-  final itemsController = StratumReorderableItemsController();
+  final itemsController = ReorderableItemsController();
 
   void addTask(int index, Task task) {
     setState(() => tasks.insert(index, task));
@@ -262,10 +290,13 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   where an app needs that ratio in light or dark.
 - **`StratumInkWell`** — the tap surface every `interaction` builds on. Its own hover and press overlay fades over
   the theme's `fast` level and snaps straight to its target color under reduced motion, same as the ring above it.
-  `tapTargetSize` (default `StratumTapTargetSize.platform`) grows its layout and hit area to the platform minimum
-  when `child` is smaller; pass `StratumTapTargetSize.shrinkWrap` to keep `child`'s own size in a dense UI.
-  `StratumInteraction.tapTargetSize` carries the same choice to every `BoxLayout` (`ContainerLayout`, `ColumnLayout`,
+  `tapTargetSize` (default `TapTargetSize.platform`) grows its layout and hit area to the platform minimum
+  when `child` is smaller; pass `TapTargetSize.shrinkWrap` to keep `child`'s own size in a dense UI.
+  `Interaction.tapTargetSize` carries the same choice to every `BoxLayout` (`ContainerLayout`, `ColumnLayout`,
   `RowLayout`, `StackLayout`, `WrapLayout`) with a tap surface, so a dense `BoxLayout` opts out the same way.
+  `onHover` reports a pointer over the surface while it is enabled: turning disabled under a still pointer, by its own
+  `disabled` or a disabled component around it, calls `onHover(false)` once, and turning enabled again under it calls
+  `onHover(true)` once.
 - **`FocusSpread`** — deprecated in 1.1.0, and removed after one minor version: it builds `StratumFocusBorder`, so
   it already draws the new look. Its `color` now colors only the ring, as `customColor`, and no longer fills the
   box; a box that needs a fill takes it from its own style. Replace `FocusSpread(focus: f, color: c, inside: i,
@@ -498,9 +529,28 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   component paints at; the package default sets 0.5, and an app theme may leave the group out. Read it as
   `StratumThemeApplication.of(context).opacity.disabled`. A value outside 0 to 1 throws
   `StratumThemeFormatException` with `expected_opacity` at its path, and a second key under `opacity` is
-  `unknown_key`. The package default reads `$schema: stratum-theme/v1.1.0`; this package reads every `v1.0` and
-  `v1.1` theme, while a package build that reads only `v1.0` refuses a `v1.1` theme as `unsupported_schema`, so a
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.2.0`; this package reads every `v1.0`, `v1.1`,
+  and `v1.2` theme, while a package build that reads only `v1.0` refuses a `v1.1` theme as `unsupported_schema`, so a
   theme that must load on both writes `v1.0.0` and leaves `opacity` out.
+- **Border, shadow, and blur tokens** — `border`, `shadow`, and `blur` in `theme.yaml` (format
+  `stratum-theme/v1.2.0`) set every border width, drop shadow, and background blur, and the package default carries
+  the Figma values. Read them in `build`: `StratumTheme.of(context).border.md` (a `double`; `sm` 0.5, `md` 1, `lg`
+  1.5, and `md` is the usual width), `.shadow.level1` to `.level6` (each a `List<BoxShadow>` for
+  `WidgetStyle.dropShadow`, colored from the active color set, so dark and high-contrast themes get their own), and
+  `.blur.level1` to `.level6` (each an `ImageBlurFilter` for `WidgetStyle.backgroundBlur`, sigma half the Figma
+  radius): `WidgetStyle(border: Border.all(width: theme.border.md, color: theme.color.border.defaults.normal),
+  dropShadow: theme.shadow.level2, backgroundBlur: theme.blur.level3)`. A theme sets `border: {md: 2}`,
+  `blur: {"3": 24}`, or a `shadow."2"` list of layers such as
+  `{x: 0, y: 4, blur: 8, spread: 0, color: "{color.shadow.secondary}"}`, where `blur` is the Figma blur radius and
+  `color` is a quoted hex, a `{palette...}` or `{transparent...}` alias, or `"{color.<group>.<name>}"`, a token of
+  each color set; a list of at most 8 layers replaces the default's whole, and `[]` is no shadow. Every length a
+  theme sets, in `space`, `radius`, `layouts` (the `N` of a `"N%"` too), `border`, `blur`, and a layer's `x`, `y`,
+  `blur`, and `spread`, is a finite number from -10000 to 10000, and from 0 for `border`, `blur`, and a layer's
+  `blur`. A bad value throws `StratumThemeFormatException` with `expected_dimension`, `expected_shadow`, or
+  `expected_color` at its path, and a key the default lacks, such as `shadow.7`, is `unknown_key`. A package build
+  that reads only up to `v1.1` refuses a
+  `v1.2` theme as `unsupported_schema`, so a theme that must load there writes `v1.1.0` and leaves the three groups
+  out. `AppBorder`, `AppShadow`, `AppFilter`, `StratumThemeData.filter`, and `screenBorderRadius` no longer exist.
 
 ## Page transitions
 
@@ -542,17 +592,43 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 
 ## Show and hide
 
-- **`StratumShow`** — `StratumShow(visible: v, child: c)` shows `c` while `v` is true and hides it while false, by
-  `transition`: `StratumShowTransition.sizeAndFade` (the default), `.fade`, `.size`, or `.slide`, over the theme's
+- **`Show`** — `Show(visible: v, child: c)` shows `c` while `v` is true and hides it while false, by
+  `transition`: `ShowTransition.sizeAndFade` (the default), `.fade`, `.size`, or `.slide`, over the theme's
   default motion level (125 ms to show and 80 ms to hide in the package default) on its `standard` curve; `duration`,
   `reverseDuration`, and `curve` each replace one of them. A slide moves the content by its own size from
-  `slideDirection`: `StratumShowSlideDirection.end` (the default), `.start`, `.top`, or `.bottom`, with start and end
+  `slideDirection`: `ShowSlideDirection.end` (the default), `.start`, `.top`, or `.bottom`, with start and end
   mirrored under right-to-left text, and fades as it moves. Hidden content takes no space in a row or a column and is
   unmounted after its hide motion, so it builds fresh when shown again; `maintainState: true` keeps it mounted
   instead, with its state, its tickers stopped, and no size. From the frame it turns hidden, leaving or hidden content
   takes no tap, focus, or screen-reader attention; focus inside it moves to the show, which Tab never stops on. Under
   reduced motion nothing moves or resizes: `fade`, `sizeAndFade`, and `slide` keep their fade, and `size` shows and
   hides at once.
+
+## Hover and focus observers
+
+- **`HoverBuilder`** — `HoverBuilder(builder: (context, hovered, child) => ..., child: c, onHover: (hovered) {})`
+  builds a look from whether a pointer is over what it builds. It only observes: no Tab stop, focus ring, tap, hover
+  overlay, cursor, or size of its own; for those, use `ContainerLayout(interaction:)`. `builder` and `onHover` run only
+  when `hovered` changes, also when content scrolls under a still mouse, never on each pointer move; `child` reaches
+  `builder` without rebuilding. Touch screens have no hover, so never put content or an action behind hover alone.
+- **`FocusBuilder`** — `FocusBuilder(builder: (context, focused, child) => ..., onFocusChange: (focused) {})` builds a
+  look from whether focus sits anywhere inside, a tap's focus included, as the web's `:focus-within` does; moving
+  focus between fields inside calls nothing. It adds no Tab stop. Its `focused` differs on purpose from
+  `InteractionState.focused`, which follows the focus ring.
+- **Both** — `semantics: SemanticsProperties(label: ...)` labels the wrapped group in one node a screen reader reads
+  before the fields inside; null adds no node. Inside a disabled component both read false and call no listener. Pair
+  every hover or focus color with text, an icon, or a shape.
+
+  ```dart
+  FocusBuilder(
+    semantics: const SemanticsProperties(label: 'ที่อยู่จัดส่ง'),
+    builder: (context, focused, child) => ContainerLayout(
+      style: focused ? focusedSectionStyle : sectionStyle,
+      child: child,
+    ),
+    child: ColumnLayout(children: [streetField, cityField]),
+  )
+  ```
 
 ## Web zoom
 

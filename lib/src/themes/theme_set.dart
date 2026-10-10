@@ -1,7 +1,8 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 
 /// Whether the application shows a theme's high-contrast data.
-enum HighContrastMode {
+enum StratumHighContrastMode {
   /// The platform setting, `MediaQuery.maybeHighContrastOf`; off when no
   /// media query is above. The default.
   system,
@@ -12,6 +13,14 @@ enum HighContrastMode {
   /// Never the high-contrast data.
   off,
 }
+
+/// [StratumHighContrastMode]'s name before naming rule R2, kept one minor
+/// version.
+@Deprecated(
+  'Use StratumHighContrastMode instead. HighContrastMode will be removed '
+  'after one minor version.',
+)
+typedef HighContrastMode = StratumHighContrastMode;
 
 /// The four theme data of one theme, one per color set (spec section 7.1).
 @immutable
@@ -24,9 +33,11 @@ class StratumThemeSet {
   });
 
   /// One data per color set of [config]; every other group is shared by
-  /// the four, and fields no yaml group fills take section 7.10's
-  /// defaults. Throws an [ArgumentError] that names the first token path
-  /// the generated classes read and [config] lacks.
+  /// the four, but `shadow`, whose colors each data takes from its own
+  /// set, and fields no yaml group fills take section 7.10's defaults.
+  /// Throws an [ArgumentError] that names the first token path the
+  /// generated classes read and [config] lacks, or a shadow layer's color
+  /// path its set lacks.
   factory fromConfig(StratumThemeConfig config) {
     final colors = config.color;
     final lightColor = StratumColorTokens.fromMap(colors.light);
@@ -42,6 +53,11 @@ class StratumThemeSet {
     final assets = StratumAssetTokens.fromMap(config.assets);
     final animation = StratumAnimation.fromConfig(config.animation);
     final opacity = StratumOpacityTokens.fromMap(config.opacity);
+    final border = StratumBorderTokens.fromMap(config.border);
+    final blur = StratumBlurTokens.fromMap({
+      for (final MapEntry(:key, :value) in config.blur.entries)
+        key: convertBlur(value),
+    });
     StratumThemeData data(
       StratumColorTokens color,
       Map<String, Color> setColors, {
@@ -60,6 +76,14 @@ class StratumThemeSet {
       typography: config.typography,
       animation: animation,
       opacity: opacity,
+      border: border,
+      shadow: StratumShadowTokens.fromMap({
+        for (final MapEntry(key: level, value: layers) in config.shadow.entries)
+          level: List<BoxShadow>.unmodifiable([
+            for (final layer in layers) convertShadowLayer(layer, setColors),
+          ]),
+      }),
+      blur: blur,
       systemOverlayStyle: dark ? AppSystemUI.dark : AppSystemUI.light,
       systemOverlayInverseStyle: dark ? AppSystemUI.light : AppSystemUI.dark,
     );

@@ -101,6 +101,26 @@ animation:
     exit: easeIn
 opacity:
   disabled: 0.5
+border:
+  sm: 0.5
+  md: 1
+  lg: 1.5
+shadow:
+  "1":
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "{color.brand.hover}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "#00000026"}
+  "2": []
+  "3": []
+  "4": []
+  "5": []
+  "6": []
+blur:
+  "1": 4
+  "2": 8
+  "3": 16
+  "4": 24
+  "5": 40
+  "6": 80
 ''';
 
 /// The folder of the package default in [sources].

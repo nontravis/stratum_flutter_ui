@@ -363,6 +363,119 @@ color:
     });
   });
 
+  group('readThemeValues length bound', () {
+    const fixed = 'expected a number from -10000 to 10000, got';
+    const layout = 'expected a number or "N%" from -10000 to 10000, got';
+    final cases = <(String, String, String)>[
+      (
+        'a space token past the bound',
+        'space:\n  md: 10001',
+        'layer1 space.md: $fixed 10001 [expected_dimension]',
+      ),
+      (
+        'an infinite space token',
+        'space:\n  lg: .inf',
+        'layer1 space.lg: $fixed Infinity [expected_dimension]',
+      ),
+      (
+        'a NaN radius token',
+        'radius:\n  sm: .nan',
+        'layer1 radius.sm: $fixed NaN [expected_dimension]',
+      ),
+      (
+        'a radius token below the bound',
+        'radius:\n  sm: -10001',
+        'layer1 radius.sm: $fixed -10001 [expected_dimension]',
+      ),
+      (
+        'a window-size entry of 1e300',
+        'space:\n  gutter: { mobile: 16, desktop: 1e300 }',
+        'layer1 space.gutter.desktop: $fixed 1e+300 [expected_dimension]',
+      ),
+      (
+        'a layouts width past the bound',
+        'layouts:\n  max-width-read: 10001',
+        'layer1 layouts.max-width-read: $layout 10001 [expected_dimension]',
+      ),
+      (
+        'a layouts percent past the bound',
+        'layouts:\n  max-width-read: "10001%"',
+        'layer1 layouts.max-width-read: $layout "10001%" '
+            '[expected_dimension]',
+      ),
+    ];
+    for (final (name, body, expected) in cases) {
+      test('fo01/us01/fr01/e16: reports $name', () {
+        expect(_problems(body), [expected]);
+      });
+    }
+
+    test('fo01/us01/fr01/e16: reports a layouts percent whose digits '
+        'overflow to infinity', () {
+      final found = _problems('layouts:\n  max-width-read: "${'9' * 400}%"');
+
+      expect(found, hasLength(1));
+      expect(
+        found.single,
+        startsWith('layer1 layouts.max-width-read: $layout "999'),
+      );
+      expect(found.single, endsWith('[expected_dimension]'));
+    });
+
+    test('fo01/us01/fr01/e16: values at the bound read in space, radius, '
+        'and layouts', () {
+      final (config, errors) = _read([
+        layer(
+          'space:\n  md: 10000\n  lg: -10000\nradius:\n  sm: 10000\n'
+          'layouts:\n  max-width-read: { mobile: "10000%", desktop: -10000 }',
+        ),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(
+        config.space['md'],
+        const StratumByWindowSize.all(StratumDimension.fixed(10000)),
+      );
+      expect(
+        config.space['lg'],
+        const StratumByWindowSize.all(StratumDimension.fixed(-10000)),
+      );
+      expect(
+        config.radius['sm'],
+        const StratumByWindowSize.all(StratumDimension.fixed(10000)),
+      );
+      expect(
+        config.layouts['max-width-read']!.valueFor(WindowSize.mobile),
+        const StratumDimension.percent(100),
+      );
+      expect(
+        config.layouts['max-width-read']!.valueFor(WindowSize.desktop),
+        const StratumDimension.fixed(-10000),
+      );
+    });
+
+    test('fo01/us01/fr01/e16: a space alias to a token past the bound '
+        'reports once, at the target', () {
+      expect(_problems('space:\n  md: 10001\n  lg: "{space.md}"'), [
+        'layer1 space.md: $fixed 10001 [expected_dimension]',
+      ]);
+    });
+
+    test('fo01/us01/fr01/e16: a space alias to a layouts percent past the '
+        'bound reports once, at the layouts token', () {
+      const expected =
+          'layer1 layouts.max-width-read: $layout "20000%" '
+          '[expected_dimension]';
+      expect(
+        _problems(
+          'layouts:\n  max-width-read: "20000%"\nspace:\n'
+          '  lg: "{layouts.max-width-read}"',
+        ),
+        [expected],
+      );
+    });
+  });
+
   group('readThemeValues assets', () {
     test('each kind maps from its extension, in any case', () {
       expect(
@@ -871,6 +984,462 @@ typography:
       expect(_problems('opacity:\n  disabled:'), [
         'layer1 opacity.disabled: required [required]',
       ]);
+    });
+  });
+
+  group('readThemeValues border, shadow, and blur', () {
+    test('fo01/us01/fr01: reads the three groups from the base', () {
+      final (config, errors) = _read([]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.border, {'sm': 0.5, 'md': 1.0, 'lg': 1.5});
+      expect(config.blur, {
+        '1': 4.0,
+        '2': 8.0,
+        '3': 16.0,
+        '4': 24.0,
+        '5': 40.0,
+        '6': 80.0,
+      });
+      expect(config.shadow.keys, ['1', '2', '3', '4', '5', '6']);
+      expect(config.shadow['1'], const [
+        StratumShadowLayer(
+          x: 0,
+          y: 1,
+          blur: 2,
+          spread: 0,
+          color: StratumSetLayerColor('brand.hover'),
+        ),
+        StratumShadowLayer(
+          x: 0,
+          y: 0,
+          blur: 1,
+          spread: 0,
+          color: StratumFixedLayerColor(0x26000000),
+        ),
+      ]);
+      expect(config.shadow['2'], isEmpty);
+    });
+
+    test('fo01/us01/fr01: a layer that leaves the three groups out keeps '
+        "the base's values", () {
+      final (config, errors) = _read([layer('name: ocean')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.border['md'], 1);
+      expect(config.shadow['1'], hasLength(2));
+      expect(config.blur['3'], 16);
+    });
+
+    test('fo01/us04/fr01: a layer that sets one border width keeps the '
+        'other two', () {
+      final (config, errors) = _read([layer('border:\n  md: 2')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.border, {'sm': 0.5, 'md': 2.0, 'lg': 1.5});
+    });
+
+    test('fo01/us04/fr01/e05: a list of three layers replaces the default '
+        'list whole; x, y, and spread may be negative', () {
+      final (config, errors) = _read([
+        layer('''
+shadow:
+  "1":
+    - {x: 1, y: 2, blur: 3, spread: 4, color: "#FF0000"}
+    - {x: -1, y: -2, blur: 0, spread: -4, color: "#00FF0080"}
+    - {x: 0, y: 0, blur: 0.5, spread: 0, color: "{color.brand.normal}"}'''),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.shadow['1'], const [
+        StratumShadowLayer(
+          x: 1,
+          y: 2,
+          blur: 3,
+          spread: 4,
+          color: StratumFixedLayerColor(0xFFFF0000),
+        ),
+        StratumShadowLayer(
+          x: -1,
+          y: -2,
+          blur: 0,
+          spread: -4,
+          color: StratumFixedLayerColor(0x8000FF00),
+        ),
+        StratumShadowLayer(
+          x: 0,
+          y: 0,
+          blur: 0.5,
+          spread: 0,
+          color: StratumSetLayerColor('brand.normal'),
+        ),
+      ]);
+    });
+
+    test('fo01/us04/fr01/e05: an empty list replaces the default list and '
+        'means no shadow', () {
+      final (config, errors) = _read([layer('shadow:\n  "1": []')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.shadow['1'], isEmpty);
+      expect(config.shadow, hasLength(6));
+    });
+
+    const layerOf = '{x: 0, y: 1, blur: 2, spread: 0, color: "#000000"}';
+    String level2(String item) => 'shadow:\n  "2":\n    - $item';
+    const nonNegative = 'expected a number from 0 to 10000, got';
+    const signed = 'expected a number from -10000 to 10000, got';
+    const keys = 'expected the keys x, y, blur, spread, and color, got';
+    final cases = <(String, String, String, String)>[
+      (
+        'fo01/us01/fr01/e13',
+        'a negative border width',
+        'border:\n  sm: -1',
+        'layer1 border.sm: $nonNegative -1 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a border width that is a word',
+        'border:\n  md: thin',
+        'layer1 border.md: $nonNegative "thin" [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a border width per window size',
+        'border:\n  md: { mobile: 1 }',
+        'layer1 border.md: $nonNegative {mobile: 1} [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'an infinite border width',
+        'border:\n  lg: .inf',
+        'layer1 border.lg: $nonNegative Infinity [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a negative blur radius',
+        'blur:\n  "3": -4',
+        'layer1 blur.3: $nonNegative -4 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a quoted blur radius',
+        'blur:\n  "1": "4"',
+        'layer1 blur.1: $nonNegative "4" [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a NaN blur radius',
+        'blur:\n  "2": .nan',
+        'layer1 blur.2: $nonNegative NaN [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a negative layer blur',
+        level2(layerOf.replaceFirst('blur: 2', 'blur: -2')),
+        'layer1 shadow.2.0.blur: $nonNegative -2 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a quoted layer x',
+        level2(layerOf.replaceFirst('x: 0', 'x: "0"')),
+        'layer1 shadow.2.0.x: $signed "0" [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a word for layer y',
+        level2(layerOf.replaceFirst('y: 1', 'y: one')),
+        'layer1 shadow.2.0.y: $signed "one" [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a boolean layer spread',
+        level2(layerOf.replaceFirst('spread: 0', 'spread: true')),
+        'layer1 shadow.2.0.spread: $signed true [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'an infinite layer x',
+        level2(layerOf.replaceFirst('x: 0', 'x: -.inf')),
+        'layer1 shadow.2.0.x: $signed -Infinity [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a shadow level that is a number',
+        'shadow:\n  "2": 4',
+        'layer1 shadow.2: expected a list of shadow layers, got 4 '
+            '[expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a shadow level that is one layer, not a list',
+        'shadow:\n  "2": $layerOf',
+        'layer1 shadow.2: expected a list of shadow layers, got {x: 0, y: 1, '
+            'blur: 2, spread: 0, color: #000000} [expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a layer that is a number',
+        level2('4'),
+        'layer1 shadow.2.0: expected a map of x, y, blur, spread, and color, '
+            'got 4 [expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a layer without a color',
+        level2('{x: 0, y: 1, blur: 2, spread: 0}'),
+        'layer1 shadow.2.0: $keys "x", "y", "blur", "spread" '
+            '[expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a layer with a sixth key',
+        level2(layerOf.replaceFirst('}', ', z: 1}')),
+        'layer1 shadow.2.0: $keys "x", "y", "blur", "spread", "color", "z" '
+            '[expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'an empty layer',
+        level2('{}'),
+        'layer1 shadow.2.0: $keys none [expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e15',
+        'a layer color that is a word',
+        level2(layerOf.replaceFirst('"#000000"', 'red')),
+        'layer1 shadow.2.0.color: $_hex "red" [expected_color]',
+      ),
+      (
+        'fo01/us01/fr01/e15',
+        'a layer color that is a number',
+        level2(layerOf.replaceFirst('"#000000"', '12')),
+        'layer1 shadow.2.0.color: $_hex 12 [expected_color]',
+      ),
+      (
+        'fo01/us01/fr01/e15',
+        'a bad color in the second layer, at its own index',
+        'shadow:\n  "2":\n    - $layerOf\n'
+            '    - ${layerOf.replaceFirst('"#000000"', 'nope')}',
+        'layer1 shadow.2.1.color: $_hex "nope" [expected_color]',
+      ),
+      (
+        'fo01/us01/fr01/e05',
+        'an empty border width',
+        'border:\n  sm:',
+        'layer1 border.sm: required [required]',
+      ),
+      (
+        'fo01/us01/fr01/e05',
+        'an empty shadow level',
+        'shadow:\n  "2":',
+        'layer1 shadow.2: required [required]',
+      ),
+      (
+        'fo01/us01/fr01/e05',
+        'an empty layer x',
+        level2(layerOf.replaceFirst('x: 0', 'x: null')),
+        'layer1 shadow.2.0.x: required [required]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a border width past the length bound',
+        'border:\n  md: 10001',
+        'layer1 border.md: $nonNegative 10001 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a blur radius of 1e300',
+        'blur:\n  "1": 1e300',
+        'layer1 blur.1: $nonNegative 1e+300 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a layer blur past the length bound',
+        level2(layerOf.replaceFirst('blur: 2', 'blur: 10000.5')),
+        'layer1 shadow.2.0.blur: $nonNegative 10000.5 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a layer x of 1e200',
+        level2(layerOf.replaceFirst('x: 0', 'x: 1e200')),
+        'layer1 shadow.2.0.x: $signed 1e+200 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a layer spread below the length bound',
+        level2(layerOf.replaceFirst('spread: 0', 'spread: -10001')),
+        'layer1 shadow.2.0.spread: $signed -10001 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a NaN layer y',
+        level2(layerOf.replaceFirst('y: 1', 'y: .nan')),
+        'layer1 shadow.2.0.y: $signed NaN [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a layer x of int min',
+        level2(layerOf.replaceFirst('x: 0', 'x: -9223372036854775808')),
+        'layer1 shadow.2.0.x: $signed -9223372036854775808 '
+            '[expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a layer y of int min',
+        level2(layerOf.replaceFirst('y: 1', 'y: -9223372036854775808')),
+        'layer1 shadow.2.0.y: $signed -9223372036854775808 '
+            '[expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e13',
+        'a layer spread of int min',
+        level2(
+          layerOf.replaceFirst('spread: 0', 'spread: -9223372036854775808'),
+        ),
+        'layer1 shadow.2.0.spread: $signed -9223372036854775808 '
+            '[expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a shadow level of nine layers',
+        'shadow:\n  "2":\n${'    - $layerOf\n' * 9}',
+        'layer1 shadow.2: expected at most 8 shadow layers, got 9 '
+            '[expected_shadow]',
+      ),
+      (
+        'fo01/us01/fr01/e14',
+        'a nine-layer level once; stage 5 reads none of its layers',
+        'shadow:\n  "2":\n${'    - {x: 0, color: red}\n' * 9}',
+        'layer1 shadow.2: expected at most 8 shadow layers, got 9 '
+            '[expected_shadow]',
+      ),
+    ];
+    for (final (tag, name, body, expected) in cases) {
+      test('$tag: reports $name', () {
+        expect(_problems(body), [expected]);
+      });
+    }
+
+    test('fo01/us01/fr01/e14: a level of eight layers reads all eight', () {
+      final (config, errors) = _read([
+        layer('shadow:\n  "2":\n${'    - $layerOf\n' * 8}'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.shadow['2'], hasLength(8));
+    });
+
+    test('fo01/us01/fr01/e13: a width, a radius, and a layer at the length '
+        'bound read', () {
+      final (config, errors) = _read([
+        layer('''
+border:
+  md: 10000
+blur:
+  "1": 10000
+shadow:
+  "2":
+    - {x: -10000, y: 10000, blur: 10000, spread: -10000, color: "#000000"}'''),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.border['md'], 10000);
+      expect(config.blur['1'], 10000);
+      expect(config.shadow['2'], const [
+        StratumShadowLayer(
+          x: -10000,
+          y: 10000,
+          blur: 10000,
+          spread: -10000,
+          color: StratumFixedLayerColor(0xFF000000),
+        ),
+      ]);
+    });
+  });
+
+  group('readThemeValues border, blur, and shadow color aliases', () {
+    test('fo01/us01/fr01: a layer reads a color set reference, a palette '
+        'alias, a transparent alias, and a hex', () {
+      final (config, errors) = _read([
+        layer('''
+shadow:
+  "1":
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "{color.brand.normal}"}
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "{palette.brand.600}"}
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "{transparent.black.12}"}
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "#123456"}'''),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(
+        [for (final layer in config.shadow['1']!) layer.color],
+        const [
+          StratumSetLayerColor('brand.normal'),
+          StratumFixedLayerColor(0xFF2563EB),
+          StratumFixedLayerColor(0x1F000000),
+          StratumFixedLayerColor(0xFF123456),
+        ],
+      );
+    });
+
+    test('fo01/us03/fr01: an app theme that sets blur."4" to "{blur.3}" '
+        'reads radius 16', () {
+      final (config, errors) = _read([layer('blur:\n  "4": "{blur.3}"')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.blur['4'], 16);
+    });
+
+    test("fo01/us03/fr01: a border alias inside its group reads its target's "
+        'width', () {
+      final (config, errors) = _read([layer('border:\n  lg: "{border.md}"')]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.border['lg'], 1);
+    });
+
+    test('fo01/us01/fr01/e13: a blur alias to a negative radius reports '
+        'once, at the target', () {
+      const expected =
+          'layer1 blur.3: expected a number from 0 to 10000, got -1 '
+          '[expected_dimension]';
+      expect(_problems('blur:\n  "3": -1\n  "4": "{blur.3}"'), [expected]);
+    });
+
+    test('fo01/us01/fr01/e13: a border alias to a width past the length '
+        'bound reports once, at the target', () {
+      const expected =
+          'layer1 border.md: expected a number from 0 to 10000, got 10001 '
+          '[expected_dimension]';
+      expect(_problems('border:\n  md: 10001\n  lg: "{border.md}"'), [
+        expected,
+      ]);
+    });
+
+    test('fo01/us01/fr01/e04: a layer color alias to a bad shade reports '
+        'once, at the shade', () {
+      const layer =
+          'palette:\n  brand:\n    600: red\nshadow:\n  "1":\n'
+          '    - {x: 0, y: 1, blur: 2, spread: 0, '
+          'color: "{palette.brand.600}"}';
+      expect(_problems(layer), [
+        'layer1 palette.brand.600: $_hex "red" [expected_color]',
+      ]);
+    });
+
+    test('fo01/us03/fr01/e05: a layer color alias that fails in stage 4 '
+        'reports nothing in stage 5', () {
+      const expected =
+          'layer1 shadow.1.0.color: "{space.md}" names a space token, not a '
+          'color [alias_not_token]';
+      expect(
+        _problems(
+          'shadow:\n  "1":\n'
+          '    - {x: 0, y: 1, blur: 2, spread: 0, color: "{space.md}"}',
+        ),
+        [expected],
+      );
     });
   });
 }

@@ -11,7 +11,7 @@ Widget _list(ScrollBehavior behavior) {
   );
 }
 
-final _indicator = find.byWidgetPredicate(
+final Finder _indicator = find.byWidgetPredicate(
   (widget) =>
       widget is StretchingOverscrollIndicator ||
       widget is GlowingOverscrollIndicator,

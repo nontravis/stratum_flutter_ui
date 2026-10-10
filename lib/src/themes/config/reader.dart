@@ -155,6 +155,28 @@ final class ThemeReader {
 
   static final _hex = RegExp(r'^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$');
 
+  /// The largest magnitude of a theme length, in logical pixels (config s03
+  /// invariant 15). Every `space`, `radius`, and `layouts` number, the `N`
+  /// of a `layouts` `"N%"`, every `border` width and `blur` radius, and a
+  /// shadow layer's `x`, `y`, `blur`, and `spread` keep within it, so no
+  /// package math on a length a theme file sets can overflow to infinity.
+  static const maxLength = 10000;
+
+  /// Whether [value] is a theme length: a finite number from -[maxLength]
+  /// to [maxLength].
+  static bool isLength(Object? value) =>
+      value is num &&
+      value.isFinite &&
+      value >= -maxLength &&
+      value <= maxLength;
+
+  /// Whether [dimension] keeps within [maxLength]: a fixed value's pixels,
+  /// or the `N` of a percent `"N%"`.
+  static bool fitsLength(StratumDimension dimension) => switch (dimension) {
+    FixedDimension(:final px) => isLength(px),
+    PercentDimension(:final ratio) => isLength(ratio * 100),
+  };
+
   /// Where every error goes.
   final ThemeErrors errors;
 
@@ -272,11 +294,12 @@ final class ThemeReader {
     return alpha << 24 | rgb;
   }
 
-  /// [value] read by [StratumDimension.parse], or null when it does not
-  /// parse.
-  static StratumDimension? parseDimension(Object? value) {
+  /// [value] read by [StratumDimension.parse] when it [fitsLength], or null
+  /// when it does not parse or does not fit.
+  static StratumDimension? parseLength(Object? value) {
     try {
-      return StratumDimension.parse(value);
+      final dimension = StratumDimension.parse(value);
+      return fitsLength(dimension) ? dimension : null;
     } on FormatException {
       return null;
     }

@@ -1,7 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
 
 class Space {
-  Space._();
+  new _();
 
   static Widget get empty => const SizedBox(); //
   static Widget get shrink => const SizedBox.shrink(); //
@@ -59,14 +59,12 @@ class Space {
     double top = 0.0,
     double right = 0.0,
     double bottom = 0.0,
-  }) =>
-      EdgeInsets.only(left: left, top: top, right: right, bottom: bottom);
+  }) => EdgeInsets.only(left: left, top: top, right: right, bottom: bottom);
 
   static EdgeInsets insetSymmetric({
     double horizontal = 0.0,
     double vertical = 0.0,
-  }) =>
-      EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical);
+  }) => EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical);
 
   static EdgeInsets get insetZero => EdgeInsets.zero; //
   static EdgeInsets get insetAll1 => const EdgeInsets.all(1.0); //
@@ -128,7 +126,8 @@ class Space {
   static EdgeInsets get insetVertical72 =>
       const EdgeInsets.symmetric(vertical: 72.0);
 
-  // Note: insetVertical* methods above can be used where EdgeInsetsGeometry is expected
+  // Note: insetVertical* methods above can be used where
+  // EdgeInsetsGeometry is expected
 
   ///==============///
 
@@ -168,7 +167,8 @@ class Space {
   static EdgeInsets get insetHorizontal72 =>
       const EdgeInsets.symmetric(horizontal: 72.0); //
 
-  // Note: insetHorizontal* methods above can be used where EdgeInsetsGeometry is expected
+  // Note: insetHorizontal* methods above can be used where
+  // EdgeInsetsGeometry is expected
 
   ///==============///
 
@@ -237,7 +237,8 @@ class Space {
   static EdgeInsets get insetTop64 => const EdgeInsets.only(top: 64.0); //
   static EdgeInsets get insetTop72 => const EdgeInsets.only(top: 72.0); //
 
-  // Note: insetTop* methods above can be used where EdgeInsetsGeometry is expected
+  // Note: insetTop* methods above can be used where EdgeInsetsGeometry
+  // is expected
 
   ///==============///
 
@@ -259,5 +260,6 @@ class Space {
   static EdgeInsets get insetBottom64 => const EdgeInsets.only(bottom: 64.0); //
   static EdgeInsets get insetBottom72 => const EdgeInsets.only(bottom: 72.0); //
 
-  // Note: insetBottom* methods above can be used where EdgeInsetsGeometry is expected
+  // Note: insetBottom* methods above can be used where
+  // EdgeInsetsGeometry is expected
 }

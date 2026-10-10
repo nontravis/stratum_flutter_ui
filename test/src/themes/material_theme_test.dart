@@ -187,7 +187,7 @@ void main() {
         'it in the six title and label slots', () {
       final data = StratumThemeSet.fromConfig(
         StratumThemeConfig.parse(
-          base: StratumThemeSource(
+          base: const StratumThemeSource(
             id: 'stratum-default',
             folder: 'packages/stratum_ui/assets/themes/default',
             yaml: defaultThemeSource,

@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+- Breaking: `AppBorder`, `AppShadow`, and `AppFilter` are removed, with no `@Deprecated` step, since no release has
+  shipped them. Border widths, shadows, and blurs now come from the theme file: read
+  `StratumTheme.of(context).border` (`StratumBorderTokens`: `sm`, `md`, `lg` as `double` widths, no longer `Border`
+  objects), `.shadow` (`StratumShadowTokens`, `level1` to `level6`, each a `List<BoxShadow>`), and `.blur`
+  (`StratumBlurTokens`, `level1` to `level6`, each an `ImageBlurFilter`). A blur's sigma is half its Figma radius, so
+  each blur is half as strong as the `AppFilter` step of the same number.
+- Breaking: `StratumThemeData.filter` and the `StratumTheme.filter` getter are renamed `blur`, and `StratumThemeData`
+  now takes `border`, `shadow`, and `blur` as required parameters with no built-in default, and `StratumThemeConfig`
+  takes `border`, `shadow`, and `blur` as required parameters, so a hand-built one passes them.
+- Breaking: `StratumThemeData.screenBorderRadius`, its constructor and `copyWith` parameters, and the
+  `StratumTheme.screenBorderRadius` getter are removed; nothing read it, and Flutter gives no screen corner radius.
+- Breaking: the theme format `stratum-theme/v1.2.0` adds the `border`, `shadow`, and `blur` groups, and the package
+  default reads `v1.2.0`. This package reads every `v1.0`, `v1.1`, and `v1.2` theme; a package build that reads only
+  up to `v1.1` refuses a `v1.2` theme as `unsupported_schema`. A theme that leaves the three groups out takes the
+  package default's Figma values. The new problem code `expected_shadow` reports a `shadow` level that is not a list
+  of layers of exactly `x`, `y`, `blur`, `spread`, and `color`.
+- Breaking: a theme file's lengths and shadow layers are bounded. Every `space`, `radius`, and `layouts` number (each
+  window-size entry included), the `N` of a `layouts` `"N%"`, and a shadow layer's `x`, `y`, and `spread` must be a
+  finite number from -10000 to 10000, and every `border` width, `blur` radius, and layer `blur` one from 0 to 10000;
+  anything else is `expected_dimension`, where `space`, `radius`, and `layouts` used to take an infinite, NaN, or huge
+  number. A `shadow` level holds at most 8 layers, else `expected_shadow`. The messages of `border`, `blur`, and the
+  layer numbers now name the range (`expected a number from 0 to 10000, got <value>`). A downloaded theme can no
+  longer ask for an unbounded stack of blurred shadows or hand the renderer an infinite size.
+- New `HoverBuilder` and `FocusBuilder` build a look, or run a listener, from whether a pointer is over a widget or
+  focus sits anywhere inside it. They add no Tab stop, focus ring, tap handling, cursor, or size, read false inside a
+  disabled component, and take an optional `semantics` that labels the wrapped group for screen readers.
+  `ContainerLayout(builder: (context, state) => ...)` builds its content from the new `InteractionState` of its tap
+  surface (`hovered`, `pressed`, `focused`, `disabled`), in place of `child`.
+- `StratumInkWell`, and so every box layout with an `interaction`, now calls `onHover(false)` once when it turns
+  disabled under the pointer, by its own `disabled` or a disabled component around it, and `onHover(true)` once when it
+  turns enabled again under the pointer; before, a disabled flip left `onHover` without its `false`.
+- Renamed under one naming rule: screen-building blocks carry no `Stratum` prefix, while design-drawn components and
+  theme or app-setup types keep it. `StratumInteraction` is now `Interaction`, `StratumScroll` is `Scroll`,
+  `StratumTapTargetSize` is `TapTargetSize`, `StratumFocusGroup` is `FocusGroup`, `StratumReorderableItemsController`
+  is `ReorderableItemsController`, `StratumShow` is `Show`, `StratumShowTransition` is `ShowTransition`,
+  `StratumShowSlideDirection` is `ShowSlideDirection`, `Slot` is `StratumSlot`, and `HighContrastMode` is
+  `StratumHighContrastMode`. Each old name stays one minor version as a `@Deprecated` alias, so existing code compiles
+  with a deprecation hint.
 - The empty `assets/fonts/` asset declaration is removed from `pubspec.yaml`; the package ships no font from it.
 - Breaking: the theme animation scale gains a sixth duration level, `micro`, first and shortest: 30 ms forward and
   19.2 ms back in the package default (its 64% `reverseDuration`), read as `StratumTheme.of(context).animation.micro`

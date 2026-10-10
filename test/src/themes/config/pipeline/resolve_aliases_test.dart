@@ -296,4 +296,154 @@ color:
       );
     });
   });
+
+  group('resolveThemeAliases border, blur, and shadow layer colors', () {
+    // The `color` of layer [index] of `shadow.<level>` in [tree].
+    Object? layerColor(Map<String, Object?> tree, String level, int index) {
+      final shadow = tree['shadow']! as Map<String, Object?>;
+      final layers = shadow[level]! as List<Object?>;
+      return (layers[index]! as Map<String, Object?>)['color'];
+    }
+
+    String layerWith(String color) =>
+        'shadow:\n  "1":\n'
+        '    - {x: 0, y: 1, blur: 2, spread: 0, color: "$color"}';
+
+    test('fo01/us03/fr01: a blur alias takes its target radius', () {
+      final (resolved, errors) = _resolve([layer('blur:\n  "4": "{blur.3}"')]);
+
+      expect(problems(errors), isEmpty);
+      expect(_at(resolved.tree, 'blur.4'), 16);
+      expect(resolved.chains['blur.4'], ['blur.3']);
+    });
+
+    test('fo01/us03/fr01: a layer color takes a palette shade or a built-in '
+        'step, and keeps a color set reference as written', () {
+      final (resolved, errors) = _resolve([
+        layer('''
+shadow:
+  "1":
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "{palette.brand.600}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{transparent.black.12}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.brand.normal}"}'''),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(layerColor(resolved.tree, '1', 0), '#2563EB');
+      expect(resolved.chains['shadow.1.0.color'], ['palette.brand.600']);
+      expect(
+        layerColor(resolved.tree, '1', 1),
+        transparentColors['black']!['12'],
+      );
+      expect(layerColor(resolved.tree, '1', 2), '{color.brand.normal}');
+      expect(resolved.chains.containsKey('shadow.1.2.color'), isFalse);
+      expect(resolved.failed, isNot(contains('shadow.1.2.color')));
+    });
+
+    final cases = <(String, String, String, String, String)>[
+      (
+        'fo01/us03/fr01/e05',
+        'a border alias into space',
+        'border:\n  md: "{space.md}"',
+        'border.md',
+        'alias_not_token: "{space.md}" names a space token, not a border '
+            'token',
+      ),
+      (
+        'fo01/us03/fr01/e05',
+        'a blur alias into border',
+        'blur:\n  "1": "{border.md}"',
+        'blur.1',
+        'alias_not_token: "{border.md}" names a border token, not a blur '
+            'token',
+      ),
+      (
+        'fo01/us03/fr01/e01',
+        'a blur alias with no target',
+        'blur:\n  "2": "{blur.9}"',
+        'blur.2',
+        'unknown_alias: "{blur.9}" names no token',
+      ),
+      (
+        'fo01/us03/fr01/e04',
+        'a border alias to its own group',
+        'border:\n  sm: "{border}"',
+        'border.sm',
+        'alias_not_token: "{border}" names a group, not a token',
+      ),
+      (
+        'fo01/us03/fr01/e06',
+        'a layer color set path no set holds',
+        layerWith('{color.shadow.tertiary}'),
+        'shadow.1.0.color',
+        'unknown_alias: "{color.shadow.tertiary}" names no token',
+      ),
+      (
+        'fo01/us03/fr01/e06',
+        'a layer color set path written with a set name',
+        layerWith('{color.light.brand.normal}'),
+        'shadow.1.0.color',
+        'unknown_alias: "{color.light.brand.normal}" names no token',
+      ),
+      (
+        'fo01/us03/fr01/e04',
+        'a layer color that names a color group',
+        layerWith('{color.brand}'),
+        'shadow.1.0.color',
+        'alias_not_token: "{color.brand}" names a group, not a token',
+      ),
+      (
+        'fo01/us03/fr01/e04',
+        'a layer color that names a palette ramp',
+        layerWith('{palette.brand}'),
+        'shadow.1.0.color',
+        'alias_not_token: "{palette.brand}" names a group, not a token',
+      ),
+      (
+        'fo01/us03/fr01/e01',
+        'a layer color step outside the 32',
+        layerWith('{transparent.black.21}'),
+        'shadow.1.0.color',
+        'unknown_alias: "{transparent.black.21}" names no token',
+      ),
+      (
+        'fo01/us03/fr01/e05',
+        'a layer color that names a space token',
+        layerWith('{space.md}'),
+        'shadow.1.0.color',
+        'alias_not_token: "{space.md}" names a space token, not a color',
+      ),
+      (
+        'fo01/us03/fr01/e04',
+        'a layer color outside the token groups',
+        layerWith('{shadow.2}'),
+        'shadow.1.0.color',
+        'alias_not_token: "{shadow.2}" is outside the token groups',
+      ),
+    ];
+    for (final (tag, name, body, path, expected) in cases) {
+      test('$tag: reports $name at the holder, once', () {
+        final (resolved, errors) = _resolve([layer(body)]);
+        final error = errors.sorted.single;
+
+        expect('${error.code.key}: ${error.message}', expected);
+        expect(error.path, path);
+        expect(error.source, 'layer1');
+        expect(resolved.failed, contains(path));
+      });
+    }
+
+    test('fo01/us03/fr01/e03: reports a blur cycle once, at its first '
+        'member', () {
+      final (resolved, errors) = _resolve([
+        layer('blur:\n  "1": "{blur.2}"\n  "2": "{blur.1}"'),
+      ]);
+
+      const expected =
+          'layer1 blur.1: alias cycle: blur.1 -> blur.2 -> blur.1 '
+          '[alias_cycle]';
+      expect(problems(errors), [expected]);
+      expect(resolved.failed, containsAll(['blur.1', 'blur.2']));
+    });
+  });
 }

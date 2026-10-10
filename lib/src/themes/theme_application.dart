@@ -14,7 +14,7 @@ class StratumThemeApplication
     super.key,
     required StratumThemeSet themes,
     required this.themeMode,
-    this.highContrast = HighContrastMode.system,
+    this.highContrast = StratumHighContrastMode.system,
     this.componentDefaults,
     required Widget child,
   }) : _themes = themes,
@@ -27,7 +27,7 @@ class StratumThemeApplication
     super.key,
     required StratumThemeController controller,
     required this.themeMode,
-    this.highContrast = HighContrastMode.system,
+    this.highContrast = StratumHighContrastMode.system,
     this.componentDefaults,
     required Widget child,
   }) : _themes = null,
@@ -42,7 +42,7 @@ class StratumThemeApplication
   final ThemeMode themeMode;
 
   /// Whether the active data is a high-contrast one.
-  final HighContrastMode highContrast;
+  final StratumHighContrastMode highContrast;
 
   /// The app-wide component defaults (L2), built again whenever the
   /// active theme changes. Never compared in [updateShouldNotify]: a
@@ -88,9 +88,9 @@ class StratumThemeApplication
         MediaQuery.maybePlatformBrightnessOf(context) == Brightness.dark,
     };
     final highContrast = switch (application.highContrast) {
-      HighContrastMode.on => true,
-      HighContrastMode.off => false,
-      HighContrastMode.system =>
+      StratumHighContrastMode.on => true,
+      StratumHighContrastMode.off => false,
+      StratumHighContrastMode.system =>
         MediaQuery.maybeHighContrastOf(context) ?? false,
     };
     return application.themes.pick(dark: dark, highContrast: highContrast);

@@ -23,8 +23,17 @@ typedef CheckedThemes = ({ThemeSchema schema, List<ThemeTree> files});
 final class ThemeSchema {
   new(this.base);
 
-  /// The token groups an alias may name (spec section 7.3).
-  static const tokenGroups = {'space', 'radius', 'layouts', 'palette', 'color'};
+  /// The token groups an alias may name (spec section 7.3); a `border` or
+  /// `blur` alias names a token of its own group (config s03 invariant 4).
+  static const tokenGroups = {
+    'space',
+    'radius',
+    'layouts',
+    'palette',
+    'color',
+    'border',
+    'blur',
+  };
 
   /// Each color set, and the set whose keys it takes.
   static const colorSets = {

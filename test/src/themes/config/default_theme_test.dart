@@ -220,6 +220,41 @@ void main() {
     expect(config.opacity, {'disabled': 0.5});
   });
 
+  test('fo01/us01/fr01: border, shadow, and blur read the Figma values, '
+      'each shadow level ambient then contact', () {
+    expect(config.border, {'sm': 0.5, 'md': 1.0, 'lg': 1.5});
+    expect(config.blur, {
+      '1': 4.0,
+      '2': 8.0,
+      '3': 16.0,
+      '4': 24.0,
+      '5': 40.0,
+      '6': 80.0,
+    });
+    const contact = StratumShadowLayer(
+      x: 0,
+      y: 0,
+      blur: 1,
+      spread: 0,
+      color: StratumSetLayerColor('shadow.primary'),
+    );
+    StratumShadowLayer ambient(double y, double blur) => StratumShadowLayer(
+      x: 0,
+      y: y,
+      blur: blur,
+      spread: 0,
+      color: const StratumSetLayerColor('shadow.secondary'),
+    );
+    expect(config.shadow, {
+      '1': [ambient(1, 2), contact],
+      '2': [ambient(4, 8), contact],
+      '3': [ambient(8, 16), contact],
+      '4': [ambient(12, 24), contact],
+      '5': [ambient(24, 32), contact],
+      '6': [ambient(40, 64), contact],
+    });
+  });
+
   final flutterRoot = Platform.environment['FLUTTER_ROOT'];
   test("the curve table equals the SDK's Curves constants", () {
     final source = File(

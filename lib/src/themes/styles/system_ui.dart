@@ -1,7 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
 
 class AppSystemUI {
-  const AppSystemUI();
+  const new();
 
   static const SystemUiOverlayStyle light = SystemUiOverlayStyle(
     // Set status bar color

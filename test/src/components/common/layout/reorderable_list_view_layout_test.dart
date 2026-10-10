@@ -87,7 +87,7 @@ class _Harness extends StatefulWidget {
   final int? innerAt;
 
   /// The controller the list animates inserts and removes through.
-  final StratumReorderableItemsController? itemsController;
+  final ReorderableItemsController? itemsController;
 
   /// The list's `focusable`; null keeps the platform default.
   final bool? focusable;
@@ -1487,7 +1487,7 @@ void main() {
     testWidgets('us11/fr04/e07: an out-of-range index fails a debug assert', (
       tester,
     ) async {
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       await tester.pumpWidget(
         _app(_Harness(count: 3, itemsController: controller)),
       );
@@ -1504,7 +1504,7 @@ void main() {
       'us11/fr04/e08: one controller on two lists at once fails a debug '
       'assert',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             Column(
@@ -1528,7 +1528,7 @@ void main() {
       'us11/fr04/e09: a call on a controller attached to no list fails a '
       'debug assert',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         expect(() => controller.insertItem(0), throwsAssertionError);
         expect(() => controller.removeItem(0), throwsAssertionError);
 
@@ -1545,8 +1545,8 @@ void main() {
       'us11/fr04/e09: a controller handed to another list detaches from the '
       'first',
       (tester) async {
-        final first = StratumReorderableItemsController();
-        final second = StratumReorderableItemsController();
+        final first = ReorderableItemsController();
+        final second = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 3, itemsController: first)),
         );
@@ -1585,7 +1585,7 @@ void main() {
       'us11/s8: an added item grows into its slot and fades in over the '
       'normal level',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(count: 3, itemsController: controller),
@@ -1619,7 +1619,7 @@ void main() {
     testWidgets(
       'us11/s9: a removed item shrinks and fades out while its gap closes',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller), theme: theme),
@@ -1646,7 +1646,7 @@ void main() {
       'us11/fr04/e15: an insert or a remove the app defers from inside a '
       'build to after the frame animates as calls made outside',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         final mid = Curves.easeInOutSine.transform(0.5);
         // Which deferred call the next build schedules: the insert from the
@@ -1711,7 +1711,7 @@ void main() {
     testWidgets("us11/fr04: insert and remove take the theme's normal level", (
       tester,
     ) async {
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       await tester.pumpWidget(
         _app(_Harness(count: 3, itemsController: controller)),
       );
@@ -1737,7 +1737,7 @@ void main() {
       'us11/fr04/e03: a removed item keeps the look and State it had at '
       'removeItem',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -1758,7 +1758,7 @@ void main() {
     testWidgets('us11/fr04/e03: a removeItem builder replaces the look', (
       tester,
     ) async {
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       await tester.pumpWidget(
         _app(_Harness(count: 5, itemsController: controller)),
       );
@@ -1784,7 +1784,7 @@ void main() {
       'us11/fr04: adding back the key of a leaving item ends its old copy at '
       'once, and the new item takes the State',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -1807,7 +1807,7 @@ void main() {
     testWidgets(
       'us11/fr04: a list unmounted mid-animation leaves no running ticker',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -1825,7 +1825,7 @@ void main() {
 
     testWidgets('us11/fr04/e12: a count change with no call ends the running '
         'animations and shows the data at once', (tester) async {
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       await tester.pumpWidget(
         _app(_Harness(count: 5, itemsController: controller)),
       );
@@ -1854,7 +1854,7 @@ void main() {
       'us11/fr04/e05: calls in one turn take indices of the data the calls '
       'before them left',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -1879,7 +1879,7 @@ void main() {
       'us11/fr04: removing an item still growing in shrinks it from where it '
       'stands',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(_Harness(count: 3, itemsController: controller), theme: theme),
@@ -1905,7 +1905,7 @@ void main() {
     testWidgets('us11/fr04: the last item left in a list shrinks out too', (
       tester,
     ) async {
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       final theme = _normalTheme(const Duration(milliseconds: 250));
       await tester.pumpWidget(
         _app(_Harness(count: 1, itemsController: controller), theme: theme),
@@ -1931,7 +1931,7 @@ void main() {
     testWidgets(
       'us11/fr04: a horizontal list shrinks a removed item along its width',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(
@@ -1959,7 +1959,7 @@ void main() {
     testWidgets(
       'us11/fr04: items removed bottom-up in two turns leave in list order',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -1980,7 +1980,7 @@ void main() {
     testWidgets(
       'us11/fr04: items removed bottom-up in one turn leave in list order',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -2002,7 +2002,7 @@ void main() {
       "us11/fr04: an item added at a leaving item's gap in a later turn "
       'lands after it',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -2024,7 +2024,7 @@ void main() {
       'us11/fr04: adding back a GlobalKey item while its old copy leaves '
       'raises no duplicate key',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final keys = [
           for (var id = 0; id < 3; id++) GlobalKey(debugLabel: 'item $id'),
         ];
@@ -2069,7 +2069,7 @@ void main() {
       "NFR-U03 and us11/s10: under the app's reduced motion the gap closes "
       'at once and the removed item fades out',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(
@@ -2105,7 +2105,7 @@ void main() {
         addTearDown(
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(count: 3, itemsController: controller),
@@ -2129,7 +2129,7 @@ void main() {
       'us11/fr04/e02: an itemTransitionBuilder replaces the size and fade on '
       'insert and remove',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         Animation<double>? received;
         await tester.pumpWidget(
@@ -2179,7 +2179,7 @@ void main() {
         addTearDown(
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         Animation<double>? received;
         await tester.pumpWidget(
           _app(
@@ -2210,7 +2210,7 @@ void main() {
       'us11/fr04/e11: with a fixed item extent the size jumps and the fade '
       'plays',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(
@@ -2246,7 +2246,7 @@ void main() {
         addTearDown(
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final painted = <int>[];
         await tester.pumpWidget(
           _app(
@@ -2282,7 +2282,7 @@ void main() {
         addTearDown(
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller, reverse: true)),
         );
@@ -2311,7 +2311,7 @@ void main() {
       'us11/fr04/e11: with a fixed item extent a removed last item leaves at '
       'once and a quick insert never shows it again',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(count: 5, itemsController: controller, itemExtent: 40),
@@ -2341,7 +2341,7 @@ void main() {
       'us11/fr04/e11: with a fixed item extent a removed item takes no room '
       'under a caller transition, along a horizontal list too',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -2371,7 +2371,7 @@ void main() {
       'us11/fr04/e11: with a fixed item extent a removed item lays out at '
       'the extent of the slot it fills',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -2404,7 +2404,7 @@ void main() {
       'itemExtent does',
       (tester) async {
         final byBuilder = fixedBy.currentValue == 'itemExtentBuilder';
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(
@@ -2446,7 +2446,7 @@ void main() {
         addTearDown(
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         Animation<double>? received;
         await tester.pumpWidget(
@@ -2480,7 +2480,7 @@ void main() {
     testWidgets(
       'us11/fr04/e05: a leaving item takes no pointer and starts no drag',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -2522,7 +2522,7 @@ void main() {
       'landing frame passes, has no screen-reader node',
       (tester) async {
         final handle = tester.ensureSemantics();
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(count: 5, itemsController: controller),
@@ -2556,7 +2556,7 @@ void main() {
     testWidgets(
       'us11/fr04/e05: removeItem and a reorder key skip a leaving item',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(count: 5, itemsController: controller),
@@ -2586,7 +2586,7 @@ void main() {
       'us11/s11: focus on a removed item moves to the first control of the '
       'item after it',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -2602,7 +2602,7 @@ void main() {
     testWidgets(
       'us11/fr04/e04: with no item after it, focus moves to the item before',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -2619,7 +2619,7 @@ void main() {
       "us11/fr04/e04: with no other item, focus moves to the list's own Tab "
       'stop',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(count: 1, itemsController: controller, focusable: true),
@@ -2638,7 +2638,7 @@ void main() {
       'us11/fr04/e04: the item that takes focus from a removed item shows on '
       'screen',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -2659,7 +2659,7 @@ void main() {
       'us11/fr04/e05: a tap on a fixed-extent slot reaches the item under a '
       'leaving item, past the caller transition',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         var transitionTaps = 0;
         await tester.pumpWidget(
           _app(
@@ -2708,7 +2708,7 @@ void main() {
       'us11/fr04/e04: focus goes to the item after a removed one as the '
       'later calls of the same turn leave it',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 6, itemsController: controller)),
         );
@@ -2737,7 +2737,7 @@ void main() {
       'us11/s12: a removal during a drag ends the drag with the dragged item '
       'back in its slot',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -2767,7 +2767,7 @@ void main() {
     testWidgets('us11/fr04/e06: an insert during a drag ends the drag first', (
       tester,
     ) async {
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       await tester.pumpWidget(
         _app(_Harness(count: 5, itemsController: controller)),
       );
@@ -2794,7 +2794,7 @@ void main() {
       'us11/fr04/e06: a drag its gesture canceled fires one onReorderEnd, '
       'and none at a later removal',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -2822,7 +2822,7 @@ void main() {
       'us11/fr04/e06: a count change with no call ends a drag with one '
       'onReorderEnd, and a removal while the pointer stays down fires none',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -2854,7 +2854,7 @@ void main() {
       'us11/fr04/e06: a removal while a dropped item settles ends the drop '
       'with no onReorderItem and no second onReorderEnd',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -2885,7 +2885,7 @@ void main() {
       'us11/fr04/e06: a count change with no call while a dropped item '
       'settles fires no second onReorderEnd',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -2975,7 +2975,7 @@ void main() {
       'us11/fr04/e06: removing the dragged item ends the drag, then the item '
       'leaves from its slot',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -3017,7 +3017,7 @@ void main() {
         addTearDown(
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(_Harness(count: 3, itemsController: controller), theme: theme),
@@ -3043,7 +3043,7 @@ void main() {
       'us11/fr04: a removal in the turn of a move with no call ends the '
       'leaving copy of an item the data still holds',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 4, itemsController: controller)),
         );
@@ -3067,7 +3067,7 @@ void main() {
       'us11/fr04: adding back an item whose look holds an app GlobalKey ends '
       'its leaving copy at once',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final rows = [
           for (var id = 0; id < 3; id++) GlobalKey(debugLabel: 'row $id'),
         ];
@@ -3116,7 +3116,7 @@ void main() {
       'us11/fr04/e03: adding back the key of an item that leaves in a '
       'builder look keeps that look leaving',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -3146,7 +3146,7 @@ void main() {
       'us11/fr04/e13: a leaving key the data holds again with no insertItem '
       'fails a debug assert when its item builds',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(count: 30, itemsController: controller),
@@ -3174,7 +3174,7 @@ void main() {
       'us11/fr04/e04: focus the app moves in the turn of a removal stays '
       'where the app put it',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller, fieldAt: 4)),
         );
@@ -3193,7 +3193,7 @@ void main() {
       'us11/fr04/e16: a focused item removed and inserted back at its index '
       'with its key in one turn keeps its State and focus',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -3214,7 +3214,7 @@ void main() {
       'us11/fr04/e16: a focused item removed in a builder look and inserted '
       'back at its index with its key in one turn keeps its State and focus',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -3244,7 +3244,7 @@ void main() {
       'us11/fr04/e16: a focused item removed and inserted back at another '
       'index with its key in one turn keeps its State and focus',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -3266,7 +3266,7 @@ void main() {
       'us11/fr04/e16: a focused node inside an item removed and inserted '
       'back at its index with its key in one turn keeps focus',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller, innerAt: 2)),
         );
@@ -3294,7 +3294,7 @@ void main() {
       'in one turn at a slot the list has not built takes focus on its first '
       'control and shows on screen',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -3321,7 +3321,7 @@ void main() {
       'in one turn at a slot built past the viewport keeps its State and '
       'focus and shows on screen',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -3346,7 +3346,7 @@ void main() {
       'back with its key in one turn, gone while the item keeps its State, '
       "hands focus to the item's first node",
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller, innerAt: 2)),
         );
@@ -3371,7 +3371,7 @@ void main() {
       'us11/fr04/e16: focus the app moves in the turn it removes a focused '
       'item and inserts it back stays where the app put it',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller, fieldAt: 4)),
         );
@@ -3392,7 +3392,7 @@ void main() {
       'us11/s13: a button inside an item the app takes out and puts back at '
       'the fifth slot keeps focus, and the item shows there',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller, innerAt: 2)),
         );
@@ -3419,7 +3419,7 @@ void main() {
           tester,
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             reverse: true,
           ),
           offset: 4000,
@@ -3442,7 +3442,7 @@ void main() {
           tester,
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             axis: Axis.horizontal,
           ),
           offset: 4000,
@@ -3466,7 +3466,7 @@ void main() {
           tester,
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             axis: Axis.horizontal,
           ),
           offset: 4000,
@@ -3492,7 +3492,7 @@ void main() {
           tester,
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             itemExtentBuilder: (index, dimensions) => index < 100 ? 80 : 40,
           ),
           offset: 8000,
@@ -3515,7 +3515,7 @@ void main() {
           tester,
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             onItemBuild: (context) {
               if (!context.owner!.debugBuilding) outside += 1;
             },
@@ -3537,10 +3537,7 @@ void main() {
       (tester) async {
         await _returnFocused(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
           offset: 4000,
           id: 100,
           slot: 0,
@@ -3561,10 +3558,7 @@ void main() {
       (tester) async {
         await _returnFocused(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
           offset: 4000,
           id: 100,
           slot: 0,
@@ -3596,10 +3590,7 @@ void main() {
         var jumps = 0;
         await _returnFocused(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
           offset: 4000,
           id: 100,
           slot: 0,
@@ -3617,7 +3608,7 @@ void main() {
       'us11/fr04/e17: focus Flutter hands back to an item focused earlier '
       'does not end the reach',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -3646,10 +3637,7 @@ void main() {
       (tester) async {
         await _returnFocused(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
           offset: 4000,
           id: 100,
           slot: 0,
@@ -3674,7 +3662,7 @@ void main() {
       (tester) async {
         // Slots before index 100 are 80 px and the rest 40 px, so the jump in
         // the call turn misses slot 40 and the State is lost.
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         double? extents(int index, SliverLayoutDimensions dimensions) =>
             index < 100 ? 80 : 40;
         await tester.pumpWidget(
@@ -3742,7 +3730,7 @@ void main() {
       'takes out and puts back at the last slot: the list scrolls there, the '
       'button keeps focus, and the item shows on screen',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller, innerAt: 0)),
         );
@@ -3765,7 +3753,7 @@ void main() {
       'us11/fr04/e14: a reorder key on the item a leaving item is drawn beside '
       'ends that leaving item at once',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(count: 5, itemsController: controller),
@@ -3793,7 +3781,7 @@ void main() {
       'us11/fr04/e11: under an itemExtentBuilder a removed item keeps its '
       'own extent, clipped to the slot it fades over',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final ids = [0, 1, 2, 3];
         late StateSetter setIds;
         await tester.pumpWidget(
@@ -3838,7 +3826,7 @@ void main() {
       'us11/fr04: in a reversed list a removed item shrinks out below the '
       'item after it',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller, reverse: true)),
         );
@@ -3865,7 +3853,7 @@ void main() {
         addTearDown(
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -3904,7 +3892,7 @@ void main() {
       'us11/fr04/e06: an insert from onReorderStart ends the drag it starts, '
       'the dragged item keeping its State',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -3933,7 +3921,7 @@ void main() {
       'us11/fr04/e06: a remove and an insert from onReorderStart end the drag '
       'they start, so the drop moves nothing',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -3962,7 +3950,7 @@ void main() {
       'us11/fr04/e06: a drag that starts between a call and its frame ends '
       'at once, and a later removal fires no second onReorderEnd',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -3991,7 +3979,7 @@ void main() {
       'us11/fr04/e06: a drag that starts between the removal of its item and '
       'the frame ends at once, the item leaving from its slot',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -4022,7 +4010,7 @@ void main() {
       'us11/fr04/e06: a drag that starts between an insert and the frame ends '
       'at once when its slot holds a leaving item',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(count: 5, itemsController: controller),
@@ -4063,7 +4051,7 @@ void main() {
       'us11/s15: the app moves the third item to the first slot: the third '
       'slot closes, the item grows and fades in, and its button keeps focus',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(
@@ -4103,7 +4091,7 @@ void main() {
       'us11/fr05: a move down closes the old slot as the item grows into '
       'its new one, and the items past both slots hold still',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller), theme: theme),
@@ -4131,7 +4119,7 @@ void main() {
       "old slot at the data's last slot as the item grows into its new one, "
       'and the items past both slots hold still',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(
@@ -4160,7 +4148,7 @@ void main() {
     testWidgets('us11/fr05/e01: a move to the same index does nothing', (
       tester,
     ) async {
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       await tester.pumpWidget(
         _app(_Harness(count: 5, itemsController: controller)),
       );
@@ -4189,7 +4177,7 @@ void main() {
         addTearDown(
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller), theme: theme),
@@ -4219,7 +4207,7 @@ void main() {
         addTearDown(
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller), theme: theme),
@@ -4243,7 +4231,7 @@ void main() {
       'us11/fr05/e02: reduced motion switched on mid-move leaves the running '
       'fade to finish and settles the list right',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller), theme: theme),
@@ -4309,7 +4297,7 @@ void main() {
       'us11/fr05/e02: with a fixed item extent the old slot closes at once '
       'and the moved item fades in',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller, itemExtent: 40)),
         );
@@ -4334,7 +4322,7 @@ void main() {
       'us11/fr05/e03: a caller itemTransitionBuilder wraps the entering '
       'item and never the slot it left',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -4368,7 +4356,7 @@ void main() {
     testWidgets('us11/fr05/e06: a move during a drag ends the drag first', (
       tester,
     ) async {
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       await tester.pumpWidget(
         _app(_Harness(count: 5, itemsController: controller)),
       );
@@ -4395,7 +4383,7 @@ void main() {
       'us11/fr05/e07: an out-of-range index or a controller attached to no '
       'list fails a debug assert',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         expect(() => controller.moveItem(0, 1), throwsAssertionError);
 
         await tester.pumpWidget(
@@ -4415,7 +4403,7 @@ void main() {
       'us11/fr05/e08: a move the app defers to after the frame animates as '
       'a move made outside a build',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -4437,7 +4425,7 @@ void main() {
       'us11/fr05/e08: a moveItem the app defers from inside a build to '
       'after the frame animates as a call made outside',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         var armed = false;
         await tester.pumpWidget(
@@ -4482,7 +4470,7 @@ void main() {
       'us11/fr05/e09: a move ends at once the leaving item drawn beside the '
       'moved item',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -4503,7 +4491,7 @@ void main() {
       'us11/fr05/e10: a moved item still growing in starts its entry again '
       'at its new slot',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(_Harness(count: 3, itemsController: controller), theme: theme),
@@ -4528,7 +4516,7 @@ void main() {
       'us11/fr04/e05: an item playing its remove animation counts in no '
       'index of moveItem',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -4548,7 +4536,7 @@ void main() {
       'us11/fr05: a remove and a move in one turn read the move against the '
       'data after the remove',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -4569,7 +4557,7 @@ void main() {
       'us11/fr05: an item moved from beyond the built slots grows in at its '
       'new slot with no closing slot and no scroll',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -4593,7 +4581,7 @@ void main() {
       'us11/fr05/e04: a focused item moved to the unbuilt last slot keeps '
       'its State and focus, and shows on screen',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -4613,7 +4601,7 @@ void main() {
       'us11/fr05/e04: a focused item moved to the unbuilt first slot keeps '
       'its State and focus, and shows on screen',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -4642,7 +4630,7 @@ void main() {
       'build',
       (tester) async {
         var outside = 0;
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -4680,7 +4668,7 @@ void main() {
       (tester) async {
         // Slots before index 100 are 80 px and the rest 40 px, so the jump
         // in the call turn lands short of slot 40 and the State is lost.
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -4714,7 +4702,7 @@ void main() {
         // 40. Each jump of the reach then springs back to that landing, so
         // the reach fails; the list's return to 8000 is the first move let
         // through.
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -4760,7 +4748,7 @@ void main() {
       'us11/fr05/e04: a focused item moved to a slot built past the viewport '
       'shows on screen once it has grown in',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -4784,7 +4772,7 @@ void main() {
       (tester) async {
         // Slots before index 100 are 80 px and the rest 40 px, so the jump in
         // the call turn lands short of slot 40 and the State is lost.
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -4839,7 +4827,7 @@ void main() {
       'us11/fr05/e04: a focused item moved and then removed in one turn '
       'hands focus off, never to the scope',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -4866,7 +4854,7 @@ void main() {
         'scope', (tester) async {
       // Slots before index 100 are 80 px and the rest 40 px, so the jump
       // in the call turn lands short of slot 40 and the State is lost.
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       await tester.pumpWidget(
         _app(
           _Harness(
@@ -4902,7 +4890,7 @@ void main() {
       'us11/fr05/e05: the list never scrolls for a moved item that does not '
       'hold focus',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -4926,7 +4914,7 @@ void main() {
       'of a focused move to an unbuilt slot keeps focus on a live item of '
       'the first list, never on the second list',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         // List A of 200 above list B of three items; the rebuild that builds
         // A's move also takes the controller off A and gives it to B.
         late StateSetter setHandOff;
@@ -5004,7 +4992,7 @@ void main() {
         _app(
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             itemExtent: itemExtent,
           ),
         ),
@@ -5107,7 +5095,7 @@ void main() {
       'us11/fr02/e07: a reorder key between an insertItem call and its frame '
       "moves the focused item by indices of the app's data",
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -5147,7 +5135,7 @@ void main() {
       "its frame moves the item it names by indices of the app's data",
       (tester) async {
         final handle = tester.ensureSemantics();
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -5168,7 +5156,7 @@ void main() {
     testWidgets('us11/fr03/e07: a key or screen-reader move on an item the app '
         'removed in the same turn moves nothing', (tester) async {
       final handle = tester.ensureSemantics();
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       await tester.pumpWidget(
         _app(_Harness(count: 20, itemsController: controller)),
       );
@@ -5194,7 +5182,7 @@ void main() {
     testWidgets('us11/fr03/e07: a key or screen-reader move on an item the app '
         'moved in the same turn moves it from its new index', (tester) async {
       final handle = tester.ensureSemantics();
-      final controller = StratumReorderableItemsController();
+      final controller = ReorderableItemsController();
       await tester.pumpWidget(
         _app(_Harness(count: 20, itemsController: controller)),
       );
@@ -5227,7 +5215,7 @@ void main() {
       'leaves each grow-in on its own item',
       (tester) async {
         final handle = tester.ensureSemantics();
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -5267,7 +5255,7 @@ void main() {
       'us11/fr04/e06: a drag that starts between a reorder key and its frame '
       'ends at once, and the key move stands',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -5296,7 +5284,7 @@ void main() {
       'us11/fr04/e04: a focused item a reorder key moved and the app then '
       'removed in the same turn leaves from there and hands focus on',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -5323,7 +5311,7 @@ void main() {
       'closes the slot the key moved it to, and the items past both slots '
       'hold still',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller), theme: theme),
@@ -5377,7 +5365,7 @@ void main() {
       'us11/fr04/e04: an app call earlier in the same post-frame batch '
       'leaves focus on the item after a removed one',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -5399,7 +5387,7 @@ void main() {
       'us11/fr04/e04: the handoff skips an item an insertItem call after '
       'the frame adds at the gap and goes to the next item the frame shows',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -5425,7 +5413,7 @@ void main() {
       'us11/fr04/e04: the handoff skips an item a moveItem call after the '
       'frame brings to the gap and goes to the next item the frame shows',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -5446,7 +5434,7 @@ void main() {
       'us11/fr05: an item moved and then removed in one turn shows no '
       'leaving copy at its new index',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller)),
         );
@@ -5471,7 +5459,7 @@ void main() {
       'the slot the frame drew it in, and the items past both slots hold '
       'still',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(_Harness(count: 5, itemsController: controller), theme: theme),
@@ -5497,7 +5485,7 @@ void main() {
       'us11/fr04/e17: a reach that gives up where it started hands focus on '
       'from the gap an app call in its last frame moved',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await _returnFocused(
           tester,
           _Harness(count: 200, itemsController: controller),
@@ -5534,7 +5522,7 @@ void main() {
       'reveal on the moved item',
       (tester) async {
         final handle = tester.ensureSemantics();
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -5579,7 +5567,7 @@ void main() {
       (tester) async {
         // Slots before index 100 are 80 px and the rest 40 px, so the jump in
         // the call turn lands short of slot 40 and the State is lost.
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -5797,7 +5785,7 @@ void main() {
       'turn is handled with no move even with one item left, and a key on '
       'that item left is not handled',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 2, itemsController: controller)),
         );
@@ -5819,7 +5807,7 @@ void main() {
       'same turn moves nothing even with one item left',
       (tester) async {
         final handle = tester.ensureSemantics();
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 2, itemsController: controller)),
         );
@@ -5845,12 +5833,7 @@ void main() {
     // still down, null once it is up, and the onReorderEnd calls so far.
     Future<(TestGesture?, List<int>)> holdThree(WidgetTester tester) async {
       await tester.pumpWidget(
-        _app(
-          _Harness(
-            count: 5,
-            itemsController: StratumReorderableItemsController(),
-          ),
-        ),
+        _app(_Harness(count: 5, itemsController: ReorderableItemsController())),
       );
       await _focusItem(tester, 2);
       final gesture = await tester.startGesture(
@@ -5946,7 +5929,7 @@ void main() {
       'call of its turn grows in shows the moved item once that grow-in ends',
       (tester) async {
         final handle = tester.ensureSemantics();
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -5974,7 +5957,7 @@ void main() {
       'ends takes no second reveal',
       (tester) async {
         final handle = tester.ensureSemantics();
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -6015,7 +5998,7 @@ void main() {
       (tester) async {
         // Slots before index 100 are 80 px and the rest 40 px, so the jump at
         // the next frame's start lands short of slot 40.
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -6071,7 +6054,7 @@ void main() {
       bool reverse = false,
     }) => _Harness(
       count: 200,
-      itemsController: StratumReorderableItemsController(),
+      itemsController: ReorderableItemsController(),
       heights: heights,
       itemExtent: itemExtent,
       scrollCacheExtent: scrollCacheExtent,
@@ -6331,10 +6314,7 @@ void main() {
         }
         final position = await _pumpScrolled(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
         );
         expect(_laidOut(tester).count, 21);
         final state = _itemState(tester, 100);
@@ -6573,7 +6553,7 @@ void main() {
           _Harness(
             count: 200,
             scrollCacheExtent: const ScrollCacheExtent.pixels(0),
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
           offset: 90,
         );
@@ -6649,7 +6629,7 @@ void main() {
           tester,
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             heights: const {112: 400},
           ),
         );
@@ -6696,10 +6676,7 @@ void main() {
       (tester) async {
         await _pumpScrolled(
           tester,
-          _Harness(
-            count: 1000,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 1000, itemsController: ReorderableItemsController()),
         );
         await _focusItem(tester, 100);
 
@@ -6752,7 +6729,7 @@ void main() {
               _Harness(
                 count: 1000,
                 heights: heights,
-                itemsController: StratumReorderableItemsController(),
+                itemsController: ReorderableItemsController(),
               ),
             );
             await _focusItem(tester, id);
@@ -6766,7 +6743,7 @@ void main() {
                 count: 1000,
                 heights: heights,
                 scrollCacheExtent: const ScrollCacheExtent.pixels(0),
-                itemsController: StratumReorderableItemsController(),
+                itemsController: ReorderableItemsController(),
               ),
               offset: 4020,
             );
@@ -6808,7 +6785,7 @@ void main() {
         tester,
         _Harness(
           count: 200,
-          itemsController: StratumReorderableItemsController(),
+          itemsController: ReorderableItemsController(),
           scrollCacheExtent: const ScrollCacheExtent.pixels(0),
           heights: {for (var id = 0; id < 200; id++) id: 200},
         ),
@@ -6824,10 +6801,7 @@ void main() {
       (tester) async {
         final position = await _pumpScrolled(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
         );
         final state = _itemState(tester, 100);
         final focused = await _focusItem(tester, 100);
@@ -6851,10 +6825,7 @@ void main() {
         final handle = tester.ensureSemantics();
         final position = await _pumpScrolled(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
         );
         final state = _itemState(tester, 100);
         final focused = await _focusItem(tester, 100);
@@ -6922,10 +6893,7 @@ void main() {
       (tester) async {
         final position = await _pumpScrolled(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
         );
         await _focusItem(tester, 100);
         final harness = _harness(tester)
@@ -6949,7 +6917,7 @@ void main() {
         tester,
         _Harness(
           count: 200,
-          itemsController: StratumReorderableItemsController(),
+          itemsController: ReorderableItemsController(),
           keepAliveIds: const {50},
         ),
         offset: 2000,
@@ -7015,10 +6983,7 @@ void main() {
       (tester) async {
         final position = await _pumpScrolled(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
         );
         final state = _itemState(tester, 100);
         await _focusItem(tester, 100);
@@ -7045,10 +7010,7 @@ void main() {
       (tester) async {
         final position = await _pumpScrolled(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
         );
         await _focusItem(tester, 100);
         final other = _itemState(tester, 101).node;
@@ -7075,10 +7037,7 @@ void main() {
       (tester) async {
         final position = await _pumpScrolled(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
         );
         await _focusItem(tester, 100);
         final otherState = _itemState(tester, 101);
@@ -7117,10 +7076,7 @@ void main() {
       (tester) async {
         final position = await _pumpScrolled(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
         );
         final aState = _itemState(tester, 100);
         final a = await _focusItem(tester, 100);
@@ -7155,10 +7111,7 @@ void main() {
       (tester) async {
         final position = await _pumpScrolled(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
         );
         final bState = _itemState(tester, 101);
         await _focusItem(tester, 100);
@@ -7481,7 +7434,7 @@ void main() {
       'ends it with one onReorderEnd, in the microtask after its down '
       '(the SDK calls cancelReorder on the second pointer)',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -7539,7 +7492,7 @@ void main() {
       'us11/fr04/e06: a pointer cancel ends the drag with one onReorderEnd, '
       'and a later insertItem reports none',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -7623,7 +7576,7 @@ void main() {
       'over and ends it with one onReorderEnd, in the microtask after its '
       'down',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(
             _Harness(
@@ -7703,7 +7656,7 @@ void main() {
       'us11/fr04/e06: an app that calls removeItem from the onReorderEnd of '
       "a second pointer's takeover fails no assert",
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -7729,7 +7682,7 @@ void main() {
       'us11/fr04/e06: an app that calls removeItem from the onReorderEnd of '
       'a pointer cancel fails no assert',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 20, itemsController: controller)),
         );
@@ -7929,7 +7882,7 @@ void main() {
       'build, a focused one and one the app keeps alive, both keep their '
       'State',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final position = await _pumpScrolled(
           tester,
           _Harness(
@@ -8008,7 +7961,7 @@ void main() {
       'through a moveItem to a slot the frame does not build: its keep-alive '
       'follows it to its new slot',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final position = await _pumpScrolled(
           tester,
           _Harness(
@@ -8040,7 +7993,7 @@ void main() {
       'screen ends its park, so the item, never laid out, leaves with its '
       'State',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -8086,7 +8039,7 @@ void main() {
           tester,
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             axis: horizontal ? Axis.horizontal : Axis.vertical,
             reverse: shape == 'reversed',
             itemExtent: shape == 'itemExtent' ? 40 : null,
@@ -8123,7 +8076,7 @@ void main() {
       'carries its kept-alive State to its new index, until the reach gives '
       'up and hands focus on',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -8154,7 +8107,7 @@ void main() {
       'down waits off screen with its State and the node that holds focus, '
       'then shows on screen',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -8211,7 +8164,7 @@ void main() {
       'item waits off screen for its slot ends its State and hands focus '
       'on, and with the app index follows the item by its key',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -8246,7 +8199,7 @@ void main() {
       'us11/fr04/e17: a moveItem of the item that waits off screen keeps it '
       'alive for its new slot, with its State and focus, and shows it there',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(_Harness(count: 200, itemsController: controller)),
         );
@@ -8282,10 +8235,7 @@ void main() {
     ) async {
       final position = await _pumpScrolled(
         tester,
-        _Harness(
-          count: 200,
-          itemsController: StratumReorderableItemsController(),
-        ),
+        _Harness(count: 200, itemsController: ReorderableItemsController()),
         offset: 4200,
       );
       await _focusItem(tester, 105);
@@ -8373,7 +8323,7 @@ void main() {
           tester,
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             // The first build of an item inside the list, past the body's
             // own reads of the data.
             onItemBuild: (context) {
@@ -8412,10 +8362,7 @@ void main() {
       (tester) async {
         final position = await _pumpScrolled(
           tester,
-          _Harness(
-            count: 200,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
           offset: 4200,
         );
         await _focusItem(tester, 105);
@@ -8441,7 +8388,7 @@ void main() {
           tester,
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             keepAliveIds: const {30, 31},
           ),
           offset: 1100,
@@ -8472,7 +8419,7 @@ void main() {
           tester,
           _Harness(
             count: 200,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             focusable: false,
           ),
           offset: 4200,
@@ -8551,7 +8498,7 @@ void main() {
           _Harness(
             count: 1000,
             appIndex: true,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             keepAliveIds: const {5},
           ),
         );
@@ -8835,7 +8782,7 @@ void main() {
           _Harness(
             count: 1000,
             appIndex: true,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
         );
 
@@ -8963,7 +8910,7 @@ void main() {
           _Harness(
             count: 1000,
             appIndex: true,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
           id: 107,
         );
@@ -8985,10 +8932,7 @@ void main() {
       (tester) async {
         final (state, position) = await pumpItem(
           tester,
-          _Harness(
-            count: 1000,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 1000, itemsController: ReorderableItemsController()),
           id: 106,
         );
         final focused = FocusManager.instance.primaryFocus;
@@ -9028,7 +8972,7 @@ void main() {
                     child: _Harness(
                       count: 20,
                       appIndex: appIndex,
-                      itemsController: StratumReorderableItemsController(),
+                      itemsController: ReorderableItemsController(),
                     ),
                   ),
                   const SizedBox(height: 1000),
@@ -9082,7 +9026,7 @@ void main() {
                 count: 20,
                 shrinkWrap: true,
                 appIndex: appIndex,
-                itemsController: StratumReorderableItemsController(),
+                itemsController: ReorderableItemsController(),
               ),
             ),
           ),
@@ -9139,10 +9083,7 @@ void main() {
       (tester) async {
         final (state, position) = await pumpItem(
           tester,
-          _Harness(
-            count: 1000,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 1000, itemsController: ReorderableItemsController()),
         );
         final focused = FocusManager.instance.primaryFocus;
         position.jumpTo(4200);
@@ -9319,7 +9260,7 @@ void main() {
             count: 1000,
             appIndex: true,
             heights: taller,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
         );
         final harness = _harness(tester)..move(103, 800);
@@ -9379,7 +9320,7 @@ void main() {
             count: 1000,
             appIndex: true,
             heights: taller,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
         );
         final harness = _harness(tester);
@@ -9427,7 +9368,7 @@ void main() {
           _Harness(
             count: raw ? 1000 : 200,
             appIndex: true,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
           id: raw ? 103 : 0,
           offset: raw ? 4000 : 0,
@@ -9561,7 +9502,7 @@ void main() {
             count: 1000,
             appIndex: true,
             heights: taller,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
         );
         final harness = _harness(tester);
@@ -9606,7 +9547,7 @@ void main() {
           _Harness(
             count: 1000,
             appIndex: appIndex,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
             keepAliveIds: keptAlive ? const {103} : null,
           ),
           focus: false,
@@ -10065,7 +10006,7 @@ void main() {
         count: 200,
         appIndex: true,
         heights: tall,
-        itemsController: StratumReorderableItemsController(),
+        itemsController: ReorderableItemsController(),
       );
       if (outside == null) {
         await _pumpScrolled(tester, harness, offset: 0);
@@ -10211,7 +10152,7 @@ void main() {
           _Harness(
             count: 1000,
             plainIds: const {101, 102, 104},
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
         );
         if (place == 'kept alive off screen') {
@@ -10244,7 +10185,7 @@ void main() {
       (tester) async {
         final harness = _Harness(
           count: 1000,
-          itemsController: StratumReorderableItemsController(),
+          itemsController: ReorderableItemsController(),
         );
         final height = ValueNotifier<double>(300);
         addTearDown(height.dispose);
@@ -10338,7 +10279,7 @@ void main() {
           _Harness(
             count: 200,
             heights: tall,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
           offset: 0,
         );
@@ -10370,7 +10311,7 @@ void main() {
           _Harness(
             count: 200,
             heights: tall,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
           offset: 0,
         );
@@ -10399,10 +10340,7 @@ void main() {
       (tester) async {
         await pumpFocused(
           tester,
-          _Harness(
-            count: 1000,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 1000, itemsController: ReorderableItemsController()),
         );
         final log = focusLog();
 
@@ -10542,10 +10480,7 @@ void main() {
         final outside = outsideNode();
         await pumpOutside(
           tester,
-          _Harness(
-            count: 1000,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 1000, itemsController: ReorderableItemsController()),
           outside,
         );
         await _focusItem(tester, 103);
@@ -10602,10 +10537,7 @@ void main() {
         final (call, shiftedTo) = shiftingCalls.currentValue!;
         final (state, position) = await pumpFocused(
           tester,
-          _Harness(
-            count: 1000,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 1000, itemsController: ReorderableItemsController()),
         );
         position.jumpTo(20000);
         await tester.pump();
@@ -10656,7 +10588,7 @@ void main() {
             count: 1000,
             appIndex: withIndex,
             scrollCacheExtent: const ScrollCacheExtent.pixels(0),
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
           offset: offset,
         );
@@ -10830,7 +10762,7 @@ void main() {
           count: 1000,
           axis: horizontal ? Axis.horizontal : Axis.vertical,
           reverse: shape == 'reversed',
-          itemsController: StratumReorderableItemsController(),
+          itemsController: ReorderableItemsController(),
         ),
         textDirection: shape == 'right-to-left'
             ? TextDirection.rtl
@@ -10970,10 +10902,7 @@ void main() {
         final id = last ? 999 : 103;
         final (state, position) = await pumpFocused(
           tester,
-          _Harness(
-            count: 1000,
-            itemsController: StratumReorderableItemsController(),
-          ),
+          _Harness(count: 1000, itemsController: ReorderableItemsController()),
           id: id,
           offset: last ? 39700 : 4000,
         );
@@ -11116,7 +11045,7 @@ void main() {
           _Harness(
             count: 1000,
             appIndex: true,
-            itemsController: StratumReorderableItemsController(),
+            itemsController: ReorderableItemsController(),
           ),
         );
         position.jumpTo(20000);
@@ -11427,7 +11356,7 @@ void main() {
                 key: ValueKey(index),
                 height: 40,
                 child: RowLayout(
-                  focusGroup: const StratumFocusGroup(),
+                  focusGroup: const FocusGroup(),
                   children: [
                     for (final side in ['a', 'b'])
                       Focus(
@@ -11678,10 +11607,7 @@ void main() {
         final handle = tester.ensureSemantics();
         await tester.pumpWidget(
           _app(
-            _Harness(
-              count: 5,
-              itemsController: StratumReorderableItemsController(),
-            ),
+            _Harness(count: 5, itemsController: ReorderableItemsController()),
           ),
         );
 
@@ -11906,10 +11832,7 @@ void main() {
         final overlap = overlaps.currentValue!;
         await tester.pumpWidget(
           _app(
-            _Harness(
-              count: 10,
-              itemsController: StratumReorderableItemsController(),
-            ),
+            _Harness(count: 10, itemsController: ReorderableItemsController()),
           ),
         );
         final log = _announcements(tester);
@@ -11955,7 +11878,7 @@ void main() {
       'us11/fr06/e03: a moveItem, a data move the app index reports, and a '
       'drag a data change ends announce nothing',
       (tester) async {
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         await tester.pumpWidget(
           _app(switch (appMoves.currentValue) {
             'moveItem' => _Harness(count: 5, itemsController: controller),
@@ -12297,7 +12220,7 @@ void main() {
         child: StratumThemeApplication(
           themes: defaultThemeSet,
           themeMode: themeMode,
-          highContrast: HighContrastMode.on,
+          highContrast: StratumHighContrastMode.on,
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: Center(child: child),
@@ -12349,7 +12272,7 @@ void main() {
             tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
           );
         }
-        final controller = StratumReorderableItemsController();
+        final controller = ReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
         await tester.pumpWidget(
           _app(
@@ -12555,5 +12478,16 @@ void main() {
         await tester.pumpAndSettle();
       },
     );
+  });
+
+  group('renames', () {
+    test('renames: a StratumReorderableItemsController is a '
+        'ReorderableItemsController', () {
+      // Testing the deprecated alias itself, so ignore the deprecation warning.
+      // ignore: deprecated_member_use_from_same_package
+      final controller = StratumReorderableItemsController();
+
+      expect(controller, isA<ReorderableItemsController>());
+    });
   });
 }

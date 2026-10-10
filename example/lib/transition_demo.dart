@@ -200,7 +200,7 @@ class _TabPage extends StatelessWidget {
       ),
       body: ColumnLayout(
         style: const WidgetStyle(padding: EdgeInsets.all(24)),
-        scroll: const StratumScroll(),
+        scroll: const Scroll(),
         crossAxisAlignment: CrossAxisAlignment.start,
         gap: 16,
         children: [

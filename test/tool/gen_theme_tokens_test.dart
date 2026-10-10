@@ -21,6 +21,9 @@ radius: { md: 10 }
 layouts: { max-width-read: 720 }
 assets: { loading: }
 opacity: { disabled: 0.5 }
+border: { md: 1 }
+shadow: { 1: [] }
+blur: { 1: 4 }
 ''';
 
 /// `#RRGGBBAA` as the Dart color `0xAARRGGBB`.
@@ -42,6 +45,9 @@ radius: { md: 10 }
 layouts: { max-width-read: 720 }
 assets: { loading: }
 opacity: { disabled: 0.5 }
+border: { md: 1 }
+shadow: { 1: [] }
+blur: { 1: 4 }
 ''';
 
 /// The yaml key whose Dart name is [color]'s name.
@@ -99,6 +105,8 @@ void main() {
         'ratingEmojiParts',
       ),
       ('class', 'misc.class', null, 'classs'),
+      ('2', 'shadow.2', null, 'level2'),
+      ('3', 'blur.3', null, 'level3'),
     ];
     for (final (segment, path, prefix, expected) in cases) {
       test('$path gives $expected', () {
@@ -106,19 +114,21 @@ void main() {
       });
     }
 
-    test('a digit-led key outside a ramp or step stops the generator', () {
+    test('us10/fr01: a digits-only key outside a ramp or step gives '
+        'level<N>; another digit-led key stops the generator', () {
+      expect(dartName('3', path: 'space.3'), 'level3');
       expect(
-        () => dartName('3', path: 'space.3'),
+        () => dartName('3D', path: 'misc.3D'),
         throwsA(
           isA<FormatException>().having(
             (error) => error.message,
             'message',
-            contains('space.3'),
+            contains('misc.3D'),
           ),
         ),
       );
       expect(
-        () => dartName('3D', path: 'misc.3D'),
+        () => dartName('3-inverse', path: 'misc.3-inverse'),
         throwsA(isA<FormatException>()),
       );
     });
@@ -138,22 +148,22 @@ void main() {
       );
     });
 
-    test('a digit-led space key stops it', () {
+    test('us10/fr01: a digits-only space key gives level3', () {
       expect(
-        () => generateThemeTokens(_yaml('  3: 1')),
-        throwsA(isA<FormatException>()),
+        generateThemeTokens(_yaml('  3: 1')),
+        contains("  double get level3 => _read('3');\n"),
       );
     });
 
-    test('the package default gives the 39 classes of spec section 6.3 and the '
-        'opacity class', () {
+    test('the package default gives 42 classes: the 38 of spec section 6.3, '
+        'the opacity class, and the border, shadow, and blur classes', () {
       final generated = generateThemeTokens(File(themePath).readAsStringSync());
       final names = RegExp(
         r'^final class (\w+)',
         multiLine: true,
       ).allMatches(generated).map((match) => match[1]!).toList();
 
-      expect(names, hasLength(39));
+      expect(names, hasLength(42));
       expect(
         names.where((name) => name.startsWith('StratumColor')),
         hasLength(30),
@@ -168,6 +178,9 @@ void main() {
         'StratumLayoutTokens',
         'StratumAssetTokens',
         'StratumOpacityTokens',
+        'StratumBorderTokens',
+        'StratumShadowTokens',
+        'StratumBlurTokens',
       ]);
       expect(names, contains('StratumColorTextDefaultsTokens'));
       expect(names, contains('StratumColorBackgroundDefaultsTokens'));
@@ -369,5 +382,72 @@ void main() {
     expect(generated, contains('final class StratumOpacityTokens {'));
     expect(generated, contains("disabled = _opacity(opacity, 'disabled');"));
     expect(generated, contains('  final double disabled;'));
+  });
+
+  test('us10/fr01: the border, shadow, and blur classes take their keys '
+      'from the yaml', () {
+    final generated = generateThemeTokens(_yaml('  md: 1'));
+
+    expect(generated, contains('final class StratumBorderTokens {\n'));
+    expect(
+      generated,
+      contains('  StratumBorderTokens.fromMap(Map<String, double> border)\n'),
+    );
+    expect(generated, contains("    : md = _token(border, 'border', 'md');\n"));
+    expect(generated, contains('  final double md;\n'));
+    expect(generated, contains('final class StratumShadowTokens {\n'));
+    expect(
+      generated,
+      contains("    : level1 = _token(shadow, 'shadow', '1');\n"),
+    );
+    expect(generated, contains('  final List<BoxShadow> level1;\n'));
+    expect(generated, contains('final class StratumBlurTokens {\n'));
+    expect(generated, contains("    : level1 = _token(blur, 'blur', '1');\n"));
+    expect(generated, contains('  final ImageBlurFilter level1;\n'));
+    expect(
+      generated,
+      contains("import 'package:flutter/painting.dart' show BoxShadow;\n"),
+    );
+    expect(
+      generated,
+      contains(
+        "import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';\n",
+      ),
+    );
+  });
+
+  test('us10/fr01: the border, shadow, and blur classes read their maps '
+      'and name a key the map lacks', () {
+    const levels = ['1', '2', '3', '4', '5', '6'];
+    const layer = BoxShadow(offset: Offset(0, 1), blurRadius: 2);
+    final border = StratumBorderTokens.fromMap(const {
+      'sm': 0.5,
+      'md': 1,
+      'lg': 1.5,
+    });
+    final shadow = StratumShadowTokens.fromMap({
+      for (final level in levels)
+        level: level == '2' ? const [layer] : const <BoxShadow>[],
+    });
+    final blur = StratumBlurTokens.fromMap({
+      for (final (index, level) in levels.indexed)
+        level: ImageBlurFilter(sigmaX: index + 1.0, sigmaY: index + 1.0),
+    });
+    Matcher namesKey(String key) => throwsA(
+      isA<ArgumentError>().having(
+        (error) => error.invalidValue,
+        'invalidValue',
+        key,
+      ),
+    );
+
+    expect([border.sm, border.md, border.lg], [0.5, 1, 1.5]);
+    expect(shadow.level2, [layer]);
+    expect(shadow.level6, isEmpty);
+    expect(blur.level1, const ImageBlurFilter(sigmaX: 1, sigmaY: 1));
+    expect(blur.level6, const ImageBlurFilter(sigmaX: 6, sigmaY: 6));
+    expect(() => StratumBorderTokens.fromMap(const {}), namesKey('sm'));
+    expect(() => StratumShadowTokens.fromMap(const {}), namesKey('1'));
+    expect(() => StratumBlurTokens.fromMap(const {}), namesKey('1'));
   });
 }

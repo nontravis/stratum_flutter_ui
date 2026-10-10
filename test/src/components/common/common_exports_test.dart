@@ -28,13 +28,13 @@ void main() {
     expect(utility, isNot(contains('todo.dart')));
   });
 
-  test('the package exports StratumShow and StratumWebZoom', () {
+  test('the package exports Show and StratumWebZoom', () {
     expect(
-      const StratumShow(visible: true, child: SizedBox()),
+      const Show(visible: true, child: SizedBox()),
       isA<StatefulWidget>(),
     );
-    expect(StratumShowTransition.values, hasLength(4));
-    expect(StratumShowSlideDirection.values, hasLength(4));
+    expect(ShowTransition.values, hasLength(4));
+    expect(ShowSlideDirection.values, hasLength(4));
     expect(const StratumWebZoom(child: SizedBox()), isA<StatelessWidget>());
   });
 
