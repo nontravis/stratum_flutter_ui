@@ -11657,13 +11657,17 @@ void main() {
           (math.min(luminanceA, luminanceB) + 0.05);
     }
 
-    /// [child] under the package default's high-contrast light theme, under
-    /// a [MaterialApp] so the list finds an overlay.
-    Widget highContrastHost(Widget child) => MaterialApp(
+    /// [child] under the package default's high-contrast theme of
+    /// [themeMode], light by default, under a [MaterialApp] so the list finds
+    /// an overlay.
+    Widget highContrastHost(
+      Widget child, {
+      ThemeMode themeMode = ThemeMode.light,
+    }) => MaterialApp(
       home: Material(
         child: StratumThemeApplication(
           themes: defaultThemeSet,
-          themeMode: ThemeMode.light,
+          themeMode: themeMode,
           highContrast: HighContrastMode.on,
           child: Directionality(
             textDirection: TextDirection.ltr,
@@ -11838,24 +11842,46 @@ void main() {
       },
     );
 
+    final ringModes = ValueVariant<ThemeMode>({
+      ThemeMode.light,
+      ThemeMode.dark,
+    });
     testWidgets(
-      'NFR-U07: under high contrast the list ring holds 3:1 on the page',
+      'NFR-U07: under high contrast, light and dark, the list ring holds 3:1 '
+      'on the page and on a surface',
       (tester) async {
         useTraditionalHighlight();
+        final mode = ringModes.currentValue!;
         await tester.pumpWidget(
-          highContrastHost(const _Harness(count: 20, focusable: true)),
+          highContrastHost(
+            const _Harness(count: 20, focusable: true),
+            themeMode: mode,
+          ),
         );
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
         await tester.pumpAndSettle();
 
-        final highContrast = defaultThemeSet.highContrastLight!.color;
+        final dark = mode == ThemeMode.dark;
+        final highContrast =
+            (dark
+                    ? defaultThemeSet.highContrastDark!
+                    : defaultThemeSet.highContrastLight!)
+                .color;
         final ring = highContrast.border.subtle.blue;
-        expect(ringColor(tester), isSameColorAs(ring));
+        // palette.blue.600 in light, palette.blue.400 in dark (D31).
         expect(
-          contrast(ring, highContrast.background.defaults.normal),
-          greaterThanOrEqualTo(3),
+          ring,
+          isSameColorAs(
+            dark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+          ),
         );
+        expect(ringColor(tester), isSameColorAs(ring));
+        final backgrounds = highContrast.background.defaults;
+        for (final background in [backgrounds.normal, backgrounds.surface]) {
+          expect(contrast(ring, background), greaterThanOrEqualTo(3));
+        }
       },
+      variant: ringModes,
     );
 
     testWidgets(
@@ -11869,6 +11895,35 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(ringColor(tester).a, greaterThan(0));
+      },
+    );
+
+    testWidgets(
+      'NFR-U08: under high contrast a lifted item still shows its place '
+      'under the pointer, drawn over the list',
+      (tester) async {
+        await tester.pumpWidget(highContrastHost(const _Harness(count: 5)));
+        final start = tester.getCenter(find.text('0'));
+
+        final gesture = await tester.startGesture(start);
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+        await gesture.moveBy(const Offset(0, 30));
+        await tester.pump();
+        await tester.pump();
+
+        // The drag proxy sits in the overlay, outside the list's own tree.
+        final lifted = find.text('0');
+        expect(lifted, findsOne);
+        expect(
+          find.ancestor(
+            of: lifted,
+            matching: find.byType(ReorderableListViewLayout),
+          ),
+          findsNothing,
+        );
+        expect(tester.getCenter(lifted), start + const Offset(0, 30));
+        await gesture.up();
+        await tester.pumpAndSettle();
       },
     );
   });
