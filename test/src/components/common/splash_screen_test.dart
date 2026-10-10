@@ -1,3 +1,13 @@
+// NFR-U01, NFR-U07 n/a: the splash paints no text, border, focus ring, or
+// icon of its own; the app's builder draws every frame.
+// NFR-U02 n/a: headless; the splash owns no interactive node; the app's
+// builder owns focus.
+// NFR-U04 n/a: the splash paints no text; the loading label is semantics
+// only.
+// NFR-U05 n/a: the splash has no interactive target.
+// NFR-U08 n/a: each state reaches the app's builder as a sealed type, never
+// as a color.
+// NFR-U09 n/a: the splash takes no gesture.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 import 'package:stratum_ui/src/components/common/splash_screen.dart';
@@ -837,4 +847,187 @@ void main() {
       }
     }
   });
+
+  group('StratumSplashScreen announces loading', () {
+    /// A splash whose builder draws a labeled app node, `app <state>`, for
+    /// every state, keyed [_frame] while not done.
+    Widget announced(
+      AssetBundle bundle, {
+      String? initialThemeId,
+      String? loadingLabel,
+      Future<String> Function()? postload,
+      List<StratumSplashState<String>>? states,
+    }) => DefaultAssetBundle(
+      bundle: bundle,
+      child: StratumSplashScreen<String>(
+        initialThemeId: initialThemeId,
+        loadingLabel: loadingLabel,
+        postload: (context, controller) =>
+            (postload ?? () => Completer<String>().future)(),
+        builder: (context, state) {
+          states?.add(state);
+          return Semantics(
+            container: true,
+            label: 'app ${_nameOf(state)}',
+            child: const SizedBox(width: 40, height: 20),
+          );
+        },
+      ),
+    );
+
+    testWidgets('NFR-U06, us12/fr08, us12/s8: a loading app frame sits '
+        "under a live region that reads Loading; the app's node reads "
+        'unchanged', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(announced(FakeThemeBundle()));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Loading')),
+        matchesSemantics(
+          label: 'Loading',
+          isLiveRegion: true,
+          role: SemanticsRole.none,
+        ),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('app loading app')),
+        matchesSemantics(label: 'app loading app'),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us12/fr08/e01: a loading theme frame of a retry reads '
+        'Loading too', (tester) async {
+      final handle = tester.ensureSemantics();
+      final bundle = FakeThemeBundle(themes: {'brand': brokenTheme()});
+      final states = <StratumSplashState<String>>[];
+      await tester.pumpWidget(
+        announced(bundle, initialThemeId: 'brand', states: states),
+      );
+      await tester.pumpAndSettle();
+      final release = bundle.hold[themeKey('brand')] = Completer<void>();
+
+      (states.last as StratumSplashFailed<String>).retry();
+      await tester.pump();
+
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Loading')),
+        matchesSemantics(
+          label: 'Loading',
+          isLiveRegion: true,
+          role: SemanticsRole.none,
+        ),
+      );
+      release.complete();
+      await tester.pumpAndSettle();
+      handle.dispose();
+    });
+
+    testWidgets("NFR-U06: the failed and done frames add no node; the app's "
+        'node reads unchanged', (tester) async {
+      final handle = tester.ensureSemantics();
+      final states = <StratumSplashState<String>>[];
+      var calls = 0;
+      await tester.pumpWidget(
+        announced(
+          FakeThemeBundle(),
+          states: states,
+          postload: () async {
+            calls += 1;
+            if (calls == 1) throw StateError('offline');
+            return 'ready';
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Loading'), findsNothing);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('app failed postload')),
+        matchesSemantics(label: 'app failed postload'),
+      );
+
+      (states.last as StratumSplashFailed<String>).retry();
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Loading'), findsNothing);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('app done ready')),
+        matchesSemantics(label: 'app done ready'),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us12/fr08/e02, nfr-l01: a loading label the app passes '
+        'replaces the built-in one', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        announced(FakeThemeBundle(), loadingLabel: 'Starting'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('Loading'), findsNothing);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Starting')),
+        matchesSemantics(
+          label: 'Starting',
+          isLiveRegion: true,
+          role: SemanticsRole.none,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us12/s8, nfr-l01: on a Thai device the announcement reads '
+        'Thai', (tester) async {
+      final handle = tester.ensureSemantics();
+      tester.platformDispatcher.localeTestValue = const Locale('th');
+      addTearDown(tester.platformDispatcher.clearLocaleTestValue);
+      await tester.pumpWidget(announced(FakeThemeBundle()));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('กำลังโหลด')),
+        matchesSemantics(
+          label: 'กำลังโหลด',
+          isLiveRegion: true,
+          role: SemanticsRole.none,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets("the app's frame keeps its own state when loading turns "
+        'failed', (tester) async {
+      final work = Completer<String>();
+      await tester.pumpWidget(
+        DefaultAssetBundle(
+          bundle: FakeThemeBundle(),
+          child: StratumSplashScreen<String>(
+            postload: (context, controller) => work.future,
+            builder: (context, state) => const _Spinner(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final before = tester.state(find.byType(_Spinner));
+
+      work.completeError(StateError('offline'));
+      await tester.pump(Duration.zero);
+
+      expect(tester.state(find.byType(_Spinner)), same(before));
+    });
+  });
+}
+
+/// A stand-in for an app frame that keeps state, such as a spinner.
+class _Spinner extends StatefulWidget {
+  const new();
+
+  @override
+  State<_Spinner> createState() => _SpinnerState();
+}
+
+class _SpinnerState extends State<_Spinner> {
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

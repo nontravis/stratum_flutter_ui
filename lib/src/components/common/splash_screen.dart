@@ -1,5 +1,6 @@
 import 'package:animations/animations.dart' show PageTransitionSwitcher;
 import 'package:stratum_ui/src/animations/screen_transition.dart';
+import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The step of [StratumSplashScreen] that failed, which
@@ -89,6 +90,7 @@ class StratumSplashScreen<T> extends StatefulWidget {
     this.exitCurve,
     this.themeMode = ThemeMode.system,
     this.highContrast = HighContrastMode.system,
+    this.loadingLabel,
   });
 
   /// The theme id the app saved, else null for `default`.
@@ -152,6 +154,11 @@ class StratumSplashScreen<T> extends StatefulWidget {
   /// The high-contrast mode of the splash frames: pass the one the app
   /// gives its `StratumThemeApplication` (FR-07 E02).
   final HighContrastMode highContrast;
+
+  /// What screen readers hear on every loading frame, the app's own frames
+  /// included; null reads FO-09's built-in loading label in the platform
+  /// locale's language (FR-08).
+  final String? loadingLabel;
 
   @override
   State<StratumSplashScreen<T>> createState() => _StratumSplashScreenState<T>();
@@ -326,7 +333,22 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     final locale =
         Localizations.maybeLocaleOf(context) ??
         View.of(context).platformDispatcher.locale;
-    final frame = Builder(builder: (context) => widget.builder(context, state));
+    final loading =
+        state is StratumSplashLoadingTheme<T> ||
+        state is StratumSplashLoadingApp<T>;
+    // One Semantics at every state, so a state change never rebuilds the
+    // app's frame from scratch. A loading frame sits under a live region
+    // that reads the loading label, with the app's own nodes kept apart
+    // below it; the failed and done frames add no node (FR-08).
+    final frame = Semantics(
+      container: loading,
+      explicitChildNodes: loading,
+      liveRegion: loading,
+      label: loading
+          ? widget.loadingLabel ?? builtInLabelsFor(locale).loadingLabel
+          : null,
+      child: Builder(builder: (context) => widget.builder(context, state)),
+    );
     return Directionality(
       textDirection: _directionOf(locale),
       child: _themed(
