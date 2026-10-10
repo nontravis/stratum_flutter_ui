@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumSplashScreen, StratumSplashState, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
+description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumSplashScreen, StratumSplashState, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom, context.themeData, context.defaultWidgetSize, context.windowSize.
 ---
 
 # Stratum Flutter UI
@@ -499,6 +499,10 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `unknown_key`. The package default reads `$schema: stratum-theme/v1.1.0`; this package reads every `v1.0` and
   `v1.1` theme, while a package build that reads only `v1.0` refuses a `v1.1` theme as `unsupported_schema`, so a
   theme that must load on both writes `v1.0.0` and leaves `opacity` out.
+- Read the theme data, its default widget size, and the window size where a widget sits:
+  `context.themeData()` (or `context.themeData(ThemeMode.dark)`), `context.defaultWidgetSize()`, and
+  `context.windowSize`. Each throws a `FlutterError`: `themeData` and `defaultWidgetSize` name the missing
+  `StratumThemeApplication`; the window-size error says how to wrap the app.
 
 ## Page transitions
 
