@@ -74,6 +74,30 @@ Widget _screens(BuildContext context, UpdateGateState gate) {
   };
 }
 
+/// The dialog alone, with its own "Update" carrying the app's own
+/// `autofocus`: NFR-U02 asks that the app's choice of first focus wins
+/// over the gate's.
+Widget _autofocusDialog(BuildContext context, UpdateGateState gate) =>
+    switch (gate) {
+      UpdateGateAvailable(:final dismiss) => Align(
+        alignment: Alignment.topCenter,
+        child: Material(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(onPressed: dismiss, child: const Text('Later')),
+              TextButton(
+                autofocus: true,
+                onPressed: () {},
+                child: const Text('Update'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      _ => const SizedBox(),
+    };
+
 /// A [MaterialApp] whose builder places the gate around its navigator;
 /// its first page shows "Home" and a "Behind" button.
 Widget _app(
@@ -194,30 +218,60 @@ void main() {
       expect(find.text('Required'), findsOneWidget);
     });
 
-    testWidgets('us01/fr01/e03: a cold start, with no lifecycle state yet, '
-        'is not a return', (tester) async {
-      tester.binding.resetInternalState();
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pump(Duration.zero);
-      await _lifecycle(tester, AppLifecycleState.resumed);
-      await tester.pump();
-      expect(checker.asks, hasLength(1));
-    });
-
-    testWidgets('us01/fr01/e03: after a cold start a later return still '
-        'asks again', (tester) async {
-      tester.binding.resetInternalState();
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pump(Duration.zero);
-      await _lifecycle(tester, AppLifecycleState.resumed);
-      await tester.pump();
-      await _returnToForeground(tester);
-      expect(checker.asks, hasLength(2));
-    });
+    // R8: the gate re-asks only on a return from the background. A
+    // foreground interruption (`inactive` alone, Face ID or Control
+    // Center) and a cold start's own first `resumed` never count as one;
+    // `hidden` or `paused` before `resumed` always does.
+    for (final (name, cold, states, asks)
+        in <(String, bool, List<AppLifecycleState>, int)>[
+          (
+            "a cold start's first resumed asks none",
+            true,
+            [AppLifecycleState.resumed],
+            1,
+          ),
+          (
+            'null then inactive then resumed asks none',
+            true,
+            [AppLifecycleState.inactive, AppLifecycleState.resumed],
+            1,
+          ),
+          (
+            'resumed then inactive then resumed asks none',
+            false,
+            [AppLifecycleState.inactive, AppLifecycleState.resumed],
+            1,
+          ),
+          (
+            'paused then resumed asks once',
+            false,
+            [AppLifecycleState.paused, AppLifecycleState.resumed],
+            2,
+          ),
+          (
+            'hidden then inactive then resumed asks once',
+            false,
+            [
+              AppLifecycleState.hidden,
+              AppLifecycleState.inactive,
+              AppLifecycleState.resumed,
+            ],
+            2,
+          ),
+        ]) {
+      testWidgets('us01/fr01/e03: $name', (tester) async {
+        if (cold) tester.binding.resetInternalState();
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pump(Duration.zero);
+        for (final state in states) {
+          await _lifecycle(tester, state);
+        }
+        await tester.pump();
+        expect(checker.asks, hasLength(asks));
+      });
+    }
 
     testWidgets('us01/fr01/e04: retry asks again, with checking, and an '
         'up-to-date answer shows the app', (tester) async {
@@ -1074,6 +1128,42 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
       expect(find.text('Available'), findsNothing);
+    });
+
+    testWidgets("NFR-U02: the app's own autofocus control takes focus over "
+        "the gate's", (tester) async {
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker, builder: _autofocusDialog));
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      expect(Focus.of(tester.element(find.text('Update'))).hasFocus, isTrue);
+    });
+
+    testWidgets('NFR-U02: Esc before any Tab dismisses the dialog, with '
+        "the app's own autofocus set", (tester) async {
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker, builder: _autofocusDialog));
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(find.text('Update'), findsNothing);
+    });
+
+    testWidgets('NFR-U02: Tab cycles inside the dialog, with the '
+        "app's own autofocus set", (tester) async {
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker, builder: _autofocusDialog));
+      checker.answer(UpdateStatus.available);
+      await dialogFrames(tester);
+      bool focused(String label) =>
+          Focus.of(tester.element(find.text(label))).hasFocus;
+      for (final label in ['Later', 'Update', 'Later', 'Update']) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(focused(label), isTrue);
+        expect(focused('Behind'), isFalse);
+      }
     });
 
     testWidgets('NFR-U06: a full screen and the dialog each open a route '

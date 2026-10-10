@@ -55,12 +55,15 @@ class _StratumUpdateGateState extends State<StratumUpdateGate>
   /// The `checking` the dialog's page builds from.
   final ValueNotifier<bool> _dialogChecking = ValueNotifier(false);
 
-  AppLifecycleState? _lifecycle;
+  /// Whether the app left the foreground on `hidden` or `paused`;
+  /// cleared after the next re-ask. `inactive` alone (a Face ID prompt,
+  /// Control Center, a permission dialog) and a cold start's own first
+  /// `resumed` never set it, so neither re-asks (R8).
+  bool _backgrounded = false;
 
   @override
   void initState() {
     super.initState();
-    _lifecycle = WidgetsBinding.instance.lifecycleState;
     WidgetsBinding.instance.addObserver(this);
     unawaited(_ask(recheck: false));
   }
@@ -74,15 +77,13 @@ class _StratumUpdateGateState extends State<StratumUpdateGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // A null `_lifecycle` means no lifecycle message has reported a state
-    // yet, so a cold start's own first `resumed` is the mount's ask, not a
-    // return from the background.
-    final returned =
-        state == AppLifecycleState.resumed &&
-        _lifecycle != null &&
-        _lifecycle != AppLifecycleState.resumed;
-    _lifecycle = state;
-    if (returned) unawaited(_ask(recheck: true));
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      _backgrounded = true;
+    } else if (state == AppLifecycleState.resumed && _backgrounded) {
+      _backgrounded = false;
+      unawaited(_ask(recheck: true));
+    }
   }
 
   void _retry() => unawaited(_ask(recheck: true));
@@ -167,7 +168,10 @@ class _StratumUpdateGateState extends State<StratumUpdateGate>
 
   /// The dialog's page: the app's dialog, with Esc mapped to `dismiss`,
   /// since the route's own Esc action is off for a barrier that does not
-  /// dismiss; focus starts inside, so Esc reaches the mapping.
+  /// dismiss; a [FocusScope] registers autofocus for the app's own
+  /// control inside, so its choice of first focus wins over the gate's,
+  /// and with none, focus sits on the scope itself, still inside the Esc
+  /// mapping.
   Widget _dialogPage() => Shortcuts(
     shortcuts: const <ShortcutActivator, Intent>{
       SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
@@ -181,10 +185,8 @@ class _StratumUpdateGateState extends State<StratumUpdateGate>
           },
         ),
       },
-      child: Focus(
+      child: FocusScope(
         autofocus: true,
-        skipTraversal: true,
-        includeSemantics: false,
         child: ValueListenableBuilder<bool>(
           valueListenable: _dialogChecking,
           builder: (context, checking, _) => widget.builder(

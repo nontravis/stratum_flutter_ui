@@ -544,7 +544,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   no animation. While a later ask runs, the gate keeps the shown screen and sets `checking`: show a busy cue and
   disable retry, since a retry during an ask does nothing. Your update button runs your own store or installer code;
   the gate takes no update callback. Each screen opens as a screen of its own: focus moves in, and a screen reader
-  announces it. A tooltip or a text field works on it, since it sits in an overlay of the gate's own.
+  announces it. A tooltip or a text field works on it, since it sits in an overlay of the gate's own. No navigator
+  exists while a full screen shows: build it without routes or dialogs of its own, and guard any global
+  `navigatorKey` use, such as from a push-notification handler, against a null `currentState`.
 - **The update dialog** — `UpdateGateAvailable` opens your dialog once per gate lifetime, as a route on your app's
   navigator over the page it shows; a new launch may offer it again, since the package stores nothing. Draw its scrim
   and card yourself: the route paints nothing and runs no transition. While it shows, taps, focus, and screen readers
