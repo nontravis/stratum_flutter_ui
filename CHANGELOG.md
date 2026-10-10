@@ -95,6 +95,14 @@
   device name, `CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, or `LPT1` to `LPT9`, in any letter case, such as `con`,
   `Con.txt`, or `images/NUL.svg`; `pack` refuses such a file or folder name under the theme folder before it writes
   anything.
+- Breaking: a remote theme install, and `stratum_theme pack` and `check`, now refuse as `invalid_archive` a zip entry
+  whose allowed extra-field record fits neither its id's local nor its central layout, read on either side: a
+  0x000a record other than 4 reserved bytes and one tag-0x0001 attribute of 24 bytes; a 0x5455 record with no flags
+  byte, a flag past bit 2, or a size other than 4 bytes for each flag bit 0 to 2 set or 4 bytes only for bit 0; a
+  0x5855 record other than 8 or 12 bytes; a 0x7875 record other than version 1 with its user and group ids filling
+  it exactly; and a 0xcafe record that is not empty. The zips Finder, Info-ZIP, Java, `jar`, `tar`, and 7-Zip write
+  still install, and so do a Python `zipfile` or Java `ZipOutputStream` repack that copies one header's 0x5455 or
+  0x5855 body into the other unchanged.
 - The tap surface's menu action label, `StratumInkWell`'s last fallback when neither `secondaryTapSemanticsLabel` nor
   the app's material localizations name it, now reads Stratum's built-in labels: Thai under a Thai locale, English
   under any other. The package now depends on `flutter_localizations` (SDK) and `intl` (`any`); an app whose own

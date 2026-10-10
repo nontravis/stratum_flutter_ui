@@ -1000,21 +1000,231 @@ void main() {
 
     String hex4(int id) => '0x${id.toRadixString(16).padLeft(4, '0')}';
 
-    for (final id in [0x000a, 0x5455, 0x5855, 0x7875, 0xcafe]) {
-      test('us01/fr02/e02, rz3, rz9: an extra record of the allowed id '
-          '${hex4(id)}, local and central, and an end record comment '
+    /// An extra-field record of [id] holding [body].
+    List<int> record(int id, List<int> body) => [
+      id & 0xFF,
+      id >> 8,
+      body.length & 0xFF,
+      body.length >> 8,
+      ...body,
+    ];
+
+    /// 0x000a's body in its one layout: 4 reserved bytes, tag 0x0001 of
+    /// size 24, and three 8-byte times; 7-Zip 26.04 writes it centrally.
+    final ntfs = [0, 0, 0, 0, 0x01, 0x00, 0x18, 0x00, ...List.filled(24, 7)];
+
+    for (final (tool, id, local, central) in [
+      ('7-Zip 26.04', 0x000a, null, ntfs),
+      (
+        'Info-ZIP 3.0',
+        0x5455,
+        [0x03, ...List.filled(8, 7)],
+        [0x03, 1, 2, 3, 4],
+      ),
+      (
+        'bsdtar and tar -a',
+        0x5455,
+        [0x07, ...List.filled(12, 7)],
+        [0x01, 1, 2, 3, 4],
+      ),
+      ('Finder ditto', 0x5855, List.filled(12, 7), List.filled(8, 7)),
+      (
+        'Info-ZIP 3.0, bsdtar, and tar -a',
+        0x7875,
+        [1, 4, 0xF5, 1, 0, 0, 4, 0x14, 0, 0, 0],
+        [1, 4, 0xF5, 1, 0, 0, 4, 0x14, 0, 0, 0],
+      ),
+      ('jar', 0xcafe, <int>[], <int>[]),
+      (
+        'a Python zipfile repack, which writes the central body into the '
+            'local field too',
+        0x5455,
+        [0x03, 1, 2, 3, 4],
+        [0x03, 1, 2, 3, 4],
+      ),
+      (
+        'a Java ZipInputStream repack, which writes the local body into '
+            'the central field too',
+        0x5855,
+        List.filled(12, 7),
+        List.filled(12, 7),
+      ),
+    ]) {
+      test('us01/fr02/e02, rz9, rzf4: an extra record of id ${hex4(id)} in '
+          'the layout $tool writes, and an end record comment, '
           'install', () {
-        final record = [id & 0xFF, id >> 8, 0x01, 0x00, 0x00];
         final zip = buildZip([
           ZipEntryFixture(
             'theme.yaml',
             yaml,
-            localExtra: record,
-            centralExtra: record,
+            localExtra: local == null ? const [] : record(id, local),
+            centralExtra: record(id, central),
           ),
         ], comment: utf8.encode('note'));
 
         expect(_read(zip).keys, ['theme.yaml']);
+      });
+    }
+
+    for (final (label, id, local, central) in [
+      ('a 0x000a of the 32-byte layout, local and central', 0x000a, ntfs, ntfs),
+      (
+        'a 0x5455 of flags 0x01, 5 bytes local and 5 central',
+        0x5455,
+        [0x01, 1, 2, 3, 4],
+        [0x01, 1, 2, 3, 4],
+      ),
+      (
+        'a 0x5455 of flags 0x00, 1 byte local and 1 central',
+        0x5455,
+        [0x00],
+        [0x00],
+      ),
+      (
+        'a 0x5455 of flags 0x06, 9 bytes local and 1 central',
+        0x5455,
+        [0x06, ...List.filled(8, 7)],
+        [0x06],
+      ),
+      ('an 8-byte 0x5855 local', 0x5855, List.filled(8, 7), List.filled(8, 7)),
+      (
+        'a 0x7875 of user id 0',
+        0x7875,
+        [1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0],
+        [1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0],
+      ),
+      ('a 0x7875 of sizes 0 and 0', 0x7875, [1, 0, 0], [1, 0, 0]),
+      (
+        'a 0x7875 of sizes 2 and 8',
+        0x7875,
+        [1, 2, 1, 0, 8, ...List.filled(8, 0)],
+        [1, 2, 1, 0, 8, ...List.filled(8, 0)],
+      ),
+    ]) {
+      test('us01/fr02/e02, rzf4: $label, a layout the source defines and '
+          'no tool here writes, installs', () {
+        final zip = buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            localExtra: record(id, local),
+            centralExtra: record(id, central),
+          ),
+        ]);
+
+        expect(_read(zip).keys, ['theme.yaml']);
+      });
+    }
+
+    test('us01/fr02/e02, rzf4 (rq-a): a 9-byte 0x5455 of flags 0x03 in the '
+        'central extra field, which fits the local layout, installs', () {
+      final zip = buildZip([
+        ZipEntryFixture(
+          'theme.yaml',
+          yaml,
+          centralExtra: record(0x5455, [0x03, ...List.filled(8, 7)]),
+        ),
+      ]);
+
+      expect(_read(zip).keys, ['theme.yaml']);
+    });
+
+    for (final (label, where, id, body) in [
+      ('an empty 0x000a', 'central', 0x000a, <int>[]),
+      ('a 3-byte 0x000a', 'central', 0x000a, [1, 2, 3]),
+      ('a 31-byte 0x000a', 'central', 0x000a, ntfs.sublist(0, 31)),
+      ('a 31-byte 0x000a', 'local', 0x000a, ntfs.sublist(0, 31)),
+      ('a 33-byte 0x000a', 'local', 0x000a, [...ntfs, 0]),
+      ('a 33-byte 0x000a', 'central', 0x000a, [...ntfs, 0]),
+      (
+        'a 36-byte 0x000a holding a second attribute',
+        'central',
+        0x000a,
+        [...ntfs, 0x02, 0x00, 0x00, 0x00],
+      ),
+      (
+        'a 0x000a of tag 0x0002',
+        'central',
+        0x000a,
+        [0, 0, 0, 0, 0x02, 0x00, 0x18, 0x00, ...List.filled(24, 7)],
+      ),
+      (
+        'a 0x000a of attribute size 23',
+        'central',
+        0x000a,
+        [0, 0, 0, 0, 0x01, 0x00, 0x17, 0x00, ...List.filled(24, 7)],
+      ),
+      ('an empty 0x5455', 'local', 0x5455, <int>[]),
+      ('an empty 0x5455', 'central', 0x5455, <int>[]),
+      ('a 1-byte 0x5455 of flags 0x07', 'local', 0x5455, [0x07]),
+      ('a 1-byte 0x5455 of flags 0x01', 'central', 0x5455, [0x01]),
+      ('a 5-byte 0x5455 of flags 0x00', 'central', 0x5455, [0x00, 1, 2, 3, 4]),
+      ('a 0x5455 of flags 0x08', 'local', 0x5455, [0x08]),
+      ('a 0x5455 of flags 0x80', 'central', 0x5455, [0x80]),
+      ('an empty 0x5855', 'local', 0x5855, <int>[]),
+      ('a 10-byte 0x5855', 'local', 0x5855, List.filled(10, 7)),
+      ('an empty 0x7875', 'local', 0x7875, <int>[]),
+      (
+        'a 0x7875 of version 0',
+        'central',
+        0x7875,
+        [0, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0],
+      ),
+      (
+        'a 0x7875 of version 2',
+        'central',
+        0x7875,
+        [2, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0],
+      ),
+      (
+        'a 0x7875 one byte short of its sizes',
+        'local',
+        0x7875,
+        [1, 4, 0, 0, 0, 0, 4, 0, 0, 0],
+      ),
+      (
+        'a 0x7875 one byte past its sizes',
+        'central',
+        0x7875,
+        [1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0],
+      ),
+      (
+        'a 0x7875 whose user-id size runs past its body',
+        'local',
+        0x7875,
+        [1, 9, 0],
+      ),
+      (
+        'a 0x7875 whose group-id size runs past its body',
+        'local',
+        0x7875,
+        [1, 4, 0, 0, 0, 0, 9],
+      ),
+      ('a 3-byte 0xcafe', 'local', 0xcafe, [1, 2, 3]),
+      ('a 1-byte 0xcafe', 'central', 0xcafe, [0]),
+    ]) {
+      test('us01/fr02/e02, rzf4 (t7b): $label in the $where extra field is '
+          'invalid_archive', () {
+        final zip = buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            localExtra: where == 'local' ? record(id, body) : const [],
+            centralExtra: where == 'central' ? record(id, body) : const [],
+          ),
+        ]);
+
+        expect(
+          () => _read(zip),
+          _fails(
+            StratumRemoteThemeErrorCode.invalidArchive,
+            message: contains(
+              'the $where extra field of entry "theme.yaml" holds a '
+              'record of id ${hex4(id)} whose ${body.length}-byte body '
+              'fits no layout of that id',
+            ),
+          ),
+        );
       });
     }
 
@@ -1422,6 +1632,33 @@ void main() {
       );
 
       expect(_read(zip).keys, ['a.txt', 'theme.yaml']);
+    });
+
+    test('us01/fr02/e02, rzf7 (d4): a central directory that lists two '
+        'entries out of their local-header order, with a 1-byte gap '
+        'between their local headers, is invalid_archive', () {
+      final first = ZipEntryFixture('theme.yaml', yaml).localBytes;
+      final zip = buildZip(
+        [
+          ZipEntryFixture('a.txt', [1], localAt: first.length + 1),
+          ZipEntryFixture('theme.yaml', yaml, localAt: 0),
+        ],
+        prefix: [
+          ...first,
+          0,
+          ...ZipEntryFixture('a.txt', [1]).localBytes,
+        ],
+      );
+
+      expect(
+        () => _read(zip),
+        _fails(
+          StratumRemoteThemeErrorCode.invalidArchive,
+          message: contains(
+            'bytes after entry "theme.yaml" belong to no entry',
+          ),
+        ),
+      );
     });
 
     for (final (label, zip, message) in [
