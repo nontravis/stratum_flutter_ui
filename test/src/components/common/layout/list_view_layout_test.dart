@@ -42,11 +42,21 @@ final _indicator = find.byWidgetPredicate(
 );
 
 /// A 40 px item whose node is labeled `item <id>`; it keeps itself alive
-/// when it leaves the built range.
+/// when it leaves the built range, unless [keepAlive] is false.
 class _KeptItem extends StatefulWidget {
-  const new({super.key, required this.id});
+  const new({
+    super.key,
+    required this.id,
+    this.group = false,
+    this.keepAlive = true,
+  });
 
   final int id;
+  final bool keepAlive;
+
+  /// Whether the node sits in a focus group, before a second node labeled
+  /// `second <id>`.
+  final bool group;
 
   @override
   State<_KeptItem> createState() => _KeptItemState();
@@ -55,20 +65,31 @@ class _KeptItem extends StatefulWidget {
 class _KeptItemState extends State<_KeptItem>
     with AutomaticKeepAliveClientMixin {
   late final node = FocusNode(debugLabel: 'item ${widget.id}');
+  late final second = FocusNode(debugLabel: 'second ${widget.id}');
 
   @override
-  bool get wantKeepAlive => true;
+  bool get wantKeepAlive => widget.keepAlive;
 
   @override
   void dispose() {
     node.dispose();
+    second.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Focus(focusNode: node, child: const SizedBox(height: 40));
+    if (!widget.group) {
+      return Focus(focusNode: node, child: const SizedBox(height: 40));
+    }
+    return RowLayout(
+      focusGroup: const StratumFocusGroup(),
+      children: [
+        for (final each in [node, second])
+          Focus(focusNode: each, child: const SizedBox(width: 40, height: 40)),
+      ],
+    );
   }
 }
 
@@ -522,6 +543,87 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(FocusManager.instance.primaryFocus, same(fields[104]));
         expect(showsWhole(tester, 104), isTrue);
+      },
+    );
+
+    final groupMoves = ValueVariant<String>({'Tab', 'Shift+Tab'});
+    testWidgets(
+      'us07/fr01/e07 and us07/fr01/e08: Tab or Shift+Tab from a focus group '
+      'inside a focused item kept alive off screen brings the item back, '
+      'then leaves the group for the item next in order',
+      (tester) async {
+        await tester.pumpWidget(
+          app(
+            ListViewLayout.builder(
+              itemCount: 1000,
+              // Only the focused item stays alive, so its neighbors lose
+              // their place in the tree as a real list's do.
+              itemBuilder: (context, index) => _KeptItem(
+                key: ValueKey(index),
+                id: index,
+                group: true,
+                keepAlive: index == 103,
+              ),
+            ),
+          ),
+        );
+        await jump(tester, 4000);
+        tester
+            .state<_KeptItemState>(find.byKey(const ValueKey(103)))
+            .node
+            .requestFocus();
+        await tester.pump();
+        await jump(tester, 20000);
+
+        final back = groupMoves.currentValue == 'Shift+Tab';
+        if (back) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        if (back) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pumpAndSettle();
+
+        final target = back ? 102 : 104;
+        expect(tester.takeException(), isNull);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item $target');
+        expect(showsWhole(tester, target), isTrue);
+      },
+      variant: groupMoves,
+    );
+
+    testWidgets(
+      'us07/fr01/e07: a focus the app moves before the frame that brings a '
+      'focused item kept alive off screen back stays where the app put it',
+      (tester) async {
+        await tester.pumpWidget(
+          app(
+            ListViewLayout.builder(
+              itemCount: 1000,
+              itemBuilder: (context, index) =>
+                  _KeptItem(key: ValueKey(index), id: index),
+            ),
+          ),
+        );
+        _KeptItemState item(int id) =>
+            tester.state<_KeptItemState>(find.byKey(ValueKey(id)));
+        await jump(tester, 4000);
+        final node = item(103).node..requestFocus();
+        await tester.pump();
+        await jump(tester, 20000);
+
+        node.nextFocus();
+        item(500).node.requestFocus();
+        final log = <String?>[];
+        void record() {
+          final label = FocusManager.instance.primaryFocus?.debugLabel;
+          if (log.isEmpty || log.last != label) log.add(label);
+        }
+
+        FocusManager.instance.addListener(record);
+        addTearDown(() => FocusManager.instance.removeListener(record));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 500');
+        expect(log, ['item 500']);
       },
     );
   });

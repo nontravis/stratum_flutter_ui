@@ -10671,6 +10671,205 @@ void main() {
       },
     );
 
+    testWidgets(
+      'us11/fr03/e11 and s03/inv21: when a list the app holds in place never '
+      'lays out the focused item kept alive off screen, Shift+Tab lands on '
+      'the last item that shows',
+      (tester) async {
+        final (state, position) = await pumpFocused(
+          tester,
+          const _Harness(count: 1000),
+        );
+        position.jumpTo(20000);
+        await tester.pump();
+        _pinScroll(tester, 20000);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pumpAndSettle();
+
+        // The viewport shows items 500 to 507; item 507 shows in part.
+        final view = tester.getRect(find.byType(Scrollable));
+        final item = tester.getRect(find.byKey(const ValueKey(507)));
+        expect(tester.takeException(), isNull);
+        expect(focused(), 'item 507');
+        expect(view.overlaps(item), isTrue);
+        expect(position.pixels, 20000);
+        expect(state.mounted, isFalse);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e11 and s03/inv21: an action the app binds to Tab inside the '
+      'focused item kept alive off screen runs in place of the move, and the '
+      'list scrolls nothing',
+      (tester) async {
+        var runs = 0;
+        await tester.pumpWidget(
+          _app(
+            ReorderableListViewLayout.builder(
+              itemCount: 1000,
+              onReorderItem: (from, to) {},
+              itemBuilder: (context, index) => Actions(
+                key: ValueKey('actions $index'),
+                actions: {
+                  NextFocusIntent: CallbackAction<NextFocusIntent>(
+                    onInvoke: (intent) => runs += 1,
+                  ),
+                },
+                child: _Item(key: ValueKey(index), id: index, index: index),
+              ),
+            ),
+          ),
+        );
+        final position =
+            tester.state<ScrollableState>(find.byType(Scrollable)).position
+              ..jumpTo(4000);
+        await tester.pump();
+        final state = _itemState(tester, 103);
+        await _focusItem(tester, 103);
+        position.jumpTo(20000);
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(runs, 1);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        expect(_builtInView(tester, 103), isFalse);
+        expect(position.pixels, 20000);
+      },
+    );
+
+    final groupMoves = ValueVariant<String>({'Tab', 'Shift+Tab'});
+    testWidgets(
+      'us11/fr03/e11 and s03/inv21: Tab or Shift+Tab from a focus group '
+      'inside the focused item kept alive off screen brings the item back, '
+      'then leaves the group for the item next in order and shows it',
+      (tester) async {
+        final nodes = <String, FocusNode>{};
+        addTearDown(() {
+          for (final node in nodes.values) {
+            node.dispose();
+          }
+        });
+        FocusNode node(String label) =>
+            nodes.putIfAbsent(label, () => FocusNode(debugLabel: label));
+        await tester.pumpWidget(
+          _app(
+            ReorderableListViewLayout.builder(
+              itemCount: 1000,
+              onReorderItem: (from, to) {},
+              itemBuilder: (context, index) => SizedBox(
+                key: ValueKey(index),
+                height: 40,
+                child: RowLayout(
+                  focusGroup: const StratumFocusGroup(),
+                  children: [
+                    for (final side in ['a', 'b'])
+                      Focus(
+                        focusNode: node('$side $index'),
+                        child: const SizedBox(width: 40, height: 40),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        final position =
+            tester.state<ScrollableState>(find.byType(Scrollable)).position
+              ..jumpTo(4000);
+        await tester.pump();
+        node('a 103').requestFocus();
+        await tester.pump();
+        position.jumpTo(20000);
+        await tester.pump();
+
+        final back = groupMoves.currentValue == 'Shift+Tab';
+        if (back) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        if (back) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pumpAndSettle();
+
+        final target = back ? 102 : 104;
+        expect(tester.takeException(), isNull);
+        expect(focused(), 'a $target');
+        expect(_builtInView(tester, target), isTrue);
+      },
+      variant: groupMoves,
+    );
+
+    testWidgets(
+      'us11/fr03/e11 and s03/inv21: Tab from a text field that a row inside '
+      'an item scrolled out of view brings the field back into the row, then '
+      'moves to the next field and shows it',
+      (tester) async {
+        final fields = [
+          for (var index = 0; index < 100; index++)
+            FocusNode(debugLabel: 'field $index'),
+        ];
+        addTearDown(() {
+          for (final field in fields) {
+            field.dispose();
+          }
+        });
+        const rowKey = Key('row');
+        await tester.pumpWidget(
+          _app(
+            ReorderableListViewLayout.builder(
+              itemCount: 5,
+              onReorderItem: (from, to) {},
+              itemBuilder: (context, index) => SizedBox(
+                key: ValueKey(index),
+                height: 40,
+                child: index == 0
+                    ? ListViewLayout.builder(
+                        key: rowKey,
+                        scrollDirection: Axis.horizontal,
+                        itemCount: fields.length,
+                        itemBuilder: (context, field) => SizedBox(
+                          width: 40,
+                          child: TextField(focusNode: fields[field]),
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+          ),
+        );
+        // The row's own Scrollable, above the one each text field holds.
+        final rowView = find
+            .descendant(
+              of: find.byKey(rowKey),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        final row = tester.state<ScrollableState>(rowView).position
+          ..jumpTo(1100);
+        await tester.pump();
+        fields[30].requestFocus();
+        await tester.pump();
+        row.jumpTo(3000);
+        await tester.pump();
+        expect(fields[30].rect.isFinite, isFalse);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'field 31');
+        final field = tester.getRect(
+          find.byWidgetPredicate(
+            (widget) => widget is TextField && widget.focusNode == fields[31],
+          ),
+        );
+        expect(tester.getRect(rowView).intersect(field), field);
+      },
+    );
+
     final fallback = ValueVariant<String>({'route scope', 'outside'});
     testWidgets(
       'us11/fr04/e19 and s03/inv26: when the reach toward the gap finds no '

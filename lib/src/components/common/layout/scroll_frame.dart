@@ -275,9 +275,12 @@ class ScrollFocus extends StatefulWidget {
   /// Wraps [child], the scroll view of a layout scroller inside its box, in
   /// the traversal group that keeps the box's Tab stop ahead of the items
   /// inside and places a focused node kept alive off screen before a
-  /// traversal moves from it.
+  /// traversal moves from it, also from inside a group of its own.
   static Widget contentGroup(Widget child) {
-    return FocusTraversalGroup(policy: _contentPolicy, child: child);
+    return FocusTraversalGroup(
+      policy: _contentPolicy,
+      child: _PlaceFirstActions(child: child),
+    );
   }
 
   /// Wraps [child], the page at [index] of the page view below a
@@ -797,7 +800,10 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
 ///
 /// A traversal from a node the view keeps alive off screen, whose rect
 /// reads NaN, first brings that node back into view ([_placeFirst]), so it
-/// starts from the node's own place (R40, invariant 21).
+/// starts from the node's own place (R40, invariant 21): the policy does so
+/// for a move it runs itself, and [_PlaceFirstActions] for a Tab,
+/// Shift+Tab, or arrow from a node whose nearest group lies inside, such as
+/// a [StratumFocusGroup] in an item.
 class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   new() : super(requestFocusCallback: requestFocusInViewports);
 
@@ -807,9 +813,7 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
       return _placeFirst(
         currentNode,
         () => inDirection(currentNode, direction),
-        forward:
-            direction == TraversalDirection.down ||
-            direction == TraversalDirection.right,
+        forward: _forward(direction),
       );
     }
     final enclosing = _enclosing(currentNode);
@@ -829,6 +833,12 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
     }
     return moved;
   }
+
+  /// Whether [direction] moves forward in reading order, which picks the
+  /// node that shows an origin still unplaced moves to ([_placeFirst]).
+  static bool _forward(TraversalDirection direction) =>
+      direction == TraversalDirection.down ||
+      direction == TraversalDirection.right;
 
   /// The node [scope] names as focused, through each nested scope it
   /// names to that scope's own focused node.
@@ -951,6 +961,90 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
     }
     return null;
   }
+}
+
+/// Binds Tab, Shift+Tab, and Flutter's arrows inside a content group, so a
+/// move from a node kept alive off screen waits for
+/// [_ScrollContentPolicy._placeFirst] even when a group inside owns the
+/// node's policy (R40, invariant 21). An app's own action for these
+/// intents inside is found first and keeps control.
+class _PlaceFirstActions extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_PlaceFirstActions> createState() => _PlaceFirstActionsState();
+}
+
+class _PlaceFirstActionsState extends State<_PlaceFirstActions> {
+  late final _actions = <Type, Action<Intent>>{
+    NextFocusIntent: _PlaceFirstTraversal<NextFocusIntent>(this, (_) => true),
+    PreviousFocusIntent: _PlaceFirstTraversal<PreviousFocusIntent>(
+      this,
+      (_) => false,
+    ),
+    DirectionalFocusIntent: _PlaceFirstTraversal<DirectionalFocusIntent>(
+      this,
+      (intent) => _ScrollContentPolicy._forward(intent.direction),
+    ),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Actions(actions: _actions, child: widget.child);
+  }
+}
+
+/// Runs a traversal [T] through the action above [_PlaceFirstActions], as
+/// with no binding; from a primary focus whose rect reads NaN, only once
+/// [_ScrollContentPolicy._placeFirst] has placed it, and the key reads
+/// handled meanwhile.
+class _PlaceFirstTraversal<T extends Intent> extends ContextAction<T> {
+  new(this._binding, this._forward);
+
+  /// The binding's State, whose context lies above the binding.
+  final State<_PlaceFirstActions> _binding;
+
+  /// Whether [T] moves forward in reading order.
+  final bool Function(T intent) _forward;
+
+  /// The key result of the last [invoke], which [toKeyEventResult] reports.
+  KeyEventResult _keyResult = KeyEventResult.ignored;
+
+  @override
+  Object? invoke(T intent, [BuildContext? context]) {
+    final origin = FocusManager.instance.primaryFocus;
+    if (origin == null || origin.context == null || origin.rect.isFinite) {
+      return _runAbove(intent, context);
+    }
+    final moved = ScrollFocus._contentPolicy._placeFirst(origin, () {
+      _runAbove(intent, context);
+      return true;
+    }, forward: _forward(intent));
+    _keyResult = KeyEventResult.handled;
+    return moved;
+  }
+
+  /// Runs [intent] through the action above the binding, found from the
+  /// binding's own context, and keeps that action's key result.
+  Object? _runAbove(T intent, BuildContext? context) {
+    _keyResult = KeyEventResult.ignored;
+    if (!_binding.mounted) return null;
+    final binding = _binding.context;
+    final above = Actions.maybeFind<Intent>(binding, intent: intent);
+    if (above == null) return null;
+    final (enabled, result) = Actions.of(binding).invokeActionIfEnabled(
+      above,
+      intent,
+      context != null && context.mounted ? context : binding,
+    );
+    if (enabled) _keyResult = above.toKeyEventResult(intent, result);
+    return result;
+  }
+
+  @override
+  KeyEventResult toKeyEventResult(T intent, Object? invokeResult) => _keyResult;
 }
 
 /// How a scroll view brings a focused node it keeps alive off screen back

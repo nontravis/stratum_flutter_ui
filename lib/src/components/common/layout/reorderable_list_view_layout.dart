@@ -3132,8 +3132,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The shared policy's bring-back for a node inside this list: D24's
   /// [_bringBack] for an item it keeps alive off screen, else one jump.
-  /// Either way [then] runs after the next frame, whose layout holds the
-  /// last jump, so the move reveals its target from the new offset.
+  /// A node of a scroll view inside the item, which that view may keep
+  /// alive off screen too, is then revealed in its own viewport while it
+  /// still reads NaN. Either way [then] runs after the next frame, whose
+  /// layout holds the last jump, so the move reveals its target from the
+  /// new offset.
   void _bringBackNode(FocusNode node, VoidCallback then) {
     void afterFrame() {
       WidgetsBinding.instance
@@ -3141,13 +3144,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         ..scheduleFrame();
     }
 
-    final keys = node.context?.findAncestorStateOfType<_ReorderKeysState>();
-    if (keys == null || keys.widget.body != this) {
+    final context = node.context;
+    final keys = context?.findAncestorStateOfType<_ReorderKeysState>();
+    if (context == null || keys == null || keys.widget.body != this) {
       revealInViewports(node);
       afterFrame();
       return;
     }
-    _bringBack(keys, afterFrame);
+    if (Scrollable.maybeOf(context) == Scrollable.maybeOf(keys.context)) {
+      _bringBack(keys, afterFrame);
+      return;
+    }
+    _bringBack(keys, () {
+      if (!node.rect.isFinite) revealInViewports(node);
+      afterFrame();
+    });
   }
 
   Widget _scrollView(ReorderableListViewLayout layout, int listCount) {
