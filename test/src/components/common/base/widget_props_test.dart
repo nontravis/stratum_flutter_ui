@@ -120,13 +120,13 @@ void main() {
     ]);
   });
 
-  group('resolveSize', () {
+  group('resolveDefaultSize', () {
     testWidgets('returns the given size without a theme in the tree', (
       tester,
     ) async {
       final size = await _readInBuild(
         tester,
-        const _StatelessProbe(size: WidgetSize.huge).resolveSize,
+        const _StatelessProbe(size: WidgetSize.huge).resolveDefaultSize,
       );
 
       expect(size, WidgetSize.huge);
@@ -135,11 +135,36 @@ void main() {
     testWidgets('falls back to the theme defaultWidgetSize', (tester) async {
       final size = await _readInBuild(
         tester,
+        const _StatelessProbe().resolveDefaultSize,
+        wrap: _themed,
+      );
+
+      expect(size, WidgetSize.small);
+    });
+
+    testWidgets('us01/fr02/e05: the deprecated resolveSize returns what '
+        'resolveDefaultSize returns', (tester) async {
+      final size = await _readInBuild(
+        tester,
+        // Pins the deprecated alias (FO-08 US-01 FR-02 E05).
+        // ignore: deprecated_member_use_from_same_package
         const _StatelessProbe().resolveSize,
         wrap: _themed,
       );
 
       expect(size, WidgetSize.small);
+    });
+
+    testWidgets('us01/fr02/e04: a dark themeMode reads the dark default size', (
+      tester,
+    ) async {
+      final size = await _readInBuild(
+        tester,
+        const _StatelessProbe(themeMode: ThemeMode.dark).resolveDefaultSize,
+        wrap: _themed,
+      );
+
+      expect(size, WidgetSize.large);
     });
   });
 
@@ -458,25 +483,26 @@ void main() {
       expect(_props(const _StatefulProbe()), _props(const _StatelessProbe()));
     });
 
-    testWidgets('resolveSize returns the given size', (tester) async {
+    testWidgets('resolveDefaultSize returns the given size', (tester) async {
       final size = await _readInBuild(
         tester,
-        const _StatefulProbe(size: WidgetSize.huge).resolveSize,
+        const _StatefulProbe(size: WidgetSize.huge).resolveDefaultSize,
       );
 
       expect(size, WidgetSize.huge);
     });
 
-    testWidgets('resolveSize falls back to the theme defaultWidgetSize', (
-      tester,
-    ) async {
-      final size = await _readInBuild(
-        tester,
-        const _StatefulProbe().resolveSize,
-        wrap: _themed,
-      );
+    testWidgets(
+      'resolveDefaultSize falls back to the theme defaultWidgetSize',
+      (tester) async {
+        final size = await _readInBuild(
+          tester,
+          const _StatefulProbe().resolveDefaultSize,
+          wrap: _themed,
+        );
 
-      expect(size, WidgetSize.small);
-    });
+        expect(size, WidgetSize.small);
+      },
+    );
   });
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_falmodel/flutter_falmodel.dart' show FullWidgetState;
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
-import 'package:stratum_ui/src/components/common/responsive/device_window.dart';
+import 'package:stratum_ui/src/extensions/context_extension.dart';
 import 'package:stratum_ui/src/themes/component_defaults.dart';
 import 'package:stratum_ui/src/themes/constant/color.dart';
 import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
@@ -58,17 +58,22 @@ mixin StratumWidgetProps {
   /// Throws a [FlutterError] when no [StratumThemeApplication] is above
   /// [context].
   StratumThemeData resolveTheme(BuildContext context) =>
-      StratumThemeApplication.of(context, themeMode: themeMode);
+      context.themeData(themeMode);
 
-  /// A null [size] reads the theme, so it throws like [resolveTheme] when no
-  /// theme is above [context].
-  WidgetSize resolveSize(BuildContext context) =>
-      size ?? resolveTheme(context).defaultWidgetSize;
+  /// Returns [size] when set, else the theme's default widget size for
+  /// [themeMode]; a null [size] reads the theme, so it throws like
+  /// [resolveTheme] when no theme is above [context].
+  WidgetSize resolveDefaultSize(BuildContext context) =>
+      size ?? context.defaultWidgetSize(themeMode);
+
+  /// Renamed to [resolveDefaultSize]; kept one minor version.
+  @Deprecated('Use resolveDefaultSize. Removed after one minor version.')
+  WidgetSize resolveSize(BuildContext context) => resolveDefaultSize(context);
 
   /// Throws a [FlutterError] when [windowSize] is null and no
   /// `WindowSizeScope` is above [context].
   WindowSize resolveWindowSize(BuildContext context) =>
-      windowSize ?? context.deviceWindow.windowSize;
+      windowSize ?? context.windowSize;
 
   /// [defaults] (the component's own style from theme tokens), then the
   /// app-wide default for this component's exact `runtimeType`, then

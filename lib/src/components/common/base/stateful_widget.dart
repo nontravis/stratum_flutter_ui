@@ -12,11 +12,12 @@ import 'package:stratum_ui/src/themes/constant/window_size.dart';
 /// pressed, and focused states it derives at runtime.
 ///
 /// Holds the props of [StratumWidgetProps]; the `State` reads them through
-/// `widget`, for example `widget.resolveSize(context)`. The `State`'s `build`
-/// returns one box widget at its root, never a `ParentDataWidget`
-/// (`Expanded`, `Flexible`, `Positioned`); the base's element asserts this in
-/// debug builds. A sliver root is not caught by this assertion; it fails
-/// Flutter's own box-child assertion instead (US-07 FR-01 E07).
+/// `widget`, for example `widget.resolveDefaultSize(context)`. The
+/// `State`'s `build` returns one box widget at its root, never a
+/// `ParentDataWidget` (`Expanded`, `Flexible`, `Positioned`); the base's
+/// element asserts this in debug builds. A sliver root is not caught by
+/// this assertion; it fails Flutter's own box-child assertion instead
+/// (US-07 FR-01 E07).
 abstract class StratumStatefulWidget extends StatefulWidget
     with StratumWidgetProps {
   const new({

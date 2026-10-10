@@ -185,7 +185,8 @@ class _StratumCaretState extends State<StratumCaret> {
     if (remount) _reduceKey++;
     _wasReduced = reduce;
     final motion = widget.resolveTheme(context).animation.fast;
-    final side = widget.customSize ?? _sideOf(widget.resolveSize(context));
+    final side =
+        widget.customSize ?? _sideOf(widget.resolveDefaultSize(context));
     final color = _color(context);
     final style = widget.resolveStyle(
       context,
