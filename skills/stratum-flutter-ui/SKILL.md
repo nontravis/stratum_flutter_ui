@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumSplashScreen, StratumSplashState, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom, context.themeData, context.defaultWidgetSize, context.windowSize.
+description: Use when building or changing a Flutter app on Stratum UI (a screen, layout, keyboard shortcuts and focus, a theme, app start, or any Stratum* widget). Triggers on *Layout primitives (ColumnLayout, ListViewLayout, ...), reorderable lists (StratumReorderableItemsController), Space spacing, and focus rings (StratumFocusBorder). Theme triggers are StratumThemeController install and switching, StratumThemeApplication, StratumRemoteTheme, StratumThemePreloader, StratumSplashScreen, theme.yaml tokens, and context.* reads (context.themeData, context.windowSize). Widget triggers are StratumWebView, StratumWebZoom, page transitions (StratumTransitionPage), StratumCaret, named colors (resolveColor, ColorEnum), Thai labels and supportedLocales, StratumShow and disabled dimming, StratumPlaceholderPage, and update prompts (StratumUpdateGate, UpdateChecker).
 ---
 
 # Stratum Flutter UI
@@ -492,6 +492,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   version its CLI family list came from, so the CLI and your app accept the same `Google/<Name>` families. When
   `pub get` reports a google_fonts conflict, let your own google_fonts constraint allow the version stratum_ui's
   `pubspec.yaml` names.
+- **Supported zip tools** — make a theme zip with `pack` or with 7-Zip, the two zip tools measured against the install;
+  a zip Windows Explorer makes is not measured, so run `check` on it before you upload it.
 - **Disabled opacity** — `opacity.disabled` in `theme.yaml`, a number from 0 to 1, is the opacity every disabled
   component paints at; the package default sets 0.5, and an app theme may leave the group out. Read it as
   `StratumThemeApplication.of(context).opacity.disabled`. A value outside 0 to 1 throws
@@ -592,3 +594,60 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   Web: `onMessage`'s origin names the page that sent the message, even a URL page the view has moved away from, and
   `currentUrl()` reports the requested URL until the frame finishes loading it. On the web, load only content the app
   trusts on the app's own origin: such a page runs with the app's privileges.
+
+## Placeholder page
+
+- **`StratumPlaceholderPage`** — put `StratumPlaceholderPage()` in the body of a page whose screen is not built yet.
+  It fills the space it gets and shows the built-in title "Coming soon" (Thai "เร็วๆ นี้" for a Thai locale), centered.
+  `title` replaces that title, also for screen readers; `message` adds centered text below it; `icon` adds an icon
+  above it, sized 48 in the theme's secondary icon color and skipped by screen readers. The title reads as a heading.
+  It adds no app bar or back button: the app's own page and navigation carry them. Text wraps, and the page scrolls
+  when it is taller than its space.
+
+## Update gate
+
+- **`StratumUpdateGate`** — wrap the app's navigator in `MaterialApp.builder`, below `StratumThemeApplication`, so the
+  gate covers every route. It asks your `UpdateChecker` and draws nothing itself: `builder` returns your own screen
+  for each `UpdateGateState`.
+
+  ```dart
+  MaterialApp(
+    builder: (context, child) => StratumThemeApplication(
+      themes: themes,
+      themeMode: ThemeMode.system,
+      child: StratumUpdateGate(
+        checker: AppUpdateChecker(),
+        builder: (context, gate) => switch (gate) {
+          UpdateGateRequired() => const ForceUpdateScreen(),
+          UpdateGateMaintenance(:final retry, :final checking) =>
+            MaintenanceScreen(onRetry: checking ? null : retry),
+          UpdateGateAvailable(:final dismiss, :final checking) =>
+            UpdateDialog(onLater: dismiss, busy: checking),
+        },
+        child: child!,
+      ),
+    ),
+  );
+  ```
+
+- **`UpdateChecker`** — implement `Future<UpdateStatus> check()`: read your remote settings, package version, and
+  store version, and answer `UpdateStatus.upToDate`, `.available`, `.required`, or `.maintenance`. The package calls
+  no store, plugin, or backend. A thrown error shows the app, never a lockout; log it in your checker. The gate asks
+  when it mounts, on each return to the foreground, and on `retry`, one ask at a time, and sets no time limit: give
+  `check` your own timeout.
+- **Full screens** — `UpdateGateRequired` (no way on) and `UpdateGateMaintenance` (call `retry`) replace the
+  navigator, so the app's pages start over from the first page once the gate shows the app again; screens swap with
+  no animation. While a later ask runs, the gate keeps the shown screen and sets `checking`: show a busy cue and
+  disable retry, since a retry during an ask does nothing. Your update button runs your own store or installer code;
+  the gate takes no update callback. Each screen opens as a screen of its own: focus moves in, and a screen reader
+  announces it. A tooltip or a text field works on it, since it sits in an overlay of the gate's own. No navigator
+  exists while a full screen shows: build it without routes or dialogs of its own, and guard any global
+  `navigatorKey` use, such as from a push-notification handler, against a null `currentState`.
+- **The update dialog** — `UpdateGateAvailable` opens your dialog once per gate lifetime, as a route on your app's
+  navigator over the page it shows; a new launch may offer it again, since the package stores nothing. Draw its scrim
+  and card yourself: the route paints nothing and runs no transition. While it shows, taps, focus, and screen readers
+  stay away from the pages behind it, focus moves into it, and Tab stays inside it. The Android back button closes the
+  dialog alone, so the user stays on the page they were on, and Esc calls `dismiss`. Call `dismiss` from your later
+  button, and from a scrim tap if you want one. A later ask that answers anything but `available` — up to date,
+  required, maintenance, or a failure — closes it first. The gate needs a navigator below it, as `MaterialApp.builder`
+  gives.
