@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom, StratumPlaceholderPage, StratumUpdateGate, UpdateChecker, UpdateStatus, UpdateGateState.
+description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumSplashScreen, StratumSplashState, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom, StratumPlaceholderPage, StratumUpdateGate, UpdateChecker, UpdateStatus, UpdateGateState.
 ---
 
 # Stratum Flutter UI
@@ -62,7 +62,15 @@ Each entry: usage, key parameters, keyboard behavior.
 
 All six share one keyboard model (K4) through the internal `ScrollViewBox`: a `focusable` view (true by default on
 web, macOS, Windows, and Linux) is one Tab stop whose arrows (50 px), Page Up/Page Down (0.8 viewport), Home, and End
-scroll it, guarded so a text field inside keeps its own keys.
+scroll it, guarded so a text field inside keeps its own keys. Any of them, focusable or not, brings a focused node it
+keeps alive off screen, such as a text field scrolled far away, back into view before a focus move from it: Tab,
+Shift+Tab, an arrow, or the app's own `nextFocus()`, `previousFocus()`, or `focusInDirection()`. The one limit: the
+app's own call on a node whose nearest traversal group is a `FocusTraversalGroup` the app adds with a policy of its own
+is the app's to reveal; a key from that node is still brought back first. Tab among the items of any of them follows
+reading order on every platform: an app's `FocusTraversalOrder` on the items does not reorder them, even under its own
+`OrderedTraversalPolicy` around the view; only a `FocusTraversalGroup` inside an item keeps its own order.
+Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible name for a screen reader to read
+(WCAG 4.1.2).
 
 - **`ListViewLayout`**, **`GridViewLayout`**, **`CustomScrollViewLayout`** — lazy list, grid, and sliver view inside
   a `WidgetStyle` box; `style.padding` becomes the scroll padding, so it scrolls with the content.
@@ -126,10 +134,23 @@ scroll it, guarded so a text field inside keeps its own keys.
 - **`ReorderableListViewLayout`** (`.builder` only) — a reorderable list on widgets `SliverReorderableList`, with a
   caller-placed drag handle or `longPressDrag`, `onReorderItem`, and `dragStyle` for the lifted item; each item keeps
   its `State` and focus across a move through a global key that never uses the index. An item finds the list through
-  `SliverReorderableList.maybeOf(context)`, not `ReorderableList.maybeOf`.
+  `SliverReorderableList.maybeOf(context)`, not `ReorderableList.maybeOf`. The list builds a private
+  `SliverReorderableList` subtype, which `find.byType(SliverReorderableList)` misses: a test finds it with
+  `find.byWidgetPredicate((widget) => widget is SliverReorderableList)`.
   A drag held near a viewport edge scrolls the list toward that edge; `autoScrollerVelocityScalar` scales its speed.
+  Under reduced motion the neighbors a drag passes and a dropped item take their slots at once; the lifted look
+  still fades.
   Keyboard: Alt+arrow along the axis moves the focused item one slot, Alt+Home/Alt+End move it to either end; a move
   past either end is still handled, so it never reaches the browser (Chrome's Alt+Left/Alt+Right Back/Forward).
+  A screen reader hears each move by key, screen-reader action, or drop, and each reorder key past an end, in English
+  or Thai; a held key speaks once, where the item ends, when it is let go. `moveAnnouncement`, `atStartAnnouncement`,
+  and `atEndAnnouncement` replace the texts, and an empty one stays silent.
+  An item that holds focus, on its own node or one inside it, stays alive with its State and focus when a scroll, the
+  user's or the app's, takes it out of view, and the list scrolls nothing for it; Tab, Shift+Tab, or an arrow key from
+  it brings it back into view first, then moves focus; an app's own `nextFocus()`, `previousFocus()`, or
+  `focusInDirection()` on it brings it back the same way, and when the app holds the scroll so it cannot come back,
+  focus goes to the first item that shows (the last, going backward), and with none showing it leaves the list that
+  way; a focus that moves elsewhere lets it go.
   Without dragging: dragging is the list's only pointer path, so the app adds one that needs no drag (WCAG 2.5.7),
   such as Move up and Move down buttons or context-menu entries on each item, until a component in the package
   provides it. They call the handler the app passes to `onReorderItem`, with the indexes the keys pass, and that
@@ -163,12 +184,17 @@ scroll it, guarded so a text field inside keeps its own keys.
   back; a `builder` keeps it fading on its own look. The leaving item keeps its State and rebuilds, so an item reading
   its data through `context` (a `watch` or `select` by id or index, a provider family) needs a `builder` capturing that
   data. Under reduced motion, or with `itemExtent`, `itemExtentBuilder`, or `prototypeItem`, the size jumps and the fade
-  plays. Focus on a removed item moves to the next item, else the previous, else the list's Tab stop when the list is
-  focusable, unless the app moves focus in the same turn; a focused item the app removes and inserts back with its key
-  in the same turn keeps focus instead, and the list scrolls to it and shows it. A reorder of a leaving item's neighbor
-  ends that leaving item. An `insertItem`, `removeItem`, `moveItem`, key or screen-reader move, or item-count change
-  during a drag ends it first with `onReorderEnd` at its start index and no `onReorderItem`; key and screen-reader moves
-  then report their own.
+  plays. Focus on a removed item moves to the next item, else the previous, else the nearest item that has a focusable
+  node, else the list's Tab stop when the list is focusable, and the list shows it, unless the app moves focus in the
+  same turn or after the frame; the same holds when
+  the app takes the focused item out of its data with no call, by a remove, a replace, or, with no
+  `findChildIndexCallback`, a reorder. A focused item the app removes and inserts back with its key in the same turn
+  keeps focus instead, and the list scrolls to it and shows it. A reorder of a leaving item's neighbor
+  ends that leaving item. An `insertItem`, `removeItem`, `moveItem`, key or screen-reader move, item-count change, or
+  data change at the same count that moves or replaces the dragged item during a drag ends it first, and a pointer
+  cancel or a second pointer that takes the drag over ends it, each with `onReorderEnd` at its start index and no
+  `onReorderItem`; key and screen-reader moves then report their own. Every drag ends with exactly one `onReorderEnd`;
+  a drop reports the index Flutter's reorderable list gives it.
 
   ```dart
   final itemsController = StratumReorderableItemsController();
@@ -187,10 +213,18 @@ scroll it, guarded so a text field inside keeps its own keys.
   Move: call `moveItem(from, to)` in the same turn as moving the item in the data, where `to` is the index the item
   ends at, as `onReorderItem` reports it. The old slot closes while the item grows and fades into its new one over the
   theme's `normal` level (under reduced motion or a fixed extent the slot closes at once and the item only fades in);
-  the item keeps its State and focus, and a focused item shows on screen even when its new slot is far off screen,
-  unless the app moves focus in the same turn: that focus stays, and the item keeps its State only when the list has
-  built its new slot. `onReorderItem` does not fire. Prefer it to `removeItem` plus `insertItem`, which keeps the
-  item's State only when the list has built its new slot. The Move up and Move down buttons above can call it.
+  the item keeps its State and focus, and a focused item keeps its State at every distance and shows on screen even
+  when its new slot is far off screen, unless the app moves focus in the same turn: that focus stays, and the item
+  keeps its State only when the list has built its new slot. The list scrolls toward a moved item at the next frame's
+  start: `position.pixels` read right after `moveItem`, or inside `onReorderItem` of a key or screen-reader move, has
+  not moved yet. `onReorderItem` does not fire. Prefer it to `removeItem` plus `insertItem`, which keeps an unfocused
+  item's State only when the list has built its new slot; a focused item the app removes and inserts back in the same
+  turn keeps its State too. The Move up and Move down buttons above can call it.
+  An app that reorders its data with no `moveItem` call, as a live sync does, passes `findChildIndexCallback`, which
+  reads an O(1) key-to-index map the app keeps in sync with its data: a focused moved item then keeps its State and
+  focus at every distance and shows on screen, and an item the app keeps alive follows the reorder. A focused item
+  already out of view follows its new place off screen with its State and focus, and the list scrolls nothing for it
+  until the next focus move or reorder key brings it back.
 
   ```dart
   void moveTask(int from, int to) {
@@ -223,8 +257,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   inner edge, for a box whose ring around it would leave the window), and per-ring `customColor`, `width`, and `gap`.
   Look: outside, 3 px in `border.subtle.blue` after a 2 px gap, only when focused; inside, `border.default.normal`
   on the inner edge, 3 px when hovered and 2 px when focused. It fades over the theme's `fast` level, shows at once
-  under reduced motion, and never changes the child's layout size. Its colors stay below the 3:1 contrast of WCAG
-  1.4.11 by design; pass `customColor` where an app needs that ratio.
+  under reduced motion, and never changes the child's layout size. Its colors stay below 3:1 by design in the light
+  and dark themes (WCAG 1.4.11), and both high-contrast themes give the outside ring 3:1 or more; pass `customColor`
+  where an app needs that ratio in light or dark.
 - **`StratumInkWell`** — the tap surface every `interaction` builds on. Its own hover and press overlay fades over
   the theme's `fast` level and snaps straight to its target color under reduced motion, same as the ring above it.
   `tapTargetSize` (default `StratumTapTargetSize.platform`) grows its layout and hit area to the platform minimum
@@ -331,7 +366,7 @@ scroll it, guarded so a text field inside keeps its own keys.
 - **Before `preload`** — call `WidgetsFlutterBinding.ensureInitialized()` first: `preload` reads the asset manifest
   through `rootBundle`, which needs the binding. In a `testWidgets` test, the background parse runs on a real
   isolate, which the test's fake-async zone never finishes; run `preload`, or pump a tree rooted in
-  `StratumThemePreloader`, under `tester.runAsync`.
+  `StratumThemePreloader` or `StratumSplashScreen`, under `tester.runAsync`.
 - **`StratumThemeController`** — the registered themes and the active one. Build it before the first themed frame
   with `await StratumThemeController.preload(initialThemeId: savedId, onThemeChanged: save)`; `googleFontsTimeout`
   (default 3 s, also the limit of every switch) and `bundle` are optional. It registers every
@@ -360,6 +395,61 @@ scroll it, guarded so a text field inside keeps its own keys.
   until the start theme is active, then `builder`, or `error` with what preload threw; it reads its asset bundle from
   `DefaultAssetBundle` and disposes its controller when it leaves the tree. Pick it or `await preload(...)` before
   `runApp`, not both.
+- **`StratumSplashScreen`** — the splash an app shows while it starts: place it above `MaterialApp` as the root of
+  `runApp`, instead of `StratumThemePreloader` or an awaited `preload`. It keeps the platform's launch screen, or on
+  the web the page's own loader, until the start theme is active, then runs `postload` with the controller and hands
+  the one required `builder` one `StratumSplashState` at a time; the package draws no splash look, so the builder
+  draws every state, the failure and its retry button included, and returns the app itself, never a route, at
+  `StratumSplashDone`:
+
+  ```dart
+  runApp(
+    StratumSplashScreen<AppData>(
+      initialThemeId: savedThemeId,
+      onThemeChanged: saveThemeId,
+      themeMode: ThemeMode.system, // the modes the app gives its theme application
+      postload: (context, controller) => loadAppData(), // bound its own time limits
+      minimumDuration: firstLaunch ? const Duration(seconds: 2) : Duration.zero,
+      builder: (context, state) => switch (state) {
+        StratumSplashLoadingTheme() || StratumSplashLoadingApp() => const BrandSplash(),
+        StratumSplashFailed(:final error, :final retry) =>
+          BrandFailure(error: error, onRetry: retry),
+        StratumSplashDone(:final controller, :final data) => MaterialApp(
+          builder: (context, child) => StratumThemeApplication.controlled(
+            controller: controller,
+            themeMode: ThemeMode.system,
+            child: child!,
+          ),
+          home: HomePage(data: data),
+        ),
+      },
+    ),
+  );
+  ```
+
+  `postload`'s context sits above the splash's own theme scope: read the active theme through `controller`, never
+  `StratumTheme.of(context)`. If your own `AssetBundle` cannot read the package's embedded default theme either, the
+  failed frame has no theme above it at all, and the read failure reaches `FlutterError.reportError` on its own; fix
+  the bundle, since the package has nothing left to fall back to.
+
+  Every frame before done has no `Overlay` and no `Localizations` above it — no `Tooltip`, no `TextField` — until
+  the app's own `MaterialApp`. The splash wraps those frames in its own `Shortcuts`/`Actions` of
+  `WidgetsApp.defaultShortcuts`/`defaultActions`, so Tab still reaches a focusable retry button and Enter or Space
+  still activates it.
+
+  `StratumSplashFailed.phase` says which step failed, `StratumSplashPhase.theme` (its `error` is the theme file's
+  `StratumThemeFormatException`) or `StratumSplashPhase.postload` (what `postload` threw); `retry` runs that step
+  again and the builder gets its loading state, while `minimumDuration` keeps counting from the first frame.
+  `StratumSplashFailed.stackTrace` is `error`'s stack trace, `StackTrace.empty` when none was caught with it, for
+  your own crash reporting. After a theme failure the builder's frames read the package default theme alone. Screen
+  readers hear the built-in "Loading" label (Thai on a Thai device), or your `loadingLabel`, on every loading frame
+  your builder draws. The app takes over in place by `exitTransition`, default `ScreenTransitionType.fadeThrough`,
+  on the theme's `slow` level and `standard` curve unless you pass `exitDuration` and `exitCurve`; every type but
+  `platform` and `cupertino` works, and reduced motion keeps only the fade a type has, as page routes do. Above
+  `MaterialApp` the platform locale picks the text
+  direction. On the web, remove your page's loader when `window` dispatches `stratum-splash-shown`:
+  `window.addEventListener('stratum-splash-shown', () => document.getElementById('loader')?.remove());`. Keep
+  first-launch timing in your own storage: the package stores nothing.
 - **Remote theme zips** — hand a downloaded `<id>.zip` with the checksum your own API serves (never a file beside the
   zip): `StratumRemoteTheme(id:, bytes:, checksum: 'sha256:<64 hex>')`, caps `maxBytes` 20 MB and `maxEntries` 200 by
   default. Pass kept zips to `preload(remoteThemes: [...], onRemoteThemeError: (id, error) => ...)` or the same two

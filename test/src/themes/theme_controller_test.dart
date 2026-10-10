@@ -786,4 +786,36 @@ typography:
       });
     });
   });
+
+  group('us12/fr07/e01, s03/inv29: the package default theme read alone', () {
+    test('reads the package default file and no app theme file', () async {
+      final bundle = FakeThemeBundle(
+        themes: {
+          'default': markTheme('app-mark'),
+          'brand': markTheme('brand-mark'),
+        },
+      );
+
+      final themes = await StratumThemeController.packageDefaultThemes(
+        bundle: bundle,
+      );
+
+      expect(themes.light.typography.fonts.keys, contains('inter'));
+      expect(
+        themes.light.typography.fonts.keys,
+        isNot(anyOf(contains('app-mark'), contains('brand-mark'))),
+      );
+      expect(bundle.reads.keys, [packageDefaultKey]);
+    });
+
+    test('registers no font file', () async {
+      final loads = recordFontLoads();
+
+      await StratumThemeController.packageDefaultThemes(
+        bundle: FakeThemeBundle(themes: {'default': fontTheme()}),
+      );
+
+      expect(loads, isEmpty);
+    });
+  });
 }

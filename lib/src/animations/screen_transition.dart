@@ -97,9 +97,16 @@ Duration reverseTransitionDurationOf(
 /// builder and `StratumTransitionPage` (ruling R10): a joined type then
 /// slides this route's page in by [animation] and out by
 /// [secondaryAnimation] instead of painting [childCurrent].
+///
+/// [route] is null for a switch in place with no page route, the splash
+/// screen's exit (FO-03 US-12 FR-04): every type but `platform` and
+/// `cupertino` then runs by the same rules, reduced motion included, and
+/// a page it shows at once never hides, since nothing pops. `platform`
+/// and `cupertino` hand their motion to a Flutter page transition, which
+/// needs the route, so they assert one.
 Widget buildScreenTransition<T>(
   ScreenTransitionType type, {
-  required PageRoute<T> route,
+  PageRoute<T>? route,
   required BuildContext context,
   required Animation<double> animation,
   required Animation<double> secondaryAnimation,
@@ -257,11 +264,17 @@ Widget buildScreenTransition<T>(
       );
 
     case ScreenTransitionType.platform || ScreenTransitionType.cupertino:
+      assert(
+        route != null,
+        '$type hands its motion to a Flutter page transition, which needs '
+        'the page route; a switch in place takes every other type.',
+      );
+      final pageRoute = route!;
       final builder = flutterTransitionsBuilder(
         type,
         Theme.of(context).platform,
       )!;
-      final gesture = route.popGestureInProgress;
+      final gesture = pageRoute.popGestureInProgress;
       if (reduced) {
         if (builder is! CupertinoPageTransitionsBuilder) {
           return FadeTransition(opacity: curved, child: child);
@@ -270,10 +283,10 @@ Widget buildScreenTransition<T>(
         // animations, and on the route's own only while a pop gesture
         // tracks the finger.
         return _atOnce(
-          route,
+          pageRoute,
           animation,
           builder.buildTransitions<T>(
-            route,
+            pageRoute,
             context,
             gesture ? animation : kAlwaysCompleteAnimation,
             gesture ? secondaryAnimation : kAlwaysDismissedAnimation,
@@ -282,7 +295,7 @@ Widget buildScreenTransition<T>(
         );
       }
       return builder.buildTransitions<T>(
-        route,
+        pageRoute,
         context,
         _onCallerCurve(animation, curve, gesture: gesture),
         _onCallerCurve(secondaryAnimation, curve, gesture: gesture),
@@ -407,14 +420,15 @@ DelegatedTransitionBuilder? _flutterDelegate(
 /// [child] shown at once under reduced motion (US-05 FR-03), and gone
 /// while [route] pops by its own [animation], so a pop never paints the
 /// popped page for the whole reverse duration; a pop gesture still moves it.
+/// With no [route], a switch in place, [animation] only runs forward.
 Widget _atOnce<T>(
-  PageRoute<T> route,
+  PageRoute<T>? route,
   Animation<double> animation,
   Widget child,
 ) => Offstage(
   offstage:
       animation.status == AnimationStatus.reverse &&
-      !route.popGestureInProgress,
+      !(route?.popGestureInProgress ?? false),
   child: child,
 );
 

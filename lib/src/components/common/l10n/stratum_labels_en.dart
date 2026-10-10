@@ -34,8 +34,16 @@ class StratumLabelsEn extends StratumLabels {
   String get retryLabel => 'Retry';
 
   @override
-  String get failureMessage => 'Something went wrong';
+  String get placeholderPageTitle => 'Coming soon';
 
   @override
-  String get placeholderPageTitle => 'Coming soon';
+  String reorderMoveAnnouncement(int position, int count) {
+    return 'Moved to position $position of $count';
+  }
+
+  @override
+  String get reorderAtStartAnnouncement => 'Already at the start of the list';
+
+  @override
+  String get reorderAtEndAnnouncement => 'Already at the end of the list';
 }

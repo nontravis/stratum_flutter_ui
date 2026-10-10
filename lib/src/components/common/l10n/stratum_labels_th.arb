@@ -8,6 +8,8 @@
   "requiredMarker": "จำเป็น",
   "showMenuLabel": "แสดงเมนู",
   "retryLabel": "ลองอีกครั้ง",
-  "failureMessage": "เกิดข้อผิดพลาด",
-  "placeholderPageTitle": "เร็วๆ นี้"
+  "placeholderPageTitle": "เร็วๆ นี้",
+  "reorderMoveAnnouncement": "ย้ายไปลำดับที่ {position} จาก {count}",
+  "reorderAtStartAnnouncement": "อยู่ต้นรายการแล้ว",
+  "reorderAtEndAnnouncement": "อยู่ท้ายรายการแล้ว"
 }
