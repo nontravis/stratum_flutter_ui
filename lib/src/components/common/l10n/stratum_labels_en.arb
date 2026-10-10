@@ -32,10 +32,6 @@
   "@retryLabel": {
     "description": "Retry label."
   },
-  "failureMessage": "Something went wrong",
-  "@failureMessage": {
-    "description": "Failure message."
-  },
   "placeholderPageTitle": "Coming soon",
   "@placeholderPageTitle": {
     "description": "Placeholder page title."

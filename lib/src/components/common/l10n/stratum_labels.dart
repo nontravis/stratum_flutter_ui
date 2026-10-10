@@ -146,12 +146,6 @@ abstract class StratumLabels {
   /// **'Retry'**
   String get retryLabel;
 
-  /// Failure message.
-  ///
-  /// In en, this message translates to:
-  /// **'Something went wrong'**
-  String get failureMessage;
-
   /// Placeholder page title.
   ///
   /// In en, this message translates to:

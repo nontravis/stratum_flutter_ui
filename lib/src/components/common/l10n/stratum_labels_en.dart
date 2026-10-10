@@ -34,9 +34,6 @@ class StratumLabelsEn extends StratumLabels {
   String get retryLabel => 'Retry';
 
   @override
-  String get failureMessage => 'Something went wrong';
-
-  @override
   String get placeholderPageTitle => 'Coming soon';
 
   @override
