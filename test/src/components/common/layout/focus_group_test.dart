@@ -21,11 +21,22 @@ List<FocusNode> _nodes([int count = 3]) {
 }
 
 /// A 40 px tappable item on [node].
-Widget _item(FocusNode node, {SemanticsProperties? semantics}) {
+///
+/// [tapTargetSize] defaults to the platform minimum (NFR-U05); a geometry
+/// test that hardcodes this item's own 40 px bounds passes `shrinkWrap`.
+Widget _item(
+  FocusNode node, {
+  SemanticsProperties? semantics,
+  StratumTapTargetSize tapTargetSize = StratumTapTargetSize.platform,
+}) {
   return ContainerLayout(
     style: const WidgetStyle(width: 40, height: 40),
     semantics: semantics,
-    interaction: StratumInteraction(onTap: _noop, focusNode: node),
+    interaction: StratumInteraction(
+      onTap: _noop,
+      focusNode: node,
+      tapTargetSize: tapTargetSize,
+    ),
   );
 }
 
@@ -825,7 +836,12 @@ void main() {
           RowLayout(
             mainAxisSize: MainAxisSize.min,
             focusGroup: const StratumFocusGroup(),
-            children: [for (final node in items) _item(node)],
+            // Sub-minimum 40 px items: this test's subject is reveal
+            // geometry, not tap-target size (NFR-U05).
+            children: [
+              for (final node in items)
+                _item(node, tapTargetSize: StratumTapTargetSize.shrinkWrap),
+            ],
           ),
           controller,
         ),
@@ -848,7 +864,12 @@ void main() {
           RowLayout(
             mainAxisSize: MainAxisSize.min,
             focusGroup: const StratumFocusGroup(),
-            children: [for (final node in items) _item(node)],
+            // Sub-minimum 40 px items: this test's subject is reveal
+            // geometry, not tap-target size (NFR-U05).
+            children: [
+              for (final node in items)
+                _item(node, tapTargetSize: StratumTapTargetSize.shrinkWrap),
+            ],
           ),
           controller,
         ),

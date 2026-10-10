@@ -6,7 +6,26 @@ import '../fakes/fake_stratum_theme.dart';
 
 const _content = SizedBox(width: 40, height: 20);
 
+/// Smaller than every platform's minimum tap target (NFR-U05).
+const _small = SizedBox(width: 20, height: 20);
+
 void _noop() {}
+
+/// Runs [body] with [defaultTargetPlatform] overridden to [platform],
+/// restored before this returns so the test framework's invariant check,
+/// which runs ahead of a widget test's own `addTearDown` queue, never sees
+/// it still set.
+Future<void> _withTargetPlatform(
+  TargetPlatform platform,
+  Future<void> Function() body,
+) async {
+  debugDefaultTargetPlatformOverride = platform;
+  try {
+    await body();
+  } finally {
+    debugDefaultTargetPlatformOverride = null;
+  }
+}
 
 /// The smallest [BoxLayout]: its content is a fixed box.
 class _Layout extends BoxLayout {
@@ -235,6 +254,7 @@ void main() {
               onHighlightChanged: highlight,
               mouseCursor: SystemMouseCursors.grab,
               enableFeedback: false,
+              tapTargetSize: StratumTapTargetSize.shrinkWrap,
               disabledPressAnimation: true,
               focusNode: node,
               focusType: FocusType.focused,
@@ -261,6 +281,7 @@ void main() {
       expect(ink.onHighlightChanged, highlight);
       expect(ink.mouseCursor, SystemMouseCursors.grab);
       expect(ink.enableFeedback, isFalse);
+      expect(ink.tapTargetSize, StratumTapTargetSize.shrinkWrap);
       expect(ink.disabledPressAnimation, isTrue);
       expect(ink.focusNode, same(node));
       expect(ink.focusType, FocusType.focused);
@@ -276,6 +297,45 @@ void main() {
       expect(ink.semantics, same(label));
       expect(ink.borderRadius, const BorderRadius.all(Radius.circular(6)));
     });
+
+    testWidgets(
+      'NFR-U05: tapTargetSize forwards to the tap surface, growing the '
+      'footprint by default and keeping it with shrinkWrap',
+      (tester) async {
+        await _withTargetPlatform(TargetPlatform.android, () async {
+          await tester.pumpWidget(
+            themedHost(
+              const ContainerLayout(
+                interaction: StratumInteraction(onTap: _noop),
+                child: _small,
+              ),
+            ),
+          );
+
+          expect(
+            tester.getSize(find.byType(StratumInkWell)),
+            const Size(48, 48),
+          );
+
+          await tester.pumpWidget(
+            themedHost(
+              const ContainerLayout(
+                interaction: StratumInteraction(
+                  onTap: _noop,
+                  tapTargetSize: StratumTapTargetSize.shrinkWrap,
+                ),
+                child: _small,
+              ),
+            ),
+          );
+
+          expect(
+            tester.getSize(find.byType(StratumInkWell)),
+            const Size(20, 20),
+          );
+        });
+      },
+    );
 
     testWidgets("us11/fr01: an interaction animates a style over the theme's "
         'fast level by default', (tester) async {
@@ -647,11 +707,8 @@ void main() {
           (
             'disabled',
             false,
-            (n) => StratumInteraction(
-              onTap: _noop,
-              disabled: true,
-              focusNode: n,
-            ),
+            (n) =>
+                StratumInteraction(onTap: _noop, disabled: true, focusNode: n),
           ),
           (
             'disabled shortcuts',
@@ -681,35 +738,31 @@ void main() {
             ),
           ),
         ]) {
-      testWidgets(
-        '(pin) a scrolling box with $name has one Tab stop, the '
-        '${surfaceStop ? 'tap surface' : 'box itself'}',
-        (tester) async {
-          final surface = FocusNode(debugLabel: 'surface');
-          addTearDown(surface.dispose);
-          await tester.pumpWidget(
-            themedHost(
-              _Layout(
-                style: const WidgetStyle(),
-                scroll: const StratumScroll(),
-                interaction: interaction(surface),
-              ),
+      testWidgets('(pin) a scrolling box with $name has one Tab stop, the '
+          '${surfaceStop ? 'tap surface' : 'box itself'}', (tester) async {
+        final surface = FocusNode(debugLabel: 'surface');
+        addTearDown(surface.dispose);
+        await tester.pumpWidget(
+          themedHost(
+            _Layout(
+              style: const WidgetStyle(),
+              scroll: const StratumScroll(),
+              interaction: interaction(surface),
             ),
-          );
+          ),
+        );
 
-          final stops = [
-            for (final node
-                in FocusManager.instance.rootScope.traversalDescendants)
-              if (node is! FocusScopeNode) node,
-          ];
-          expect(stops, hasLength(1));
-          expect(
-            stops.single.debugLabel,
-            surfaceStop ? 'surface' : 'ScrollFocus',
-          );
-        },
-        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-      );
+        final stops = [
+          for (final node
+              in FocusManager.instance.rootScope.traversalDescendants)
+            if (node is! FocusScopeNode) node,
+        ];
+        expect(stops, hasLength(1));
+        expect(
+          stops.single.debugLabel,
+          surfaceStop ? 'surface' : 'ScrollFocus',
+        );
+      }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
     }
 
     testWidgets('changing reverse or showScrollbar keeps the scroll offset', (

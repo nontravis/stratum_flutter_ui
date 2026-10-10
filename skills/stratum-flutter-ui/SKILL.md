@@ -245,6 +245,12 @@ scroll it, guarded so a text field inside keeps its own keys.
   on the inner edge, 3 px when hovered and 2 px when focused. It fades over the theme's `fast` level, shows at once
   under reduced motion, and never changes the child's layout size. Its colors stay below the 3:1 contrast of WCAG
   1.4.11 by design; pass `customColor` where an app needs that ratio.
+- **`StratumInkWell`** — the tap surface every `interaction` builds on. Its own hover and press overlay fades over
+  the theme's `fast` level and snaps straight to its target color under reduced motion, same as the ring above it.
+  `tapTargetSize` (default `StratumTapTargetSize.platform`) grows its layout and hit area to the platform minimum
+  when `child` is smaller; pass `StratumTapTargetSize.shrinkWrap` to keep `child`'s own size in a dense UI.
+  `StratumInteraction.tapTargetSize` carries the same choice to every `BoxLayout` (`ContainerLayout`, `ColumnLayout`,
+  `RowLayout`, `StackLayout`, `WrapLayout`) with a tap surface, so a dense `BoxLayout` opts out the same way.
 - **`FocusSpread`** — deprecated in 1.1.0, and removed after one minor version: it builds `StratumFocusBorder`, so
   it already draws the new look. Its `color` now colors only the ring, as `customColor`, and no longer fills the
   box; a box that needs a fill takes it from its own style. Replace `FocusSpread(focus: f, color: c, inside: i,
