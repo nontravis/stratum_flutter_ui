@@ -25,6 +25,7 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
   private let channel: FlutterMethodChannel
   private let registrar: FlutterPluginRegistrar
   private var handlers: [Int64: BridgeMessageHandler] = [:]
+  private var radiusProbe: StratumRadiusProbe?
 
   init(channel: FlutterMethodChannel, registrar: FlutterPluginRegistrar) {
     self.channel = channel
@@ -40,6 +41,7 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
     let channel = FlutterMethodChannel(name: channelName, binaryMessenger: messenger)
     let instance = StratumUiPlugin(channel: channel, registrar: registrar)
     registrar.addMethodCallDelegate(instance, channel: channel)
+    instance.radiusProbe = StratumRadiusProbe.register(with: messenger, registrar: registrar)
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
