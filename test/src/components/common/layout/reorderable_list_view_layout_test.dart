@@ -10577,10 +10577,9 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr03/e11 and s03/inv21, a known gap: when a list the app holds '
-      'in place never lays out the focused item kept alive off screen, Tab '
-      'after the last bring-back frame lands on the first laid-out item, '
-      'unrevealed',
+      'us11/fr03/e11 and s03/inv21: when a list the app holds in place never '
+      'lays out the focused item kept alive off screen, Tab lands on the '
+      'first item that shows',
       (tester) async {
         final (state, position) = await pumpFocused(
           tester,
@@ -10593,23 +10592,18 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
         await tester.pumpAndSettle();
 
-        // A known gap (R32), which the roadmap phase
-        // stratum-keepalive-traversal closes: the traversal reads the item's
-        // rect off screen, so focus lands on item 493, the first laid-out
-        // item, above the viewport, and the held list springs back from the
-        // reveal.
         expect(tester.takeException(), isNull);
-        expect(state.mounted, isFalse);
-        expect(focused(), 'item 493');
-        expect(_builtInView(tester, 493), isFalse);
+        expect(focused(), 'item 500');
+        expect(_builtInView(tester, 500), isTrue);
         expect(position.pixels, 20000);
+        expect(state.mounted, isFalse);
       },
     );
 
     testWidgets(
-      'us11/fr03/e11, a known gap: a nextFocus the app calls on the focused '
-      'item kept alive off screen skips the bring-back and lands on the '
-      'first laid-out item, unrevealed',
+      'us11/fr03/e11 and s03/inv21: a nextFocus the app calls on the focused '
+      'item kept alive off screen brings it back first and lands on the next '
+      'item',
       (tester) async {
         final (state, position) = await pumpFocused(
           tester,
@@ -10621,16 +10615,55 @@ void main() {
         final moved = state.node.nextFocus();
         await tester.pumpAndSettle();
 
-        // A known gap (R31), which the roadmap phase
-        // stratum-keepalive-traversal closes: the call runs the reading-order
-        // policy with no action, from the item's rect off screen, so focus
-        // lands on item 493, the first laid-out item, above the viewport.
         expect(tester.takeException(), isNull);
         expect(moved, isTrue);
-        expect(state.mounted, isFalse);
-        expect(focused(), 'item 493');
-        expect(_builtInView(tester, 493), isFalse);
-        expect(position.pixels, 20000);
+        expect(focused(), 'item 104');
+        expect(_builtInView(tester, 104), isTrue);
+        expect(position.pixels, 4120);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e11 and s03/inv21: a previousFocus the app calls on the '
+      'focused item kept alive off screen lands on the item before it',
+      (tester) async {
+        final (state, position) = await pumpFocused(
+          tester,
+          const _Harness(count: 1000),
+        );
+        position.jumpTo(20000);
+        await tester.pump();
+
+        final moved = state.node.previousFocus();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(moved, isTrue);
+        expect(focused(), 'item 102');
+        expect(_builtInView(tester, 102), isTrue);
+        expect(position.pixels, 4080);
+      },
+    );
+
+    testWidgets(
+      'us11/fr03/e11 and s03/inv21: a focus the app moves while the list '
+      'brings the item back stays where the app put it',
+      (tester) async {
+        final (state, position) = await pumpFocused(
+          tester,
+          const _Harness(count: 1000),
+        );
+        position.jumpTo(20000);
+        await tester.pump();
+
+        state.node.nextFocus();
+        _itemState(tester, 500).node.requestFocus();
+        final log = focusLog();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(focused(), 'item 500');
+        expect(log, ['item 500']);
       },
     );
 

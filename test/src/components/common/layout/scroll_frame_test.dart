@@ -486,8 +486,8 @@ void main() {
       expect(received, [isA<ScrollController>(), style.padding]);
     });
 
-    testWidgets('builds no box without a style and no content group when '
-        'not focusable', (tester) async {
+    testWidgets('builds no box without a style, and the content group also '
+        'when not focusable', (tester) async {
       await tester.pumpWidget(themedHost(box(focusable: false)));
 
       expect(find.byType(ContainerLayout), findsNothing);
@@ -496,7 +496,7 @@ void main() {
           of: find.byType(ScrollFocus),
           matching: find.byType(FocusTraversalGroup),
         ),
-        findsNothing,
+        findsOneWidget,
       );
       expect(
         tester.widget<ScrollFocus>(find.byType(ScrollFocus)).focusable,

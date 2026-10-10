@@ -62,7 +62,9 @@ Each entry: usage, key parameters, keyboard behavior.
 
 All six share one keyboard model (K4) through the internal `ScrollViewBox`: a `focusable` view (true by default on
 web, macOS, Windows, and Linux) is one Tab stop whose arrows (50 px), Page Up/Page Down (0.8 viewport), Home, and End
-scroll it, guarded so a text field inside keeps its own keys.
+scroll it, guarded so a text field inside keeps its own keys. Any of them, focusable or not, brings a focused node it
+keeps alive off screen, such as a text field scrolled far away, back into view before a focus move from it: Tab,
+Shift+Tab, an arrow, or the app's own `nextFocus()`, `previousFocus()`, or `focusInDirection()`.
 
 - **`ListViewLayout`**, **`GridViewLayout`**, **`CustomScrollViewLayout`** — lazy list, grid, and sliver view inside
   a `WidgetStyle` box; `style.padding` becomes the scroll padding, so it scrolls with the content.
@@ -139,9 +141,9 @@ scroll it, guarded so a text field inside keeps its own keys.
   stays silent.
   An item that holds focus, on its own node or one inside it, stays alive with its State and focus when a scroll, the
   user's or the app's, takes it out of view, and the list scrolls nothing for it; Tab, Shift+Tab, or an arrow key from
-  it brings it back into view first, then moves focus, but two known gaps skip that and land on the first laid-out
-  item unrevealed: the app's own `nextFocus()`, `previousFocus()`, or `focusInDirection()` on it, and Tab on a list
-  whose scroll the app holds in place; a focus that moves elsewhere lets it go.
+  it brings it back into view first, then moves focus; an app's own `nextFocus()`, `previousFocus()`, or
+  `focusInDirection()` on it brings it back the same way, and when the app holds the scroll so it cannot come back,
+  focus goes to the first item that shows (the last, going backward); a focus that moves elsewhere lets it go.
   Without dragging: dragging is the list's only pointer path, so the app adds one that needs no drag (WCAG 2.5.7),
   such as Move up and Move down buttons or context-menu entries on each item, until a component in the package
   provides it. They call the handler the app passes to `onReorderItem`, with the indexes the keys pass, and that

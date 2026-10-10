@@ -158,13 +158,15 @@ enum ScrollFocusMode {
 /// after layout, when its own node gains focus and when the window size
 /// changes.
 ///
-/// A focusable scroll view makes its content, inside the box, one
-/// traversal group through [contentGroup], so Tab order puts the box's Tab
-/// stop before every item inside. Reading order sorts by unclipped rects;
-/// without the group an item scrolled above the viewport sorts before the
-/// Tab stop, and Tab from that item lands on the stop instead of the next
-/// item. The group leaves arrow keys and their history to the group around
-/// the box, so desktop arrows move as if it were not there.
+/// Every layout scroll view, focusable or not, makes its content, inside
+/// the box, one traversal group through [contentGroup], so Tab order puts
+/// a focusable box's Tab stop before every item inside, and a focused node
+/// the view keeps alive off screen comes back into view before a traversal
+/// moves from it. Reading order sorts by unclipped rects; without the group
+/// an item scrolled above the viewport sorts before the Tab stop, and Tab
+/// from that item lands on the stop instead of the next item. The group
+/// leaves arrow keys and their history to the group around the box, so
+/// desktop arrows move as if it were not there.
 ///
 /// With [ownsFocus] false it wraps a tap
 /// surface that takes focus, adds no Tab stop of its own, and acts on keys
@@ -270,9 +272,10 @@ class ScrollFocus extends StatefulWidget {
         ?.controller;
   }
 
-  /// Wraps [child], the scroll view of a focusable scroller inside its box,
-  /// in the traversal group that keeps the box's Tab stop ahead of the
-  /// items inside.
+  /// Wraps [child], the scroll view of a layout scroller inside its box, in
+  /// the traversal group that keeps the box's Tab stop ahead of the items
+  /// inside and places a focused node kept alive off screen before a
+  /// traversal moves from it.
   static Widget contentGroup(Widget child) {
     return FocusTraversalGroup(policy: _contentPolicy, child: child);
   }
@@ -791,11 +794,24 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
 /// alignment policy to every viewport, so a page that a scrolled row
 /// extends past would not scroll back to it. An arrow that an enclosing
 /// policy with its own `requestFocusCallback` handles keeps that reveal.
+///
+/// A traversal from a node the view keeps alive off screen, whose rect
+/// reads NaN, first brings that node back into view ([_placeFirst]), so it
+/// starts from the node's own place (R40, invariant 21).
 class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   new() : super(requestFocusCallback: requestFocusInViewports);
 
   @override
   bool inDirection(FocusNode currentNode, TraversalDirection direction) {
+    if (currentNode.context != null && !currentNode.rect.isFinite) {
+      return _placeFirst(
+        currentNode,
+        () => inDirection(currentNode, direction),
+        forward:
+            direction == TraversalDirection.down ||
+            direction == TraversalDirection.right,
+      );
+    }
     final enclosing = _enclosing(currentNode);
     if (enclosing == null) return super.inDirection(currentNode, direction);
     final moved = enclosing.inDirection(currentNode, direction);
@@ -829,13 +845,85 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   @override
   bool next(FocusNode currentNode) {
     _clearEnclosingHistory(currentNode);
-    return super.next(currentNode);
+    return _placeFirst(
+      currentNode,
+      () => super.next(currentNode),
+      forward: true,
+    );
   }
 
   @override
   bool previous(FocusNode currentNode) {
     _clearEnclosingHistory(currentNode);
-    return super.previous(currentNode);
+    return _placeFirst(
+      currentNode,
+      () => super.previous(currentNode),
+      forward: false,
+    );
+  }
+
+  /// Runs [move] from [origin]'s own place (R40, invariant 21): an origin
+  /// kept alive off screen reads a NaN rect, so it is brought back first,
+  /// by the nearest [ScrollContentBringBack], else by one jump; an origin
+  /// the view still cannot place, as when the app holds the scroll, moves
+  /// to the first node that shows, the last when not [forward].
+  bool _placeFirst(
+    FocusNode origin,
+    bool Function() move, {
+    required bool forward,
+  }) {
+    final context = origin.context;
+    if (context == null || origin.rect.isFinite) return move();
+    final bringBack = ScrollContentBringBack.maybeOf(context) ?? _jumpBack;
+    bringBack(origin, () {
+      if (!origin.hasPrimaryFocus) return;
+      if (origin.rect.isFinite) {
+        move();
+        return;
+      }
+      _focusShown(origin, forward: forward);
+    });
+    return true;
+  }
+
+  /// Reveals [node] by its viewport's offsets and runs [then] after the
+  /// frame that lays it out.
+  static void _jumpBack(FocusNode node, VoidCallback then) {
+    revealInViewports(node);
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) => then())
+      ..scheduleFrame();
+  }
+
+  /// Focuses the first node in reading order, or the last when not
+  /// [forward], other than [origin], that shows inside the box of
+  /// [origin]'s own [Scrollable]; none, no move.
+  void _focusShown(FocusNode origin, {required bool forward}) {
+    final context = origin.context;
+    final scrollable = context == null ? null : Scrollable.maybeOf(context);
+    final box = scrollable?.context.findRenderObject();
+    final scope = origin.nearestScope;
+    if (scrollable == null || box is! RenderBox || scope == null) return;
+    final view = MatrixUtils.transformRect(
+      box.getTransformTo(null),
+      Offset.zero & box.size,
+    );
+    final shown = [
+      for (final node in scope.traversalDescendants)
+        if (node != origin && _showsIn(node, scrollable, view)) node,
+    ];
+    if (shown.isEmpty) return;
+    final sorted = sortDescendants(shown, origin);
+    requestFocusInViewports(forward ? sorted.first : sorted.last);
+  }
+
+  /// Whether [node] has a finite rect, lies under [scrollable], and
+  /// overlaps [view], that scrollable's box on screen.
+  static bool _showsIn(FocusNode node, ScrollableState scrollable, Rect view) {
+    final context = node.context;
+    if (context == null || !node.rect.isFinite) return false;
+    return Scrollable.maybeOf(context) == scrollable &&
+        node.rect.overlaps(view);
   }
 
   /// Flutter calls this on the policy of the group a node moved into; the
@@ -863,6 +951,27 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
     }
     return null;
   }
+}
+
+/// How a scroll view brings a focused node it keeps alive off screen back
+/// into view before a traversal moves from it ([_ScrollContentPolicy]).
+/// Internal: `layout.dart` does not export this file.
+class ScrollContentBringBack extends InheritedWidget {
+  const new({super.key, required this.bringBack, required super.child});
+
+  /// Brings `node` back, then runs `then`; `then` may run where `node`
+  /// still stands when the view cannot reach it.
+  final void Function(FocusNode node, VoidCallback then) bringBack;
+
+  /// The hook of the nearest scroll view above [context]; null for none.
+  static void Function(FocusNode node, VoidCallback then)? maybeOf(
+    BuildContext context,
+  ) => context
+      .getInheritedWidgetOfExactType<ScrollContentBringBack>()
+      ?.bringBack;
+
+  @override
+  bool updateShouldNotify(ScrollContentBringBack oldWidget) => false;
 }
 
 /// Hands [ScrollFocus]'s controller to the scroll view below it, and, in
@@ -960,7 +1069,7 @@ typedef ScrollViewBuilder = Widget Function(
 /// The box, keyboard focus, and frame of a layout scroll view.
 ///
 /// Builds [ScrollFocus] around the [ContainerLayout] of [style], when set,
-/// then [ScrollFocus.contentGroup] when [focusable], then [ScrollFrame],
+/// then [ScrollFocus.contentGroup], focusable or not, then [ScrollFrame],
 /// then the view that [builder] makes. Not exported: the six layout scroll
 /// views build through it, [ListViewLayout], [GridViewLayout],
 /// [CustomScrollViewLayout], [PageViewLayout], [ReorderableListViewLayout],
@@ -1021,7 +1130,7 @@ class ScrollViewBox extends StatelessWidget {
         ),
       ),
     );
-    if (focusable) view = ScrollFocus.contentGroup(view);
+    view = ScrollFocus.contentGroup(view);
     if (style != null) {
       view = ContainerLayout(
         style: ScrollFrame.boxStyle(style, scrollsPadding: scrollsPadding),

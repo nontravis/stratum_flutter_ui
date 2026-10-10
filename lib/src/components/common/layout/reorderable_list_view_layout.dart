@@ -565,13 +565,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// Brings the item of [keys], kept alive off screen with focus inside,
-  /// back into view, then runs [then]: jumps toward its slot by
-  /// [_estimateTowards] each frame, moving to the plain edge each time so
-  /// a new layout pass measures it, until a frame lays it out, for up to
-  /// [frames] frames, then reveals it, from [origin], the offset this call
-  /// started at, read once and carried through its retries, by its own
-  /// box. Stops when focus left the item; after the last jump, runs [then]
-  /// where the item stands.
+  /// back into view, then runs [then]: the shared scroll content policy
+  /// calls it through [_bringBackNode] before a traversal moves from the
+  /// item. Jumps toward its slot by [_estimateTowards] each frame, moving
+  /// to the plain edge each time so a new layout pass measures it, until a
+  /// frame lays it out, for up to [frames] frames, then reveals it, from
+  /// [origin], the offset this call started at, read once and carried
+  /// through its retries, by its own box. Stops when focus left the item;
+  /// after the last jump, runs [then] where the item stands.
   void _bringBack(
     _ReorderKeysState keys,
     VoidCallback then, {
@@ -3082,32 +3083,55 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return Focus(
       focusNode: _holdNode,
       includeSemantics: false,
-      // The scroll view stays the first child, so the live-region leaf's
-      // arrival never remounts it.
-      child: StackLayout(
-        fit: StackFit.passthrough,
-        clipBehavior: Clip.none,
-        children: [
-          _scrollView(layout, listCount),
-          if (_liveText case final text?)
-            // One px: an empty node drops out of the semantics tree, and a
-            // larger one can take touch exploration over the items.
-            Positioned(
-              left: 0,
-              top: 0,
-              width: 1,
-              height: 1,
-              child: Semantics(
-                key: ValueKey(_liveCount),
-                container: true,
-                liveRegion: true,
-                label: text,
-                child: const SizedBox.shrink(),
+      child: ScrollContentBringBack(
+        bringBack: _bringBackNode,
+        // The scroll view stays the first child, so the live-region leaf's
+        // arrival never remounts it.
+        child: StackLayout(
+          fit: StackFit.passthrough,
+          clipBehavior: Clip.none,
+          children: [
+            _scrollView(layout, listCount),
+            if (_liveText case final text?)
+              // One px: an empty node drops out of the semantics tree, and a
+              // larger one can take touch exploration over the items.
+              Positioned(
+                left: 0,
+                top: 0,
+                width: 1,
+                height: 1,
+                child: Semantics(
+                  key: ValueKey(_liveCount),
+                  container: true,
+                  liveRegion: true,
+                  label: text,
+                  child: const SizedBox.shrink(),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  /// The shared policy's bring-back for a node inside this list: D24's
+  /// [_bringBack] for an item it keeps alive off screen, else one jump.
+  /// Either way [then] runs after the next frame, whose layout holds the
+  /// last jump, so the move reveals its target from the new offset.
+  void _bringBackNode(FocusNode node, VoidCallback then) {
+    void afterFrame() {
+      WidgetsBinding.instance
+        ..addPostFrameCallback((_) => then())
+        ..scheduleFrame();
+    }
+
+    final keys = node.context?.findAncestorStateOfType<_ReorderKeysState>();
+    if (keys == null || keys.widget.body != this) {
+      revealInViewports(node);
+      afterFrame();
+      return;
+    }
+    _bringBack(keys, afterFrame);
   }
 
   Widget _scrollView(ReorderableListViewLayout layout, int listCount) {
@@ -3355,21 +3379,6 @@ class _ReorderKeysState extends State<_ReorderKeys> {
   /// a disposal that follows hands focus on (R26).
   var _leftFocused = false;
 
-  /// The traversal actions every item runs a Tab, Shift+Tab, or arrow
-  /// through ([_OffScreenTraversal]).
-  late final _traversals = <Type, Action<Intent>>{
-    NextFocusIntent: _OffScreenTraversal<NextFocusIntent>(this),
-    PreviousFocusIntent: _OffScreenTraversal<PreviousFocusIntent>(this),
-    DirectionalFocusIntent: _OffScreenTraversal<DirectionalFocusIntent>(this),
-  };
-
-  /// Whether focus sits inside this item while the list keeps it alive off
-  /// screen, its slot not laid out (R29).
-  bool get _focusedOffScreen =>
-      !widget.exiting &&
-      _node.hasFocus &&
-      !widget.body._builtSlot(widget.index.slot);
-
   @override
   void initState() {
     super.initState();
@@ -3432,70 +3441,15 @@ class _ReorderKeysState extends State<_ReorderKeys> {
 
   @override
   Widget build(BuildContext context) {
-    return Actions(
-      actions: _traversals,
-      child: Focus(
-        focusNode: _node,
-        includeSemantics: false,
-        onKeyEvent: widget.exiting
-            ? null
-            : (node, event) =>
-                  widget.body._handleKey(widget.index, node, event),
-        child: widget.child,
-      ),
+    return Focus(
+      focusNode: _node,
+      includeSemantics: false,
+      onKeyEvent: widget.exiting
+          ? null
+          : (node, event) => widget.body._handleKey(widget.index, node, event),
+      child: widget.child,
     );
   }
-}
-
-/// Runs a focus traversal [T], a Tab, Shift+Tab, or arrow, that starts
-/// inside an item: through the next action up the tree, and, for an item
-/// the list keeps alive off screen, only once the list brought the item
-/// back into view ([_ReorderableBodyState._bringBack]).
-///
-/// The sliver gives a kept-alive box a zero paint transform, so a policy
-/// that reads the focused node's geometry would start from no place at
-/// all; back in view, the traversal starts from the item's own slot and the
-/// policy reveals its target (R29, invariant 21).
-class _OffScreenTraversal<T extends Intent> extends ContextAction<T> {
-  new(this.keys);
-
-  final _ReorderKeysState keys;
-
-  @override
-  Object? invoke(T intent, [BuildContext? context]) {
-    if (!keys._focusedOffScreen) return _runAbove(intent);
-    keys.widget.body._bringBack(keys, () => _runAbove(intent));
-    return const _HeldTraversal();
-  }
-
-  /// Runs [intent] through the action above the item, as with no list.
-  _AboveResult? _runAbove(T intent) {
-    if (!keys.mounted) return null;
-    final context = keys.context;
-    final above = Actions.maybeFind<Intent>(context, intent: intent);
-    if (above == null) return null;
-    final (enabled, result) = Actions.of(context)
-        .invokeActionIfEnabled(above, intent, context);
-    return enabled ? (action: above, result: result) : null;
-  }
-
-  @override
-  KeyEventResult toKeyEventResult(T intent, Object? invokeResult) {
-    return switch (invokeResult) {
-      _HeldTraversal() => KeyEventResult.handled,
-      (:final Action<Intent> action, :final Object? result) =>
-        action.toKeyEventResult(intent, result),
-      _ => KeyEventResult.ignored,
-    };
-  }
-}
-
-/// The action above an item that ran a traversal, with its result.
-typedef _AboveResult = ({Action<Intent> action, Object? result});
-
-/// A traversal [_OffScreenTraversal] holds until the item is back in view.
-class _HeldTraversal {
-  const new();
 }
 
 /// The lifted item: starts from `const WidgetStyle()` and switches to

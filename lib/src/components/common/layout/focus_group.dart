@@ -436,11 +436,15 @@ void requestFocusInViewports(
 /// With [origin], the level that reveals [target]'s own render object
 /// jumps to the offset nearest [origin] that shows it whole
 /// ([_jumpToLeastScroll]) in place of the edge rule; every outer level
-/// keeps the edge rule.
+/// keeps the edge rule. A target kept alive off screen, whose rect reads
+/// NaN, takes that jump from the current offset without [origin], and
+/// every outer level leaves it: its box paints nowhere until the next
+/// layout.
 void revealInViewports(FocusNode target, {double? origin}) {
   final context = target.context;
   final object = context?.findRenderObject();
   if (context == null || object == null || !object.attached) return;
+  final kept = !target.rect.isFinite;
   // What each level scrolls into view: the target, then the viewport that
   // holds it, as Scrollable.ensureVisible walks the chain.
   RenderObject? shown = object;
@@ -454,9 +458,10 @@ void revealInViewports(FocusNode target, {double? origin}) {
     scrollable = Scrollable.maybeOf(scrollable.context)
   ) {
     final reveal = _inViewportOf(shown, scrollable) ? shown : revealed;
-    if (origin != null && reveal == object) {
-      _jumpToLeastScroll(object, scrollable, origin);
-    } else {
+    if (reveal == object && (origin != null || kept)) {
+      final from = origin ?? scrollable.position.pixels;
+      _jumpToLeastScroll(object, scrollable, from);
+    } else if (!kept) {
       final policy = _edgePolicy(target.rect, scrollable);
       if (policy != null) {
         scrollable.position.ensureVisible(

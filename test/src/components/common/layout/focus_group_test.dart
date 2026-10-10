@@ -292,6 +292,28 @@ void _expectInRow(WidgetTester tester, FocusNode node) {
   );
 }
 
+/// [child], kept alive when it leaves its list's built range.
+class _KeptAlive extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeptAlive> createState() => _KeptAliveState();
+}
+
+class _KeptAliveState extends State<_KeptAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 void main() {
   group('StratumFocusGroup Tab', () {
     testWidgets('Tab enters the group once, on the first item', (tester) async {
@@ -1270,5 +1292,44 @@ void main() {
         expect(controller.offset, 200);
       },
     );
+
+    testWidgets('shows a target kept alive off screen with the least scroll', (
+      tester,
+    ) async {
+      final boxes = _nodes(1000);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: themedHost(
+              SizedBox(
+                width: 200,
+                height: 300,
+                child: ListViewLayout.builder(
+                  itemCount: 1000,
+                  itemBuilder: (context, index) => _KeptAlive(
+                    child: Focus(
+                      focusNode: boxes[index],
+                      child: const SizedBox(height: 40),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final position =
+          tester.state<ScrollableState>(find.byType(Scrollable)).position
+            ..jumpTo(4000);
+      await tester.pump();
+      position.jumpTo(20000);
+      await tester.pump();
+
+      revealInViewports(boxes[103]);
+
+      // Box 103's leading edge: the least scroll from 20000 that shows it
+      // whole.
+      expect(position.pixels, 4120);
+    });
   });
 }
