@@ -625,7 +625,7 @@ void main() {
       Map<Type, BuildContext> seen, {
       String? initialThemeId,
       ThemeMode themeMode = ThemeMode.system,
-      HighContrastMode highContrast = HighContrastMode.system,
+      StratumHighContrastMode highContrast = StratumHighContrastMode.system,
       Future<String> Function()? postload,
       Widget Function(StratumSplashDone<String> state)? app,
       List<StratumSplashState<String>>? states,
@@ -673,7 +673,7 @@ void main() {
           FakeThemeBundle(),
           seen,
           themeMode: ThemeMode.dark,
-          highContrast: HighContrastMode.on,
+          highContrast: StratumHighContrastMode.on,
         ),
       );
       await tester.pumpAndSettle();

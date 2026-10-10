@@ -1,7 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
 
 class SpaceDirectional {
-  SpaceDirectional._();
+  new _();
 
   ///==============///
 
@@ -13,23 +13,22 @@ class SpaceDirectional {
     double top = 0.0,
     double end = 0.0,
     double bottom = 0.0,
-  }) =>
-      EdgeInsetsDirectional.only(
-        start: start,
-        top: top,
-        end: end,
-        bottom: bottom,
-      );
+  }) => EdgeInsetsDirectional.only(
+    start: start,
+    top: top,
+    end: end,
+    bottom: bottom,
+  );
 
   static EdgeInsetsGeometry insetSymmetric({
     double horizontal = 0.0,
     double vertical = 0.0,
-  }) =>
-      EdgeInsetsDirectional.symmetric(
-          horizontal: horizontal, vertical: vertical);
+  }) => EdgeInsetsDirectional.symmetric(
+    horizontal: horizontal,
+    vertical: vertical,
+  );
 
-  static EdgeInsetsGeometry get insetZero =>
-      EdgeInsetsDirectional.zero;
+  static EdgeInsetsGeometry get insetZero => EdgeInsetsDirectional.zero;
 
   static EdgeInsetsGeometry get insetAll1 =>
       const EdgeInsetsDirectional.all(1.0);

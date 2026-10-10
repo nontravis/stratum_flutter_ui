@@ -128,7 +128,7 @@ void main() {
         _host(
           const RowLayout(
             gap: 8,
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
             children: [SizedBox(width: 20), SizedBox(width: 20)],
           ),
         ),
@@ -149,7 +149,7 @@ void main() {
             width: 100,
             height: 50,
             child: RowLayout(
-              scroll: StratumScroll(),
+              scroll: Scroll(),
               style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
               children: [SizedBox(width: 500, height: 20)],
             ),
@@ -177,7 +177,7 @@ void main() {
             width: 300,
             height: 50,
             child: RowLayout(
-              scroll: StratumScroll(fillViewport: true),
+              scroll: Scroll(fillViewport: true),
               style: WidgetStyle(padding: EdgeInsets.all(10)),
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -199,7 +199,7 @@ void main() {
       await tester.pumpWidget(
         _host(
           const RowLayout(
-            scroll: StratumScroll(),
+            scroll: Scroll(),
             children: [SizedBox(width: 50, height: 20)],
           ),
         ),
@@ -214,7 +214,7 @@ void main() {
         _host(
           const IntrinsicHeight(
             child: RowLayout(
-              scroll: StratumScroll(),
+              scroll: Scroll(),
               children: [SizedBox(width: 50, height: 20)],
             ),
           ),
@@ -231,7 +231,7 @@ void main() {
           child: Row(
             children: [
               RowLayout(
-                scroll: StratumScroll(fillViewport: true),
+                scroll: Scroll(fillViewport: true),
                 children: [SizedBox(width: 50, height: 20)],
               ),
             ],

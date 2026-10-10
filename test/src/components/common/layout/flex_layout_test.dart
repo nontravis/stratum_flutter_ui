@@ -225,7 +225,7 @@ void main() {
           _host(
             FlexLayout(
               direction: direction,
-              scroll: const StratumScroll(),
+              scroll: const Scroll(),
               children: const [_child],
             ),
           ),
@@ -257,12 +257,12 @@ void main() {
             FlexLayout(
               direction: direction,
               mainAxisSize: MainAxisSize.min,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [
                 for (final item in items)
                   ContainerLayout(
                     style: const WidgetStyle(width: 40, height: 40),
-                    interaction: StratumInteraction(
+                    interaction: Interaction(
                       onTap: _noop,
                       focusNode: item,
                     ),

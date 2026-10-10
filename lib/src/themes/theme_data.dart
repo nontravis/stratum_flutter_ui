@@ -19,17 +19,16 @@ class StratumThemeData {
     required this.typography,
     required this.animation,
     required this.opacity,
+    required this.border,
+    required this.shadow,
+    required this.blur,
     this.transparent = StratumTransparentTokens.builtIn,
     this.defaultWidgetSize = WidgetSize.medium,
-    this.border = const AppBorder(),
-    this.shadow = const AppShadow(),
-    this.filter = const AppFilter(),
     this.systemOverlayStyle = AppSystemUI.light,
     this.systemOverlayInverseStyle = AppSystemUI.dark,
     this.splashFactory = NoSplash.splashFactory,
     this.scrollBehavior = const StratumScrollBehavior(),
     this.physics = const ClampingScrollPhysics(),
-    this.screenBorderRadius,
   });
 
   /// `ThemeMode.light` for the light and high-contrast light data,
@@ -67,16 +66,24 @@ class StratumThemeData {
   /// component base's disabled wrapper paints (FO-08 US-07).
   final StratumOpacityTokens opacity;
 
+  /// `border`: `sm`, `md`, `lg`, each a width in logical pixels from the
+  /// theme file; a widget that needs the usual width reads `md`.
+  final StratumBorderTokens border;
+
+  /// `shadow`: `level1` to `level6`, each a list of `BoxShadow` in Figma
+  /// order, colored from this data's own color set.
+  final StratumShadowTokens shadow;
+
+  /// `blur`: `level1` to `level6`, each a background blur at sigma half
+  /// the Figma radius.
+  final StratumBlurTokens blur;
+
   final WidgetSize defaultWidgetSize;
-  final AppBorder border;
-  final AppShadow shadow;
-  final AppFilter filter;
   final SystemUiOverlayStyle systemOverlayStyle;
   final SystemUiOverlayStyle systemOverlayInverseStyle;
   final InteractiveInkFeatureFactory splashFactory;
   final ScrollBehavior scrollBehavior;
   final ScrollPhysics physics;
-  final BorderRadius? screenBorderRadius;
 
   /// The app color [name]. Throws an [ArgumentError] that lists the names
   /// in [appColors] (spec G13).
@@ -167,7 +174,7 @@ class StratumThemeData {
         selectionHandleColor: brand,
       ),
       dividerTheme: DividerThemeData(
-        thickness: border.md.maxWidth,
+        thickness: border.md,
         color: color.border.defaults.normal,
       ),
       appBarTheme: AppBarTheme(systemOverlayStyle: systemOverlayStyle),
@@ -216,16 +223,15 @@ class StratumThemeData {
     StratumTypography? typography,
     StratumAnimation? animation,
     StratumOpacityTokens? opacity,
+    StratumBorderTokens? border,
+    StratumShadowTokens? shadow,
+    StratumBlurTokens? blur,
     WidgetSize? defaultWidgetSize,
-    AppBorder? border,
-    AppShadow? shadow,
-    AppFilter? filter,
     SystemUiOverlayStyle? systemOverlayStyle,
     SystemUiOverlayStyle? systemOverlayInverseStyle,
     InteractiveInkFeatureFactory? splashFactory,
     ScrollBehavior? scrollBehavior,
     ScrollPhysics? physics,
-    BorderRadius? screenBorderRadius,
   }) {
     return StratumThemeData(
       themeMode: themeMode ?? this.themeMode,
@@ -242,17 +248,16 @@ class StratumThemeData {
       typography: typography ?? this.typography,
       animation: animation ?? this.animation,
       opacity: opacity ?? this.opacity,
-      defaultWidgetSize: defaultWidgetSize ?? this.defaultWidgetSize,
       border: border ?? this.border,
       shadow: shadow ?? this.shadow,
-      filter: filter ?? this.filter,
+      blur: blur ?? this.blur,
+      defaultWidgetSize: defaultWidgetSize ?? this.defaultWidgetSize,
       systemOverlayStyle: systemOverlayStyle ?? this.systemOverlayStyle,
       systemOverlayInverseStyle:
           systemOverlayInverseStyle ?? this.systemOverlayInverseStyle,
       splashFactory: splashFactory ?? this.splashFactory,
       scrollBehavior: scrollBehavior ?? this.scrollBehavior,
       physics: physics ?? this.physics,
-      screenBorderRadius: screenBorderRadius ?? this.screenBorderRadius,
     );
   }
 }

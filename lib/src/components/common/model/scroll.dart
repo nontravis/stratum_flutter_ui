@@ -11,7 +11,7 @@ import 'package:stratum_ui/src/src.dart';
 ///
 /// The class does not override `==`: a controller compares by identity.
 @immutable
-class StratumScroll {
+class Scroll {
   const new({
     this.direction,
     this.fillViewport = false,
@@ -54,3 +54,10 @@ class StratumScroll {
   final ScrollViewKeyboardDismissBehavior? keyboardDismissBehavior;
   final String? restorationId;
 }
+
+/// [Scroll]'s name before naming rule R2, kept one minor version.
+@Deprecated(
+  'Use Scroll instead. StratumScroll will be removed after one minor '
+  'version.',
+)
+typedef StratumScroll = Scroll;

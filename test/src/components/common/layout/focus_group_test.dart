@@ -28,12 +28,12 @@ List<FocusNode> _nodes([int count = 3]) {
 Widget _item(
   FocusNode node, {
   SemanticsProperties? semantics,
-  StratumTapTargetSize tapTargetSize = StratumTapTargetSize.platform,
+  TapTargetSize tapTargetSize = TapTargetSize.platform,
 }) {
   return ContainerLayout(
     style: const WidgetStyle(width: 40, height: 40),
     semantics: semantics,
-    interaction: StratumInteraction(
+    interaction: Interaction(
       onTap: _noop,
       focusNode: node,
       tapTargetSize: tapTargetSize,
@@ -113,7 +113,7 @@ class _Toolbar {
       _host(
         RowLayout(
           mainAxisSize: MainAxisSize.min,
-          focusGroup: const StratumFocusGroup(),
+          focusGroup: const FocusGroup(),
           children: [
             _item(bold),
             _item(italic),
@@ -161,8 +161,8 @@ Future<List<FocusNode>> _scrollingRow(
         height: 50,
         child: RowLayout(
           style: const WidgetStyle(),
-          scroll: const StratumScroll(),
-          focusGroup: const StratumFocusGroup(),
+          scroll: const Scroll(),
+          focusGroup: const FocusGroup(),
           children: [
             for (final node in items)
               Focus(
@@ -234,8 +234,8 @@ Widget _scrollingCards(List<FocusNode> cards) {
     height: 50,
     child: RowLayout(
       style: const WidgetStyle(),
-      scroll: const StratumScroll(),
-      focusGroup: const StratumFocusGroup(),
+      scroll: const Scroll(),
+      focusGroup: const FocusGroup(),
       children: [
         for (final card in cards)
           Focus(
@@ -315,7 +315,7 @@ class _KeptAliveState extends State<_KeptAlive>
 }
 
 void main() {
-  group('StratumFocusGroup Tab', () {
+  group('FocusGroup Tab', () {
     testWidgets('Tab enters the group once, on the first item', (tester) async {
       final before = _node();
       final after = _node();
@@ -324,7 +324,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -348,7 +348,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -377,7 +377,7 @@ void main() {
         _host(
           ColumnLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -395,7 +395,7 @@ void main() {
     });
   });
 
-  group('StratumFocusGroup arrows', () {
+  group('FocusGroup arrows', () {
     testWidgets('Left and Right move by screen position in a row', (
       tester,
     ) async {
@@ -405,7 +405,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -432,7 +432,7 @@ void main() {
           RowLayout(
             mainAxisSize: MainAxisSize.min,
             textDirection: TextDirection.rtl,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -456,7 +456,7 @@ void main() {
           ColumnLayout(
             mainAxisSize: MainAxisSize.min,
             verticalDirection: VerticalDirection.up,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -477,7 +477,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -501,7 +501,7 @@ void main() {
             width: 100,
             child: WrapLayout(
               gap: 4,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [for (final node in items) _item(node)],
             ),
           ),
@@ -530,7 +530,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -555,7 +555,7 @@ void main() {
           children: [
             RowLayout(
               mainAxisSize: MainAxisSize.min,
-              focusGroup: StratumFocusGroup(loop: loop),
+              focusGroup: FocusGroup(loop: loop),
               children: [for (final node in items) _item(node)],
             ),
             Focus(focusNode: right, child: _dot),
@@ -589,7 +589,7 @@ void main() {
             width: 100,
             child: WrapLayout(
               gap: 4,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [for (final node in items) _item(node)],
             ),
           ),
@@ -614,7 +614,7 @@ void main() {
             child: themedHost(
               ColumnLayout(
                 mainAxisSize: MainAxisSize.min,
-                focusGroup: const StratumFocusGroup(),
+                focusGroup: const FocusGroup(),
                 children: [
                   SizedBox(width: 200, child: TextField(focusNode: field)),
                   _item(items[0]),
@@ -633,7 +633,7 @@ void main() {
     });
   });
 
-  group('StratumFocusGroup fix round 1', () {
+  group('FocusGroup fix round 1', () {
     testWidgets(
       'Right at the wrap end stays when another item lies right on screen',
       (tester) async {
@@ -645,7 +645,7 @@ void main() {
               width: 100,
               child: WrapLayout(
                 gap: 4,
-                focusGroup: const StratumFocusGroup(),
+                focusGroup: const FocusGroup(),
                 children: [for (final node in items) _item(node)],
               ),
             ),
@@ -675,7 +675,7 @@ void main() {
           _host(
             ColumnLayout(
               mainAxisSize: MainAxisSize.min,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [for (final node in items) _item(node)],
             ),
             before: before,
@@ -708,7 +708,7 @@ void main() {
           _host(
             RowLayout(
               mainAxisSize: MainAxisSize.min,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [for (final node in items) _item(node)],
             ),
             before: before,
@@ -739,7 +739,7 @@ void main() {
               width: 100,
               child: WrapLayout(
                 gap: 4,
-                focusGroup: const StratumFocusGroup(loop: true),
+                focusGroup: const FocusGroup(loop: true),
                 children: [for (final node in items) _item(node)],
               ),
             ),
@@ -767,7 +767,7 @@ void main() {
           _host(
             ColumnLayout(
               mainAxisSize: MainAxisSize.min,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [for (final node in items) _item(node)],
             ),
             before: before,
@@ -792,7 +792,7 @@ void main() {
             RowLayout(
               mainAxisSize: MainAxisSize.min,
               textDirection: TextDirection.rtl,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [for (final node in items) _item(node)],
             ),
             before: before,
@@ -808,7 +808,7 @@ void main() {
     );
   });
 
-  group('StratumFocusGroup in a horizontal scroll', () {
+  group('FocusGroup in a horizontal scroll', () {
     testWidgets(
       'Right reveals each item under left-to-right text, then End and Home',
       (tester) async {
@@ -848,7 +848,7 @@ void main() {
     );
   });
 
-  group('StratumFocusGroup past the viewport', () {
+  group('FocusGroup past the viewport', () {
     testWidgets('Right reveals a row group below a vertical viewport', (
       tester,
     ) async {
@@ -858,12 +858,12 @@ void main() {
         _belowAndAbove(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             // Sub-minimum 40 px items: this test's subject is reveal
             // geometry, not tap-target size (NFR-U05).
             children: [
               for (final node in items)
-                _item(node, tapTargetSize: StratumTapTargetSize.shrinkWrap),
+                _item(node, tapTargetSize: TapTargetSize.shrinkWrap),
             ],
           ),
           controller,
@@ -886,12 +886,12 @@ void main() {
         _belowAndAbove(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             // Sub-minimum 40 px items: this test's subject is reveal
             // geometry, not tap-target size (NFR-U05).
             children: [
               for (final node in items)
-                _item(node, tapTargetSize: StratumTapTargetSize.shrinkWrap),
+                _item(node, tapTargetSize: TapTargetSize.shrinkWrap),
             ],
           ),
           controller,
@@ -920,8 +920,8 @@ void main() {
               height: 50,
               child: RowLayout(
                 style: const WidgetStyle(),
-                scroll: const StratumScroll(),
-                focusGroup: const StratumFocusGroup(),
+                scroll: const Scroll(),
+                focusGroup: const FocusGroup(),
                 children: [
                   for (final node in items)
                     Focus(
@@ -958,8 +958,8 @@ void main() {
               height: 50,
               child: RowLayout(
                 style: const WidgetStyle(),
-                scroll: const StratumScroll(),
-                focusGroup: const StratumFocusGroup(),
+                scroll: const Scroll(),
+                focusGroup: const FocusGroup(),
                 children: [
                   for (final node in items)
                     Focus(
@@ -1075,11 +1075,11 @@ void main() {
                           height: 50,
                           child: RowLayout(
                             style: const WidgetStyle(),
-                            scroll: const StratumScroll(),
+                            scroll: const Scroll(),
                             children: [
                               RowLayout(
                                 mainAxisSize: MainAxisSize.min,
-                                focusGroup: const StratumFocusGroup(),
+                                focusGroup: const FocusGroup(),
                                 children: [for (final card in cards) box(card)],
                               ),
                               box(after),
@@ -1113,10 +1113,10 @@ void main() {
     );
   });
 
-  group('StratumFocusGroup with a focusable scroller member', () {
+  group('FocusGroup with a focusable scroller member', () {
     final scrollers = <String, Widget Function(List<Widget> items)>{
       'ColumnLayout': (items) =>
-          ColumnLayout(scroll: const StratumScroll(), children: items),
+          ColumnLayout(scroll: const Scroll(), children: items),
       'ListViewLayout': (items) => ListViewLayout.builder(
         itemCount: items.length,
         itemBuilder: (context, index) => items[index],
@@ -1169,7 +1169,7 @@ void main() {
     }
   });
 
-  group('StratumFocusGroup role', () {
+  group('FocusGroup role', () {
     testWidgets('tabBar over items with role tab passes the debug check', (
       tester,
     ) async {
@@ -1180,7 +1180,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(role: SemanticsRole.tabBar),
+            focusGroup: const FocusGroup(role: SemanticsRole.tabBar),
             children: [
               for (var i = 0; i < items.length; i++)
                 _item(
@@ -1211,7 +1211,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(role: SemanticsRole.tabBar),
+            focusGroup: const FocusGroup(role: SemanticsRole.tabBar),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -1493,6 +1493,18 @@ void main() {
       // Box 103's leading edge: the least scroll from 20000 that shows it
       // whole.
       expect(position.pixels, 4120);
+    });
+  });
+
+  group('renames', () {
+    test('renames: a StratumFocusGroup is a FocusGroup', () {
+      // Testing the deprecated alias itself, so ignore the deprecation
+      // warning.
+      // ignore: deprecated_member_use_from_same_package
+      const focusGroup = StratumFocusGroup(loop: true);
+
+      expect(focusGroup, isA<FocusGroup>());
+      expect(focusGroup.loop, isTrue);
     });
   });
 }

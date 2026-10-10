@@ -138,7 +138,7 @@ class _RemoteThemePageState extends State<_RemoteThemePage> {
       builder: (context, _) => ContainerLayout(
         style: const WidgetStyle(padding: EdgeInsets.all(24)),
         child: ColumnLayout(
-          scroll: const StratumScroll(),
+          scroll: const Scroll(),
           gap: 16,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

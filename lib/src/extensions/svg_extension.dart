@@ -1,5 +1,3 @@
-import 'package:stratum_ui/src/src.dart';
-
 // extension SvgExtension on SvgGenImage {
 //   SvgPicture svgIcon({
 //     Key? key,
@@ -102,7 +100,8 @@ import 'package:stratum_ui/src/src.dart';
 //     @Deprecated('Use colorFilter instead.') Color? color,
 //     @Deprecated('Use colorFilter instead.')
 //     BlendMode colorBlendMode = BlendMode.srcIn,
-//     @Deprecated('This no longer does anything.') bool cacheColorFilter = false,
+//     @Deprecated('This no longer does anything.')
+//     bool cacheColorFilter = false,
 //   }) {
 //     if (this == null) return const SizedBox.shrink();
 //
@@ -149,7 +148,8 @@ import 'package:stratum_ui/src/src.dart';
 //     @Deprecated('Use colorFilter instead.') Color? color,
 //     @Deprecated('Use colorFilter instead.')
 //     BlendMode colorBlendMode = BlendMode.srcIn,
-//     @Deprecated('This no longer does anything.') bool cacheColorFilter = false,
+//     @Deprecated('This no longer does anything.')
+//     bool cacheColorFilter = false,
 //   }) => toSvg(
 //     key: key,
 //     matchTextDirection: matchTextDirection,

@@ -62,6 +62,9 @@ StratumThemeConfig convertThemeConfig(PlainThemeConfig plain) =>
       typography: convertTypography(plain.typography),
       animation: plain.animation,
       opacity: plain.opacity,
+      border: plain.border,
+      shadow: plain.shadow,
+      blur: plain.blur,
       extensions: plain.extensions,
     );
 
@@ -75,3 +78,48 @@ Map<String, StratumByWindowSize<StratumDimension>> _tokens(
 Map<String, Color> _colors(Map<String, int> argb) => frozenMap({
   for (final MapEntry(:key, :value) in argb.entries) key: Color(value),
 });
+
+/// The `BoxShadow` of one shadow [layer] (themes s03
+/// `StratumShadowTokens`): its offset and spread as written, its blur by
+/// [shadowBlurRadius], and its color fixed by the layer or, for a
+/// [StratumSetLayerColor], taken from [setColors], one color set's colors
+/// by their path inside the set. Throws an [ArgumentError] naming a set
+/// path [setColors] lacks.
+BoxShadow convertShadowLayer(
+  StratumShadowLayer layer,
+  Map<String, Color> setColors,
+) => BoxShadow(
+  offset: Offset(layer.x, layer.y),
+  blurRadius: shadowBlurRadius(layer.blur),
+  spreadRadius: layer.spread,
+  color: switch (layer.color) {
+    StratumFixedLayerColor(:final argb) => Color(argb),
+    StratumSetLayerColor(:final path) =>
+      setColors[path] ??
+          (throw ArgumentError.value(
+            path,
+            'path',
+            'no color at this path in the theme config',
+          )),
+  },
+);
+
+/// The `blurRadius` that paints a Figma shadow blur [blur] at the Figma
+/// and CSS strength, sigma `blur / 2` (themes s03 `StratumShadowTokens`).
+/// Flutter paints a radius above 0 at sigma `0.57735 * radius + 0.5`
+/// (`Shadow.convertRadiusToSigma`), so a blur above 1 takes
+/// `(blur / 2 - 0.5) / 0.57735`; a blur above 0 up to 1 takes the
+/// smallest positive radius, sigma 0.5, Flutter's floor, which equals
+/// `blur / 2` at 1; and 0 stays 0, no blur. Setting the radius, never a
+/// sigma, keeps `BoxShadow.lerp` correct.
+double shadowBlurRadius(double blur) {
+  if (blur <= 0) return 0;
+  if (blur <= 1) return double.minPositive;
+  return (blur / 2 - 0.5) / 0.57735;
+}
+
+/// The background blur of a Figma blur [radius] (themes s03
+/// `StratumBlurTokens`): sigma `radius / 2` on both axes, since a Figma
+/// radius is twice the CSS and Flutter standard deviation.
+ImageBlurFilter convertBlur(double radius) =>
+    ImageBlurFilter(sigmaX: radius / 2, sigmaY: radius / 2);
