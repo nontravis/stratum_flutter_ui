@@ -64,6 +64,14 @@ class _StratumUpdateGateState extends State<StratumUpdateGate>
   @override
   void initState() {
     super.initState();
+    // Seeds the flag for a gate that mounts already hidden or paused (a
+    // web page opened in a background tab, a desktop app started
+    // minimized): Flutter reports that return as inactive, resumed, with
+    // no further hidden or paused event to set the flag from.
+    final atMount = WidgetsBinding.instance.lifecycleState;
+    _backgrounded =
+        atMount == AppLifecycleState.hidden ||
+        atMount == AppLifecycleState.paused;
     WidgetsBinding.instance.addObserver(this);
     unawaited(_ask(recheck: false));
   }

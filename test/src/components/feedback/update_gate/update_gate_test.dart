@@ -221,46 +221,45 @@ void main() {
     // R8: the gate re-asks only on a return from the background. A
     // foreground interruption (`inactive` alone, Face ID or Control
     // Center) and a cold start's own first `resumed` never count as one;
-    // `hidden` or `paused` before `resumed` always does.
-    for (final (name, cold, states, asks)
-        in <(String, bool, List<AppLifecycleState>, int)>[
-          (
-            "a cold start's first resumed asks none",
-            true,
-            [AppLifecycleState.resumed],
-            1,
-          ),
-          (
-            'null then inactive then resumed asks none',
-            true,
-            [AppLifecycleState.inactive, AppLifecycleState.resumed],
-            1,
-          ),
-          (
-            'resumed then inactive then resumed asks none',
-            false,
-            [AppLifecycleState.inactive, AppLifecycleState.resumed],
-            1,
-          ),
-          (
-            'paused then resumed asks once',
-            false,
-            [AppLifecycleState.paused, AppLifecycleState.resumed],
-            2,
-          ),
-          (
-            'hidden then inactive then resumed asks once',
-            false,
-            [
-              AppLifecycleState.hidden,
-              AppLifecycleState.inactive,
-              AppLifecycleState.resumed,
-            ],
-            2,
-          ),
-        ]) {
+    // `hidden` or `paused` before `resumed` always does. Every row starts
+    // the binding's lifecycle at null (the test framework resets it after
+    // each test), so a row naming a prior `resumed` sends it itself.
+    for (final (name, states, asks) in <(String, List<AppLifecycleState>, int)>[
+      (
+        "a cold start's first resumed asks none",
+        [AppLifecycleState.resumed],
+        1,
+      ),
+      (
+        'null then inactive then resumed asks none',
+        [AppLifecycleState.inactive, AppLifecycleState.resumed],
+        1,
+      ),
+      (
+        'resumed then inactive then resumed asks none',
+        [
+          AppLifecycleState.resumed,
+          AppLifecycleState.inactive,
+          AppLifecycleState.resumed,
+        ],
+        1,
+      ),
+      (
+        'paused then resumed asks once',
+        [AppLifecycleState.paused, AppLifecycleState.resumed],
+        2,
+      ),
+      (
+        'hidden then inactive then resumed asks once',
+        [
+          AppLifecycleState.hidden,
+          AppLifecycleState.inactive,
+          AppLifecycleState.resumed,
+        ],
+        2,
+      ),
+    ]) {
       testWidgets('us01/fr01/e03: $name', (tester) async {
-        if (cold) tester.binding.resetInternalState();
         final checker = _Checker();
         await tester.pumpWidget(_app(checker));
         checker.answer(UpdateStatus.upToDate);
@@ -272,6 +271,24 @@ void main() {
         expect(checker.asks, hasLength(asks));
       });
     }
+
+    testWidgets('us01/fr01/e03: mounted while hidden, then inactive, '
+        'resumed asks once more', (tester) async {
+      tester.binding.resetInternalState();
+      await _lifecycle(tester, AppLifecycleState.hidden);
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker));
+      // Frames are off while hidden; a real app still builds its tree
+      // through runApp's warm-up frame, so force one.
+      tester.binding.scheduleForcedFrame();
+      await tester.pump();
+      checker.answer(UpdateStatus.upToDate);
+      await tester.pump(Duration.zero);
+      await _lifecycle(tester, AppLifecycleState.inactive);
+      await _lifecycle(tester, AppLifecycleState.resumed);
+      await tester.pump();
+      expect(checker.asks, hasLength(2));
+    });
 
     testWidgets('us01/fr01/e04: retry asks again, with checking, and an '
         'up-to-date answer shows the app', (tester) async {
