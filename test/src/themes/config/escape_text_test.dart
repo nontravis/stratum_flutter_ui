@@ -147,9 +147,16 @@ void main() {
       );
     });
 
-    for (final (label, unit) in [
-      ('printable ASCII', 0x61),
-      ('units that each escape', 0xE9),
+    // Two adjacent literals, so this source never spells the escape text
+    // for U+00E9 out whole, which a normal string literal would read back
+    // as the character itself.
+    const escapedE9 =
+        r'\'
+        'u00e9';
+
+    for (final (label, unit, prefix) in [
+      ('printable ASCII', 0x61, 'a' * 200),
+      ('units that each escape', 0xE9, escapedE9 * 33),
     ]) {
       test('rzf5 (t3): one call on 1,048,576 code units of $label finishes '
           'within 5 s', () {
@@ -159,6 +166,7 @@ void main() {
         clock.stop();
 
         expect(escaped, contains(r'\[cut 1048576 chars, id '));
+        expect(escaped, startsWith('$prefix${r'\[cut 1048576 chars, id '}'));
         expect(clock.elapsed, lessThan(const Duration(seconds: 5)));
       });
     }

@@ -472,6 +472,31 @@ void main() {
       expect(failure.at, (line: 4, column: 766));
     });
 
+    test('rzf6 (review-a d1): the lock falls on its own ":", so the '
+        'locked message and the breach position coincide', () {
+      final failure = _gateFailure('${_blockKeys(256)}\n: x');
+
+      expect(failure.message, '$yamlLockedKeyCountMessage 257, column 1');
+      expect(failure.at, (line: 257, column: 1));
+    });
+
+    test('rzf6 (review-a d2): the lock falls with only a sequence open, '
+        'never a mapping, so the locked count starts at 0', () {
+      final commas = List.filled(300, 'x').join(', ');
+      final failure = _gateFailure('- a\n- : x\n  $commas');
+
+      expect(failure.message, '$yamlLockedKeyCountMessage 2, column 3');
+      expect(failure.at, (line: 3, column: 769));
+    });
+
+    test('rzf6 (review-a d3): the lock falls inside flow style', () {
+      final commas = List.filled(300, 'x').join(', ');
+      final failure = _gateFailure('{a: 1, b: `x, $commas}');
+
+      expect(failure.message, '$yamlLockedKeyCountMessage 1, column 11');
+      expect(failure.at, (line: 1, column: 775));
+    });
+
     test('rzf6: a refusal before the lock, and the walk, keep the key-cap '
         'message', () {
       expect(_gateFailure(_blockKeys(257)).message, yamlKeyCountMessage);
