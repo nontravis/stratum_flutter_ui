@@ -245,6 +245,8 @@ void main() {
     expect(radius, const BorderRadius.all(Radius.circular(46)));
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
+  // Web reads null as well: no native plugin answers there, so listen
+  // takes the MissingPluginException path the no-plugin test proves.
   testWidgets(
     'us04/fr03/e05: on Windows, Linux, and Android it listens to no probe',
     (tester) async {
@@ -288,6 +290,41 @@ void main() {
 
     expect(cancels, 1);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('us04/fr03: a failed listen is reported and reads null', (
+    tester,
+  ) async {
+    _mockProbe(tester, onListen: (_) => throw PlatformException(code: 'error'));
+    BorderRadius? radius = BorderRadius.zero;
+
+    await tester.pumpWidget(_reader((r) => radius = r));
+    await _pumpEvent(tester);
+
+    expect(tester.takeException(), isA<PlatformException>());
+    expect(radius, isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+  testWidgets(
+    'us04/fr03: a failed cancel is reported, never an unhandled error',
+    (tester) async {
+      _mockProbe(
+        tester,
+        onListen: (sink) => sink.success(_r46),
+        onCancel: () => throw PlatformException(
+          code: 'error',
+          message: 'No active stream to cancel',
+        ),
+      );
+      await tester.pumpWidget(_reader((_) {}));
+      await tester.pump();
+
+      await tester.pumpWidget(const SizedBox());
+      await _pumpEvent(tester);
+
+      expect(tester.takeException(), isA<PlatformException>());
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets(
     'us04/fr03/e06: a change event rebuilds the radius reader once and no '

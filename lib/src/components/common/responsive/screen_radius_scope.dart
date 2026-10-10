@@ -13,8 +13,9 @@ import 'package:flutter/widgets.dart';
 /// iOS and macOS while Flutter reports none, so `DeviceWindow.radius`
 /// stays one aspect read (FO-07 US-04 FR-03; responsive s03 invariant 9).
 ///
-/// One per tree: the probe's channel keeps one listener, so
-/// `StratumThemeApplication` inserts it only when [hasScope] is false.
+/// One per tree: `StratumThemeApplication` inserts it only when [hasScope]
+/// is false, so a tree publishes one [MediaQuery]. Every scope alive in the
+/// process shares one subscription to the probe.
 class ScreenRadiusScope extends StatefulWidget {
   const new({super.key, required this.child});
 
@@ -30,17 +31,11 @@ class ScreenRadiusScope extends StatefulWidget {
 }
 
 class _ScreenRadiusScopeState extends State<ScreenRadiusScope> {
-  /// The probe's event channel, opened here rather than through
-  /// `EventChannel.receiveBroadcastStream`, which reports a missing plugin
-  /// as an error: `listen` and `cancel` are method calls, and each event
-  /// is an envelope on the same channel name.
-  static const _channel = MethodChannel('stratum_ui/screen_radius');
-
   /// Keeps every State below for this State's whole life, while the
   /// published [MediaQuery] comes and goes above the child.
   final GlobalKey _childKey = GlobalKey();
 
-  bool _listening = false;
+  bool _subscribed = false;
   BorderRadius? _probe;
 
   static bool get _darwin =>
@@ -52,17 +47,13 @@ class _ScreenRadiusScopeState extends State<ScreenRadiusScope> {
   void initState() {
     super.initState();
     if (!_darwin) return;
-    _listening = true;
-    _channel.binaryMessenger.setMessageHandler(_channel.name, _onEvent);
-    unawaited(_call('listen'));
+    _subscribed = true;
+    _probe = _RadiusProbeSubscription.add(this);
   }
 
   @override
   void dispose() {
-    if (_listening) {
-      _channel.binaryMessenger.setMessageHandler(_channel.name, null);
-      unawaited(_call('cancel'));
-    }
+    if (_subscribed) _RadiusProbeSubscription.remove(this);
     super.dispose();
   }
 
@@ -80,37 +71,93 @@ class _ScreenRadiusScopeState extends State<ScreenRadiusScope> {
     );
   }
 
+  void _take(BorderRadius? probe) => setState(() => _probe = probe);
+}
+
+/// The one subscription to the native probe per process, shared by every
+/// live [ScreenRadiusScope].
+///
+/// The channel holds one handler and the native side one stream, so a
+/// scope that owned them would freeze its siblings and, when it left,
+/// cancel a stream a newer scope still reads. Here the first scope in sets
+/// the handler and sends `listen`, each event reaches every scope and stays
+/// as the last value a later scope starts from, and the last scope out
+/// clears the handler and sends `cancel`.
+abstract final class _RadiusProbeSubscription {
+  /// The probe's event channel, opened here rather than through
+  /// `EventChannel.receiveBroadcastStream`, which reports a missing plugin
+  /// as an error: `listen` and `cancel` are method calls, and each event
+  /// is an envelope on the same channel name.
+  static const _channel = MethodChannel('stratum_ui/screen_radius');
+
+  static final Set<_ScreenRadiusScopeState> _scopes = {};
+  static BorderRadius? _last;
+
+  /// Subscribes [scope] and returns the last radius the probe sent.
+  static BorderRadius? add(_ScreenRadiusScopeState scope) {
+    if (_scopes.isEmpty) {
+      _channel.binaryMessenger.setMessageHandler(_channel.name, _onEvent);
+      unawaited(_call('listen'));
+    }
+    _scopes.add(scope);
+    return _last;
+  }
+
+  /// Unsubscribes [scope]; the last one out ends the native stream.
+  static void remove(_ScreenRadiusScopeState scope) {
+    _scopes.remove(scope);
+    if (_scopes.isNotEmpty) return;
+    _channel.binaryMessenger.setMessageHandler(_channel.name, null);
+    _last = null;
+    unawaited(_call('cancel'));
+  }
+
   /// Takes one probe event; a null message ends the stream and keeps the
   /// last radius. An error event leaves the radius unreadable, so null,
   /// and reports the error.
-  Future<ByteData?> _onEvent(ByteData? message) async {
+  static Future<ByteData?> _onEvent(ByteData? message) async {
     if (message == null) return null;
     BorderRadius? probe;
     try {
       probe = _decode(_channel.codec.decodeEnvelope(message));
     } on PlatformException catch (exception, stack) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: exception,
-          stack: stack,
-          library: 'stratum_ui',
-          context: ErrorDescription('while reading the screen radius probe'),
-        ),
-      );
+      _report(exception, stack, 'while reading the screen radius probe');
     }
-    setState(() => _probe = probe);
+    _publish(probe);
     return null;
+  }
+
+  static void _publish(BorderRadius? probe) {
+    _last = probe;
+    for (final scope in _scopes.toList()) {
+      scope._take(probe);
+    }
   }
 
   /// Calls the probe's [method]. With no native probe to answer (a widget
   /// test, a host built without the plugin) the radius stays unreadable,
-  /// so null.
+  /// so null. A failed call reports its error; a failed `listen` leaves
+  /// the radius unreadable too.
   static Future<void> _call(String method) async {
     try {
       await _channel.invokeMethod<void>(method);
     } on MissingPluginException {
-      // Unreadable reads null (FR-03), which _probe already holds.
+      // Unreadable reads null (FR-03), which _last already holds.
+    } on PlatformException catch (exception, stack) {
+      _report(exception, stack, 'while calling $method on the probe');
+      if (method == 'listen') _publish(null);
     }
+  }
+
+  static void _report(Object exception, StackTrace stack, String context) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: exception,
+        stack: stack,
+        library: 'stratum_ui',
+        context: ErrorDescription(context),
+      ),
+    );
   }
 
   /// The event's corner radii: null for a nil event, the probe's

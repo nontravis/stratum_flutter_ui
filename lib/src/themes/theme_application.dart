@@ -7,7 +7,7 @@ import 'package:stratum_ui/src/src.dart';
 class StratumThemeApplication
     extends InheritedNotifier<StratumThemeController> {
   /// Wraps [child] in a private body that inserts, top to bottom, a
-  /// [ScreenRadiusScope] that publishes the native screen radius on iOS
+  /// `ScreenRadiusScope` that publishes the native screen radius on iOS
   /// and macOS and a [WindowSizeScope], each when none is above the
   /// application, a Material [Theme] of the active data, and
   /// [StratumComponentDefaults] built by [componentDefaults] from the
@@ -142,8 +142,8 @@ extension AppStratumThemeApplicationExtensions on ThemeMode {
 }
 
 /// What the application inserts below itself, top to bottom: a
-/// [ScreenRadiusScope] when none is above it, so one scope per tree
-/// listens to the native probe (FO-07 US-04 FR-03), a [WindowSizeScope]
+/// [ScreenRadiusScope] when none is above it, so a tree publishes the
+/// screen radius once (FO-07 US-04 FR-03), a [WindowSizeScope]
 /// when none is above it, so a varying token always finds a window size
 /// (spec section 7.3, OQ11), then the Material theme.
 class _StratumThemeBody extends StatelessWidget {

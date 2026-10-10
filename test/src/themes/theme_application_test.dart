@@ -825,5 +825,77 @@ void main() {
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
+
+    testWidgets(
+      'e06: an application remounted in one frame keeps following change '
+      'events',
+      (tester) async {
+        mockProbe(tester);
+        BorderRadius? radius;
+        final reader = Builder(
+          builder: (context) {
+            radius = context.deviceWindow.radius;
+            return const SizedBox();
+          },
+        );
+        await tester.pumpWidget(application(reader));
+        await tester.pump();
+
+        await tester.pumpWidget(
+          KeyedSubtree(key: UniqueKey(), child: application(reader)),
+        );
+        await tester.pump();
+        sink.success(corners(20));
+        await tester.pump();
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(radius, all(20));
+        expect(listens, 1);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'e06: when one of two sibling applications leaves, the other keeps '
+      'following change events',
+      (tester) async {
+        mockProbe(tester);
+        BorderRadius? first;
+        BorderRadius? second;
+        Widget reader(void Function(BorderRadius?) onRadius) => Builder(
+          builder: (context) {
+            onRadius(context.deviceWindow.radius);
+            return const SizedBox();
+          },
+        );
+        final firstApp = application(reader((r) => first = r));
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Column(
+              children: [firstApp, application(reader((r) => second = r))],
+            ),
+          ),
+        );
+        await tester.pump();
+        expect([first, second], [all(46), all(46)]);
+
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Column(children: [firstApp]),
+          ),
+        );
+        sink.success(corners(20));
+        await tester.pump();
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(first, all(20));
+        expect(listens, 1);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 }
