@@ -1271,28 +1271,27 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Whether the box of the item whose key node is [node] showed inside
   /// the list's own viewport in the last frame, by more than 0 px along
-  /// its axis (D28, invariant 35). A kept-alive box reads a NaN rect, and
-  /// a null context counts as not shown; so does one whose element the
-  /// drag proxy reparents between inactive and active in the same frame
-  /// (a GlobalKey move), which [FocusNode.rect] reads as a thrown error.
-  /// Outer viewports are the app's.
+  /// its axis (D28, invariant 35). A kept-alive box, one not yet laid out,
+  /// and a null context all count as not shown; so does one whose element
+  /// the drag proxy reparents between inactive and active in the same
+  /// frame (a GlobalKey move): [Element.renderObject] (unlike
+  /// [BuildContext.findRenderObject], which asserts the element active)
+  /// only stops at a defunct one, so it reads the reparented element's
+  /// kept render object with no throw. Outer viewports are the app's.
   bool _shownLastFrame(FocusNode node) {
     final context = node.context;
     if (context == null || !context.mounted) return false;
-    Rect rect;
-    try {
-      rect = node.rect;
-      // [FocusNode.rect] asserts the element active in debug mode and
-      // throws from inside that assert when it is not, with no
-      // non-debug-only API that reads the same lifecycle state: debug
-      // mode is the only one this ever runs in, so the catch never masks
-      // a release-mode fault.
-      // ignore: avoid_catching_errors
-    } on FlutterError {
+    final object = (context as Element).renderObject;
+    if (object is! RenderBox || !object.attached || !object.hasSize) {
       return false;
     }
-    final view = Scrollable.maybeOf(context)?.context.findRenderObject();
-    if (!rect.isFinite || view is! RenderBox || !view.hasSize) return false;
+    final rect = MatrixUtils.transformRect(
+      object.getTransformTo(null),
+      object.semanticBounds,
+    );
+    final scrollable = Scrollable.maybeOf(context)?.context as Element?;
+    final view = scrollable?.renderObject;
+    if (view is! RenderBox || !view.attached || !view.hasSize) return false;
     final viewport = MatrixUtils.transformRect(
       view.getTransformTo(null),
       Offset.zero & view.size,
