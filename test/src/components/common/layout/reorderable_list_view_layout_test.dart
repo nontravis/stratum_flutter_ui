@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/rendering.dart'
     show
         ItemExtentBuilder,
@@ -47,6 +49,7 @@ class _Harness extends StatefulWidget {
     this.innerAt,
     this.itemsController,
     this.focusable,
+    this.semanticsLabel,
     this.physics,
     this.itemExtent,
     this.itemTransitionBuilder,
@@ -85,6 +88,9 @@ class _Harness extends StatefulWidget {
 
   /// The list's `focusable`; null keeps the platform default.
   final bool? focusable;
+
+  /// The list's `semanticsLabel`; null keeps the list unlabeled.
+  final String? semanticsLabel;
 
   /// The list's scroll physics, if any.
   final ScrollPhysics? physics;
@@ -229,6 +235,7 @@ class _HarnessState extends State<_Harness> {
       longPressDrag: widget.longPressDrag,
       itemsController: widget.itemsController,
       focusable: widget.focusable,
+      semanticsLabel: widget.semanticsLabel,
       physics: widget.physics,
       itemExtent: widget.itemExtent,
       itemTransitionBuilder: widget.itemTransitionBuilder,
@@ -842,8 +849,8 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('C1: under reduced motion the lift still fades over the '
-        "theme's duration", (tester) async {
+    testWidgets('NFR-U03 and C1: under reduced motion the lift still fades '
+        "over the theme's duration", (tester) async {
       tester.platformDispatcher.accessibilityFeaturesTestValue =
           const FakeAccessibilityFeatures(disableAnimations: true);
       addTearDown(
@@ -1075,21 +1082,25 @@ void main() {
         LogicalKeyboardKey.arrowRight,
       ),
     ]) {
-      testWidgets('$axis: Alt and the axis arrows, Home, and End move the '
-          'focused item', (tester) async {
-        await tester.pumpWidget(_app(_Harness(count: 4, axis: axis)));
-        await _focusItem(tester, 1);
+      testWidgets(
+        'NFR-U09: $axis: Alt and the axis arrows, Home, and End move the '
+        'focused item',
+        (tester) async {
+          await tester.pumpWidget(_app(_Harness(count: 4, axis: axis)));
+          await _focusItem(tester, 1);
 
-        expect(await _alt(tester, forth), isTrue);
-        expect(_harness(tester).ids, [0, 2, 1, 3]);
-        expect(await _alt(tester, back), isTrue);
-        expect(_harness(tester).ids, [0, 1, 2, 3]);
-        expect(await _alt(tester, LogicalKeyboardKey.end), isTrue);
-        expect(_harness(tester).ids, [0, 2, 3, 1]);
-        expect(await _alt(tester, LogicalKeyboardKey.home), isTrue);
-        expect(_harness(tester).ids, [1, 0, 2, 3]);
-        expect(_harness(tester).moves, [(1, 2), (2, 1), (1, 3), (3, 0)]);
-      }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+          expect(await _alt(tester, forth), isTrue);
+          expect(_harness(tester).ids, [0, 2, 1, 3]);
+          expect(await _alt(tester, back), isTrue);
+          expect(_harness(tester).ids, [0, 1, 2, 3]);
+          expect(await _alt(tester, LogicalKeyboardKey.end), isTrue);
+          expect(_harness(tester).ids, [0, 2, 3, 1]);
+          expect(await _alt(tester, LogicalKeyboardKey.home), isTrue);
+          expect(_harness(tester).ids, [1, 0, 2, 3]);
+          expect(_harness(tester).moves, [(1, 2), (2, 1), (1, 3), (3, 0)]);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      );
     }
 
     testWidgets('Alt+Left moves an item forward under right-to-left text', (
@@ -1209,28 +1220,29 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
 
-    testWidgets('a "Move up" semantics action keeps the moved item\'s State', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(_app(const _Harness(count: 4)));
-      final state = _itemState(tester, 2)..expanded = true;
+    testWidgets(
+      'NFR-U09: a "Move up" semantics action keeps the moved item\'s State',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(_app(const _Harness(count: 4)));
+        final state = _itemState(tester, 2)..expanded = true;
 
-      final node = tester.getSemantics(find.byKey(const ValueKey(2)));
-      node.owner!.performAction(
-        node.id,
-        SemanticsAction.customAction,
-        CustomSemanticsAction.getIdentifier(
-          const CustomSemanticsAction(label: 'Move up'),
-        ),
-      );
-      await tester.pumpAndSettle();
+        final node = tester.getSemantics(find.byKey(const ValueKey(2)));
+        node.owner!.performAction(
+          node.id,
+          SemanticsAction.customAction,
+          CustomSemanticsAction.getIdentifier(
+            const CustomSemanticsAction(label: 'Move up'),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      expect(_harness(tester).ids, [0, 2, 1, 3]);
-      expect(identical(_itemState(tester, 2), state), isTrue);
-      expect(state.expanded, isTrue);
-      handle.dispose();
-    });
+        expect(_harness(tester).ids, [0, 2, 1, 3]);
+        expect(identical(_itemState(tester, 2), state), isTrue);
+        expect(state.expanded, isTrue);
+        handle.dispose();
+      },
+    );
 
     testWidgets(
       'a "Move to the end" semantics action in a lazy list of 200 keeps '
@@ -1982,8 +1994,8 @@ void main() {
     );
 
     testWidgets(
-      "us11/s10: under the app's reduced motion the gap closes at once and "
-      'the removed item fades out',
+      "NFR-U03 and us11/s10: under the app's reduced motion the gap closes "
+      'at once and the removed item fades out',
       (tester) async {
         final controller = StratumReorderableItemsController();
         final theme = _normalTheme(const Duration(milliseconds: 250));
@@ -2013,8 +2025,8 @@ void main() {
     );
 
     testWidgets(
-      "us11/fr04/e01: under the platform's reduced motion an added item "
-      'takes its size at once and fades in',
+      "NFR-U03 and us11/fr04/e01: under the platform's reduced motion an "
+      'added item takes its size at once and fades in',
       (tester) async {
         tester.platformDispatcher.accessibilityFeaturesTestValue =
             const FakeAccessibilityFeatures(reduceMotion: true);
@@ -2917,8 +2929,8 @@ void main() {
     );
 
     testWidgets(
-      "us11/fr04/e01: under the platform's disableAnimations flag an insert "
-      "and a remove still fade over the theme's durations",
+      "NFR-U03 and us11/fr04/e01: under the platform's disableAnimations "
+      "flag an insert and a remove still fade over the theme's durations",
       (tester) async {
         tester.platformDispatcher.accessibilityFeaturesTestValue =
             const FakeAccessibilityFeatures(disableAnimations: true);
@@ -4089,8 +4101,8 @@ void main() {
     });
 
     testWidgets(
-      'us11/fr05/e02: under reduced motion the old slot closes at once and '
-      'the moved item fades in over the full forward duration',
+      'NFR-U03 and us11/fr05/e02: under reduced motion the old slot closes '
+      'at once and the moved item fades in over the full forward duration',
       (tester) async {
         tester.platformDispatcher.accessibilityFeaturesTestValue =
             const FakeAccessibilityFeatures(reduceMotion: true);
@@ -4118,9 +4130,9 @@ void main() {
     );
 
     testWidgets(
-      "us11/fr05/e02: under the platform's disableAnimations flag the old "
-      'slot closes at once and the moved item fades in over the full '
-      'forward duration',
+      "NFR-U03 and us11/fr05/e02: under the platform's disableAnimations "
+      'flag the old slot closes at once and the moved item fades in over '
+      'the full forward duration',
       (tester) async {
         tester.platformDispatcher.accessibilityFeaturesTestValue =
             const FakeAccessibilityFeatures(disableAnimations: true);
@@ -11291,6 +11303,270 @@ void main() {
         expect(_harness(tester).moves, [(0, 1)]);
       },
       variant: motion,
+    );
+  });
+
+  group('ReorderableListViewLayout accessibility gate', () {
+    // NFR-U01 n/a: the list draws no text and owns no tap target; its own
+    // node takes focus only, and each item's node carries move actions,
+    // not a tap; the app's items own their text and taps.
+    // NFR-U05 n/a: the list's own stop takes no pointer tap, the drag
+    // handle is the app's (FR-01 E01), and the long-press target is the
+    // app's item.
+
+    void useTraditionalHighlight() {
+      FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.alwaysTraditional;
+      addTearDown(
+        () => FocusManager.instance.highlightStrategy =
+            FocusHighlightStrategy.automatic,
+      );
+    }
+
+    /// The color of the ring the list's [StratumFocusBorder] paints, the
+    /// `#drawDRRect` under the `DecoratedBox` below it, as `_painted` in
+    /// `focus_border_test.dart` reads it.
+    Color ringColor(WidgetTester tester) {
+      late Color color;
+      expect(
+        tester.renderObject(
+          find
+              .descendant(
+                of: find.byType(StratumFocusBorder),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        ),
+        paints..something((method, arguments) {
+          if (method != #drawDRRect) return false;
+          color = (arguments[2] as Paint).color;
+          return true;
+        }),
+      );
+      return color;
+    }
+
+    /// The WCAG 1.4.11 contrast ratio between [a] and [b].
+    double contrast(Color a, Color b) {
+      final luminanceA = a.computeLuminance();
+      final luminanceB = b.computeLuminance();
+      return (math.max(luminanceA, luminanceB) + 0.05) /
+          (math.min(luminanceA, luminanceB) + 0.05);
+    }
+
+    /// [child] under the package default's high-contrast light theme, under
+    /// a [MaterialApp] so the list finds an overlay.
+    Widget highContrastHost(Widget child) => MaterialApp(
+      home: Material(
+        child: StratumThemeApplication(
+          themes: defaultThemeSet,
+          themeMode: ThemeMode.light,
+          highContrast: HighContrastMode.on,
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(child: child),
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('NFR-U02: Tab reaches the list and changes its look', (
+      tester,
+    ) async {
+      useTraditionalHighlight();
+      final before = FocusNode();
+      addTearDown(before.dispose);
+      await tester.pumpWidget(
+        _app(
+          Column(
+            children: [
+              Focus(
+                focusNode: before,
+                child: const SizedBox(width: 40, height: 20),
+              ),
+              const Expanded(child: _Harness(count: 50, focusable: true)),
+            ],
+          ),
+        ),
+      );
+      before.requestFocus();
+      await tester.pump();
+      final idle = ringColor(tester);
+      expect(idle.a, 0);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(ringColor(tester), isNot(isSameColorAs(idle)));
+    });
+
+    final insertMotion = ValueVariant<String>({'no', 'app', 'platform'});
+    testWidgets(
+      'NFR-U03: with <no, app, platform> reduced motion one frame after '
+      'an insert the new item <still grows, takes its size> and its '
+      'fade still runs',
+      (tester) async {
+        final reduced = insertMotion.currentValue != 'no';
+        if (insertMotion.currentValue == 'platform') {
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(reduceMotion: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+        }
+        final controller = StratumReorderableItemsController();
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(
+            Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  disableAnimations: insertMotion.currentValue == 'app',
+                ),
+                child: _Harness(count: 5, itemsController: controller),
+              ),
+            ),
+            theme: theme,
+          ),
+        );
+
+        _harness(tester).insert(1, 9);
+        await tester.pump();
+        final gap = _offsetBetween(tester, 0, 1);
+        reduced ? expect(gap, 80) : expect(gap, lessThan(80));
+
+        await tester.pump(_halfForward(theme));
+        expect(_enteringOpacity(tester, 9), allOf(greaterThan(0), lessThan(1)));
+      },
+      variant: insertMotion,
+    );
+
+    testWidgets('NFR-U04: twice the text size shows no overflow', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(
+          Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(2)),
+              child: const _Harness(count: 20),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'NFR-U06: the list node reads its label, count, and focus state, '
+      'and an item reads its child with its valid move actions',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _app(
+            const _Harness(count: 5, focusable: true, semanticsLabel: 'Tasks'),
+          ),
+        );
+
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('Tasks')),
+          matchesSemantics(
+            label: 'Tasks',
+            isFocusable: true,
+            hasFocusAction: true,
+          ),
+        );
+        final scrollNode = find.semantics
+            .byFlag(SemanticsFlag.hasImplicitScrolling)
+            .evaluate()
+            .single;
+        expect(scrollNode.scrollChildCount, 5);
+        expect(
+          tester.getSemantics(find.byKey(const ValueKey(0))),
+          matchesSemantics(
+            label: '0',
+            isFocusable: true,
+            hasFocusAction: true,
+            customActions: const [
+              CustomSemanticsAction(label: 'Move down'),
+              CustomSemanticsAction(label: 'Move to the end'),
+            ],
+          ),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'NFR-U07 exception: an app-wide StratumFocusBorder style replaces '
+      'the list ring color',
+      (tester) async {
+        useTraditionalHighlight();
+        final before = FocusNode();
+        addTearDown(before.dispose);
+        await tester.pumpWidget(
+          _app(
+            StratumComponentDefaults(
+              styles: const {
+                StratumFocusBorder: WidgetStyle(
+                  border: Border.fromBorderSide(
+                    BorderSide(color: Color(0xFF2563EB), width: 3),
+                  ),
+                ),
+              },
+              child: Column(
+                children: [
+                  Focus(
+                    focusNode: before,
+                    child: const SizedBox(width: 40, height: 20),
+                  ),
+                  const Expanded(child: _Harness(count: 5, focusable: true)),
+                ],
+              ),
+            ),
+          ),
+        );
+        before.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+
+        expect(ringColor(tester), isSameColorAs(const Color(0xFF2563EB)));
+      },
+    );
+
+    testWidgets(
+      'NFR-U07: under high contrast the list ring holds 3:1 on the page',
+      (tester) async {
+        useTraditionalHighlight();
+        await tester.pumpWidget(
+          highContrastHost(const _Harness(count: 20, focusable: true)),
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+
+        final highContrast = defaultThemeSet.highContrastLight!.color;
+        final ring = highContrast.border.subtle.blue;
+        expect(ringColor(tester), isSameColorAs(ring));
+        expect(
+          contrast(ring, highContrast.background.defaults.normal),
+          greaterThanOrEqualTo(3),
+        );
+      },
+    );
+
+    testWidgets(
+      'NFR-U08: the focused list shows its ring shape under high contrast',
+      (tester) async {
+        useTraditionalHighlight();
+        await tester.pumpWidget(
+          highContrastHost(const _Harness(count: 20, focusable: true)),
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+
+        expect(ringColor(tester).a, greaterThan(0));
+      },
     );
   });
 }
