@@ -773,8 +773,10 @@ void main() {
       }
     });
 
-    testWidgets('a package default theme that cannot be read is reported, '
-        'and the hold still ends on the failed state', (tester) async {
+    testWidgets('us12/fr07/e05: a package default theme that cannot be read '
+        'is reported, and the hold still ends on the failed state', (
+      tester,
+    ) async {
       final states = <StratumSplashState<String>>[];
       tester.binding.resetFirstFrameSent();
       await tester.pumpWidget(
@@ -792,7 +794,7 @@ void main() {
     });
 
     testWidgets(
-      "NFR-U02, us12/fr07: Tab reaches a failed frame's retry button, and "
+      "NFR-U02, us12/fr07/e04: Tab reaches a failed frame's retry button, and "
       'Enter activates it',
       (tester) async {
         var calls = 0;
