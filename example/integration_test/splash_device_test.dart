@@ -37,13 +37,20 @@ void main() {
   testWidgets('us12/fr02, us12/s2: no frame reaches the engine until the '
       'start theme is active; then the splash shows', (tester) async {
     final release = Completer<void>();
+    // Held so `postload` cannot finish before the loading-app assertion
+    // below runs: the live binding flushes every microtask ahead of its
+    // own warm-up frame (`dart:ui` `Timer.run`, unlike the widget-test
+    // binding, which draws it synchronously inside `allowFirstFrame`), so
+    // an unheld `postload` would race past `StratumSplashLoadingApp`
+    // before this test ever reads `states`.
+    final postload = Completer<void>();
     final states = <String>[];
     binding.resetFirstFrameSent();
     await tester.pumpWidget(
       DefaultAssetBundle(
         bundle: _HeldBundle(release.future),
         child: StratumSplashScreen<void>(
-          postload: (context, controller) async {},
+          postload: (context, controller) => postload.future,
           builder: (context, state) {
             states.add(state.runtimeType.toString());
             return const ColoredBox(color: Color(0xFF2050C0));
@@ -60,5 +67,8 @@ void main() {
 
     expect(binding.sendFramesToEngine, isTrue);
     expect(states.first, startsWith('StratumSplashLoadingApp'));
+
+    postload.complete();
+    await tester.pumpAndSettle();
   });
 }
