@@ -11435,6 +11435,38 @@ void main() {
     );
 
     testWidgets(
+      'us11/fr06/e06 and s03/inv52: the live-region node leaves the tree '
+      '4 s after its announcement, so a later swipe never reads it',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _app(
+            Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(supportsAnnounce: false),
+                child: const _Harness(count: 5),
+              ),
+            ),
+          ),
+        );
+        const atStart = 'Already at the start of the list';
+        final state = _itemState(tester, 0);
+        await _focusItem(tester, 0);
+
+        await _alt(tester, LogicalKeyboardKey.arrowUp);
+        await tester.pump(const Duration(seconds: 3));
+        expect(find.semantics.byLabel(atStart), findsOne);
+
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.semantics.byLabel(atStart), findsNothing);
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, 0), [same(state)]);
+        expect(FocusManager.instance.primaryFocus, same(state.node));
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
       "us11/fr06/e06: under the platform's reduced motion, which reports no "
       'announce support, a key move speaks through one live node',
       (tester) async {

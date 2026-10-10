@@ -491,8 +491,22 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   var _focusFrameQueued = false;
 
   /// The text of the live-region node, where the platform reports no
-  /// announce support; null before the first announcement.
+  /// announce support; null before the first announcement and once
+  /// [_liveHold] has passed after the last one.
   String? _liveText;
+
+  /// Takes the live-region node out of the tree [_liveHold] after the last
+  /// announcement.
+  Timer? _liveTimer;
+
+  /// How long the live-region node stays in the semantics tree after its
+  /// announcement (invariant 52). TalkBack reads the node after the bridge's
+  /// content-change event, asynchronously and possibly throttled, so the
+  /// node must outlive that read; a node kept longer, a labeled node, is a
+  /// stop of TalkBack's swipe that reads a stale move. No focus move marks
+  /// the read, and TalkBack's swipe moves no input focus, so a time bounds
+  /// it: Material's default snack bar stays for the same 4 s.
+  static const _liveHold = Duration(seconds: 4);
 
   /// Counts the live-region announcements, so each one builds a new node
   /// that the platform reads even when its text repeats (invariant 52).
@@ -548,6 +562,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void dispose() {
     FocusManager.instance.removeListener(_holdFocusedFrame);
     if (_hearsKeyUp) HardwareKeyboard.instance.removeHandler(_handleKeyUp);
+    _liveTimer?.cancel();
     _layout.itemsController?._detach(this);
     _resetMotion();
     _holdNode.dispose();
@@ -1896,8 +1911,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// Sends [text] to the screen reader: as an announcement where the
-  /// platform supports one, else through the live-region node. An empty
-  /// text, an app override's way to word its own, sends nothing.
+  /// platform supports one, else through the live-region node, which
+  /// leaves the tree [_liveHold] later. An empty text, an app override's
+  /// way to word its own, sends nothing.
   void _announce(String text) {
     if (text.isEmpty || !mounted) return;
     if (MediaQuery.maybeSupportsAnnounceOf(context) ?? false) {
@@ -1913,6 +1929,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     setState(() {
       _liveText = text;
       _liveCount += 1;
+    });
+    _liveTimer?.cancel();
+    _liveTimer = Timer(_liveHold, () {
+      if (mounted) setState(() => _liveText = null);
     });
   }
 
