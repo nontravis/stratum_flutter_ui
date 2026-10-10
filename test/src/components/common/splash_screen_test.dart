@@ -439,4 +439,179 @@ void main() {
       expect(calls, 2);
     });
   });
+
+  group('StratumSplashScreen hosts its frames', () {
+    /// A splash over [bundle] whose builder hands [seen] the context of
+    /// every frame, by state.
+    Widget host(
+      AssetBundle bundle,
+      Map<Type, BuildContext> seen, {
+      String? initialThemeId,
+      ThemeMode themeMode = ThemeMode.system,
+      HighContrastMode highContrast = HighContrastMode.system,
+      Future<String> Function()? postload,
+      Widget Function(StratumSplashDone<String> state)? app,
+      List<StratumSplashState<String>>? states,
+    }) => DefaultAssetBundle(
+      bundle: bundle,
+      child: StratumSplashScreen<String>(
+        initialThemeId: initialThemeId,
+        themeMode: themeMode,
+        highContrast: highContrast,
+        postload: (context, controller) =>
+            (postload ?? () => Completer<String>().future)(),
+        builder: (context, state) {
+          if (state case final StratumSplashDone<String> done
+              when app != null) {
+            return app(done);
+          }
+          seen[state.runtimeType] = context;
+          states?.add(state);
+          return const SizedBox.shrink();
+        },
+      ),
+    );
+
+    testWidgets('us12/fr07: a frame reads the start theme, the window '
+        'metrics, and a text direction', (tester) async {
+      final seen = <Type, BuildContext>{};
+      await tester.pumpWidget(host(FakeThemeBundle(), seen));
+      await tester.pumpAndSettle();
+      final context = seen[StratumSplashLoadingApp<String>]!;
+      final controller = StratumThemeController.of(context);
+
+      expect(
+        StratumThemeApplication.of(context),
+        same(controller.themes.pick(dark: false, highContrast: false)),
+      );
+      expect(MediaQuery.maybeOf(context), isNotNull);
+      expect(Directionality.of(context), TextDirection.ltr);
+    });
+
+    testWidgets('us12/fr07, us12/s7: the theme mode and high-contrast mode '
+        'the app passes pick the data', (tester) async {
+      final seen = <Type, BuildContext>{};
+      await tester.pumpWidget(
+        host(
+          FakeThemeBundle(),
+          seen,
+          themeMode: ThemeMode.dark,
+          highContrast: HighContrastMode.on,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final context = seen[StratumSplashLoadingApp<String>]!;
+
+      expect(
+        StratumThemeApplication.of(context),
+        same(
+          StratumThemeController.of(context).themes
+              .pick(dark: true, highContrast: true),
+        ),
+      );
+    });
+
+    testWidgets('us12/fr07/e02: the splash and the app it returns draw the '
+        'same data', (tester) async {
+      final seen = <Type, BuildContext>{};
+      late StratumThemeData appData;
+      final work = Completer<String>();
+      await tester.pumpWidget(
+        host(
+          FakeThemeBundle(),
+          seen,
+          themeMode: ThemeMode.dark,
+          postload: () => work.future,
+          app: (done) => StratumThemeApplication.controlled(
+            controller: done.controller,
+            themeMode: ThemeMode.dark,
+            child: Builder(
+              builder: (context) {
+                appData = StratumThemeApplication.of(context);
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final splashData = StratumThemeApplication.of(
+        seen[StratumSplashLoadingApp<String>]!,
+      );
+
+      work.complete('ready');
+      await tester.pumpAndSettle();
+
+      expect(appData, same(splashData));
+    });
+
+    testWidgets('us12/fr07/e01: after a theme failure, the failed frame and '
+        'the loading theme frames of its retry read the package default '
+        'alone', (tester) async {
+      final bundle = FakeThemeBundle(
+        themes: {'default': markTheme('app-mark'), 'brand': brokenTheme()},
+      );
+      final seen = <Type, BuildContext>{};
+      final states = <StratumSplashState<String>>[];
+      await tester.pumpWidget(
+        host(bundle, seen, initialThemeId: 'brand', states: states),
+      );
+      await tester.pumpAndSettle();
+      Iterable<String> fontsOf(Type state) =>
+          StratumThemeApplication.of(seen[state]!).typography.fonts.keys;
+      expect(fontsOf(StratumSplashFailed<String>), contains('inter'));
+      expect(fontsOf(StratumSplashFailed<String>), isNot(contains('app-mark')));
+
+      final release = bundle.hold[themeKey('brand')] = Completer<void>();
+      (states.last as StratumSplashFailed<String>).retry();
+      await tester.pump();
+
+      expect(fontsOf(StratumSplashLoadingTheme<String>), contains('inter'));
+      expect(
+        fontsOf(StratumSplashLoadingTheme<String>),
+        isNot(contains('app-mark')),
+      );
+      release.complete();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('us12/fr07/e03, nfr-l02: the text direction follows the '
+        'platform locale', (tester) async {
+      addTearDown(tester.platformDispatcher.clearLocaleTestValue);
+      for (final (language, direction) in [
+        ('ar', TextDirection.rtl),
+        ('ja', TextDirection.ltr),
+      ]) {
+        tester.platformDispatcher.localeTestValue = Locale(language);
+        final seen = <Type, BuildContext>{};
+        await tester.pumpWidget(host(FakeThemeBundle(), seen));
+        await tester.pumpAndSettle();
+
+        expect(
+          Directionality.of(seen[StratumSplashLoadingApp<String>]!),
+          direction,
+          reason: language,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+    });
+
+    testWidgets('a package default theme that cannot be read is reported, '
+        'and the hold still ends on the failed state', (tester) async {
+      final states = <StratumSplashState<String>>[];
+      tester.binding.resetFirstFrameSent();
+      await tester.pumpWidget(
+        _splash(
+          FakeThemeBundle(packageDefault: 'spcae:\n  md: 12'),
+          postload: () async => 'never',
+          states: states,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isA<StratumThemeFormatException>());
+      expect(tester.binding.sendFramesToEngine, isTrue);
+      expect(_last(states), isA<StratumSplashFailed<String>>());
+    });
+  });
 }

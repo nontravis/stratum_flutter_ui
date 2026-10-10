@@ -82,6 +82,8 @@ class StratumSplashScreen<T> extends StatefulWidget {
     required this.postload,
     required this.builder,
     this.minimumDuration = Duration.zero,
+    this.themeMode = ThemeMode.system,
+    this.highContrast = HighContrastMode.system,
   });
 
   /// The theme id the app saved, else null for `default`.
@@ -122,6 +124,15 @@ class StratumSplashScreen<T> extends StatefulWidget {
   /// it.
   final Duration minimumDuration;
 
+  /// The theme mode of the splash frames: pass the one the app gives its
+  /// `StratumThemeApplication`, so the splash and the app show the same
+  /// data (FR-07 E02).
+  final ThemeMode themeMode;
+
+  /// The high-contrast mode of the splash frames: pass the one the app
+  /// gives its `StratumThemeApplication` (FR-07 E02).
+  final HighContrastMode highContrast;
+
   @override
   State<StratumSplashScreen<T>> createState() => _StratumSplashScreenState<T>();
 }
@@ -136,6 +147,10 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
   bool _minimumPassed = false;
   Timer? _minimumTimer;
   StratumThemeController? _controller;
+
+  /// The package's embedded default theme alone, read after a theme-phase
+  /// failure (FR-07 E01).
+  StratumThemeSet? _packageDefault;
 
   /// The state on screen; null while the first frame is held.
   StratumSplashState<T>? _state;
@@ -172,6 +187,7 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
         onRemoteThemeError: widget.onRemoteThemeError,
       );
     } on Object catch (error) {
+      await _readPackageDefault();
       if (mounted) _show(_failed(error, StratumSplashPhase.theme));
       return;
     }
@@ -181,6 +197,30 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     }
     _controller = controller;
     await _runPostload(controller);
+  }
+
+  /// Reads the package default theme alone, once, for the frames of a
+  /// theme-phase failure and its retry (FR-07 E01; themes `s03_domain.md`
+  /// invariant 29). A read that fails is reported, and the failed state
+  /// still ends the first-frame hold (FR-02 E03), with no theme above it.
+  Future<void> _readPackageDefault() async {
+    if (_packageDefault != null) return;
+    try {
+      _packageDefault = await StratumThemeController.packageDefaultThemes(
+        bundle: _bundle,
+      );
+    } on Object catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'stratum_ui',
+          context: ErrorDescription(
+            'while reading the package default theme for the splash screen',
+          ),
+        ),
+      );
+    }
   }
 
   /// Shows [StratumSplashLoadingApp] while `postload` runs; a throw shows
@@ -260,13 +300,44 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     // reaches the screen, so the builder first runs when the hold ends
     // (FR-02 E01).
     if (state == null) return const SizedBox.shrink();
+    // Above `MaterialApp` no `Localizations` exists: the platform locale
+    // picks the direction, as it picks FO-09's labels (FR-07).
+    final locale =
+        Localizations.maybeLocaleOf(context) ??
+        View.of(context).platformDispatcher.locale;
     final frame = Builder(builder: (context) => widget.builder(context, state));
-    final controller = _controller;
-    if (controller == null) return frame;
-    return StratumThemeApplication.controlled(
-      controller: controller,
-      themeMode: ThemeMode.system,
-      child: frame,
+    return Directionality(
+      textDirection: _directionOf(locale),
+      child: _themed(frame),
     );
   }
+
+  /// [child] under the start theme's controller, else, after a theme-phase
+  /// failure, under the package default theme alone (FR-07, E01), in the
+  /// theme mode and high-contrast mode the app passes.
+  Widget _themed(Widget child) {
+    if (_controller case final controller?) {
+      return StratumThemeApplication.controlled(
+        controller: controller,
+        themeMode: widget.themeMode,
+        highContrast: widget.highContrast,
+        child: child,
+      );
+    }
+    if (_packageDefault case final themes?) {
+      return StratumThemeApplication(
+        themes: themes,
+        themeMode: widget.themeMode,
+        highContrast: widget.highContrast,
+        child: child,
+      );
+    }
+    return child;
+  }
 }
+
+/// The text direction of [locale]'s language (FR-07 E03).
+TextDirection _directionOf(Locale locale) =>
+    Bidi.isRtlLanguage(locale.languageCode)
+    ? TextDirection.rtl
+    : TextDirection.ltr;
