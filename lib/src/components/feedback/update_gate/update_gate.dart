@@ -74,8 +74,12 @@ class _StratumUpdateGateState extends State<StratumUpdateGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // A null `_lifecycle` means no lifecycle message has reported a state
+    // yet, so a cold start's own first `resumed` is the mount's ask, not a
+    // return from the background.
     final returned =
         state == AppLifecycleState.resumed &&
+        _lifecycle != null &&
         _lifecycle != AppLifecycleState.resumed;
     _lifecycle = state;
     if (returned) unawaited(_ask(recheck: true));

@@ -30,6 +30,12 @@ class _Checker implements UpdateChecker {
   void fail() => asks.last.completeError(StateError('offline'));
 }
 
+/// An update check that throws before it returns a future at all.
+class _SyncThrowChecker implements UpdateChecker {
+  @override
+  Future<UpdateStatus> check() => throw StateError('offline');
+}
+
 typedef _Builder = Widget Function(BuildContext context, UpdateGateState gate);
 
 /// The app's screens and dialog: a label naming the state, with
@@ -71,7 +77,7 @@ Widget _screens(BuildContext context, UpdateGateState gate) {
 /// A [MaterialApp] whose builder places the gate around its navigator;
 /// its first page shows "Home" and a "Behind" button.
 Widget _app(
-  _Checker checker, {
+  UpdateChecker checker, {
   _Builder builder = _screens,
   VoidCallback? onBehind,
 }) => MaterialApp(
@@ -166,6 +172,14 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('us01/fr01/e01: a checker that throws before returning a '
+        'future shows the app', (tester) async {
+      await tester.pumpWidget(_app(_SyncThrowChecker()));
+      await tester.pump();
+      expect(find.text('Home'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('us01/fr01/e03: a return to the foreground asks again', (
       tester,
     ) async {
@@ -178,6 +192,31 @@ void main() {
       checker.answer(UpdateStatus.required);
       await tester.pump(Duration.zero);
       expect(find.text('Required'), findsOneWidget);
+    });
+
+    testWidgets('us01/fr01/e03: a cold start, with no lifecycle state yet, '
+        'is not a return', (tester) async {
+      tester.binding.resetInternalState();
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker));
+      checker.answer(UpdateStatus.upToDate);
+      await tester.pump(Duration.zero);
+      await _lifecycle(tester, AppLifecycleState.resumed);
+      await tester.pump();
+      expect(checker.asks, hasLength(1));
+    });
+
+    testWidgets('us01/fr01/e03: after a cold start a later return still '
+        'asks again', (tester) async {
+      tester.binding.resetInternalState();
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker));
+      checker.answer(UpdateStatus.upToDate);
+      await tester.pump(Duration.zero);
+      await _lifecycle(tester, AppLifecycleState.resumed);
+      await tester.pump();
+      await _returnToForeground(tester);
+      expect(checker.asks, hasLength(2));
     });
 
     testWidgets('us01/fr01/e04: retry asks again, with checking, and an '
@@ -332,6 +371,18 @@ void main() {
       expect(find.text('Maintenance'), findsNothing);
     });
 
+    testWidgets('us01/fr02/e04: required turns to maintenance', (tester) async {
+      final checker = _Checker();
+      await tester.pumpWidget(_app(checker));
+      checker.answer(UpdateStatus.required);
+      await tester.pump(Duration.zero);
+      await _returnToForeground(tester);
+      checker.answer(UpdateStatus.maintenance);
+      await tester.pump(Duration.zero);
+      expect(find.text('Maintenance'), findsOneWidget);
+      expect(find.text('Required'), findsNothing);
+    });
+
     testWidgets('us01/fr02/e06: a full screen opens a route scope and takes '
         'focus', (tester) async {
       final handle = tester.ensureSemantics();
@@ -399,6 +450,29 @@ void main() {
       await tester.pump(Duration.zero);
       expect(tester.takeException(), isNull);
       expect(find.byType(Tooltip), findsOneWidget);
+    });
+
+    // s01 "Full screens (the app's)" row / PD3: a full screen replaces the
+    // navigator and its overlay, so a text field works on it too.
+    testWidgets('a full screen hosts a focusable, typeable text field', (
+      tester,
+    ) async {
+      final checker = _Checker();
+      await tester.pumpWidget(
+        _app(
+          checker,
+          builder: (context, gate) =>
+              const Material(child: Center(child: TextField())),
+        ),
+      );
+      checker.answer(UpdateStatus.required);
+      await tester.pump(Duration.zero);
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'Store');
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Store'), findsOneWidget);
     });
 
     testWidgets("us01/fr02/e02: the force update screen's own button runs "
