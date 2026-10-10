@@ -41,8 +41,9 @@ mixin StratumWidgetProps {
   /// shows none.
   FeedbackState? get feedbackState;
 
-  /// Shows the disabled state. Each component decides which input it then
-  /// ignores.
+  /// Shows the disabled state: the base dims the component, shows the
+  /// forbidden cursor, refuses its pointer and focus input, and reports it
+  /// disabled (FO-08 US-07); each component decides which look wins inside.
   bool get disabled;
 
   /// Shows the loading state, such as an indeterminate spinner.

@@ -25,6 +25,7 @@ class StratumInteraction {
     this.onHighlightChanged,
     this.mouseCursor,
     this.enableFeedback = true,
+    this.tapTargetSize = StratumTapTargetSize.platform,
     this.disabledPressAnimation = false,
     this.focusNode,
     this.focusType = FocusType.focusedVisible,
@@ -54,6 +55,9 @@ class StratumInteraction {
   final ValueChanged<bool>? onHighlightChanged;
   final MouseCursor? mouseCursor;
   final bool enableFeedback;
+
+  /// See [StratumInkWell.tapTargetSize].
+  final StratumTapTargetSize tapTargetSize;
   final bool disabledPressAnimation;
   final FocusNode? focusNode;
   final FocusType focusType;

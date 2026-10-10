@@ -59,6 +59,7 @@ void main() {
         'animation:\n  transition:\n    phablet: fade',
         'animation.transition.phablet',
       ),
+      ('a second key under opacity', 'opacity:\n  hover: 0.4', 'opacity.hover'),
     ];
     for (final (name, body, path) in cases) {
       test('reports $name', () {

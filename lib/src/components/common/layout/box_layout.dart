@@ -242,6 +242,7 @@ abstract class BoxLayout extends StatelessWidget {
       onHighlightChanged: interaction.onHighlightChanged,
       mouseCursor: interaction.mouseCursor,
       enableFeedback: interaction.enableFeedback,
+      tapTargetSize: interaction.tapTargetSize,
       disabledPressAnimation: interaction.disabledPressAnimation,
       focusNode: interaction.focusNode,
       focusType: interaction.focusType,

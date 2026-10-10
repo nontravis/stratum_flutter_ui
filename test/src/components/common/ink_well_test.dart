@@ -7,6 +7,12 @@ import 'fakes/fake_stratum_theme.dart';
 
 const _box = SizedBox(width: 40, height: 20);
 
+/// Smaller than every platform's minimum tap target (NFR-U05).
+const _small = SizedBox(width: 20, height: 20);
+
+/// Larger than every platform's minimum tap target (NFR-U05).
+const _large = SizedBox(width: 60, height: 60);
+
 void _noop() {}
 
 class _Probe extends StatefulWidget {
@@ -19,6 +25,17 @@ class _Probe extends StatefulWidget {
 class _ProbeState extends State<_Probe> {
   @override
   Widget build(BuildContext context) => _box;
+}
+
+/// A component on the stateless base that holds a tap surface, as a button
+/// built on the base does.
+class _Component extends StratumStatelessWidget {
+  const new({super.disabled, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
 }
 
 /// The overlay inside [InkWell]; the ring above it paints a foreground
@@ -56,6 +73,22 @@ BorderSide _ringSide(WidgetTester tester) {
   );
   final shape = (box.decoration as ShapeDecoration).shape;
   return (shape as RoundedRectangleBorder).side;
+}
+
+/// Runs [body] with [defaultTargetPlatform] overridden to [platform],
+/// restored before this returns so the test framework's invariant check,
+/// which runs ahead of a widget test's own `addTearDown` queue, never sees
+/// it still set.
+Future<void> _withTargetPlatform(
+  TargetPlatform platform,
+  Future<void> Function() body,
+) async {
+  debugDefaultTargetPlatformOverride = platform;
+  try {
+    await body();
+  } finally {
+    debugDefaultTargetPlatformOverride = null;
+  }
 }
 
 void _useHighlightStrategy(FocusHighlightStrategy strategy) {
@@ -157,6 +190,9 @@ List<Widget> _surfaceChain(WidgetTester tester) {
       Focus(:final child) => child,
       Material(:final child) => child,
       InkWell(:final child) => child,
+      // Matches the private `_TapTargetPadding` by its public supertype,
+      // since a private type is unreachable from this library.
+      SingleChildRenderObjectWidget(:final child) => child,
       _ => null,
     };
   }
@@ -184,13 +220,15 @@ void _expectNoteKept(WidgetTester tester, State before) {
   expect(field.focusNode.hasPrimaryFocus, isTrue);
 }
 
-/// [_surfaceChain]'s types on the plain tap path on master `ff3c890`, with
-/// the ring renamed to [StratumFocusBorder] (US-04 FR-03): an activation
-/// callback, empty shortcuts, and no onSecondaryTap.
+/// [_surfaceChain]'s types on the plain tap path, with the ring inside the
+/// tap-target padding so it hugs the real child, not the grown hit box
+/// (NFR-U05): an activation callback, empty shortcuts, and no
+/// onSecondaryTap.
 const _plainTapPathTypes = [
   'Semantics',
-  'StratumFocusBorder',
   'MouseRegion',
+  '_TapTargetPadding',
+  'StratumFocusBorder',
   'Material',
   'InkWell',
   '_StateOverlay',
@@ -323,20 +361,21 @@ void main() {
       expect(themed.curve, Curves.easeOut);
     });
 
-    testWidgets("C1: under reduced motion the fade keeps the theme's "
-        'duration', (tester) async {
-      tester.platformDispatcher.accessibilityFeaturesTestValue =
-          const FakeAccessibilityFeatures(disableAnimations: true);
-      addTearDown(
-        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-      );
-
+    testWidgets('NFR-U03: disableAnimations snaps the overlay to hover on '
+        'one pump', (tester) async {
+      final states = _states({});
       await tester.pumpWidget(
-        themedHost(
-          const StratumInkWell(onTap: _noop, child: _box),
-          theme: motionTheme(),
+        MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: themedHost(
+            StratumInkWell(onTap: _noop, statesController: states, child: _box),
+            theme: motionTheme(),
+          ),
         ),
       );
+
+      states.update(WidgetState.hovered, true);
+      await tester.pump();
 
       expect(
         tester
@@ -344,8 +383,38 @@ void main() {
               find.byType(TweenAnimationBuilder<Color?>),
             )
             .duration,
-        const Duration(milliseconds: 77),
+        Duration.zero,
       );
+      expect(_overlayColor(tester), fakeHover);
+    });
+
+    testWidgets('NFR-U03: FakeAccessibilityFeatures.reduceMotion snaps the '
+        'overlay to hover on one pump', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(reduceMotion: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final states = _states({});
+      await tester.pumpWidget(
+        themedHost(
+          StratumInkWell(onTap: _noop, statesController: states, child: _box),
+          theme: motionTheme(),
+        ),
+      );
+
+      states.update(WidgetState.hovered, true);
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<TweenAnimationBuilder<Color?>>(
+              find.byType(TweenAnimationBuilder<Color?>),
+            )
+            .duration,
+        Duration.zero,
+      );
+      expect(_overlayColor(tester), fakeHover);
     });
 
     testWidgets('us11/fr01: a fast level with no duration or curve fades at '
@@ -1692,6 +1761,102 @@ void main() {
     });
   });
 
+  group('StratumInkWell inside a disabled component', () {
+    testWidgets('us04/fr02/e10, fo08 us07/s12: a press already down is '
+        'cancelled when the component turns disabled and runs no tap', (
+      tester,
+    ) async {
+      var taps = 0;
+      final states = _states({});
+      // One instance across both pumps, so only the disabled scope tells
+      // the surface about the flip.
+      final surface = StratumInkWell(
+        onTap: () => taps++,
+        statesController: states,
+        child: _box,
+      );
+      Widget build({required bool disabled}) =>
+          themedHost(_Component(disabled: disabled, child: surface));
+      await tester.pumpWidget(build(disabled: false));
+      final press = await tester.startGesture(
+        tester.getCenter(find.byType(StratumInkWell)),
+      );
+      await tester.pump(kPressTimeout);
+      expect(states.value, contains(WidgetState.pressed));
+
+      await tester.pumpWidget(build(disabled: true));
+      expect(states.value, isNot(contains(WidgetState.pressed)));
+      await press.up();
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(taps, 0);
+    });
+
+    testWidgets('us04/fr02/e10: a long press already down never fires once '
+        'the component turns disabled', (tester) async {
+      var longPresses = 0;
+      Widget build({required bool disabled}) => themedHost(
+        _Component(
+          disabled: disabled,
+          child: StratumInkWell(onLongPress: () => longPresses++, child: _box),
+        ),
+      );
+      await tester.pumpWidget(build(disabled: false));
+      final press = await tester.startGesture(
+        tester.getCenter(find.byType(StratumInkWell)),
+      );
+      await tester.pump(kPressTimeout);
+
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pump(kLongPressTimeout);
+      await press.up();
+      await tester.pumpAndSettle();
+
+      expect(longPresses, 0);
+    });
+
+    testWidgets('us04/fr02/e10: it reads as a dimmed button with no action, '
+        'as its own disabled gives', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const _Component(
+            disabled: true,
+            child: StratumInkWell(onTap: _noop, child: _box),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+          hasTapAction: false,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('us04/fr02/e10: enabled again, it takes taps', (tester) async {
+      var taps = 0;
+      Widget build({required bool disabled}) => themedHost(
+        _Component(
+          disabled: disabled,
+          child: StratumInkWell(onTap: () => taps++, child: _box),
+        ),
+      );
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pumpWidget(build(disabled: false));
+
+      await tester.tap(find.byType(StratumInkWell));
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(taps, 1);
+    });
+  });
+
   group('StratumInkWell context-menu key', () {
     testWidgets('us05/s1: the context-menu key calls onSecondaryTap', (
       tester,
@@ -2456,6 +2621,247 @@ void main() {
           ),
         );
         handle.dispose();
+      },
+    );
+  });
+
+  group('StratumInkWell tap target', () {
+    testWidgets('NFR-U05: pads a 20x20 child to 44x44 on iOS', (tester) async {
+      await _withTargetPlatform(TargetPlatform.iOS, () async {
+        await tester.pumpWidget(
+          themedHost(const StratumInkWell(onTap: _noop, child: _small)),
+        );
+
+        expect(tester.getSize(find.byType(StratumInkWell)), const Size(44, 44));
+      });
+    });
+
+    testWidgets('NFR-U05: pads a 20x20 child to 48x48 on android', (
+      tester,
+    ) async {
+      await _withTargetPlatform(TargetPlatform.android, () async {
+        await tester.pumpWidget(
+          themedHost(const StratumInkWell(onTap: _noop, child: _small)),
+        );
+
+        expect(tester.getSize(find.byType(StratumInkWell)), const Size(48, 48));
+      });
+    });
+
+    testWidgets('NFR-U05: pads a 20x20 child to 24x24 on macOS', (
+      tester,
+    ) async {
+      await _withTargetPlatform(TargetPlatform.macOS, () async {
+        await tester.pumpWidget(
+          themedHost(const StratumInkWell(onTap: _noop, child: _small)),
+        );
+
+        expect(tester.getSize(find.byType(StratumInkWell)), const Size(24, 24));
+      });
+    });
+
+    testWidgets(
+      'NFR-U05: a tap 2px outside the child but inside the padded box '
+      'still fires onTap',
+      (tester) async {
+        await _withTargetPlatform(TargetPlatform.android, () async {
+          var taps = 0;
+          await tester.pumpWidget(
+            themedHost(StratumInkWell(onTap: () => taps++, child: _small)),
+          );
+          final topLeft = tester.getTopLeft(find.byType(StratumInkWell));
+
+          await tester.tapAt(topLeft + const Offset(2, 2));
+
+          expect(taps, 1);
+        });
+      },
+    );
+
+    testWidgets('NFR-U05: shrinkWrap keeps the child its own 20x20 size', (
+      tester,
+    ) async {
+      await _withTargetPlatform(TargetPlatform.android, () async {
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(
+              onTap: _noop,
+              tapTargetSize: StratumTapTargetSize.shrinkWrap,
+              child: _small,
+            ),
+          ),
+        );
+
+        expect(tester.getSize(find.byType(StratumInkWell)), const Size(20, 20));
+      });
+    });
+
+    testWidgets('NFR-U05: a child larger than the minimum keeps its own '
+        'size', (tester) async {
+      await _withTargetPlatform(TargetPlatform.android, () async {
+        await tester.pumpWidget(
+          themedHost(const StratumInkWell(onTap: _noop, child: _large)),
+        );
+
+        expect(tester.getSize(find.byType(StratumInkWell)), const Size(60, 60));
+      });
+    });
+
+    testWidgets(
+      'NFR-U05: meets androidTapTargetGuideline on a labeled 20x20 child',
+      (tester) async {
+        await _withTargetPlatform(TargetPlatform.android, () async {
+          final handle = tester.ensureSemantics();
+          await tester.pumpWidget(
+            themedHost(
+              const StratumInkWell(
+                onTap: _noop,
+                semantics: SemanticsProperties(label: 'Close'),
+                child: _small,
+              ),
+            ),
+          );
+
+          await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+          handle.dispose();
+        });
+      },
+    );
+
+    testWidgets(
+      'NFR-U05: meets iOSTapTargetGuideline on a labeled 20x20 child',
+      (tester) async {
+        await _withTargetPlatform(TargetPlatform.iOS, () async {
+          final handle = tester.ensureSemantics();
+          await tester.pumpWidget(
+            themedHost(
+              const StratumInkWell(
+                onTap: _noop,
+                semantics: SemanticsProperties(label: 'Close'),
+                child: _small,
+              ),
+            ),
+          );
+
+          await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+          handle.dispose();
+        });
+      },
+    );
+
+    testWidgets('NFR-U05: the padding adds no semantics node, so the '
+        "child's semantics read unchanged", (tester) async {
+      await _withTargetPlatform(TargetPlatform.android, () async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(
+              onTap: _noop,
+              semantics: SemanticsProperties(label: 'Close'),
+              child: _small,
+            ),
+          ),
+        );
+
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            label: 'Close',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true,
+          ),
+        );
+        handle.dispose();
+      });
+    });
+
+    testWidgets(
+      'NFR-U05: an IntrinsicWidth ancestor still reserves the platform '
+      'minimum',
+      (tester) async {
+        await _withTargetPlatform(TargetPlatform.android, () async {
+          await tester.pumpWidget(
+            themedHost(
+              const IntrinsicWidth(
+                child: StratumInkWell(onTap: _noop, child: _small),
+              ),
+            ),
+          );
+
+          expect(tester.getSize(find.byType(StratumInkWell)).width, 48);
+        });
+      },
+    );
+
+    testWidgets(
+      'NFR-U05: an IntrinsicHeight ancestor still reserves the platform '
+      'minimum',
+      (tester) async {
+        await _withTargetPlatform(TargetPlatform.android, () async {
+          await tester.pumpWidget(
+            themedHost(
+              const IntrinsicHeight(
+                child: StratumInkWell(onTap: _noop, child: _small),
+              ),
+            ),
+          );
+
+          expect(tester.getSize(find.byType(StratumInkWell)).height, 48);
+        });
+      },
+    );
+
+    testWidgets(
+      'NFR-U05: the dry baseline carries the centering offset once the '
+      "box grows past the child's own size",
+      (tester) async {
+        await _withTargetPlatform(TargetPlatform.android, () async {
+          const probe = Text('A');
+          await tester.pumpWidget(
+            themedHost(const StratumInkWell(onTap: _noop, child: probe)),
+          );
+
+          const constraints = BoxConstraints();
+          const baseline = TextBaseline.alphabetic;
+          final surface = tester.renderObject<RenderBox>(
+            find.byType(StratumInkWell),
+          );
+          final child = tester.renderObject<RenderBox>(find.byType(Text));
+          final childBaseline = child.getDryBaseline(constraints, baseline)!;
+          final childSize = child.getDryLayout(constraints);
+          final boxSize = surface.getDryLayout(constraints);
+          final centeringOffset = Alignment.center
+              .alongOffset(boxSize - childSize as Offset)
+              .dy;
+
+          expect(
+            surface.getDryBaseline(constraints, baseline),
+            childBaseline + centeringOffset,
+          );
+        });
+      },
+    );
+
+    testWidgets(
+      'NFR-U05: the focus ring hugs the real 20x20 child, not the grown '
+      'hit box',
+      (tester) async {
+        await _withTargetPlatform(TargetPlatform.android, () async {
+          await tester.pumpWidget(
+            themedHost(const StratumInkWell(onTap: _noop, child: _small)),
+          );
+
+          expect(
+            tester.getSize(find.byType(StratumFocusBorder)),
+            const Size(20, 20),
+          );
+          expect(
+            tester.getSize(find.byType(StratumInkWell)),
+            const Size(48, 48),
+          );
+        });
       },
     );
   });

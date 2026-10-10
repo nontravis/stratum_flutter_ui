@@ -1,10 +1,8 @@
 export 'base/base.dart';
-export 'in_app_update.dart';
 export 'ink_well.dart'
     hide semanticsWithoutHeading, tapSurfaceHeadingLevel, tapSurfaceTakesFocus;
 export 'layout/layout.dart';
 export 'model/model.dart';
-export 'page/page.dart';
 export 'responsive/responsive.dart';
 export 'style/style.dart';
 export 'text_entry_guard.dart';

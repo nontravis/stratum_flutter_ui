@@ -61,6 +61,7 @@ StratumThemeConfig convertThemeConfig(PlainThemeConfig plain) =>
       ),
       typography: convertTypography(plain.typography),
       animation: plain.animation,
+      opacity: plain.opacity,
       extensions: plain.extensions,
     );
 

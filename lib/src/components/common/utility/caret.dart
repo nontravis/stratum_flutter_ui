@@ -109,6 +109,11 @@ class StratumCaret extends StratumStatefulWidget {
   /// The glyph color, used as given; wins over `color`.
   final Color? customColor;
 
+  /// False: the caret is decorative and stays out of the semantics tree,
+  /// so a disabled caret gets no disabled node (R11, D8).
+  @override
+  bool get contributesSemantics => false;
+
   @override
   State<StratumCaret> createState() => _StratumCaretState();
 }

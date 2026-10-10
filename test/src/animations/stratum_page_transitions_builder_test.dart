@@ -366,6 +366,30 @@ void main() {
           .map((slide) => slide.position.value.dx);
       expect(home.any((dx) => dx < 0), isTrue);
     });
+
+    testWidgets('us05/fr04: a theme naming leftToRightJoined slides the page '
+        'under it out by its own route', (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        _app(
+          navigator,
+          _motion(transitionsOf(ScreenTransitionType.leftToRightJoined)),
+        ),
+      );
+      await _pushPage(tester, navigator);
+
+      expect(tester.takeException(), isNull);
+      final page = tester
+          .widget<SlideTransition>(_above('page', SlideTransition).first)
+          .position
+          .value
+          .dx;
+      expect(page, lessThan(0));
+      final home = tester
+          .widgetList<SlideTransition>(_above('home', SlideTransition))
+          .map((slide) => slide.position.value.dx);
+      expect(home.any((dx) => dx > 0), isTrue);
+    });
   });
 
   test('two builders of equal motion and platform are equal', () {

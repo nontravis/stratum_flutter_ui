@@ -64,6 +64,7 @@ final class _Read {
       ),
       typography: _typography(tree['typography']),
       animation: _animation(tree['animation']),
+      opacity: frozenMap(_opacity(tree['opacity'])),
       extensions: _extensions(tree['extensions']),
     );
   }
@@ -444,6 +445,33 @@ final class _Read {
       );
     }
     return transitions;
+  }
+
+  /// The `opacity` group (FO-01 US-01 FR-01 E12; config s03 invariant
+  /// 11): each key the merged tree holds, the package default's
+  /// `disabled`, as a number from 0 to 1, the range Flutter's `Opacity`
+  /// asserts.
+  Map<String, double> _opacity(Object? value) {
+    final opacity = <String, double>{};
+    final node = _reader.map(value, 'opacity');
+    for (final MapEntry(:key, value: entry)
+        in (node ?? const <String, Object?>{}).entries) {
+      final path = 'opacity.$key';
+      if (entry is num && entry >= 0 && entry <= 1) {
+        opacity[key] = entry.toDouble();
+        continue;
+      }
+      if (entry == null) {
+        _reader.report(StratumThemeErrorCode.required, path, 'required');
+        continue;
+      }
+      _reader.report(
+        StratumThemeErrorCode.expectedOpacity,
+        path,
+        'expected a number from 0 to 1, got ${ThemeReader.show(entry)}',
+      );
+    }
+    return opacity;
   }
 
   PlainTypography _typography(Object? value) {

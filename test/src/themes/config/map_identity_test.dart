@@ -26,6 +26,7 @@ void main() {
       expect(config.layouts, same(config.layouts));
       expect(config.palette, same(config.palette));
       expect(config.extensions, same(config.extensions));
+      expect(config.opacity, same(config.opacity));
       expect(config.copyWith(name: 'brand').space, same(config.space));
     });
 

@@ -464,6 +464,20 @@ void main() {
     );
   });
 
+  testWidgets('us05/fr01/e02: leftToRightJoined with no childCurrent fails '
+      'an assertion naming childCurrent', (tester) async {
+    await _push(tester, type: ScreenTransitionType.leftToRightJoined);
+
+    expect(
+      tester.takeException(),
+      isA<AssertionError>().having(
+        (error) => '${error.message}',
+        'message',
+        contains('childCurrent'),
+      ),
+    );
+  });
+
   testWidgets('us05/fr01/e03: scale with no alignment fails with a '
       'null-check error', (tester) async {
     await _push(tester, type: ScreenTransitionType.scale);
@@ -520,6 +534,36 @@ void main() {
         .dx;
     expect(dxOf('page'), closeTo(0.75, 1e-9));
     expect(dxOf('current'), closeTo(-0.25, 1e-9));
+  });
+
+  testWidgets('us05/fr01: leftToRightJoined slides the current page out to '
+      'the right beside the new one', (tester) async {
+    await _push(
+      tester,
+      theme: motionTheme(
+        slow: const Duration(milliseconds: 400),
+        standard: const StratumNamedCurve('linear'),
+      ),
+      type: ScreenTransitionType.leftToRightJoined,
+      child: const SizedBox(key: ValueKey('page')),
+      childCurrent: const SizedBox(key: ValueKey('current')),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    double dxOf(String key) => tester
+        .widget<SlideTransition>(
+          find
+              .ancestor(
+                of: find.byKey(ValueKey(key)),
+                matching: find.byType(SlideTransition),
+              )
+              .first,
+        )
+        .position
+        .value
+        .dx;
+    expect(dxOf('page'), closeTo(-0.75, 1e-9));
+    expect(dxOf('current'), closeTo(0.25, 1e-9));
   });
 
   testWidgets('us05/s1: a right-to-left push slides in from the right edge '
@@ -916,6 +960,22 @@ void main() {
       expect(
         tester.getTopLeft(find.byKey(const ValueKey('copy'))).dx,
         lessThan(0),
+      );
+    });
+
+    testWidgets('leftToRightJoined leaves it in place: its copy moves '
+        'instead', (tester) async {
+      await _push(
+        tester,
+        type: ScreenTransitionType.leftToRightJoined,
+        childCurrent: const SizedBox.expand(key: ValueKey('copy')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, 0);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('copy'))).dx,
+        greaterThan(0),
       );
     });
 

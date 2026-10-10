@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building a Flutter app on Stratum UI: picking a layout primitive, its parameters or keyboard behavior, or starting, switching, or writing a Stratum theme. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, or StratumWebView, StratumWebViewController, its message bridge, or page transitions: animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, and ScreenTransitionType, or StratumCaret, StratumCaretDirection, StratumCaretStyle, a named color via resolveColor or a ColorEnum lookup, or built-in Thai labels and supportedLocales.
+description: Use when building a Flutter app on Stratum UI: layout primitives, keyboard behavior, or Stratum themes. Triggers on ColumnLayout, RowLayout, FlexLayout, ContainerLayout, StackLayout, IndexedStackLayout, WrapLayout, ListViewLayout, GridViewLayout, CustomScrollViewLayout, PageViewLayout, ReorderableListViewLayout, StratumReorderableItemsController, NestedScrollViewLayout, Space/SpaceDirectional, StratumFocusBorder, FocusSpread, StratumThemeController, StratumThemeApplication.controlled, StratumThemePreloader, StratumRemoteTheme, StratumThemeController.install, typography.fonts in theme.yaml, StratumWebView, StratumWebViewController, its message bridge, animation.transition in theme.yaml, PageTransition, StratumTransitionPage, NoPageTransition, ScreenTransitionType, StratumCaret, StratumCaretDirection, StratumCaretStyle, resolveColor, ColorEnum, Thai labels, supportedLocales, StratumShow, disabled, dimsWhenDisabled, opacity.disabled theme token, StratumWebZoom.
 ---
 
 # Stratum Flutter UI
@@ -225,12 +225,39 @@ scroll it, guarded so a text field inside keeps its own keys.
   on the inner edge, 3 px when hovered and 2 px when focused. It fades over the theme's `fast` level, shows at once
   under reduced motion, and never changes the child's layout size. Its colors stay below the 3:1 contrast of WCAG
   1.4.11 by design; pass `customColor` where an app needs that ratio.
+- **`StratumInkWell`** — the tap surface every `interaction` builds on. Its own hover and press overlay fades over
+  the theme's `fast` level and snaps straight to its target color under reduced motion, same as the ring above it.
+  `tapTargetSize` (default `StratumTapTargetSize.platform`) grows its layout and hit area to the platform minimum
+  when `child` is smaller; pass `StratumTapTargetSize.shrinkWrap` to keep `child`'s own size in a dense UI.
+  `StratumInteraction.tapTargetSize` carries the same choice to every `BoxLayout` (`ContainerLayout`, `ColumnLayout`,
+  `RowLayout`, `StackLayout`, `WrapLayout`) with a tap surface, so a dense `BoxLayout` opts out the same way.
 - **`FocusSpread`** — deprecated in 1.1.0, and removed after one minor version: it builds `StratumFocusBorder`, so
   it already draws the new look. Its `color` now colors only the ring, as `customColor`, and no longer fills the
   box; a box that needs a fill takes it from its own style. Replace `FocusSpread(focus: f, color: c, inside: i,
   borderRadius: r, child: x)` with `StratumFocusBorder(state: f ? FullWidgetState.focused : FullWidgetState.normal,
   customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
   took effect.
+
+## Disabled components
+
+- **`disabled: true`** — on any component built on `StratumStatelessWidget` or `StratumStatefulWidget`, the
+  base paints it at the theme's `opacity.disabled` (0.5 by default), shows the forbidden cursor, lets no tap,
+  long press, drag, or hover run its action — a tap reaches a gesture detector wrapped around it, as with a
+  Flutter button whose `onPressed` is null — and keeps it and every node inside it out of focus and Tab order,
+  losing focus if focused. A screen reader marks it disabled on its own node. Turning `disabled` off keeps the
+  component's state. A `StratumInkWell` press already down when it turns disabled is cancelled and runs no action; a
+  scroll already holding the finger goes on, and a `GestureDetector` you write inside it finishes its gesture
+  underway.
+- **Your own disabled look** — a component overrides `@protected bool get dimsWhenDisabled => false` to draw its
+  own; the cursor, input, focus, and screen-reader rules still hold. A widget extending neither base gets none of
+  this.
+- **A decorative component** — a component that gives a screen reader nothing to read, such as a caret, overrides
+  `@protected bool get contributesSemantics => false`; while disabled it then gets no screen-reader node, and the
+  dimming, cursor, input, and focus rules still hold.
+- **One box widget at its root** — a component on either base builds exactly one box widget at its root, never
+  `Expanded`, `Flexible`, or `Positioned`; the base asserts no `ParentDataWidget` root in debug builds, so move the
+  parent-data widget to the call site instead. A sliver root is not caught by this assertion; it fails Flutter's own
+  box-child assertion instead.
 
 ## Caret and named colors
 
@@ -375,6 +402,13 @@ scroll it, guarded so a text field inside keeps its own keys.
   version its CLI family list came from, so the CLI and your app accept the same `Google/<Name>` families. When
   `pub get` reports a google_fonts conflict, let your own google_fonts constraint allow the version stratum_ui's
   `pubspec.yaml` names.
+- **Disabled opacity** — `opacity.disabled` in `theme.yaml`, a number from 0 to 1, is the opacity every disabled
+  component paints at; the package default sets 0.5, and an app theme may leave the group out. Read it as
+  `StratumThemeApplication.of(context).opacity.disabled`. A value outside 0 to 1 throws
+  `StratumThemeFormatException` with `expected_opacity` at its path, and a second key under `opacity` is
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.1.0`; this package reads every `v1.0` and
+  `v1.1` theme, while a package build that reads only `v1.0` refuses a `v1.1` theme as `unsupported_schema`, so a
+  theme that must load on both writes `v1.0.0` and leaves `opacity` out.
 
 ## Page transitions
 
@@ -413,6 +447,29 @@ scroll it, guarded so a text field inside keeps its own keys.
   any other type shows the page at once.
 - **Flutter floor** — `stratum_ui` needs Flutter 3.47 or later, which packages `google_fonts` 9.0.0, `badges`
   ^4.0.1, and `webview_flutter_wkwebview` ^3.27.0 need.
+
+## Show and hide
+
+- **`StratumShow`** — `StratumShow(visible: v, child: c)` shows `c` while `v` is true and hides it while false, by
+  `transition`: `StratumShowTransition.sizeAndFade` (the default), `.fade`, `.size`, or `.slide`, over the theme's
+  default motion level (125 ms to show and 80 ms to hide in the package default) on its `standard` curve; `duration`,
+  `reverseDuration`, and `curve` each replace one of them. A slide moves the content by its own size from
+  `slideDirection`: `StratumShowSlideDirection.end` (the default), `.start`, `.top`, or `.bottom`, with start and end
+  mirrored under right-to-left text, and fades as it moves. Hidden content takes no space in a row or a column and is
+  unmounted after its hide motion, so it builds fresh when shown again; `maintainState: true` keeps it mounted
+  instead, with its state, its tickers stopped, and no size. From the frame it turns hidden, leaving or hidden content
+  takes no tap, focus, or screen-reader attention; focus inside it moves to the show, which Tab never stops on. Under
+  reduced motion nothing moves or resizes: `fade`, `sizeAndFade`, and `slide` keep their fade, and `size` shows and
+  hides at once.
+
+## Web zoom
+
+- **`StratumWebZoom`** — wrap a web app, or the part of it to zoom, in `StratumWebZoom(child: app)`. On the web the
+  EndUser pinches, on a touch screen or a trackpad, to zoom between `minScale` (default 1.0, so the app never shrinks
+  below its own layout) and `maxScale` (default 2.5), pans the zoomed app, and sees it clipped to the zoom's bounds;
+  the mouse wheel never zooms and keeps scrolling the list under the pointer. On Android, iOS, macOS, Windows, and
+  Linux it builds the child alone. A `maxScale` below `minScale`, or a `minScale` of 0 or less, fails an assertion in
+  debug builds on every platform. It does not zoom the page inside a `StratumWebView`.
 
 ## Web view
 
