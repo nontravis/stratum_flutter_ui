@@ -198,3 +198,11 @@
   `SplitLayoutController` holds each pane's chosen fraction, restores it from its constructor, takes one set from
   code, and notifies once per settled move, never per drag frame or on a window clamp.
 - The package depends on `multi_split_view` (`^3.6.2`) for `SplitLayout`'s drag engine and layout.
+- New `PageLayout`, a page of nine optional slots, `header`, `left`, `top`, `tab`, `body`, `bottom`, `right`, `footer`,
+  and a floating `snack`, in the Figma page geometry, mirrored under right-to-left text. Edge slots fill under the
+  system insets while their content pads by them, as `safeArea: PageSafeArea(top:, bottom:, left:, right:)` allows,
+  and a nested page pads nothing twice; with `resizeToAvoidKeyboard` (default `true`) the page above `footer` ends at
+  the keyboard's top. `loading: true` blocks taps and keyboard focus behind a layer read as "Loading", drawn by
+  `loadingBuilder` or a plain spinner, and returns focus once it ends. A `PageLayoutStyle customStyle` restyles each
+  slot over the theme and the app-wide parts style. `PageLayout.of(context)` returns a `PageLayoutController`
+  holding the chosen `leftWidth` and `rightWidth`, which notifies once per changed set.

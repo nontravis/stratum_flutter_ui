@@ -17,6 +17,7 @@ export 'modal_layout.dart'
         modalCorners,
         resolveModalLayoutType;
 export 'nested_scroll_view_layout.dart';
+export 'page_layout.dart';
 export 'page_view_layout.dart';
 export 'reorderable_list_view_layout.dart';
 export 'row_layout.dart';

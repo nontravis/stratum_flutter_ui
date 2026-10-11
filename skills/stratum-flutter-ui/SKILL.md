@@ -697,6 +697,31 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   action, or a code set), never per drag frame and never when a narrow window only squeezes the panes. With no
   controller the split makes and disposes its own; it never disposes one you pass.
 
+## Page layout
+
+- **`PageLayout`** — `PageLayout(header: ..., left: ..., top: ..., tab: ..., body: ..., bottom: ..., right: ...,
+  footer: ..., snack: ...)` lays out a page in Figma's slot geometry: `header` on top, `left` full height beside a
+  main column of `top` over the center column (`tab`, `body`, `bottom`) and `right`, `footer` at the end, and
+  `snack` floating at the bottom center. A null slot takes no space; under right-to-left text `left` sits on the
+  right. Each slot hosts any widget, a `ListTile` included, with no `Scaffold`. The page needs bounded constraints.
+- **Rebuild scope** — slots take plain widgets, so you pick what rebuilds: put a `BlocBuilder`, `BlocSelector`,
+  `Consumer` (Riverpod), or `context.select` (Provider) inside one slot to rebuild only that slot, or around the
+  whole `PageLayout` to rebuild every slot.
+- **Insets** — every slot that touches a screen edge runs its fill under the status bar, home indicator, or side
+  inset while its content pads by it; `body` instead hands its top and bottom insets to its children, so a body
+  `ListView` scrolls under the home indicator with its last row clear. `safeArea: PageSafeArea(top: false)` turns a
+  side off (`left` and `right` name the start and end sides). A nested `PageLayout` pads nothing twice.
+- **Keyboard** — the page above `footer` ends at the keyboard's top, so `bottom` rides above it and `footer` stays
+  docked under it; `resizeToAvoidKeyboard: false` lets the keyboard cover the page.
+- **Loading** — `loading: true` fades in a layer that refuses taps and keyboard focus and reads as "Loading"; focus
+  returns to where it sat once `loading` turns false. Pass `loadingBuilder:` to draw your own spinner.
+- **Style** — `customStyle: PageLayoutStyle(outer:, header:, top:, tab:, left:, body:, right:, bottom:, footer:,
+  snack:)`, merged over the theme (edge slots `background.default.surface`, page and body
+  `background.default.normal`), then over the app-wide `componentPartDefaults` entry for `PageLayout`.
+- **Controller** — `PageLayout.of(context)` returns the page's `PageLayoutController`; pass your own
+  `PageLayoutController(leftWidth:, rightWidth:)` to restore kept side pane widths. The page disposes only the one it
+  makes.
+
 ## Hover and focus observers
 
 - **`HoverBuilder`** — `HoverBuilder(builder: (context, hovered, child) => ..., child: c, onHover: (hovered) {})`
