@@ -304,6 +304,7 @@ class PageLayout extends StatefulWidget {
     this.rightSide = const PageSide(),
     this.drawerCut = WindowSize.tablet,
     this.rightAsOverlay = false,
+    this.minCenterWidth = 320,
     this.leftDividerBuilder,
     this.rightDividerBuilder,
     this.edgeSwipe = true,
@@ -374,6 +375,11 @@ class PageLayout extends StatefulWidget {
   /// [WindowSize.bigDesktop] and 400 px below it, instead of an inline
   /// pane.
   final bool rightAsOverlay;
+
+  /// The least width, in logical pixels, the center column keeps beside the
+  /// inline panes: a divider drag or key step stops there, and a window too
+  /// narrow for both panes and this width narrows the panes first.
+  final double minCenterWidth;
 
   /// Paints the divider between the inline [left] pane and the page beside
   /// it; null paints none, while the divider still takes a drag, the keys,
@@ -962,7 +968,12 @@ class _PageLayoutState extends State<PageLayout>
   PageSide? _drawerSide(PageDrawerSide side) {
     if (!_isDrawer(side)) return null;
     if (!_isOverlay(side)) return _sideOf(side);
-    final width = overlayDrawerWidth(_windowSize);
+    // A screen narrower than the drawer, below tablet when the app moves
+    // the cut there, takes the drawer at the screen's width.
+    final width = math.min(
+      overlayDrawerWidth(_windowSize),
+      context.deviceWindow.width,
+    );
     return PageSide(
       type: PageDrawerType.front,
       minWidth: width,
@@ -1150,7 +1161,6 @@ class _PageLayoutState extends State<PageLayout>
   }) {
     final start = side == PageDrawerSide.left;
     final config = _sideOf(side);
-    final columnPane = SplitPane(child: column);
     return FocusTraversalOrder(
       order: NumericFocusOrder(order.index + 1),
       child: LayoutBuilder(
@@ -1171,6 +1181,14 @@ class _PageLayoutState extends State<PageLayout>
                       max: config.maxWidth,
                       child: pane,
                     );
+              // The center column keeps its minimum; beside `left` the
+              // main column also keeps room for `right` at its open width.
+              final keep =
+                  widget.minCenterWidth +
+                  (start && _inlineRight != null
+                      ? _openWidth(PageDrawerSide.right)
+                      : 0);
+              final columnPane = SplitPane(min: keep, child: column);
               return SplitLayout(
                 controller: start ? _leftSplit : _rightSplit,
                 dividerBuilder: start
@@ -1194,6 +1212,13 @@ class _PageLayoutState extends State<PageLayout>
       PageDrawerSide.right => _controller.rightWidth,
     };
     return chosen ?? inlinePaneWidth(side, _windowSize);
+  }
+
+  /// [side]'s open width, [_paneWidth] within the side's width bounds.
+  double _openWidth(PageDrawerSide side) {
+    final config = _sideOf(side);
+    final max = config.maxWidth ?? double.infinity;
+    return _paneWidth(side).clamp(math.min(_minWidthOf(config) ?? 0, max), max);
   }
 
   /// [config]'s least width, giving way to its greatest, as the drawer

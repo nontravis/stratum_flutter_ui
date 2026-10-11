@@ -110,10 +110,10 @@ double overlayDrawerWidth(WindowSize window) =>
 
 /// The width [side]'s inline pane opens at on [window] while no width is
 /// chosen: the Figma page layout's side widths, `left` 280 and `right` 380
-/// at [WindowSize.desktop] and up, and `left` 260 and `right` 320 below it
-/// (US-19 FR-06).
+/// at [WindowSize.bigDesktop], the 1600 `DESKTOP` frame, and `left` 260 and
+/// `right` 320 below it, the 1200 `TABLET` frame (US-19 FR-06 E10).
 double inlinePaneWidth(PageDrawerSide side, WindowSize window) {
-  final wide = window >= WindowSize.desktop;
+  final wide = window == WindowSize.bigDesktop;
   return switch (side) {
     PageDrawerSide.left => wide ? 280 : 260,
     PageDrawerSide.right => wide ? 380 : 320,

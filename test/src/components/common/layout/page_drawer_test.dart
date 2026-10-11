@@ -1243,7 +1243,7 @@ void main() {
     });
 
     testWidgets('us19/fr01: a cut at mobile shows the sides inline on a '
-        'phone', (tester) async {
+        'landscape phone', (tester) async {
       await _pump(
         tester,
         _sides(
@@ -1251,6 +1251,7 @@ void main() {
           right: false,
           controller: _widths(left: 250),
         ),
+        size: const Size(844, 390),
       );
       expect(tester.getRect(_box('left pane')).width, 250);
       expect(_dividers, findsOneWidget);
@@ -1374,6 +1375,19 @@ void main() {
       );
     });
 
+    testWidgets('us19/fr01/e04: on a screen narrower than the overlay drawer '
+        'it fits the screen', (tester) async {
+      await _pump(
+        tester,
+        _sides(cut: WindowSize.mobile, overlay: true, left: false),
+      );
+      await _openRight(tester);
+      expect(
+        tester.getRect(_box('right pane')),
+        const Rect.fromLTRB(0, 0, 360, 780),
+      );
+    });
+
     testWidgets('us19/fr01: below the cut an overlay right is a plain '
         'drawer with no close button', (tester) async {
       await _pump(tester, _sides(overlay: true));
@@ -1414,10 +1428,10 @@ void main() {
       expect(tester.getRect(_box('Open right')).left, 240);
     });
 
-    test('us19/fr06: the Figma side widths: left 280 and right 380 at '
-        'desktop and up, 260 and 320 below', () {
+    test('us19/fr06/e10: the Figma side widths: left 280 and right 380 at '
+        'bigDesktop, 260 and 320 below', () {
       for (final window in WindowSize.values) {
-        final wide = window >= WindowSize.desktop;
+        final wide = window == WindowSize.bigDesktop;
         expect(inlinePaneWidth(PageDrawerSide.left, window), wide ? 280 : 260);
         expect(inlinePaneWidth(PageDrawerSide.right, window), wide ? 380 : 320);
       }
@@ -1425,23 +1439,26 @@ void main() {
 
     for (final (name, size, left, right) in [
       ('tablet', _tablet, 260.0, 320.0),
-      ('desktop', _desktop, 280.0, 380.0),
+      ('desktop', _desktop, 260.0, 320.0),
       ('bigDesktop', _bigDesktop, 280.0, 380.0),
     ]) {
-      testWidgets('us19/fr06: at $name a side with no chosen width opens at '
-          'its Figma width', (tester) async {
-        await _pump(
-          tester,
-          const PageLayout(
-            left: Text('left pane'),
-            right: Text('right pane'),
-            body: _OpenRight(),
-          ),
-          size: size,
-        );
-        expect(tester.getRect(_box('left pane')).width, left);
-        expect(tester.getRect(_box('right pane')).width, right);
-      });
+      testWidgets(
+        'us19/fr06/e10: at $name a side with no chosen width opens at '
+        'its Figma width',
+        (tester) async {
+          await _pump(
+            tester,
+            const PageLayout(
+              left: Text('left pane'),
+              right: Text('right pane'),
+              body: _OpenRight(),
+            ),
+            size: size,
+          );
+          expect(tester.getRect(_box('left pane')).width, left);
+          expect(tester.getRect(_box('right pane')).width, right);
+        },
+      );
     }
 
     testWidgets('us19/fr06/e03: a chosen width wins over the Figma width of '
@@ -1457,7 +1474,84 @@ void main() {
         size: _desktop,
       );
       expect(tester.getRect(_box('left pane')).width, 300);
-      expect(tester.getRect(_box('right pane')).width, 380);
+      expect(tester.getRect(_box('right pane')).width, 320);
+    });
+
+    /// A page at [_desktop] with unbounded sides, `left` 240 and `right` 300
+    /// wide, and a center column kept at least [minCenter] wide.
+    Widget unbounded(PageLayoutController controller, {double? minCenter}) =>
+        PageLayout(
+          controller: controller,
+          minCenterWidth: minCenter ?? 320,
+          left: const Text('left pane'),
+          right: const Text('right pane'),
+          body: const Text('center'),
+        );
+
+    testWidgets('R23: us19/fr06/e08: a drag of either divider stops where the '
+        'center column keeps 320', (tester) async {
+      final controller = _widths(left: 240, right: 300);
+      await _pump(tester, unbounded(controller), size: _desktop);
+      await tester.dragFrom(
+        tester.getCenter(_dividers.at(1)),
+        const Offset(2000, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+      expect(controller.leftWidth, closeTo(680, 1e-6));
+      expect(controller.rightWidth, 300);
+      controller.leftWidth = 240;
+      await tester.pump();
+      await tester.dragFrom(
+        tester.getCenter(_dividers.at(0)),
+        const Offset(-2000, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+      expect(controller.rightWidth, closeTo(740, 1e-6));
+    });
+
+    testWidgets('R23: us19/fr06/e08: End on the left divider stops where the '
+        'center column keeps 320', (tester) async {
+      final controller = _widths(left: 240, right: 300);
+      await _pump(tester, unbounded(controller), size: _desktop);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pump();
+      expect(controller.leftWidth, closeTo(680, 1e-6));
+      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+    });
+
+    testWidgets('R23: minCenterWidth moves the center minimum', (tester) async {
+      final controller = _widths(left: 240, right: 300);
+      await _pump(
+        tester,
+        unbounded(controller, minCenter: 500),
+        size: _desktop,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pump();
+      expect(controller.leftWidth, closeTo(500, 1e-6));
+      expect(tester.getRect(_box('center')).width, closeTo(500, 1e-6));
+    });
+
+    testWidgets('R23: us19/fr06/e09: a window too narrow for both panes and '
+        'the center minimum narrows the panes first, and notifies nothing', (
+      tester,
+    ) async {
+      final notes = [0];
+      final controller = _widths(left: 260, right: 320, notes: notes);
+      await _pump(tester, unbounded(controller), size: const Size(800, 700));
+      final left = tester.getRect(_box('left pane')).width;
+      final right = tester.getRect(_box('right pane')).width;
+      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+      expect(left + right, closeTo(480, 1e-6));
+      expect(left, lessThan(260));
+      expect(notes.single, 0);
+      expect(controller.leftWidth, 260);
     });
 
     testWidgets("us19/fr06: the side's width bounds clamp its Figma width", (
@@ -1551,13 +1645,14 @@ void main() {
       final controller = _widths(left: 380, notes: notes);
       await _pump(
         tester,
-        _sides(cut: WindowSize.mobile, right: false, controller: controller),
+        _sides(right: false, controller: controller),
         size: _desktop,
       );
       expect(tester.getRect(_box('left pane')).width, 380);
-      _view(tester, const Size(300, 700));
+      // A 640 px tablet leaves the pane 640 less the center's 320.
+      _view(tester, const Size(640, 800));
       await tester.pumpAndSettle();
-      expect(tester.getRect(_box('left pane')).width, 300);
+      expect(tester.getRect(_box('left pane')).width, closeTo(320, 1e-6));
       expect(controller.leftWidth, 380);
       expect(notes.single, 0);
       _view(tester, _desktop);
@@ -1742,6 +1837,22 @@ void main() {
       await tester.pumpAndSettle();
       expect(_focusLabel, startsWith('SplitLayout divider'));
       expect(_ring(tester, _dividers), isNot(isSameColorAs(idle)));
+    });
+
+    testWidgets('NFR-U02: us19/fr01/e04: Tab reaches the overlay drawer close '
+        'button after the pane and shows its focus ring', (tester) async {
+      await _pump(tester, _sides(overlay: true), size: _desktop);
+      await _openRight(tester);
+      final close = find.bySemanticsLabel('Close');
+      final idle = _ring(tester, close);
+      expect(idle.a, 0);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(close),
+        isSemantics(label: 'Close', isButton: true, isFocused: true),
+      );
+      expect(_ring(tester, close), isNot(isSameColorAs(idle)));
     });
 
     // The inline panes move only under the EndUser's drag or key, with no
