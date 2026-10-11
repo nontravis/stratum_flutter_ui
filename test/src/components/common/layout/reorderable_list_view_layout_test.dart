@@ -790,15 +790,21 @@ Widget _inkWellBoundary(Widget child) =>
 
 void main() {
   void pointerTests() {
-    testWidgets(
-      'us11/fr01: the list builds one SliverReorderableList, found by a '
-      'subtype predicate',
-      (tester) async {
-        await tester.pumpWidget(_app(const _Harness(count: 3)));
+    testWidgets('us11/fr01: every item finds one and the same list through '
+        'SliverReorderableList.maybeOf, as an app drag handle does', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_app(const _Harness(count: 3)));
 
-        expect(_reorderSliver(), findsOneWidget);
-      },
-    );
+      final lists = {
+        for (final id in const [0, 1, 2])
+          SliverReorderableList.maybeOf(
+            tester.element(find.byKey(ValueKey(id))),
+          ),
+      };
+      expect(lists, hasLength(1));
+      expect(lists.single, isNotNull);
+    });
 
     testWidgets('a drag on a handle reorders', (tester) async {
       await tester.pumpWidget(
@@ -7431,8 +7437,7 @@ void main() {
   void dragEndsTests() {
     testWidgets(
       'us11/fr04/e06: a second pointer that takes a long-press drag over '
-      'ends it with one onReorderEnd, in the microtask after its down '
-      '(the SDK calls cancelReorder on the second pointer)',
+      'ends it with one onReorderEnd, in the microtask after its down',
       (tester) async {
         final controller = ReorderableItemsController();
         await tester.pumpWidget(
@@ -7514,8 +7519,7 @@ void main() {
 
     testWidgets(
       'us11/fr04/e06: a pointer cancel reports onReorderEnd in a microtask '
-      'after the cancel, not inside its dispatch (the SDK reads the '
-      "recognizer's onStart lazily and its own cancel skips cancelReorder)",
+      'after the cancel, not inside its dispatch',
       (tester) async {
         await tester.pumpWidget(_app(const _Harness(count: 20)));
         final harness = _harness(tester);
@@ -7912,47 +7916,44 @@ void main() {
     );
 
     testWidgets(
-      's03/inv35: the list frames its items by key over each of the four '
-      'slivers the SDK builds, with findChildIndexCallback set',
+      's03/inv35: under each extent, none, itemExtent, itemExtentBuilder, and '
+      'prototypeItem, the list lays every slot out at that extent and a '
+      'focused item a raw move takes far keeps its State',
       (tester) async {
         final harnesses = [
-          const _Harness(key: ValueKey(0), count: 5),
-          const _Harness(key: ValueKey(1), count: 5, itemExtent: 40),
+          const _Harness(key: ValueKey('none'), count: 200, appIndex: true),
+          const _Harness(
+            key: ValueKey('itemExtent'),
+            count: 200,
+            itemExtent: 40,
+            appIndex: true,
+          ),
           _Harness(
-            key: const ValueKey(2),
-            count: 5,
+            key: const ValueKey('itemExtentBuilder'),
+            count: 200,
             itemExtentBuilder: (index, dimensions) => 40,
+            appIndex: true,
           ),
           const _Harness(
-            key: ValueKey(3),
-            count: 5,
+            key: ValueKey('prototypeItem'),
+            count: 200,
             prototypeItem: SizedBox(width: 40, height: 40),
+            appIndex: true,
           ),
         ];
-        final kinds = <Type>[];
         for (final harness in harnesses) {
           await tester.pumpWidget(_app(harness));
-          final sliver = tester.widget<SliverMultiBoxAdaptorWidget>(
-            find.byWidgetPredicate(
-              (widget) => widget is SliverMultiBoxAdaptorWidget,
-            ),
-          );
-          kinds.add(sliver.runtimeType);
-          final delegate = sliver.delegate;
-          expect(delegate, isA<SliverChildBuilderDelegate>());
-          expect(
-            (delegate as SliverChildBuilderDelegate).findChildIndexCallback,
-            isNotNull,
-          );
-        }
+          final state = _itemState(tester, 1);
+          await _focusItem(tester, 1);
+          expect(_offsetBetween(tester, 2, 3), 40);
 
-        expect(tester.takeException(), isNull);
-        expect(kinds, [
-          SliverList,
-          SliverFixedExtentList,
-          SliverVariedExtentList,
-          SliverPrototypeExtentList,
-        ]);
+          _harness(tester).moveData(1, 150);
+          await tester.pumpAndSettle();
+
+          expect(tester.takeException(), isNull);
+          expect(_statesOf(tester, 1), [same(state)]);
+          expect(FocusManager.instance.primaryFocus, same(state.node));
+        }
       },
     );
 
