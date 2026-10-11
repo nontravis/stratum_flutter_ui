@@ -474,6 +474,17 @@ color:
         [expected],
       );
     });
+
+    test('fo02/us07/fr02/e16: a layer typography length past the bound is '
+        'expected_dimension at its path', () {
+      const expected =
+          'layer1 typography.scaleByWindowSize.tablet: expected a number or '
+          '"N%" from -10000 to 10000, got 10001 [expected_dimension]';
+
+      expect(_problems('typography:\n  scaleByWindowSize: { tablet: 10001 }'), [
+        expected,
+      ]);
+    });
   });
 
   group('readThemeValues assets', () {

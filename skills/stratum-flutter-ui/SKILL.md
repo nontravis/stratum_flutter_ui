@@ -558,10 +558,12 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `{x: 0, y: 4, blur: 8, spread: 0, color: "{color.shadow.secondary}"}`, where `blur` is the Figma blur radius and
   `color` is a quoted hex, a `{palette...}` or `{transparent...}` alias, or `"{color.<group>.<name>}"`, a token of
   each color set; a list of at most 8 layers replaces the default's whole, and `[]` is no shadow. Every length a
-  theme sets, in `space`, `radius`, `layouts` (the `N` of a `"N%"` too), `border`, `blur`, and a layer's `x`, `y`,
-  `blur`, and `spread`, is a finite number from -10000 to 10000, and from 0 for `border`, `blur`, and a layer's
-  `blur`. A bad value throws `StratumThemeFormatException` with `expected_dimension`, `expected_shadow`, or
-  `expected_color` at its path, and a key the default lacks, such as `shadow.7`, is `unknown_key`. A package build
+  theme sets, in `space`, `radius`, `layouts` (the `N` of a `"N%"` too), `border`, `blur`, a layer's `x`, `y`, `blur`,
+  and `spread`, and `typography` (`adjustSize`, each `scaleByWindowSize` entry, `spaceHeight`, and `letterSpacing`,
+  the `N` of a `"N%"` too, negatives included), is a finite number from -10000 to 10000, and from 0 for `border`,
+  `blur`, and a layer's `blur`. A bad value throws `StratumThemeFormatException` with `expected_dimension`,
+  `expected_shadow`, or `expected_color` at its path, and a key the default lacks, such as `shadow.7`, is
+  `unknown_key`. A package build
   that reads only up to `v1.1` refuses a
   `v1.2` theme as `unsupported_schema`, so a theme that must load there writes `v1.1.0` and leaves the three groups
   out. `AppBorder`, `AppShadow`, `AppFilter`, `StratumThemeData.filter`, and `screenBorderRadius` no longer exist;

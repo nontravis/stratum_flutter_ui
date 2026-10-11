@@ -144,6 +144,7 @@ class _TypographyParser {
       final adjustSize = _reader.dimension(
         font['adjustSize'],
         '$fontPath.adjustSize',
+        percent: true,
       );
       final files = font.containsKey('files')
           ? _files(font['files'], '$fontPath.files')
@@ -378,7 +379,12 @@ class _TypographyParser {
         );
         continue;
       }
-      final dimension = _reader.dimension(value, sizePath, required: true);
+      final dimension = _reader.dimension(
+        value,
+        sizePath,
+        percent: true,
+        required: true,
+      );
       if (dimension != null) scale[key] = dimension;
     }
     return Map.unmodifiable(scale);
@@ -461,11 +467,13 @@ class _TypographyParser {
       final spaceHeight = _reader.dimension(
         metrics['spaceHeight'],
         '$sizePath.spaceHeight',
+        percent: true,
         required: true,
       );
       final letterSpacing = _reader.dimension(
         metrics['letterSpacing'],
         '$sizePath.letterSpacing',
+        percent: true,
       );
       if (spaceHeight == null) continue;
       sizes[size] = StratumSizeMetrics(

@@ -400,6 +400,103 @@ void main() {
     }
   });
 
+  group('StratumTypography.fromYaml length bound', () {
+    const bound = 'expected a number or "N%" from -10000 to 10000, got';
+    final cases = <(String, YamlMap, String)>[
+      (
+        'an adjustSize past the bound',
+        _typography(fonts: '{ inter: { family: Inter, adjustSize: 20000 } }'),
+        'typography.fonts.inter.adjustSize: $bound 20000',
+      ),
+      (
+        'an adjustSize percent below the bound',
+        _typography(
+          fonts: '{ inter: { family: Inter, adjustSize: "-20000%" } }',
+        ),
+        'typography.fonts.inter.adjustSize: $bound "-20000%"',
+      ),
+      (
+        'an infinite theme-wide scaleByWindowSize entry',
+        _typography(extra: '  scaleByWindowSize: { desktop: .inf }'),
+        'typography.scaleByWindowSize.desktop: $bound Infinity',
+      ),
+      (
+        "a NaN entry of a type's own scaleByWindowSize",
+        _typography(
+          types: {
+            'header':
+                '{ weight: 600, sizes: { s16: { spaceHeight: 8 } }, '
+                'scaleByWindowSize: { mobile: .nan } }',
+          },
+        ),
+        'typography.types.header.scaleByWindowSize.mobile: $bound NaN',
+      ),
+      (
+        'a spaceHeight below the bound',
+        _typography(
+          types: {
+            'body':
+                '{ weight: 400, sizes: { s16: { spaceHeight: 8 }, '
+                's14: { spaceHeight: -10001 } } }',
+          },
+        ),
+        'typography.types.body.sizes.s14.spaceHeight: $bound -10001',
+      ),
+      (
+        'a letterSpacing percent past the bound',
+        _typography(
+          types: {
+            'body':
+                '{ weight: 400, sizes: { s16: { spaceHeight: 8, '
+                'letterSpacing: "10001%" } } }',
+          },
+        ),
+        'typography.types.body.sizes.s16.letterSpacing: $bound "10001%"',
+      ),
+    ];
+    for (final (name, node, error) in cases) {
+      test('us07/fr02/e16: reports $name', () {
+        expect(_errors(node), [error]);
+      });
+    }
+
+    test('us07/fr01: the four lengths read a number or a percent at the '
+        'bound, negatives included', () {
+      final typography = StratumTypography.fromYaml(
+        _typography(
+          fonts: '{ inter: { family: Inter, adjustSize: "10000%" } }',
+          types: {
+            'body':
+                '{ weight: 400, sizes: { s16: { spaceHeight: "10000%", '
+                'letterSpacing: -10000 } }, '
+                'scaleByWindowSize: { mobile: 10000 } }',
+          },
+          extra: '  scaleByWindowSize: { desktop: "-50%" }',
+        ),
+      );
+
+      expect(
+        typography.fonts['inter']!.adjustSize,
+        const StratumDimension.percent(100),
+      );
+      final body = typography.types[FontType.body]!;
+      expect(
+        body.sizes[FontSize.s16],
+        const StratumSizeMetrics(
+          spaceHeight: StratumDimension.percent(100),
+          letterSpacing: StratumDimension.fixed(-10000),
+        ),
+      );
+      expect(body.scaleByWindowSize, {
+        WindowSize.mobile: const StratumDimension.fixed(10000),
+      });
+      expect(
+        typography.scaleByWindowSize.valueFor(WindowSize.desktop),
+        const StratumDimension.percent(-0.5),
+      );
+    });
+  });
+
   group('StratumTypography.fromYaml Google Fonts', () {
     test(
       'a "Google/<Name>" family parses with source google and the bare name',
