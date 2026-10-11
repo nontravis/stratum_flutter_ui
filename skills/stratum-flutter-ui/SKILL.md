@@ -566,6 +566,17 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `v1.2` theme as `unsupported_schema`, so a theme that must load there writes `v1.1.0` and leaves the three groups
   out. `AppBorder`, `AppShadow`, `AppFilter`, `StratumThemeData.filter`, and `screenBorderRadius` no longer exist;
   read the screen's corner radius from `context.deviceWindow.radius` (see Screen corner radius).
+- **System bar look** — `system` in `theme.yaml` (format `stratum-theme/v1.4.0`) sets how the status bar and the
+  navigation bar look, in `light` and `dark` and the optional partial overlays `highContrastLight` and
+  `highContrastDark`, as `color` does: `statusBarIcons` and `navigationBarIcons` (`auto`, `light`, or `dark`; `auto`
+  picks the icon color of higher contrast against what the page paints under the bar), `statusBarColor`,
+  `navigationBarColor`, `navigationBarDividerColor`, and `appSwitcherColor` (a quoted hex or a color alias such as
+  `"{color.light.background.default.normal}"`), and `statusBarContrast` and `navigationBarContrast` (`true` or
+  `false`, Android's own contrast scrim). The package default sets `auto` icons, transparent bars, `false` and
+  `true`, and the page background. The bar mode, the rotation lock, and the app switcher label are set in Dart only
+  (see System bars): a `system` set holding `barMode`, `orientations`, or `appSwitcherLabel` throws
+  `StratumThemeFormatException` with `unknown_key`, a bad icons value `expected_bar_icons`, and a bad flag
+  `expected_boolean`. A package build that reads only up to `v1.3` refuses a `v1.4` theme as `unsupported_schema`.
 - Read the theme data, its default widget size, and the window size where a widget sits:
   `context.themeData()` (or `context.themeData(ThemeMode.dark)`), `context.defaultWidgetSize()`, and
   `context.windowSize`. Each throws a `FlutterError`: `themeData` and `defaultWidgetSize` name the missing

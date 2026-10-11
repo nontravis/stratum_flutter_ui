@@ -4,7 +4,7 @@ import 'package:stratum_ui/src/themes/config/pipeline/check_keys.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 
 /// The tree after stage 3: every layer merged over the package default, and
-/// the four color sets full.
+/// the four color sets and the four `system` sets full.
 final class MergedTheme {
   new({required this.tree, required this.origins, required this.inherited});
 
@@ -21,8 +21,9 @@ final class MergedTheme {
 }
 
 /// Stage 3 (spec section 7.1): merges the files of [checked] in order,
-/// checks the app colors, and derives the high-contrast sets (section
-/// 7.2). Every problem goes to [errors].
+/// checks the app colors, and derives the high-contrast sets of `color`
+/// (section 7.2) and of `system` (config s03 invariant 16). Every problem
+/// goes to [errors].
 MergedTheme mergeThemes(CheckedThemes checked, ThemeErrors errors) =>
     _Merge(checked.schema, errors).run(checked.files);
 
@@ -50,7 +51,12 @@ final class _Merge {
         _checkOverlayApp(color, pair.overlay, pair.base);
       }
       for (final pair in _pairs) {
-        _derive(color, pair.overlay, pair.base);
+        _derive(color, 'color', pair.overlay, pair.base);
+      }
+    }
+    if (tree['system'] case final Map<String, Object?> system) {
+      for (final pair in _pairs) {
+        _derive(system, 'system', pair.overlay, pair.base);
       }
     }
     return MergedTheme(tree: tree, origins: _origins, inherited: _inherited);
@@ -149,19 +155,25 @@ final class _Merge {
     }
   }
 
-  /// Makes the [overlay] set full (spec section 7.2): a copy of the merged
-  /// [base] set whose `{color.<base>.` aliases point into [overlay], with
-  /// the merged overlay applied on top.
-  void _derive(Map<String, Object?> color, String overlay, String base) {
-    final baseSet = color[base];
+  /// Makes the [overlay] set of [sets], the group [group], full (spec
+  /// section 7.2; config s03 invariant 16): a copy of the merged [base] set
+  /// whose `{color.<base>.` aliases point into the [overlay] color set,
+  /// with the merged overlay applied on top.
+  void _derive(
+    Map<String, Object?> sets,
+    String group,
+    String overlay,
+    String base,
+  ) {
+    final baseSet = sets[base];
     if (baseSet is! Map<String, Object?>) return;
-    final overlayPath = 'color.$overlay';
+    final overlayPath = '$group.$overlay';
     final overlayOrigins = {
       for (final MapEntry(:key, :value) in _origins.entries)
         if (key == overlayPath || key.startsWith('$overlayPath.')) key: value,
     };
     _dropOrigins(overlayPath);
-    final basePrefix = 'color.$base.';
+    final basePrefix = '$group.$base.';
     for (final MapEntry(:key, :value) in {..._origins}.entries) {
       if (!key.startsWith(basePrefix)) continue;
       final copied = '$overlayPath.${key.substring(basePrefix.length)}';
@@ -172,10 +184,10 @@ final class _Merge {
       _origins[overlayPath] = origin;
     }
     final copy = _retarget(baseSet, base, overlay)! as Map<String, Object?>;
-    if (color[overlay] case final Map<String, Object?> overlaySet) {
-      _mergeInto(copy, overlaySet, ['color', overlay], overlayOrigins);
+    if (sets[overlay] case final Map<String, Object?> overlaySet) {
+      _mergeInto(copy, overlaySet, [group, overlay], overlayOrigins);
     }
-    color[overlay] = copy;
+    sets[overlay] = copy;
   }
 
   static Object? _retarget(Object? value, String base, String overlay) =>

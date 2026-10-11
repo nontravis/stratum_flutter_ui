@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Breaking: the theme format `stratum-theme/v1.4.0` adds the `system` group, the look of the status bar and the
+  navigation bar: `light`, `dark`, and the optional partial overlays `highContrastLight` and `highContrastDark`, as in
+  `color`, each with `statusBarIcons` and `navigationBarIcons` (`auto`, `light`, or `dark`), `statusBarColor`,
+  `navigationBarColor`, `navigationBarDividerColor`, and `appSwitcherColor` (a quoted hex color or a color alias), and
+  `statusBarContrast` and `navigationBarContrast` (`true` or `false`). The package default reads `v1.4.0` and sets
+  `auto` icons, transparent bars, `statusBarContrast: false`, `navigationBarContrast: true`, and the page background
+  as `appSwitcherColor`. This package reads every `v1.0` to `v1.4` theme; a package build that reads only up to
+  `v1.3` refuses a `v1.4` theme as `unsupported_schema`. A theme that leaves `system` out takes the package default's
+  look. The bar mode, the rotation lock, and the app switcher label are never theme keys: a `system` set that holds
+  `barMode`, `orientations`, or `appSwitcherLabel` fails with `unknown_key`. The new problem codes
+  `expected_bar_icons` and `expected_boolean` report an icons value outside `auto`, `light`, `dark` and a contrast
+  flag that is not `true` or `false`. `StratumThemeConfig` takes `system`, a map of the four sets to `SystemStyle`,
+  as a required parameter.
 - Breaking: `AppBorder`, `AppShadow`, and `AppFilter` are removed, with no `@Deprecated` step, since no release has
   shipped them. Border widths, shadows, and blurs now come from the theme file: read
   `StratumTheme.of(context).border` (`StratumBorderTokens`: `sm`, `md`, `lg` as `double` widths, no longer `Border`

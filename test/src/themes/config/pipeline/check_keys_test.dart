@@ -250,4 +250,44 @@ shadow:
       });
     });
   });
+
+  group('checkThemeKeys system', () {
+    for (final (body, path) in [
+      ('system:\n  light:\n    barMode: immersive', 'system.light.barMode'),
+      (
+        'system:\n  dark:\n    orientations: [portraitUp]',
+        'system.dark.orientations',
+      ),
+      (
+        'system:\n  light:\n    appSwitcherLabel: Home',
+        'system.light.appSwitcherLabel',
+      ),
+      (
+        'system:\n  highContrastDark:\n    barMode: leanBack',
+        'system.highContrastDark.barMode',
+      ),
+      ('system:\n  sepia: {}', 'system.sepia'),
+    ]) {
+      test('fo01/us01/fr03/e05, us14/fr01/e04, us14/s15: $path, a key the '
+          'default lacks, is unknown_key', () {
+        expect(_problems(body), [
+          'layer1 $path: unknown key "${path.split('.').last}" [unknown_key]',
+        ]);
+      });
+    }
+
+    test('fo01/us01/fr03/e05: a high-contrast set takes the keys of its '
+        'base set', () {
+      final (checked, errors) = _check([
+        layer('system:\n  highContrastLight:\n    statusBarIcons: dark'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(checked.files.last.tree, {
+        'system': {
+          'highContrastLight': {'statusBarIcons': 'dark'},
+        },
+      });
+    });
+  });
 }

@@ -9,6 +9,7 @@ import 'package:stratum_ui/src/themes/config/theme_asset.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 import 'package:stratum_ui/src/themes/config/theme_model.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
+import 'package:stratum_ui/src/themes/system/system_style.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 import 'package:stratum_ui/src/themes/typography/typography.dart';
@@ -56,6 +57,11 @@ abstract class StratumThemeConfig with _$StratumThemeConfig {
     /// The merged `blur` group: `"1"` to `"6"`, each a Figma background blur
     /// radius of 0 or more (config s03 invariant 14).
     required Map<String, double> blur,
+
+    /// The merged `system` group (config s03 invariant 16): `light`,
+    /// `dark`, `highContrastLight`, and `highContrastDark`, each the look
+    /// of the system bars, a high-contrast set laid over its base set.
+    required Map<String, SystemStyle> system,
 
     /// The merged `extensions` group as plain Dart values: maps with string
     /// keys, lists, strings, numbers, booleans, and null. Never
