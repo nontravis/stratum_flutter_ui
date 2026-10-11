@@ -23,35 +23,21 @@ const _style = SystemStyle(
   appSwitcherLabel: 'Video',
 );
 
-/// A page whose one control is a 48 px Play button inside [wrap].
-Widget _page(Widget Function(Widget child) wrap, {VoidCallback? onTap}) =>
-    systemStyleApp(
-      home: Align(
-        alignment: Alignment.topLeft,
-        child: wrap(
-          Semantics(
-            button: true,
-            label: 'Play',
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onTap ?? () {},
-              child: const SizedBox(width: 48, height: 48),
-            ),
-          ),
-        ),
-      ),
-    );
-
 void main() {
   testWidgets('NFR-U06, us14/fr05/e04: the scope owns no semantics node and '
       'the child reads unchanged', (tester) async {
     systemBarsView(tester);
     final handle = tester.ensureSemantics();
-    await tester.pumpWidget(_page((child) => child));
+    await tester.pumpWidget(
+      playButtonPage(Alignment.topLeft, (child) => child),
+    );
     final plain = semanticsTree(tester);
 
     await tester.pumpWidget(
-      _page((child) => SystemStyleScope(style: _style, child: child)),
+      playButtonPage(
+        Alignment.topLeft,
+        (child) => SystemStyleScope(style: _style, child: child),
+      ),
     );
 
     expect(semanticsTree(tester), plain);
@@ -66,11 +52,14 @@ void main() {
       'leaves a tap to its child', (tester) async {
     systemBarsView(tester);
     var taps = 0;
-    await tester.pumpWidget(_page((child) => child, onTap: () => taps++));
+    await tester.pumpWidget(
+      playButtonPage(Alignment.topLeft, (child) => child, onTap: () => taps++),
+    );
     final focusNodes = FocusManager.instance.rootScope.descendants.length;
 
     await tester.pumpWidget(
-      _page(
+      playButtonPage(
+        Alignment.topLeft,
         (child) => SystemStyleScope(style: _style, child: child),
         onTap: () => taps++,
       ),

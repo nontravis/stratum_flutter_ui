@@ -164,3 +164,26 @@ Widget headerPage(Color color, {Widget? body}) => ColumnLayout(
     Expanded(child: body ?? const SizedBox()),
   ],
 );
+
+/// A page whose one control is a 48 px Play button, aligned by
+/// [alignment], inside [wrap].
+Widget playButtonPage(
+  Alignment alignment,
+  Widget Function(Widget child) wrap, {
+  VoidCallback? onTap,
+}) => systemStyleApp(
+  home: Align(
+    alignment: alignment,
+    child: wrap(
+      Semantics(
+        button: true,
+        label: 'Play',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap ?? () {},
+          child: const SizedBox(width: 48, height: 48),
+        ),
+      ),
+    ),
+  ),
+);
