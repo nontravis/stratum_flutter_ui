@@ -631,6 +631,32 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   reduced motion nothing moves or resizes: `fade`, `sizeAndFade`, and `slide` keep their fade, and `size` shows and
   hides at once.
 
+## Modal layout
+
+- **`ModalLayout`** — the slot widget of every sheet and modal: `ModalLayout(top: title, tab: tabs, body: content)`
+  shows an optional `top`, an optional `tab`, and the required `body`, in that order; a null slot shows nothing. The
+  `body` scrolls inside the surface when the surface has a bounded height, so pass content, not a second scroll
+  view; in an unbounded parent, such as a scrolling page, it sizes to its content.
+- **Type and size** — `type: ModalLayoutType.bottomSheet`, `.floating`, or `.modal`; null picks a bottom sheet
+  below the tablet window size and a centered modal at tablet and up. `size: ModalLayoutSize.medium` (400, the
+  default), `.large` (800), `.extraLarge` (1000), or `.fillWidth` (the window less the theme's `lg` space on each
+  side); every width clamps to the window less that margin on each side, and below tablet a bottom sheet takes the
+  full width and a floating sheet the width less 8 on each side, both ignoring `size`.
+- **Corners** — set by the type and the screen's own corners (`context.deviceWindow.radius`): a bottom sheet's top
+  corners take the theme's `radius.sheet` token and its bottom corners the screen radius; a floating sheet's corners
+  are the screen radius less 8, else 38; a modal's take `radius.card-large`. `borderRadius` wins over that rule, and
+  `customStyle`'s surface radius wins over `borderRadius`. `fullHeight: true` gives a bottom sheet the screen radius
+  on top.
+- **Close and handle** — `showClose` (default true) shows a close button at the top end corner; a bottom sheet also
+  shows a drag handle. Both call `onClose`; inline, with no `onClose`, they do nothing. Tab visits `top`, `tab`, and
+  `body`, then the handle and the close button.
+- **Insets** — `safeArea` (null: true for a sheet, false for a modal) keeps a sheet's content above the home
+  indicator, and below the status bar once `fullHeight`; on a modal it keeps clear of every inset.
+- **Style** — `customStyle: ModalLayoutStyle(surface:, top:, tab:, body:, handle:, close:)`, one `WidgetStyle` per
+  part, each merged over the theme defaults (the default background with `shadow.level4`, and the close button's
+  `blur.level3`), then over the app-wide `componentPartDefaults` entry for `ModalLayout`.
+- Placed inline in a page it draws its surface and slots with no scrim and no route.
+
 ## Hover and focus observers
 
 - **`HoverBuilder`** — `HoverBuilder(builder: (context, hovered, child) => ..., child: c, onHover: (hovered) {})`

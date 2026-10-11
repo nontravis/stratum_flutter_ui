@@ -10,6 +10,12 @@ export 'focus_group.dart' show FocusGroup, StratumFocusGroup;
 export 'grid_view_layout.dart';
 export 'indexed_stack_layout.dart';
 export 'list_view_layout.dart';
+export 'modal_layout.dart'
+    hide
+        ModalLayoutScope,
+        modalContentWidth,
+        modalCorners,
+        resolveModalLayoutType;
 export 'nested_scroll_view_layout.dart';
 export 'page_view_layout.dart';
 export 'reorderable_list_view_layout.dart';
