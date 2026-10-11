@@ -208,3 +208,11 @@
   `loadingBuilder` or a plain spinner, and returns focus once it ends. A `PageLayoutStyle customStyle` restyles each
   slot over the theme and the app-wide parts style. `PageLayout.of(context)` returns a `PageLayoutController`
   holding the chosen `leftWidth` and `rightWidth`, which notifies once per changed set.
+- New `PageLayout` drawers: below `WindowSize.tablet`, `left` and `right` open as drawers through the
+  `PageLayoutController`'s `openLeft()`, `openRight()`, and `close()`, or by a swipe from their screen edge
+  (`edgeSwipe`, never on the iOS start edge of a page that can go back), and a scrim tap, a drag, Esc, or back closes
+  them; `onDrawerChanged` reports each open and close. New `PageSide` (`type`, `minWidth`, `maxWidth`, `pageScale`,
+  `semanticsLabel`) sets each side through `leftSide` and `rightSide`, and new `PageDrawerType` (`front`, `back`,
+  `slide`, `permanent`, `page`) and `PageDrawerSide` name the type and the side. A drawer is 80% of the screen width,
+  up to 360 by default, fills its side's slot fill under `shadow/4` over the modal layout's scrim, keeps keyboard
+  focus inside, reads as its own named screen, and fades with no movement under reduced motion.

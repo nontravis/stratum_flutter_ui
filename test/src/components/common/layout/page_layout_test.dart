@@ -418,7 +418,7 @@ void main() {
         'sits on the right edge', (tester) async {
       _view(
         tester,
-        size: _landscape,
+        size: const Size(1024, 768),
         padding: const FakeViewPadding(right: 44),
       );
       await tester.pumpWidget(
@@ -427,14 +427,14 @@ void main() {
           direction: TextDirection.rtl,
         ),
       );
-      expect(_rect(tester, 'left').right, 844 - 44);
-      expect(tester.getRect(_fill('left')).right, 844);
+      expect(_rect(tester, 'left').right, 1024 - 44);
+      expect(tester.getRect(_fill('left')).right, 1024);
       expect(_rect(tester, 'body').left, 0);
     });
 
     testWidgets('R20: us18/fr04/e07: with header and footer null the inline '
         'sides pad by the top and bottom insets', (tester) async {
-      _view(tester, size: _phone, padding: statusBar);
+      _view(tester, size: const Size(768, 1024), padding: statusBar);
       await tester.pumpWidget(
         _host(
           PageLayout(
@@ -444,14 +444,14 @@ void main() {
           ),
         ),
       );
-      expect(_rect(tester, 'left'), const Rect.fromLTRB(0, 44, 100, 810));
-      expect(_rect(tester, 'right'), const Rect.fromLTRB(290, 44, 390, 810));
+      expect(_rect(tester, 'left'), const Rect.fromLTRB(0, 44, 100, 990));
+      expect(_rect(tester, 'right'), const Rect.fromLTRB(668, 44, 768, 990));
       expect(tester.getRect(_fill('left')).top, 0);
     });
 
     testWidgets('R20: us18/fr04/e03: safeArea flags off leave the inline '
         'sides unpadded', (tester) async {
-      _view(tester, size: _phone, padding: statusBar);
+      _view(tester, size: const Size(768, 1024), padding: statusBar);
       await tester.pumpWidget(
         _host(
           PageLayout(
@@ -462,12 +462,12 @@ void main() {
           ),
         ),
       );
-      expect(_rect(tester, 'left'), const Rect.fromLTRB(0, 0, 100, 844));
-      expect(_rect(tester, 'right'), const Rect.fromLTRB(290, 0, 390, 844));
+      expect(_rect(tester, 'left'), const Rect.fromLTRB(0, 0, 100, 1024));
+      expect(_rect(tester, 'right'), const Rect.fromLTRB(668, 0, 768, 1024));
     });
 
     testWidgets('R20: right under top takes no top inset', (tester) async {
-      _view(tester, size: _phone, padding: statusBar);
+      _view(tester, size: const Size(768, 1024), padding: statusBar);
       await tester.pumpWidget(
         _host(
           PageLayout(

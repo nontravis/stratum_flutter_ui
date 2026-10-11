@@ -12,6 +12,7 @@ import 'package:smooth_sheets/smooth_sheets.dart'
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/modal_layout.dart'
     show ModalLayoutScope, resolveModalLayoutType;
+import 'package:stratum_ui/src/components/common/layout/scrim.dart' show Scrim;
 import 'package:stratum_ui/src/src.dart';
 
 /// Shows the [ModalLayout] that [builder] builds above the current page
@@ -74,7 +75,7 @@ Future<T?> showModalLayout<T>(
       reverseTransitionDuration: reverseDuration,
       transitionCurve: motion.curve ?? Curves.easeInOutSine,
       barrierLabel: labels.dismissLabel,
-      barrierBuilder: (route, dismiss) => _Scrim(
+      barrierBuilder: (route, dismiss) => Scrim(
         animation: route.animation!,
         showBackground: showBackground,
         onDismiss: dismiss,
@@ -90,7 +91,7 @@ Future<T?> showModalLayout<T>(
 }
 
 /// The centered modal's route: a fade over the theme's `normal` level on
-/// its `standard` curve, the [_Scrim] as its barrier, and the modal
+/// its `standard` curve, the [Scrim] as its barrier, and the modal
 /// layout centered above the keyboard (US-20 FR-02, FR-05 E05).
 class _ModalLayoutRoute<T> extends PopupRoute<T> {
   new({
@@ -126,7 +127,7 @@ class _ModalLayoutRoute<T> extends PopupRoute<T> {
 
   @override
   Widget buildModalBarrier() =>
-      _Scrim(animation: animation!, showBackground: showBackground);
+      Scrim(animation: animation!, showBackground: showBackground);
 
   @override
   Widget buildPage(
@@ -442,59 +443,6 @@ class _CurveSimulation extends Simulation {
 
   @override
   bool isDone(double time) => time >= _seconds;
-}
-
-/// The route's scrim: the theme's `normal-inverse` color, its own alpha
-/// times the `opacity.scrim` opacity as a Figma layer opacity, blurred by `blur/1`, fading with [animation],
-/// over a [ModalBarrier] that blocks the page behind for taps and screen
-/// readers, reads the dismiss label, and dismisses on a tap; with
-/// [showBackground] false only the barrier stays (US-20 FR-06).
-///
-/// It reads the theme from its own context, so a theme switch restyles an
-/// open scrim (US-20 FR-06 E02, E06).
-class _Scrim extends StatelessWidget {
-  const new({
-    required this.animation,
-    required this.showBackground,
-    this.onDismiss,
-  });
-
-  final Animation<double> animation;
-  final bool showBackground;
-
-  /// Dismisses the route; null pops the nearest navigator's top route.
-  final VoidCallback? onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.theme;
-    final color = theme.color.background.defaults.normalInverse;
-    return StackLayout(
-      fit: StackFit.expand,
-      children: [
-        if (showBackground)
-          IgnorePointer(
-            child: FadeTransition(
-              opacity: animation.drive(
-                CurveTween(curve: _standardCurve(context)),
-              ),
-              child: ContainerLayout(
-                style: WidgetStyle(
-                  backgroundColor: color.withValues(
-                    alpha: color.a * theme.data.opacity.scrim,
-                  ),
-                  backgroundBlur: theme.blur.level1,
-                ),
-              ),
-            ),
-          ),
-        ModalBarrier(
-          semanticsLabel: builtInLabelsOf(context).dismissLabel,
-          onDismiss: onDismiss,
-        ),
-      ],
-    );
-  }
 }
 
 /// The route state and semantics around the modal layout: a named route

@@ -720,9 +720,18 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 - **Style** — `customStyle: PageLayoutStyle(outer:, header:, top:, tab:, left:, body:, right:, bottom:, footer:,
   snack:)`, merged over the theme (edge slots `background.default.surface`, page and body
   `background.default.normal`), then over the app-wide `componentPartDefaults` entry for `PageLayout`.
-- **Controller** — `PageLayout.of(context)` returns the page's `PageLayoutController`; pass your own
-  `PageLayoutController(leftWidth:, rightWidth:)` to restore kept side pane widths. The page disposes only the one it
-  makes.
+- **Drawers** — below `WindowSize.tablet`, `left` and `right` are drawers that take no space; at tablet and up they
+  sit inline. Open one from a menu button with `PageLayout.of(context).openLeft()` (or `openRight()`), close it with
+  `close()`, and listen with `onDrawerChanged:` (the side that opened, then null once it closed); `openLeft()` on a
+  side shown inline does nothing. The EndUser also opens one by a swipe from its screen edge (never from the iOS start
+  edge of a page that can go back, and never with `edgeSwipe: false`) and closes it by the scrim, Esc, back, or a
+  drag. `leftSide: PageSide(type: PageDrawerType.back, pageScale: 0.9, maxWidth: 320)` picks the type (`front`,
+  `back`, `slide`, `permanent`, or `page`; default `slide` on iOS, `front` elsewhere), the width bounds (80% of the
+  screen, up to 360 by default), an optional page scale, and `semanticsLabel:`. A `page` drawer opens as a new page
+  that sits outside the `PageLayout`, so close it with `Navigator.pop`, never `PageLayout.of`.
+- **Controller** — `PageLayout.of(context)` returns the page's `PageLayoutController`, which opens and closes its
+  drawers; pass your own `PageLayoutController(leftWidth:, rightWidth:)` to restore kept side pane widths. The page
+  disposes only the one it makes.
 
 ## Hover and focus observers
 

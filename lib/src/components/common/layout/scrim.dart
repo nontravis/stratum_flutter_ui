@@ -1,0 +1,59 @@
+import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
+import 'package:stratum_ui/src/src.dart';
+
+/// The scrim a modal layout's route and a page drawer share (layout s03
+/// invariants 67 and 72): the theme's `normal-inverse` color, its own
+/// alpha times the `opacity.scrim` opacity as a Figma layer opacity,
+/// blurred by `blur/1`, fading with [animation] on the theme's `standard`
+/// curve, over a [ModalBarrier] that blocks what sits under it for taps
+/// and screen readers, reads the dismiss label, and calls [onDismiss] on a
+/// tap; with [showBackground] false only the barrier stays (US-20 FR-06;
+/// US-19 FR-04, FR-05).
+///
+/// It reads the theme from its own context, so a theme switch restyles an
+/// open scrim (US-20 FR-06 E02, E06; US-19 FR-04 E06).
+class Scrim extends StatelessWidget {
+  const new({
+    super.key,
+    required this.animation,
+    this.showBackground = true,
+    this.onDismiss,
+  });
+
+  final Animation<double> animation;
+  final bool showBackground;
+
+  /// Dismisses what the scrim sits under; null pops the nearest
+  /// navigator's top route.
+  final VoidCallback? onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    final color = theme.color.background.defaults.normalInverse;
+    final curve = theme.animation.normal.curve ?? Curves.easeInOutSine;
+    return StackLayout(
+      fit: StackFit.expand,
+      children: [
+        if (showBackground)
+          IgnorePointer(
+            child: FadeTransition(
+              opacity: animation.drive(CurveTween(curve: curve)),
+              child: ContainerLayout(
+                style: WidgetStyle(
+                  backgroundColor: color.withValues(
+                    alpha: color.a * theme.data.opacity.scrim,
+                  ),
+                  backgroundBlur: theme.blur.level1,
+                ),
+              ),
+            ),
+          ),
+        ModalBarrier(
+          semanticsLabel: builtInLabelsOf(context).dismissLabel,
+          onDismiss: onDismiss,
+        ),
+      ],
+    );
+  }
+}
