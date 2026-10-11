@@ -495,7 +495,10 @@ void main() {
       expect(deactivates, isEmpty);
       expect(activates, isEmpty);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.macOS,
+    }),
   );
 
   testWidgets(
@@ -547,7 +550,10 @@ void main() {
       expect(deactivates, isEmpty);
       expect(activates, isEmpty);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.macOS,
+    }),
   );
 
   testWidgets(

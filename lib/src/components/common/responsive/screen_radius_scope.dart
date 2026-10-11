@@ -10,7 +10,7 @@ import 'package:flutter/widgets.dart';
 // then; remove the scope and probe once macOS is covered too (Deferral
 // queue 4).
 /// Publishes the native probe's screen corner radii into [MediaQuery] on
-/// iOS and macOS while Flutter reports none, so `DeviceWindow.radius`
+/// iOS and macOS, where Flutter reports none, so `DeviceWindow.radius`
 /// stays one aspect read (FO-07 US-04 FR-03; responsive s03 invariant 9).
 ///
 /// One per tree: `StratumThemeApplication` inserts it only when [hasScope]
@@ -18,10 +18,10 @@ import 'package:flutter/widgets.dart';
 /// process shares one subscription to the probe.
 ///
 /// On iOS and macOS, where the probe subscribes, the scope keeps one
-/// pass-through [MediaQuery] present from its first frame, with no
-/// [GlobalKey]: every State below stays mounted across every probe event,
-/// including the first one and any flip to or from null. Every other
-/// platform inserts no [MediaQuery] (responsive s03 invariant 9).
+/// pass-through [MediaQuery] present unconditionally from its first frame,
+/// with no [GlobalKey]: every State below stays mounted across every probe
+/// event, including the first one and any flip to or from null. Every
+/// other platform inserts no [MediaQuery] (responsive s03 invariant 9).
 class ScreenRadiusScope extends StatefulWidget {
   const new({super.key, required this.child});
 
