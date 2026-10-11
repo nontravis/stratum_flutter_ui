@@ -537,13 +537,15 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `pubspec.yaml` names.
 - **Supported zip tools** — make a theme zip with `pack` or with 7-Zip, the two zip tools measured against the install;
   a zip Windows Explorer makes is not measured, so run `check` on it before you upload it.
-- **Disabled opacity** — `opacity.disabled` in `theme.yaml`, a number from 0 to 1, is the opacity every disabled
-  component paints at; the package default sets 0.5, and an app theme may leave the group out. Read it as
-  `StratumThemeApplication.of(context).opacity.disabled`. A value outside 0 to 1 throws
-  `StratumThemeFormatException` with `expected_opacity` at its path, and a second key under `opacity` is
-  `unknown_key`. The package default reads `$schema: stratum-theme/v1.2.0`; this package reads every `v1.0`, `v1.1`,
-  and `v1.2` theme, while a package build that reads only `v1.0` refuses a `v1.1` theme as `unsupported_schema`, so a
-  theme that must load on both writes `v1.0.0` and leaves `opacity` out.
+- **Disabled opacity and scrim** — `opacity.disabled` in `theme.yaml`, a number from 0 to 1, is the opacity every
+  disabled component paints at, and `opacity.scrim` is a modal layout's background scrim opacity; the package
+  default sets 0.5 for both, and an app theme may leave the group out. Read them as
+  `StratumThemeApplication.of(context).opacity.disabled` and `.opacity.scrim`. A value outside 0 to 1 throws
+  `StratumThemeFormatException` with `expected_opacity` at its path, and a third key under `opacity` is
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.3.0`; this package reads every `v1.0`, `v1.1`,
+  `v1.2`, and `v1.3` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
+  `unsupported_schema`, so a theme that must load on every build writes `v1.0.0` and leaves `opacity` out, or
+  `v1.1.0` and keeps `disabled` but leaves `scrim` out.
 - **Border, shadow, and blur tokens** — `border`, `shadow`, and `blur` in `theme.yaml` (format
   `stratum-theme/v1.2.0`) set every border width, drop shadow, and background blur, and the package default carries
   the Figma values. Read them in `build`: `StratumTheme.of(context).border.md` (a `double`; `sm` 0.5, `md` 1, `lg`
