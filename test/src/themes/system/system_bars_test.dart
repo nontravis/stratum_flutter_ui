@@ -171,7 +171,7 @@ void main() {
 
     test('us14/fr01/e02: an inner layer sets the icons, the outer one the '
         'bar mode', () {
-      final bars = resolveSystemBars(const [
+      const entries = <SystemStyleRegion>[
         SystemStyleLayerRegion(
           SystemStyle(statusBarIcons: SystemBarIcons.light),
         ),
@@ -182,7 +182,8 @@ void main() {
           ),
         ),
         _base,
-      ])!;
+      ];
+      final bars = resolveSystemBars(entries, painted: entries)!;
 
       expect(bars.overlay.statusBarIconBrightness, Brightness.light);
       expect(bars.barMode, SystemBarMode.immersive);
@@ -199,7 +200,8 @@ void main() {
         background: Color(0xFF111827),
       );
 
-      final bars = resolveSystemBars(const [inner, _base])!;
+      const entries = [inner, _base];
+      final bars = resolveSystemBars(entries, painted: entries)!;
 
       expect(bars.overlay.statusBarIconBrightness, Brightness.light);
       expect(bars.appSwitcherColor, const Color(0xFF111827));
@@ -224,6 +226,24 @@ void main() {
       ])!;
 
       expect(bars.overlay.statusBarIconBrightness, Brightness.dark);
+    });
+
+    test('us14/fr01, us14/fr02/e04: every base merges under every scope '
+        "layer, so a nested base above the page keeps the page's icons", () {
+      const nestedBase = SystemStyleBaseRegion(
+        style: SystemStyle(statusBarIcons: SystemBarIcons.auto),
+        background: _white,
+      );
+
+      final bars = resolveSystemBars(const [
+        nestedBase,
+        SystemStyleLayerRegion(
+          SystemStyle(statusBarIcons: SystemBarIcons.light),
+        ),
+        _base,
+      ])!;
+
+      expect(bars.overlay.statusBarIconBrightness, Brightness.light);
     });
 
     test('us14/fr02/e06: with no navigation point the navigation fields '
@@ -260,7 +280,7 @@ void main() {
         ),
         background: _white,
       );
-      final bars = resolveSystemBars(const [
+      const entries = <SystemStyleRegion>[
         SystemStyleLayerRegion(SystemStyle(appSwitcherLabel: 'Dialog')),
         SystemStyleLayerRegion(
           SystemStyle(
@@ -269,11 +289,39 @@ void main() {
           ),
         ),
         appWide,
-      ])!;
+      ];
+      final bars = resolveSystemBars(entries, painted: entries)!;
 
       expect(bars.barMode, SystemBarMode.immersiveSticky);
       expect(bars.orientations, [DeviceOrientation.landscapeLeft]);
       expect(bars.appSwitcherLabel, 'Dialog');
+    });
+
+    test('us14/fr03, us14/fr04: the behavior comes from every region '
+        "painted, not from the bar's point", () {
+      const appWide = SystemStyleBaseRegion(
+        style: SystemStyle(appSwitcherColor: _white, appSwitcherLabel: 'App'),
+        background: _white,
+      );
+      const nested = SystemStyleBaseRegion(
+        style: SystemStyle(barMode: SystemBarMode.leanBack),
+        background: _white,
+      );
+
+      final bars = resolveSystemBars(
+        const [
+          SystemStyleLayerRegion(SystemStyle(barMode: SystemBarMode.topOnly)),
+          appWide,
+        ],
+        painted: const [
+          SystemStyleLayerRegion(SystemStyle(appSwitcherLabel: 'Videos')),
+          nested,
+          appWide,
+        ],
+      )!;
+
+      expect(bars.barMode, SystemBarMode.leanBack);
+      expect(bars.appSwitcherLabel, 'Videos');
     });
   });
 

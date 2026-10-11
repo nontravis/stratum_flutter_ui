@@ -47,6 +47,10 @@ class SystemStyleRoot extends StatefulWidget {
 class _SystemStyleRootState extends State<SystemStyleRoot> {
   _SystemStyleResolver? _resolver;
 
+  /// Whether another root on the same view lies above this one, so this
+  /// root's region is sized to its child (themes s03 invariant 40).
+  bool _nested = false;
+
   /// The bar color strips this root paints; the resolver sets them on the
   /// outermost root of the view and clears them on every other one.
   final _strips = ValueNotifier<_SystemBarStrips?>(null);
@@ -59,9 +63,12 @@ class _SystemStyleRootState extends State<SystemStyleRoot> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final view = View.of(context);
-    if (_resolver?.view == view) return;
-    _resolver?.detach(this);
-    _resolver = _SystemStyleResolver._attach(view, this);
+    if (_resolver?.view != view) {
+      _resolver?.detach(this);
+      _resolver = _SystemStyleResolver._attach(view, this);
+    }
+    final above = context.findAncestorStateOfType<_SystemStyleRootState>();
+    _nested = above != null && identical(above._resolver, _resolver);
   }
 
   @override
@@ -73,21 +80,17 @@ class _SystemStyleRootState extends State<SystemStyleRoot> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    // The app widget above rebuilt, so its `Title` may have sent its own
-    // description (themes s03 invariant 42).
-    _resolver?.markRebuilt();
-    return _SystemStyleRootRegion(
-      value: SystemStyleBaseRegion(
-        style: widget.style,
-        background: widget.background,
-      ),
-      child: CustomPaint(
-        foregroundPainter: _SystemBarStripPainter(_strips),
-        child: widget.child,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _SystemStyleRootRegion(
+    value: SystemStyleBaseRegion(
+      style: widget.style,
+      background: widget.background,
+    ),
+    sized: _nested,
+    child: CustomPaint(
+      foregroundPainter: _SystemBarStripPainter(_strips),
+      child: widget.child,
+    ),
+  );
 }
 
 /// The bar colors a root paints, each over the view's padding at its edge
@@ -140,32 +143,46 @@ class _SystemBarStripPainter extends CustomPainter {
 }
 
 class _SystemStyleRootRegion extends SingleChildRenderObjectWidget {
-  const new({required this.value, required super.child});
+  const new({required this.value, required this.sized, required super.child});
 
   final SystemStyleBaseRegion value;
 
+  final bool sized;
+
   @override
   _RenderSystemStyleRoot createRenderObject(BuildContext context) =>
-      _RenderSystemStyleRoot(value);
+      _RenderSystemStyleRoot(value, sized: sized);
 
   @override
   void updateRenderObject(
     BuildContext context,
     _RenderSystemStyleRoot renderObject,
-  ) => renderObject.value = value;
+  ) => renderObject
+    ..value = value
+    ..sized = sized;
 }
 
-/// Paints [value] as an unsized annotation around its child and keeps the
-/// layer it pushed, so the resolver searches every layer painted inside
-/// it.
+/// Paints [value] as an annotation around its child, unsized on the
+/// outermost root of the view and sized to the child on a nested one, so a
+/// nested theme counts only at a bar it lies under (themes s03 invariant
+/// 40), and keeps the layer it pushed, so the resolver searches every layer
+/// painted inside it.
 class _RenderSystemStyleRoot extends RenderProxyBox {
-  new(this._value);
+  new(this._value, {required bool sized}) : _sized = sized;
 
   SystemStyleBaseRegion _value;
 
   set value(SystemStyleBaseRegion value) {
     if (value == _value) return;
     _value = value;
+    markNeedsPaint();
+  }
+
+  bool _sized;
+
+  set sized(bool value) {
+    if (value == _sized) return;
+    _sized = value;
     markNeedsPaint();
   }
 
@@ -177,7 +194,11 @@ class _RenderSystemStyleRoot extends RenderProxyBox {
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    final layer = AnnotatedRegionLayer<SystemUiOverlayStyle>(_value);
+    final layer = AnnotatedRegionLayer<SystemUiOverlayStyle>(
+      _value,
+      size: _sized ? size : null,
+      offset: _sized ? offset : null,
+    );
     _layer.layer = layer;
     _paintOffset = offset;
     context.pushLayer(layer, super.paint, offset);
@@ -201,6 +222,36 @@ class _RenderSystemStyleRoot extends RenderProxyBox {
         .annotations
         .toList();
   }
+
+  /// Every Stratum region painted inside this root, front to back in the
+  /// order of [annotationsAt], wherever it lies and whatever clips it, so a
+  /// scope in a clipped tab view still sets the behavior (themes s03
+  /// invariant 39). An offstage route and a hidden `IndexedStack` child
+  /// push no layer, so only what painted counts.
+  List<SystemStyleRegion> painted() {
+    final layer = _layer.layer;
+    if (layer == null || !attached) return const [];
+    final regions = <SystemStyleRegion>[];
+    void visit(Layer layer) {
+      if (layer is ContainerLayer) {
+        for (
+          var child = layer.lastChild;
+          child != null;
+          child = child.previousSibling
+        ) {
+          visit(child);
+        }
+      }
+      if (layer case AnnotatedRegionLayer<SystemUiOverlayStyle>(
+        value: final SystemStyleRegion region,
+      )) {
+        regions.add(region);
+      }
+    }
+
+    visit(layer);
+    return regions;
+  }
 }
 
 /// The one writer of the system chrome for one view (FO-03 US-14 FR-02 to
@@ -221,7 +272,6 @@ final class _SystemStyleResolver {
       () => _SystemStyleResolver._(view),
     );
     resolver._hosts.add(host);
-    resolver._resend = true;
     resolver._renderView ??= resolver._findRenderView();
     resolver._renderView?.automaticSystemUiAdjustment = false;
     resolver._schedule();
@@ -232,10 +282,13 @@ final class _SystemStyleResolver {
   final _hosts = <_SystemStyleRootState>[];
   RenderView? _renderView;
   bool _scheduled = false;
-  bool _resend = true;
   SystemBarMode? _barMode;
   List<DeviceOrientation>? _orientations;
   (String, int)? _description;
+
+  /// The app widget's `Title` at the last send; `WidgetsApp` builds a new
+  /// one each time it rebuilds.
+  Title? _sentTitle;
 
   void detach(_SystemStyleRootState host) {
     _hosts.remove(host);
@@ -243,9 +296,6 @@ final class _SystemStyleResolver {
     _renderView?.automaticSystemUiAdjustment = true;
     _byView.remove(view);
   }
-
-  /// Sends the app switcher entry again after this frame.
-  void markRebuilt() => _resend = true;
 
   RenderView? _findRenderView() {
     for (final renderView in RendererBinding.instance.renderViews) {
@@ -302,6 +352,7 @@ final class _SystemStyleResolver {
     final bars = resolveSystemBars(
       region.annotationsAt(status),
       navigation: android ? region.annotationsAt(navigation) : null,
+      painted: region.painted(),
     );
     final strips = bars == null
         ? null
@@ -356,14 +407,16 @@ final class _SystemStyleResolver {
 
   /// Sends the merged label, else the title of the nearest app widget
   /// `Title` read now, with the merged `appSwitcherColor` made opaque, when
-  /// either changed or the app widget rebuilt (themes s03 invariant 42).
+  /// either changed or the app widget rebuilt, which builds a new `Title`
+  /// that may have sent its own description (themes s03 invariant 42).
   void _sendDescription(SystemBars bars) {
+    final title = _title();
     final color = bars.appSwitcherColor;
-    final label = bars.appSwitcherLabel ?? _title();
+    final label = bars.appSwitcherLabel ?? title?.title;
     if (color == null || label == null) return;
     final description = (label, color.withValues(alpha: 1).toARGB32());
-    if (!_resend && description == _description) return;
-    _resend = false;
+    if (identical(title, _sentTitle) && description == _description) return;
+    _sentTitle = title;
     _description = description;
     unawaited(
       SystemChrome.setApplicationSwitcherDescription(
@@ -375,16 +428,16 @@ final class _SystemStyleResolver {
     );
   }
 
-  /// The title of the nearest `Title` above the deepest host that has one.
-  String? _title() {
-    String? title;
+  /// The nearest `Title` above the deepest host that has one.
+  Title? _title() {
+    Title? title;
     var deepest = -1;
     for (final host in _hosts) {
       final region = host.region;
       if (!host.mounted || region == null || region.depth <= deepest) continue;
       final found = host.context.findAncestorWidgetOfExactType<Title>();
       if (found == null) continue;
-      title = found.title;
+      title = found;
       deepest = region.depth;
     }
     return title;

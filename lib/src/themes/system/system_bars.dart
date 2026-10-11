@@ -74,28 +74,34 @@ final class SystemBars {
 }
 
 /// The bars of one frame from [status], every annotation at the status
-/// bar's point, front to back, and [navigation], those at the navigation
-/// bar's point, null where the platform has no navigation bar to style.
-/// Null when [status] holds no `SystemStyleBaseRegion`, so no Stratum
-/// theme lies under the bar.
+/// bar's point, front to back, [navigation], those at the navigation
+/// bar's point, null where the platform has no navigation bar to style,
+/// and [painted], every Stratum region painted in the frame, front to
+/// back, wherever it lies and whatever clips it. Null when [status] holds
+/// no `SystemStyleBaseRegion`, so no Stratum theme lies under the bar.
 ///
-/// Each point merges its style layers from the bottom up (themes s03
-/// invariant 38) and blends its fills from the bottom up over the theme's
-/// page background (invariant 40); a `SystemUiOverlayStyle` that is no
-/// Stratum layer, such as a Material `AppBar`'s, is one fill (invariant
-/// 41). The merged bar color, which the root paints over every page,
-/// blends last, the topmost fill, and the overlay sends the platform
+/// Each point merges its style layers from the bottom up, every base
+/// region, the outermost first, under every scope layer (themes s03
+/// invariant 38), and blends its fills from the bottom up over the page
+/// background of its topmost base (invariant 40); a `SystemUiOverlayStyle`
+/// that is no Stratum layer, such as a Material `AppBar`'s, is one fill
+/// (invariant 41). The merged bar color, which the root paints over every
+/// page, blends last, the topmost fill, and the overlay sends the platform
 /// transparent bar colors (invariant 45). The status point gives the
-/// status bar fields, the behavior, and the app switcher entry; the
-/// navigation point gives the navigation bar fields.
+/// status bar fields and the app switcher color; the navigation point
+/// gives the navigation bar fields; [painted], merged in the same order,
+/// gives the bar mode, the rotation lock, and the app switcher label
+/// (invariant 39).
 SystemBars? resolveSystemBars(
   List<SystemUiOverlayStyle> status, {
   List<SystemUiOverlayStyle>? navigation,
+  List<SystemStyleRegion> painted = const [],
 }) {
   final top = _Point.read(status);
   if (top == null) return null;
   final bottom = navigation == null ? null : _Point.read(navigation);
   final style = top.style;
+  final behavior = _merge(painted);
   final statusLight = _lightIcons(
     style.statusBarIcons,
     () => top.blend(_statusFill, strip: style.statusBarColor),
@@ -121,9 +127,9 @@ SystemBars? resolveSystemBars(
           : _iconBrightness(navigationLight),
       systemNavigationBarContrastEnforced: bottom?.style.navigationBarContrast,
     ),
-    barMode: style.barMode ?? SystemBarMode.edgeToEdge,
-    orientations: style.orientations ?? const [],
-    appSwitcherLabel: style.appSwitcherLabel,
+    barMode: behavior.barMode ?? SystemBarMode.edgeToEdge,
+    orientations: behavior.orientations ?? const [],
+    appSwitcherLabel: behavior.appSwitcherLabel,
     appSwitcherColor: style.appSwitcherColor,
     statusBarColor: style.statusBarColor,
     navigationBarColor: bottom?.style.navigationBarColor,
@@ -195,6 +201,20 @@ Color? _fillFor(bool? lightIcons) => switch (lightIcons) {
   null => null,
 };
 
+/// The Stratum style layers among [entries], front to back, merged from
+/// the bottom up: every base region, the outermost first, then every
+/// scope layer over them, so a theme application nested in a page stays
+/// under that page's style (themes s03 invariant 38).
+SystemStyle _merge(List<SystemUiOverlayStyle> entries) {
+  var bases = const SystemStyle();
+  var layers = const SystemStyle();
+  for (final entry in entries.reversed) {
+    if (entry is SystemStyleBaseRegion) bases = bases.merge(entry.style);
+    if (entry is SystemStyleLayerRegion) layers = layers.merge(entry.style);
+  }
+  return bases.merge(layers);
+}
+
 /// The layers found at one bar's point.
 final class _Point {
   new(this.style, this.background, this.fills);
@@ -205,22 +225,19 @@ final class _Point {
   /// own `background` occludes it (us14/fr01: the topmost base wins over
   /// an outer one, its page background included).
   static _Point? read(List<SystemUiOverlayStyle> entries) {
-    var style = const SystemStyle();
     Color? background;
     final fills = <SystemUiOverlayStyle>[];
     for (final entry in entries.reversed) {
-      switch (entry) {
-        case SystemStyleBaseRegion():
-          style = style.merge(entry.style);
-          background = entry.background;
-          fills.clear();
-        case SystemStyleLayerRegion():
-          style = style.merge(entry.style);
-        default:
-          fills.add(entry);
+      if (entry is SystemStyleBaseRegion) {
+        background = entry.background;
+        fills.clear();
+      } else if (entry is! SystemStyleLayerRegion) {
+        fills.add(entry);
       }
     }
-    return background == null ? null : _Point(style, background, fills);
+    return background == null
+        ? null
+        : _Point(_merge(entries), background, fills);
   }
 
   /// The merged style, the lowest layer first.

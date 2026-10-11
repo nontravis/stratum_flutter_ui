@@ -368,6 +368,37 @@ void main() {
       expect(calls, hasLength(sent));
       expect(lastMode(calls), 'SystemUiMode.leanBack');
     });
+
+    testWidgets('us14/fr04/e02: a nested theme application rebuilt every '
+        'frame sends the app switcher entry no more', (tester) async {
+      final calls = systemBarsView(tester);
+      final tick = ValueNotifier(0);
+      addTearDown(tick.dispose);
+      await tester.pumpWidget(
+        systemStyleApp(
+          home: ValueListenableBuilder<int>(
+            valueListenable: tick,
+            builder: (context, value, child) => StratumThemeApplication(
+              themes: defaultThemeSet,
+              themeMode: ThemeMode.light,
+              child: Text('$value'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      List<Object?> entries() =>
+          argumentsOf(calls, 'SystemChrome.setApplicationSwitcherDescription');
+      final sent = entries().length;
+
+      for (var frame = 0; frame < 30; frame++) {
+        tick.value++;
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      expect(find.text('30'), findsOneWidget);
+      expect(entries(), hasLength(sent));
+    });
   });
 
   group('us14/fr04: the app-wide label', () {
@@ -557,6 +588,45 @@ void main() {
         Brightness.dark,
       );
     });
+
+    testWidgets('us14/fr01, us14/fr02/e04: a nested theme application away '
+        "from the bars keeps the page's icons and page background", (
+      tester,
+    ) async {
+      final calls = systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(
+          themeMode: ThemeMode.dark,
+          home: SystemStyleScope(
+            style: const SystemStyle(statusBarIcons: SystemBarIcons.light),
+            child: Center(
+              child: StratumThemeApplication(
+                themes: defaultThemeSet,
+                themeMode: ThemeMode.light,
+                child: const SizedBox(width: 200, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.light,
+      );
+      expect(
+        SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
+        Brightness.light,
+      );
+      expect(
+        lastSwitcherColor(calls),
+        defaultThemeSet
+            .pick(dark: true, highContrast: false)
+            .systemStyle
+            .appSwitcherColor!
+            .toARGB32(),
+      );
+    });
   });
 
   group('us14/fr03: the bar mode and the rotation lock', () {
@@ -661,6 +731,48 @@ void main() {
       await tester.pump();
 
       expect(lastMode(calls), 'SystemUiMode.edgeToEdge');
+    });
+
+    testWidgets('us14/s11, us14/fr03/e04, us14/fr04: a tab of a tab view '
+        'under an app bar sets the bar mode and the label', (tester) async {
+      final calls = systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(
+          home: DefaultTabController(
+            length: 2,
+            child: Scaffold(
+              appBar: AppBar(
+                bottom: const TabBar(
+                  tabs: [
+                    Tab(text: 'Videos'),
+                    Tab(text: 'Music'),
+                  ],
+                ),
+              ),
+              body: const TabBarView(
+                children: [
+                  SystemStyleScope(
+                    style: SystemStyle(
+                      barMode: SystemBarMode.immersive,
+                      appSwitcherLabel: 'Videos',
+                    ),
+                    child: SizedBox(),
+                  ),
+                  SizedBox(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(lastMode(calls), 'SystemUiMode.immersive');
+      expect(lastLabel(calls), 'Videos');
+
+      await tester.tap(find.text('Music'));
+      await tester.pumpAndSettle();
+
+      expect(lastMode(calls), 'SystemUiMode.edgeToEdge');
+      expect(lastLabel(calls), 'App');
     });
 
     testWidgets('us14/fr03/e06: the bars follow what paints with no '
