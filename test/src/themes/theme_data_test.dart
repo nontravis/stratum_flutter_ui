@@ -126,6 +126,7 @@ void main() {
         for (final level in ['1', '2', '3', '4', '5', '6'])
           level: const ImageBlurFilter(sigmaX: 1, sigmaY: 1),
       });
+      const systemStyle = SystemStyle(statusBarIcons: SystemBarIcons.dark);
       const scrollBehavior = ScrollBehavior();
       const physics = BouncingScrollPhysics();
 
@@ -148,8 +149,7 @@ void main() {
         border: border,
         shadow: shadow,
         blur: blur,
-        systemOverlayStyle: AppSystemUI.dark,
-        systemOverlayInverseStyle: AppSystemUI.light,
+        systemStyle: systemStyle,
         splashFactory: InkRipple.splashFactory,
         scrollBehavior: scrollBehavior,
         physics: physics,
@@ -173,8 +173,7 @@ void main() {
       expect(copy.border, same(border));
       expect(copy.shadow, same(shadow));
       expect(copy.blur, same(blur));
-      expect(copy.systemOverlayStyle, AppSystemUI.dark);
-      expect(copy.systemOverlayInverseStyle, AppSystemUI.light);
+      expect(copy.systemStyle, systemStyle);
       expect(copy.splashFactory, same(InkRipple.splashFactory));
       expect(copy.scrollBehavior, same(scrollBehavior));
       expect(copy.physics, same(physics));

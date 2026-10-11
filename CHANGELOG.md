@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Breaking: `AppSystemUI`, `StratumThemeData.systemOverlayStyle` and `systemOverlayInverseStyle`, their constructor and
+  `copyWith` parameters, and the two `StratumTheme` getters of the same names are removed, with no `@Deprecated` step,
+  since no release has shipped them. The theme's one view of the system bars is `StratumTheme.of(context).systemStyle`
+  (and `StratumThemeData.systemStyle`), a `SystemStyle` read from the theme file's `system` set for the data's mode;
+  `StratumThemeData` takes it as a required parameter. The Material theme no longer pins
+  `AppBarTheme.systemOverlayStyle`, so a Material `AppBar` declares the style of its own fill.
 - Breaking: the theme format `stratum-theme/v1.4.0` adds the `system` group, the look of the status bar and the
   navigation bar: `light`, `dark`, and the optional partial overlays `highContrastLight` and `highContrastDark`, as in
   `color`, each with `statusBarIcons` and `navigationBarIcons` (`auto`, `light`, or `dark`), `statusBarColor`,

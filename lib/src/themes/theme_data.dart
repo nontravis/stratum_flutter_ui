@@ -22,10 +22,9 @@ class StratumThemeData {
     required this.border,
     required this.shadow,
     required this.blur,
+    required this.systemStyle,
     this.transparent = StratumTransparentTokens.builtIn,
     this.defaultWidgetSize = WidgetSize.medium,
-    this.systemOverlayStyle = AppSystemUI.light,
-    this.systemOverlayInverseStyle = AppSystemUI.dark,
     this.splashFactory = NoSplash.splashFactory,
     this.scrollBehavior = const StratumScrollBehavior(),
     this.physics = const ClampingScrollPhysics(),
@@ -78,9 +77,15 @@ class StratumThemeData {
   /// the Figma radius.
   final StratumBlurTokens blur;
 
+  /// `system`: the look of the system bars from the theme file's `system`
+  /// set for this data's mode, a high-contrast set laid over its base; the
+  /// one system bar style the theme exposes and the lowest layer of the
+  /// system style merge (FO-03 US-10 FR-01 E05, US-14 FR-01). Its bar mode,
+  /// rotation lock, and app switcher label stay null: an app sets those in
+  /// code.
+  final SystemStyle systemStyle;
+
   final WidgetSize defaultWidgetSize;
-  final SystemUiOverlayStyle systemOverlayStyle;
-  final SystemUiOverlayStyle systemOverlayInverseStyle;
   final InteractiveInkFeatureFactory splashFactory;
   final ScrollBehavior scrollBehavior;
   final ScrollPhysics physics;
@@ -116,7 +121,10 @@ class StratumThemeData {
   /// weight. A null [windowSize] adds no window scale to the text theme.
   /// Its page transitions install one `StratumPageTransitionsBuilder` of
   /// [animation] for every [TargetPlatform], so every plain Material page
-  /// takes the theme's transition (FO-03 US-08 FR-01 E04).
+  /// takes the theme's transition (FO-03 US-08 FR-01 E04). It sets no
+  /// system bar style for the app bar, so a Material `AppBar` declares the
+  /// style of its own fill, which the system style resolver reads as one
+  /// fill layer (FO-03 US-08 FR-01 E05).
   ThemeData toThemeData({
     required Locale locale,
     required WindowSize? windowSize,
@@ -177,7 +185,6 @@ class StratumThemeData {
         thickness: border.md,
         color: color.border.defaults.normal,
       ),
-      appBarTheme: AppBarTheme(systemOverlayStyle: systemOverlayStyle),
       pageTransitionsTheme: PageTransitionsTheme(
         builders: {
           for (final platform in TargetPlatform.values)
@@ -226,9 +233,8 @@ class StratumThemeData {
     StratumBorderTokens? border,
     StratumShadowTokens? shadow,
     StratumBlurTokens? blur,
+    SystemStyle? systemStyle,
     WidgetSize? defaultWidgetSize,
-    SystemUiOverlayStyle? systemOverlayStyle,
-    SystemUiOverlayStyle? systemOverlayInverseStyle,
     InteractiveInkFeatureFactory? splashFactory,
     ScrollBehavior? scrollBehavior,
     ScrollPhysics? physics,
@@ -251,10 +257,8 @@ class StratumThemeData {
       border: border ?? this.border,
       shadow: shadow ?? this.shadow,
       blur: blur ?? this.blur,
+      systemStyle: systemStyle ?? this.systemStyle,
       defaultWidgetSize: defaultWidgetSize ?? this.defaultWidgetSize,
-      systemOverlayStyle: systemOverlayStyle ?? this.systemOverlayStyle,
-      systemOverlayInverseStyle:
-          systemOverlayInverseStyle ?? this.systemOverlayInverseStyle,
       splashFactory: splashFactory ?? this.splashFactory,
       scrollBehavior: scrollBehavior ?? this.scrollBehavior,
       physics: physics ?? this.physics,

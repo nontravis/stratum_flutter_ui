@@ -115,7 +115,13 @@ void main() {
     );
     expect(material.dividerTheme.thickness, 1);
     expect(material.dividerTheme.color, color.border.defaults.normal);
-    expect(material.appBarTheme.systemOverlayStyle, AppSystemUI.light);
+  });
+
+  test('us08/fr01/e05: the Material theme sets no system bar style for the '
+      'app bar', () {
+    for (final data in [defaultThemeSet.light, defaultThemeSet.dark!]) {
+      expect(_material(data).appBarTheme.systemOverlayStyle, isNull);
+    }
   });
 
   group('us08/s2, us08/fr01/e02: the text theme of themes s01 Material text '

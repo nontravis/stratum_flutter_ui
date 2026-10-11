@@ -590,6 +590,13 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   thrown `FlutterError` naming both types when the registered value is not a `ModalLayoutStyle`. Both builders run
   again whenever the active theme changes, and `StratumThemeApplication.wrap` copies both to a nested application.
 
+## System bars
+
+- **The theme's look** — `StratumTheme.of(context).systemStyle` is the theme's `SystemStyle` for the active mode: the
+  look of the status bar and the navigation bar from the theme file's `system` set (see System bar look), with no bar
+  mode, rotation lock, or app switcher label. `AppSystemUI` and `systemOverlayStyle` no longer exist, and the Material
+  theme sets no app bar overlay style.
+
 ## Page transitions
 
 - **The theme's transition per window size** — every `MaterialPageRoute` and `MaterialPage` (go_router's default
