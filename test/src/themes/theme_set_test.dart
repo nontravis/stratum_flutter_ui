@@ -151,7 +151,7 @@ void main() {
       expect(defaultThemeSet.light.assets.loading, isNull);
     });
 
-    test('the section 7.10 defaults, the overlay styles swapped for dark', () {
+    test('the section 7.10 defaults', () {
       final set = defaultThemeSet;
       final light = set.light;
 
@@ -160,12 +160,72 @@ void main() {
       expect(light.scrollBehavior, isA<StratumScrollBehavior>());
       expect(light.physics, isA<ClampingScrollPhysics>());
       expect(light.transparent, same(StratumTransparentTokens.builtIn));
-      expect(light.systemOverlayStyle, AppSystemUI.light);
-      expect(light.systemOverlayInverseStyle, AppSystemUI.dark);
-      expect(set.highContrastLight!.systemOverlayStyle, AppSystemUI.light);
-      expect(set.dark!.systemOverlayStyle, AppSystemUI.dark);
-      expect(set.dark!.systemOverlayInverseStyle, AppSystemUI.light);
-      expect(set.highContrastDark!.systemOverlayStyle, AppSystemUI.dark);
+    });
+
+    test('us10/fr01/e05: each data carries the system set of its own mode, '
+        'with no bar mode, rotation lock, or label', () {
+      final set = defaultThemeSet;
+      final system = defaultThemeConfig.system;
+
+      expect(set.light.systemStyle, system['light']);
+      expect(set.dark!.systemStyle, system['dark']);
+      expect(set.highContrastLight!.systemStyle, system['highContrastLight']);
+      expect(set.highContrastDark!.systemStyle, system['highContrastDark']);
+      expect(
+        set.dark!.systemStyle.appSwitcherColor,
+        set.dark!.color.background.defaults.normal,
+      );
+      for (final data in [set.light, set.dark!]) {
+        expect(data.systemStyle.barMode, isNull);
+        expect(data.systemStyle.orientations, isNull);
+        expect(data.systemStyle.appSwitcherLabel, isNull);
+      }
+    });
+
+    test('us14/fr01/e03: an app theme that sets one high-contrast system '
+        'key changes that data only', () {
+      final set = StratumThemeSet.fromConfig(
+        StratumThemeConfig.parse(
+          base: const StratumThemeSource(
+            id: 'stratum-default',
+            folder: 'packages/stratum_ui/assets/themes/default',
+            yaml: defaultThemeSource,
+          ),
+          layers: const [
+            StratumThemeSource(
+              id: 'bars',
+              folder: 'themes/bars',
+              yaml:
+                  '\$schema: stratum-theme/v1.3.0\n'
+                  'system:\n'
+                  '  highContrastDark:\n'
+                  '    statusBarIcons: light\n',
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        set.highContrastDark!.systemStyle.statusBarIcons,
+        SystemBarIcons.light,
+      );
+      expect(set.dark!.systemStyle.statusBarIcons, SystemBarIcons.auto);
+    });
+
+    test('a config with no system set throws an ArgumentError naming '
+        'it', () {
+      final config = defaultThemeConfig.copyWith(system: const {});
+
+      expect(
+        () => StratumThemeSet.fromConfig(config),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.invalidValue,
+            'invalidValue',
+            'system.light',
+          ),
+        ),
+      );
     });
 
     test('a config over a small base throws an ArgumentError naming the '

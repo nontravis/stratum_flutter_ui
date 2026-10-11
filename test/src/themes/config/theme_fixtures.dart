@@ -122,6 +122,27 @@ blur:
   "4": 24
   "5": 40
   "6": 80
+system:
+  light:
+    statusBarIcons: auto
+    statusBarColor: "#00000000"
+    statusBarContrast: false
+    navigationBarIcons: auto
+    navigationBarColor: "#00000000"
+    navigationBarDividerColor: "#00000000"
+    navigationBarContrast: true
+    appSwitcherColor: "{color.light.brand.normal}"
+  dark:
+    statusBarIcons: auto
+    statusBarColor: "#00000000"
+    statusBarContrast: false
+    navigationBarIcons: auto
+    navigationBarColor: "#00000000"
+    navigationBarDividerColor: "#00000000"
+    navigationBarContrast: true
+    appSwitcherColor: "{color.dark.brand.normal}"
+  highContrastLight: {}
+  highContrastDark: {}
 ''';
 
 /// The folder of the package default in [sources].

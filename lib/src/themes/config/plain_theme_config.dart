@@ -24,6 +24,7 @@ final class PlainThemeConfig {
     required this.border,
     required this.shadow,
     required this.blur,
+    required this.system,
     required this.extensions,
   });
 
@@ -52,6 +53,10 @@ final class PlainThemeConfig {
 
   /// The `blur` group, level to a Figma blur radius of 0 or more.
   final Map<String, double> blur;
+
+  /// The four `system` sets by set name, each key to its plain value: an
+  /// icons name, a boolean, or a color as `0xAARRGGBB`.
+  final Map<String, Map<String, Object>> system;
 
   /// The merged `extensions` group as plain, unmodifiable Dart values.
   final Map<String, Object?> extensions;

@@ -103,16 +103,16 @@ void main() {
       ),
       (
         'a newer minor',
-        r'$schema: stratum-theme/v1.4.0',
+        r'$schema: stratum-theme/v1.5.0',
         StratumThemeErrorCode.unsupportedSchema,
-        'theme needs stratum-theme v1.4; this app reads up to v1.3',
+        'theme needs stratum-theme v1.5; this app reads up to v1.4',
         10,
       ),
       (
         'another major',
         r'$schema: stratum-theme/v2.0.0',
         StratumThemeErrorCode.unsupportedSchema,
-        'theme needs stratum-theme v2.0; this app reads up to v1.3',
+        'theme needs stratum-theme v2.0; this app reads up to v1.4',
         10,
       ),
     ];
@@ -141,7 +141,7 @@ void main() {
     });
 
     test(
-      'fo01/us01/fr01/e08: accepts every v1.0, v1.1, v1.2, and v1.3 patch',
+      'fo01/us01/fr01/e08: accepts every patch of v1.0, v1.1, v1.2, v1.3, v1.4',
       () {
         for (final version in [
           'v1.0.0',
@@ -152,6 +152,8 @@ void main() {
           'v1.2.9',
           'v1.3.0',
           'v1.3.9',
+          'v1.4.0',
+          'v1.4.9',
         ]) {
           final (roots, errors) = _load(['\$schema: stratum-theme/$version']);
 

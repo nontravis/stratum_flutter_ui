@@ -545,8 +545,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   default sets 0.5 for both, and an app theme may leave the group out. Read them as
   `StratumThemeApplication.of(context).opacity.disabled` and `.opacity.scrim`. A value outside 0 to 1 throws
   `StratumThemeFormatException` with `expected_opacity` at its path, and a third key under `opacity` is
-  `unknown_key`. The package default reads `$schema: stratum-theme/v1.3.0`; this package reads every `v1.0`, `v1.1`,
-  `v1.2`, and `v1.3` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.4.0`; this package reads every `v1.0` to
+  `v1.4` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
   `unsupported_schema`, so a theme that must load on every build writes `v1.0.0` and leaves `opacity` out; one that
   must load on every build from `v1.1` on writes `v1.1.0` and keeps `disabled` but leaves `scrim` out.
 - **Border, shadow, and blur tokens** — `border`, `shadow`, and `blur` in `theme.yaml` (format
@@ -574,6 +574,17 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `v1.2` theme as `unsupported_schema`, so a theme that must load there writes `v1.1.0` and leaves the three groups
   out. `AppBorder`, `AppShadow`, `AppFilter`, `StratumThemeData.filter`, and `screenBorderRadius` no longer exist;
   read the screen's corner radius from `context.deviceWindow.radius` (see Screen corner radius).
+- **System bar look** — `system` in `theme.yaml` (format `stratum-theme/v1.4.0`) sets how the status bar and the
+  navigation bar look, in `light` and `dark` and the optional partial overlays `highContrastLight` and
+  `highContrastDark`, as `color` does: `statusBarIcons` and `navigationBarIcons` (`auto`, `light`, or `dark`; `auto`
+  picks the icon color of higher contrast against what the page paints under the bar), `statusBarColor`,
+  `navigationBarColor`, `navigationBarDividerColor`, and `appSwitcherColor` (a quoted hex or a color alias such as
+  `"{color.light.background.default.normal}"`), and `statusBarContrast` and `navigationBarContrast` (`true` or
+  `false`, Android's own contrast scrim). The package default sets `auto` icons, transparent bars, `false` and
+  `true`, and the page background. The bar mode, the rotation lock, and the app switcher label are set in Dart only
+  (see System bars): a `system` set holding `barMode`, `orientations`, or `appSwitcherLabel` throws
+  `StratumThemeFormatException` with `unknown_key`, a bad icons value `expected_bar_icons`, and a bad flag
+  `expected_boolean`. A package build that reads only up to `v1.3` refuses a `v1.4` theme as `unsupported_schema`.
 - Read the theme data, its default widget size, and the window size where a widget sits:
   `context.themeData()` (or `context.themeData(ThemeMode.dark)`), `context.defaultWidgetSize()`, and
   `context.windowSize`. Each throws a `FlutterError`: `themeData` and `defaultWidgetSize` name the missing
@@ -586,6 +597,44 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `StratumComponentDefaults.partsOf<ModalLayoutStyle>(context, ModalLayout)`, null when none is registered, and a
   thrown `FlutterError` naming both types when the registered value is not a `ModalLayoutStyle`. Both builders run
   again whenever the active theme changes, and `StratumThemeApplication.wrap` copies both to a nested application.
+
+## System bars
+
+- **The theme's look** — `StratumTheme.of(context).systemStyle` is the theme's `SystemStyle` for the active mode: the
+  look of the status bar and the navigation bar from the theme file's `system` set (see System bar look), with no bar
+  mode, rotation lock, or app switcher label. `AppSystemUI` and `systemOverlayStyle` no longer exist, and the Material
+  theme sets no app bar overlay style.
+- **App-wide** — `StratumThemeApplication(systemStyle: SystemStyle(...))`, on both constructors, sets the app-wide
+  layer over the theme's look: any look field, plus `barMode` (`SystemBarMode.edgeToEdge`, `immersive`,
+  `immersiveSticky`, `leanBack`, `topOnly`, or `bottomOnly`), `orientations` (such as
+  `[DeviceOrientation.portraitUp]`), and `appSwitcherLabel`, passed in the user's language. A null field takes the
+  layer below. The application leaves the platform's own bar mode and rotation lock untouched until some layer sets
+  `barMode` or `orientations`; once one has, an unset field falls back to `edgeToEdge` and no lock. An app that locks
+  rotation in `AndroidManifest.xml` or hides the status bar in `Info.plist` keeps that native setting on its own, but
+  once any page sets `orientations` or `barMode`, declare the app-wide lock or mode here instead, since Flutter
+  cannot read the native value back. The application applies the merged style after each frame and is the
+  one writer of the system chrome: never call `SystemChrome.setSystemUIOverlayStyle`, `setEnabledSystemUIMode`, or
+  `setPreferredOrientations` yourself, and never set `AppBar.systemOverlayStyle` to force the icons; set
+  `statusBarIcons` instead. The application paints `statusBarColor`, and on Android `navigationBarColor` with its
+  `navigationBarDividerColor` line, under the bars itself, above every page, and sends the platform transparent bar
+  colors, so a bar color shows on every Android version and on iOS; leave a bar color transparent for an edge-to-edge
+  page. `auto` icons pick light or dark against what paints under each bar, the bar color the topmost, else the
+  theme's page background; with no label set, the app widget's `title` shows, except a web router app with no
+  `title:` of its own, which builds no `Title` widget to read — pass `title:` or an app-wide `appSwitcherLabel`.
+  On the web only the label and
+  `appSwitcherColor`, the browser theme color, apply; the bar mode and the rotation lock apply on Android and iOS
+  only, and a platform that ignores a setting shows no error.
+- **Per page** — wrap any screen, or a part of it, in `SystemStyleScope(style: SystemStyle(...), child: ...)`, with
+  or without a page layout and on any router: its look fields apply at a bar its child covers, and its `barMode`,
+  `orientations`, and `appSwitcherLabel` apply while its child paints. A dialog or sheet over the page keeps them, a
+  pushed page with no scope returns to the app-wide style, and pop restores the page's own, with no
+  `NavigatorObserver` and no restore code; only the shown tab of an `IndexedStack` counts. An inner scope wins field
+  by field over an outer one. Pass the label in the user's language (FO-09).
+- **Fill under a bar** — wrap every surface that paints under the status bar or the navigation bar, such as a
+  header, a full-screen video, or a translucent scrim, in `SystemBarFill(color: <the color it paints>, child: ...)`,
+  so `auto` icons pick the color of higher contrast against it. A translucent color blends over the fills beneath it.
+  Neither `SystemStyleScope` nor `SystemBarFill` paints, adds a semantics node, takes focus, or handles a gesture; a
+  bar color a scope sets, the application paints under the bar.
 
 ## Page transitions
 

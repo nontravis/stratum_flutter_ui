@@ -74,7 +74,7 @@ void main() {
 
     test('one stage-1 error and nothing else: the parse stops there, so the '
         'bad color is not reported', () {
-      final newer = _ocean.replaceFirst('v1.0.0', 'v1.4.0');
+      final newer = _ocean.replaceFirst('v1.0.0', 'v1.5.0');
 
       expect(
         () => StratumThemeConfig.parse(
@@ -86,8 +86,8 @@ void main() {
             (exception) => '$exception',
             'toString',
             'StratumThemeFormatException: 1 problem(s) in theme.yaml\n'
-                r'  ocean:1:10 $schema: theme needs stratum-theme v1.4; '
-                'this app reads up to v1.3 [unsupported_schema]',
+                r'  ocean:1:10 $schema: theme needs stratum-theme v1.5; '
+                'this app reads up to v1.4 [unsupported_schema]',
           ),
         ),
       );

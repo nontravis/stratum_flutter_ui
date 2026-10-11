@@ -259,6 +259,36 @@ void main() {
     });
   });
 
+  test('fo01/us01/fr01, us14/fr01: the system group reads auto icons, '
+      'transparent bars, the Android scrim defaults, and the page '
+      'background', () {
+    SystemStyle look(Color appSwitcherColor) => SystemStyle(
+      statusBarIcons: SystemBarIcons.auto,
+      statusBarColor: const Color(0x00000000),
+      statusBarContrast: false,
+      navigationBarIcons: SystemBarIcons.auto,
+      navigationBarColor: const Color(0x00000000),
+      navigationBarDividerColor: const Color(0x00000000),
+      navigationBarContrast: true,
+      appSwitcherColor: appSwitcherColor,
+    );
+    final light = config.color.light['background.default.normal']!;
+    final dark = config.color.dark['background.default.normal']!;
+
+    expect(light, const Color(0xFFFFFFFF));
+    expect(dark, const Color(0xFF111827));
+    expect(config.system, {
+      'light': look(light),
+      'dark': look(dark),
+      'highContrastLight': look(
+        config.color.highContrastLight['background.default.normal']!,
+      ),
+      'highContrastDark': look(
+        config.color.highContrastDark['background.default.normal']!,
+      ),
+    });
+  });
+
   final flutterRoot = Platform.environment['FLUTTER_ROOT'];
   test("the curve table equals the SDK's Curves constants", () {
     final source = File(

@@ -77,10 +77,8 @@ class StratumTheme {
   /// `data.blur`: background blurs.
   StratumBlurTokens get blur => data.blur;
 
-  SystemUiOverlayStyle get systemOverlayStyle => data.systemOverlayStyle;
-
-  SystemUiOverlayStyle get systemOverlayInverseStyle =>
-      data.systemOverlayInverseStyle;
+  /// `data.systemStyle`: the theme's look of the system bars.
+  SystemStyle get systemStyle => data.systemStyle;
 
   InteractiveInkFeatureFactory get splashFactory => data.splashFactory;
 

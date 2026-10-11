@@ -34,10 +34,11 @@ class StratumThemeSet {
 
   /// One data per color set of [config]; every other group is shared by
   /// the four, but `shadow`, whose colors each data takes from its own
-  /// set, and fields no yaml group fills take section 7.10's defaults.
-  /// Throws an [ArgumentError] that names the first token path the
-  /// generated classes read and [config] lacks, or a shadow layer's color
-  /// path its set lacks.
+  /// set, and `system`, whose set of the same name each data takes, and
+  /// fields no yaml group fills take section 7.10's defaults. Throws an
+  /// [ArgumentError] that names the first token path the generated classes
+  /// read and [config] lacks, a shadow layer's color path its set lacks,
+  /// or a `system` set [config] lacks.
   factory fromConfig(StratumThemeConfig config) {
     final colors = config.color;
     final lightColor = StratumColorTokens.fromMap(colors.light);
@@ -58,9 +59,17 @@ class StratumThemeSet {
       for (final MapEntry(:key, :value) in config.blur.entries)
         key: convertBlur(value),
     });
+    SystemStyle system(String set) =>
+        config.system[set] ??
+        (throw ArgumentError.value(
+          'system.$set',
+          'path',
+          'no system set at this path in the theme config',
+        ));
     StratumThemeData data(
       StratumColorTokens color,
-      Map<String, Color> setColors, {
+      Map<String, Color> setColors,
+      SystemStyle systemStyle, {
       required bool dark,
     }) => StratumThemeData(
       themeMode: dark ? ThemeMode.dark : ThemeMode.light,
@@ -84,20 +93,21 @@ class StratumThemeSet {
           ]),
       }),
       blur: blur,
-      systemOverlayStyle: dark ? AppSystemUI.dark : AppSystemUI.light,
-      systemOverlayInverseStyle: dark ? AppSystemUI.light : AppSystemUI.dark,
+      systemStyle: systemStyle,
     );
     return StratumThemeSet(
-      light: data(lightColor, colors.light, dark: false),
-      dark: data(darkColor, colors.dark, dark: true),
+      light: data(lightColor, colors.light, system('light'), dark: false),
+      dark: data(darkColor, colors.dark, system('dark'), dark: true),
       highContrastLight: data(
         contrastLightColor,
         colors.highContrastLight,
+        system('highContrastLight'),
         dark: false,
       ),
       highContrastDark: data(
         contrastDarkColor,
         colors.highContrastDark,
+        system('highContrastDark'),
         dark: true,
       ),
     );

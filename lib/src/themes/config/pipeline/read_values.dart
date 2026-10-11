@@ -6,6 +6,7 @@ import 'package:stratum_ui/src/themes/config/plain_by_window_size.dart';
 import 'package:stratum_ui/src/themes/config/plain_theme_config.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/config/shadow_layer.dart';
+import 'package:stratum_ui/src/themes/config/system_names.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
 import 'package:stratum_ui/src/themes/config/transition_names.dart';
@@ -69,6 +70,7 @@ final class _Read {
       border: frozenMap(_effectNumbers(tree['border'], 'border')),
       shadow: frozenMap(_shadow(tree['shadow'])),
       blur: frozenMap(_effectNumbers(tree['blur'], 'blur')),
+      system: _system(tree['system']),
       extensions: _extensions(tree['extensions']),
     );
   }
@@ -643,6 +645,75 @@ final class _Read {
       value,
     ).color(value, path, alias: _theme.aliases[path]);
     return argb == null ? null : StratumFixedLayerColor(argb);
+  }
+
+  /// The `system` group (FO-01 US-01 FR-01 E17 to E19; config s03
+  /// invariant 16): each of the four sets, which stage 3 made full.
+  Map<String, Map<String, Object>> _system(Object? value) {
+    final node = _reader.map(value, 'system');
+    if (node == null) return const {};
+    return frozenMap({
+      for (final name in ThemeSchema.colorSets.keys)
+        name: _systemSet(node[name], name),
+    });
+  }
+
+  /// The `system` set [name]: each key of its base set in the package
+  /// default, read by its kind. `statusBarIcons` and `navigationBarIcons`
+  /// name one of [systemBarIconNames], `statusBarContrast` and
+  /// `navigationBarContrast` are booleans, and every other key is a color
+  /// or an alias that stage 4 resolved to one.
+  Map<String, Object> _systemSet(Object? value, String name) {
+    final values = <String, Object>{};
+    final node = value is Map<String, Object?>
+        ? value
+        : const <String, Object?>{};
+    for (final key in (_schema.keysAt(['system', name]) ?? const {}).keys) {
+      final path = 'system.$name.$key';
+      if (_theme.failed.contains(path)) continue;
+      final entry = node[key];
+      final reader = _readerFor(path, entry);
+      final read = switch (key) {
+        'statusBarIcons' ||
+        'navigationBarIcons' => _barIcons(reader, path, entry),
+        'statusBarContrast' ||
+        'navigationBarContrast' => _flag(reader, path, entry),
+        _ => reader.color(entry, path, alias: _theme.aliases[path]),
+      };
+      if (read != null) values[key] = read;
+    }
+    return frozenMap(values);
+  }
+
+  /// [value] as one of [systemBarIconNames] (FO-01 US-01 FR-01 E18).
+  static String? _barIcons(ThemeReader reader, String path, Object? value) {
+    if (value is String && systemBarIconNames.contains(value)) return value;
+    if (value == null) {
+      reader.report(StratumThemeErrorCode.required, path, 'required');
+      return null;
+    }
+    reader.report(
+      StratumThemeErrorCode.expectedBarIcons,
+      path,
+      'expected one of ${systemBarIconNames.join(', ')}, got '
+      '${ThemeReader.show(value)}',
+    );
+    return null;
+  }
+
+  /// [value] as a yaml boolean (FO-01 US-01 FR-01 E19).
+  static bool? _flag(ThemeReader reader, String path, Object? value) {
+    if (value is bool) return value;
+    if (value == null) {
+      reader.report(StratumThemeErrorCode.required, path, 'required');
+      return null;
+    }
+    reader.report(
+      StratumThemeErrorCode.expectedBoolean,
+      path,
+      'expected true or false, got ${ThemeReader.show(value)}',
+    );
+    return null;
   }
 
   PlainTypography _typography(Object? value) {
