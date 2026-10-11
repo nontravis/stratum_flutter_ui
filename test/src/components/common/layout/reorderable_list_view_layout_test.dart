@@ -2182,6 +2182,10 @@ void main() {
                 widget.scale != kAlwaysCompleteAnimation,
           ),
         );
+        // The extent of the box around the caller's transition: no size of
+        // the list's own grows or shrinks the item inside it.
+        double callerBox() =>
+            (tester.renderObject(running).parent! as RenderBox).size.height;
 
         _harness(tester).insert(1, 9);
         await tester.pump();
@@ -2189,6 +2193,7 @@ void main() {
         expect(running, findsOneWidget);
         expect(inList(SizeTransition), findsNothing);
         expect(inList(FadeTransition), findsNothing);
+        expect(callerBox(), 40);
         expect(_offsetBetween(tester, 0, 1), 80);
         expect(received!.value, moreOrLessEquals(mid));
         await tester.pumpAndSettle();
@@ -2199,6 +2204,7 @@ void main() {
         await tester.pump(_halfReverse(theme));
         expect(running, findsOneWidget);
         expect(inList(SizeTransition), findsNothing);
+        expect(callerBox(), 40);
         expect(received!.value, moreOrLessEquals(mid));
         await tester.pumpAndSettle();
       },
@@ -4308,8 +4314,8 @@ void main() {
         expect(_top(tester, 3), 120);
 
         // A move called under the flag the frame reads: E02 applies, so the
-        // old slot is already closed and no size transition runs, the moved
-        // item only fading in.
+        // old slot is already closed, with no closing gap's size transition,
+        // and the moved item takes its full extent at once, only fading in.
         _harness(tester).move(0, 3);
         await tester.pump();
         expect(
@@ -4319,6 +4325,7 @@ void main() {
           ),
           findsNothing,
         );
+        expect(_sizeBox(tester, 2).size.height, 40);
         expect(_opacity(tester, 2), 0);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
@@ -4343,6 +4350,8 @@ void main() {
         expect(_top(tester, 0), 40);
         expect(_top(tester, 3), 120);
         expect(_opacity(tester, 2), 0);
+        // No closing gap's size transition, and the moved item takes the
+        // slot's full extent at once.
         expect(
           find.descendant(
             of: _reorderSliver(),
@@ -4350,6 +4359,7 @@ void main() {
           ),
           findsNothing,
         );
+        expect(_sizeBox(tester, 2).size.height, 40);
       },
     );
 
