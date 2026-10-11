@@ -568,10 +568,29 @@ final class _DrawSizeCheck {
   final _messages = <String, String>{};
 
   void run() {
+    final fontKeys = {
+      for (final type in FontType.values) type: _fontKeys(type),
+    };
+    final declaredSizes = {
+      for (final type in FontType.values) type: _declaredSizes(type),
+    };
+    final ownDeclaredWindows = {
+      for (final type in FontType.values) type: _declaredWindowsOf(type),
+    };
+    final themeDeclaredWindows = _declaredWindows(['scaleByWindowSize']);
     for (final size in FontSize.values) {
       for (final window in <String?>[null, ...windowSizeNames]) {
         for (final type in FontType.values) {
-          _check(size, window, type);
+          final metricsType = type == FontType.table ? FontType.body : type;
+          _check(
+            size,
+            window,
+            type,
+            fontKeys[type]!,
+            declaredSizes[metricsType]!,
+            ownDeclaredWindows[metricsType]!,
+            themeDeclaredWindows,
+          );
         }
       }
     }
@@ -580,24 +599,50 @@ final class _DrawSizeCheck {
     }
   }
 
-  void _check(FontSize size, String? window, FontType type) {
+  void _check(
+    FontSize size,
+    String? window,
+    FontType type,
+    Set<String> fontKeys,
+    Set<FontSize> declaredSizes,
+    Set<String> ownDeclaredWindows,
+    Set<String> themeDeclaredWindows,
+  ) {
     final metricsType = type == FontType.table ? FontType.body : type;
     final style = _typography.types[metricsType];
     if (style == null) return;
-    final defined = nearestFontSize(style.sizes.keys, size.value);
-    if (defined == null) return;
-    final spaceHeight = style.sizes[defined]!.spaceHeight;
-    if (window == null) {
+    final nearest = nearestFontSize(
+      declaredSizes.isEmpty ? style.sizes.keys : declaredSizes,
+      size.value,
+    );
+    if (nearest == null) return;
+    final metrics = style.sizes[nearest];
+    // The nearest size the type declares may have failed to parse (E19):
+    // no other declared size answers for it, so this size draws no
+    // line-box error here. The font-size checks below do not read
+    // spaceHeight, so they still run over every value that parsed.
+    final spaceHeight = metrics?.spaceHeight ?? _zero;
+    if (metrics != null && window == null) {
       final lineBox = _sizeOf(size, null, style, _zero, spaceHeight).lineBox;
       if (!isDrawableSize(lineBox)) {
         _blame(
-          ['types', metricsType.name, 'sizes', defined.name, 'spaceHeight'],
+          ['types', metricsType.name, 'sizes', nearest.name, 'spaceHeight'],
           'a spaceHeight that keeps ${size.name} above 0 px',
           '(line box ${_px(lineBox)} px)',
         );
       }
     }
-    for (final key in _fontKeys(type)) {
+    // A window whose scale entry would come from a declared-but-refused
+    // value, own or theme-wide, draws no window-scale error here: the
+    // value a passing theme would have used is unknown, so the check must
+    // not fall through further and blame a different, unrelated entry
+    // (E19).
+    final shadowed =
+        window != null &&
+        (ownDeclaredWindows.contains(window)
+            ? !(style.scaleByWindowSize?.containsKey(window) ?? false)
+            : _themeFallbackRefused(window, themeDeclaredWindows));
+    for (final key in fontKeys) {
       final adjustSize = _typography.fonts[key]?.adjustSize;
       if (adjustSize == null) continue;
       final unscaled = _sizeOf(size, null, style, adjustSize, spaceHeight);
@@ -611,7 +656,7 @@ final class _DrawSizeCheck {
         }
         continue;
       }
-      if (window == null) continue;
+      if (window == null || shadowed) continue;
       final sizes = _sizeOf(size, window, style, adjustSize, spaceHeight);
       final entry = sizes.windowScale;
       if (entry == null || isDrawableSize(sizes.fontSize)) continue;
@@ -623,6 +668,20 @@ final class _DrawSizeCheck {
         '(${size.name} draws at ${_px(sizes.fontSize)} px)',
       );
     }
+  }
+
+  /// Whether the theme-wide entry [window] would read, by `windowSizeNames`
+  /// order over [declared] (every key the raw node names, parsed or
+  /// refused), failed to parse: present in [declared] but missing from the
+  /// parsed `scaleByWindowSize.sizes` map.
+  bool _themeFallbackRefused(String window, Set<String> declared) {
+    final index = windowSizeEntryIndex(
+      windowSizeNames.indexOf(window),
+      (index) => declared.contains(windowSizeNames[index]),
+    );
+    if (index == null) return false;
+    final name = windowSizeNames[index];
+    return !(_typography.scaleByWindowSize.sizes?.containsKey(name) ?? false);
   }
 
   TextSize _sizeOf(
@@ -650,6 +709,39 @@ final class _DrawSizeCheck {
       if (type != FontType.code) ...[?family.types[type]?.mono, ?family.mono],
     ],
   };
+
+  /// The `FontSize` keys the raw node declares for [type]'s `sizes`,
+  /// parsed or refused, so `_check` finds the nearest by every size the
+  /// author wrote, not only the ones that parsed (E19).
+  Set<FontSize> _declaredSizes(FontType type) {
+    final node = _valueAt(['types', type.name, 'sizes']);
+    if (node is! Map<String, Object?>) return const {};
+    final names = FontSize.values.asNameMap();
+    return {for (final key in node.keys) ?names[key]};
+  }
+
+  /// The window-size names [type]'s own `scaleByWindowSize` declares,
+  /// parsed or refused (E19, mirroring [_declaredSizes]); every window
+  /// size name when the value itself is not a map (`expected_map`), since
+  /// no entry it would have held is known to have parsed.
+  Set<String> _declaredWindowsOf(FontType type) {
+    final keys = ['types', type.name, 'scaleByWindowSize'];
+    final value = _valueAt(keys);
+    return value != null && value is! Map<String, Object?>
+        ? windowSizeNames.toSet()
+        : _declaredWindows(keys);
+  }
+
+  /// The window-size names the raw node declares at [keys], parsed or
+  /// refused.
+  Set<String> _declaredWindows(List<String> keys) {
+    final node = _valueAt(keys);
+    if (node is! Map<String, Object?>) return const {};
+    return {
+      for (final key in node.keys)
+        if (windowSizeNames.contains(key)) key,
+    };
+  }
 
   /// Records the message of the path [keys] names below `typography`,
   /// unless an earlier text already named it.

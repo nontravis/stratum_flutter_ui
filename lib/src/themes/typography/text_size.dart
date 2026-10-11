@@ -7,14 +7,17 @@ import 'package:stratum_ui/src/themes/typography/dimension.dart';
 /// (`own`), and its `value`.
 typedef WindowScaleEntry = ({String name, bool own, StratumDimension value});
 
-/// One text's sizes in logical pixels (FO-02 typography s03 steps 4 to 6).
+/// One text's sizes in logical pixels (FO-02 typography s03 steps 4 to 6,
+/// and step 8 for letter spacing).
 ///
-/// `size` is the requested size plus the window scale, the size behind
-/// letter spacing (step 8). `fontSize` and `lineBox` are what the theme asks
-/// for; `drawnFontSize` and `drawnLineBox` are what the text draws at, each
-/// falling back on its own when the theme's is not a finite number above 0
-/// (steps 5 and 6). `windowScale` is the entry step 4 reads, or null when
-/// none adds to the size.
+/// `size` is the requested size plus the window scale. `fontSize` and
+/// `lineBox` are what the theme asks for; `drawnFontSize`, `drawnLineBox`,
+/// and `drawnSize` are what the text draws at, each falling back on `base`
+/// when the theme's is not a finite number above 0 (steps 5, 6, and 8):
+/// `drawnFontSize` drops the window scale and `adjustSize`, `drawnLineBox`
+/// drops `spaceHeight` off the scaled `base`, and `drawnSize` — the basis
+/// letter spacing scales — drops the window scale alone. `windowScale` is
+/// the entry step 4 reads, or null when none adds to the size.
 typedef TextSize = ({
   WindowScaleEntry? windowScale,
   double size,
@@ -22,13 +25,15 @@ typedef TextSize = ({
   double lineBox,
   double drawnFontSize,
   double drawnLineBox,
+  double drawnSize,
 });
 
 /// Whether [value] can size drawn text: a finite number above 0.
 bool isDrawableSize(double value) => value.isFinite && value > 0;
 
 /// The sizes of one text of the requested size [base] (FO-02 typography s03
-/// steps 4 to 6, with the fallback of steps 5 and 6).
+/// steps 4 to 6, and step 8 for letter spacing's basis, with the fallback
+/// of steps 5, 6, and 8).
 ///
 /// [window] names the window size, or is null when none is known. The window
 /// scale is [ownScale]'s entry at [window], the type's own; else
@@ -61,6 +66,7 @@ TextSize textSizeOf({
     lineBox: lineBox,
     drawnFontSize: isDrawableSize(fontSize) ? fontSize : base,
     drawnLineBox: isDrawableSize(lineBox) ? lineBox : scaledBase,
+    drawnSize: isDrawableSize(size) ? size : base,
   );
 }
 

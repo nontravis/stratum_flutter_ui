@@ -67,11 +67,13 @@ abstract final class TypographyResolver {
     final sizes = textSizeOf(
       base: base,
       window: windowSize?.name,
-      ownScale: _byName(style.scaleByWindowSize),
-      themeScale: {
-        for (final size in WindowSize.values)
-          size.name: typography.scaleByWindowSize.valueFor(size),
-      },
+      ownScale: windowSize == null ? null : _byName(style.scaleByWindowSize),
+      themeScale: windowSize == null
+          ? null
+          : {
+              for (final size in WindowSize.values)
+                size.name: typography.scaleByWindowSize.valueFor(size),
+            },
       adjustSize: font.adjustSize,
       spaceHeight: metrics.spaceHeight,
       scale: textScaler.scale,
@@ -97,7 +99,7 @@ abstract final class TypographyResolver {
       fontWeight: drawn,
       fontStyle: recipe.fontStyle,
       letterSpacing: metrics.letterSpacing.resolve(
-        of: textScaler.scale(sizes.size),
+        of: textScaler.scale(sizes.drawnSize),
       ),
       height: sizes.drawnLineBox / textScaler.scale(sizes.drawnFontSize),
       leadingDistribution: TextLeadingDistribution.even,

@@ -430,6 +430,7 @@ typography:
     StratumThemeData handBuilt({
       StratumDimension adjustSize = const StratumDimension.fixed(0),
       StratumDimension spaceHeight = const StratumDimension.fixed(8),
+      StratumDimension windowScale = const StratumDimension.fixed(1),
     }) => fakeStratumTheme(
       typography: StratumTypography(
         fonts: {
@@ -451,8 +452,8 @@ typography:
             },
           ),
         },
-        scaleByWindowSize: StratumByWindowSize(const {
-          WindowSize.desktop: StratumDimension.fixed(1),
+        scaleByWindowSize: StratumByWindowSize({
+          WindowSize.desktop: windowScale,
         }),
       ),
     );
@@ -551,6 +552,21 @@ typography:
 
       expect(style.fontSize, 16);
       expect(style.letterSpacing, closeTo(-0.17, 1e-9));
+    });
+
+    test('us02/fr01/e07: a letter-spacing basis of -60 offset by an '
+        'adjustSize of 60 keeps letter spacing on the requested size, with '
+        'no assertion', () {
+      final style = resolveIn(
+        handBuilt(
+          adjustSize: const StratumDimension.fixed(60),
+          windowScale: const StratumDimension.fixed(-60),
+        ),
+        windowSize: WindowSize.desktop,
+      );
+
+      expect(style.fontSize, 16);
+      expect(style.letterSpacing, closeTo(-0.16, 1e-9));
     });
 
     test('us03/fr01: the height divides the line box by the scaled font size '

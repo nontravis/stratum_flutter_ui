@@ -128,9 +128,9 @@ void main() {
       ('infinite', const StratumDimension.fixed(double.infinity)),
       ('NaN', const StratumDimension.fixed(double.nan)),
     ]) {
-      test('us02/fr01/e04, us02/fr01/e07: a font size $name draws at base, '
-          'dropping the window scale and adjustSize; size and the line box '
-          'keep their own rules', () {
+      test('us02/fr01/e04: a font size $name draws at base, dropping the '
+          'window scale and adjustSize; size and the line box keep their '
+          'own rules', () {
         final sizes = _sizeOf(window: 'desktop', adjustSize: adjustSize);
 
         expect(sizes.drawnFontSize, 16);
@@ -181,6 +181,34 @@ void main() {
         expect(isDrawableSize(value), drawable);
       });
     }
+  });
+
+  group('textSizeOf letter-spacing basis, s03 step 8, us02/fr01/e07', () {
+    for (final (name, scaleValue) in [
+      ('of 0', const StratumDimension.fixed(-16)),
+      ('below 0', const StratumDimension.fixed(-20)),
+      ('infinite', const StratumDimension.fixed(double.infinity)),
+      ('NaN', const StratumDimension.fixed(double.nan)),
+    ]) {
+      test('us02/fr01/e07: a letter-spacing basis $name draws at base, '
+          'dropping the window scale; size keeps its own rule', () {
+        final sizes = _sizeOf(
+          window: 'desktop',
+          ownScale: {'desktop': scaleValue},
+        );
+
+        expect(sizes.drawnSize, 16);
+      });
+    }
+
+    test('us02/fr01/e07: a drawable basis keeps the window scale', () {
+      final sizes = _sizeOf(
+        window: 'desktop',
+        ownScale: const {'desktop': StratumDimension.fixed(3)},
+      );
+
+      expect(sizes.drawnSize, 19);
+    });
   });
 
   group('nearestFontSize, us02/fr02', () {

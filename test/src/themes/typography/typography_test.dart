@@ -421,6 +421,11 @@ void main() {
         'typography.scaleByWindowSize.desktop: $bound Infinity',
       ),
       (
+        'a negative-infinite theme-wide scaleByWindowSize entry',
+        _typography(extra: '  scaleByWindowSize: { desktop: -.inf }'),
+        'typography.scaleByWindowSize.desktop: $bound -Infinity',
+      ),
+      (
         "a NaN entry of a type's own scaleByWindowSize",
         _typography(
           types: {
@@ -558,6 +563,60 @@ void main() {
       );
     });
 
+    test('us07/fr02/e19: a refused own scaleByWindowSize entry blames no '
+        'theme-wide entry it would fall through to', () {
+      const expected =
+          'typography.types.header.scaleByWindowSize.watch: expected a '
+          'number or "N%" from -10000 to 10000, got 20000';
+      expect(
+        _errors(
+          _typography(
+            fonts:
+                '{ small: { family: Small }, '
+                'big: { family: Big, adjustSize: 10 } }',
+            families:
+                '{ default: { header: small, paragraph: big, number: big, '
+                'code: big, body: big, table: big } }',
+            types: {
+              'header':
+                  '{ weight: 600, sizes: { s16: { spaceHeight: 8 } }, '
+                  'scaleByWindowSize: { watch: 20000 } }',
+            },
+            extra:
+                '  scaleByWindowSize: { watch: -14, mobile: 0, tablet: 0, '
+                'desktop: 0, bigDesktop: 0 }',
+          ),
+        ),
+        [expected],
+      );
+    });
+
+    test('us07/fr02/e19: an own scaleByWindowSize refused as a whole '
+        'blames no theme-wide entry it would fall through to', () {
+      const expected =
+          'typography.types.header.scaleByWindowSize: expected a map, '
+          'got 5';
+      expect(
+        _errors(
+          _typography(
+            fonts:
+                '{ inter: { family: Inter }, '
+                'big: { family: Big, adjustSize: -6 } }',
+            families:
+                '{ default: { header: big, paragraph: inter, number: inter, '
+                'code: inter, body: inter, table: inter } }',
+            types: {
+              'header':
+                  '{ weight: 600, sizes: { s16: { spaceHeight: 8 } }, '
+                  'scaleByWindowSize: 5 }',
+            },
+            extra: '  scaleByWindowSize: { watch: -5 }',
+          ),
+        ),
+        [expected],
+      );
+    });
+
     test('us07/fr02/e18, us07/fr02/e19: a spaceHeight is blamed at the '
         'defined size whose metrics fail, once for body and table', () {
       const expected =
@@ -593,6 +652,72 @@ void main() {
           ),
         ),
         [expected],
+      );
+    });
+
+    test('us07/fr02/e19: a spaceHeight the length bound refuses blames no '
+        'other declared size that falls back to it', () {
+      const expected =
+          'typography.types.body.sizes.s10.spaceHeight: expected a number '
+          'or "N%" from -10000 to 10000, got 99999';
+      expect(
+        _errors(
+          _typography(
+            types: {
+              'body':
+                  '{ weight: 400, sizes: { s10: { spaceHeight: 99999 }, '
+                  's16: { spaceHeight: -12 } } }',
+            },
+          ),
+        ),
+        [expected],
+      );
+    });
+
+    test('us07/fr02/e17, us07/fr02/e19: a refused nearest size blames no '
+        'line box, but still checks the font size at that size', () {
+      const e16 =
+          'typography.types.body.sizes.s10.spaceHeight: expected a number '
+          'or "N%" from -10000 to 10000, got 99999';
+      const e17 =
+          'typography.fonts.tiny.adjustSize: expected an adjustSize that '
+          'keeps s10 above 0 px, got -11 (s10 draws at -1 px)';
+      expect(
+        _errors(
+          _typography(
+            fonts:
+                '{ inter: { family: Inter }, '
+                'tiny: { family: Tiny, adjustSize: -11 } }',
+            families:
+                '{ default: { header: inter, paragraph: inter, '
+                'number: inter, code: inter, body: tiny, table: inter } }',
+            types: {
+              'body':
+                  '{ weight: 400, sizes: { s10: { spaceHeight: 99999 }, '
+                  's16: { spaceHeight: 8 } } }',
+            },
+          ),
+        ),
+        [e17, e16],
+      );
+    });
+
+    test('us07/fr02/e19: two scale entries failing independently report '
+        'two errors in one load', () {
+      const watch =
+          'typography.scaleByWindowSize.watch: expected a scaleByWindowSize '
+          'that keeps s10 above 0 px, got -14 (s10 draws at -4 px)';
+      const bigDesktop =
+          'typography.scaleByWindowSize.bigDesktop: expected a '
+          'scaleByWindowSize that keeps s10 above 0 px, got -50 (s10 draws '
+          'at -40 px)';
+      expect(
+        _errors(
+          _typography(
+            extra: '  scaleByWindowSize: { watch: -14, bigDesktop: -50 }',
+          ),
+        ),
+        [watch, bigDesktop],
       );
     });
 
