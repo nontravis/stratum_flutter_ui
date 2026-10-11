@@ -12,6 +12,23 @@ const windowSizeNames = <String>[
   'bigDesktop',
 ];
 
+/// The index, in [windowSizeNames] order, of the entry a per-window-size
+/// value reads at the window size of [index]: [index] itself when [has]
+/// holds for it; else the nearest smaller index [has] holds for; else the
+/// smallest one; null when [has] holds for none (OQ11).
+/// `StratumByWindowSize.valueFor` and FO-02's shared size function both
+/// read through it, so the app and the Flutter-free parse fill a window
+/// size alike.
+int? windowSizeEntryIndex(int index, bool Function(int index) has) {
+  for (var at = index; at >= 0; at--) {
+    if (has(at)) return at;
+  }
+  for (var at = index + 1; at < windowSizeNames.length; at++) {
+    if (has(at)) return at;
+  }
+  return null;
+}
+
 /// A per-window-size value as stage 5 reads it: one value for every window
 /// size, or the values of the window sizes a yaml map names, keyed by
 /// name. `convertByWindowSize` turns it into `StratumByWindowSize`.

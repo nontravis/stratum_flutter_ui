@@ -186,6 +186,28 @@ void main() {
       expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
     });
 
+    test('fo02/us07/fr02/e17, review focus 1: a typography that draws text '
+        'at 0 px or less fails the pack as it fails in the app, and nothing '
+        'is written', () async {
+      const expected =
+          'typography.fonts.inter.adjustSize: expected an adjustSize that '
+          'keeps s10 above 0 px, got -12 (s10 draws at -2 px) '
+          '[expected_dimension]';
+      _folder(
+        'brand',
+        _theme('typography:\n  fonts:\n    inter: { adjustSize: -12 }'),
+      );
+
+      final run = await _run(['pack', 'brand']);
+
+      expect(run.code, exitFailed);
+      expect(run.out, isEmpty);
+      expect(run.err.where((line) => line.startsWith('theme_format: ')), [
+        'theme_format: brand@1:6:26 $expected',
+      ]);
+      expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
+    });
+
     test('us02/s10, us02/fr01/e01, us02/fr03/e14: a folder named default fails '
         'as invalid_id before the check, and nothing is written', () async {
       _folder('default', _theme());
