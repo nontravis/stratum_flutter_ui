@@ -21,8 +21,9 @@ enum SystemBarIcons {
 
 /// Which system bars show (FO-03 US-14 FR-03).
 enum SystemBarMode {
-  /// Both bars show over the app's content; the value when no layer sets
-  /// one.
+  /// Both bars show over the app's content; the value an unset bar mode
+  /// falls back to once some layer has set one (before that, the platform's
+  /// own mode stays).
   edgeToEdge,
 
   /// `SystemUiMode.immersive`: both bars hide; an edge swipe shows them.
