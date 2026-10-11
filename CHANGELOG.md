@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- New: `StratumThemeApplication(systemStyle:)` and `StratumThemeApplication.controlled(systemStyle:)` take the
+  app-wide `SystemStyle`, the layer over the theme's `system` set: any look field, plus `barMode` (`SystemBarMode`:
+  `edgeToEdge`, `immersive`, `immersiveSticky`, `leanBack`, `topOnly`, `bottomOnly`), `orientations`, and
+  `appSwitcherLabel`, which only code sets. After each frame the application applies the merged style: it paints
+  `statusBarColor` across the view's top padding and, on Android, `navigationBarColor` across its bottom padding, with
+  `navigationBarDividerColor` as a one-pixel line on the edge that faces the page, above every page, and sends the
+  platform transparent bar colors, so the colors show on every Android version and on iOS; it sends the overlay style,
+  whose `auto` icons pick light or dark by the higher contrast against the fill under each bar, the painted bar color
+  the topmost, else the theme's page background; the bar mode and the rotation lock, on Android and iOS only; and the
+  app switcher entry, whose label falls back to the app widget's own title and whose color is `appSwitcherColor`. On
+  the web it sends no overlay style, so the browser theme color comes only from `appSwitcherColor`. A setting a
+  platform lacks is ignored with no error.
+- Breaking: the theme application is now the one writer of the system chrome. It turns
+  `RenderView.automaticSystemUiAdjustment` off for its view and sends the app's bar mode (`edgeToEdge` when none is
+  set) and an empty rotation lock on its first frame, so an app that calls `SystemChrome.setSystemUIOverlayStyle`,
+  `setEnabledSystemUIMode`, or `setPreferredOrientations` itself sets the same values through `systemStyle` instead.
+  A Material `AppBar`'s own overlay style now counts as one fill under the status bar.
 - Breaking: `AppSystemUI`, `StratumThemeData.systemOverlayStyle` and `systemOverlayInverseStyle`, their constructor and
   `copyWith` parameters, and the two `StratumTheme` getters of the same names are removed, with no `@Deprecated` step,
   since no release has shipped them. The theme's one view of the system bars is `StratumTheme.of(context).systemStyle`
