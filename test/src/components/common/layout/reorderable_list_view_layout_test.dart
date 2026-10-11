@@ -9913,8 +9913,9 @@ void main() {
       variant: midOps,
     );
 
-    // L5 closed (R48): the chain never re-parents the item, so a caller
-    // fade through 0 asserts nothing.
+    // L5 closed (R44): the item's element moves in place by its key until
+    // Task 6 builds the chain (R48), so a caller fade through 0 asserts
+    // nothing.
     testWidgets('us11/fr04 and fr05 (L5 closed): a caller '
         'itemTransitionBuilder that fades through 0, around an item holding '
         'its own semantics boundary, lands with no assert', (tester) async {
@@ -13345,6 +13346,65 @@ void main() {
         await tester.pumpAndSettle();
       },
       variant: placements,
+    );
+
+    final turnAppIndex = ValueVariant<bool>({false, true});
+    testWidgets(
+      's03/inv35 (D3): a raw move and an insert call in one turn keep every '
+      "item's State, the app's index answering before the calls",
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 11,
+              appIndex: turnAppIndex.currentValue!,
+              itemsController: ReorderableItemsController(),
+            ),
+          ),
+        );
+        final zero = _itemState(tester, 0)..expanded = true;
+        final three = _itemState(tester, 3)..expanded = true;
+
+        _harness(tester)
+          ..moveData(0, 3)
+          ..insert(2, 99);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expectKept(tester, 0, zero);
+        expectKept(tester, 3, three);
+      },
+      variant: turnAppIndex,
+    );
+
+    testWidgets(
+      'us11/fr01 (R44): a drop in a reversed list scrolled far from its '
+      'start settles the image on the slot it drops into',
+      (tester) async {
+        await _pumpScrolled(
+          tester,
+          const _Harness(count: 100, reverse: true),
+          offset: 1870,
+        );
+        final slot = tester.getTopLeft(find.byKey(const ValueKey(48)));
+
+        final gesture = await _liftItem(tester, 50);
+        for (var i = 0; i < 7; i++) {
+          await gesture.moveBy(const Offset(0, 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        // The lift's own animation ends first, so the settle runs whole.
+        await tester.pump(const Duration(milliseconds: 300));
+        await gesture.up();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 125));
+
+        final image = tester.getTopLeft(find.byType(RawImage));
+        expect(image.dx, slot.dx);
+        expect(image.dy, moreOrLessEquals(slot.dy, epsilon: 1));
+        await tester.pumpAndSettle();
+        expect(_harness(tester).moves, [(50, 48)]);
+      },
     );
   });
 

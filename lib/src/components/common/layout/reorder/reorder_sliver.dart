@@ -239,6 +239,10 @@ class _ReorderSliverState extends SliverReorderableListState {
     _body._handleListReset();
   }
 
+  // The drop settles on the slot by the item built beside it. The insert
+  // index is an index of the data, so the past-the-end check reads the
+  // item count, never the count of registered items; an item not built
+  // there leaves no target, and the raster settles where it was let go.
   void _dragEnd(_Lift lift) {
     setState(() {
       final insert = _insertIndex!;
@@ -247,25 +251,26 @@ class _ReorderSliverState extends SliverReorderableListState {
       } else if (insert == lift.index) {
         _finalDropPosition = _itemOffsetAt(insert);
       } else if (_reverse) {
-        if (insert >= _items.length) {
-          _finalDropPosition =
-              _itemOffsetAt(_items.length - 1) -
-              _extentOffset(lift.itemExtent, _scrollDirection);
+        if (insert >= widget.itemCount) {
+          _finalDropPosition = _shifted(
+            _itemOffsetAt(widget.itemCount - 1),
+            -lift.itemExtent,
+          );
         } else {
-          _finalDropPosition =
-              _itemOffsetAt(insert) +
-              _extentOffset(_itemExtentAt(insert), _scrollDirection);
+          _finalDropPosition = _shifted(
+            _itemOffsetAt(insert),
+            _itemExtentAt(insert),
+          );
         }
       } else {
         if (insert == 0) {
-          _finalDropPosition =
-              _itemOffsetAt(0) -
-              _extentOffset(lift.itemExtent, _scrollDirection);
+          _finalDropPosition = _shifted(_itemOffsetAt(0), -lift.itemExtent);
         } else {
           final atIndex = insert - 1;
-          _finalDropPosition =
-              _itemOffsetAt(atIndex) +
-              _extentOffset(_itemExtentAt(atIndex), _scrollDirection);
+          _finalDropPosition = _shifted(
+            _itemOffsetAt(atIndex),
+            _itemExtentAt(atIndex),
+          );
         }
       }
     });
@@ -399,8 +404,13 @@ class _ReorderSliverState extends SliverReorderableListState {
     );
   }
 
-  Offset _itemOffsetAt(int index) =>
-      _itemAt(index)?.targetGeometry().topLeft ?? Offset.zero;
+  /// The global top-left the item built at [index] moves to for the gap;
+  /// null when no item is built there.
+  Offset? _itemOffsetAt(int index) => _itemAt(index)?.targetGeometry().topLeft;
+
+  /// [offset] moved [extent] along the scroll axis; null stays null.
+  Offset? _shifted(Offset? offset, double extent) =>
+      offset == null ? null : offset + _extentOffset(extent, _scrollDirection);
 
   double _itemExtentAt(int index) {
     final item = _itemAt(index);
@@ -413,13 +423,6 @@ class _ReorderSliverState extends SliverReorderableListState {
   /// under a frame keyed by the item's own key, so the sliver moves the
   /// item's element in place to its new index (invariant 35).
   Widget _itemBuilder(BuildContext context, int index) {
-    final lift = _lift;
-    if (lift != null && index >= widget.itemCount) {
-      return switch (_scrollDirection) {
-        Axis.horizontal => SizedBox(width: lift.itemExtent),
-        Axis.vertical => SizedBox(height: lift.itemExtent),
-      };
-    }
     final body = _body.._builtKey = null;
     final child = widget.itemBuilder(context, index);
     final key = body._builtKey;

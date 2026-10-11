@@ -453,11 +453,18 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   final _listKey = GlobalKey<SliverReorderableListState>();
 
   /// The index each item a move the list knows put in a slot the last
-  /// frame did not lay out takes in this build, by the item's key: the
-  /// sliver's `findChildIndexCallback` moves the item's element there in
-  /// place (invariant 35). Filled by [_resolvePending], emptied after the
-  /// frame.
+  /// frame did not lay out takes in this build, and the parked item's, by
+  /// the item's key: the sliver's `findChildIndexCallback` moves the item's
+  /// element there in place, before any other answer ([_findIndex],
+  /// invariant 35). Filled by [_resolvePending], emptied after the frame.
   final _movedTo = <Key, int>{};
+
+  /// The index each built item takes in this build by this turn's calls
+  /// alone, by the item's key, for each item the calls shift: the sliver
+  /// reads it only when [_movedTo] and the app's own answer know nothing
+  /// of the key ([_findIndex], D3). Filled by [_resolvePending], emptied
+  /// after the frame.
+  final _shiftedTo = <Key, int>{};
 
   /// The item key [_buildItem] read last, for the reorder sliver's frame.
   Key? _builtKey;
@@ -1122,6 +1129,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // and ends the park (E12), unless the app's callback follows each
     // watched key by its key (R25): then the booked targets, which no call
     // shifted across that count, give way to the app's answers.
+    _shiftedTo.clear();
     if (explained || _layout.findChildIndexCallback != null) {
       final dropped = explained ? const <Key>{} : _dropMoveTargets();
       _bookMovedKeys(keyAt, watched, dropped);
@@ -1129,6 +1137,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     } else {
       _movedTo.clear();
       _releasePark();
+    }
+    // The sliver reads both maps only in this frame's build.
+    if (_movedTo.isNotEmpty || _shiftedTo.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _movedTo.clear();
+        _shiftedTo.clear();
+      });
     }
     final returning = <Key>{};
     for (final insert in _pendingInserts) {
@@ -1201,14 +1216,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _bookRawMoves(watched, known, dropped);
     _bookParkedKey();
     _bookFocusedKey(watched);
-    if (_movedTo.isEmpty) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _movedTo.clear());
   }
 
-  /// Maps every built item that [calls] shift to its index after them, so
-  /// the sliver moves the item's element in place instead of building a
-  /// new one and moving the item's subtree by its global key (R44,
-  /// invariant 35). A key [_bookMovedKeys] mapped keeps its index.
+  /// Maps every built item that [calls] shift to its index after them
+  /// ([_shiftedTo]), so the sliver moves the item's element in place
+  /// instead of building a new one and moving the item's subtree by its
+  /// global key (R44, invariant 35). The calls alone place it: a raw move
+  /// in the same turn is the app's to answer, which [_findIndex] reads
+  /// first (D3).
   void _bookShiftedKeys(List<_Call> calls) {
     if (calls.isEmpty) return;
     for (final MapEntry(key: index, value: look) in _itemLooks.entries) {
@@ -1216,16 +1231,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       if (key == null) continue;
       final at = _dataIndexOf(index, calls: calls);
       if (at == null || at.value == index.value) continue;
-      _movedTo.putIfAbsent(key, () => at.value);
+      _shiftedTo[key] = at.value;
     }
-    if (_movedTo.isEmpty) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _movedTo.clear());
   }
 
   /// Maps the item [key], which a move put at [at] of the data, when the
   /// last frame did not lay out the slot it enters (invariant 35), and
   /// parks it when it holds focus or [park] asks; every other item takes
-  /// the delegate's default path.
+  /// the app's answer or the calls' shift ([_findIndex]).
   void _bookMovedKey(Key key, _DataIndex at, {bool park = false}) {
     if (_builtSlot(_enteredSlot(at))) return;
     _movedTo[key] = at.value;
@@ -1326,8 +1339,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
           shown: false,
         ),
     ];
-    // Another item takes a lifted item's registration while the proxy
-    // holds it, so the walk would miss the item a raw move took.
+    // The lifted item a raw move took is watched by its follow's target
+    // until the drag lets it go ([_liftedLetGo]); the walk below skips it,
+    // so it is watched once.
     Key? liftedKey;
     if (_liftedFollow case (:final target, :final node)) {
       final (key, at) = (target.key, target.index);
@@ -1342,9 +1356,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       if (key == liftedKey) continue;
       final at = _dataIndexOf(index);
       if (at != null) {
-        // The drag proxy's overlay sits outside the list's own Scrollable,
-        // so a lifted item's node reads no view to overlap: always shown,
-        // as the proxy keeps it on screen for the drag's whole run.
+        // A lifted item reads as shown even when its slot scrolled away:
+        // the EndUser's drag owns the scroll, and the list never reveals
+        // against it (R45).
         final shown = key == _liftedKey || _shownLastFrame(node);
         watched.add((key: key, at: at, node: node, frame: index, shown: shown));
       }
@@ -2098,11 +2112,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
   }
 
-  /// The sliver's `findChildIndexCallback`: a move the list knows
-  /// ([_movedTo]), else the app's answer for the item's own key
-  /// ([_appIndexOf]), else null (invariant 35).
+  /// The sliver's `findChildIndexCallback`, in D3's order: a move the list
+  /// knows ([_movedTo]), else the app's answer for the item's own key
+  /// ([_appIndexOf]), else where this turn's calls shifted it
+  /// ([_shiftedTo]), else null (invariant 35). The app's injective answer
+  /// comes before the calls, so two keys never answer one index.
   int? _findIndex(Key key) => key is _IndexFreeKey
-      ? _movedTo[key.value] ?? _appIndexOf(key.value)
+      ? _movedTo[key.value] ?? _appIndexOf(key.value) ?? _shiftedTo[key.value]
       : null;
 
   /// The slot this build draws the item [key] at, by the app's
