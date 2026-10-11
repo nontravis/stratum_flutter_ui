@@ -1,11 +1,18 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui show Image;
 
 import 'package:flutter/rendering.dart'
     show
+        BoxParentData,
+        ClipRectLayer,
         ItemExtentBuilder,
+        LayerHandle,
         OffsetLayer,
+        PaintingContext,
+        PipelineOwner,
         RenderAbstractViewport,
         RenderRepaintBoundary,
+        RenderShiftedBox,
         RenderSliverMultiBoxAdaptor,
         ScrollCacheExtent;
 import 'package:flutter/scheduler.dart' show Ticker, TickerCallback;
@@ -3041,10 +3048,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _builtKey = key;
     // The global key holds the item's key and this State, never the index,
     // so a moved item keeps its State and focus, as in Material's
-    // ReorderableListView. Every item builds inside its transition, at
-    // rest a completed one, so a grow-in changes only the animation the
-    // chain reads and never moves the item's subtree to another parent
-    // (R48).
+    // ReorderableListView. Every item builds inside one transition chain,
+    // at rest a completed one. A grow-in or a change of reduced motion
+    // alters only the values the chain reads, never its shape, so neither
+    // moves the item's subtree to another parent (R48, D4).
     final body = _transition(
       context,
       _incoming[key]?.curved ?? kAlwaysCompleteAnimation,
@@ -3180,16 +3187,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   ) {
     final builder = _layout.itemTransitionBuilder;
     if (builder != null) return builder(context, animation, child);
-    final fade = FadeTransition(
-      opacity: animation,
-      alwaysIncludeSemantics: true,
-      child: _stretched(child),
-    );
-    if (_fixedExtent || context.reducesMotion) return fade;
-    return SizeTransition(
+    // One shape under every flag: reduced motion or a fixed extent only
+    // holds the size whole, so it jumps while the fade keeps its duration.
+    final jumps = _fixedExtent || context.reducesMotion;
+    return _ItemSize(
       axis: _layout.scrollDirection,
-      sizeFactor: animation,
-      child: fade,
+      factor: jumps ? kAlwaysCompleteAnimation : animation,
+      child: FadeTransition(
+        opacity: animation,
+        alwaysIncludeSemantics: true,
+        child: _stretched(child),
+      ),
     );
   }
 
@@ -3580,7 +3588,8 @@ class _LiftedItemState extends State<_LiftedItem> {
 // and trips `object.dart:6723`. `_Landing` lands the subtree in semantics
 // for one frame before the caller hides it, so the semantics walk that
 // refreshes the stale parent always runs. Flutter PR #193710 fixes the SDK
-// side; remove `_Landing` and its two call sites once the floor carries it.
+// side; remove `_Landing` and its call site in `_exitChild` once the floor
+// carries it.
 /// Builds a wrapper that hides an item's subtree from semantics so that the
 /// subtree stays in semantics in the frame it lands under the wrapper, and
 /// hides from the next frame on (owner ruling R1, 2026-10-10).
@@ -3635,6 +3644,198 @@ class _LandingState extends State<_Landing> {
 
   @override
   Widget build(BuildContext context) => widget.builder(_landed);
+}
+
+/// The built-in size of an item along [axis]: the item's own extent times
+/// [factor], aligned as `SizeTransition` aligns it and clipped to that box
+/// while [factor] is below 1.
+///
+/// At 1 it passes the slot's constraints through and clips nothing, so an
+/// item fills a fixed-extent slot and a focus ring or a shadow it paints
+/// outside its box shows (NFR-U02). A new factor changes a value, never the
+/// widget shape, so no flag moves the item's subtree to another parent
+/// (D4).
+class _ItemSize extends SingleChildRenderObjectWidget {
+  const new({required this.axis, required this.factor, super.child});
+
+  /// The list's main axis, the one the item grows and shrinks along.
+  final Axis axis;
+
+  /// The share of the item's extent the slot shows.
+  final Animation<double> factor;
+
+  @override
+  _RenderItemSize createRenderObject(BuildContext context) => _RenderItemSize(
+    axis: axis,
+    factor: factor,
+    textDirection: Directionality.maybeOf(context),
+  );
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderItemSize renderObject) {
+    renderObject
+      ..axis = axis
+      ..factor = factor
+      ..textDirection = Directionality.maybeOf(context);
+  }
+}
+
+class _RenderItemSize extends RenderShiftedBox {
+  new({
+    required Axis axis,
+    required Animation<double> factor,
+    TextDirection? textDirection,
+  }) : _axis = axis,
+       _factor = factor,
+       _textDirection = textDirection,
+       super(null);
+
+  final _clip = LayerHandle<ClipRectLayer>();
+
+  Axis get axis => _axis;
+  Axis _axis;
+  set axis(Axis value) {
+    if (value == _axis) return;
+    _axis = value;
+    markNeedsLayout();
+  }
+
+  Animation<double> get factor => _factor;
+  Animation<double> _factor;
+  set factor(Animation<double> value) {
+    if (identical(value, _factor)) return;
+    if (attached) {
+      _factor.removeListener(markNeedsLayout);
+      value.addListener(markNeedsLayout);
+    }
+    _factor = value;
+    markNeedsLayout();
+  }
+
+  TextDirection? get textDirection => _textDirection;
+  TextDirection? _textDirection;
+  set textDirection(TextDirection? value) {
+    if (value == _textDirection) return;
+    _textDirection = value;
+    markNeedsLayout();
+  }
+
+  /// The share of the item's extent shown, never below 0.
+  double get _shown => math.max(_factor.value, 0);
+
+  /// Whether the item shows whole: it takes the slot's constraints as they
+  /// are and nothing clips it.
+  bool get _whole => _shown >= 1;
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _factor.addListener(markNeedsLayout);
+  }
+
+  @override
+  void detach() {
+    _factor.removeListener(markNeedsLayout);
+    super.detach();
+  }
+
+  @override
+  void dispose() {
+    _clip.layer = null;
+    super.dispose();
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) =>
+      _along(Axis.horizontal, super.computeMinIntrinsicWidth(height));
+
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      _along(Axis.horizontal, super.computeMaxIntrinsicWidth(height));
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      _along(Axis.vertical, super.computeMinIntrinsicHeight(width));
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      _along(Axis.vertical, super.computeMaxIntrinsicHeight(width));
+
+  @override
+  Size computeDryLayout(covariant BoxConstraints constraints) {
+    final child = this.child;
+    if (child == null) return constraints.smallest;
+    if (_whole) return child.getDryLayout(constraints);
+    return _sizeAround(child.getDryLayout(constraints.loosen()), constraints);
+  }
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    final parentData = child.parentData! as BoxParentData;
+    if (_whole) {
+      child.layout(constraints, parentUsesSize: true);
+      size = child.size;
+      parentData.offset = Offset.zero;
+      return;
+    }
+    child.layout(constraints.loosen(), parentUsesSize: true);
+    size = _sizeAround(child.size, constraints);
+    final alignment = switch (_axis) {
+      Axis.vertical => AlignmentDirectional.centerStart,
+      Axis.horizontal => AlignmentDirectional.topCenter,
+    };
+    parentData.offset = alignment
+        .resolve(_textDirection)
+        .alongOffset(size - child.size as Offset);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (child == null || _whole) {
+      _clip.layer = null;
+      super.paint(context, offset);
+      return;
+    }
+    _clip.layer = context.pushClipRect(
+      needsCompositing,
+      offset,
+      Offset.zero & size,
+      super.paint,
+      oldLayer: _clip.layer,
+    );
+  }
+
+  @override
+  Rect? describeApproximatePaintClip(RenderObject child) =>
+      _whole ? null : Offset.zero & size;
+
+  /// [extent] of the child along [axis], scaled by the shown share when
+  /// [axis] is the one the item grows along.
+  double _along(Axis axis, double extent) =>
+      axis == _axis && !_whole ? extent * _shown : extent;
+
+  /// The box `Align` gives a child of [childSize]: the shown share of its
+  /// extent along [axis], and the full cross extent [constraints] allow.
+  Size _sizeAround(Size childSize, BoxConstraints constraints) {
+    final vertical = _axis == Axis.vertical;
+    return constraints.constrain(
+      Size(
+        vertical
+            ? (constraints.hasBoundedWidth ? double.infinity : childSize.width)
+            : childSize.width * _shown,
+        vertical
+            ? childSize.height * _shown
+            : (constraints.hasBoundedHeight
+                  ? double.infinity
+                  : childSize.height),
+      ),
+    );
+  }
 }
 
 /// The key of a slot that shows removed items around an item, equal by the

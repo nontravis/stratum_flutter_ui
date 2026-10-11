@@ -596,6 +596,21 @@ double _enteringOpacity(WidgetTester tester, int id) => tester
     .opacity
     .value;
 
+/// The box item [id] grows or shrinks in: the parent of its built-in fade,
+/// reached even offstage.
+RenderBox _sizeBox(WidgetTester tester, int id) =>
+    tester
+            .renderObject(
+              find
+                  .ancestor(
+                    of: find.byKey(ValueKey(id), skipOffstage: false),
+                    matching: find.byType(FadeTransition, skipOffstage: false),
+                  )
+                  .first,
+            )
+            .parent!
+        as RenderBox;
+
 /// [fakeTheme] with its `normal` level at [normal]; the reverse duration
 /// keeps the package default's 64%, so 250 ms reverses in 160 ms.
 StratumThemeData _normalTheme(Duration normal) {
@@ -1923,17 +1938,13 @@ void main() {
         _app(_Harness(count: 1, itemsController: controller), theme: theme),
       );
       final mid = Curves.easeInOutSine.transform(0.5);
-      final size = find.ancestor(
-        of: find.byKey(const ValueKey(0)),
-        matching: find.byType(SizeTransition),
-      );
 
       _harness(tester).remove(0);
       await tester.pump();
-      expect(tester.getSize(size.first).height, 40);
+      expect(_sizeBox(tester, 0).size.height, 40);
       await tester.pump(_halfReverse(theme));
       expect(find.text('0'), findsOneWidget);
-      expect(tester.getSize(size.first).height, moreOrLessEquals(40 * mid));
+      expect(_sizeBox(tester, 0).size.height, moreOrLessEquals(40 * mid));
 
       await tester.pumpAndSettle();
       expect(find.text('0'), findsNothing);
@@ -3026,11 +3037,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
         expect(find.text('0'), findsOneWidget);
         // The box it shrinks in; the item itself stays centered in it.
-        final shrinking = find.ancestor(
-          of: find.byKey(const ValueKey(0)),
-          matching: find.byType(SizeTransition),
-        );
-        expect(tester.getTopLeft(shrinking.first), slot);
+        expect(_sizeBox(tester, 0).localToGlobal(Offset.zero), slot);
         await gesture.up();
         await tester.pumpAndSettle();
 
@@ -13614,6 +13621,50 @@ void main() {
       },
       variant: motion,
     );
+
+    testWidgets(
+      'NFR-U03 and us11/fr04/e01 (D4): turning reduced motion on and off '
+      'keeps a kept-alive item that holds its own semantics boundary, with '
+      'its State and no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        Widget host({required bool reduced}) => _app(
+          Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
+              child: const _Harness(
+                count: 200,
+                keepAliveIds: {100},
+                boundaryAt: 100,
+                boundary: _nestedListBoundary,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(host(reduced: false));
+        final position =
+            tester
+                .state<ScrollableState>(find.byType(Scrollable).first)
+                .position
+              ..jumpTo(4000);
+        await tester.pump();
+        final state = _itemState(tester, 100)..expanded = true;
+        position.jumpTo(0);
+        await tester.pump();
+
+        for (final reduced in [true, false]) {
+          await tester.pumpWidget(host(reduced: reduced));
+          expect(tester.takeException(), isNull);
+          expect(_statesOf(tester, 100), [same(state)]);
+        }
+        position.jumpTo(4000);
+        await tester.pump();
+
+        expect(_statesOf(tester, 100), [same(state)]);
+        expect(state.expanded, isTrue);
+        handle.dispose();
+      },
+    );
   });
 
   group('ReorderableListViewLayout accessibility gate', () {
@@ -13712,6 +13763,32 @@ void main() {
       await tester.pumpAndSettle();
       expect(ringColor(tester), isNot(isSameColorAs(idle)));
     });
+
+    testWidgets(
+      'NFR-U02 (D4): an item at rest whose StratumInkWell paints its focus '
+      'ring outside its box sits under no clip of the list',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            const _Harness(count: 5, boundaryAt: 2, boundary: _inkWellBoundary),
+          ),
+        );
+
+        var child = tester.renderObject(find.byKey(const ValueKey(2)));
+        final clips = <String>[];
+        for (
+          var parent = child.parent;
+          parent != null && parent is! RenderSliverMultiBoxAdaptor;
+          parent = parent.parent
+        ) {
+          if (parent.describeApproximatePaintClip(child) != null) {
+            clips.add('${parent.runtimeType}');
+          }
+          child = parent;
+        }
+        expect(clips, isEmpty);
+      },
+    );
 
     final insertMotion = ValueVariant<String>({'no', 'app', 'platform'});
     testWidgets(
