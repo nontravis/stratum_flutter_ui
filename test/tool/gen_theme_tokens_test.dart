@@ -381,6 +381,16 @@ void main() {
         ),
       ),
     );
+    expect(
+      () => StratumOpacityTokens.fromMap(const {'disabled': 0.3}),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => error.invalidValue,
+          'invalidValue',
+          'scrim',
+        ),
+      ),
+    );
   });
 
   test('the opacity class takes its keys from the yaml', () {
