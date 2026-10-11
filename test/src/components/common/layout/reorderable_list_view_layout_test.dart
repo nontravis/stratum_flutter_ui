@@ -13568,6 +13568,68 @@ void main() {
       },
       variant: unfocusedStep,
     );
+
+    // (app index, a text field outside the list holds primary focus).
+    final unfocusedReach = ValueVariant<(bool, bool)>({
+      (false, true),
+      (true, true),
+      (false, false),
+      (true, false),
+    });
+    testWidgets(
+      'matrix I08.M1 and us11/fr03/e12 (R46, R13): an unfocused "Move down" '
+      'past an unbuilt item taller than the laid-out average reaches the '
+      'item and shows it, and primary focus stays where it was',
+      (tester) async {
+        final (appIndex, outsideHolds) = unfocusedReach.currentValue!;
+        final handle = tester.ensureSemantics();
+        final outside = FocusNode(debugLabel: 'outside');
+        addTearDown(outside.dispose);
+        // Item 108 is 400 px and the list has no cache extent: after the
+        // move, item 107 sits past the frame the 40 px average lays out,
+        // so the jump misses and the reach runs.
+        await tester.pumpWidget(
+          _app(
+            Column(
+              children: [
+                Expanded(
+                  child: _Harness(
+                    count: 200,
+                    heights: const {108: 400},
+                    scrollCacheExtent: const ScrollCacheExtent.pixels(0),
+                    appIndex: appIndex,
+                  ),
+                ),
+                SizedBox(height: 40, child: TextField(focusNode: outside)),
+              ],
+            ),
+          ),
+        );
+        final position = positionOf(tester)..jumpTo(4060);
+        await tester.pump();
+        expect(lastLaidOut(tester), 107);
+        final state = _itemState(tester, 107)..expanded = true;
+        if (outsideHolds) {
+          outside.requestFocus();
+          await tester.pump();
+          expect(outside.hasPrimaryFocus, isTrue);
+        }
+        final focus = FocusManager.instance.primaryFocus;
+
+        moveActionNow(tester, 107, 'Move down');
+        expect(position.pixels, 4060);
+        await tester.pump();
+        expect(lastLaidOut(tester), lessThan(108));
+        await tester.pumpAndSettle();
+
+        expectKept(tester, 107, state);
+        expect(shown(tester, 107), isTrue);
+        expect(FocusManager.instance.primaryFocus, same(focus));
+        expect(_harness(tester).moves, [(107, 108)]);
+        handle.dispose();
+      },
+      variant: unfocusedReach,
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {

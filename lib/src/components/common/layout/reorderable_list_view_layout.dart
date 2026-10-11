@@ -1899,11 +1899,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// is decoded into its intent and takes the reorder keys' target (R4),
   /// so it acts at once, also between a call and its frame (FR-03 E07),
   /// and ends a drag or a settling drop first, as a call does (FR-03 E08).
-  /// The start and end actions, once reported, book a jump there for the
-  /// next frame's start when that slot is not laid out, so the moved item
-  /// keeps its State; a step action that a same-turn call shifts onto the
-  /// data's first or last slot takes a focused move's jump instead
-  /// ([_bookMoveJump]), not this exact one.
+  /// Every screen-reader action, once reported, books a focused move's jump
+  /// for the next frame's start when its slot is not laid out
+  /// ([_bookMoveJump], R46), which [_jumpForMove] makes exact at the data's
+  /// first or last slot, so the moved item keeps its State; only an
+  /// unfocused drop to either end keeps the exact edge jump
+  /// ([_bookFrameJump]).
   void _handleReorderItem(int fromIndex, int toIndex) {
     final index = _FrameIndex(fromIndex);
     final drop = _liftedKey != null && _lookAt(index)?.key == _liftedKey;
@@ -1915,13 +1916,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final target = intent == null ? _dataIndexOf(to) : _targetOf(from, intent);
     if (target == null) return;
     if (!drop) _cancelDrag();
-    // A drop reports no intent at all (null) and keeps its own edge jump;
-    // only a step intent (previous or next) takes a focused move's jump
-    // instead.
-    final edgeAction =
-        intent != _MoveIntent.previous && intent != _MoveIntent.next;
+    // A screen-reader move takes a focused move's jump (R46); only a drop
+    // keeps its own edge jump.
     final edge =
-        edgeAction && (target == const _DataIndex(0) || target == _dataEnd - 1);
+        drop && (target == const _DataIndex(0) || target == _dataEnd - 1);
     _reportMove(
       index,
       from,
@@ -2062,7 +2060,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// that holds focus, whose key node is [node], whatever its intent, or of
   /// any item a screen-reader action moves, [asFocused] (R46), keeps the
   /// item's [key] and the gap it left, for its jump ([_readySlot]) and for
-  /// the reach should the frame not lay its slot out ([_reachStep]).
+  /// the reach should the frame not lay its slot out ([_reachStep]). A
+  /// screen-reader move of an item whose node does not hold focus is marked
+  /// [_MoveTarget.screenReader]: the list never places or hands on input
+  /// focus for it.
   _MoveTarget _targetFor(
     _DataIndex from,
     _DataIndex to,
@@ -2078,7 +2079,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       to,
       key: key,
       gap: from < to ? from : from + 1,
-      screenReader: asFocused,
+      screenReader: !node.hasFocus,
     );
   }
 
@@ -2323,7 +2324,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// item left (FR-03 E09, FR-05 E04). The item is parked, its key node
   /// [node] still counting as focused ([_MoveTarget.countsFocused], R46),
   /// or its State is gone and no node holds primary focus; a focus the app
-  /// moved elsewhere in the move's turn stays, and the park ends (R13).
+  /// moved elsewhere in the move's turn stays, and the park ends (R13). The
+  /// reach places and hands on input focus only for an item whose node held
+  /// focus at the action: an unfocused screen-reader move's item is reached
+  /// and revealed, and primary focus stays where it is (R46, R13).
   void _reachStep(_MoveTarget moved, _FrameIndex at, FocusNode? node) {
     final key = moved.key;
     final gap = moved.gap;
@@ -2335,7 +2339,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _releasePark(key);
       return;
     }
-    _startReach(at, key, gap, origin: moved.origin, levels: moved.revealIn);
+    _startReach(
+      at,
+      key,
+      gap,
+      origin: moved.origin,
+      levels: moved.revealIn,
+      placesFocus: !moved.screenReader,
+    );
   }
 
   /// Reveals the moved item whose key node is [node] again in the frame
@@ -2574,13 +2585,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// focus Flutter settled on, and only a later move ends it.
   /// [origin], when given, is the offset a failed reach returns to, in place
   /// of the one before its own first jump (R5 for moves); [levels] limits
-  /// the viewports that reveal the reached item.
+  /// the viewports that reveal the reached item. Without [placesFocus] the
+  /// reach neither focuses the item nor hands focus on from its gap (R46).
   void _startReach(
     _FrameIndex index,
     Key key,
     _DataIndex gap, {
     ({ScrollPosition position, double pixels})? origin,
     Set<ScrollableState>? levels,
+    bool placesFocus = true,
   }) {
     final token = Object();
     final previous = _reachKey;
@@ -2590,7 +2603,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _reachKey = key;
     scheduleMicrotask(() {
       final settled = FocusManager.instance.primaryFocus;
-      _reach(token, index, key, settled, _reachFrames, origin, levels: levels);
+      _reach(
+        token,
+        index,
+        key,
+        settled,
+        _reachFrames,
+        origin,
+        levels: levels,
+        placesFocus: placesFocus,
+      );
     });
   }
 
@@ -2610,13 +2632,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Reaches slot [index], where the item [key] came back after a frame
   /// that did not build it (E17): jumps toward it by [_estimateTowards]
-  /// until a frame builds it, then focuses the item's first node and
-  /// reveals it. A node other than [settled] that takes focus, and is not
-  /// a scope, ends the reach and keeps that focus. A slot that holds
-  /// another key, or a slot not built after [frames] jumps, gives the
-  /// reach up through [_giveUpReach]; [origin] is the list's offset before
-  /// the reach's first jump. [levels] limits the viewports that reveal
-  /// the item.
+  /// until a frame builds it, then focuses the item's first node, with
+  /// [placesFocus], and reveals it. A node other than [settled] that takes
+  /// focus, and is not a scope, ends the reach and keeps that focus. A slot
+  /// that holds another key, or a slot not built after [frames] jumps,
+  /// gives the reach up through [_giveUpReach]; [origin] is the list's
+  /// offset before the reach's first jump. [levels] limits the viewports
+  /// that reveal the item.
   void _reach(
     Object token,
     _FrameIndex index,
@@ -2625,6 +2647,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     int frames,
     ({ScrollPosition position, double pixels})? origin, {
     Set<ScrollableState>? levels,
+    required bool placesFocus,
   }) {
     if (!mounted || _reachToken != token) return;
     final primary = FocusManager.instance.primaryFocus;
@@ -2636,18 +2659,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // A parked item is registered but not laid out (invariant 35).
     if (node != null && node.context != null && _builtSlot(index.slot)) {
       if (_lookAt(index)?.key != key) {
-        _giveUpReach(origin);
+        _giveUpReach(origin, placesFocus: placesFocus);
         return;
       }
       _endReach();
-      // A parked item kept its State and the node that holds focus.
-      if (!node.hasFocus) firstTabStopIn(node)?.requestFocus();
+      // A parked item kept its State and the node that holds focus; an
+      // item whose node held no focus at the action never takes it (R46).
+      if (placesFocus && !node.hasFocus) {
+        firstTabStopIn(node)?.requestFocus();
+      }
       _revealReturned(node, key, origin: origin, levels: levels);
       return;
     }
     final estimate = frames == 0 ? null : _estimateTowards(index.slot);
     if (estimate == null) {
-      _giveUpReach(origin);
+      _giveUpReach(origin, placesFocus: placesFocus);
       return;
     }
     final position = estimate.position;
@@ -2666,6 +2692,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
           frames - 1,
           start,
           levels: levels,
+          placesFocus: placesFocus,
         ),
       )
       ..scheduleFrame();
@@ -2681,21 +2708,31 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// replaced and disposed [origin]'s position while the reach ran, a
   /// physics or controller swap, and R5 saves the offset, never the
   /// position object, so no position the Scrollable no longer holds takes
-  /// a call.
-  void _giveUpReach(({ScrollPosition position, double pixels})? origin) {
+  /// a call. Without [placesFocus] the list returns to [origin] and hands
+  /// no focus on: the item's node held no focus at the action (R46).
+  void _giveUpReach(
+    ({ScrollPosition position, double pixels})? origin, {
+    bool placesFocus = true,
+  }) {
     final gap = _reachGap;
     _endReach();
     if (gap == null) return;
     if (origin != null) {
       final live = _livePositionOf(origin.position);
       if (live != null && live.pixels != origin.pixels) {
+        final pixels = origin.pixels.clamp(
+          live.minScrollExtent,
+          live.maxScrollExtent,
+        );
+        if (!placesFocus) {
+          live.jumpTo(pixels);
+          return;
+        }
         // Held before the jump: its scroll notifications may reach an app
         // listener that calls the controller at once.
         final held = _HeldGap(gap);
         _givenUpGaps.add(held);
-        live.jumpTo(
-          origin.pixels.clamp(live.minScrollExtent, live.maxScrollExtent),
-        );
+        live.jumpTo(pixels);
         WidgetsBinding.instance
           ..addPostFrameCallback((_) {
             _givenUpGaps.remove(held);
@@ -2705,7 +2742,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         return;
       }
     }
-    _handOffFocus(gap);
+    if (placesFocus) _handOffFocus(gap);
   }
 
   /// The position the list's [Scrollable] holds now. [origin]'s own
@@ -2811,15 +2848,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (_frameJumps.isEmpty) {
       WidgetsBinding.instance.scheduleFrameCallback((_) => _runFrameJumps());
     }
-    _frameJumps.add(
-      _FrameJump(
-        node,
-        target,
-        toStart: toStart,
-        owned: owned,
-        focusAtCall: FocusManager.instance.primaryFocus,
-      ),
-    );
+    _frameJumps.add(_FrameJump(node, target, toStart: toStart, owned: owned));
   }
 
   /// At the next frame's start, after the turn's focus settled and before
@@ -2827,9 +2856,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// toward its target where the calls since its move left it, and records
   /// the offset before it on the target, where a reach that gives up
   /// returns. A jump is skipped when its target was taken out, or when a
-  /// node outside the moved item took primary focus since the call: the
-  /// app's focus wins. An item that never held focus, as under a screen
-  /// reader's start or end action, still jumps (invariant 35).
+  /// node outside the moved item took primary focus since the call
+  /// ([_MoveTarget.focusAtCall]): the app's focus wins. An item that never
+  /// held focus still jumps under a screen reader's action (invariant 35).
   void _runFrameJumps() {
     final jumps = [..._frameJumps];
     _frameJumps.clear();
@@ -2841,7 +2870,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       final at = jump.target.index;
       if (at == null) continue;
       final primary = FocusManager.instance.primaryFocus;
-      final appFocused = primary != null && primary != jump.focusAtCall;
+      final appFocused = primary != null && primary != jump.target.focusAtCall;
       if (appFocused && !jump.node.hasFocus) continue;
       final item = jump.node.context;
       final position = item == null ? null : Scrollable.maybeOf(item)?.position;
@@ -4161,9 +4190,11 @@ class _MoveTarget {
   /// reveals in every viewport.
   final Set<ScrollableState>? revealIn;
 
-  /// Whether a screen reader's move action booked this target, so its item
-  /// counts as the focused moved item while no other node took primary
-  /// focus since the call ([focusAtCall], R46).
+  /// Whether a screen reader's move action booked this target for an item
+  /// whose key node did not hold focus at the action: the item counts as
+  /// the focused moved item while primary focus has not moved from the node
+  /// that held it at the action ([focusAtCall], R46), and the list never
+  /// places or hands on input focus for it (R13).
   final bool screenReader;
 
   /// The node that held primary focus at the move's call.
@@ -4201,13 +4232,7 @@ class _ReorderScrollView extends CustomScrollView {
 
 /// A reveal jump a move booked for the next frame's start (invariant 35).
 class _FrameJump {
-  new(
-    this.node,
-    this.target, {
-    required this.toStart,
-    required this.owned,
-    required this.focusAtCall,
-  });
+  new(this.node, this.target, {required this.toStart, required this.owned});
 
   /// The moved item's key node.
   final FocusNode node;
@@ -4222,9 +4247,6 @@ class _FrameJump {
 
   /// Whether [target] sits among the moves' targets only for this jump.
   final bool owned;
-
-  /// The node that held primary focus at the move's call.
-  final FocusNode? focusAtCall;
 }
 
 /// A gap of the app's data, before the item at [index], that a reader
