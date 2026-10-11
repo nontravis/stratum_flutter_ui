@@ -14026,6 +14026,94 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
+
+    testWidgets(
+      'us11/fr03 and s03/inv15 (R47): no item carries a global key, at rest, '
+      'while one grows in, or while one leaves',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(count: 5, itemsController: ReorderableItemsController()),
+          ),
+        );
+        List<GlobalKey> globalKeys() {
+          final keys = <GlobalKey>[];
+          void visit(Element element) {
+            final key = element.widget.key;
+            if (key is GlobalKey) keys.add(key);
+            element.visitChildren(visit);
+          }
+
+          tester.element(_reorderSliver()).visitChildren(visit);
+          return keys;
+        }
+
+        expect(globalKeys(), isEmpty);
+        _harness(tester)
+          ..move(3, 0)
+          ..remove(2);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(globalKeys(), isEmpty);
+      },
+    );
+
+    /// Items past 100 three times the 40 px the list lays out around index
+    /// 100, so a far jump's estimate falls short and the reach runs.
+    final tall = {for (var id = 101; id < 200; id++) id: 120.0};
+
+    testWidgets(
+      'matrix I14nxT11 and us11/fr05/e15 (L2): with no callback, a raw move of '
+      'the item parked for its slot ends its State and hands focus to an item '
+      'the list shows',
+      (tester) async {
+        await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            heights: tall,
+            itemsController: ReorderableItemsController(),
+          ),
+        );
+        final state = _itemState(tester, 100);
+        await _focusItem(tester, 100);
+        _harness(tester).move(100, 150);
+        await tester.pump();
+        expect(_statesOf(tester, 100), [same(state)]);
+        expect(_builtInView(tester, 100), isFalse);
+
+        _harness(tester).moveData(150, 160);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(state.mounted, isFalse);
+        final focused = FocusManager.instance.primaryFocus!.debugLabel!;
+        expect(focused, startsWith('item '));
+        expect(focused, isNot('item 100'));
+        expect(_builtInView(tester, int.parse(focused.substring(5))), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e13: the list asks findChildIndexCallback at most once per '
+      'registered key in a body build, and never on a scroll with no build',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 200, appIndex: true),
+        );
+        final harness = _harness(tester)..indexCalls = 0;
+
+        position.jumpTo(4400);
+        await tester.pump();
+        expect(harness.indexCalls, 0);
+
+        final registered = _laidOut(tester).count;
+        harness.moveData(110, 111);
+        await tester.pump();
+        expect(harness.indexCalls, lessThanOrEqualTo(registered));
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {

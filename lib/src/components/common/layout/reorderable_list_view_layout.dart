@@ -467,17 +467,34 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   final _listKey = GlobalKey<SliverReorderableListState>();
 
   /// The index each item a move the list knows put in a slot the last
-  /// frame did not lay out takes in this build, and the parked item's, by
-  /// the item's key: the first answer [_resolveIndices] takes, so the
-  /// sliver moves the item's element there in place (invariant 35). Filled
-  /// by each [_resolvePending].
+  /// frame did not lay out takes in this build, the parked item's, and each
+  /// key a call of this turn inserted ([_bookInsertedKeys]), by the item's
+  /// key: the first answer [_resolveIndices] takes, so the sliver moves the
+  /// item's element there in place (invariant 35). Filled by each
+  /// [_resolvePending].
   final _movedTo = <Key, int>{};
 
-  /// The index each built item takes in this build by this turn's calls
-  /// alone, by the item's key: the last answer [_resolveIndices] takes,
-  /// only when [_movedTo] and the app's own answer know nothing of the key
-  /// (D3). Filled by each [_resolvePending].
-  final _shiftedTo = <Key, int>{};
+  /// The app's `findChildIndexCallback` answer for each key this build
+  /// asked about, null for no answer: asked once per key per build
+  /// ([_appAnswer]), the second answer [_resolveIndices] takes (D3).
+  final _appAt = <Key, int?>{};
+
+  /// The index each key the last build registered takes in this build
+  /// when neither [_movedTo] nor the app's answer places it: where the last
+  /// frame's laid-out range of the new data shows it, else where this
+  /// turn's calls put it ([_knowBuiltKeys]); the last answer
+  /// [_resolveIndices] takes (D3).
+  final _knownAt = <Key, int>{};
+
+  /// Whether the app gave the list a new widget since the last build: only
+  /// then can its data have changed with no call ([_knowBuiltKeys]).
+  var _appRebuilt = true;
+
+  /// The widget `itemBuilder` returned for each data index the laid-out
+  /// read of this build asked for ([_readLaidOut]), until [_buildItem]
+  /// takes it for the sliver in the same frame, so the read costs no call
+  /// beyond the sliver's own (D9).
+  final _readLooks = <int, Widget>{};
 
   /// The index of the app's data each key the last frame built takes in
   /// this build, one key per index ([_resolveIndices]); the sliver's
@@ -583,6 +600,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   @override
   void didUpdateWidget(_ReorderableBody oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _appRebuilt = true;
     final old = oldWidget.layout.itemsController;
     final current = _layout.itemsController;
     if (old == current) return;
@@ -792,8 +810,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// [ReorderableItemsController.moveItem]: the app moved the item
   /// at [from] of its data to [to] in this turn (FR-05). Booked in
   /// [_pending] as one move entry, which both converters follow, and as an
-  /// insert at [to] in [_pendingInserts], so the item's global key carries
-  /// its State into the new slot when the frame builds it.
+  /// insert at [to] in [_pendingInserts], so the frame moves the item's
+  /// element, with its State, into the new slot in place
+  /// ([_bookInsertedKeys]).
   void _moveItem(_DataIndex from, _DataIndex to) {
     const first = _DataIndex(0);
     assert(
@@ -1169,15 +1188,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // and ends the park (E12), unless the app's callback follows each
     // watched key by its key (R25): then the booked targets, which no call
     // shifted across that count, give way to the app's answers.
-    _shiftedTo.clear();
     if (explained || _layout.findChildIndexCallback != null) {
       final dropped = explained ? const <Key>{} : _dropMoveTargets();
       _bookMovedKeys(keyAt, watched, dropped);
-      if (explained) _bookShiftedKeys(calls);
     } else {
       _movedTo.clear();
       _releasePark();
     }
+    // A move the list reported holds only once the app applies it, so its
+    // keys are read where the app's data shows them, as after an app
+    // rebuild.
+    final read = _appRebuilt || calls.any((call) => call.reported);
+    _appRebuilt = false;
+    _knowBuiltKeys(calls: explained ? calls : const [], read: read);
     _resolveIndices();
     final returning = <Key>{};
     for (final insert in _pendingInserts) {
@@ -1212,13 +1235,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Maps each item a move the list knows put in a slot the last frame did
   /// not lay out to its index in this build ([_movedTo]): a key move, a
-  /// screen-reader move, or a drop ([_moveTargets]), and a `moveItem` call
-  /// or a same-turn `removeItem` and `insertItem` of one key
-  /// ([_pendingInserts]), and a raw move of a [watched] key
-  /// ([_bookRawMoves]), booked again for each key in [dropped], and a
-  /// call's shift of the item that holds focus ([_bookFocusedKey]). Read
-  /// before the build settles the inserts and the fresh exits, which
-  /// [_enteredSlot] counts.
+  /// screen-reader move, or a drop ([_moveTargets]), each key a call of
+  /// this turn inserted ([_bookInsertedKeys]), and a raw move of a
+  /// [watched] key ([_bookRawMoves]), booked again for each key in
+  /// [dropped], and a call's shift of the item that holds focus
+  /// ([_bookFocusedKey]). Read before the build settles the inserts and the
+  /// fresh exits, which [_enteredSlot] counts.
   void _bookMovedKeys(
     Key? Function(_DataIndex index) keyAt,
     List<_Watched> watched,
@@ -1239,65 +1261,112 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         park: node != null && target.key == key && target.countsFocused(node),
       );
     }
-    for (final insert in _pendingInserts) {
-      final key = keyAt(insert.index);
-      if (key == null) continue;
-      known.add(key);
-      _bookMovedKey(key, insert.index);
-    }
+    _bookInsertedKeys(keyAt, known);
     _bookRawMoves(watched, known, dropped);
     _bookParkedKey();
     _bookFocusedKey(watched);
   }
 
-  /// Maps every built item to its index after [calls] ([_shiftedTo]), so
-  /// the sliver moves the item's element in place instead of building a
-  /// new one and moving the item's subtree by its global key (R44,
-  /// invariant 35). An item no call shifts is mapped too: a change of the
-  /// frame plan alone, a leaving item that ends, moves the slots after it
-  /// (R47). The calls alone place it: a raw move in the same turn is the
-  /// app's to answer, which [_findIndex] reads first (D3).
-  void _bookShiftedKeys(List<_Call> calls) {
-    for (final MapEntry(key: index, value: look) in _itemLooks.entries) {
-      final key = look.key;
+  /// Maps each key a call of this turn inserted to where the insert put it
+  /// ([_movedTo]), laid out or not, and adds it to [known]: a `moveItem`
+  /// call or a same-turn `removeItem` and `insertItem` of one key moves the
+  /// element the list still holds for it, built or leaving, there in place,
+  /// since no global key carries it (R47). A key whose slot the last frame
+  /// did not lay out parks as [_bookMovedKey] parks it.
+  void _bookInsertedKeys(
+    Key? Function(_DataIndex index) keyAt,
+    Set<Key> known,
+  ) {
+    for (final insert in _pendingInserts) {
+      final key = keyAt(insert.index);
       if (key == null) continue;
-      final at = _dataIndexOf(index, calls: calls);
-      if (at != null) _shiftedTo[key] = at.value;
+      known.add(key);
+      _bookMovedKey(key, insert.index);
+      _movedTo.putIfAbsent(key, () => insert.index.value);
     }
   }
 
+  /// Finds where each key the last build registered sits in the app's new
+  /// data, since no global key carries an item's element there (R47): asks
+  /// the app for each ([_appAnswer]); reads the last frame's laid-out range
+  /// of the new data ([_readLaidOut]) when [read] holds and some key has no
+  /// answer; else takes where [calls] put the key ([_knownAt]), never for a
+  /// key the app answered null, which left its data. A key that moved past
+  /// that range with no call and no answer still loses its State (L2, L3).
+  void _knowBuiltKeys({required List<_Call> calls, required bool read}) {
+    _appAt.clear();
+    _knownAt.clear();
+    _readLooks.clear();
+    final built = <Key, _FrameIndex>{
+      for (final MapEntry(key: index, value: look) in _itemLooks.entries)
+        ?look.key: index,
+    };
+    final app = _layout.findChildIndexCallback != null;
+    var unanswered = !app;
+    if (app) {
+      for (final key in built.keys) {
+        if (_appAnswer(key) == null) unanswered = true;
+      }
+    }
+    if (read && unanswered) _readLaidOut(built.keys.toSet());
+    for (final MapEntry(:key, value: index) in built.entries) {
+      if (_knownAt.containsKey(key) || (app && _appAnswer(key) == null)) {
+        continue;
+      }
+      final at = _dataIndexOf(index, calls: calls);
+      if (at != null) _knownAt[key] = at.value;
+    }
+  }
+
+  /// Reads the app's new data over the last frame's laid-out range through
+  /// `itemBuilder`, once per index, and maps each of [keys] it shows there
+  /// ([_knownAt]). Keeps each widget it reads for [_buildItem], which the
+  /// sliver builds that index with in this frame, so the read costs no
+  /// call beyond the sliver's own (D9). Reads with the sliver's context,
+  /// below the list's [Scrollable], where those widgets show.
+  void _readLaidOut(Set<Key> keys) {
+    final laid = _laidOut();
+    final context = _listKey.currentContext;
+    if (laid == null || context == null || _dataCount == 0) return;
+    final last = laid.last.clamp(0, _dataCount - 1);
+    for (var i = laid.first.clamp(0, _dataCount - 1); i <= last; i += 1) {
+      final look = _layout.itemBuilder(context, i);
+      _readLooks[i] = look;
+      final key = look.key;
+      if (key != null && keys.contains(key)) _knownAt[key] = i;
+    }
+    // A widget the sliver did not take never shows in a later frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _readLooks.clear());
+  }
+
+  /// The app's `findChildIndexCallback` answer for [key] in this build
+  /// ([_appIndexOf]), asked once per key per build ([_appAt]).
+  int? _appAnswer(Key key) => _appAt.putIfAbsent(key, () => _appIndexOf(key));
+
   /// Resolves, once per build, the index each key the last frame built
   /// takes in this build ([_resolvedAt]), in D3's order: a move the list
-  /// knows ([_movedTo]), the app's answer ([_appIndexOf]), then where this
-  /// turn's calls put it ([_shiftedTo]). An answer never takes an index an
-  /// earlier one holds, and a key the app answers null for has left its
-  /// data, so the calls never place it: two keys never take one slot,
-  /// which the sliver would resolve by dropping one element unseen.
+  /// knows ([_movedTo]), the app's answer ([_appAt]), then the laid-out
+  /// read or where this turn's calls put it ([_knownAt]). An answer never
+  /// takes an index an earlier one holds, and a key the app answers null
+  /// for has left its data, so the calls never place it: two keys never
+  /// take one slot, which the sliver would resolve by dropping one element
+  /// unseen.
   void _resolveIndices() {
     _resolvedAt.clear();
     final taken = <int>{};
     void take(Key key, int at) {
-      if (taken.add(at)) _resolvedAt[key] = at;
+      if (!_resolvedAt.containsKey(key) && taken.add(at)) {
+        _resolvedAt[key] = at;
+      }
     }
 
     for (final MapEntry(:key, value: at) in _movedTo.entries) {
       take(key, at);
     }
-    final gone = <Key>{};
-    if (_layout.findChildIndexCallback != null) {
-      for (final look in _itemLooks.values) {
-        final key = look.key;
-        if (key == null || _resolvedAt.containsKey(key)) continue;
-        final at = _appIndexOf(key);
-        if (at == null) {
-          gone.add(key);
-        } else {
-          take(key, at);
-        }
-      }
+    for (final MapEntry(:key, value: at) in _appAt.entries) {
+      if (at != null) take(key, at);
     }
-    for (final MapEntry(:key, value: at) in _shiftedTo.entries) {
-      if (_resolvedAt.containsKey(key) || gone.contains(key)) continue;
+    for (final MapEntry(:key, value: at) in _knownAt.entries) {
       take(key, at);
     }
   }
@@ -2197,7 +2266,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The sliver's `findChildIndexCallback`: a leaving item's or closing
   /// gap's own slot in the frame plan, else the data index this build
   /// resolved for the key ([_resolveIndices], D3), which the plan turns
-  /// into its slot; else null (invariant 35).
+  /// into its slot; else null (invariant 35). No item has a global key, so
+  /// this answer alone moves an item's element, and its State, to its new
+  /// slot (R47).
   int? _findIndex(Key key) {
     if (key is! _IndexFreeKey) return null;
     final itemKey = key.value;
@@ -3168,7 +3239,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   Widget _buildItem(BuildContext context, int index) {
-    final item = _layout.itemBuilder(context, index);
+    // The laid-out read of this build already asked for this index.
+    final item =
+        _readLooks.remove(index) ?? _layout.itemBuilder(context, index);
     final key = item.key;
     assert(key != null, 'Every item of ReorderableListViewLayout needs a key');
     _builtKey = key;
@@ -3180,9 +3253,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       'still leaves: a leaving key returns to the data only through '
       'insertItem on its itemsController',
     );
-    // The global key holds the item's key and this State, never the index,
-    // so a moved item keeps its State and focus, as in Material's
-    // ReorderableListView. Every item builds inside one chain, at rest a
+    // The sliver child's key is the item's own, never the index, and the
+    // sliver moves the child's element to the item's slot by it
+    // ([_findIndex]), so a moved item keeps its State and focus with no
+    // global key (R47). Every item builds inside one chain, at rest a
     // completed one, and leaves in the same shape ([_buildExit]): a grow-in,
     // a change of reduced motion, or a remove alters only the values the
     // chain reads, never its shape, so none moves the item's subtree to
@@ -3193,21 +3267,18 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       index: index,
       exiting: false,
       animation: _incoming[key]?.curved ?? kAlwaysCompleteAnimation,
-      key: _ReorderItemKey(key!, this),
     );
   }
 
   /// One shape for an item in the data and the same item leaving: a leaving
   /// item takes no pointer, drag, focus, reorder key, or screen-reader node
-  /// (E05), nor does a caller transition around it. [key] keys the item
-  /// under its transition.
+  /// (E05), nor does a caller transition around it.
   Widget _itemChain(
     BuildContext context, {
     required Widget look,
     required int index,
     required bool exiting,
     required Animation<double> animation,
-    required Key key,
   }) {
     return IgnorePointer(
       ignoring: exiting,
@@ -3218,10 +3289,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
           child: _transition(
             context,
             animation,
-            KeyedSubtree(
-              key: key,
-              child: _wrapItem(look, index: index, exiting: exiting),
-            ),
+            _wrapItem(look, index: index, exiting: exiting),
           ),
         ),
       ),
@@ -3251,7 +3319,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// A removed item as it leaves, in its own sliver child: its kept look,
   /// or the look its `removeItem` builder makes, inside the remove
-  /// transition, in the shape it had in the data ([_itemChain]). An ended
+  /// transition, in the shape it had in the data ([_itemChain]). While the
+  /// exit keeps the item's State, that child is keyed by the item's own key
+  /// ([_Exit.frameKey]), so the item's element leaves in place. An ended
   /// exit is an empty slot.
   Widget _buildExit(BuildContext context, _Exit exit) {
     if (exit.ended) return const SizedBox.shrink();
@@ -3273,11 +3343,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       index: -1,
       exiting: true,
       animation: exit.motion.curved,
-      // The item's own global key while the exit keeps its State, so the
-      // item's element leaves in place in its own sliver child.
-      key: exit.keepsState
-          ? _ReorderItemKey(exit.subKey, this)
-          : ObjectKey(exit),
     );
   }
 
@@ -3474,27 +3539,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 }
 
-/// The global key of an item: its own key and the list's State, equal by
-/// both, never by the index.
-@optionalTypeArgs
-class _ReorderItemKey extends GlobalObjectKey {
-  const new(this.subKey, this.state) : super(subKey);
-
-  final Key subKey;
-  final State state;
-
-  @override
-  bool operator ==(Object other) {
-    if (other.runtimeType != runtimeType) return false;
-    return other is _ReorderItemKey &&
-        other.subKey == subKey &&
-        other.state == state;
-  }
-
-  @override
-  int get hashCode => Object.hash(subKey, state);
-}
-
 /// The reorder keys of item [index]: a node that takes no focus and hears
 /// keys bubbling up from any node inside the item. A leaving item
 /// ([exiting]) keeps the node, so its State stays, but registers nothing
@@ -3544,7 +3588,8 @@ class _ReorderKeysState extends State<_ReorderKeys> {
     _register(widget);
   }
 
-  // The item moved by its global key, from one slot to another.
+  // The item came back into the tree in the same frame, moved with the
+  // whole list by a global key above it.
   @override
   void activate() {
     super.activate();
@@ -3984,9 +4029,8 @@ class _Exit {
   /// ([_FramePlan]).
   _DataIndex gap;
 
-  /// Whether the exit keeps the item's own sliver child, global key, and
-  /// State; false once the same key is back in the data under a `builder`
-  /// look.
+  /// Whether the exit keeps the item's own sliver child and State; false
+  /// once the same key is back in the data under a `builder` look.
   bool keepsState = true;
 
   /// The key of the exit's sliver child: the item's own key while it keeps
