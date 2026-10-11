@@ -13171,16 +13171,23 @@ void main() {
 
         await gesture.moveTo(Offset(view.center.dx, view.bottom - 5));
         final start = position.pixels;
+        var last = start;
+        var step = 0.0;
         for (var i = 0; i < 25; i++) {
           await tester.pump(const Duration(milliseconds: 10));
+          step = math.max(step, position.pixels - last);
+          last = position.pixels;
         }
         final half = position.pixels;
         for (var i = 0; i < 25; i++) {
           await tester.pump(const Duration(milliseconds: 10));
+          step = math.max(step, position.pixels - last);
+          last = position.pixels;
         }
 
         expect(half, greaterThan(start));
         expect(position.pixels, greaterThan(half));
+        expect(step, lessThanOrEqualTo(20));
         await gesture.up();
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
