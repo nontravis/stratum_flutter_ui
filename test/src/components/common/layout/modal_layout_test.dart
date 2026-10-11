@@ -1793,6 +1793,43 @@ void main() {
       expect(attempts, 1);
     });
 
+    testWidgets('us20/fr07/e02: a sheet whose pop scope answers the refusal '
+        'with a dialog is back at full height once the dialog closes', (
+      tester,
+    ) async {
+      await _pumpApp(
+        tester,
+        _Opener(
+          body: Builder(
+            builder: (context) => PopScope<Object?>(
+              canPop: false,
+              onPopInvokedWithResult: (didPop, _) {
+                if (didPop) return;
+                Navigator.of(context).push(
+                  RawDialogRoute<void>(
+                    pageBuilder: (_, _, _) => const Text('Discard?'),
+                  ),
+                );
+              },
+              child: _tall(400),
+            ),
+          ),
+        ),
+      );
+      await _open(tester);
+      final height = tester.getSize(find.byType(ModalLayout)).height;
+      final full = _top(tester);
+      await _slowDrag(tester, height * 0.85);
+      await tester.pumpAndSettle();
+      expect(find.text('Discard?'), findsOneWidget);
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+      expect(find.text('Discard?'), findsNothing);
+      expect(find.byType(ModalLayout), findsOneWidget);
+      expect(_top(tester), closeTo(full, 0.5));
+      expect(_opener(tester).result, 'none');
+    });
+
     testWidgets('us20/fr07/e07: a sheet whose settle to hidden ends under '
         'another route is back at full height once that route closes', (
       tester,

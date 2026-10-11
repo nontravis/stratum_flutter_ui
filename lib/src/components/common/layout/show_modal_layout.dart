@@ -281,17 +281,17 @@ class _SheetContentState extends State<_SheetContent> {
 
   /// Pops the route with null once the sheet settles hidden (US-20 FR-07
   /// E02). It never pops another route: a route already popped stays as
-  /// it is, and a route that another route covers, or that is still the
-  /// top one after the pop attempt, brings the sheet back to full height
+  /// it is, and a route that another route covers, or that is still
+  /// active after the pop attempt, brings the sheet back to full height
   /// (E07). A refusal through a `PopScope`, a deprecated `WillPopScope`,
-  /// or any later refusal takes that one path, and a scope still hears the
-  /// attempt.
+  /// or any later refusal takes that one path, also when the refusal
+  /// opens a dialog over the sheet, and a scope still hears the attempt.
   Future<void> _settleHidden() async {
     final route = ModalRoute.of(context);
     if (route == null || !route.isActive) return;
     if (route.isCurrent) {
       await Navigator.maybePop(context);
-      if (!mounted || !route.isActive || !route.isCurrent) return;
+      if (!mounted || !route.isActive) return;
     }
     _returnToFull();
   }
