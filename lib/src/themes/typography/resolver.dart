@@ -1,6 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/typography/google_font_weights.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
+import 'package:stratum_ui/src/themes/typography/text_size.dart';
 
 typedef _CacheKey = (StratumTextStyle, Locale, WindowSize?, TextScaler);
 
@@ -63,14 +64,18 @@ abstract final class TypographyResolver {
       throw StateError('No font for key "$primaryKey".');
     }
 
-    final scaleDimension = windowSize == null
-        ? null
-        : style.scaleByWindowSize?[windowSize] ??
-              typography.scaleByWindowSize.valueFor(windowSize);
-    final size = base + (scaleDimension?.resolve(of: base) ?? 0);
-    final fontSize = size + font.adjustSize.resolve(of: base);
-    final scaledBase = textScaler.scale(base);
-    final lineBox = scaledBase + metrics.spaceHeight.resolve(of: scaledBase);
+    final sizes = textSizeOf(
+      base: base,
+      window: windowSize?.name,
+      ownScale: _byName(style.scaleByWindowSize),
+      themeScale: {
+        for (final size in WindowSize.values)
+          size.name: typography.scaleByWindowSize.valueFor(size),
+      },
+      adjustSize: font.adjustSize,
+      spaceHeight: metrics.spaceHeight,
+      scale: textScaler.scale,
+    );
     final weight = recipe.fontWeight ?? style.weight;
     final googleWeights = GoogleFontWeights.of(typography);
     final drawn = _snap(googleWeights, font, weight);
@@ -88,11 +93,13 @@ abstract final class TypographyResolver {
 
     return TextStyle(
       color: recipe.customColor ?? _color(theme.color, recipe.colorRole),
-      fontSize: fontSize,
+      fontSize: sizes.drawnFontSize,
       fontWeight: drawn,
       fontStyle: recipe.fontStyle,
-      letterSpacing: metrics.letterSpacing.resolve(of: textScaler.scale(size)),
-      height: lineBox / textScaler.scale(fontSize),
+      letterSpacing: metrics.letterSpacing.resolve(
+        of: textScaler.scale(sizes.size),
+      ),
+      height: sizes.drawnLineBox / textScaler.scale(sizes.drawnFontSize),
       leadingDistribution: TextLeadingDistribution.even,
       fontFamily: primaryFamily,
       fontFamilyFallback: fallback.isEmpty ? null : fallback,
@@ -162,24 +169,22 @@ abstract final class TypographyResolver {
     return style.sizes[nearest]!;
   }
 
-  /// The defined size closest to [target], the smaller one on a tie.
+  /// The defined size closest to [target], the smaller one on a tie
+  /// (`nearestFontSize`, which the load-time draw-size check reads too).
   static FontSize _nearest(
     StratumTypeStyle style,
     double target,
     FontType type,
-  ) {
-    if (style.sizes.isEmpty) {
-      throw StateError('No sizes for type "${type.name}".');
-    }
-    return style.sizes.keys.reduce((best, size) {
-      final distance = (size.value - target).abs();
-      final bestDistance = (best.value - target).abs();
-      return distance < bestDistance ||
-              (distance == bestDistance && size.value < best.value)
-          ? size
-          : best;
-    });
-  }
+  ) =>
+      nearestFontSize(style.sizes.keys, target) ??
+      (throw StateError('No sizes for type "${type.name}".'));
+
+  /// [scale]'s entries by window size name, as `textSizeOf` reads them.
+  static Map<String, StratumDimension>? _byName(
+    Map<WindowSize, StratumDimension>? scale,
+  ) => scale == null
+      ? null
+      : {for (final MapEntry(:key, :value) in scale.entries) key.name: value};
 
   /// The family sets for [locale], most specific first: `<lang>_<country>`,
   /// `<lang>`, then `default`.

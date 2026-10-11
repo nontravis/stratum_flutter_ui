@@ -381,6 +381,167 @@ typography:
     });
   });
 
+  group('TypographyResolver draw-time fallback', () {
+    /// A typography built in code, which no load-time check reads: an Inter
+    /// body font with [adjustSize], body s16 with [spaceHeight] and a
+    /// "-1%" letter spacing, and a theme-wide window scale of 1 on desktop.
+    StratumThemeData handBuilt({
+      StratumDimension adjustSize = const StratumDimension.fixed(0),
+      StratumDimension spaceHeight = const StratumDimension.fixed(8),
+    }) => fakeStratumTheme(
+      typography: StratumTypography(
+        fonts: {
+          'inter': StratumFontData(family: 'Inter', adjustSize: adjustSize),
+        },
+        families: const {
+          'default': StratumFamilySet(
+            types: {FontType.body: StratumFontRef(font: 'inter')},
+          ),
+        },
+        types: {
+          FontType.body: StratumTypeStyle(
+            weight: FontWeight.w400,
+            sizes: {
+              FontSize.s16: StratumSizeMetrics(
+                spaceHeight: spaceHeight,
+                letterSpacing: const StratumDimension.percent(-0.01),
+              ),
+            },
+          ),
+        },
+        scaleByWindowSize: StratumByWindowSize(const {
+          WindowSize.desktop: StratumDimension.fixed(1),
+        }),
+      ),
+    );
+
+    TextStyle resolveIn(
+      StratumThemeData theme, {
+      WindowSize? windowSize,
+      TextScaler textScaler = TextScaler.noScaling,
+    }) => TypographyResolver.resolve(
+      StratumTextStyle.body,
+      theme: theme,
+      locale: _en,
+      windowSize: windowSize,
+      textScaler: textScaler,
+    );
+
+    /// Every line `debugPrint` prints until the test ends.
+    List<String?> printed() {
+      final lines = <String?>[];
+      final previous = debugPrint;
+      debugPrint = (message, {wrapWidth}) => lines.add(message);
+      addTearDown(() => debugPrint = previous);
+      return lines;
+    }
+
+    for (final (name, adjustSize, windowSize) in [
+      ('of 0, adjustSize "-100%"', const StratumDimension.percent(-1), null),
+      (
+        'below 0 on a desktop window',
+        const StratumDimension.fixed(-20),
+        WindowSize.desktop,
+      ),
+      ('infinite', const StratumDimension.fixed(double.infinity), null),
+      ('NaN', const StratumDimension.fixed(double.nan), null),
+    ]) {
+      test('us02/fr01/e04: a font size $name draws at the requested size, '
+          'with no window scale, no adjustSize, and no warning', () {
+        final lines = printed();
+
+        final style = resolveIn(
+          handBuilt(adjustSize: adjustSize),
+          windowSize: windowSize,
+        );
+
+        expect(style.fontSize, 16);
+        expect(style.height, 24 / 16);
+        expect(lines, isEmpty);
+      });
+    }
+
+    test('us02/fr01/e05: a line box of 0 draws at the scaled requested size, '
+        'with no spaceHeight and no warning', () {
+      final lines = printed();
+
+      final style = resolveIn(
+        handBuilt(spaceHeight: const StratumDimension.fixed(-16)),
+      );
+
+      expect(style.fontSize, 16);
+      expect(style.height, 1);
+      expect(lines, isEmpty);
+    });
+
+    test('us02/fr01/e05: a fixed negative spaceHeight the load check passes '
+        'falls back at a text scale below 1', () {
+      theme = _theme(_yaml(bodyS16: '{ spaceHeight: -4 }'));
+
+      final style = resolve(
+        StratumTextStyle.body,
+        textScaler: const TextScaler.linear(0.2),
+      );
+
+      expect(style.fontSize, 16);
+      expect(style.height, closeTo(1, 1e-9));
+    });
+
+    test('us02/fr01/e06: a font size and a line box that both fail give the '
+        'requested size and a height of 1', () {
+      final style = resolveIn(
+        handBuilt(
+          adjustSize: const StratumDimension.percent(-1),
+          spaceHeight: const StratumDimension.fixed(-16),
+        ),
+      );
+
+      expect(style.fontSize, 16);
+      expect(style.height, 1);
+    });
+
+    test('us02/fr01/e07: a font size that falls back keeps letter spacing on '
+        'the size with the window scale', () {
+      final style = resolveIn(
+        handBuilt(adjustSize: const StratumDimension.fixed(-20)),
+        windowSize: WindowSize.desktop,
+      );
+
+      expect(style.fontSize, 16);
+      expect(style.letterSpacing, closeTo(-0.17, 1e-9));
+    });
+
+    test('us03/fr01: the height divides the line box by the scaled font size '
+        'after the fallback', () {
+      final style = resolveIn(
+        handBuilt(
+          adjustSize: const StratumDimension.fixed(-20),
+          spaceHeight: const StratumDimension.percent(0.5),
+        ),
+        windowSize: WindowSize.desktop,
+        textScaler: const TextScaler.linear(2),
+      );
+
+      expect(style.fontSize, 16);
+      expect(style.height, 48 / 32);
+    });
+
+    test('us02/s4: a theme that loads draws a small custom size under a '
+        'large negative font correction at the size the widget asked for', () {
+      theme = _theme(
+        _yaml().replaceFirst(
+          'inter: { family: Inter }',
+          'inter: { family: Inter, adjustSize: -8 }',
+        ),
+      );
+
+      final style = resolve(StratumTextStyle.body.size(5));
+
+      expect(style.fontSize, 5);
+      expect(style.height, 9 / 5);
+    });
+  });
+
   group('TypographyResolver fonts', () {
     test('the locale tags run from th_TH to th to default', () {
       expect(
