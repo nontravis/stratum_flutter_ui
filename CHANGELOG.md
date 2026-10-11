@@ -171,3 +171,19 @@
 - `context.deviceWindow.radius` now reads the screen's corner radii: on Android API 31+ through Flutter's own value,
   and on iOS 26+ and macOS 27+ through the package's own native plugin under a `StratumThemeApplication`; every
   other platform and version reads null, and the caller supplies its own fallback.
+- New `StratumRadiusTokens.sheet` reads the theme's `radius.sheet` token, 40 in the package default, a bottom
+  sheet's top corners.
+- New `ModalLayout`, a slot widget of an optional `top`, an optional `tab`, and a required `body`, with a drag
+  handle on the bottom sheet type and a close button under `showClose`; its `type` (`ModalLayoutType.bottomSheet`,
+  `.floating`, `.modal`) and `size` (`ModalLayoutSize.medium`, `.large`, `.extraLarge`, `.fillWidth`) pick its
+  corners, width, and padding, concentric with the screen's own corners; `borderRadius`, `safeArea`, and
+  `scrollBody` (default `true`, wraps `body` in a bounded scroll view; `false` hands it that height unwrapped for a
+  body that scrolls itself) complete its fields; a `ModalLayoutStyle customStyle` restyles each slot and the
+  surface, over an app-wide parts style registered through `StratumComponentDefaults.partsOf<ModalLayoutStyle>`. It
+  works inline, with no scrim and no route, as well as inside the route `showModalLayout` opens.
+- New `showModalLayout<T>(context, type:, builder:, useRootNavigator: true, showBackground: true,
+  semanticsLabel:)` opens a `ModalLayout` above the current page and returns a `Future<T?>` that completes with the
+  value it closes with, or null on a dismissal. It blocks the page behind for taps and for screen readers, keeps
+  keyboard focus inside the modal layout, and returns focus to the opener on close; Esc, a tap outside, back, a
+  drag down on a sheet, and the close button dismiss it. The package depends on `smooth_sheets` (`^1.3.0`) for the
+  sheet types' drag and snap behavior.
