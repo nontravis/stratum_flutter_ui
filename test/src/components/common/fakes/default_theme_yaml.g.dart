@@ -4,7 +4,7 @@
 
 /// The package default theme yaml, for tests that run on the web,
 /// where neither dart:io nor an asset bundle exists.
-const defaultThemeYaml = r"""$schema: stratum-theme/v1.3.0
+const defaultThemeYaml = r"""$schema: stratum-theme/v1.4.0
 name: stratum-default
 
 assets:

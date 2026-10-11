@@ -542,8 +542,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   default sets 0.5 for both, and an app theme may leave the group out. Read them as
   `StratumThemeApplication.of(context).opacity.disabled` and `.opacity.scrim`. A value outside 0 to 1 throws
   `StratumThemeFormatException` with `expected_opacity` at its path, and a third key under `opacity` is
-  `unknown_key`. The package default reads `$schema: stratum-theme/v1.3.0`; this package reads every `v1.0`, `v1.1`,
-  `v1.2`, and `v1.3` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.4.0`; this package reads every `v1.0` to
+  `v1.4` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
   `unsupported_schema`, so a theme that must load on every build writes `v1.0.0` and leaves `opacity` out; one that
   must load on every build from `v1.1` on writes `v1.1.0` and keeps `disabled` but leaves `scrim` out.
 - **Border, shadow, and blur tokens** — `border`, `shadow`, and `blur` in `theme.yaml` (format
