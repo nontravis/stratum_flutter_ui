@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/page_drawer.dart'
-    show PageDrawerStage, resolveDrawerType;
+    show PageDrawerStage, drawerWidth, overlayDrawerWidth, resolveDrawerType;
 import 'package:stratum_ui/src/src.dart';
 
 /// Which sides of a [PageLayout] pad their slots by the system insets
@@ -245,16 +245,26 @@ class PageLayoutController extends ChangeNotifier {
 /// keyboard's top, so [bottom] rides above it, and [footer] stays docked at
 /// the bottom edge under the keyboard (US-18 FR-05).
 ///
-/// Below [WindowSize.tablet], the drawer cut, [left] and [right] are
-/// drawers that take no space: [PageLayoutController.openLeft] and
+/// Below [drawerCut], [WindowSize.tablet] by default, [left] and [right]
+/// are drawers that take no space: [PageLayoutController.openLeft] and
 /// [PageLayoutController.openRight] open them, a swipe from their screen
 /// edge opens them while [edgeSwipe] holds, and a tap on the scrim, a drag
 /// toward their edge, Esc, or back closes them, back before the route pops.
 /// [leftSide] and [rightSide] set each drawer's type, width bounds, page
 /// scale, and label, and [onDrawerChanged] hears each open and close. An
 /// open drawer keeps focus inside it, reads as its own named screen, and
-/// hides the page behind from screen readers (US-19 FR-02 to FR-05). At and
-/// above the cut both sides sit inline.
+/// hides the page behind from screen readers (US-19 FR-02 to FR-05).
+///
+/// At and above the cut both sides sit inline beside the center column, as
+/// two nested [SplitLayout]s, with a divider the EndUser drags or moves by
+/// the arrow, Home, and End keys, within the side's width bounds. A divider
+/// paints only what [leftDividerBuilder] or [rightDividerBuilder] paints,
+/// while it always takes the drag, the keys, and focus, and reads as a
+/// slider. Each pane opens at the controller's chosen width, else at its
+/// drawer width, and the controller hears each settled resize as the new
+/// width (US-19 FR-06). With [rightAsOverlay], [right] opens there instead
+/// as a front drawer over a scrim, with a close button (US-19 FR-01). A
+/// drawer open as the window crosses into inline panes closes.
 ///
 /// While [loading] holds, a layer over the whole page refuses every tap and
 /// keyboard focus, reads as a live region with the built-in loading label,
@@ -264,8 +274,9 @@ class PageLayoutController extends ChangeNotifier {
 ///
 /// Each part's style layers the theme defaults, then the app-wide
 /// [PageLayoutStyle] the application registers for [PageLayout], then
-/// [customStyle] (FO-08 US-06 FR-01). Tab visits [header], [left], [top],
-/// [tab], [body], [bottom], [right], [footer], then [snack] (NFR-U02).
+/// [customStyle] (FO-08 US-06 FR-01). Tab visits [header], [left] and its
+/// divider, [top], [tab], [body], [bottom], the divider of [right] and
+/// [right], [footer], then [snack] (NFR-U02).
 ///
 /// The page needs bounded constraints, as a route's page has.
 class PageLayout extends StatefulWidget {
@@ -287,6 +298,10 @@ class PageLayout extends StatefulWidget {
     this.controller,
     this.leftSide = const PageSide(),
     this.rightSide = const PageSide(),
+    this.drawerCut = WindowSize.tablet,
+    this.rightAsOverlay = false,
+    this.leftDividerBuilder,
+    this.rightDividerBuilder,
     this.edgeSwipe = true,
     this.onDrawerChanged,
     this.customStyle,
@@ -338,11 +353,32 @@ class PageLayout extends StatefulWidget {
   /// null makes one of the page's own.
   final PageLayoutController? controller;
 
-  /// How [left] behaves as a drawer.
+  /// How [left] behaves as a drawer, and the width bounds of its inline
+  /// pane.
   final PageSide leftSide;
 
-  /// How [right] behaves as a drawer.
+  /// How [right] behaves as a drawer, and the width bounds of its inline
+  /// pane.
   final PageSide rightSide;
+
+  /// The smallest window size that shows [left] and [right] as inline
+  /// panes; below it both are drawers.
+  final WindowSize drawerCut;
+
+  /// Whether [right] opens at and above [drawerCut] as a front overlay
+  /// drawer with a scrim and a close button, 450 px wide at
+  /// [WindowSize.bigDesktop] and 400 px below it, instead of an inline
+  /// pane.
+  final bool rightAsOverlay;
+
+  /// Paints the divider between the inline [left] pane and the page beside
+  /// it; null paints none, while the divider still takes a drag, the keys,
+  /// and focus.
+  final SplitDividerBuilder? leftDividerBuilder;
+
+  /// Paints the divider between the center column and the inline [right]
+  /// pane, as [leftDividerBuilder] does for [left].
+  final SplitDividerBuilder? rightDividerBuilder;
 
   /// Whether a swipe in from a drawer's screen edge opens it; turn it off on
   /// a page with sideways gestures of its own. On iOS the start edge of a
@@ -446,6 +482,17 @@ class _PageLayoutState extends State<PageLayout>
   /// The route a `page` drawer opened, while it shows.
   Route<void>? _pageRoute;
 
+  /// The splits of `left` beside the main column and of the center column
+  /// beside `right`: each hears its EndUser's settled moves, which the page
+  /// hands to the controller as widths.
+  final _leftSplit = SplitLayoutController();
+  final _rightSplit = SplitLayoutController();
+
+  /// The width of each split at its last layout, which turns a settled
+  /// fraction into a width.
+  double _leftExtent = 0;
+  double _rightExtent = 0;
+
   Curve _curve = Curves.easeInOutSine;
   TargetPlatform _platform = defaultTargetPlatform;
   WindowSize _windowSize = WindowSize.mobile;
@@ -454,6 +501,8 @@ class _PageLayoutState extends State<PageLayout>
   void initState() {
     super.initState();
     _controller._layout = this;
+    _leftSplit.addListener(() => _onSettled(PageDrawerSide.left));
+    _rightSplit.addListener(() => _onSettled(PageDrawerSide.right));
   }
 
   @override
@@ -467,6 +516,7 @@ class _PageLayoutState extends State<PageLayout>
     _curve = motion.curve ?? Curves.easeInOutSine;
     _platform = Theme.of(context).platform;
     _windowSize = context.deviceWindow.windowSize;
+    _closeDrawerGoneInline();
   }
 
   @override
@@ -474,6 +524,7 @@ class _PageLayoutState extends State<PageLayout>
     super.didUpdateWidget(oldWidget);
     _swapController(oldWidget.controller);
     if (widget.loading != oldWidget.loading) _moveFocusForLoading();
+    _closeDrawerGoneInline();
   }
 
   @override
@@ -484,6 +535,8 @@ class _PageLayoutState extends State<PageLayout>
     _drawerView.dispose();
     _drawerFocus.dispose();
     _slotsNode.dispose();
+    _leftSplit.dispose();
+    _rightSplit.dispose();
     super.dispose();
   }
 
@@ -652,15 +705,25 @@ class _PageLayoutState extends State<PageLayout>
 
   // MARK: - Drawers
 
-  /// Whether `left` and `right` are drawers: below the drawer cut,
-  /// [WindowSize.tablet] (layout s03 invariant 69).
-  bool get _sidesAreDrawers => _windowSize < WindowSize.tablet;
+  /// Whether the window sits below [PageLayout.drawerCut], where `left`
+  /// and `right` are drawers (layout s03 invariant 69).
+  bool get _belowCut => _windowSize < widget.drawerCut;
+
+  /// Whether [side] is `right` shown as the front overlay drawer, at or
+  /// above the drawer cut (US-19 FR-01 E04).
+  bool _isOverlay(PageDrawerSide side) =>
+      side == PageDrawerSide.right && widget.rightAsOverlay && !_belowCut;
+
+  /// [side]'s slot while it sits inline; null where it is a drawer.
+  Widget? _inlineOf(PageDrawerSide side) =>
+      _belowCut || _isOverlay(side) ? null : _slotOf(side);
 
   /// [PageLayout.left] while it sits inline; null below the drawer cut.
-  Widget? get _inlineLeft => _sidesAreDrawers ? null : widget.left;
+  Widget? get _inlineLeft => _inlineOf(PageDrawerSide.left);
 
-  /// [PageLayout.right] while it sits inline; null below the drawer cut.
-  Widget? get _inlineRight => _sidesAreDrawers ? null : widget.right;
+  /// [PageLayout.right] while it sits inline; null below the drawer cut or
+  /// as the overlay drawer.
+  Widget? get _inlineRight => _inlineOf(PageDrawerSide.right);
 
   Widget? _slotOf(PageDrawerSide side) => switch (side) {
     PageDrawerSide.left => widget.left,
@@ -673,12 +736,12 @@ class _PageLayoutState extends State<PageLayout>
   };
 
   PageDrawerType _typeOf(PageDrawerSide side) =>
-      resolveDrawerType(_sideOf(side), _platform);
+      resolveDrawerType(_drawerSide(side) ?? _sideOf(side), _platform);
 
-  /// Whether [side] opens as a drawer here: its slot is set and the window
-  /// sits below the drawer cut.
+  /// Whether [side] opens as a drawer here: its slot is set, and the window
+  /// sits below the drawer cut or [side] is the overlay drawer.
   bool _isDrawer(PageDrawerSide side) =>
-      _sidesAreDrawers && _slotOf(side) != null;
+      _slotOf(side) != null && (_belowCut || _isOverlay(side));
 
   /// Whether a drag moves [side]'s drawer frame by frame: every type but
   /// `permanent` and `page`, which open or close only on release.
@@ -805,6 +868,34 @@ class _PageLayoutState extends State<PageLayout>
     _report(null);
   }
 
+  /// Closes the drawer of a side that no longer opens as one, since the
+  /// window crossed into inline panes or the app moved the cut or the
+  /// overlay choice (US-19 FR-01 E05; Q26).
+  ///
+  /// It closes at once and reports once the frame ends, so an app that sets
+  /// its own state from `onDrawerChanged` never does so during a build.
+  void _closeDrawerGoneInline() {
+    bool gone() {
+      final side = _controller._openSide ?? _shown;
+      return side != null && !_isDrawer(side);
+    }
+
+    if (!gone()) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !gone()) return;
+      if (_pageRoute != null) {
+        _close();
+        return;
+      }
+      _dragSide = null;
+      _controller._openSide = null;
+      // Dismissing settles the drawer closed; a drawer still at 0 settles
+      // here.
+      _drawer.value = 0;
+      _settleClosed();
+    });
+  }
+
   void _publish() =>
       _drawerView.value = (shown: _shown, open: _controller._openSide != null);
 
@@ -861,14 +952,25 @@ class _PageLayoutState extends State<PageLayout>
     }
   }
 
-  /// [side]'s drawer, or null where it has none.
-  PageSide? _drawerSide(PageDrawerSide side) =>
-      _isDrawer(side) ? _sideOf(side) : null;
+  /// [side]'s drawer, or null where it has none: the overlay drawer is a
+  /// `front` drawer exactly [overlayDrawerWidth] wide, with the side's
+  /// label (US-19 FR-01 E04).
+  PageSide? _drawerSide(PageDrawerSide side) {
+    if (!_isDrawer(side)) return null;
+    if (!_isOverlay(side)) return _sideOf(side);
+    final width = overlayDrawerWidth(_windowSize);
+    return PageSide(
+      type: PageDrawerType.front,
+      minWidth: width,
+      maxWidth: width,
+      semanticsLabel: _sideOf(side).semanticsLabel,
+    );
+  }
 
   /// [side]'s drawer panel: its slot in the side's resolved slot fill under
   /// the `shadow/4` effect, with [corners] on its screen corners, padded by
-  /// the insets of the top, bottom, and its own screen edge (US-19 FR-04;
-  /// R18).
+  /// the insets of the top, bottom, and its own screen edge, and the close
+  /// button over it as the overlay drawer (US-19 FR-01 E04, FR-04; R18).
   Widget _drawerPanel(
     PageDrawerSide side,
     BorderRadius corners,
@@ -880,14 +982,42 @@ class _PageLayoutState extends State<PageLayout>
       dropShadow: context.theme.shadow.level4,
       borderRadius: corners,
     ).merge(start ? style.left : style.right);
+    final slot = _slotOf(side) ?? const SizedBox.shrink();
     return _slotBox(
       start ? _Slot.left : _Slot.right,
-      _slotOf(side) ?? const SizedBox.shrink(),
+      _isOverlay(side) ? _withClose(slot) : slot,
       fill,
       look,
       edges: (top: true, bottom: true, start: start, end: !start),
     );
   }
+
+  /// [child] filling the overlay drawer, with a close button at its top end
+  /// that Tab visits after [child], as `ModalLayout` shows its own (US-19
+  /// FR-01 E04).
+  Widget _withClose(Widget child) => FocusTraversalGroup(
+    policy: OrderedTraversalPolicy(),
+    child: StackLayout(
+      fit: StackFit.expand,
+      children: [
+        FocusTraversalOrder(order: const NumericFocusOrder(1), child: child),
+        PositionedDirectional(
+          top: 0,
+          end: 0,
+          child: FocusTraversalOrder(
+            order: const NumericFocusOrder(2),
+            child: ContainerLayout(
+              interaction: Interaction(onTap: _close),
+              semantics: SemanticsProperties(
+                label: builtInLabelsOf(context).closeButtonLabel,
+              ),
+              child: const Icon(Icons.close),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   /// [side]'s content as the page a `page` drawer opens, read at the
   /// route's [context]: the side's slot fill over the whole screen and its
@@ -968,12 +1098,11 @@ class _PageLayoutState extends State<PageLayout>
       children: [
         ?slot(_Slot.top, page.top, style.top),
         Expanded(
-          child: RowLayout(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: center),
-              ?slot(_Slot.right, _inlineRight, style.right),
-            ],
+          child: _sideSplit(
+            PageDrawerSide.right,
+            column: center,
+            pane: slot(_Slot.right, _inlineRight, style.right),
+            order: _Slot.tab,
           ),
         ),
       ],
@@ -983,12 +1112,11 @@ class _PageLayoutState extends State<PageLayout>
       children: [
         ?slot(_Slot.header, page.header, style.header),
         Expanded(
-          child: RowLayout(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ?slot(_Slot.left, _inlineLeft, style.left),
-              Expanded(child: main),
-            ],
+          child: _sideSplit(
+            PageDrawerSide.left,
+            column: main,
+            pane: slot(_Slot.left, _inlineLeft, style.left),
+            order: _Slot.left,
           ),
         ),
         ColumnLayout(
@@ -1000,6 +1128,101 @@ class _PageLayoutState extends State<PageLayout>
         ),
       ],
     );
+  }
+
+  /// [column] beside [side]'s inline [pane], or alone where [side] has
+  /// none, as one [SplitLayout] at Tab [order], its divider painted by the
+  /// side's divider builder (layout s03 invariants 61 and 69; R17).
+  ///
+  /// The pane opens at the controller's chosen width, so a width set from
+  /// code moves it, with no rebuild of any slot. The split stays in the tree
+  /// on both sides of the drawer cut, with the pane null below it, so
+  /// crossing the cut remounts nothing in [column] (US-19 FR-01 E05).
+  Widget _sideSplit(
+    PageDrawerSide side, {
+    required Widget column,
+    required Widget? pane,
+    required _Slot order,
+  }) {
+    final start = side == PageDrawerSide.left;
+    final config = _sideOf(side);
+    final columnPane = SplitPane(child: column);
+    return FocusTraversalOrder(
+      order: NumericFocusOrder(order.index + 1),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (start) {
+            _leftExtent = constraints.maxWidth;
+          } else {
+            _rightExtent = constraints.maxWidth;
+          }
+          return ListenableBuilder(
+            listenable: _controller,
+            builder: (context, _) {
+              final sidePane = pane == null
+                  ? null
+                  : SplitPane(
+                      size: _paneWidth(side),
+                      min: _minWidthOf(config),
+                      max: config.maxWidth,
+                      child: pane,
+                    );
+              return SplitLayout(
+                controller: start ? _leftSplit : _rightSplit,
+                dividerBuilder: start
+                    ? widget.leftDividerBuilder
+                    : widget.rightDividerBuilder,
+                panes: start ? [sidePane, columnPane] : [columnPane, sidePane],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  /// The width [side]'s inline pane opens at: the controller's chosen
+  /// width, else the side's drawer width (layout s03 invariant 67).
+  double _paneWidth(PageDrawerSide side) {
+    final config = _sideOf(side);
+    final chosen = switch (side) {
+      PageDrawerSide.left => _controller.leftWidth,
+      PageDrawerSide.right => _controller.rightWidth,
+    };
+    return chosen ??
+        drawerWidth(
+          context.deviceWindow.width,
+          min: config.minWidth,
+          max: config.maxWidth,
+        );
+  }
+
+  /// [config]'s least width, giving way to its greatest, as the drawer
+  /// width does.
+  static double? _minWidthOf(PageSide config) {
+    final min = config.minWidth;
+    final max = config.maxWidth;
+    return min == null || max == null ? min : math.min(min, max);
+  }
+
+  /// Hands [side]'s settled move to the controller as the pane's width, and
+  /// clears the split's own choice, so the pane keeps that width, not a
+  /// share, as the window resizes (US-19 FR-06; R22).
+  ///
+  /// The split notifies only once an EndUser's move settles; the controller
+  /// then notifies the app once.
+  void _onSettled(PageDrawerSide side) {
+    final start = side == PageDrawerSide.left;
+    final split = start ? _leftSplit : _rightSplit;
+    final share = split.fractions?[start ? 0 : 1];
+    if (share == null) return;
+    split.fractions = null;
+    final width = share * (start ? _leftExtent : _rightExtent);
+    if (start) {
+      _controller.leftWidth = width;
+    } else {
+      _controller.rightWidth = width;
+    }
   }
 
   /// [PageLayout.snack] at the bottom center, above the bottom inset and

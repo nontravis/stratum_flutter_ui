@@ -16,9 +16,13 @@ const _landscape = Size(844, 390);
 /// A slot 40 px tall that shows [name].
 Widget _slot(String name) => SizedBox(height: 40, child: Text(name));
 
-/// A side slot [width] px wide that shows [name].
-Widget _side(String name, [double width = 200]) =>
-    SizedBox(width: width, child: Text(name));
+/// A controller whose chosen inline pane widths are [left] and [right],
+/// disposed after the test.
+PageLayoutController _widths({double? left, double? right}) {
+  final controller = PageLayoutController(leftWidth: left, rightWidth: right);
+  addTearDown(controller.dispose);
+  return controller;
+}
 
 /// A test view [size] logical pixels large with [padding] as its system
 /// insets and a keyboard [keyboard] px tall, reset after the test.
@@ -132,8 +136,9 @@ void main() {
       await tester.pumpWidget(
         _host(
           PageLayout(
+            controller: _widths(left: 200),
             header: _slot('header'),
-            left: _side('left'),
+            left: const Text('left'),
             top: _slot('top'),
             body: const Text('body'),
             footer: _slot('footer'),
@@ -181,9 +186,10 @@ void main() {
       await tester.pumpWidget(
         _host(
           PageLayout(
+            controller: _widths(right: 300),
             header: _slot('header'),
             tab: _slot('tab'),
-            right: _side('right', 300),
+            right: const Text('right'),
             body: const Text('body'),
           ),
         ),
@@ -199,8 +205,9 @@ void main() {
       await tester.pumpWidget(
         _host(
           PageLayout(
+            controller: _widths(right: 300),
             header: _slot('header'),
-            right: _side('right', 300),
+            right: const Text('right'),
             body: const Text('body'),
             bottom: _slot('bottom'),
             footer: _slot('footer'),
@@ -217,9 +224,10 @@ void main() {
       await tester.pumpWidget(
         _host(
           PageLayout(
+            controller: _widths(right: 300),
             top: _slot('top'),
             tab: _slot('tab'),
-            right: _side('right', 300),
+            right: const Text('right'),
             body: const Text('body'),
           ),
         ),
@@ -235,8 +243,9 @@ void main() {
       await tester.pumpWidget(
         _host(
           PageLayout(
-            left: _side('left'),
-            right: _side('right', 300),
+            controller: _widths(left: 200, right: 300),
+            left: const Text('left'),
+            right: const Text('right'),
             body: const Text('body'),
           ),
           direction: TextDirection.rtl,
@@ -423,7 +432,7 @@ void main() {
       );
       await tester.pumpWidget(
         _host(
-          PageLayout(left: _side('left'), body: const Text('body')),
+          const PageLayout(left: Text('left'), body: Text('body')),
           direction: TextDirection.rtl,
         ),
       );
@@ -446,8 +455,9 @@ void main() {
       await tester.pumpWidget(
         _host(
           PageLayout(
-            left: _side('left', 100),
-            right: _side('right', 100),
+            controller: _widths(left: 100, right: 100),
+            left: const Text('left'),
+            right: const Text('right'),
             body: const Text('body'),
           ),
         ),
@@ -463,8 +473,9 @@ void main() {
       await tester.pumpWidget(
         _host(
           PageLayout(
-            left: _side('left', 100),
-            right: _side('right', 100),
+            controller: _widths(left: 100, right: 100),
+            left: const Text('left'),
+            right: const Text('right'),
             safeArea: const PageSafeArea(top: false, bottom: false),
             body: const Text('body'),
           ),
@@ -479,8 +490,9 @@ void main() {
       await tester.pumpWidget(
         _host(
           PageLayout(
+            controller: _widths(right: 100),
             top: _slot('top'),
-            right: _side('right', 100),
+            right: const Text('right'),
             body: const Text('body'),
           ),
         ),
@@ -580,12 +592,12 @@ void main() {
         _host(
           PageLayout(
             header: _slot('header'),
-            left: _side('left'),
+            left: const Text('left'),
             top: _slot('top'),
             tab: _slot('tab'),
             body: const Text('body'),
             bottom: _slot('bottom'),
-            right: _side('right'),
+            right: const Text('right'),
             footer: _slot('footer'),
           ),
           theme: defaultThemeSet.light,
@@ -1096,8 +1108,8 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('NFR-U02: Tab follows header, left, top, tab, body, bottom, '
-        'right, footer', (tester) async {
+    testWidgets('NFR-U02: Tab follows header, left, its divider, top, tab, '
+        'body, bottom, the right divider, right, footer (Q8)', (tester) async {
       _view(tester);
       final order = <String>[];
       Widget stop(String name) => Focus(
@@ -1106,6 +1118,14 @@ void main() {
         },
         child: Text(name),
       );
+      // A divider takes focus on its own node, which no slot stop hears.
+      void onFocus() {
+        final label = FocusManager.instance.primaryFocus?.debugLabel ?? '';
+        if (label.startsWith('SplitLayout divider')) order.add('divider');
+      }
+
+      FocusManager.instance.addListener(onFocus);
+      addTearDown(() => FocusManager.instance.removeListener(onFocus));
       await tester.pumpWidget(
         _host(
           PageLayout(
@@ -1122,17 +1142,19 @@ void main() {
           ),
         ),
       );
-      for (var i = 0; i < 8; i++) {
+      for (var i = 0; i < 10; i++) {
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
         await tester.pump();
       }
       expect(order, [
         'header',
         'left',
+        'divider',
         'top',
         'tab',
         'body',
         'bottom',
+        'divider',
         'right',
         'footer',
       ]);

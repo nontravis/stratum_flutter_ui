@@ -226,3 +226,9 @@
   `slide`, `permanent`, `page`) and `PageDrawerSide` name the type and the side. A drawer is 80% of the screen width,
   up to 360 by default, fills its side's slot fill under `shadow/4` over the modal layout's scrim, keeps keyboard
   focus inside, reads as its own named screen, and fades with no movement under reduced motion.
+- New `PageLayout` side panes: at `drawerCut` (default `WindowSize.tablet`) and up, `left` and `right` sit inline as
+  `SplitLayout` panes the EndUser resizes within `PageSide.minWidth` and `maxWidth`; the `PageLayoutController`
+  receives each settled width as `leftWidth` or `rightWidth`, and new `leftDividerBuilder` and `rightDividerBuilder`
+  paint the dividers, which paint nothing by default. New `rightAsOverlay` opens `right` there instead as a front
+  drawer over a scrim, 450 px wide at `bigDesktop` and 400 px below, with a close button. A drawer open as the window
+  crosses into inline panes closes and reports null after that frame.

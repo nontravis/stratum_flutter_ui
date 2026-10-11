@@ -36,7 +36,7 @@ enum PageDrawerSide {
 }
 
 /// How one side of a [PageLayout] behaves as a drawer (US-19 FR-02, FR-04,
-/// FR-05).
+/// FR-05); its width bounds also bound the side's inline pane (FR-06).
 @immutable
 class PageSide {
   const new({
@@ -53,10 +53,11 @@ class PageSide {
   /// How the drawer opens; null takes `slide` on iOS and `front` elsewhere.
   final PageDrawerType? type;
 
-  /// The drawer's least width, in logical pixels.
+  /// The drawer's and the inline pane's least width, in logical pixels.
   final double? minWidth;
 
-  /// The drawer's greatest width, in logical pixels; null takes 360.
+  /// The drawer's and the inline pane's greatest width, in logical pixels;
+  /// null takes 360 for the drawer and leaves the pane unbounded.
   final double? maxWidth;
 
   /// The scale a `back` or `slide` drawer gives the page at full open, which
@@ -101,6 +102,12 @@ double drawerWidth(double screenWidth, {double? min, double? max}) {
   return (screenWidth * 0.8).clamp(lower, upper);
 }
 
+/// The width of the right overlay drawer at [window]: 450 at
+/// [WindowSize.bigDesktop] and 400 below it, the Figma `RIGHT_DRAWER`
+/// frames (US-19 FR-01 E04).
+double overlayDrawerWidth(WindowSize window) =>
+    window == WindowSize.bigDesktop ? 450 : 400;
+
 /// The drawer a [PageDrawerStage] draws: its `side`, that side's `config`
 /// and resolved `type`, its `width`, and whether it sits `atLeft`, on the
 /// physical left screen edge.
@@ -112,8 +119,9 @@ typedef _Drawn = ({
   bool atLeft,
 });
 
-/// The drawers of a [PageLayout] around [child], the page, below the
-/// drawer cut (layout s03 invariants 65 to 68).
+/// The drawers of a [PageLayout] around [child], the page: both sides below
+/// the drawer cut, and the right overlay drawer at and above it (layout s03
+/// invariants 65 to 69).
 ///
 /// While [shown] names a side, its panel from [panel] sits on that side's
 /// screen edge at the drawer width, and the page behind sits under the
