@@ -130,14 +130,17 @@ abstract final class _RadiusProbeSubscription {
   }
 
   /// Takes one probe event; a null message ends the stream and keeps the
-  /// last radius. An error event leaves the radius unreadable, so null,
-  /// and reports the error.
+  /// last radius. An error event or a malformed one leaves the radius
+  /// unreadable, so null, and reports the error (responsive s03
+  /// invariant 9).
   static Future<ByteData?> _onEvent(ByteData? message) async {
     if (message == null) return null;
     BorderRadius? probe;
     try {
       probe = _decode(_channel.codec.decodeEnvelope(message));
     } on PlatformException catch (exception, stack) {
+      _report(exception, stack, 'while reading the screen radius probe');
+    } on FormatException catch (exception, stack) {
       _report(exception, stack, 'while reading the screen radius probe');
     }
     _publish(probe);
@@ -179,10 +182,24 @@ abstract final class _RadiusProbeSubscription {
 
   /// The event's corner radii: null for a nil event, the probe's
   /// "unreadable"; a corner the event leaves out reads zero.
+  ///
+  /// Throws a [FormatException] for an event that is not a map, or for a
+  /// corner that is not a finite number of zero or more.
   static BorderRadius? _decode(Object? event) {
-    if (event is! Map) return null;
-    Radius corner(String key) =>
-        Radius.circular((event[key] as num?)?.toDouble() ?? 0);
+    if (event == null) return null;
+    if (event is! Map) {
+      throw FormatException('The probe sent no corner map', event);
+    }
+    Radius corner(String key) => switch (event[key]) {
+      null => Radius.zero,
+      final num value when value.isFinite && value >= 0 => Radius.circular(
+        value.toDouble(),
+      ),
+      final value => throw FormatException(
+        'The probe sent no finite radius of 0 or more for $key',
+        value,
+      ),
+    };
     return BorderRadius.only(
       topLeft: corner('topLeft'),
       topRight: corner('topRight'),

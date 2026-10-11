@@ -281,6 +281,29 @@ void main() {
     expect(radius, isNull);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
+  final malformed = <(String, Object)>[
+    ('a NaN corner', {..._r46, 'topLeft': double.nan}),
+    ('an infinite corner', {..._r46, 'topRight': double.infinity}),
+    ('a negative corner', {..._r46, 'bottomLeft': -1.0}),
+    ('a corner that is not a number', {..._r46, 'bottomRight': '46'}),
+    ('an event that is not a map', 46.0),
+  ];
+  for (final (name, event) in malformed) {
+    testWidgets('us04/fr03: $name is reported and reads null', (tester) async {
+      late MockStreamHandlerEventSink sink;
+      _mockProbe(tester, onListen: (s) => sink = s..success(_r46));
+      BorderRadius? radius;
+      await tester.pumpWidget(_reader((r) => radius = r));
+      await tester.pump();
+
+      sink.success(event);
+      await _pumpEvent(tester);
+
+      expect(tester.takeException(), isA<FormatException>());
+      expect(radius, isNull);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  }
+
   testWidgets('us04/fr03: the end of the stream keeps the last radius', (
     tester,
   ) async {
