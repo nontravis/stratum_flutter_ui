@@ -1388,6 +1388,21 @@ void main() {
       );
     });
 
+    testWidgets('us18/fr02/e03: a resize within one window size reruns no '
+        'page build for the overlay drawer', (tester) async {
+      await _pump(tester, _sides(overlay: true), size: _desktop);
+      final outer = find
+          .descendant(
+            of: find.byType(PageLayout),
+            matching: find.byType(ContainerLayout),
+          )
+          .first;
+      final built = tester.widget(outer);
+      _view(tester, const Size(1350, 900));
+      await tester.pump();
+      expect(tester.widget(outer), same(built));
+    });
+
     testWidgets('us19/fr01: below the cut an overlay right is a plain '
         'drawer with no close button', (tester) async {
       await _pump(tester, _sides(overlay: true));
@@ -1552,6 +1567,45 @@ void main() {
       expect(left, lessThan(260));
       expect(notes.single, 0);
       expect(controller.leftWidth, 260);
+    });
+
+    testWidgets('R23: us19/fr06/e09: a narrow window keeps left at its own '
+        'minimum and narrows right before the center', (tester) async {
+      await _pump(
+        tester,
+        const PageLayout(
+          leftSide: PageSide(minWidth: 240),
+          left: Text('left pane'),
+          right: Text('right pane'),
+          body: Text('center'),
+        ),
+        size: const Size(800, 700),
+      );
+      expect(tester.getRect(_box('left pane')).width, closeTo(240, 1e-6));
+      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+      expect(tester.getRect(_box('right pane')).width, closeTo(240, 1e-6));
+    });
+
+    testWidgets('R23: us19/fr06: a large right width set from code never '
+        'squeezes left under its minimum', (tester) async {
+      final controller = _widths(right: 300);
+      await _pump(
+        tester,
+        PageLayout(
+          controller: controller,
+          leftSide: const PageSide(minWidth: 200),
+          left: const Text('left pane'),
+          right: const Text('right pane'),
+          body: const Text('center'),
+        ),
+        size: _desktop,
+      );
+      controller.rightWidth = 900;
+      await tester.pump();
+      expect(tester.getRect(_box('left pane')).width, closeTo(200, 1e-6));
+      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+      expect(tester.getRect(_box('right pane')).width, closeTo(780, 1e-6));
+      expect(controller.rightWidth, 900);
     });
 
     testWidgets("us19/fr06: the side's width bounds clamp its Figma width", (

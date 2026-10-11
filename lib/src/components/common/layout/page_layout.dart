@@ -968,12 +968,7 @@ class _PageLayoutState extends State<PageLayout>
   PageSide? _drawerSide(PageDrawerSide side) {
     if (!_isDrawer(side)) return null;
     if (!_isOverlay(side)) return _sideOf(side);
-    // A screen narrower than the drawer, below tablet when the app moves
-    // the cut there, takes the drawer at the screen's width.
-    final width = math.min(
-      overlayDrawerWidth(_windowSize),
-      context.deviceWindow.width,
-    );
+    final width = overlayDrawerWidth(_windowSize);
     return PageSide(
       type: PageDrawerType.front,
       minWidth: width,
@@ -1181,13 +1176,9 @@ class _PageLayoutState extends State<PageLayout>
                       max: config.maxWidth,
                       child: pane,
                     );
-              // The center column keeps its minimum; beside `left` the
-              // main column also keeps room for `right` at its open width.
-              final keep =
-                  widget.minCenterWidth +
-                  (start && _inlineRight != null
-                      ? _openWidth(PageDrawerSide.right)
-                      : 0);
+              final keep = start
+                  ? _mainColumnKeep(constraints.maxWidth, leftPane: pane)
+                  : widget.minCenterWidth;
               final columnPane = SplitPane(min: keep, child: column);
               return SplitLayout(
                 controller: start ? _leftSplit : _rightSplit,
@@ -1212,6 +1203,27 @@ class _PageLayoutState extends State<PageLayout>
       PageDrawerSide.right => _controller.rightWidth,
     };
     return chosen ?? inlinePaneWidth(side, _windowSize);
+  }
+
+  /// The least width of the main column beside `left` in a split [extent]
+  /// wide: the center column's minimum plus room for `right` at its open
+  /// width, capped at what [leftPane]'s own minimum leaves, but never under
+  /// the center's and `right`'s minimums (R23).
+  ///
+  /// So a `left` drag stops with `right` at its open width while the window
+  /// allows it, and a narrow window narrows `right`, in its own split, down
+  /// to its minimum before `left` goes under its own.
+  double _mainColumnKeep(double extent, {required Widget? leftPane}) {
+    final center = widget.minCenterWidth;
+    if (_inlineRight == null) return center;
+    final leftMin = leftPane == null
+        ? 0.0
+        : _minWidthOf(_sideOf(PageDrawerSide.left)) ?? 0.0;
+    final rightMin = _minWidthOf(_sideOf(PageDrawerSide.right)) ?? 0.0;
+    return math.min(
+      center + _openWidth(PageDrawerSide.right),
+      math.max(center + rightMin, extent - leftMin),
+    );
   }
 
   /// [side]'s open width, [_paneWidth] within the side's width bounds.

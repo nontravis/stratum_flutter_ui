@@ -281,16 +281,20 @@ class PageDrawerStage extends StatelessWidget {
     BuildContext context,
     PageDrawerSide side,
     PageSide config,
-  ) => (
-    width: drawerWidth(
-      context.deviceWindow.width,
-      min: config.minWidth,
-      max: config.maxWidth,
-    ),
-    atLeft:
-        (side == PageDrawerSide.left) ==
-        (Directionality.of(context) == TextDirection.ltr),
-  );
+  ) {
+    // A drawer never runs past the screen, even the overlay drawer on a
+    // screen narrower than its width.
+    final screen = context.deviceWindow.width;
+    return (
+      width: math.min(
+        drawerWidth(screen, min: config.minWidth, max: config.maxWidth),
+        screen,
+      ),
+      atLeft:
+          (side == PageDrawerSide.left) ==
+          (Directionality.of(context) == TextDirection.ltr),
+    );
+  }
 
   /// The physical x direction [drawn] opens toward: +1 from the left edge.
   static double _toward(_Drawn drawn) => drawn.atLeft ? 1 : -1;
