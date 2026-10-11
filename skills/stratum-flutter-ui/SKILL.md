@@ -688,11 +688,13 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   move stays within both panes' `min` and `max`. Each divider is a Tab stop with the focus ring and reads as a slider
   valued by the start pane's percent; `dividerLabel:` replaces the built-in "Resize panes" label.
 - **Divider look** — nothing paints by default and the divider takes no space, so the panes stay flush; its hit area
-  is the platform's minimum target size centered on the seam, with a resize cursor on hover. Paint one with
+  is the platform's minimum target size centered on the seam, with a resize cursor on hover; a tap, a scroll, or a
+  drag across the axis that starts there still reaches the pane content under it. Paint one with
   `dividerBuilder: (context, state) => ...`, where `state.hovered`, `state.dragging`, and `state.focused` pick the
   look; the widget fills the hit area, so center a thin line in it and read its color from a theme token.
 - **Keep widths** — Stratum stores nothing. Pass a `SplitLayoutController(fractions: saved)` to restore kept
-  fractions (one per pane in `panes`, a null pane included), listen to it to save `controller.fractions`, and set
+  fractions (one per pane in `panes`, a null pane included; a null entry is a pane with no choice yet, which opens
+  at its own `size` or `flex`), listen to it to save `controller.fractions`, and set
   `controller.fractions = [...]` from code. It notifies once per settled move (a drag's end, one key step, a slider
   action, or a code set), never per drag frame and never when a narrow window only squeezes the panes. With no
   controller the split makes and disposes its own; it never disposes one you pass.

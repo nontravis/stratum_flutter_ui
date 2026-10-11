@@ -19,7 +19,11 @@ const double _step = 16;
 /// One arrow-key step of a divider with Shift held, in logical pixels.
 const double _largeStep = 64;
 
-/// One shown pane as the drag engine holds it: its index in
+/// The layout engine's theme: dividers take no layout space and no hit area,
+/// since the split draws its own hit layer over each seam.
+final _engineTheme = MultiSplitViewThemeData(dividerThickness: 0);
+
+/// One shown pane as the layout engine holds it: its index in
 /// [SplitLayout.panes], its size along the axis, and its limits, all in
 /// logical pixels.
 typedef _PaneArea = ({int pane, double size, double? min, double? max});
@@ -95,11 +99,15 @@ typedef SplitDividerBuilder = Widget Function(
 /// back to restore them.
 ///
 /// [fractions] holds one entry per pane of [SplitLayout.panes], a null
-/// pane's entry included, and is null until the EndUser or the app picks
-/// one. While it holds an entry per pane and every shown pane's entry is
-/// above 0, the shown panes split the space in proportion to their
-/// entries, each within its limits; otherwise each pane opens at its own
-/// size or flex. A move leaves a hidden pane's entry as it was.
+/// pane's entry included; a null entry means the pane has no chosen
+/// fraction yet, and the whole list is null until the EndUser or the app
+/// picks one. The shown panes without an entry open at their own size or
+/// flex, and the shown panes with one share the rest in proportion to
+/// their entries, each within its limits; an entry of 0 keeps its pane
+/// collapsed. A move stores only the two panes beside the moved divider,
+/// so every other entry, a hidden pane's or one a narrow window clamps,
+/// stays as chosen. A list whose length differs from the panes' applies to
+/// none.
 ///
 /// It notifies only when a resize settles: a drag's end, one arrow-key,
 /// Home, or End step, a slider action, or a set from code that changes
@@ -108,15 +116,15 @@ typedef SplitDividerBuilder = Widget Function(
 /// makes its own, as a [ScrollController], and disposes only that one.
 class SplitLayoutController extends ChangeNotifier {
   /// Starts with [fractions], such as ones the app kept, to restore them.
-  new({List<double>? fractions}) : _fractions = _held(fractions);
+  new({List<double?>? fractions}) : _fractions = _held(fractions);
 
-  List<double>? _fractions;
+  List<double?>? _fractions;
 
   /// Each pane's chosen fraction of the split, by its index in
   /// [SplitLayout.panes]; null when none is chosen.
-  List<double>? get fractions => _fractions;
+  List<double?>? get fractions => _fractions;
 
-  set fractions(List<double>? value) {
+  set fractions(List<double?>? value) {
     final held = _held(value);
     if (listEquals(held, _fractions)) return;
     _fractions = held;
@@ -124,10 +132,11 @@ class SplitLayoutController extends ChangeNotifier {
   }
 
   /// An unmodifiable copy of [value].
-  static List<double>? _held(List<double>? value) {
+  static List<double?>? _held(List<double?>? value) {
     assert(
-      value == null || value.every((entry) => entry.isFinite && entry >= 0),
-      'Every fraction is a finite number of at least 0.',
+      value == null ||
+          value.every((entry) => entry == null || entry.isFinite && entry >= 0),
+      'Every fraction is null or a finite number of at least 0.',
     );
     return value == null ? null : List.unmodifiable(value);
   }
@@ -177,18 +186,21 @@ class SplitPane {
 /// flush, and paints nothing unless [dividerBuilder] paints it. Whether or
 /// not one paints, the divider's hit area spans the platform's minimum
 /// target size ([TapTargetSize.minimumFor]) centered on the seam, shows a
-/// resize cursor on hover, and takes a drag; the divider is a Tab stop
-/// that shows the FO-06 focus ring, steps 16 px by the arrow keys along
-/// the axis by screen direction, 64 px with Shift held, and goes to the
-/// start pane's minimum and maximum by Home and End; and it reads as a
-/// slider valued by the start pane's share of the split, with increase and
-/// decrease actions that step it. With [resizable] false no divider takes
-/// a drag or focus or adds a slider node, while [dividerBuilder] still
-/// paints.
+/// resize cursor on hover, and takes a drag along the axis, while a tap, a
+/// scroll, or a drag across the axis that starts there still reaches the
+/// pane under it; the divider is a Tab stop after every Tab stop of the
+/// pane before it, shows the FO-06 focus ring, steps 16 px by the arrow
+/// keys along the axis by screen direction, 64 px with Shift held, and
+/// goes to the start pane's minimum and maximum by Home and End; and it
+/// reads as a slider valued by the start pane's share of the split, with
+/// increase and decrease actions that step it. With [resizable] false no
+/// divider takes a drag or focus or adds a slider node, while
+/// [dividerBuilder] still paints.
 ///
 /// The split needs a bounded extent along [axis]. It builds on
-/// `MultiSplitView` of `multi_split_view` for its drag engine and layout
-/// (layout s03 invariant 75).
+/// `MultiSplitView` of `multi_split_view` for its layout and its pane
+/// limits, and draws its own translucent hit layer over the seams (layout
+/// s03 invariant 75).
 class SplitLayout extends StatefulWidget {
   const new({
     super.key,
@@ -224,16 +236,13 @@ class SplitLayout extends StatefulWidget {
 }
 
 class _SplitLayoutState extends State<SplitLayout> {
-  /// The drag engine, holding one area per shown pane in screen order.
+  /// The layout engine, holding one area per shown pane in screen order.
   final _engine = MultiSplitViewController();
 
   /// The areas last handed to [_engine], in screen order: a rebuild that
   /// resolves the same areas leaves the engine, and a drag in progress on
   /// it, alone.
   List<_PaneArea>? _pushed;
-
-  /// The engine's theme for the last hit extent.
-  MultiSplitViewThemeData? _engineTheme;
 
   /// The split's extent along its axis at the last layout.
   double _space = 0;
@@ -248,8 +257,35 @@ class _SplitLayoutState extends State<SplitLayout> {
   /// The controller the split made, while the app passes none.
   SplitLayoutController? _ownController;
 
+  /// The divider the EndUser drags, from the start side; null between
+  /// drags.
+  final _dragging = ValueNotifier<int?>(null);
+
+  /// The running drag's pointer position along the axis at its start, and
+  /// the two neighbors' sizes then.
+  ({double origin, double start, double end})? _dragFrom;
+
+  /// What the hit layer redraws for: the engine's sizes and the drag.
+  late final _layerChanges = Listenable.merge([_engine, _dragging]);
+
+  /// The traversal policy above the split, and the ordered one built over
+  /// it that puts each pane before its divider and the next pane.
+  FocusTraversalPolicy? _outerPolicy;
+  OrderedTraversalPolicy? _orderPolicy;
+
+  /// Each pane's own traversal policy when none sits above the split.
+  final _readingOrder = ReadingOrderTraversalPolicy();
+
   SplitLayoutController get _controller =>
       widget.controller ?? (_ownController ??= SplitLayoutController());
+
+  bool get _horizontal => widget.axis == Axis.horizontal;
+
+  /// The platform's minimum target size across the seam.
+  double get _hitExtent {
+    final minimum = TapTargetSize.minimumFor(defaultTargetPlatform);
+    return _horizontal ? minimum.width : minimum.height;
+  }
 
   @override
   void initState() {
@@ -278,6 +314,7 @@ class _SplitLayoutState extends State<SplitLayout> {
     _controller.removeListener(_onChosen);
     _ownController?.dispose();
     _engine.dispose();
+    _dragging.dispose();
     for (final node in _dividerNodes) {
       node.dispose();
     }
@@ -291,79 +328,102 @@ class _SplitLayoutState extends State<SplitLayout> {
         _horizontal && Directionality.of(context) == TextDirection.rtl;
     final hit = _hitExtent;
     final label = widget.dividerLabel ?? builtInLabelsOf(context).dividerLabel;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final space = _horizontal
-            ? constraints.maxWidth
-            : constraints.maxHeight;
-        assert(
-          space.isFinite,
-          'SplitLayout needs a bounded extent along its axis.',
-        );
-        _space = space;
-        final target = _resolve(panes, _controller.fractions, space);
-        _sync(mirrored ? target.reversed.toList() : target);
-        return MultiSplitViewTheme(
-          data: _themeFor(hit),
-          child: MultiSplitView(
-            axis: widget.axis,
-            controller: _engine,
-            resizable: widget.resizable,
-            areaClipBehavior: Clip.none,
-            onDividerDragEnd: (_) {
-              if (mounted) _settle();
-            },
-            builder: (context, area) =>
-                panes[area.id as int]?.child ?? const SizedBox.shrink(),
-            dividerBuilder:
-                (axis, index, resizable, dragging, highlighted, theme) {
-                  if (!resizable) {
-                    return _SplitDivider(
-                      axis: widget.axis,
-                      extent: hit,
-                      builder: widget.dividerBuilder,
-                      state: const SplitDividerState(),
+    final outer = FocusTraversalGroup.maybeOf(context);
+    if (_orderPolicy == null || outer != _outerPolicy) {
+      _outerPolicy = outer;
+      _orderPolicy = OrderedTraversalPolicy(secondary: outer);
+    }
+    final panePolicy = outer ?? _readingOrder;
+    return FocusTraversalGroup(
+      policy: _orderPolicy,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final space = _horizontal
+              ? constraints.maxWidth
+              : constraints.maxHeight;
+          assert(
+            space.isFinite,
+            'SplitLayout needs a bounded extent along its axis.',
+          );
+          _space = space;
+          final target = _resolve(panes, _controller.fractions, space);
+          _sync(mirrored ? target.reversed.toList() : target);
+          return StackLayout(
+            clipBehavior: Clip.none,
+            children: [
+              MultiSplitViewTheme(
+                data: _engineTheme,
+                child: MultiSplitView(
+                  axis: widget.axis,
+                  controller: _engine,
+                  resizable: false,
+                  areaClipBehavior: Clip.none,
+                  builder: (context, area) {
+                    final pane = area.id as int;
+                    // Each pane is one Tab unit: Tab finishes it before the
+                    // divider and the next pane.
+                    return FocusTraversalOrder(
+                      order: NumericFocusOrder(pane.toDouble()),
+                      child: FocusTraversalGroup(
+                        policy: panePolicy,
+                        child: panes[pane]?.child ?? const SizedBox.shrink(),
+                      ),
                     );
-                  }
-                  final count = _engine.areasCount;
-                  final divider = mirrored ? count - 2 - index : index;
-                  return _divider(
-                    divider,
-                    hit: hit,
-                    label: label,
-                    state: SplitDividerState(
-                      hovered: highlighted && !dragging,
-                      dragging: dragging,
-                    ),
-                  );
-                },
-          ),
-        );
-      },
+                  },
+                  dividerBuilder: (axis, index, resizable, dragging, _, _) =>
+                      const SizedBox.shrink(),
+                ),
+              ),
+              Positioned.fill(
+                child: ListenableBuilder(
+                  listenable: _layerChanges,
+                  builder: (context, _) => _seams(hit: hit, label: label),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
-
-  bool get _horizontal => widget.axis == Axis.horizontal;
 
   /// Lays the panes out again for the controller's new fractions.
   void _onChosen() => setState(() {});
 
-  /// Hands the drawn sizes to the controller as each pane's fraction once
-  /// a move settles; a hidden pane keeps its entry, and the shown panes
-  /// share what the hidden ones leave.
-  void _settle() {
+  /// Hands the two panes beside divider [divider] to the controller once a
+  /// move settles: their entries split the sum they held in the ratio of
+  /// their drawn sizes, and every other entry stays as chosen.
+  ///
+  /// A pair with no prior sum takes the drawn sizes at the scale of the
+  /// other chosen panes, so those keep their place.
+  void _settle(int divider) {
     final areas = _startAreas();
     final drawn = _drawn();
     final total = drawn.fold(0.0, (sum, size) => sum + size);
-    if (total <= 0) return;
+    final pair = drawn[divider] + drawn[divider + 1];
+    if (total <= 0 || pair <= 0) return;
     final panes = widget.panes;
-    final chosen = _chosen(_controller.fractions, panes);
-    final shownShare = chosen == null
-        ? 1.0
-        : areas.fold(0.0, (sum, area) => sum + chosen[area.pane]);
-    final next = [for (var i = 0; i < panes.length; i++) chosen?[i] ?? 0.0];
-    for (var k = 0; k < areas.length; k++) {
-      next[areas[k].pane] = drawn[k] / total * shownShare;
+    final old = _controller.fractions;
+    final kept = old != null && old.length == panes.length ? old : null;
+    final next = <double?>[for (var i = 0; i < panes.length; i++) kept?[i]];
+    final start = areas[divider].pane;
+    final end = areas[divider + 1].pane;
+    final held = (next[start] ?? 0) + (next[end] ?? 0);
+    if (next[start] != null && next[end] != null && held > 0) {
+      next[start] = held * drawn[divider] / pair;
+      next[end] = held * drawn[divider + 1] / pair;
+    } else {
+      var weights = 0.0;
+      var shares = 0.0;
+      for (var k = 0; k < areas.length; k++) {
+        final entry = next[areas[k].pane];
+        if (k == divider || k == divider + 1 || entry == null) continue;
+        weights += entry;
+        shares += drawn[k] / total;
+      }
+      final scale = shares > 0 ? weights / shares : 1.0;
+      next[start] = scale * drawn[divider] / total;
+      next[end] = scale * drawn[divider + 1] / total;
     }
     _controller.fractions = next;
   }
@@ -378,23 +438,6 @@ class _SplitLayoutState extends State<SplitLayout> {
     return _dividerNodes[index];
   }
 
-  /// The platform's minimum target size across the seam.
-  double get _hitExtent {
-    final minimum = TapTargetSize.minimumFor(defaultTargetPlatform);
-    return _horizontal ? minimum.width : minimum.height;
-  }
-
-  /// The engine's theme: dividers take no space, and each one's hit area
-  /// spans [hit] centered on its seam.
-  MultiSplitViewThemeData _themeFor(double hit) {
-    final cached = _engineTheme;
-    if (cached != null && cached.dividerHandleBuffer == hit / 2) return cached;
-    return _engineTheme = MultiSplitViewThemeData(
-      dividerThickness: 0,
-      dividerHandleBuffer: hit / 2,
-    );
-  }
-
   /// Hands [target], in screen order, to the engine when it differs from
   /// the areas last handed over and from the areas the engine holds.
   void _sync(List<_PaneArea> target) {
@@ -407,6 +450,18 @@ class _SplitLayoutState extends State<SplitLayout> {
         Area(id: area.pane, flex: area.size, min: area.min, max: area.max),
     ];
   }
+
+  /// The engine's areas, in screen order. Each area's flex is its size in
+  /// logical pixels, since the flexes sum to the split's extent.
+  List<_PaneArea> _engineAreas() => [
+    for (final area in _engine.areas)
+      (
+        pane: area.id as int,
+        size: area.flex ?? 0,
+        min: area.min,
+        max: area.max,
+      ),
+  ];
 
   /// The engine's areas from the start side.
   List<_PaneArea> _startAreas() {
@@ -424,38 +479,36 @@ class _SplitLayoutState extends State<SplitLayout> {
     ];
   }
 
-  /// The start pane's size once divider [divider] moves [delta] toward the
-  /// end side from [sizes], within the limits the engine holds for both
-  /// neighbors in [areas], so a key moves as far as a drag does.
+  /// The start pane's size once divider [divider], between panes drawn
+  /// [start] and [end], moves [delta] toward the end side, within the
+  /// limits the engine holds for both neighbors in [areas].
   double _stepped(
     List<_PaneArea> areas,
-    List<double> sizes,
     int divider,
+    double start,
+    double end,
     double delta,
   ) {
-    final start = areas[divider];
-    final end = areas[divider + 1];
     return splitStep(
-      start: sizes[divider],
-      end: sizes[divider + 1],
+      start: start,
+      end: end,
       delta: delta,
-      startMin: start.min,
-      startMax: start.max,
-      endMin: end.min,
-      endMax: end.max,
+      startMin: areas[divider].min,
+      startMax: areas[divider].max,
+      endMin: areas[divider + 1].min,
+      endMax: areas[divider + 1].max,
     );
   }
 
-  /// Moves divider [divider] [delta] toward the end side, within both
-  /// neighbors' limits, by an arrow key, Home, End, or a slider action.
-  void _move(int divider, double delta) {
+  /// Draws the panes beside divider [divider] at [start] and [end]; false
+  /// when they already sit there.
+  bool _place(int divider, double start, double end) {
     final areas = _startAreas();
     final sizes = _drawn();
-    final start = _stepped(areas, sizes, divider, delta);
-    if ((start - sizes[divider]).abs() < _tolerance) return;
-    sizes[divider + 1] += sizes[divider] - start;
+    if ((start - sizes[divider]).abs() < _tolerance) return false;
     sizes[divider] = start;
-    final moved = [
+    sizes[divider + 1] = end;
+    final placed = [
       for (var k = 0; k < areas.length; k++)
         Area(
           id: areas[k].pane,
@@ -464,8 +517,69 @@ class _SplitLayoutState extends State<SplitLayout> {
           max: areas[k].max,
         ),
     ];
-    _engine.areas = _mirrored ? moved.reversed.toList() : moved;
-    _settle();
+    _engine.areas = _mirrored ? placed.reversed.toList() : placed;
+    return true;
+  }
+
+  /// Moves divider [divider] [delta] toward the end side, within both
+  /// neighbors' limits, by an arrow key, Home, End, or a slider action,
+  /// and settles the move.
+  void _move(int divider, double delta) {
+    final sizes = _drawn();
+    final start = _stepped(
+      _startAreas(),
+      divider,
+      sizes[divider],
+      sizes[divider + 1],
+      delta,
+    );
+    final end = sizes[divider] + sizes[divider + 1] - start;
+    if (_place(divider, start, end)) _settle(divider);
+  }
+
+  /// Starts a drag of divider [divider] with the pointer at [position]
+  /// along the axis.
+  void _onDragStart(int divider, double position) {
+    final sizes = _drawn();
+    _dragFrom = (
+      origin: position,
+      start: sizes[divider],
+      end: sizes[divider + 1],
+    );
+    _dragging.value = divider;
+  }
+
+  /// Follows the pointer at [position]: the divider sits where the pointer
+  /// moved it from the drag's start, within both neighbors' limits.
+  void _onDragUpdate(int divider, double position) {
+    final from = _dragFrom;
+    if (from == null) return;
+    final offset = (position - from.origin) * (_mirrored ? -1 : 1);
+    final start = _stepped(
+      _startAreas(),
+      divider,
+      from.start,
+      from.end,
+      offset,
+    );
+    _place(divider, start, from.start + from.end - start);
+  }
+
+  /// Ends the drag of divider [divider], settling it when it moved.
+  void _onDragEnd(int divider) {
+    final from = _dragFrom;
+    _dragFrom = null;
+    _dragging.value = null;
+    if (from == null) return;
+    if ((_drawn()[divider] - from.start).abs() >= _tolerance) {
+      _settle(divider);
+    }
+  }
+
+  /// Drops a drag the gesture arena gave to a pane before it moved.
+  void _onDragCancel() {
+    _dragFrom = null;
+    _dragging.value = null;
   }
 
   /// Moves divider [divider] by a key along the axis: an arrow steps by
@@ -490,45 +604,75 @@ class _SplitLayoutState extends State<SplitLayout> {
     return KeyEventResult.handled;
   }
 
-  /// The divider between the shown panes [divider] and `divider + 1`.
-  Widget _divider(
+  /// The hit layer: one seam per divider, [hit] across and centered on it,
+  /// over the panes; while a drag runs, a cover that keeps the resize
+  /// cursor and holds the panes' hover.
+  Widget _seams({required double hit, required String label}) {
+    final areas = _engineAreas();
+    final count = areas.length;
+    final sum = areas.fold(0.0, (total, area) => total + area.size);
+    final cursor = _horizontal
+        ? SystemMouseCursors.resizeColumn
+        : SystemMouseCursors.resizeRow;
+    final children = <Widget>[
+      if (_dragging.value != null)
+        Positioned.fill(child: MouseRegion(cursor: cursor)),
+    ];
+    var seam = 0.0;
+    for (var index = 0; index < count - 1; index++) {
+      seam += sum > 0 ? areas[index].size * _space / sum : 0;
+      final divider = _mirrored ? count - 2 - index : index;
+      children.add(
+        Positioned(
+          key: ValueKey(divider),
+          left: _horizontal ? seam - hit / 2 : 0,
+          top: _horizontal ? 0 : seam - hit / 2,
+          right: _horizontal ? null : 0,
+          bottom: _horizontal ? 0 : null,
+          width: _horizontal ? hit : null,
+          height: _horizontal ? null : hit,
+          child: widget.resizable
+              ? _seam(divider, label: label, cursor: cursor)
+              : _Seam(axis: widget.axis, builder: widget.dividerBuilder),
+        ),
+      );
+    }
+    return StackLayout(clipBehavior: Clip.none, children: children);
+  }
+
+  /// The seam between the shown panes [divider] and `divider + 1`.
+  Widget _seam(
     int divider, {
-    required double hit,
     required String label,
-    required SplitDividerState state,
+    required MouseCursor cursor,
   }) {
     final areas = _startAreas();
     final sizes = _drawn();
     final total = sizes.fold(0.0, (sum, size) => sum + size);
     String percent(double start) =>
         '${(total > 0 ? start / total * 100 : 0).round()}%';
-    return _SplitDivider(
+    double stepped(double delta) =>
+        _stepped(areas, divider, sizes[divider], sizes[divider + 1], delta);
+    return _Seam(
       axis: widget.axis,
-      extent: hit,
       builder: widget.dividerBuilder,
-      state: state,
+      dragging: _dragging.value == divider,
+      cursor: cursor,
+      order: areas[divider].pane + 0.5,
       label: label,
       value: percent(sizes[divider]),
-      increasedValue: percent(_stepped(areas, sizes, divider, _step)),
-      decreasedValue: percent(_stepped(areas, sizes, divider, -_step)),
+      increasedValue: percent(stepped(_step)),
+      decreasedValue: percent(stepped(-_step)),
       onIncrease: () => _move(divider, _step),
       onDecrease: () => _move(divider, -_step),
       focusNode: _dividerNode(divider),
       onKey: (event) => _onKey(divider, event),
+      onDragStart: (position) => _onDragStart(divider, position),
+      onDragUpdate: (position) => _onDragUpdate(divider, position),
+      onDragEnd: () => _onDragEnd(divider),
+      onDragCancel: _onDragCancel,
     );
   }
-
-  /// The engine's areas, in screen order. Each area's flex is its size in
-  /// logical pixels, since the flexes sum to the split's extent.
-  List<_PaneArea> _engineAreas() => [
-    for (final area in _engine.areas)
-      (
-        pane: area.id as int,
-        size: area.flex ?? 0,
-        min: area.min,
-        max: area.max,
-      ),
-  ];
 }
 
 /// Whether [a] and [b] hold the same panes in the same order, at sizes
@@ -546,48 +690,53 @@ bool _sameAreas(List<_PaneArea> a, List<_PaneArea> b) {
   return true;
 }
 
-/// [fractions] when they apply to [panes]: one entry per pane, every shown
-/// pane's entry above 0; else null.
-List<double>? _chosen(List<double>? fractions, List<SplitPane?> panes) {
-  if (fractions == null || fractions.length != panes.length) return null;
-  for (var i = 0; i < panes.length; i++) {
-    if (panes[i] != null && fractions[i] <= 0) return null;
-  }
-  return fractions;
-}
-
 /// Each shown pane of [panes] as an area of a [space] wide split, in
-/// [panes] order: at the chosen [fractions] when they apply, else at each
-/// pane's size or flex.
+/// [panes] order: a pane with no chosen entry in [fractions] at its own
+/// size or flex, and the panes with one sharing the rest in proportion to
+/// their entries.
 ///
 /// A pane's limits loosen to its size where the window leaves no room for
 /// them, so the engine draws the size as given.
 List<_PaneArea> _resolve(
   List<SplitPane?> panes,
-  List<double>? fractions,
+  List<double?>? fractions,
   double space,
 ) {
   final shown = [
     for (var i = 0; i < panes.length; i++)
       if (panes[i] case final pane?) (index: i, pane: pane),
   ];
+  final entries = fractions != null && fractions.length == panes.length
+      ? fractions
+      : null;
   final sized = shown.fold(0.0, (sum, s) => sum + (s.pane.size ?? 0));
   final flexSum = shown.fold(
     0.0,
     (sum, s) => sum + (s.pane.size == null ? s.pane.flex ?? 1 : 0),
   );
   final flexSpace = math.max(0.0, space - sized);
-  final chosen = _chosen(fractions, panes);
-  final chosenSum = chosen == null
-      ? 0.0
-      : shown.fold(0.0, (sum, s) => sum + chosen[s.index]);
-  final base = [
+  final own = [
     for (final s in shown)
-      if (chosen != null)
-        chosen[s.index] / chosenSum * space
+      s.pane.size ??
+          (flexSum > 0 ? flexSpace * (s.pane.flex ?? 1) / flexSum : 0.0),
+  ];
+  var unchosen = 0.0;
+  var weights = 0.0;
+  for (var k = 0; k < shown.length; k++) {
+    final entry = entries?[shown[k].index];
+    if (entry == null) {
+      unchosen += own[k];
+    } else {
+      weights += entry;
+    }
+  }
+  final room = math.max(0.0, space - unchosen);
+  final base = [
+    for (var k = 0; k < shown.length; k++)
+      if (entries?[shown[k].index] case final entry?)
+        if (weights > 0) entry / weights * room else 0.0
       else
-        s.pane.size ??
-            (flexSum > 0 ? flexSpace * (s.pane.flex ?? 1) / flexSum : 0.0),
+        own[k],
   ];
   final sizes = _fit(
     base,
@@ -646,18 +795,21 @@ List<double> _fit(
   return [for (final size in sizes) size * space / total];
 }
 
-/// The hit area of one divider: [extent] across the seam and the split's
-/// full length along it, centered on the seam it takes no space from,
-/// painted by [builder].
+/// One seam of the hit layer, the split's full length along it, painted
+/// by [builder].
 ///
-/// With a [focusNode] it is a Tab stop that shows the focus ring and a
-/// slider node; with none (resizing off) it only paints.
-class _SplitDivider extends StatelessWidget {
+/// With a [focusNode] it takes the drag through a translucent hit area, so
+/// a pane under it still takes a tap, a scroll, or a drag across the
+/// split's axis that the gesture arena gives it; it shows [cursor] on
+/// hover, is a Tab stop at [order] with the focus ring, and is a slider
+/// node. With none (resizing off) it only paints, and takes no pointer.
+class _Seam extends StatefulWidget {
   const new({
     required this.axis,
-    required this.extent,
     required this.builder,
-    required this.state,
+    this.dragging = false,
+    this.cursor = MouseCursor.defer,
+    this.order = 0,
     this.label,
     this.value,
     this.increasedValue,
@@ -666,18 +818,24 @@ class _SplitDivider extends StatelessWidget {
     this.onDecrease,
     this.focusNode,
     this.onKey,
+    this.onDragStart,
+    this.onDragUpdate,
+    this.onDragEnd,
+    this.onDragCancel,
   });
 
   /// The split's axis; the seam runs across it.
   final Axis axis;
 
-  /// The hit area's size across the seam.
-  final double extent;
-
   final SplitDividerBuilder? builder;
 
-  /// The hovered and dragging values; [focusNode] adds the focused one.
-  final SplitDividerState state;
+  /// Whether the EndUser drags this seam.
+  final bool dragging;
+
+  final MouseCursor cursor;
+
+  /// The seam's place in the split's Tab order, between its two panes.
+  final double order;
 
   /// The slider node's label, value, and step values and actions.
   final String? label;
@@ -692,63 +850,107 @@ class _SplitDivider extends StatelessWidget {
   /// Handles a key while [focusNode] holds focus.
   final KeyEventResult Function(KeyEvent event)? onKey;
 
-  /// [builder]'s widget for [state], filling the hit area.
-  Widget _painted(BuildContext context, SplitDividerState state) {
-    final painted = builder?.call(context, state);
-    return SizedBox.expand(
-      child: painted == null ? null : ExcludeSemantics(child: painted),
-    );
-  }
+  /// The drag's start and each move, with the pointer's global position
+  /// along [axis].
+  final ValueChanged<double>? onDragStart;
+  final ValueChanged<double>? onDragUpdate;
+  final VoidCallback? onDragEnd;
+  final VoidCallback? onDragCancel;
+
+  @override
+  State<_Seam> createState() => _SeamState();
+}
+
+class _SeamState extends State<_Seam> {
+  /// Whether a pointer rests over the seam.
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final horizontal = axis == Axis.horizontal;
-    Widget result;
-    if (focusNode case final node?) {
-      result = Semantics(
-        container: true,
-        slider: true,
-        label: label,
-        value: value,
-        increasedValue: increasedValue,
-        decreasedValue: decreasedValue,
-        onIncrease: onIncrease,
-        onDecrease: onDecrease,
-        child: Focus(
-          focusNode: node,
-          onKeyEvent: (node, event) =>
-              onKey?.call(event) ?? KeyEventResult.ignored,
-          child: ListenableBuilder(
-            listenable: node,
-            builder: (context, _) {
-              final focused = node.hasFocus;
-              return StratumFocusBorder(
-                insideEdge: true,
-                state: focused
-                    ? FullWidgetState.focused
-                    : FullWidgetState.normal,
-                child: _painted(
-                  context,
-                  SplitDividerState(
-                    hovered: state.hovered,
-                    dragging: state.dragging,
-                    focused: focused,
-                  ),
-                ),
-              );
-            },
+    final node = widget.focusNode;
+    if (node == null) return _painted(context, const SplitDividerState());
+    final horizontal = widget.axis == Axis.horizontal;
+    double along(Offset position) => horizontal ? position.dx : position.dy;
+    return MouseRegion(
+      cursor: widget.cursor,
+      opaque: false,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        dragStartBehavior: DragStartBehavior.down,
+        onHorizontalDragStart: horizontal
+            ? (details) =>
+                  widget.onDragStart?.call(along(details.globalPosition))
+            : null,
+        onHorizontalDragUpdate: horizontal
+            ? (details) =>
+                  widget.onDragUpdate?.call(along(details.globalPosition))
+            : null,
+        onHorizontalDragEnd: horizontal
+            ? (_) => widget.onDragEnd?.call()
+            : null,
+        onHorizontalDragCancel: horizontal ? widget.onDragCancel : null,
+        onVerticalDragStart: horizontal
+            ? null
+            : (details) =>
+                  widget.onDragStart?.call(along(details.globalPosition)),
+        onVerticalDragUpdate: horizontal
+            ? null
+            : (details) =>
+                  widget.onDragUpdate?.call(along(details.globalPosition)),
+        onVerticalDragEnd: horizontal ? null : (_) => widget.onDragEnd?.call(),
+        onVerticalDragCancel: horizontal ? null : widget.onDragCancel,
+        child: Semantics(
+          container: true,
+          slider: true,
+          label: widget.label,
+          value: widget.value,
+          increasedValue: widget.increasedValue,
+          decreasedValue: widget.decreasedValue,
+          onIncrease: widget.onIncrease,
+          onDecrease: widget.onDecrease,
+          child: FocusTraversalOrder(
+            order: NumericFocusOrder(widget.order),
+            child: Focus(
+              focusNode: node,
+              onKeyEvent: (node, event) =>
+                  widget.onKey?.call(event) ?? KeyEventResult.ignored,
+              child: ListenableBuilder(
+                listenable: node,
+                builder: (context, _) {
+                  final focused = node.hasFocus;
+                  return StratumFocusBorder(
+                    insideEdge: true,
+                    state: focused
+                        ? FullWidgetState.focused
+                        : FullWidgetState.normal,
+                    child: _painted(
+                      context,
+                      SplitDividerState(
+                        hovered: _hovered && !widget.dragging,
+                        dragging: widget.dragging,
+                        focused: focused,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         ),
-      );
-    } else {
-      result = _painted(context, state);
-    }
-    return OverflowBox(
-      minWidth: horizontal ? extent : null,
-      maxWidth: horizontal ? extent : null,
-      minHeight: horizontal ? null : extent,
-      maxHeight: horizontal ? null : extent,
-      child: result,
+      ),
+    );
+  }
+
+  /// [_Seam.builder]'s widget for [state], filling the seam; it takes no
+  /// pointer and adds no semantics.
+  Widget _painted(BuildContext context, SplitDividerState state) {
+    final painted = widget.builder?.call(context, state);
+    return SizedBox.expand(
+      child: painted == null
+          ? null
+          : IgnorePointer(child: ExcludeSemantics(child: painted)),
     );
   }
 }

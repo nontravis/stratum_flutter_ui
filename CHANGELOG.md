@@ -192,12 +192,14 @@
 - New `SplitLayout`, which splits a body into `SplitPane`s (`size` or `flex`, `min`, `max`) along `axis`, mirrored
   under right-to-left text, with a null pane hidden. Each divider takes no layout space and paints nothing unless a
   `dividerBuilder` paints it from a `SplitDividerState` (`hovered`, `dragging`, `focused`); its hit area spans the
-  platform's minimum target size on the seam, with a resize cursor. The EndUser drags it, steps it by the arrow keys
+  platform's minimum target size on the seam, with a resize cursor, and lets a tap or a scroll there reach the pane
+  under it. The EndUser drags it, steps it by the arrow keys
   (16 px, 64 with Shift), takes it to the start pane's min and max by Home and End, or adjusts it as a screen-reader
   slider labeled by `dividerLabel` or the built-in "Resize panes"; `resizable: false` turns this off. An optional
-  `SplitLayoutController` holds each pane's chosen fraction, restores it from its constructor, takes one set from
-  code, and notifies once per settled move, never per drag frame or on a window clamp.
-- The package depends on `multi_split_view` (`^3.6.2`) for `SplitLayout`'s drag engine and layout.
+  `SplitLayoutController` holds each pane's chosen fraction (null for a pane with none yet), restores it from its
+  constructor, takes one set from code, and notifies once per settled move, never per drag frame or on a window
+  clamp; a move stores only the two panes beside the moved divider.
+- The package depends on `multi_split_view` (`^3.6.2`) for `SplitLayout`'s layout and pane limits.
 - New `PageLayout`, a page of nine optional slots, `header`, `left`, `top`, `tab`, `body`, `bottom`, `right`, `footer`,
   and a floating `snack`, in the Figma page geometry, mirrored under right-to-left text. Edge slots fill under the
   system insets while their content pads by them, as `safeArea: PageSafeArea(top:, bottom:, left:, right:)` allows,
