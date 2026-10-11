@@ -269,6 +269,31 @@ PageLayoutController _widths({double? left, double? right, List<int>? notes}) {
   return controller;
 }
 
+/// Kept widths that are no finite number of at least 0, as storage can hand
+/// back: NaN, both infinities, a negative, and a JSON number past the
+/// double range.
+final _unusable = <double>[
+  double.nan,
+  double.infinity,
+  double.negativeInfinity,
+  -50,
+  (jsonDecode('1e309') as num).toDouble(),
+];
+
+/// A controller whose getters hand the page [raw] unchecked, as a subclass
+/// may, so a test reaches the page's own read of the widths.
+class _Unchecked extends PageLayoutController {
+  new(this.raw);
+
+  final double raw;
+
+  @override
+  double? get leftWidth => raw;
+
+  @override
+  double? get rightWidth => raw;
+}
+
 /// Taps `Open right` and lets the end side's drawer settle open.
 Future<void> _openRight(WidgetTester tester) async {
   await tester.tap(find.text('Open right'));
@@ -804,6 +829,46 @@ void main() {
       expect(find.text('Menu'), findsOneWidget);
       expect(find.text('drawer item'), findsNothing);
       expect(reports, [PageDrawerSide.left, null]);
+    });
+
+    testWidgets('us18/fr02/e05: an open page drawer shows the slot the app '
+        'rebuilds the page with', (tester) async {
+      _view(tester, const Size(390, 844));
+      var on = false;
+      await tester.pumpWidget(
+        _app(
+          StatefulBuilder(
+            builder: (context, setState) => _page(
+              leftSide: const PageSide(type: PageDrawerType.page),
+              style: PageLayoutStyle(
+                left: WidgetStyle(
+                  backgroundColor: on ? Colors.green : Colors.red,
+                ),
+              ),
+              left: Switch(
+                value: on,
+                onChanged: (value) => setState(() => on = value),
+              ),
+            ),
+          ),
+        ),
+      );
+      await _openMenu(tester);
+      Finder fill() => find
+          .ancestor(
+            of: find.byType(Switch),
+            matching: find.byType(ContainerLayout),
+          )
+          .first;
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      expect(on, isTrue);
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+      expect(
+        tester.widget<ContainerLayout>(fill()).style!.backgroundColor,
+        Colors.green,
+      );
     });
 
     testWidgets(
@@ -1476,6 +1541,70 @@ void main() {
       );
     }
 
+    test('us19/fr06/e11: a kept width that is NaN, infinite, or negative '
+        'reads as none, from the constructor and from a set', () {
+      for (final bad in _unusable) {
+        final notes = [0];
+        final controller = _widths(left: bad, right: bad, notes: notes);
+        expect(controller.leftWidth, isNull, reason: '$bad');
+        expect(controller.rightWidth, isNull, reason: '$bad');
+        controller
+          ..leftWidth = 300
+          ..leftWidth = bad;
+        expect(controller.leftWidth, isNull, reason: '$bad');
+        expect(notes.single, 2, reason: '$bad');
+        controller.rightWidth = bad;
+        expect(notes.single, 2, reason: '$bad');
+      }
+    });
+
+    testWidgets('us19/fr06/e11: a pane whose kept width is not finite opens '
+        'at its Figma width', (tester) async {
+      for (final bad in _unusable) {
+        final controller = _widths(left: bad, right: bad);
+        await _pump(
+          tester,
+          KeyedSubtree(
+            key: ValueKey(controller),
+            child: PageLayout(
+              controller: controller,
+              left: const Text('left pane'),
+              right: const Text('right pane'),
+              body: const _OpenRight(),
+            ),
+          ),
+          size: _desktop,
+        );
+        expect(tester.takeException(), isNull, reason: '$bad');
+        expect(tester.getRect(_box('left pane')).width, 260, reason: '$bad');
+        expect(tester.getRect(_box('right pane')).width, 320, reason: '$bad');
+      }
+    });
+
+    testWidgets('us19/fr06/e11: the page reads an unusable width a controller '
+        'hands it as none', (tester) async {
+      for (final bad in _unusable) {
+        final controller = _Unchecked(bad);
+        addTearDown(controller.dispose);
+        await _pump(
+          tester,
+          KeyedSubtree(
+            key: ValueKey(controller),
+            child: PageLayout(
+              controller: controller,
+              left: const Text('left pane'),
+              right: const Text('right pane'),
+              body: const _OpenRight(),
+            ),
+          ),
+          size: _desktop,
+        );
+        expect(tester.takeException(), isNull, reason: '$bad');
+        expect(tester.getRect(_box('left pane')).width, 260, reason: '$bad');
+        expect(tester.getRect(_box('right pane')).width, 320, reason: '$bad');
+      }
+    });
+
     testWidgets('us19/fr06/e03: a chosen width wins over the Figma width of '
         'its side only', (tester) async {
       await _pump(
@@ -1677,6 +1806,61 @@ void main() {
       expect(tester.getRect(_box('left pane')).width, closeTo(216, 1e-6));
       expect(notes.single, 3);
     });
+
+    for (final direction in TextDirection.values) {
+      testWidgets('us19/fr06/e02: under ${direction.name} End takes either '
+          "divider's side pane to its maximum and Home to its minimum, while "
+          'the arrows move by screen direction', (tester) async {
+        final controller = _widths(left: 240, right: 300);
+        await _pump(
+          tester,
+          PageLayout(
+            controller: controller,
+            leftSide: const PageSide(minWidth: 200, maxWidth: 400),
+            rightSide: const PageSide(minWidth: 200, maxWidth: 500),
+            left: const Text('left pane'),
+            right: const Text('right pane'),
+            body: const Text('center'),
+          ),
+          size: _desktop,
+          direction: direction,
+        );
+        final ltr = direction == TextDirection.ltr;
+        // The arrow toward the center column on screen widens each pane.
+        final towardCenterOfLeft = ltr
+            ? LogicalKeyboardKey.arrowRight
+            : LogicalKeyboardKey.arrowLeft;
+        final towardCenterOfRight = ltr
+            ? LogicalKeyboardKey.arrowLeft
+            : LogicalKeyboardKey.arrowRight;
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        await tester.pump();
+        expect(controller.leftWidth, closeTo(400, 1e-6));
+        await tester.sendKeyEvent(LogicalKeyboardKey.home);
+        await tester.pump();
+        expect(controller.leftWidth, closeTo(200, 1e-6));
+        await tester.sendKeyEvent(towardCenterOfLeft);
+        await tester.pump();
+        expect(controller.leftWidth, closeTo(216, 1e-6));
+        expect(tester.getRect(_box('left pane')).width, closeTo(216, 1e-6));
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(_focusLabel, startsWith('SplitLayout divider'));
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        await tester.pump();
+        expect(controller.rightWidth, closeTo(500, 1e-6));
+        expect(tester.getRect(_box('right pane')).width, closeTo(500, 1e-6));
+        await tester.sendKeyEvent(LogicalKeyboardKey.home);
+        await tester.pump();
+        expect(controller.rightWidth, closeTo(200, 1e-6));
+        await tester.sendKeyEvent(towardCenterOfRight);
+        await tester.pump();
+        expect(controller.rightWidth, closeTo(216, 1e-6));
+        expect(tester.getRect(_box('right pane')).width, closeTo(216, 1e-6));
+      });
+    }
 
     testWidgets('R22: a width set from code moves the pane and notifies '
         'once', (tester) async {
@@ -2054,6 +2238,36 @@ void main() {
         tester.getSemantics(_dividers),
         isSemantics(label: 'Resize panes', isSlider: true, isFocused: true),
       );
+    });
+
+    testWidgets('NFR-U06: us19/fr06: the right divider reads as a slider '
+        "valued by the right pane's share, and increase widens it", (
+      tester,
+    ) async {
+      final controller = _widths(right: 300);
+      await _pump(
+        tester,
+        _sides(left: false, controller: controller),
+        size: _desktop,
+      );
+      expect(
+        tester.getSemantics(_dividers),
+        matchesSemantics(
+          label: 'Resize panes',
+          value: '23%',
+          increasedValue: '24%',
+          decreasedValue: '22%',
+          isSlider: true,
+          isFocusable: true,
+          hasFocusAction: true,
+          hasIncreaseAction: true,
+          hasDecreaseAction: true,
+        ),
+      );
+      tester.semantics.increase(find.semantics.byLabel('Resize panes'));
+      await tester.pump();
+      expect(controller.rightWidth, closeTo(316, 1e-6));
+      expect(tester.getRect(_box('right pane')).width, closeTo(316, 1e-6));
     });
 
     testWidgets('NFR-U06: us19/fr01/e04: the overlay drawer reads as a named '

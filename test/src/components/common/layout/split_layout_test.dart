@@ -44,6 +44,7 @@ Widget _split({
   List<SplitPane?>? panes,
   bool resizable = true,
   bool detail = true,
+  bool endPrimary = false,
   String? label,
   SplitDividerBuilder? dividerBuilder,
   SplitLayoutController? controller,
@@ -64,6 +65,7 @@ Widget _split({
           child: SplitLayout(
             axis: axis,
             resizable: resizable,
+            endPrimary: endPrimary,
             dividerLabel: label,
             dividerBuilder: dividerBuilder,
             controller: controller,
@@ -155,6 +157,28 @@ SplitLayoutController _counted(List<int> notifies, {List<double>? fractions}) {
     ..addListener(() => notifies[0]++);
   addTearDown(controller.dispose);
   return controller;
+}
+
+/// Kept values that are no finite number of at least 0, as storage can hand
+/// back: NaN, both infinities, a negative, and a JSON number past the
+/// double range.
+final _unusable = <double>[
+  double.nan,
+  double.infinity,
+  double.negativeInfinity,
+  -0.5,
+  (jsonDecode('1e309') as num).toDouble(),
+];
+
+/// A controller whose getter hands the split [raw] unchecked, as a subclass
+/// may, so a test reaches the split's own read of the fractions.
+class _Unchecked extends SplitLayoutController {
+  new(this.raw);
+
+  final List<double?> raw;
+
+  @override
+  List<double?>? get fractions => raw;
 }
 
 /// The divider's own focus node.
@@ -302,6 +326,34 @@ void main() {
       await _press(tester, LogicalKeyboardKey.home);
       expect(_listWidth(tester), closeTo(200, 1));
     });
+
+    for (final direction in TextDirection.values) {
+      testWidgets('us19/fr06/e02: with the end pane primary under '
+          '${direction.name}, End takes the end pane to its maximum and Home '
+          'to its minimum, and the arrows still move by screen direction', (
+        tester,
+      ) async {
+        _view(tester);
+        await tester.pumpWidget(_split(endPrimary: true, direction: direction));
+        await _tab(tester);
+        await _press(tester, LogicalKeyboardKey.end);
+        expect(_listWidth(tester), closeTo(200, 1));
+        await _press(tester, LogicalKeyboardKey.home);
+        expect(_listWidth(tester), closeTo(500, 1));
+        // From its maximum the list narrows toward the divider's side.
+        final ltr = direction == TextDirection.ltr;
+        final before = tester.getCenter(_divider).dx;
+        await _press(
+          tester,
+          ltr ? LogicalKeyboardKey.arrowLeft : LogicalKeyboardKey.arrowRight,
+        );
+        expect(
+          tester.getCenter(_divider).dx,
+          closeTo(before + (ltr ? -16 : 16), 1),
+        );
+        expect(_listWidth(tester), closeTo(484, 1));
+      });
+    }
 
     testWidgets('us21/fr03: End stops at the neighbor minimum when the start '
         'pane has no '
@@ -526,6 +578,39 @@ void main() {
       expect(tester.getSemantics(_divider).value, '32%');
     });
 
+    testWidgets('us19/fr06: with the end pane primary the slider reads the '
+        "end pane's share, and increase widens the end pane", (tester) async {
+      _view(tester);
+      await tester.pumpWidget(_split(endPrimary: true));
+      expect(
+        tester.getSemantics(_divider),
+        matchesSemantics(
+          label: 'Resize panes',
+          value: '70%',
+          increasedValue: '72%',
+          decreasedValue: '68%',
+          isSlider: true,
+          isFocusable: true,
+          hasFocusAction: true,
+          hasIncreaseAction: true,
+          hasDecreaseAction: true,
+        ),
+      );
+      tester.semantics.performAction(
+        find.semantics.byLabel('Resize panes'),
+        SemanticsAction.increase,
+      );
+      await tester.pump();
+      expect(_listWidth(tester), closeTo(284, 1));
+      expect(tester.getSemantics(_divider).value, '72%');
+      tester.semantics.performAction(
+        find.semantics.byLabel('Resize panes'),
+        SemanticsAction.decrease,
+      );
+      await tester.pump();
+      expect(_listWidth(tester), closeTo(300, 1));
+    });
+
     testWidgets(
       'us21/fr04: the decrease action steps the divider toward the start',
       (tester) async {
@@ -699,6 +784,50 @@ void main() {
       await tester.pumpWidget(_split(controller: controller));
       expect(_listWidth(tester), closeTo(400, 1));
       expect(notifies.single, 0);
+    });
+
+    test('us21/fr02/e06: a kept fraction that is NaN, infinite, or negative '
+        'reads as none, from the constructor and from a set', () {
+      for (final bad in _unusable) {
+        final controller = SplitLayoutController(fractions: [bad, 0.6]);
+        addTearDown(controller.dispose);
+        expect(controller.fractions, [null, 0.6], reason: '$bad');
+        controller.fractions = [0.4, bad];
+        expect(controller.fractions, [0.4, null], reason: '$bad');
+      }
+    });
+
+    testWidgets('us21/fr02/e06: a pane whose kept fraction is not finite '
+        'opens as if none were chosen', (tester) async {
+      _view(tester);
+      for (final bad in _unusable) {
+        final controller = SplitLayoutController(fractions: [bad, 0.6]);
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          KeyedSubtree(
+            key: ValueKey(controller),
+            child: _split(controller: controller),
+          ),
+        );
+        expect(tester.takeException(), isNull, reason: '$bad');
+        expect(_listWidth(tester), closeTo(300, 1), reason: '$bad');
+      }
+    });
+
+    testWidgets('us21/fr02/e06: the split reads an unusable fraction a '
+        'controller hands it as none, and a key step stays finite', (
+      tester,
+    ) async {
+      _view(tester);
+      final controller = _Unchecked([double.infinity, double.nan]);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(_split(controller: controller));
+      expect(tester.takeException(), isNull);
+      expect(_listWidth(tester), closeTo(300, 1));
+      await _tab(tester);
+      await _press(tester, LogicalKeyboardKey.arrowRight);
+      expect(tester.takeException(), isNull);
+      expect(_listWidth(tester), closeTo(316, 1));
     });
 
     testWidgets('R22: a drag notifies once at its end and never during its '

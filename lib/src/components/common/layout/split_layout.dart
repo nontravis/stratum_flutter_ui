@@ -107,7 +107,9 @@ typedef SplitDividerBuilder = Widget Function(
 /// collapsed. A move stores only the two panes beside the moved divider,
 /// so every other entry, a hidden pane's or one a narrow window clamps,
 /// stays as chosen. A list whose length differs from the panes' applies to
-/// none.
+/// none. A kept value is data, not misuse: an entry that is not a finite
+/// number of at least 0, such as NaN or infinity read back from storage,
+/// reads as null in every build (US-21 FR-02 E06).
 ///
 /// It notifies only when a resize settles: a drag's end, one arrow-key,
 /// Home, or End step, a slider action, or a set from code that changes
@@ -131,15 +133,10 @@ class SplitLayoutController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// An unmodifiable copy of [value].
-  static List<double?>? _held(List<double?>? value) {
-    assert(
-      value == null ||
-          value.every((entry) => entry == null || entry.isFinite && entry >= 0),
-      'Every fraction is null or a finite number of at least 0.',
-    );
-    return value == null ? null : List.unmodifiable(value);
-  }
+  /// An unmodifiable copy of [value], each entry that is not a finite
+  /// number of at least 0 read as null.
+  static List<double?>? _held(List<double?>? value) =>
+      value == null ? null : List.unmodifiable(value.map(_usableFraction));
 }
 
 /// One pane of a [SplitLayout]: its [child] and its size along the split
@@ -210,6 +207,7 @@ class SplitLayout extends StatefulWidget {
     this.controller,
     this.dividerLabel,
     this.dividerBuilder,
+    @internal this.endPrimary = false,
   });
 
   /// The panes from the start side; a null pane does not show.
@@ -230,6 +228,16 @@ class SplitLayout extends StatefulWidget {
 
   /// Paints each divider over its seam; null paints nothing.
   final SplitDividerBuilder? dividerBuilder;
+
+  /// Whether each divider speaks for the pane after it, the WAI-ARIA window
+  /// splitter's primary pane, as `PageLayout`'s `right` divider does for its
+  /// side pane (US-19 FR-06): End then takes that pane to its maximum and
+  /// Home to its minimum, and the slider reads its share and widens it by
+  /// increase. False keeps all of this on the pane before the divider. The
+  /// arrow keys move by screen direction either way (layout s03 invariant
+  /// 75). Kept inside the package.
+  @internal
+  final bool endPrimary;
 
   @override
   State<SplitLayout> createState() => _SplitLayoutState();
@@ -274,6 +282,11 @@ class _SplitLayoutState extends State<SplitLayout> {
       widget.controller ?? (_ownController ??= SplitLayoutController());
 
   bool get _horizontal => widget.axis == Axis.horizontal;
+
+  /// The sign of a move toward the end side that widens each divider's
+  /// primary pane: 1 for the pane before it, -1 under
+  /// [SplitLayout.endPrimary].
+  double get _widen => widget.endPrimary ? -1 : 1;
 
   /// The platform's minimum target size across the seam.
   double get _hitExtent {
@@ -396,8 +409,7 @@ class _SplitLayoutState extends State<SplitLayout> {
     final pair = drawn[divider] + drawn[divider + 1];
     if (total <= 0 || pair <= 0) return;
     final panes = widget.panes;
-    final old = _controller.fractions;
-    final kept = old != null && old.length == panes.length ? old : null;
+    final kept = _usableFractions(_controller.fractions, panes.length);
     final next = <double?>[for (var i = 0; i < panes.length; i++) kept?[i]];
     final start = areas[divider].pane;
     final end = areas[divider + 1].pane;
@@ -569,7 +581,7 @@ class _SplitLayoutState extends State<SplitLayout> {
 
   /// Moves divider [divider] by a key along the axis: an arrow steps by
   /// screen direction, [_largeStep] with Shift held, and Home and End take
-  /// the start pane to its minimum and maximum. Every other key passes on.
+  /// the primary pane to its minimum and maximum. Every other key passes on.
   KeyEventResult _onKey(int divider, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final step = HardwareKeyboard.instance.isShiftPressed ? _largeStep : _step;
@@ -580,8 +592,8 @@ class _SplitLayoutState extends State<SplitLayout> {
       LogicalKeyboardKey.arrowLeft when _horizontal => _mirrored ? step : -step,
       LogicalKeyboardKey.arrowDown when !_horizontal => step,
       LogicalKeyboardKey.arrowUp when !_horizontal => -step,
-      LogicalKeyboardKey.home => double.negativeInfinity,
-      LogicalKeyboardKey.end => double.infinity,
+      LogicalKeyboardKey.home => -_widen * double.infinity,
+      LogicalKeyboardKey.end => _widen * double.infinity,
       _ => null,
     };
     if (delta == null) return KeyEventResult.ignored;
@@ -653,10 +665,16 @@ class _SplitLayoutState extends State<SplitLayout> {
     final areas = _startAreas();
     final sizes = _drawn();
     final total = sizes.fold(0.0, (sum, size) => sum + size);
-    String percent(double start) =>
-        '${(total > 0 ? start / total * 100 : 0).round()}%';
+    final pair = sizes[divider] + sizes[divider + 1];
+    // The primary pane's share once the start pane is drawn [start] wide.
+    String percent(double start) {
+      final primary = widget.endPrimary ? pair - start : start;
+      return '${(total > 0 ? primary / total * 100 : 0).round()}%';
+    }
+
     double stepped(double delta) =>
         _stepped(areas, divider, sizes[divider], sizes[divider + 1], delta);
+    final step = _widen * _step;
     return _Seam(
       axis: widget.axis,
       offset: offset,
@@ -666,10 +684,10 @@ class _SplitLayoutState extends State<SplitLayout> {
       order: areas[divider].pane + 0.5,
       label: label,
       value: percent(sizes[divider]),
-      increasedValue: percent(stepped(_step)),
-      decreasedValue: percent(stepped(-_step)),
-      onIncrease: () => _move(divider, _step),
-      onDecrease: () => _move(divider, -_step),
+      increasedValue: percent(stepped(step)),
+      decreasedValue: percent(stepped(-step)),
+      onIncrease: () => _move(divider, step),
+      onDecrease: () => _move(divider, -step),
       focusNode: _dividerNode(divider),
       onKey: (event) => _onKey(divider, event),
       generation: _generation,
@@ -680,6 +698,18 @@ class _SplitLayoutState extends State<SplitLayout> {
     );
   }
 }
+
+/// [entry] when it is a finite number of at least 0, else null.
+double? _usableFraction(double? entry) =>
+    entry != null && entry.isFinite && entry >= 0 ? entry : null;
+
+/// [fractions] as a [count]-pane split reads them: null unless it holds one
+/// entry per pane, and each entry [_usableFraction] allows, so a controller
+/// that hands over a value it never checked still lays out finite sizes.
+List<double?>? _usableFractions(List<double?>? fractions, int count) =>
+    fractions == null || fractions.length != count
+    ? null
+    : [for (final entry in fractions) _usableFraction(entry)];
 
 /// Whether [a] and [b] hold the same panes in the same order, at sizes
 /// within [_tolerance] and with the same limits.
@@ -712,9 +742,7 @@ List<_PaneArea> _resolve(
     for (var i = 0; i < panes.length; i++)
       if (panes[i] case final pane?) (index: i, pane: pane),
   ];
-  final entries = fractions != null && fractions.length == panes.length
-      ? fractions
-      : null;
+  final entries = _usableFractions(fractions, panes.length);
   final sized = shown.fold(0.0, (sum, s) => sum + (s.pane.size ?? 0));
   final flexSum = shown.fold(
     0.0,

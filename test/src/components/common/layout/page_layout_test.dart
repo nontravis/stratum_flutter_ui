@@ -375,10 +375,12 @@ void main() {
       expect(_rect(tester, 'row 29').bottom, 844 - 34);
     });
 
-    testWidgets('us18/fr04/e03: safeArea top false drops the top padding of '
-        'every slot and its children', (tester) async {
+    testWidgets('R20: us18/fr04/e03: safeArea top false drops the top padding '
+        "of every slot, while the top slot's children keep the inset to pad "
+        'themselves', (tester) async {
       _view(tester, size: _phone, padding: statusBar);
       late EdgeInsets headerPadding;
+      late EdgeInsets topPadding;
       await tester.pumpWidget(
         _host(
           PageLayout(
@@ -388,13 +390,75 @@ void main() {
                 return _slot('header');
               },
             ),
+            top: Builder(
+              builder: (context) {
+                topPadding = MediaQuery.paddingOf(context);
+                return _slot('top');
+              },
+            ),
             safeArea: const PageSafeArea(top: false),
             body: const Text('b'),
           ),
         ),
       );
       expect(_rect(tester, 'header').top, 0);
-      expect(headerPadding.top, 0);
+      expect(headerPadding.top, 44);
+      expect(topPadding.top, 0);
+    });
+
+    testWidgets('R20: us18/fr04/e03: safeArea bottom false leaves the body '
+        'list the bottom inset to pad itself', (tester) async {
+      _view(tester, size: _phone, padding: statusBar);
+      late EdgeInsets bodyPadding;
+      await tester.pumpWidget(
+        _host(
+          PageLayout(
+            header: _slot('header'),
+            safeArea: const PageSafeArea(bottom: false),
+            body: Builder(
+              builder: (context) {
+                bodyPadding = MediaQuery.paddingOf(context);
+                return const SizedBox.expand();
+              },
+            ),
+          ),
+        ),
+      );
+      expect(bodyPadding, const EdgeInsets.only(bottom: 34));
+    });
+
+    testWidgets('R20: us18/fr04/e06: under RTL a false left flag leaves the '
+        "start inset, on the right edge, to left's children", (tester) async {
+      _view(
+        tester,
+        size: const Size(1024, 768),
+        padding: const FakeViewPadding(right: 44),
+      );
+      late EdgeInsets leftPadding;
+      late EdgeInsets bodyPadding;
+      await tester.pumpWidget(
+        _host(
+          PageLayout(
+            safeArea: const PageSafeArea(left: false),
+            left: Builder(
+              builder: (context) {
+                leftPadding = MediaQuery.paddingOf(context);
+                return const Text('left');
+              },
+            ),
+            body: Builder(
+              builder: (context) {
+                bodyPadding = MediaQuery.paddingOf(context);
+                return const Text('body');
+              },
+            ),
+          ),
+          direction: TextDirection.rtl,
+        ),
+      );
+      expect(_rect(tester, 'left').right, 1024);
+      expect(leftPadding, const EdgeInsets.only(right: 44));
+      expect(bodyPadding, EdgeInsets.zero);
     });
 
     testWidgets('us18/s5: us18/fr04/e04: a nested page adds no second top '

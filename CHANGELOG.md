@@ -208,12 +208,14 @@
   slider labeled by `dividerLabel` or the built-in "Resize panes"; `resizable: false` turns this off. An optional
   `SplitLayoutController` holds each pane's chosen fraction (null for a pane with none yet), restores it from its
   constructor, takes one set from code, and notifies once per settled move, never per drag frame or on a window
-  clamp; a move stores only the two panes beside the moved divider.
+  clamp; a move stores only the two panes beside the moved divider, and a kept entry that is NaN, infinite, or
+  negative reads as null.
 - The package depends on `multi_split_view` (`^3.6.2`) for `SplitLayout`'s layout and pane limits.
 - New `PageLayout`, a page of nine optional slots, `header`, `left`, `top`, `tab`, `body`, `bottom`, `right`, `footer`,
   and a floating `snack`, in the Figma page geometry, mirrored under right-to-left text. Edge slots fill under the
-  system insets while their content pads by them, as `safeArea: PageSafeArea(top:, bottom:, left:, right:)` allows,
-  and a nested page pads nothing twice; with `resizeToAvoidKeyboard` (default `true`) the page above `footer` ends at
+  system insets while their content pads by them, as `safeArea: PageSafeArea(top:, bottom:, left:, right:)` allows
+  (a false flag stops the padding and leaves the inset to that slot's children), and a nested page pads nothing
+  twice; with `resizeToAvoidKeyboard` (default `true`) the page above `footer` ends at
   the keyboard's top. `loading: true` blocks taps and keyboard focus behind a layer read as "Loading", drawn by
   `loadingBuilder` or a plain spinner, and returns focus once it ends. A `PageLayoutStyle customStyle` restyles each
   slot over the theme and the app-wide parts style. `PageLayout.of(context)` returns a `PageLayoutController`
@@ -230,7 +232,9 @@
   `SplitLayout` panes the EndUser resizes within `PageSide.minWidth` and `maxWidth`, opening at the Figma side
   widths (`left` 280 and `right` 380 at `bigDesktop`, 260 and 320 below) until a width is chosen; new
   `minCenterWidth` (default 320) keeps the center column at least that wide. The `PageLayoutController` receives
-  each settled width as `leftWidth` or `rightWidth`, and new `leftDividerBuilder` and `rightDividerBuilder` paint
-  the dividers, which paint nothing by default. New `rightAsOverlay` opens `right` there instead as a front
-  drawer over a scrim, 450 px wide at `bigDesktop` and 400 px below, with a close button. A drawer open as the window
-  crosses into inline panes closes and reports null after that frame.
+  each settled width as `leftWidth` or `rightWidth`, reading a kept width that is NaN, infinite, or negative as null.
+  Home, End, and the slider on either divider act on its side pane, while the arrows move by screen direction. New
+  `leftDividerBuilder` and `rightDividerBuilder` paint the dividers, which paint nothing by default. New
+  `rightAsOverlay` opens `right` there instead as a front drawer over a scrim, 450 px wide at `bigDesktop` and 400 px
+  below, with a close button. A drawer open as the window crosses into inline panes closes and reports null after
+  that frame.

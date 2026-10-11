@@ -13,11 +13,12 @@ import 'package:stratum_ui/src/src.dart';
 /// (US-18 FR-04): Figma's `safeStatusBar` is [top] and its `safeIndicator`
 /// is [bottom].
 ///
-/// A false flag drops that side's padding from every slot, and the slots'
-/// children read no inset on that side either, while every slot fill still
-/// runs to the screen edge. [left] and [right] name the sides the `left`
-/// and `right` slots sit on, the start and end sides, so under
-/// [TextDirection.rtl] [left] is the right edge.
+/// A false flag drops that side's padding from every slot, while every slot
+/// fill still runs to the screen edge, and a slot touching that edge keeps
+/// the inset in its children's media data, as `SafeArea(top: false)` does,
+/// so the app's content there may pad for it (R20). [left] and [right] name
+/// the sides the `left` and `right` slots sit on, the start and end sides,
+/// so under [TextDirection.rtl] [left] is the right edge.
 @immutable
 class PageSafeArea {
   const new({
@@ -164,7 +165,10 @@ class PageLayoutStyle {
 /// `PageLayout.onDrawerChanged`. [leftWidth] and [rightWidth] hold the
 /// EndUser's chosen widths, never the window-clamped widths the page draws;
 /// null means none is chosen. Pass kept widths to the constructor to
-/// restore them, and set them from code. It notifies only when a set
+/// restore them, and set them from code. A kept width is data, not misuse:
+/// one that is not a finite number of at least 0, such as NaN or infinity
+/// read back from storage, reads as null in every build (US-19 FR-06 E11).
+/// It notifies only when a set
 /// changes a width: from code, or once a pane resize settles; never per
 /// drag frame, never when a window clamp changes only the drawn width, and
 /// never for a drawer. A [PageLayout] given none makes its own, as a
@@ -189,8 +193,9 @@ class PageLayoutController extends ChangeNotifier {
   double? get leftWidth => _leftWidth;
 
   set leftWidth(double? value) {
-    if (_checked(value) == _leftWidth) return;
-    _leftWidth = value;
+    final checked = _checked(value);
+    if (checked == _leftWidth) return;
+    _leftWidth = checked;
     notifyListeners();
   }
 
@@ -198,8 +203,9 @@ class PageLayoutController extends ChangeNotifier {
   double? get rightWidth => _rightWidth;
 
   set rightWidth(double? value) {
-    if (_checked(value) == _rightWidth) return;
-    _rightWidth = value;
+    final checked = _checked(value);
+    if (checked == _rightWidth) return;
+    _rightWidth = checked;
     notifyListeners();
   }
 
@@ -216,13 +222,9 @@ class PageLayoutController extends ChangeNotifier {
   /// nothing and reports nothing while no drawer is open (US-19 FR-03 E02).
   void close() => _layout?._close();
 
-  static double? _checked(double? width) {
-    assert(
-      width == null || (width.isFinite && width >= 0),
-      'A pane width is a finite number of at least 0.',
-    );
-    return width;
-  }
+  /// [width] when it is a finite number of at least 0, else null.
+  static double? _checked(double? width) =>
+      width != null && width.isFinite && width >= 0 ? width : null;
 }
 
 /// A page's slots in the geometry of the Figma page layout (US-18 FR-01):
@@ -492,6 +494,11 @@ class _PageLayoutState extends State<PageLayout>
   /// The route a `page` drawer opened, while it shows.
   Route<void>? _pageRoute;
 
+  /// Bumped after each frame in which the app rebuilt this page while a
+  /// `page` drawer shows; its route listens, since it keeps its page built
+  /// and so would show the slots it opened with (US-18 FR-02 E05).
+  final _pageBuilds = ValueNotifier<int>(0);
+
   /// The splits of `left` beside the main column and of the center column
   /// beside `right`: each hears its EndUser's settled moves, which the page
   /// hands to the controller as widths.
@@ -535,6 +542,7 @@ class _PageLayoutState extends State<PageLayout>
     _swapController(oldWidget.controller);
     if (widget.loading != oldWidget.loading) _moveFocusForLoading();
     _closeDrawerGoneInline();
+    _rebuildDrawerPage();
   }
 
   @override
@@ -543,6 +551,7 @@ class _PageLayoutState extends State<PageLayout>
     _ownController?.dispose();
     _drawer.dispose();
     _drawerView.dispose();
+    _pageBuilds.dispose();
     _drawerFocus.dispose();
     _slotsNode.dispose();
     _leftSplit.dispose();
@@ -813,11 +822,15 @@ class _PageLayoutState extends State<PageLayout>
     });
   }
 
-  /// Pushes [side]'s content as a page through the app's page transitions;
-  /// once it pops, the drawer reads closed (US-19 FR-02 E03).
+  /// Pushes [side]'s content as a page through the app's page transitions,
+  /// rebuilt each time the app rebuilds this page; once it pops, the drawer
+  /// reads closed (US-19 FR-02 E03).
   void _pushPage(NavigatorState navigator, PageDrawerSide side) {
     final route = MaterialPageRoute<void>(
-      builder: (_) => Builder(builder: (context) => _drawerPage(context, side)),
+      builder: (_) => ValueListenableBuilder<int>(
+        valueListenable: _pageBuilds,
+        builder: (context, _, _) => _drawerPage(context, side),
+      ),
     );
     _pageRoute = route;
     unawaited(
@@ -1069,6 +1082,16 @@ class _PageLayoutState extends State<PageLayout>
     );
   }
 
+  /// Rebuilds the shown `page` drawer's content with the app's new slots
+  /// once this frame ends: its route lives outside this subtree, so marking
+  /// it during this build would assert (US-18 FR-02 E05).
+  void _rebuildDrawerPage() {
+    if (_pageRoute == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _pageRoute != null) _pageBuilds.value++;
+    });
+  }
+
   /// Closes the `page` drawer shown at the route's [context] by the
   /// controller's close path, with one report; once the page that opened it
   /// is gone, the route pops itself.
@@ -1144,6 +1167,10 @@ class _PageLayoutState extends State<PageLayout>
   /// none, as one [SplitLayout] at Tab [order], its divider painted by the
   /// side's divider builder (layout s03 invariants 61 and 69; R17).
   ///
+  /// The divider's Home, End, and slider speak for [pane], the WAI-ARIA
+  /// window splitter's primary pane, so `right`'s split passes its end pane
+  /// as primary (US-19 FR-06 E02).
+  ///
   /// The pane opens at the controller's chosen width, so a width set from
   /// code moves it, with no rebuild of any slot. The split stays in the tree
   /// on both sides of the drawer cut, with the pane null below it, so
@@ -1181,6 +1208,7 @@ class _PageLayoutState extends State<PageLayout>
                   : widget.minCenterWidth;
               final columnPane = SplitPane(min: keep, child: column);
               return SplitLayout(
+                endPrimary: !start,
                 controller: start ? _leftSplit : _rightSplit,
                 dividerBuilder: start
                     ? widget.leftDividerBuilder
@@ -1197,12 +1225,17 @@ class _PageLayoutState extends State<PageLayout>
   /// The width [side]'s inline pane opens at: the controller's chosen
   /// width, else the Figma width of [side] at the window size; the split
   /// bounds either by the side's width bounds and the window.
+  ///
+  /// A chosen width that is not a finite number of at least 0 reads as
+  /// none here too, so a controller whose getter skips the check still
+  /// lays out (US-19 FR-06 E11).
   double _paneWidth(PageDrawerSide side) {
     final chosen = switch (side) {
       PageDrawerSide.left => _controller.leftWidth,
       PageDrawerSide.right => _controller.rightWidth,
     };
-    return chosen ?? inlinePaneWidth(side, _windowSize);
+    return PageLayoutController._checked(chosen) ??
+        inlinePaneWidth(side, _windowSize);
   }
 
   /// The least width of the main column beside `left` in a split [extent]
@@ -1356,9 +1389,11 @@ class _PageLayoutState extends State<PageLayout>
   /// style.
   ///
   /// [PageLayout.body] pads by none of its top and bottom insets: its
-  /// children read them, so a scroll view pads by them as it scrolls. Every
-  /// other inset is removed for the slot's children, and so is the
-  /// keyboard while the page makes room for it.
+  /// children read them, so a scroll view pads by them as it scrolls. A
+  /// touched edge whose [PageLayout.safeArea] flag is false pads nothing
+  /// either, and the slot's children read its inset too. Every other inset
+  /// is removed for the slot's children, and so is the keyboard while the
+  /// page makes room for it (layout s03 invariant 64).
   Widget _slotBox(
     _Slot slot,
     Widget child,
@@ -1368,6 +1403,7 @@ class _PageLayoutState extends State<PageLayout>
   }) {
     final touched = edges ?? _edgesOf(slot);
     final isBody = slot == _Slot.body;
+    final safe = widget.safeArea;
     final pad = look.insets;
     final padding = EdgeInsetsDirectional.only(
       top: touched.top && !isBody ? pad.top : 0,
@@ -1384,8 +1420,12 @@ class _PageLayoutState extends State<PageLayout>
           padding: (box.padding ?? EdgeInsets.zero).add(padding),
         ),
         child: _SlotMedia(
-          keepTop: isBody && touched.top && pad.top > 0,
-          keepBottom: isBody && touched.bottom && pad.bottom > 0,
+          keep: (
+            top: touched.top && (isBody || !safe.top),
+            bottom: touched.bottom && (isBody || !safe.bottom),
+            start: touched.start && !safe.left,
+            end: touched.end && !safe.right,
+          ),
           removeKeyboard: widget.resizeToAvoidKeyboard,
           child: Material(
             type: MaterialType.transparency,
@@ -1445,35 +1485,35 @@ class _DrawerReader extends StatelessWidget {
 }
 
 /// [child] under its context's media data with the padding of every side
-/// removed but the top under [keepTop] and the bottom under [keepBottom],
-/// and with the keyboard's bottom view inset removed under
-/// [removeKeyboard], so a nested page pads and shrinks nothing twice
-/// (US-18 FR-04 E04, FR-05 E03).
+/// removed but the sides [keep] names, from the start, and with the
+/// keyboard's bottom view inset removed under [removeKeyboard], so a nested
+/// page pads and shrinks nothing twice (US-18 FR-04 E03, E04, FR-05 E03).
 class _SlotMedia extends StatelessWidget {
   const new({
-    required this.keepTop,
-    required this.keepBottom,
+    required this.keep,
     required this.removeKeyboard,
     required this.child,
   });
 
-  final bool keepTop;
-  final bool keepBottom;
+  final _Edges keep;
   final bool removeKeyboard;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => MediaQuery(
-    data: MediaQuery.of(context)
-        .removePadding(
-          removeLeft: true,
-          removeTop: !keepTop,
-          removeRight: true,
-          removeBottom: !keepBottom,
-        )
-        .removeViewInsets(removeBottom: removeKeyboard),
-    child: child,
-  );
+  Widget build(BuildContext context) {
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    return MediaQuery(
+      data: MediaQuery.of(context)
+          .removePadding(
+            removeLeft: !(rtl ? keep.end : keep.start),
+            removeTop: !keep.top,
+            removeRight: !(rtl ? keep.start : keep.end),
+            removeBottom: !keep.bottom,
+          )
+          .removeViewInsets(removeBottom: removeKeyboard),
+      child: child,
+    );
+  }
 }
 
 /// The layer that blocks a [PageLayout] while [loading] (US-18 FR-06):

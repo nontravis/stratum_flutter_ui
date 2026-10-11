@@ -704,7 +704,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   fractions (one per pane in `panes`, a null pane included; a null entry is a pane with no choice yet, which opens
   at its own `size` or `flex`), listen to it to save `controller.fractions`, and set
   `controller.fractions = [...]` from code. It notifies once per settled move (a drag's end, one key step, a slider
-  action, or a code set), never per drag frame and never when a narrow window only squeezes the panes. With no
+  action, or a code set), never per drag frame and never when a narrow window only squeezes the panes. A saved entry
+  that is NaN, infinite, or negative reads as null, so a corrupt value opens the pane at its own size. With no
   controller the split makes and disposes its own; it never disposes one you pass.
 
 ## Page layout
@@ -720,7 +721,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 - **Insets** — every slot that touches a screen edge runs its fill under the status bar, home indicator, or side
   inset while its content pads by it; `body` instead hands its top and bottom insets to its children, so a body
   `ListView` scrolls under the home indicator with its last row clear. `safeArea: PageSafeArea(top: false)` turns a
-  side off (`left` and `right` name the start and end sides). A nested `PageLayout` pads nothing twice.
+  side's padding off (`left` and `right` name the start and end sides); the slot on that edge still hands the inset
+  to its children, so a `SafeArea` or an `AppBar` inside pads itself. A nested `PageLayout` pads nothing twice.
 - **Keyboard** — the page above `footer` ends at the keyboard's top, so `bottom` rides above it and `footer` stays
   docked under it; `resizeToAvoidKeyboard: false` lets the keyboard cover the page.
 - **Loading** — `loading: true` fades in a layer that refuses taps and keyboard focus and reads as "Loading"; focus
@@ -739,7 +741,9 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   new page that sits outside the `PageLayout`, so close it with `Navigator.pop`, never `PageLayout.of`. A drawer open
   when the window grows past the cut closes (`onDrawerChanged` hears null after that frame) and the side shows inline.
 - **Side panes** — at the cut and up, `left` and `right` sit beside the center column as `SplitLayout` panes the
-  EndUser resizes by drag, arrow keys, Home, and End, within the side's `minWidth` and `maxWidth`. Nothing paints
+  EndUser resizes by drag, arrow keys, Home, and End, within the side's `minWidth` and `maxWidth`; on either divider
+  End widens the side pane to its maximum, Home narrows it to its minimum, and the slider reads its share, while
+  the arrows move by screen direction. Nothing paints
   between a pane and the center column; paint a line with `leftDividerBuilder:` or `rightDividerBuilder:`, the same
   `(context, state)` shape as `SplitLayout.dividerBuilder`. A pane opens at the controller's chosen width, else at
   Figma's (`left` 280 and `right` 380 at `bigDesktop`; 260 and 320 below). The center column keeps at least
@@ -749,8 +753,9 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 - **Controller** — `PageLayout.of(context)` returns the page's `PageLayoutController`, which opens and closes its
   drawers; pass your own `PageLayoutController(leftWidth:, rightWidth:)` to restore kept side pane widths, listen to
   it to save `leftWidth` and `rightWidth`, and set them from code. It notifies once per settled resize (a drag's end,
-  a key step, or a code set), never per drag frame and never when a narrow window only squeezes a pane. The page
-  disposes only the one it makes.
+  a key step, or a code set), never per drag frame and never when a narrow window only squeezes a pane. A saved
+  width that is NaN, infinite, or negative reads as null, so a corrupt value opens Figma's width. The page disposes
+  only the one it makes.
 
 ## Hover and focus observers
 
