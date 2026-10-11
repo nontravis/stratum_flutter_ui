@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- New: `SystemStyleScope(style:, child:)` sets the system bar style of the screen, or the part of it, that its child
+  paints, over the app-wide style, on any screen and any router: its look fields apply at a bar whose point the child
+  covers, and its `barMode`, `orientations`, and `appSwitcherLabel` apply while the child paints, so a dialog over the
+  page keeps them, a page with no style that covers it takes the app-wide style, and going back restores them with no
+  restore code. Scopes nest, the inner one winning field by field. `SystemBarFill(color:, child:)` declares the color,
+  alpha included, that its child paints under a bar, so `auto` icons pick against it; a translucent fill blends over
+  the fills beneath it. Neither widget paints, adds a semantics node, takes focus, or handles a gesture; a bar color a
+  scope sets, the theme application paints under the bar.
 - New: `StratumThemeApplication(systemStyle:)` and `StratumThemeApplication.controlled(systemStyle:)` take the
   app-wide `SystemStyle`, the layer over the theme's `system` set: any look field, plus `barMode` (`SystemBarMode`:
   `edgeToEdge`, `immersive`, `immersiveSticky`, `leanBack`, `topOnly`, `bottomOnly`), `orientations`, and

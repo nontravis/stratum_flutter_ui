@@ -610,6 +610,17 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   theme's page background; with no label set, the app widget's `title` shows. On the web only the label and
   `appSwitcherColor`, the browser theme color, apply; the bar mode and the rotation lock apply on Android and iOS
   only, and a platform that ignores a setting shows no error.
+- **Per page** — wrap any screen, or a part of it, in `SystemStyleScope(style: SystemStyle(...), child: ...)`, with
+  or without a page layout and on any router: its look fields apply at a bar its child covers, and its `barMode`,
+  `orientations`, and `appSwitcherLabel` apply while its child paints. A dialog or sheet over the page keeps them, a
+  pushed page with no scope returns to the app-wide style, and pop restores the page's own, with no
+  `NavigatorObserver` and no restore code; only the shown tab of an `IndexedStack` counts. An inner scope wins field
+  by field over an outer one. Pass the label in the user's language (FO-09).
+- **Fill under a bar** — wrap every surface that paints under the status bar or the navigation bar, such as a
+  header, a full-screen video, or a translucent scrim, in `SystemBarFill(color: <the color it paints>, child: ...)`,
+  so `auto` icons pick the color of higher contrast against it. A translucent color blends over the fills beneath it.
+  Neither `SystemStyleScope` nor `SystemBarFill` paints, adds a semantics node, takes focus, or handles a gesture; a
+  bar color a scope sets, the application paints under the bar.
 
 ## Page transitions
 

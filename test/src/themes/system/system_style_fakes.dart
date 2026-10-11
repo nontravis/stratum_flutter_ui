@@ -146,3 +146,21 @@ Color latestStatusIconColor() =>
     SystemChrome.latestStyle?.statusBarIconBrightness == Brightness.light
     ? const Color(0xFFFFFFFF)
     : const Color(0xFF000000);
+
+/// A page body that paints [color] under the status bar, a
+/// [statusBarHeight] header, declared with `SystemBarFill`.
+Widget headerPage(Color color, {Widget? body}) => ColumnLayout(
+  children: [
+    SystemBarFill(
+      color: color,
+      child: ColoredBox(
+        color: color,
+        child: const SizedBox(
+          width: double.infinity,
+          height: statusBarHeight + 32,
+        ),
+      ),
+    ),
+    Expanded(child: body ?? const SizedBox()),
+  ],
+);
