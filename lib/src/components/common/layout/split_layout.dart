@@ -257,16 +257,10 @@ class _SplitLayoutState extends State<SplitLayout> {
   /// The controller the split made, while the app passes none.
   SplitLayoutController? _ownController;
 
-  /// The divider the EndUser drags, from the start side; null between
-  /// drags.
-  final _dragging = ValueNotifier<int?>(null);
-
-  /// The running drag's pointer position along the axis at its start, and
-  /// the two neighbors' sizes then.
-  ({double origin, double start, double end})? _dragFrom;
-
-  /// What the hit layer redraws for: the engine's sizes and the drag.
-  late final _layerChanges = Listenable.merge([_engine, _dragging]);
+  /// Counts the area sets the split hands the engine from its own layout:
+  /// a new pane set, window size, or chosen fraction. A running drag
+  /// started under an older count restarts from the new sizes.
+  int _generation = 0;
 
   /// The traversal policy above the split, and the ordered one built over
   /// it that puts each pane before its divider and the next pane.
@@ -314,7 +308,6 @@ class _SplitLayoutState extends State<SplitLayout> {
     _controller.removeListener(_onChosen);
     _ownController?.dispose();
     _engine.dispose();
-    _dragging.dispose();
     for (final node in _dividerNodes) {
       node.dispose();
     }
@@ -376,7 +369,7 @@ class _SplitLayoutState extends State<SplitLayout> {
               ),
               Positioned.fill(
                 child: ListenableBuilder(
-                  listenable: _layerChanges,
+                  listenable: _engine,
                   builder: (context, _) => _seams(hit: hit, label: label),
                 ),
               ),
@@ -445,6 +438,7 @@ class _SplitLayoutState extends State<SplitLayout> {
     if (pushed != null && _sameAreas(pushed, target)) return;
     _pushed = target;
     if (_sameAreas(_engineAreas(), target)) return;
+    _generation++;
     _engine.areas = [
       for (final area in target)
         Area(id: area.pane, flex: area.size, min: area.min, max: area.max),
@@ -537,49 +531,40 @@ class _SplitLayoutState extends State<SplitLayout> {
     if (_place(divider, start, end)) _settle(divider);
   }
 
-  /// Starts a drag of divider [divider] with the pointer at [position]
-  /// along the axis.
-  void _onDragStart(int divider, double position) {
+  /// The drawn sizes of the panes beside divider [divider].
+  ({double start, double end}) _pair(int divider) {
     final sizes = _drawn();
-    _dragFrom = (
-      origin: position,
-      start: sizes[divider],
-      end: sizes[divider + 1],
-    );
-    _dragging.value = divider;
+    return (start: sizes[divider], end: sizes[divider + 1]);
   }
 
-  /// Follows the pointer at [position]: the divider sits where the pointer
-  /// moved it from the drag's start, within both neighbors' limits.
-  void _onDragUpdate(int divider, double position) {
-    final from = _dragFrom;
-    if (from == null) return;
-    final offset = (position - from.origin) * (_mirrored ? -1 : 1);
-    final start = _stepped(
+  /// Draws divider [divider] [offset] along the axis on screen from where a
+  /// drag found its panes at [start] and [end], within both neighbors'
+  /// limits.
+  void _dragTo(int divider, double start, double end, double offset) {
+    final moved = _stepped(
       _startAreas(),
       divider,
-      from.start,
-      from.end,
-      offset,
+      start,
+      end,
+      _mirrored ? -offset : offset,
     );
-    _place(divider, start, from.start + from.end - start);
+    _place(divider, moved, start + end - moved);
   }
 
-  /// Ends the drag of divider [divider], settling it when it moved.
-  void _onDragEnd(int divider) {
-    final from = _dragFrom;
-    _dragFrom = null;
-    _dragging.value = null;
-    if (from == null) return;
-    if ((_drawn()[divider] - from.start).abs() >= _tolerance) {
-      _settle(divider);
-    }
+  /// Settles a drag of divider [divider] that found its start pane at
+  /// [start], when the pane moved.
+  void _dragEnd(int divider, double start) {
+    if ((_drawn()[divider] - start).abs() >= _tolerance) _settle(divider);
   }
 
-  /// Drops a drag the gesture arena gave to a pane before it moved.
-  void _onDragCancel() {
-    _dragFrom = null;
-    _dragging.value = null;
+  /// Drops a drag whose seam left the tree before the pointer lifted: the
+  /// panes go back to their chosen sizes on the next frame, and the
+  /// controller hears nothing.
+  void _dragDiscard() {
+    _pushed = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   /// Moves divider [divider] by a key along the axis: an arrow steps by
@@ -605,8 +590,11 @@ class _SplitLayoutState extends State<SplitLayout> {
   }
 
   /// The hit layer: one seam per divider, [hit] across and centered on it,
-  /// over the panes; while a drag runs, a cover that keeps the resize
-  /// cursor and holds the panes' hover.
+  /// over the panes.
+  ///
+  /// A seam's key is its pair of panes and the axis, so a seam whose pair
+  /// changes or that resizing turns off leaves the tree, and its drag with
+  /// it.
   Widget _seams({required double hit, required String label}) {
     final areas = _engineAreas();
     final count = areas.length;
@@ -614,35 +602,51 @@ class _SplitLayoutState extends State<SplitLayout> {
     final cursor = _horizontal
         ? SystemMouseCursors.resizeColumn
         : SystemMouseCursors.resizeRow;
-    final children = <Widget>[
-      if (_dragging.value != null)
-        Positioned.fill(child: MouseRegion(cursor: cursor)),
-    ];
+    final children = <Widget>[];
     var seam = 0.0;
     for (var index = 0; index < count - 1; index++) {
       seam += sum > 0 ? areas[index].size * _space / sum : 0;
       final divider = _mirrored ? count - 2 - index : index;
+      final offset = seam - hit / 2;
       children.add(
-        Positioned(
-          key: ValueKey(divider),
-          left: _horizontal ? seam - hit / 2 : 0,
-          top: _horizontal ? 0 : seam - hit / 2,
-          right: _horizontal ? null : 0,
-          bottom: _horizontal ? 0 : null,
-          width: _horizontal ? hit : null,
-          height: _horizontal ? null : hit,
+        Positioned.fill(
+          key: ValueKey((
+            areas[index].pane,
+            areas[index + 1].pane,
+            widget.axis,
+          )),
           child: widget.resizable
-              ? _seam(divider, label: label, cursor: cursor)
-              : _Seam(axis: widget.axis, builder: widget.dividerBuilder),
+              ? _seam(
+                  divider,
+                  offset: offset,
+                  extent: hit,
+                  label: label,
+                  cursor: cursor,
+                )
+              : _strip(
+                  axis: widget.axis,
+                  offset: offset,
+                  extent: hit,
+                  child: Builder(
+                    builder: (context) => _painted(
+                      context,
+                      widget.dividerBuilder,
+                      const SplitDividerState(),
+                    ),
+                  ),
+                ),
         ),
       );
     }
     return StackLayout(clipBehavior: Clip.none, children: children);
   }
 
-  /// The seam between the shown panes [divider] and `divider + 1`.
+  /// The seam between the shown panes [divider] and `divider + 1`, its hit
+  /// area [extent] across from [offset].
   Widget _seam(
     int divider, {
+    required double offset,
+    required double extent,
     required String label,
     required MouseCursor cursor,
   }) {
@@ -655,8 +659,9 @@ class _SplitLayoutState extends State<SplitLayout> {
         _stepped(areas, divider, sizes[divider], sizes[divider + 1], delta);
     return _Seam(
       axis: widget.axis,
+      offset: offset,
+      extent: extent,
       builder: widget.dividerBuilder,
-      dragging: _dragging.value == divider,
       cursor: cursor,
       order: areas[divider].pane + 0.5,
       label: label,
@@ -667,10 +672,11 @@ class _SplitLayoutState extends State<SplitLayout> {
       onDecrease: () => _move(divider, -_step),
       focusNode: _dividerNode(divider),
       onKey: (event) => _onKey(divider, event),
-      onDragStart: (position) => _onDragStart(divider, position),
-      onDragUpdate: (position) => _onDragUpdate(divider, position),
-      onDragEnd: () => _onDragEnd(divider),
-      onDragCancel: _onDragCancel,
+      generation: _generation,
+      pair: () => _pair(divider),
+      onDragTo: (start, end, offset) => _dragTo(divider, start, end, offset),
+      onDragEnd: (start) => _dragEnd(divider, start),
+      onDragDiscard: _dragDiscard,
     );
   }
 }
@@ -795,42 +801,91 @@ List<double> _fit(
   return [for (final size in sizes) size * space / total];
 }
 
-/// One seam of the hit layer, the split's full length along it, painted
-/// by [builder].
+/// [child] as a seam's hit area: [extent] across the seam from [offset]
+/// and the split's full length along it, in a layer the split's size,
+/// over [behind], which fills that layer.
+Widget _strip({
+  required Axis axis,
+  required double offset,
+  required double extent,
+  required Widget child,
+  Widget? behind,
+}) {
+  final horizontal = axis == Axis.horizontal;
+  return StackLayout(
+    clipBehavior: Clip.none,
+    children: [
+      if (behind != null) Positioned.fill(child: behind),
+      Positioned(
+        left: horizontal ? offset : 0,
+        top: horizontal ? 0 : offset,
+        right: horizontal ? null : 0,
+        bottom: horizontal ? 0 : null,
+        width: horizontal ? extent : null,
+        height: horizontal ? null : extent,
+        child: child,
+      ),
+    ],
+  );
+}
+
+/// [builder]'s widget for [state], filling a seam; it takes no pointer and
+/// adds no semantics.
+Widget _painted(
+  BuildContext context,
+  SplitDividerBuilder? builder,
+  SplitDividerState state,
+) {
+  final painted = builder?.call(context, state);
+  return SizedBox.expand(
+    child: painted == null
+        ? null
+        : IgnorePointer(child: ExcludeSemantics(child: painted)),
+  );
+}
+
+/// One resizable seam of the hit layer, painted by [builder].
 ///
-/// With a [focusNode] it takes the drag through a translucent hit area, so
-/// a pane under it still takes a tap, a scroll, or a drag across the
-/// split's axis that the gesture arena gives it; it shows [cursor] on
-/// hover, is a Tab stop at [order] with the focus ring, and is a slider
-/// node. With none (resizing off) it only paints, and takes no pointer.
+/// It takes a drag along [axis] through a translucent hit area, so a pane
+/// under it still takes a tap, a scroll, or a drag across the axis that
+/// the gesture arena gives it; it shows [cursor] on hover, is a Tab stop at
+/// [order] with the focus ring, and is a slider node.
+///
+/// The seam owns its drag: it holds where the drag started, draws a cover
+/// over the split that keeps [cursor] and holds the panes' hover while the
+/// drag runs, and drops the drag when it leaves the tree before the
+/// pointer lifts.
 class _Seam extends StatefulWidget {
   const new({
     required this.axis,
+    required this.offset,
+    required this.extent,
     required this.builder,
-    this.dragging = false,
-    this.cursor = MouseCursor.defer,
-    this.order = 0,
-    this.label,
-    this.value,
-    this.increasedValue,
-    this.decreasedValue,
-    this.onIncrease,
-    this.onDecrease,
-    this.focusNode,
-    this.onKey,
-    this.onDragStart,
-    this.onDragUpdate,
-    this.onDragEnd,
-    this.onDragCancel,
+    required this.cursor,
+    required this.order,
+    required this.label,
+    required this.value,
+    required this.increasedValue,
+    required this.decreasedValue,
+    required this.onIncrease,
+    required this.onDecrease,
+    required this.focusNode,
+    required this.onKey,
+    required this.generation,
+    required this.pair,
+    required this.onDragTo,
+    required this.onDragEnd,
+    required this.onDragDiscard,
   });
 
   /// The split's axis; the seam runs across it.
   final Axis axis;
 
-  final SplitDividerBuilder? builder;
+  /// Where the hit area starts across the seam, and its size there.
+  final double offset;
+  final double extent;
 
-  /// Whether the EndUser drags this seam.
-  final bool dragging;
+  final SplitDividerBuilder? builder;
 
   final MouseCursor cursor;
 
@@ -838,24 +893,34 @@ class _Seam extends StatefulWidget {
   final double order;
 
   /// The slider node's label, value, and step values and actions.
-  final String? label;
-  final String? value;
-  final String? increasedValue;
-  final String? decreasedValue;
-  final VoidCallback? onIncrease;
-  final VoidCallback? onDecrease;
+  final String label;
+  final String value;
+  final String increasedValue;
+  final String decreasedValue;
+  final VoidCallback onIncrease;
+  final VoidCallback onDecrease;
 
-  final FocusNode? focusNode;
+  final FocusNode focusNode;
 
   /// Handles a key while [focusNode] holds focus.
-  final KeyEventResult Function(KeyEvent event)? onKey;
+  final KeyEventResult Function(KeyEvent event) onKey;
 
-  /// The drag's start and each move, with the pointer's global position
-  /// along [axis].
-  final ValueChanged<double>? onDragStart;
-  final ValueChanged<double>? onDragUpdate;
-  final VoidCallback? onDragEnd;
-  final VoidCallback? onDragCancel;
+  /// The split's layout generation; a drag started under another one
+  /// restarts from the panes' current sizes.
+  final int generation;
+
+  /// The drawn sizes of the two panes beside the seam.
+  final ({double start, double end}) Function() pair;
+
+  /// Draws the seam the given offset along the axis on screen from where
+  /// the drag found its panes.
+  final void Function(double start, double end, double offset) onDragTo;
+
+  /// Settles a drag that found its start pane at the given size.
+  final ValueChanged<double> onDragEnd;
+
+  /// Drops a drag the seam can no longer end.
+  final VoidCallback onDragDiscard;
 
   @override
   State<_Seam> createState() => _SeamState();
@@ -865,13 +930,25 @@ class _SeamState extends State<_Seam> {
   /// Whether a pointer rests over the seam.
   bool _hovered = false;
 
+  /// The running drag: the pointer along the axis and the two panes' sizes
+  /// where it started, under the split's layout [_Seam.generation], and
+  /// the pointer at the drag's last move.
+  ({double origin, double start, double end, int generation, double last})?
+  _from;
+
+  @override
+  void dispose() {
+    if (_from != null) widget.onDragDiscard();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final node = widget.focusNode;
-    if (node == null) return _painted(context, const SplitDividerState());
     final horizontal = widget.axis == Axis.horizontal;
     double along(Offset position) => horizontal ? position.dx : position.dy;
-    return MouseRegion(
+    final dragging = _from != null;
+    final hitArea = MouseRegion(
       cursor: widget.cursor,
       opaque: false,
       onEnter: (_) => setState(() => _hovered = true),
@@ -880,27 +957,21 @@ class _SeamState extends State<_Seam> {
         behavior: HitTestBehavior.translucent,
         dragStartBehavior: DragStartBehavior.down,
         onHorizontalDragStart: horizontal
-            ? (details) =>
-                  widget.onDragStart?.call(along(details.globalPosition))
+            ? (details) => _onStart(along(details.globalPosition))
             : null,
         onHorizontalDragUpdate: horizontal
-            ? (details) =>
-                  widget.onDragUpdate?.call(along(details.globalPosition))
+            ? (details) => _onUpdate(along(details.globalPosition))
             : null,
-        onHorizontalDragEnd: horizontal
-            ? (_) => widget.onDragEnd?.call()
-            : null,
-        onHorizontalDragCancel: horizontal ? widget.onDragCancel : null,
+        onHorizontalDragEnd: horizontal ? (_) => _onEnd() : null,
+        onHorizontalDragCancel: horizontal ? _onCancel : null,
         onVerticalDragStart: horizontal
             ? null
-            : (details) =>
-                  widget.onDragStart?.call(along(details.globalPosition)),
+            : (details) => _onStart(along(details.globalPosition)),
         onVerticalDragUpdate: horizontal
             ? null
-            : (details) =>
-                  widget.onDragUpdate?.call(along(details.globalPosition)),
-        onVerticalDragEnd: horizontal ? null : (_) => widget.onDragEnd?.call(),
-        onVerticalDragCancel: horizontal ? null : widget.onDragCancel,
+            : (details) => _onUpdate(along(details.globalPosition)),
+        onVerticalDragEnd: horizontal ? null : (_) => _onEnd(),
+        onVerticalDragCancel: horizontal ? null : _onCancel,
         child: Semantics(
           container: true,
           slider: true,
@@ -914,8 +985,7 @@ class _SeamState extends State<_Seam> {
             order: NumericFocusOrder(widget.order),
             child: Focus(
               focusNode: node,
-              onKeyEvent: (node, event) =>
-                  widget.onKey?.call(event) ?? KeyEventResult.ignored,
+              onKeyEvent: (node, event) => widget.onKey(event),
               child: ListenableBuilder(
                 listenable: node,
                 builder: (context, _) {
@@ -927,9 +997,10 @@ class _SeamState extends State<_Seam> {
                         : FullWidgetState.normal,
                     child: _painted(
                       context,
+                      widget.builder,
                       SplitDividerState(
-                        hovered: _hovered && !widget.dragging,
-                        dragging: widget.dragging,
+                        hovered: _hovered && !dragging,
+                        dragging: dragging,
                         focused: focused,
                       ),
                     ),
@@ -941,16 +1012,60 @@ class _SeamState extends State<_Seam> {
         ),
       ),
     );
+    // The cover stays in the tree, taking pointers only while the drag
+    // runs, so starting a drag never rebuilds the hit area under it.
+    return _strip(
+      axis: widget.axis,
+      offset: widget.offset,
+      extent: widget.extent,
+      behind: IgnorePointer(
+        ignoring: !dragging,
+        child: MouseRegion(cursor: widget.cursor),
+      ),
+      child: hitArea,
+    );
   }
 
-  /// [_Seam.builder]'s widget for [state], filling the seam; it takes no
-  /// pointer and adds no semantics.
-  Widget _painted(BuildContext context, SplitDividerState state) {
-    final painted = widget.builder?.call(context, state);
-    return SizedBox.expand(
-      child: painted == null
-          ? null
-          : IgnorePointer(child: ExcludeSemantics(child: painted)),
+  void _onStart(double position) {
+    final pair = widget.pair();
+    setState(
+      () => _from = (
+        origin: position,
+        start: pair.start,
+        end: pair.end,
+        generation: widget.generation,
+        last: position,
+      ),
     );
+  }
+
+  /// Follows the pointer at [position], restarting from the panes' current
+  /// sizes and the pointer's last move when the split laid them out anew
+  /// since then.
+  void _onUpdate(double position) {
+    final from = _from;
+    if (from == null) return;
+    final restart = from.generation != widget.generation;
+    final pair = restart ? widget.pair() : null;
+    final next = _from = (
+      origin: restart ? from.last : from.origin,
+      start: pair?.start ?? from.start,
+      end: pair?.end ?? from.end,
+      generation: widget.generation,
+      last: position,
+    );
+    widget.onDragTo(next.start, next.end, position - next.origin);
+  }
+
+  void _onEnd() {
+    final from = _from;
+    if (from == null) return;
+    setState(() => _from = null);
+    if (from.generation == widget.generation) widget.onDragEnd(from.start);
+  }
+
+  /// Drops a drag the gesture arena gave to a pane before it moved.
+  void _onCancel() {
+    if (_from != null) setState(() => _from = null);
   }
 }

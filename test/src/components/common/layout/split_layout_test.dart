@@ -1189,6 +1189,178 @@ void main() {
     });
   });
 
+  group('SplitLayout drag interrupted', () {
+    /// A list pane with a tap target in its middle beside the detail pane.
+    Widget host({
+      required SplitLayoutController controller,
+      required VoidCallback onTap,
+      bool resizable = true,
+      bool detail = true,
+    }) => _split(
+      controller: controller,
+      resizable: resizable,
+      panes: [
+        SplitPane(
+          size: 300,
+          min: 200,
+          max: 500,
+          child: Center(
+            child: GestureDetector(
+              onTap: onTap,
+              child: const SizedBox(width: 40, height: 40, child: Text('Tap')),
+            ),
+          ),
+        ),
+        if (detail) _detail() else null,
+      ],
+    );
+
+    double detailWidth(WidgetTester tester) =>
+        tester.getSize(find.text('Detail')).width;
+
+    /// Starts a drag on the divider and moves it 40 px toward the end.
+    Future<TestGesture> dragHalfway(WidgetTester tester) async {
+      final gesture = await tester.startGesture(tester.getCenter(_divider));
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      expect(detailWidth(tester), closeTo(660, 1));
+      return gesture;
+    }
+
+    /// Expects the split to take a tap and a divider drag again, the drag
+    /// notifying once more than [before].
+    Future<void> expectAlive(
+      WidgetTester tester,
+      List<int> notifies,
+      int before,
+    ) async {
+      await tester.dragFrom(tester.getCenter(_divider), const Offset(50, 0));
+      await tester.pumpAndSettle();
+      expect(detailWidth(tester), closeTo(650, 1));
+      expect(notifies.single, before + 1);
+    }
+
+    testWidgets('us21/fr02/e04: resizing turned off mid-drag ends the drag '
+        'with no notify, and the split takes taps and drags again', (
+      tester,
+    ) async {
+      _view(tester);
+      final notifies = [0];
+      final controller = _counted(notifies);
+      var taps = 0;
+      await tester.pumpWidget(
+        host(controller: controller, onTap: () => taps++),
+      );
+      final gesture = await dragHalfway(tester);
+      await tester.pumpWidget(
+        host(controller: controller, onTap: () => taps++, resizable: false),
+      );
+      await tester.pump();
+      expect(detailWidth(tester), closeTo(700, 1));
+      await tester.tap(find.text('Tap'));
+      expect(taps, 1);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(notifies.single, 0);
+      await tester.pumpWidget(
+        host(controller: controller, onTap: () => taps++),
+      );
+      await tester.tap(find.text('Tap'));
+      expect(taps, 2);
+      await expectAlive(tester, notifies, 0);
+    });
+
+    testWidgets('us21/fr01/e02: the end pane hiding mid-drag ends the drag '
+        'with no notify, and the split takes taps and drags again', (
+      tester,
+    ) async {
+      _view(tester);
+      final notifies = [0];
+      final controller = _counted(notifies);
+      var taps = 0;
+      await tester.pumpWidget(
+        host(controller: controller, onTap: () => taps++),
+      );
+      final gesture = await dragHalfway(tester);
+      await tester.pumpWidget(
+        host(controller: controller, onTap: () => taps++, detail: false),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Tap'));
+      expect(taps, 1);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(notifies.single, 0);
+      await tester.pumpWidget(
+        host(controller: controller, onTap: () => taps++),
+      );
+      await tester.tap(find.text('Tap'));
+      expect(taps, 2);
+      await expectAlive(tester, notifies, 0);
+    });
+
+    testWidgets('us21/fr02: a split unmounted mid-drag notifies nothing, and '
+        'a new one takes taps and drags', (tester) async {
+      _view(tester);
+      final notifies = [0];
+      final controller = _counted(notifies);
+      var taps = 0;
+      await tester.pumpWidget(
+        host(controller: controller, onTap: () => taps++),
+      );
+      final gesture = await dragHalfway(tester);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(notifies.single, 0);
+      await tester.pumpWidget(
+        host(controller: controller, onTap: () => taps++),
+      );
+      await tester.tap(find.text('Tap'));
+      expect(taps, 1);
+      await expectAlive(tester, notifies, 0);
+    });
+
+    testWidgets('us21/fr02: a pane before the dragged divider hiding keeps '
+        'the drag on its pair, from the new layout', (tester) async {
+      _view(tester);
+      final notifies = [0];
+      final controller = _counted(notifies);
+      Widget three({required bool first}) => _split(
+        controller: controller,
+        panes: [
+          if (first) SplitPane(size: 200, child: _pane('A')) else null,
+          SplitPane(child: _pane('B')),
+          SplitPane(child: _pane('C')),
+        ],
+      );
+      await tester.pumpWidget(three(first: true));
+      final gesture = await tester.startGesture(
+        tester.getCenter(_divider.last),
+      );
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      expect(tester.getSize(find.text('B')).width, closeTo(430, 1));
+      await tester.pumpWidget(three(first: false));
+      expect(tester.getSize(find.text('B')).width, closeTo(500, 1));
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      final b = tester.getSize(find.text('B')).width;
+      final c = tester.getSize(find.text('C')).width;
+      expect(b + c, closeTo(1000, 1));
+      expect(b, closeTo(520, 1));
+      await gesture.up();
+      await tester.pump();
+      expect(notifies.single, 1);
+      expect(controller.fractions![1], closeTo(0.52, 1e-3));
+    });
+  });
+
   group('SplitLayout drag', () {
     testWidgets('us21/s1: us21/fr02: a drag resizes both panes', (
       tester,
