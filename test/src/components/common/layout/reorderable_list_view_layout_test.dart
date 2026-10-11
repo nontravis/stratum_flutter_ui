@@ -14054,6 +14054,9 @@ void main() {
           ..remove(2);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 50));
+        // Item 3 grows in at index 0, and item 1, now at index 2, leaves.
+        expect(_runningTransitions(tester), isNotEmpty);
+        expect(find.text('1'), findsOneWidget);
         expect(globalKeys(), isEmpty);
       },
     );
@@ -14113,6 +14116,32 @@ void main() {
         await tester.pump();
         expect(harness.indexCalls, lessThanOrEqualTo(registered));
       },
+    );
+
+    /// An insert with no controller at or before the last item a list laid
+    /// out to its data's end: the scene, and the item it pushes past the
+    /// last frame's laid-out range into a slot the next frame lays out.
+    final pushedPastEnd = ValueVariant<({int count, int at, int id})>({
+      (count: 5, at: 0, id: 4),
+      (count: 3, at: 1, id: 2),
+    });
+
+    testWidgets(
+      'us11/fr04/e10 and D9 (L2): with no controller, an insert that pushes '
+      'the last laid-out item into a slot the next frame lays out keeps its '
+      'State',
+      (tester) async {
+        final (:count, :at, :id) = pushedPastEnd.currentValue!;
+        await tester.pumpWidget(_app(_Harness(count: count)));
+        final state = _itemState(tester, id);
+
+        _harness(tester).insertData(at, 9);
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(_statesOf(tester, id), [same(state)]);
+      },
+      variant: pushedPastEnd,
     );
   });
 

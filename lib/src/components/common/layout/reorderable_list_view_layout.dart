@@ -169,6 +169,8 @@ class ReorderableListViewLayout extends StatelessWidget {
   /// choice. Under a fixed item extent a removed item still takes no room.
   /// `child` is the item.
   /// A moved item's entry takes it too; the slot the item left never does.
+  /// Return one widget shape for every animation value, or the item's State
+  /// ends.
   final Widget Function(
     BuildContext context,
     Animation<double> animation,
@@ -1200,7 +1202,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // rebuild.
     final read = _appRebuilt || calls.any((call) => call.reported);
     _appRebuilt = false;
-    _knowBuiltKeys(calls: explained ? calls : const [], read: read);
+    _knowBuiltKeys(
+      calls: explained ? calls : const [],
+      read: read,
+      // A count the calls do not explain: the last frame's own count.
+      changedFrom: explained ? null : _listCount,
+    );
     _resolveIndices();
     final returning = <Key>{};
     for (final insert in _pendingInserts) {
@@ -1293,7 +1300,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// answer; else takes where [calls] put the key ([_knownAt]), never for a
   /// key the app answered null, which left its data. A key that moved past
   /// that range with no call and no answer still loses its State (L2, L3).
-  void _knowBuiltKeys({required List<_Call> calls, required bool read}) {
+  /// [changedFrom] is the last frame's item count when no call explains the
+  /// new one.
+  void _knowBuiltKeys({
+    required List<_Call> calls,
+    required bool read,
+    required int? changedFrom,
+  }) {
     _appAt.clear();
     _knownAt.clear();
     _readLooks.clear();
@@ -1308,7 +1321,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         if (_appAnswer(key) == null) unanswered = true;
       }
     }
-    if (read && unanswered) _readLaidOut(built.keys.toSet());
+    if (read && unanswered) _readLaidOut(built, changedFrom: changedFrom);
     for (final MapEntry(:key, value: index) in built.entries) {
       if (_knownAt.containsKey(key) || (app && _appAnswer(key) == null)) {
         continue;
@@ -1319,21 +1332,44 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// Reads the app's new data over the last frame's laid-out range through
-  /// `itemBuilder`, once per index, and maps each of [keys] it shows there
-  /// ([_knownAt]). Keeps each widget it reads for [_buildItem], which the
-  /// sliver builds that index with in this frame, so the read costs no
+  /// `itemBuilder`, once per index, and maps each key of [built], the keys
+  /// the last build registered with the index each drew at, that it shows
+  /// there ([_knownAt]). Keeps each widget it reads for [_buildItem], which
+  /// the sliver builds that index with in this frame, so the read costs no
   /// call beyond the sliver's own (D9). Reads with the sliver's context,
   /// below the list's [Scrollable], where those widgets show.
-  void _readLaidOut(Set<Key> keys) {
+  ///
+  /// When the last frame laid the data out to its end and a count no call
+  /// explains grew it from [changedFrom], the next frame lays out the new
+  /// slots past that end with no scroll: the read goes on into them, up to
+  /// the data's new end, until it finds every key the last frame laid out
+  /// (D9: L2 does not widen).
+  void _readLaidOut(Map<Key, _FrameIndex> built, {required int? changedFrom}) {
     final laid = _laidOut();
     final context = _listKey.currentContext;
     if (laid == null || context == null || _dataCount == 0) return;
-    final last = laid.last.clamp(0, _dataCount - 1);
-    for (var i = laid.first.clamp(0, _dataCount - 1); i <= last; i += 1) {
+    final unfound = {
+      for (final MapEntry(:key, value: index) in built.entries)
+        if (index.value >= laid.first && index.value <= laid.last) key,
+    };
+    void readAt(int i) {
       final look = _layout.itemBuilder(context, i);
       _readLooks[i] = look;
       final key = look.key;
-      if (key != null && keys.contains(key)) _knownAt[key] = i;
+      if (key == null || !built.containsKey(key)) return;
+      _knownAt[key] = i;
+      unfound.remove(key);
+    }
+
+    final end = _dataCount - 1;
+    final last = laid.last.clamp(0, end);
+    for (var i = laid.first.clamp(0, end); i <= last; i += 1) {
+      readAt(i);
+    }
+    if (changedFrom != null && laid.last == changedFrom - 1) {
+      for (var i = last + 1; i <= end && unfound.isNotEmpty; i += 1) {
+        readAt(i);
+      }
     }
     // A widget the sliver did not take never shows in a later frame.
     WidgetsBinding.instance.addPostFrameCallback((_) => _readLooks.clear());
@@ -1513,11 +1549,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// by more than 0 px along each viewport's own axis, of the part every
   /// nearer viewport showed (D28, invariant 35); the list's own alone
   /// unless [outward]. A kept-alive box, one not yet laid out, and a null
-  /// context show in none; nor does one whose element the drag proxy
-  /// reparents between inactive and active in the same frame (a GlobalKey
-  /// move): [Element.renderObject] (unlike [BuildContext.findRenderObject],
-  /// which asserts the element active) only stops at a defunct one, so it
-  /// reads the reparented element's kept render object with no throw.
+  /// context show in none; nor does one whose element left the tree in this
+  /// frame and is not yet unmounted: [Element.renderObject] (unlike
+  /// [BuildContext.findRenderObject], which asserts the element active)
+  /// only stops at a defunct one, so it reads that inactive element's
+  /// detached render object with no throw.
   Set<ScrollableState> _viewportsShowing(
     FocusNode node, {
     bool outward = true,
