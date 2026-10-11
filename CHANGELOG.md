@@ -23,10 +23,14 @@
   the web it sends no overlay style, so the browser theme color comes only from `appSwitcherColor`. A setting a
   platform lacks is ignored with no error.
 - Breaking: the theme application is now the one writer of the system chrome. It turns
-  `RenderView.automaticSystemUiAdjustment` off for its view and sends the app's bar mode (`edgeToEdge` when none is
-  set) and an empty rotation lock on its first frame, so an app that calls `SystemChrome.setSystemUIOverlayStyle`,
+  `RenderView.automaticSystemUiAdjustment` off for its view, so an app that calls `SystemChrome.setSystemUIOverlayStyle`,
   `setEnabledSystemUIMode`, or `setPreferredOrientations` itself sets the same values through `systemStyle` instead.
-  A Material `AppBar`'s own overlay style now counts as one fill under the status bar.
+  It leaves the platform's own bar mode and rotation lock untouched until some layer sets `barMode` or
+  `orientations`; once one has, an unset field falls back to `edgeToEdge` and no lock. An app that locks rotation in
+  `AndroidManifest.xml` or hides the status bar in `Info.plist` keeps that native setting on its own, but once any
+  page sets `orientations` or `barMode`, declare the app-wide lock or mode in `StratumThemeApplication(systemStyle:)`
+  instead, since Flutter cannot read the native value back. A Material `AppBar`'s own overlay style now counts as
+  one fill under the status bar.
 - Breaking: `AppSystemUI`, `StratumThemeData.systemOverlayStyle` and `systemOverlayInverseStyle`, their constructor and
   `copyWith` parameters, and the two `StratumTheme` getters of the same names are removed, with no `@Deprecated` step,
   since no release has shipped them. The theme's one view of the system bars is `StratumTheme.of(context).systemStyle`

@@ -606,16 +606,22 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   theme sets no app bar overlay style.
 - **App-wide** — `StratumThemeApplication(systemStyle: SystemStyle(...))`, on both constructors, sets the app-wide
   layer over the theme's look: any look field, plus `barMode` (`SystemBarMode.edgeToEdge`, `immersive`,
-  `immersiveSticky`, `leanBack`, `topOnly`, or `bottomOnly`; `edgeToEdge` when unset), `orientations` (such as
-  `[DeviceOrientation.portraitUp]`; no lock when unset or `[]`), and `appSwitcherLabel`, passed in the user's
-  language. A null field takes the layer below. The application applies the merged style after each frame and is the
+  `immersiveSticky`, `leanBack`, `topOnly`, or `bottomOnly`), `orientations` (such as
+  `[DeviceOrientation.portraitUp]`), and `appSwitcherLabel`, passed in the user's language. A null field takes the
+  layer below. The application leaves the platform's own bar mode and rotation lock untouched until some layer sets
+  `barMode` or `orientations`; once one has, an unset field falls back to `edgeToEdge` and no lock. An app that locks
+  rotation in `AndroidManifest.xml` or hides the status bar in `Info.plist` keeps that native setting on its own, but
+  once any page sets `orientations` or `barMode`, declare the app-wide lock or mode here instead, since Flutter
+  cannot read the native value back. The application applies the merged style after each frame and is the
   one writer of the system chrome: never call `SystemChrome.setSystemUIOverlayStyle`, `setEnabledSystemUIMode`, or
   `setPreferredOrientations` yourself, and never set `AppBar.systemOverlayStyle` to force the icons; set
   `statusBarIcons` instead. The application paints `statusBarColor`, and on Android `navigationBarColor` with its
   `navigationBarDividerColor` line, under the bars itself, above every page, and sends the platform transparent bar
   colors, so a bar color shows on every Android version and on iOS; leave a bar color transparent for an edge-to-edge
   page. `auto` icons pick light or dark against what paints under each bar, the bar color the topmost, else the
-  theme's page background; with no label set, the app widget's `title` shows. On the web only the label and
+  theme's page background; with no label set, the app widget's `title` shows, except a web router app with no
+  `title:` of its own, which builds no `Title` widget to read — pass `title:` or an app-wide `appSwitcherLabel`.
+  On the web only the label and
   `appSwitcherColor`, the browser theme color, apply; the bar mode and the rotation lock apply on Android and iOS
   only, and a platform that ignores a setting shows no error.
 - **Per page** — wrap any screen, or a part of it, in `SystemStyleScope(style: SystemStyle(...), child: ...)`, with
