@@ -4,6 +4,7 @@ import 'package:smooth_sheets/smooth_sheets.dart'
         ModalSheetRoute,
         Sheet,
         SheetController,
+        SheetDragConfiguration,
         SheetMetrics,
         SheetOffset,
         SheetScrollConfiguration,
@@ -272,7 +273,7 @@ class _SheetContentState extends State<_SheetContent> {
       _hidden = false;
     } else if (_pointers == 0 && !_hidden) {
       _hidden = true;
-      _settleHidden();
+      unawaited(_settleHidden());
     }
     final reaches = metrics.rect.top <= _statusBar + tolerance;
     if (reaches != _fullHeight) setState(() => _fullHeight = reaches);
@@ -280,42 +281,44 @@ class _SheetContentState extends State<_SheetContent> {
 
   /// Pops the route with null once the sheet settles hidden (US-20 FR-07
   /// E02). It never pops another route: a route already popped stays as
-  /// it is, and a route that another route covers brings the sheet back
-  /// to full height, as does a route a pop scope keeps open, whose scope
-  /// still hears the attempt.
-  void _settleHidden() {
+  /// it is, and a route that another route covers, or that is still the
+  /// top one after the pop attempt, brings the sheet back to full height
+  /// (E07). A refusal through a `PopScope`, a deprecated `WillPopScope`,
+  /// or any later refusal takes that one path, and a scope still hears the
+  /// attempt.
+  Future<void> _settleHidden() async {
     final route = ModalRoute.of(context);
     if (route == null || !route.isActive) return;
-    if (!route.isCurrent) {
-      _returnToFull();
-      return;
+    if (route.isCurrent) {
+      await Navigator.maybePop(context);
+      if (!mounted || !route.isActive || !route.isCurrent) return;
     }
-    if (route.popDisposition == RoutePopDisposition.doNotPop) {
-      _returnToFull();
-    }
-    Navigator.maybePop(context);
+    _returnToFull();
   }
 
   /// Brings the sheet back to full height over the snap's duration.
   ///
   /// The settle reports its last offset from inside its own tick, so the
-  /// way back starts after the frame, once that settle has ended.
+  /// way back starts after the frame, once that settle has ended; a pop
+  /// refusal that answers outside a frame schedules one.
   void _returnToFull() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      unawaited(
-        _controller.animateTo(
-          const SheetOffset(1),
-          duration: _physics.duration > Duration.zero
-              ? _physics.duration
-              // WORKAROUND: smooth_sheets 1.3.0 animateTo asserts a
-              // non-zero duration and exposes no jump; remove when it
-              // does.
-              : const Duration(microseconds: 1),
-          curve: _physics.curve,
-        ),
-      );
-    });
+    WidgetsBinding.instance
+      ..ensureVisualUpdate()
+      ..addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(
+          _controller.animateTo(
+            const SheetOffset(1),
+            duration: _physics.duration > Duration.zero
+                ? _physics.duration
+                // WORKAROUND: smooth_sheets 1.3.0 animateTo asserts a
+                // non-zero duration and exposes no jump; remove when it
+                // does.
+                : const Duration(microseconds: 1),
+            curve: _physics.curve,
+          ),
+        );
+      });
   }
 
   /// Dismisses this route when it is the top one (US-20 FR-02).
@@ -343,6 +346,11 @@ class _SheetContentState extends State<_SheetContent> {
       ),
       physics: _physics,
       scrollConfiguration: const SheetScrollConfiguration(),
+      // Only the drawn modal layout takes a drag, so a press beside a
+      // narrower one reaches the scrim (US-20 FR-07 E08).
+      dragConfiguration: const SheetDragConfiguration(
+        hitTestBehavior: HitTestBehavior.deferToChild,
+      ),
       padding: EdgeInsets.only(bottom: window.keyboardHeight),
       // The sheet lays its child out at the viewport's full width; the
       // align hands the modal layout its own content width, at its own

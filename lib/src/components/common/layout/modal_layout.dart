@@ -245,7 +245,9 @@ class ModalLayoutScope extends InheritedWidget {
 /// shows a close button at the surface's top end corner. Place it inline
 /// in a page, where it draws no scrim and no route, or show it through
 /// `showModalLayout`, whose route state it reads where its own fields are
-/// null. With a bounded height the [body] takes the height left under the
+/// null. Inline with no [onClose], nothing closes: no close button shows
+/// and the handle is decoration that screen readers and Tab skip (US-20
+/// FR-01 E06). With a bounded height the [body] takes the height left under the
 /// other slots and, unless [scrollBody] is false, scrolls inside it.
 ///
 /// Each part's style layers the theme defaults, then the app-wide
@@ -287,11 +289,13 @@ class ModalLayout extends StatelessWidget {
   /// The content width (US-20 FR-03).
   final ModalLayoutSize size;
 
-  /// Whether the close button shows.
+  /// Whether the close button shows, when it has an action: [onClose] or
+  /// the route's dismissal.
   final bool showClose;
 
   /// Called by the close button and the handle. Null dismisses the route
-  /// that shows this layout; inline, with no route, they do nothing.
+  /// that shows this layout; inline, with no route, it shows no close
+  /// button and leaves the handle as decoration (US-20 FR-01 E06).
   final VoidCallback? onClose;
 
   /// The surface's corners, winning over the concentric-corner rule of
@@ -352,7 +356,7 @@ class ModalLayout extends StatelessWidget {
     final surface = style.surface ?? const WidgetStyle();
     final insets = _insets(window.safeArea, type, fullHeight);
 
-    final close = showClose
+    final close = showClose && onClose != null
         ? FocusTraversalOrder(
             order: const NumericFocusOrder(5),
             child: ContainerLayout(
@@ -370,8 +374,12 @@ class ModalLayout extends StatelessWidget {
               style: const WidgetStyle(alignment: Alignment.center),
               child: ContainerLayout(
                 style: style.handle ?? const WidgetStyle(),
-                interaction: Interaction(onTap: onClose),
-                semantics: SemanticsProperties(label: labels.dismissLabel),
+                interaction: onClose == null
+                    ? null
+                    : Interaction(onTap: onClose),
+                semantics: onClose == null
+                    ? null
+                    : SemanticsProperties(label: labels.dismissLabel),
               ),
             ),
           )

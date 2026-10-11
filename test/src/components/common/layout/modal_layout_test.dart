@@ -107,6 +107,15 @@ SingleChildScrollView _bodyScrollView(WidgetTester tester) =>
 
 Finder get _handle => _part('Dismiss');
 
+/// The handle pill, found by its Figma size, whether or not it has an
+/// action and a label.
+Finder get _pill => find.byWidgetPredicate(
+  (widget) =>
+      widget is ContainerLayout &&
+      widget.style?.width == 36 &&
+      widget.style?.height == 4,
+);
+
 WidgetStyle _partStyle(WidgetTester tester, Finder part) =>
     tester.widget<ContainerLayout>(part).style!;
 
@@ -520,31 +529,48 @@ void main() {
       tester,
     ) async {
       final handle = tester.ensureSemantics();
-      await tester.pumpWidget(themedHost(_modal(showClose: false)));
+      await tester.pumpWidget(
+        themedHost(_modal(showClose: false, onClose: _noop)),
+      );
       expect(find.bySemanticsLabel('Close'), findsNothing);
-      await tester.pumpWidget(themedHost(_modal()));
+      await tester.pumpWidget(themedHost(_modal(onClose: _noop)));
       expect(find.bySemanticsLabel('Close'), findsOneWidget);
       handle.dispose();
     });
 
-    testWidgets('us20/fr01/e03: inline, with no onClose, the close button '
-        'pops nothing', (tester) async {
+    testWidgets('NFR-U06: us20/fr01/e06: inline with no onClose, no close '
+        'button shows and the handle is decoration that a screen reader and '
+        'Tab skip', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _keyboardHost(
+          _modal(type: ModalLayoutType.bottomSheet, body: _button('Body')),
+        ),
+      );
+      expect(find.byIcon(Icons.close), findsNothing);
+      expect(find.bySemanticsLabel('Close'), findsNothing);
+      expect(find.bySemanticsLabel('Dismiss'), findsNothing);
+      expect(_pill, findsOneWidget);
+      for (var i = 0; i < 2; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(_focused(tester, 'Body'), isTrue, reason: 'Tab ${i + 1}');
+      }
+      handle.dispose();
+    });
+
+    testWidgets('us20/fr01/e03: inline with an onClose, the close button '
+        'and the handle call it', (tester) async {
+      var closed = 0;
       await tester.pumpWidget(
         themedHost(
-          Navigator(
-            onGenerateInitialRoutes: (navigator, _) => [
-              PageRouteBuilder<void>(
-                pageBuilder: (_, _, _) => const Text('Home'),
-              ),
-              PageRouteBuilder<void>(pageBuilder: (_, _, _) => _modal()),
-            ],
-          ),
+          _modal(type: ModalLayoutType.bottomSheet, onClose: () => closed++),
         ),
       );
       await tester.tap(_close);
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsOneWidget);
-      expect(find.text('Home'), findsNothing);
+      await tester.tap(_handle);
+      await tester.pump();
+      expect(closed, 2);
       expect(
         find.descendant(
           of: find.byType(ModalLayout),
@@ -575,7 +601,7 @@ void main() {
       _view(tester, _phone);
       await tester.pumpWidget(themedHost(_modal(type: null)));
       expect(_surfaceStyle(tester).width, 390);
-      expect(_handle, findsOneWidget);
+      expect(_pill, findsOneWidget);
     });
 
     testWidgets('us20/fr03/e02: no type on a tablet is a 400 px modal with '
@@ -583,7 +609,7 @@ void main() {
       await tester.pumpWidget(themedHost(_modal(type: null)));
       expect(tester.getSize(_surface).width, 400);
       expect(_surfaceStyle(tester).borderRadius, BorderRadius.circular(24));
-      expect(_handle, findsNothing);
+      expect(_pill, findsNothing);
     });
 
     testWidgets('us20/fr03/e05: a medium modal on a 390 px window draws '
@@ -731,7 +757,7 @@ void main() {
 
     testWidgets('us20/fr06/e05: the close button blurs its own background '
         'by the theme blur/3', (tester) async {
-      await tester.pumpWidget(themedHost(_modal()));
+      await tester.pumpWidget(themedHost(_modal(onClose: _noop)));
       expect(_partStyle(tester, _close).backgroundBlur, fakeTheme.blur.level3);
     });
 
@@ -1576,6 +1602,34 @@ void main() {
       expect(_handle, findsOneWidget);
     });
 
+    testWidgets('us20/fr07/e08: a drag on the scrim beside a desktop bottom '
+        'sheet leaves it in place; a tap there dismisses it', (tester) async {
+      await _pumpApp(
+        tester,
+        _Opener(type: ModalLayoutType.bottomSheet, body: _tall(400)),
+        size: _desktop,
+      );
+      await _open(tester);
+      final rect = tester.getRect(_surface);
+      final beside = Offset(rect.left - 100, rect.center.dy);
+      final gesture = await tester.startGesture(beside);
+      for (var i = 0; i < 12; i++) {
+        await gesture.moveBy(Offset(0, rect.height / 10));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(find.byType(ModalLayout), findsOneWidget);
+      expect(_opener(tester).result, 'none');
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.getRect(_surface), rect);
+      expect(_opener(tester).result, 'none');
+
+      await tester.tapAt(beside);
+      await tester.pumpAndSettle();
+      expect(find.byType(ModalLayout), findsNothing);
+      expect(_opener(tester).result, isNull);
+    });
+
     for (final type in [ModalLayoutType.modal, ModalLayoutType.bottomSheet]) {
       testWidgets('NFR-U01: NFR-U05: every target of a ${type.name} route is '
           'labeled and sized', (tester) async {
@@ -1708,7 +1762,38 @@ void main() {
       });
     }
 
-    testWidgets('us20/fr07/e02: a sheet whose settle to hidden ends under '
+    testWidgets('us20/fr07/e02: a sheet a deprecated will-pop scope keeps '
+        'open returns to full height, and the scope hears one attempt', (
+      tester,
+    ) async {
+      var attempts = 0;
+      await _pumpApp(
+        tester,
+        _Opener(
+          // A dependent app may still refuse the pop through this
+          // deprecated scope, which the route's pop disposition never reads.
+          // ignore: deprecated_member_use
+          body: WillPopScope(
+            onWillPop: () async {
+              attempts++;
+              return false;
+            },
+            child: _tall(400),
+          ),
+        ),
+      );
+      await _open(tester);
+      final height = tester.getSize(find.byType(ModalLayout)).height;
+      final full = _top(tester);
+      await _slowDrag(tester, height * 0.85);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ModalLayout), findsOneWidget);
+      expect(_top(tester), closeTo(full, 0.5));
+      expect(attempts, 1);
+    });
+
+    testWidgets('us20/fr07/e07: a sheet whose settle to hidden ends under '
         'another route is back at full height once that route closes', (
       tester,
     ) async {

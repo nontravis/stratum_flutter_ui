@@ -544,8 +544,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `StratumThemeFormatException` with `expected_opacity` at its path, and a third key under `opacity` is
   `unknown_key`. The package default reads `$schema: stratum-theme/v1.3.0`; this package reads every `v1.0`, `v1.1`,
   `v1.2`, and `v1.3` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
-  `unsupported_schema`, so a theme that must load on every build writes `v1.0.0` and leaves `opacity` out, or
-  `v1.1.0` and keeps `disabled` but leaves `scrim` out.
+  `unsupported_schema`, so a theme that must load on every build writes `v1.0.0` and leaves `opacity` out; one that
+  must load on every build from `v1.1` on writes `v1.1.0` and keeps `disabled` but leaves `scrim` out.
 - **Border, shadow, and blur tokens** — `border`, `shadow`, and `blur` in `theme.yaml` (format
   `stratum-theme/v1.2.0`) set every border width, drop shadow, and background blur, and the package default carries
   the Figma values. Read them in `build`: `StratumTheme.of(context).border.md` (a `double`; `sm` 0.5, `md` 1, `lg`
@@ -666,8 +666,10 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `customStyle`'s surface radius wins over `borderRadius`. `fullHeight: true` gives a bottom sheet the screen radius
   on top.
 - **Close and handle** — `showClose` (default true) shows a close button at the top end corner; a bottom sheet also
-  shows a drag handle. Both call `onClose`; inline, with no `onClose`, they do nothing. Tab visits `top`, `tab`, and
-  `body`, then the handle and the close button.
+  shows a drag handle. Both call `onClose`, else dismiss the route of `showModalLayout`. Inline with no `onClose`,
+  no close button shows and the handle draws as decoration that screen readers and Tab skip, so pass `onClose` to
+  let the EndUser close an inline layout. Tab visits `top`, `tab`, and `body`, then the handle and the close
+  button.
 - **Insets** — `safeArea` (null: true for a sheet, false for a modal) keeps a sheet's content above the home
   indicator, and below the status bar once `fullHeight`; on a modal it keeps clear of every inset.
 - **Style** — `customStyle: ModalLayoutStyle(surface:, top:, tab:, body:, handle:, close:)`, one `WidgetStyle` per
