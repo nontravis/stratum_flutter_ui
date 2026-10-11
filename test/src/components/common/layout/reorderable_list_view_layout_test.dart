@@ -687,6 +687,27 @@ Future<void> _altNow(WidgetTester tester, LogicalKeyboardKey key) async {
 Finder _reorderSliver() =>
     find.byWidgetPredicate((widget) => widget is SliverReorderableList);
 
+/// The size and fade transitions inside the list that are not at rest: at
+/// rest every item sits inside a completed transition (R48).
+List<Widget> _runningTransitions(WidgetTester tester) => [
+  for (final widget in tester.widgetList(
+    find.descendant(
+      of: _reorderSliver(),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is SizeTransition || widget is FadeTransition,
+        skipOffstage: false,
+      ),
+      skipOffstage: false,
+    ),
+  ))
+    if (switch (widget) {
+      SizeTransition(:final sizeFactor) => sizeFactor.value != 1,
+      FadeTransition(:final opacity) => opacity.value != 1,
+      _ => false,
+    })
+      widget,
+];
+
 /// Long-presses item [id] past the long-press delay and moves it [by] px
 /// down: a drag of the item in progress, on [pointer] when given.
 Future<TestGesture> _liftItem(
@@ -1577,13 +1598,8 @@ void main() {
         await tester.pump();
 
         expect(_offsetBetween(tester, 0, 1), 80);
-        expect(
-          find.descendant(
-            of: _reorderSliver(),
-            matching: find.byType(SizeTransition),
-          ),
-          findsNothing,
-        );
+        // R48: at rest every item sits inside a completed transition.
+        expect(_runningTransitions(tester), isEmpty);
       },
     );
 
@@ -1612,13 +1628,8 @@ void main() {
         await tester.pump(const Duration(milliseconds: 125));
         expect(_offsetBetween(tester, 0, 1), 80);
         await tester.pumpAndSettle();
-        expect(
-          find.descendant(
-            of: _reorderSliver(),
-            matching: find.byType(SizeTransition),
-          ),
-          findsNothing,
-        );
+        // R48: at rest every item sits inside a completed transition.
+        expect(_runningTransitions(tester), isEmpty);
       },
     );
 
@@ -1845,13 +1856,8 @@ void main() {
       await tester.pump();
       expect(find.text('2'), findsNothing);
       expect(_offsetBetween(tester, 9, 0), 40);
-      expect(
-        find.descendant(
-          of: _reorderSliver(),
-          matching: find.byType(SizeTransition),
-        ),
-        findsNothing,
-      );
+      // R48: at rest every item sits inside a completed transition.
+      expect(_runningTransitions(tester), isEmpty);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
@@ -2144,7 +2150,9 @@ void main() {
               count: 3,
               itemsController: controller,
               itemTransitionBuilder: (context, animation, child) {
-                received = animation;
+                // R48: the builder wraps every item, at rest with a
+                // completed animation; the entering or leaving one runs.
+                if (animation != kAlwaysCompleteAnimation) received = animation;
                 return ScaleTransition(scale: animation, child: child);
               },
             ),
@@ -2154,11 +2162,20 @@ void main() {
         final mid = Curves.easeInOutSine.transform(0.5);
         Finder inList(Type type) =>
             find.descendant(of: _reorderSliver(), matching: find.byType(type));
+        // The caller's own transition around the item that moves (R48).
+        final running = find.descendant(
+          of: _reorderSliver(),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is ScaleTransition &&
+                widget.scale != kAlwaysCompleteAnimation,
+          ),
+        );
 
         _harness(tester).insert(1, 9);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 125));
-        expect(inList(ScaleTransition), findsOneWidget);
+        expect(running, findsOneWidget);
         expect(inList(SizeTransition), findsNothing);
         expect(inList(FadeTransition), findsNothing);
         expect(_offsetBetween(tester, 0, 1), 80);
@@ -2169,7 +2186,7 @@ void main() {
         await tester.pump();
         expect(received!.value, 1);
         await tester.pump(_halfReverse(theme));
-        expect(inList(ScaleTransition), findsOneWidget);
+        expect(running, findsOneWidget);
         expect(inList(SizeTransition), findsNothing);
         expect(received!.value, moreOrLessEquals(mid));
         await tester.pumpAndSettle();
@@ -2193,7 +2210,9 @@ void main() {
               count: 3,
               itemsController: controller,
               itemTransitionBuilder: (context, animation, child) {
-                received = animation;
+                // R48: the builder wraps every item, at rest with a
+                // completed animation; the entering or leaving one runs.
+                if (animation != kAlwaysCompleteAnimation) received = animation;
                 return SizeTransition(sizeFactor: animation, child: child);
               },
             ),
@@ -2461,7 +2480,9 @@ void main() {
               count: 3,
               itemsController: controller,
               itemTransitionBuilder: (context, animation, child) {
-                received = animation;
+                // R48: the builder wraps every item, at rest with a
+                // completed animation; the entering or leaving one runs.
+                if (animation != kAlwaysCompleteAnimation) received = animation;
                 return SizeTransition(sizeFactor: animation, child: child);
               },
             ),
@@ -2676,7 +2697,13 @@ void main() {
               itemTransitionBuilder: (context, animation, child) =>
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => transitionTaps += 1,
+                    // R48: the caller wraps the host too; count the leaving
+                    // item's wrapper only.
+                    onTap: () {
+                      if (animation != kAlwaysCompleteAnimation) {
+                        transitionTaps += 1;
+                      }
+                    },
                     child: FadeTransition(opacity: animation, child: child),
                   ),
             ),
@@ -4163,13 +4190,8 @@ void main() {
       _harness(tester).move(2, 2);
       await tester.pump();
 
-      expect(
-        find.descendant(
-          of: _reorderSliver(),
-          matching: find.byType(FadeTransition),
-        ),
-        findsNothing,
-      );
+      // R48: at rest every item sits inside a completed transition.
+      expect(_runningTransitions(tester), isEmpty);
       expect(_itemState(tester, 2), same(state));
       expect(_harness(tester).ids, [0, 1, 2, 3, 4]);
     });
@@ -4346,7 +4368,17 @@ void main() {
         _harness(tester).move(2, 0);
         await tester.pump();
 
-        expect(find.byKey(const ValueKey('caller')), findsOneWidget);
+        // R48: the caller wraps every item; only the entering one runs.
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is KeyedSubtree &&
+                widget.key == const ValueKey('caller') &&
+                (widget.child as FadeTransition).opacity !=
+                    kAlwaysCompleteAnimation,
+          ),
+          findsOneWidget,
+        );
         expect(
           find.ancestor(
             of: find.byKey(const ValueKey(2)),
