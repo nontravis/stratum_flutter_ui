@@ -20,5 +20,6 @@ export 'nested_scroll_view_layout.dart';
 export 'page_view_layout.dart';
 export 'reorderable_list_view_layout.dart';
 export 'row_layout.dart';
+export 'show_modal_layout.dart';
 export 'stack_layout.dart';
 export 'wrap_layout.dart';

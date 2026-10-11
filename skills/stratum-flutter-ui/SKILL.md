@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building or changing a Flutter app on Stratum UI (a screen, layout, taps, hover, keyboard and focus, a theme, app start, or any Stratum* widget). Layout triggers are *Layout primitives (ColumnLayout, ContainerLayout.builder, ...), reorderable lists, and Space spacing. Interaction triggers are Interaction, HoverBuilder, FocusBuilder, and focus rings (StratumFocusBorder). Theme triggers are StratumThemeController install and switching, StratumThemeApplication, remote and preloaded themes, StratumSplashScreen, theme.yaml tokens (border, shadow, blur), and context.* reads (context.themeData). Widget triggers are StratumWebView, StratumWebZoom, page transitions (StratumTransitionPage), StratumCaret, named colors (ColorEnum), Thai labels and supportedLocales, Show and disabled dimming, StratumPlaceholderPage, and update prompts (StratumUpdateGate, UpdateChecker).
+description: Use when building or changing a Flutter app on Stratum UI (a screen, layout, taps, hover, keyboard and focus, a theme, app start, or any Stratum* widget). Layout triggers are *Layout primitives (ColumnLayout, ContainerLayout.builder, ...), showModalLayout, reorderable lists, and Space spacing. Interaction triggers are Interaction, HoverBuilder, FocusBuilder, and focus rings (StratumFocusBorder). Theme triggers are StratumThemeController install and switching, StratumThemeApplication, remote and preloaded themes, StratumSplashScreen, theme.yaml tokens (border, shadow, blur), and context.* reads (context.themeData). Widget triggers are StratumWebView, StratumWebZoom, page transitions (StratumTransitionPage), StratumCaret, named colors (ColorEnum), Thai labels and supportedLocales, Show and disabled dimming, StratumPlaceholderPage, and update prompts (StratumUpdateGate, UpdateChecker).
 ---
 
 # Stratum Flutter UI
@@ -633,6 +633,17 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 
 ## Modal layout
 
+- **`showModalLayout`** — `final value = await showModalLayout<T>(context, builder: (c) => ModalLayout(top: ...,
+  body: ...))` shows a bottom sheet on a phone and a centered modal on a tablet and up; pass `type:` to fix one. It
+  completes with the value `Navigator.pop(c, value)` closes it with, or null when the user dismisses it by Esc, a tap
+  outside, back, a drag down, the handle, or the close button. The route dims and blurs the page with the theme's
+  scrim (`opacity.scrim`, `blur.level1`); `showBackground: false` drops the scrim, while the page still refuses taps
+  and a tap on it closes the modal. `semanticsLabel:` replaces the built-in "Dialog" or "Sheet" screen-reader label.
+  Focus moves in, Tab stays inside, and focus returns to the opener on close. It enters over the theme's `normal`
+  level and fades with no slide under reduced motion. A sheet rests at half or full height, snaps over the `fast`
+  level, rises with the keyboard, and takes the screen radius and the status-bar inset once dragged to the top; a
+  modal moves clear of the keyboard. A body list with `scrollBody: false` hands a drag past its top to the sheet.
+  Any widget works in it, a `ListTile` included.
 - **`ModalLayout`** — the slot widget of every sheet and modal: `ModalLayout(top: title, tab: tabs, body: content)`
   shows an optional `top`, an optional `tab`, and the required `body`, in that order; a null slot shows nothing. The
   `body` scrolls inside the surface when the surface has a bounded height; in an unbounded parent, such as a
