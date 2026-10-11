@@ -563,7 +563,10 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   the `N` of a `"N%"` too, negatives included), is a finite number from -10000 to 10000, and from 0 for `border`,
   `blur`, and a layer's `blur`. A bad value throws `StratumThemeFormatException` with `expected_dimension`,
   `expected_shadow`, or `expected_color` at its path, and a key the default lacks, such as `shadow.7`, is
-  `unknown_key`. A package build
+  `unknown_key`. A `typography` that draws some text at a font size or a line box of 0 px or less is
+  `expected_dimension` too: at text scale 1 the package tries every size `s10` to `s56`, with no window size and at
+  each one, in every font a tag gives the type, and blames the `adjustSize`, the `scaleByWindowSize` entry, or the
+  `spaceHeight` that does it, once per path, in the app and in the `stratum_theme` CLI alike. A package build
   that reads only up to `v1.1` refuses a
   `v1.2` theme as `unsupported_schema`, so a theme that must load there writes `v1.1.0` and leaves the three groups
   out. `AppBorder`, `AppShadow`, `AppFilter`, `StratumThemeData.filter`, and `screenBorderRadius` no longer exist;

@@ -497,6 +497,254 @@ void main() {
     });
   });
 
+  group('StratumTypography.fromYaml draw size', () {
+    test('us07/fr02/e17, us07/fr02/e19: an adjustSize that draws s10 and s12 '
+        'at 0 px or less is one error, named by s10', () {
+      const expected =
+          'typography.fonts.inter.adjustSize: expected an adjustSize that '
+          'keeps s10 above 0 px, got -12 (s10 draws at -2 px)';
+      expect(
+        _errors(
+          _typography(fonts: '{ inter: { family: Inter, adjustSize: -12 } }'),
+        ),
+        [expected],
+      );
+    });
+
+    test('us07/fr02/e17: a percent adjustSize of "-100%" draws every size at '
+        '0 px', () {
+      const expected =
+          'typography.fonts.inter.adjustSize: expected an adjustSize that '
+          'keeps s10 above 0 px, got "-100%" (s10 draws at 0 px)';
+      expect(
+        _errors(
+          _typography(
+            fonts: '{ inter: { family: Inter, adjustSize: "-100%" } }',
+          ),
+        ),
+        [expected],
+      );
+    });
+
+    test('us07/fr02/e17, us07/fr02/e19: a theme-wide window scale entry is '
+        'blamed once, at the entry every larger window size reads, named by '
+        'its smallest window size', () {
+      const expected =
+          'typography.scaleByWindowSize.watch: expected a scaleByWindowSize '
+          'that keeps s10 above 0 px, got -14 (s10 draws at -4 px)';
+      expect(
+        _errors(_typography(extra: '  scaleByWindowSize: { watch: -14 }')),
+        [expected],
+      );
+    });
+
+    test("us07/fr02/e17: a type's own window scale entry is blamed at the "
+        "type's path", () {
+      const expected =
+          'typography.types.header.scaleByWindowSize.desktop: expected a '
+          'scaleByWindowSize that keeps s10 above 0 px, got -11 (s10 '
+          'draws at -1 px)';
+      expect(
+        _errors(
+          _typography(
+            types: {
+              'header':
+                  '{ weight: 600, sizes: { s16: { spaceHeight: 8 } }, '
+                  'scaleByWindowSize: { desktop: -11 } }',
+            },
+          ),
+        ),
+        [expected],
+      );
+    });
+
+    test('us07/fr02/e18, us07/fr02/e19: a spaceHeight is blamed at the '
+        'defined size whose metrics fail, once for body and table', () {
+      const expected =
+          'typography.types.body.sizes.s10.spaceHeight: expected a '
+          'spaceHeight that keeps s10 above 0 px, got -12 (line box -2 '
+          'px)';
+      expect(
+        _errors(
+          _typography(
+            types: {
+              'body':
+                  '{ weight: 400, sizes: { s16: { spaceHeight: 8 }, '
+                  's10: { spaceHeight: -12 } } }',
+            },
+          ),
+        ),
+        [expected],
+      );
+    });
+
+    test('us07/fr02/e18: a size the type lacks is checked against the '
+        'nearest defined size', () {
+      const expected =
+          'typography.types.body.sizes.s14.spaceHeight: expected a '
+          'spaceHeight that keeps s10 above 0 px, got -11 (line box -1 '
+          'px)';
+      expect(
+        _errors(
+          _typography(
+            types: {
+              'body': '{ weight: 400, sizes: { s14: { spaceHeight: -11 } } }',
+            },
+          ),
+        ),
+        [expected],
+      );
+    });
+
+    test('us07/fr02/e17: a theme-wide mono font is checked for every type '
+        'but code, and a code mono is not checked', () {
+      const expected =
+          'typography.fonts.tiny.adjustSize: expected an adjustSize that '
+          'keeps s10 above 0 px, got -11 (s10 draws at -1 px)';
+      expect(
+        _errors(
+          _typography(
+            fonts:
+                '{ inter: { family: Inter }, '
+                'tiny: { family: Tiny, adjustSize: -11 } }',
+            families:
+                '{ default: { header: inter, paragraph: inter, '
+                'number: inter, code: { font: inter, mono: tiny }, '
+                'body: inter, table: inter, mono: tiny } }',
+          ),
+        ),
+        [expected],
+      );
+      expect(
+        _errors(
+          _typography(
+            fonts:
+                '{ inter: { family: Inter }, '
+                'tiny: { family: Tiny, adjustSize: -11 } }',
+            families:
+                '{ default: { header: inter, paragraph: inter, '
+                'number: inter, code: { font: inter, mono: tiny }, '
+                'body: inter, table: inter } }',
+          ),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('us07/fr02/e19: at one size and window size, the first type in '
+        'FontType order, then the first font in tag order, names the '
+        'message', () {
+      const firstType =
+          'typography.scaleByWindowSize.watch: expected a scaleByWindowSize '
+          'that keeps s10 above 0 px, got -13 (s10 draws at -1 px)';
+      expect(
+        _errors(
+          _typography(
+            fonts:
+                '{ inter: { family: Inter }, '
+                'big: { family: Big, adjustSize: 2 } }',
+            families:
+                '{ default: { header: big, paragraph: inter, number: inter, '
+                'code: inter, body: inter, table: inter }, '
+                'th: { paragraph: big } }',
+            extra: '  scaleByWindowSize: { watch: -13 }',
+          ),
+        ),
+        [firstType],
+      );
+      const firstFont =
+          'typography.scaleByWindowSize.watch: expected a scaleByWindowSize '
+          'that keeps s10 above 0 px, got -13 (s10 draws at -3 px)';
+      expect(
+        _errors(
+          _typography(
+            fonts:
+                '{ inter: { family: Inter }, '
+                'big: { family: Big, adjustSize: 2 } }',
+            families:
+                '{ default: { header: inter, paragraph: inter, '
+                'number: inter, code: inter, body: inter, table: inter }, '
+                'th: { header: big } }',
+            extra: '  scaleByWindowSize: { watch: -13 }',
+          ),
+        ),
+        [firstFont],
+      );
+    });
+
+    test('us07/fr02/e19: a value the length bound refuses draws no second '
+        'error at its path', () {
+      const expected =
+          'typography.fonts.inter.adjustSize: expected a number or "N%" '
+          'from -10000 to 10000, got -20000';
+      expect(
+        _errors(
+          _typography(
+            fonts: '{ inter: { family: Inter, adjustSize: -20000 } }',
+          ),
+        ),
+        [expected],
+      );
+    });
+
+    test('us07/fr02/e19, review focus 2: a font, a type, or a size that did '
+        'not parse is left out of the check, with no crash and no second '
+        'error', () {
+      const weight =
+          'typography.types.header.weight: expected 100 to 900 in steps of '
+          '100, got 650';
+      const spaceHeight =
+          'typography.types.paragraph.sizes.s10.spaceHeight: expected a '
+          'number or "N%", got "x"';
+
+      expect(
+        _errors(
+          _typography(
+            fonts: '{ inter: { family: Inter }, tiny: { adjustSize: -12 } }',
+            families:
+                '{ default: { header: inter, paragraph: inter, '
+                'number: inter, code: inter, body: tiny, table: inter } }',
+            types: {
+              'header': '{ weight: 650, sizes: { s16: { spaceHeight: -20 } } }',
+              'paragraph':
+                  '{ weight: 400, sizes: { s10: { spaceHeight: x } } }',
+            },
+          ),
+        ),
+        [
+          weight,
+          'typography.types.paragraph.sizes: expected at least one size',
+          spaceHeight,
+          'typography.fonts.tiny.family: required',
+        ],
+      );
+    });
+
+    test('us07/fr02/e17, review focus 5: a fractional size shows rounded to '
+        'two decimals', () {
+      const expected =
+          'typography.fonts.inter.adjustSize: expected an adjustSize that '
+          'keeps s10 above 0 px, got "-104.5%" (s10 draws at -0.45 px)';
+
+      expect(
+        _errors(
+          _typography(
+            fonts: '{ inter: { family: Inter, adjustSize: "-104.5%" } }',
+          ),
+        ),
+        [expected],
+      );
+    });
+
+    test('s03/inv14: the package default theme passes', () {
+      final node = loadYaml(
+        File('assets/themes/default/theme.yaml').readAsStringSync(),
+      ) as YamlMap;
+
+      expect(_errors(node['typography'] as YamlMap), isEmpty);
+    });
+  });
+
   group('StratumTypography.fromYaml Google Fonts', () {
     test(
       'a "Google/<Name>" family parses with source google and the bare name',

@@ -639,6 +639,38 @@ typography:
     });
   });
 
+  group('readThemeValues typography draw size', () {
+    test('fo02/us07/fr02/e17: an adjustSize a layer sets is checked on the '
+        'font the base defines, at its layer position', () {
+      const expected =
+          'layer1 typography.fonts.inter.adjustSize: expected an adjustSize '
+          'that keeps s10 above 0 px, got -12 (s10 draws at -2 px) '
+          '[expected_dimension]';
+      final (_, errors) = _read([
+        layer('typography:\n  fonts:\n    inter: { adjustSize: -12 }'),
+      ]);
+
+      expect(problems(errors), [expected]);
+      expect(errors.sorted.single.line, 4);
+    });
+
+    test("fo02/us07/fr02/e18: a layer's spaceHeight joins the base's sizes "
+        'before the check', () {
+      const expected =
+          'layer1 typography.types.body.sizes.s10.spaceHeight: expected a '
+          'spaceHeight that keeps s10 above 0 px, got -11 (line box -1 px) '
+          '[expected_dimension]';
+
+      expect(
+        _problems(
+          'typography:\n  types:\n    body:\n      sizes:\n'
+          '        s10: { spaceHeight: -11 }',
+        ),
+        [expected],
+      );
+    });
+  });
+
   group('readThemeValues animation', () {
     test('reads the levels, the default, the reverse ratio, and the '
         'curves', () {

@@ -5,6 +5,7 @@ import 'package:stratum_ui/src/themes/constant/font_size.dart';
 import 'package:stratum_ui/src/themes/constant/font_type.dart';
 import 'package:stratum_ui/src/themes/font_data.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
+import 'package:stratum_ui/src/themes/typography/text_size.dart';
 import 'package:stratum_ui/src/themes/typography/typography_models.dart';
 
 /// One entry of `typography.types` as stage 5 reads it: the plain twin of
@@ -105,7 +106,7 @@ class _TypographyParser {
     if (familiesNode != null) {
       _checkDefaultFamily(familiesNode, '$_path.families.default');
     }
-    return PlainTypography(
+    final typography = PlainTypography(
       fonts: fonts,
       families: families,
       scaleByWindowSize: scale == null || scale.isEmpty
@@ -113,6 +114,8 @@ class _TypographyParser {
           : PlainByWindowSize(scale),
       types: types,
     );
+    _DrawSizeCheck(_reader, node, typography).run();
+    return typography;
   }
 
   Map<String, StratumFontData> _fonts(Map<String, Object?>? node, String path) {
@@ -534,4 +537,143 @@ class _TypographyParser {
 
   void _error(StratumThemeErrorCode code, String path, String message) =>
       _reader.report(code, path, message);
+}
+
+/// FO-02 typography s03 invariant 14: at text scale 1, every text the app
+/// can draw under a parsed typography has a font size and a line box above
+/// 0 px.
+///
+/// Tries every `FontSize`, with no window size and at each window size, in
+/// every font a tag can give the type, through `textSizeOf`, the size math
+/// `TypographyResolver` draws with. Reports one `expected_dimension` per
+/// path to blame, its message named by the first text that fails there: by
+/// size, then window size, then `FontType` order, then the order the tags
+/// list the fonts (US-07 FR-02 E17 to E19).
+final class _DrawSizeCheck {
+  new(this._reader, this._node, this._typography);
+
+  static const _path = 'typography';
+  static const _zero = StratumDimension.fixed(0);
+
+  final ThemeReader _reader;
+
+  /// The `typography` subtree, for the value a message shows.
+  final Map<String, Object?> _node;
+
+  /// The values that parsed: a value another rule refuses is not here, so
+  /// it draws no second error at its path (E19).
+  final PlainTypography _typography;
+
+  /// The message of each path to blame, in the order its first text fails.
+  final _messages = <String, String>{};
+
+  void run() {
+    for (final size in FontSize.values) {
+      for (final window in <String?>[null, ...windowSizeNames]) {
+        for (final type in FontType.values) {
+          _check(size, window, type);
+        }
+      }
+    }
+    for (final MapEntry(key: path, value: message) in _messages.entries) {
+      _reader.report(StratumThemeErrorCode.expectedDimension, path, message);
+    }
+  }
+
+  void _check(FontSize size, String? window, FontType type) {
+    final metricsType = type == FontType.table ? FontType.body : type;
+    final style = _typography.types[metricsType];
+    if (style == null) return;
+    final defined = nearestFontSize(style.sizes.keys, size.value);
+    if (defined == null) return;
+    final spaceHeight = style.sizes[defined]!.spaceHeight;
+    if (window == null) {
+      final lineBox = _sizeOf(size, null, style, _zero, spaceHeight).lineBox;
+      if (!isDrawableSize(lineBox)) {
+        _blame(
+          ['types', metricsType.name, 'sizes', defined.name, 'spaceHeight'],
+          'a spaceHeight that keeps ${size.name} above 0 px',
+          '(line box ${_px(lineBox)} px)',
+        );
+      }
+    }
+    for (final key in _fontKeys(type)) {
+      final adjustSize = _typography.fonts[key]?.adjustSize;
+      if (adjustSize == null) continue;
+      final unscaled = _sizeOf(size, null, style, adjustSize, spaceHeight);
+      if (!isDrawableSize(unscaled.fontSize)) {
+        if (window == null) {
+          _blame(
+            ['fonts', key, 'adjustSize'],
+            'an adjustSize that keeps ${size.name} above 0 px',
+            '(${size.name} draws at ${_px(unscaled.fontSize)} px)',
+          );
+        }
+        continue;
+      }
+      if (window == null) continue;
+      final sizes = _sizeOf(size, window, style, adjustSize, spaceHeight);
+      final entry = sizes.windowScale;
+      if (entry == null || isDrawableSize(sizes.fontSize)) continue;
+      _blame(
+        entry.own
+            ? ['types', metricsType.name, 'scaleByWindowSize', entry.name]
+            : ['scaleByWindowSize', entry.name],
+        'a scaleByWindowSize that keeps ${size.name} above 0 px',
+        '(${size.name} draws at ${_px(sizes.fontSize)} px)',
+      );
+    }
+  }
+
+  TextSize _sizeOf(
+    FontSize size,
+    String? window,
+    PlainTypeStyle style,
+    StratumDimension adjustSize,
+    StratumDimension spaceHeight,
+  ) => textSizeOf(
+    base: size.value,
+    window: window,
+    ownScale: style.scaleByWindowSize,
+    themeScale: _typography.scaleByWindowSize.sizes,
+    adjustSize: adjustSize,
+    spaceHeight: spaceHeight,
+  );
+
+  /// Every font key a tag gives [type], in the order the tags list them:
+  /// each tag's font for the type, then, for every type but `code`, which
+  /// draws no mono font, the type's mono and the tag's theme-wide mono
+  /// (s03 step 2).
+  Set<String> _fontKeys(FontType type) => {
+    for (final family in _typography.families.values) ...[
+      ?family.types[type]?.font,
+      if (type != FontType.code) ...[?family.types[type]?.mono, ?family.mono],
+    ],
+  };
+
+  /// Records the message of the path [keys] names below `typography`,
+  /// unless an earlier text already named it.
+  void _blame(List<String> keys, String expected, String drawn) =>
+      _messages.putIfAbsent(
+        [_path, ...keys].join('.'),
+        () =>
+            'expected $expected, got ${ThemeReader.show(_valueAt(keys))} '
+            '$drawn',
+      );
+
+  Object? _valueAt(List<String> keys) {
+    Object? value = _node;
+    for (final key in keys) {
+      value = value is Map<String, Object?> ? value[key] : null;
+    }
+    return value;
+  }
+
+  /// [px] rounded to two decimals, with no trailing zero: -2.0 shows `-2`.
+  static String _px(double px) {
+    final rounded = double.parse(px.toStringAsFixed(2));
+    return rounded == rounded.truncateToDouble()
+        ? '${rounded.toInt()}'
+        : '$rounded';
+  }
 }
