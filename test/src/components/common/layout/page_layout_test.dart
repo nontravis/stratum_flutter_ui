@@ -432,6 +432,14 @@ void main() {
       expect(_rect(tester, 'body').left, 0);
     });
 
+    testWidgets('M1: us18/fr04: bottom never pads the top inset, even with '
+        'body null', (tester) async {
+      _view(tester, size: _phone, padding: const FakeViewPadding(top: 44));
+      await tester.pumpWidget(_host(PageLayout(bottom: _slot('bottom'))));
+      expect(_rect(tester, 'bottom'), const Rect.fromLTRB(0, 804, 390, 844));
+      expect(tester.getRect(_fill('bottom')).height, 40);
+    });
+
     testWidgets('R20: us18/fr04/e07: with header and footer null the inline '
         'sides pad by the top and bottom insets', (tester) async {
       _view(tester, size: const Size(768, 1024), padding: statusBar);
@@ -812,6 +820,95 @@ void main() {
       await tester.pumpWidget(page(false));
       await tester.pump();
       expect(node.hasFocus, isTrue);
+    });
+
+    testWidgets('R19: us18/fr06/e05: a dialog opened during loading keeps '
+        'its focus when loading ends', (tester) async {
+      _view(tester);
+      final pageNode = FocusNode();
+      final dialogNode = FocusNode();
+      final loading = ValueNotifier(false);
+      final navigator = GlobalKey<NavigatorState>();
+      addTearDown(() {
+        pageNode.dispose();
+        dialogNode.dispose();
+        loading.dispose();
+      });
+      await tester.pumpWidget(
+        _host(
+          Navigator(
+            key: navigator,
+            onGenerateRoute: (_) => PageRouteBuilder<void>(
+              pageBuilder: (_, _, _) => ValueListenableBuilder(
+                valueListenable: loading,
+                builder: (_, value, _) => PageLayout(
+                  loading: value,
+                  body: _act([], node: pageNode),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      pageNode.requestFocus();
+      await tester.pump();
+      loading.value = true;
+      await tester.pump();
+      navigator.currentState!.push(
+        RawDialogRoute<void>(
+          pageBuilder: (_, _, _) => Focus(
+            focusNode: dialogNode,
+            autofocus: true,
+            child: const Text('dialog'),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(dialogNode.hasFocus, isTrue);
+
+      loading.value = false;
+      await tester.pump();
+      await tester.pump();
+      expect(dialogNode.hasFocus, isTrue);
+      expect(pageNode.hasFocus, isFalse);
+    });
+
+    testWidgets('R19: us18/fr06/e05: a control outside the page focused '
+        'during loading keeps its focus when loading ends', (tester) async {
+      _view(tester);
+      final pageNode = FocusNode();
+      final outside = FocusNode();
+      addTearDown(() {
+        pageNode.dispose();
+        outside.dispose();
+      });
+      Widget page(bool loading) => _host(
+        RowLayout(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Focus(focusNode: outside, child: const Text('outside')),
+            Expanded(
+              child: PageLayout(
+                loading: loading,
+                body: _act([], node: pageNode),
+              ),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpWidget(page(false));
+      pageNode.requestFocus();
+      await tester.pump();
+      await tester.pumpWidget(page(true));
+      await tester.pump();
+      outside.requestFocus();
+      await tester.pump();
+
+      await tester.pumpWidget(page(false));
+      await tester.pump();
+      expect(outside.hasFocus, isTrue);
+      expect(pageNode.hasFocus, isFalse);
     });
 
     testWidgets('R19: us18/fr06: a loadingBuilder replaces the plain spinner '

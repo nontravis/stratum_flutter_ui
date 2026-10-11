@@ -516,7 +516,9 @@ class _PageLayoutState extends State<PageLayout>
   }
 
   /// Keeps the slot node that holds focus as loading turns true, and gives
-  /// it focus back as loading turns false (US-18 FR-06 E05).
+  /// it focus back as loading turns false (US-18 FR-06 E05), unless
+  /// something else took focus meanwhile: a route above the page, or a
+  /// control outside it.
   void _moveFocusForLoading() {
     if (widget.loading) {
       _focusBeforeLoading = _slotsNode.hasFocus
@@ -527,6 +529,11 @@ class _PageLayoutState extends State<PageLayout>
     final node = _focusBeforeLoading;
     _focusBeforeLoading = null;
     if (node == null || !(node.context?.mounted ?? false)) return;
+    if (!(ModalRoute.isCurrentOf(context) ?? true)) return;
+    // Loading parks focus on a scope above the slots; any other holder took
+    // it on purpose.
+    final parked = FocusManager.instance.primaryFocus;
+    if (parked != null && !_slotsNode.ancestors.contains(parked)) return;
     // The slots' Focus widget sets the same value as it rebuilds; setting
     // it first lets the request below land in this frame.
     _slotsNode.descendantsAreFocusable = true;
@@ -1024,8 +1031,9 @@ class _PageLayoutState extends State<PageLayout>
         start: noLeft,
         end: noRight,
       ),
+      // The body's room sits above bottom even when body is null.
       _Slot.bottom => (
-        top: openTop && page.tab == null && page.body == null,
+        top: false,
         bottom: noFooter,
         start: noLeft,
         end: noRight,
