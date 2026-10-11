@@ -1708,6 +1708,29 @@ void main() {
       });
     }
 
+    testWidgets('us20/fr07/e02: a sheet whose settle to hidden ends under '
+        'another route is back at full height once that route closes', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _Opener(body: _tall(400)));
+      await _open(tester);
+      final height = tester.getSize(find.byType(ModalLayout)).height;
+      final full = _top(tester);
+      await _slowDrag(tester, height * 0.85);
+      await tester.pump();
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator))
+        ..push(
+          RawDialogRoute<void>(pageBuilder: (_, _, _) => const Text('Over')),
+        );
+      await tester.pumpAndSettle();
+      expect(find.text('Over'), findsOneWidget);
+      navigator.pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(ModalLayout), findsOneWidget);
+      expect(_top(tester), closeTo(full, 0.5));
+      expect(_opener(tester).result, 'none');
+    });
+
     testWidgets('us20/fr07/e02: a sheet popped while it settles hidden '
         'leaves the page below it in place', (tester) async {
       await _pumpApp(

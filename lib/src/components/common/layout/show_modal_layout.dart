@@ -279,33 +279,43 @@ class _SheetContentState extends State<_SheetContent> {
   }
 
   /// Pops the route with null once the sheet settles hidden (US-20 FR-07
-  /// E02); a route a pop scope keeps open brings the sheet back to full
-  /// height, and the scope still hears the attempt. Does nothing once the
-  /// route is no longer the top one, so it never pops another route.
+  /// E02). It never pops another route: a route already popped stays as
+  /// it is, and a route that another route covers brings the sheet back
+  /// to full height, as does a route a pop scope keeps open, whose scope
+  /// still hears the attempt.
+  void _settleHidden() {
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isActive) return;
+    if (!route.isCurrent) {
+      _returnToFull();
+      return;
+    }
+    if (route.popDisposition == RoutePopDisposition.doNotPop) {
+      _returnToFull();
+    }
+    Navigator.maybePop(context);
+  }
+
+  /// Brings the sheet back to full height over the snap's duration.
   ///
   /// The settle reports its last offset from inside its own tick, so the
   /// way back starts after the frame, once that settle has ended.
-  void _settleHidden() {
-    final route = ModalRoute.of(context);
-    if (!(route?.isCurrent ?? false)) return;
-    if (route?.popDisposition == RoutePopDisposition.doNotPop) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        unawaited(
-          _controller.animateTo(
-            const SheetOffset(1),
-            duration: _physics.duration > Duration.zero
-                ? _physics.duration
-                // WORKAROUND: smooth_sheets 1.3.0 animateTo asserts a
-                // non-zero duration and exposes no jump; remove when it
-                // does.
-                : const Duration(microseconds: 1),
-            curve: _physics.curve,
-          ),
-        );
-      });
-    }
-    Navigator.maybePop(context);
+  void _returnToFull() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        _controller.animateTo(
+          const SheetOffset(1),
+          duration: _physics.duration > Duration.zero
+              ? _physics.duration
+              // WORKAROUND: smooth_sheets 1.3.0 animateTo asserts a
+              // non-zero duration and exposes no jump; remove when it
+              // does.
+              : const Duration(microseconds: 1),
+          curve: _physics.curve,
+        ),
+      );
+    });
   }
 
   /// Dismisses this route when it is the top one (US-20 FR-02).
