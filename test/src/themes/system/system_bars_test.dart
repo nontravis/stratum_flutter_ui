@@ -206,6 +206,26 @@ void main() {
       expect(bars.appSwitcherLabel, 'Inner');
     });
 
+    test('us14/fr01, us14/fr02: a fill beneath the topmost base is hidden '
+        'by its page background', () {
+      const innerBase = SystemStyleBaseRegion(
+        style: SystemStyle(statusBarIcons: SystemBarIcons.auto),
+        background: _white,
+      );
+      const outerBase = SystemStyleBaseRegion(
+        style: SystemStyle(statusBarIcons: SystemBarIcons.auto),
+        background: Color(0xFF101010),
+      );
+
+      final bars = resolveSystemBars(const [
+        innerBase,
+        SystemBarFillRegion(Color(0xFF101010)),
+        outerBase,
+      ])!;
+
+      expect(bars.overlay.statusBarIconBrightness, Brightness.dark);
+    });
+
     test('us14/fr02/e06: with no navigation point the navigation fields '
         'stay unset', () {
       final bars = resolveSystemBars(const [_base])!;

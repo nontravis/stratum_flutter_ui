@@ -137,10 +137,9 @@ const _transparent = Color(0x00000000);
 /// Whether light icons hold a higher WCAG contrast ratio against [fill]
 /// than dark icons (FO-03 US-14 FR-02; NFR-U07): white icons against
 /// black, a tie taking dark.
-bool pickLightIcons(Color fill) {
-  final luminance = fill.computeLuminance();
-  return (1 + 0.05) / (luminance + 0.05) > (luminance + 0.05) / 0.05;
-}
+bool pickLightIcons(Color fill) =>
+    contrastRatio(const Color(0xFFFFFFFF), fill) >
+    contrastRatio(const Color(0xFF000000), fill);
 
 /// The WCAG contrast ratio of [a] against [b].
 double contrastRatio(Color a, Color b) {
@@ -201,7 +200,10 @@ final class _Point {
   new(this.style, this.background, this.fills);
 
   /// The annotations [entries], front to back, read from the bottom up;
-  /// null with no base region among them.
+  /// null with no base region among them. A fill found beneath a base that
+  /// is itself beneath a more topmost base is dropped: the topmost base's
+  /// own `background` occludes it (us14/fr01: the topmost base wins over
+  /// an outer one, its page background included).
   static _Point? read(List<SystemUiOverlayStyle> entries) {
     var style = const SystemStyle();
     Color? background;
@@ -211,6 +213,7 @@ final class _Point {
         case SystemStyleBaseRegion():
           style = style.merge(entry.style);
           background = entry.background;
+          fills.clear();
         case SystemStyleLayerRegion():
           style = style.merge(entry.style);
         default:
