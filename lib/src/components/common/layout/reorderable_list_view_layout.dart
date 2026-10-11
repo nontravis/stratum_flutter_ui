@@ -1212,7 +1212,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       final key = at == null ? null : keyAt(at);
       if (at == null || key == null) continue;
       known.add(key);
-      _bookMovedKey(key, at);
+      // A screen reader's move parks as a focused one does (R46).
+      final node = _registeredNodeOf(key);
+      _bookMovedKey(
+        key,
+        at,
+        park: node != null && target.key == key && target.countsFocused(node),
+      );
     }
     for (final insert in _pendingInserts) {
       final key = keyAt(insert.index);
@@ -1924,6 +1930,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       node: _nodeAt(index),
       edgeJump: edge && !_builtSlot(to.slot),
       byKey: false,
+      screenReader: !drop,
     );
   }
 
@@ -1944,11 +1951,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     required FocusNode? node,
     required bool edgeJump,
     required bool byKey,
+    bool screenReader = false,
   }) {
     final key = _lookAt(index)?.key;
     _endExitsBeside(index);
     _bookReportedMove(from, to);
-    final moved = _targetFor(from, to, node, key);
+    // R46: an item a screen-reader action moves counts as the focused moved
+    // item at every distance.
+    final moved = _targetFor(from, to, node, key, asFocused: screenReader);
     _moveTargets.add(moved);
     _lastReported = moved;
     _layout.onReorderItem(from.value, to.value);
@@ -2049,18 +2059,27 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The record the frame after a key or screen-reader move reads, for a
   /// move booked from [from] to [to] of the current data. A move of an item
-  /// that holds focus, whose key node is [node], whatever its intent, keeps
-  /// the item's [key] and the gap it left, for its jump ([_readySlot]) and
-  /// for the reach should the frame not lay its slot out ([_reachStep]).
+  /// that holds focus, whose key node is [node], whatever its intent, or of
+  /// any item a screen-reader action moves, [asFocused] (R46), keeps the
+  /// item's [key] and the gap it left, for its jump ([_readySlot]) and for
+  /// the reach should the frame not lay its slot out ([_reachStep]).
   _MoveTarget _targetFor(
     _DataIndex from,
     _DataIndex to,
     FocusNode? node,
-    Key? key,
-  ) {
-    if (node == null || key == null || !node.hasFocus) return _MoveTarget(to);
+    Key? key, {
+    bool asFocused = false,
+  }) {
+    if (node == null || key == null || !(asFocused || node.hasFocus)) {
+      return _MoveTarget(to);
+    }
     // The slot the item left, by the index of the item now after it.
-    return _MoveTarget(to, key: key, gap: from < to ? from : from + 1);
+    return _MoveTarget(
+      to,
+      key: key,
+      gap: from < to ? from : from + 1,
+      screenReader: asFocused,
+    );
   }
 
   /// Readies the slot of the reported move [moved], whose item's key node
@@ -2302,14 +2321,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The frame did not lay out the slot of a focused move, now [at]: the
   /// list reaches the slot as a move call's follow does, with the gap the
   /// item left (FR-03 E09, FR-05 E04). The item is parked, its key node
-  /// [node] still holding focus, or its State is gone and no node holds
-  /// primary focus; a focus the app moved elsewhere in the move's turn
-  /// stays, and the park ends (R13).
+  /// [node] still counting as focused ([_MoveTarget.countsFocused], R46),
+  /// or its State is gone and no node holds primary focus; a focus the app
+  /// moved elsewhere in the move's turn stays, and the park ends (R13).
   void _reachStep(_MoveTarget moved, _FrameIndex at, FocusNode? node) {
     final key = moved.key;
     final gap = moved.gap;
     if (key == null || gap == null) return;
-    final parked = node != null && node.context != null && node.hasFocus;
+    // A screen reader's move parks an unfocused item too (R46).
+    final parked =
+        node != null && node.context != null && moved.countsFocused(node);
     if (!parked && FocusManager.instance.primaryFocus != null) {
       _releasePark(key);
       return;
@@ -4110,17 +4131,24 @@ enum _MoveIntent { start, previous, next, end }
 /// put its item at, moved by each later call until the frame after the
 /// move reads it; null once a call takes the item out.
 class _MoveTarget {
-  new(this.index, {this.key, this.gap, this.revealIn});
+  new(
+    this.index, {
+    this.key,
+    this.gap,
+    this.revealIn,
+    this.screenReader = false,
+  }) : focusAtCall = FocusManager.instance.primaryFocus;
 
   _DataIndex? index;
 
-  /// For a move of an item that holds focus: the item's key, which the
-  /// reach looks for.
+  /// For a move of an item that holds focus, or of any item a screen reader
+  /// moves (R46): the item's key, which the reach looks for.
   final Key? key;
 
-  /// For a move of an item that holds focus: the gap the item left, before
-  /// the item at this index of the current data, moved by each later call
-  /// as [index] is; the reach hands focus on from it when it gives up.
+  /// For a move of an item that holds focus, or of any item a screen reader
+  /// moves (R46): the gap the item left, before the item at this index of
+  /// the current data, moved by each later call as [index] is; the reach
+  /// hands focus on from it when it gives up.
   _DataIndex? gap;
 
   /// The offset before the move's jump, where a reach that gives up
@@ -4132,6 +4160,21 @@ class _MoveTarget {
   /// viewport around the list that did not show it is the app's. Null
   /// reveals in every viewport.
   final Set<ScrollableState>? revealIn;
+
+  /// Whether a screen reader's move action booked this target, so its item
+  /// counts as the focused moved item while no other node took primary
+  /// focus since the call ([focusAtCall], R46).
+  final bool screenReader;
+
+  /// The node that held primary focus at the move's call.
+  final FocusNode? focusAtCall;
+
+  /// Whether the moved item counts as focused now: its key node [node]
+  /// holds focus, or a screen reader moved it and primary focus stayed on
+  /// [focusAtCall] (R46); a focus the app moves in the turn wins (R13).
+  bool countsFocused(FocusNode node) =>
+      node.hasFocus ||
+      (screenReader && FocusManager.instance.primaryFocus == focusAtCall);
 }
 
 /// The list's own scroll view: the body builds the widgets

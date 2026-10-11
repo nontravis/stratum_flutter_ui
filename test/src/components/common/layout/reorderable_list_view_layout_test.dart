@@ -13540,6 +13540,34 @@ void main() {
         handle.dispose();
       },
     );
+
+    final unfocusedStep = ValueVariant<bool>({false, true});
+    testWidgets(
+      'matrix I08.M1 and us11/fr03/e12 (R46): an unfocused "Move down" to the '
+      'unbuilt slot past the trailing laid-out edge keeps the item and shows '
+      'it',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final state = await pumpAt(
+          tester,
+          _Harness(count: 1000, appIndex: unfocusedStep.currentValue!),
+          id: 500,
+          focus: false,
+        );
+        final position = positionOf(tester);
+        final from = position.pixels;
+
+        moveActionNow(tester, 500, 'Move down');
+        expect(position.pixels, from);
+        await tester.pumpAndSettle();
+
+        expectKept(tester, 500, state);
+        expect(shown(tester, 500), isTrue);
+        expect(_harness(tester).moves, [(500, 501)]);
+        handle.dispose();
+      },
+      variant: unfocusedStep,
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {
