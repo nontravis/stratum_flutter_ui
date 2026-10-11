@@ -911,6 +911,45 @@ void main() {
       expect(pageNode.hasFocus, isFalse);
     });
 
+    testWidgets('R19: us18/fr06/e05: focus returns to the body control even '
+        'when an outside control was focused before it', (tester) async {
+      _view(tester);
+      final pageNode = FocusNode();
+      final outside = FocusNode();
+      addTearDown(() {
+        pageNode.dispose();
+        outside.dispose();
+      });
+      Widget page(bool loading) => _host(
+        RowLayout(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Focus(focusNode: outside, child: const Text('outside')),
+            Expanded(
+              child: PageLayout(
+                loading: loading,
+                body: _act([], node: pageNode),
+              ),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpWidget(page(false));
+      outside.requestFocus();
+      await tester.pump();
+      pageNode.requestFocus();
+      await tester.pump();
+
+      await tester.pumpWidget(page(true));
+      await tester.pump();
+      expect(pageNode.hasFocus, isFalse);
+
+      await tester.pumpWidget(page(false));
+      await tester.pump();
+      expect(pageNode.hasFocus, isTrue);
+      expect(outside.hasFocus, isFalse);
+    });
+
     testWidgets('R19: us18/fr06: a loadingBuilder replaces the plain spinner '
         'while the layer still blocks', (tester) async {
       _view(tester);

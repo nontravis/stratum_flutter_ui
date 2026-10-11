@@ -418,6 +418,9 @@ class _PageLayoutState extends State<PageLayout>
   /// The node that held focus in a slot when loading turned true.
   FocusNode? _focusBeforeLoading;
 
+  /// The node loading's unfocus moved focus to, once it landed.
+  FocusNode? _parkedFocus;
+
   /// The drawer's 0-to-1 animation, which a drag also drives (layout s03
   /// invariant 65).
   late final _drawer = AnimationController(vsync: this)
@@ -515,29 +518,46 @@ class _PageLayoutState extends State<PageLayout>
       .._openSide = null;
   }
 
-  /// Keeps the slot node that holds focus as loading turns true, and gives
-  /// it focus back as loading turns false (US-18 FR-06 E05), unless
-  /// something else took focus meanwhile: a route above the page, or a
-  /// control outside it.
+  /// Keeps the slot node that holds focus as loading turns true, and hands
+  /// focus back as loading turns false (US-18 FR-06 E05): to that node, as
+  /// long as focus still sits where loading parked it, and then into a
+  /// drawer asked open meanwhile, which keeps focus inside (layout s03
+  /// invariant 68). A route above the page keeps its focus.
   void _moveFocusForLoading() {
+    final manager = FocusManager.instance;
     if (widget.loading) {
-      _focusBeforeLoading = _slotsNode.hasFocus
-          ? FocusManager.instance.primaryFocus
-          : null;
+      final held = _slotsNode.hasFocus ? manager.primaryFocus : null;
+      _focusBeforeLoading = held;
+      _parkedFocus = null;
+      if (held == null) return;
+      // The unfocus lands after this frame's build; read where it went.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !widget.loading || _focusBeforeLoading != held) return;
+        manager.applyFocusChangesIfNeeded();
+        _parkedFocus = manager.primaryFocus;
+      });
       return;
     }
     final node = _focusBeforeLoading;
+    final parked = _parkedFocus;
     _focusBeforeLoading = null;
-    if (node == null || !(node.context?.mounted ?? false)) return;
+    _parkedFocus = null;
     if (!(ModalRoute.isCurrentOf(context) ?? true)) return;
-    // Loading parks focus on a scope above the slots; any other holder took
-    // it on purpose.
-    final parked = FocusManager.instance.primaryFocus;
-    if (parked != null && !_slotsNode.ancestors.contains(parked)) return;
+    final restore =
+        node != null &&
+        (node.context?.mounted ?? false) &&
+        manager.primaryFocus == parked;
+    final drawerOpen = _shown != null && _controller._openSide == _shown;
+    if (!restore && !drawerOpen) return;
     // The slots' Focus widget sets the same value as it rebuilds; setting
-    // it first lets the request below land in this frame.
+    // it first lets the requests below land in this frame.
     _slotsNode.descendantsAreFocusable = true;
-    node.requestFocus();
+    // Restoring first puts the node back in the focus history, so closing
+    // the drawer returns focus to it.
+    if (restore) node.requestFocus();
+    if (drawerOpen && !(restore && node.ancestors.contains(_drawerFocus))) {
+      _drawerFocus.requestFocus();
+    }
   }
 
   // MARK: - Build

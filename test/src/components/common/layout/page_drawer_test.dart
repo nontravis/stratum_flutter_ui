@@ -96,8 +96,10 @@ Widget _page({
   Widget? right,
   PageLayoutController? controller,
   PageLayoutStyle? style,
+  bool loading = false,
 }) => PageLayout(
   key: key,
+  loading: loading,
   controller: controller,
   onDrawerChanged: changed,
   edgeSwipe: edgeSwipe,
@@ -425,6 +427,32 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Menu'), findsNothing);
       expect(find.text('go'), findsOneWidget);
+    });
+
+    testWidgets('R19: us19/fr05: a drawer opened while loading takes focus '
+        'once loading ends, and Esc returns focus to the opener', (
+      tester,
+    ) async {
+      await _pump(tester, _page());
+      final menu = Focus.of(tester.element(find.text('Menu')))..requestFocus();
+      await tester.pump();
+      await _pump(tester, _page(loading: true));
+      await tester.pump(const Duration(milliseconds: 200));
+      PageLayout.of(tester.element(find.text('Menu'))).openLeft();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(menu.hasFocus, isFalse);
+
+      await _pump(tester, _page());
+      await tester.pumpAndSettle();
+      final focused = FocusManager.instance.primaryFocus!;
+      expect(focused, isNot(menu));
+      expect(focused.rect, tester.getRect(_panel));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(_drawer, findsNothing);
+      expect(FocusManager.instance.primaryFocus, menu);
     });
 
     testWidgets('us19/fr03/e07: Esc closes the open drawer', (tester) async {
