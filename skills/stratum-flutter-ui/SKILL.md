@@ -640,9 +640,14 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   scrim (`opacity.scrim`, `blur.level1`); `showBackground: false` drops the scrim, while the page still refuses taps
   and a tap on it closes the modal. `semanticsLabel:` replaces the built-in "Dialog" or "Sheet" screen-reader label.
   Focus moves in, Tab stays inside, and focus returns to the opener on close. It enters over the theme's `normal`
-  level and fades with no slide under reduced motion. A sheet rests at half or full height, snaps over the `fast`
-  level, rises with the keyboard, and takes the screen radius and the status-bar inset once dragged to the top; a
-  modal moves clear of the keyboard. A body list with `scrollBody: false` hands a drag past its top to the sheet.
+  level and fades with no slide under reduced motion. It opens on the root navigator, so it also covers a tab bar
+  outside a nested navigator; `useRootNavigator: false` keeps it in the nearest one. After every drag a sheet
+  settles on its nearest resting height, hidden, half, or full, over the `fast` level (at once under reduced
+  motion); settling hidden closes it with null, unless a `PopScope` keeps it open, which brings it back to full
+  height. A sheet rises with the keyboard and takes the screen radius and the status-bar inset once dragged to the
+  top; a modal moves clear of the keyboard. A body list with `scrollBody: false` hands a drag past its top to the
+  sheet. Every vertical list in a sheet with no `controller` of its own shares the sheet's scroll controller, on
+  desktop too, so give each extra list its own `controller`; two lists sharing it break the desktop scrollbar drag.
   Any widget works in it, a `ListTile` included.
 - **`ModalLayout`** — the slot widget of every sheet and modal: `ModalLayout(top: title, tab: tabs, body: content)`
   shows an optional `top`, an optional `tab`, and the required `body`, in that order; a null slot shows nothing. The

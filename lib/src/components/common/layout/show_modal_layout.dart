@@ -26,15 +26,20 @@ import 'package:stratum_ui/src/src.dart';
 ///
 /// The route blocks the page behind for screen readers, reads as a named
 /// screen labeled [semanticsLabel], else the built-in dialog or sheet
-/// label, keeps Tab inside it, and gives focus back to the opener when it
-/// closes. Esc, a tap outside, back, the close button, a tap on the
-/// handle, and a drag down on a sheet dismiss it. It enters and leaves
-/// over the theme's `normal` level, a sheet sliding and a modal fading,
-/// and fades with no slide under reduced motion.
+/// label in the current language, keeps Tab inside it, and gives focus
+/// back to the opener when it closes. Esc, a tap outside, back, the close
+/// button, a tap on the handle, and a drag down on a sheet dismiss it. It
+/// enters and leaves over the theme's `normal` level, a sheet sliding and
+/// a modal fading, and fades with no slide under reduced motion.
 ///
-/// A sheet follows the drag, snaps to half or full height over the
-/// theme's `fast` level, and jumps there under reduced motion; it rises by
-/// the keyboard height, and a modal moves clear of the keyboard
+/// [useRootNavigator], the default, pushes the route on the root
+/// navigator, so it also covers what sits outside a nested navigator,
+/// such as a tab bar; false pushes it on the nearest navigator.
+///
+/// A sheet follows the drag and, after every release, settles on its
+/// nearest resting height, hidden, half, or full, over the theme's `fast`
+/// level, at once under reduced motion; settling hidden dismisses it. It
+/// rises by the keyboard height, and a modal moves clear of the keyboard
 /// (US-20 FR-05, FR-07).
 Future<T?> showModalLayout<T>(
   BuildContext context, {
@@ -42,18 +47,19 @@ Future<T?> showModalLayout<T>(
   required WidgetBuilder builder,
   String? semanticsLabel,
   bool showBackground = true,
+  bool useRootNavigator = true,
 }) {
   final shown = resolveModalLayoutType(type, context.deviceWindow.windowSize);
   final labels = builtInLabelsOf(context);
   final motion = context.theme.animation.normal;
   final duration = motion.duration ?? Duration.zero;
   final reverseDuration = motion.reverseDuration ?? duration;
-  final navigator = Navigator.of(context);
+  final navigator = Navigator.of(context, rootNavigator: useRootNavigator);
   if (shown == ModalLayoutType.modal) {
     return navigator.push(
       _ModalLayoutRoute<T>(
         builder: builder,
-        label: semanticsLabel ?? labels.dialogLabel,
+        label: semanticsLabel,
         barrierLabel: labels.dismissLabel,
         showBackground: showBackground,
         transitionDuration: duration,
@@ -74,7 +80,7 @@ Future<T?> showModalLayout<T>(
       ),
       builder: (context) => _SheetContent(
         type: shown,
-        label: semanticsLabel ?? labels.sheetLabel,
+        label: semanticsLabel,
         showBackground: showBackground,
         builder: builder,
       ),
@@ -97,8 +103,8 @@ class _ModalLayoutRoute<T> extends PopupRoute<T> {
 
   final WidgetBuilder builder;
 
-  /// The route's semantics label.
-  final String label;
+  /// The route's semantics label; null reads the built-in dialog label.
+  final String? label;
 
   final bool showBackground;
 
@@ -155,8 +161,11 @@ class _ModalLayoutRoute<T> extends PopupRoute<T> {
 }
 
 /// The sheet's route: a slide on the theme's `standard` curve, or a fade
-/// with no slide under reduced motion while no drag drives it
-/// (US-20 FR-02 E05).
+/// with no slide under reduced motion (US-20 FR-02 E05).
+///
+/// The package's swipe dismissal stays off: a drag never drives the route
+/// animation, and the sheet dismisses by settling on its hidden resting
+/// height through [_SnapPhysics] instead (US-20 FR-07).
 class _SheetLayoutRoute<T> extends ModalSheetRoute<T> {
   new({
     required super.builder,
@@ -165,7 +174,7 @@ class _SheetLayoutRoute<T> extends ModalSheetRoute<T> {
     required super.transitionCurve,
     required super.barrierLabel,
     required super.barrierBuilder,
-  }) : super(swipeDismissible: true);
+  });
 
   @override
   final Duration reverseTransitionDuration;
@@ -177,8 +186,7 @@ class _SheetLayoutRoute<T> extends ModalSheetRoute<T> {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final dragged = navigator?.userGestureInProgress ?? false;
-    if (!context.reducesMotion || dragged) {
+    if (!context.reducesMotion) {
       return super.buildTransitions(
         context,
         animation,
@@ -193,7 +201,8 @@ class _SheetLayoutRoute<T> extends ModalSheetRoute<T> {
   }
 }
 
-/// The sheet: half and full resting heights, the snap of [_SnapPhysics],
+/// The sheet: hidden, half, and full resting heights, the settle of
+/// [_SnapPhysics] after every release, a dismissal when it settles hidden,
 /// the scroll handoff to the body, the keyboard lift, and the full-height
 /// state the [ModalLayout] reads (US-20 FR-04 E03, FR-05, FR-07).
 class _SheetContent extends StatefulWidget {
@@ -205,7 +214,10 @@ class _SheetContent extends StatefulWidget {
   });
 
   final ModalLayoutType type;
-  final String label;
+
+  /// The route's semantics label; null reads the built-in sheet label.
+  final String? label;
+
   final bool showBackground;
   final WidgetBuilder builder;
 
@@ -221,6 +233,18 @@ class _SheetContentState extends State<_SheetContent> {
 
   /// The status bar height at the last build.
   var _statusBar = 0.0;
+
+  /// The pointers down on the sheet: while any is, a drag may still move
+  /// it, so reaching the hidden height dismisses nothing yet.
+  var _pointers = 0;
+
+  /// Whether the sheet sits hidden and has asked the route to pop, so it
+  /// asks once each time it settles there.
+  var _hidden = false;
+
+  /// The settle of the last build, which also brings a sheet a pop scope
+  /// keeps back to full height.
+  late _SnapPhysics _physics;
 
   @override
   void initState() {
@@ -239,9 +263,38 @@ class _SheetContentState extends State<_SheetContent> {
   void _onMoved() {
     final metrics = _controller.metrics;
     if (metrics == null || !mounted) return;
-    final reaches =
-        metrics.rect.top <= _statusBar + Tolerance.defaultTolerance.distance;
+    final tolerance = Tolerance.defaultTolerance.distance;
+    if (metrics.offset > tolerance) {
+      _hidden = false;
+    } else if (_pointers == 0 && !_hidden) {
+      _hidden = true;
+      _settleHidden();
+    }
+    final reaches = metrics.rect.top <= _statusBar + tolerance;
     if (reaches != _fullHeight) setState(() => _fullHeight = reaches);
+  }
+
+  /// Pops the route with null once the sheet settles hidden (US-20 FR-07
+  /// E02); a route a pop scope keeps open brings the sheet back to full
+  /// height, and the scope still hears the attempt.
+  ///
+  /// The settle reports its last offset from inside its own tick, so the
+  /// way back starts after the frame, once that settle has ended.
+  void _settleHidden() {
+    if (ModalRoute.of(context)?.popDisposition ==
+        RoutePopDisposition.doNotPop) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(
+          _controller.animateTo(
+            const SheetOffset(1),
+            duration: _physics.duration,
+            curve: _physics.curve,
+          ),
+        );
+      });
+    }
+    Navigator.maybePop(context);
   }
 
   void _dismiss() => Navigator.maybePop(context);
@@ -251,15 +304,18 @@ class _SheetContentState extends State<_SheetContent> {
     final window = context.deviceWindow;
     final snap = context.theme.animation.fast;
     _statusBar = window.safeArea.top;
+    _physics = _SnapPhysics(
+      duration: context.reducesMotion
+          ? Duration.zero
+          : snap.duration ?? Duration.zero,
+      curve: snap.curve ?? Curves.easeInOutSine,
+    );
     return Sheet(
       controller: _controller,
-      snapGrid: const SheetSnapGrid(snaps: [SheetOffset(0.5), SheetOffset(1)]),
-      physics: _SnapPhysics(
-        duration: context.reducesMotion
-            ? Duration.zero
-            : snap.duration ?? Duration.zero,
-        curve: snap.curve ?? Curves.easeInOutSine,
+      snapGrid: const SheetSnapGrid(
+        snaps: [SheetOffset(0), SheetOffset(0.5), SheetOffset(1)],
       ),
+      physics: _physics,
       scrollConfiguration: const SheetScrollConfiguration(),
       padding: EdgeInsets.only(bottom: window.keyboardHeight),
       // The sheet lays its child out at the viewport's full width; the
@@ -268,17 +324,22 @@ class _SheetContentState extends State<_SheetContent> {
       child: Align(
         alignment: Alignment.bottomCenter,
         heightFactor: 1,
-        child: Builder(
-          builder: (context) => PrimaryScrollController(
-            controller: PrimaryScrollController.of(context),
-            automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
-            child: _RouteScope(
-              type: widget.type,
-              label: widget.label,
-              showBackground: widget.showBackground,
-              fullHeight: _fullHeight,
-              onDismiss: _dismiss,
-              child: widget.builder(context),
+        child: Listener(
+          onPointerDown: (_) => _pointers++,
+          onPointerUp: (_) => _pointers--,
+          onPointerCancel: (_) => _pointers--,
+          child: Builder(
+            builder: (context) => PrimaryScrollController(
+              controller: PrimaryScrollController.of(context),
+              automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+              child: _RouteScope(
+                type: widget.type,
+                label: widget.label,
+                showBackground: widget.showBackground,
+                fullHeight: _fullHeight,
+                onDismiss: _dismiss,
+                child: widget.builder(context),
+              ),
             ),
           ),
         ),
@@ -347,8 +408,8 @@ class _CurveSimulation extends Simulation {
   bool isDone(double time) => time >= _seconds;
 }
 
-/// The route's scrim: the theme's `normal-inverse` color at its
-/// `opacity.scrim` opacity, blurred by `blur/1`, fading with [animation],
+/// The route's scrim: the theme's `normal-inverse` color, its own alpha
+/// times the `opacity.scrim` opacity as a Figma layer opacity, blurred by `blur/1`, fading with [animation],
 /// over a [ModalBarrier] that blocks the page behind for taps and screen
 /// readers, reads the dismiss label, and dismisses on a tap; with
 /// [showBackground] false only the barrier stays (US-20 FR-06).
@@ -371,6 +432,7 @@ class _Scrim extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
+    final color = theme.color.background.defaults.normalInverse;
     return StackLayout(
       fit: StackFit.expand,
       children: [
@@ -382,8 +444,9 @@ class _Scrim extends StatelessWidget {
               ),
               child: ContainerLayout(
                 style: WidgetStyle(
-                  backgroundColor: theme.color.background.defaults.normalInverse
-                      .withValues(alpha: theme.data.opacity.scrim),
+                  backgroundColor: color.withValues(
+                    alpha: color.a * theme.data.opacity.scrim,
+                  ),
                   backgroundBlur: theme.blur.level1,
                 ),
               ),
@@ -414,7 +477,11 @@ class _RouteScope extends StatelessWidget {
   });
 
   final ModalLayoutType type;
-  final String label;
+
+  /// The route's label; null reads the built-in dialog label for a modal
+  /// and the sheet label for a sheet, in the current language.
+  final String? label;
+
   final bool showBackground;
   final VoidCallback onDismiss;
   final bool fullHeight;
@@ -425,7 +492,12 @@ class _RouteScope extends StatelessWidget {
     scopesRoute: true,
     namesRoute: true,
     explicitChildNodes: true,
-    label: label,
+    label:
+        label ??
+        switch (type) {
+          ModalLayoutType.modal => builtInLabelsOf(context).dialogLabel,
+          _ => builtInLabelsOf(context).sheetLabel,
+        },
     child: FocusScope(
       autofocus: true,
       child: Shortcuts(

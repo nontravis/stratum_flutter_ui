@@ -1,3 +1,4 @@
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/layout/modal_layout.dart'
     show
@@ -170,6 +171,7 @@ class _Opener extends StatefulWidget {
     this.semanticsLabel,
     this.body,
     this.scrollBody = true,
+    this.useRootNavigator = true,
   });
 
   final ModalLayoutType? type;
@@ -181,6 +183,7 @@ class _Opener extends StatefulWidget {
   final Widget? body;
 
   final bool scrollBody;
+  final bool useRootNavigator;
 
   @override
   State<_Opener> createState() => _OpenerState();
@@ -196,6 +199,7 @@ class _OpenerState extends State<_Opener> {
       type: widget.type,
       showBackground: widget.showBackground,
       semanticsLabel: widget.semanticsLabel,
+      useRootNavigator: widget.useRootNavigator,
       builder: (c) => ModalLayout(
         scrollBody: widget.scrollBody,
         body:
@@ -220,12 +224,16 @@ class _OpenerState extends State<_Opener> {
 }
 
 /// [home] in a `MaterialApp` under [theme], else [fakeTheme], with the
-/// view's media data edited by [media].
+/// view's media data edited by [media], in [locale], else English.
 Widget _app(
   Widget home, {
   StratumThemeData? theme,
   MediaQueryData Function(MediaQueryData data)? media,
+  Locale locale = const Locale('en'),
 }) => MaterialApp(
+  locale: locale,
+  supportedLocales: const [Locale('en'), Locale('th')],
+  localizationsDelegates: GlobalMaterialLocalizations.delegates,
   builder: (context, child) {
     final app = StratumThemeApplication(
       themes: StratumThemeSet(light: theme ?? fakeTheme),
@@ -1586,5 +1594,287 @@ void main() {
         handle.dispose();
       });
     }
+
+    final reducedPumps =
+        <String, Future<void> Function(WidgetTester tester, Widget home)>{
+          'app disableAnimations': (tester, home) => _pumpApp(
+            tester,
+            home,
+            media: (data) => data.copyWith(disableAnimations: true),
+          ),
+          'platform reduceMotion': (tester, home) async {
+            tester.platformDispatcher.accessibilityFeaturesTestValue =
+                const FakeAccessibilityFeatures(reduceMotion: true);
+            addTearDown(
+              tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+            );
+            await _pumpApp(tester, home);
+          },
+        };
+    for (final MapEntry(key: reason, value: pump) in reducedPumps.entries) {
+      testWidgets('NFR-U03: us20/fr07/e03: under $reason a drag below half '
+          'that ends short of dismissal jumps to half with no slide', (
+        tester,
+      ) async {
+        await pump(tester, _Opener(body: _tall(400)));
+        await _open(tester);
+        final height = tester.getSize(find.byType(ModalLayout)).height;
+        final full = _top(tester);
+        await _slowDrag(tester, height * 0.7);
+        await tester.pump();
+        expect(_top(tester), closeTo(full + height / 2, 1));
+        await tester.pumpAndSettle();
+        expect(_top(tester), closeTo(full + height / 2, 1));
+      });
+    }
+
+    testWidgets('us20/fr07/e01: a drag below half that ends short of '
+        'dismissal settles on half within the fast level', (tester) async {
+      await _pumpApp(tester, _Opener(body: _tall(400)));
+      await _open(tester);
+      final height = tester.getSize(find.byType(ModalLayout)).height;
+      final full = _top(tester);
+      await _slowDrag(tester, height * 0.7);
+      await tester.pump();
+      final fast = fakeTheme.animation.fast.duration!;
+      await tester.pump(fast ~/ 2);
+      expect(_top(tester), greaterThan(full + height / 2 + 1));
+      await tester.pump(fast ~/ 2);
+      expect(_top(tester), closeTo(full + height / 2, 0.5));
+    });
+
+    testWidgets('us20/fr07/e02: a slow drag down past the closing point '
+        'settles hidden and pops once with null', (tester) async {
+      await _pumpApp(tester, _Opener(body: _tall(400)));
+      await _open(tester);
+      final height = tester.getSize(find.byType(ModalLayout)).height;
+      await _slowDrag(tester, height * 0.85);
+      await tester.pumpAndSettle();
+      expect(find.byType(ModalLayout), findsNothing);
+      expect(_opener(tester).result, isNull);
+      expect(find.text('Open'), findsOneWidget);
+    });
+
+    testWidgets('us20/fr07/e02: a sheet held down at the bottom edge stays '
+        'until the finger lifts', (tester) async {
+      await _pumpApp(tester, _Opener(body: _tall(400)));
+      await _open(tester);
+      final height = tester.getSize(find.byType(ModalLayout)).height;
+      final gesture = await tester.startGesture(
+        tester.getTopLeft(find.byType(ModalLayout)) + const Offset(40, 24),
+      );
+      for (var i = 0; i < 12; i++) {
+        await gesture.moveBy(Offset(0, height / 10));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(ModalLayout), findsOneWidget);
+      expect(_opener(tester).result, 'none');
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(ModalLayout), findsNothing);
+      expect(_opener(tester).result, isNull);
+    });
+
+    testWidgets('us20/fr07/e02: a sheet a pop scope keeps open returns to '
+        'full height, and the scope hears one attempt', (tester) async {
+      var attempts = 0;
+      await _pumpApp(
+        tester,
+        _Opener(
+          body: PopScope<Object?>(
+            canPop: false,
+            onPopInvokedWithResult: (_, _) => attempts++,
+            child: _tall(400),
+          ),
+        ),
+      );
+      await _open(tester);
+      final height = tester.getSize(find.byType(ModalLayout)).height;
+      final full = _top(tester);
+      await _slowDrag(tester, height * 0.85);
+      await tester.pumpAndSettle();
+      expect(find.byType(ModalLayout), findsOneWidget);
+      expect(_top(tester), closeTo(full, 0.5));
+      expect(attempts, 1);
+    });
+
+    testWidgets('us20/fr06: a tap outside a sheet dismisses it with null', (
+      tester,
+    ) async {
+      await _pumpApp(tester, const _Opener(type: ModalLayoutType.bottomSheet));
+      await _open(tester);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(find.byType(ModalLayout), findsNothing);
+      expect(_opener(tester).result, isNull);
+    });
+
+    testWidgets('us20/fr02/e02: Esc dismisses a sheet with null', (
+      tester,
+    ) async {
+      await _pumpApp(
+        tester,
+        const _Opener(type: ModalLayoutType.bottomSheet),
+        size: _desktop,
+      );
+      await _open(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(ModalLayout), findsNothing);
+      expect(_opener(tester).result, isNull);
+    });
+
+    testWidgets('us20/fr07: a scrollBody wrapper at its top hands a further '
+        'drag down to the sheet', (tester) async {
+      await _pumpApp(tester, _Opener(body: _tall(2000)));
+      await _open(tester);
+      final full = _top(tester);
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(ModalLayout)),
+      );
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(0, 20));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(_top(tester) - full, greaterThan(100));
+      expect(
+        tester
+            .state<ScrollableState>(
+              find.descendant(
+                of: find.byType(ModalLayout),
+                matching: find.byType(Scrollable),
+              ),
+            )
+            .position
+            .pixels,
+        0,
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('us20/fr07: two body lists on a desktop each drag their '
+        'scrollbar when the second takes its own controller', (tester) async {
+      final own = ScrollController();
+      addTearDown(own.dispose);
+      Widget list(String name, {ScrollController? controller}) => Expanded(
+        child: ListView.builder(
+          controller: controller,
+          itemCount: 77,
+          itemBuilder: (_, i) => SizedBox(height: 40, child: Text('$name $i')),
+        ),
+      );
+      await _pumpApp(
+        tester,
+        _Opener(
+          scrollBody: false,
+          body: RowLayout(
+            children: [
+              list('Left'),
+              list('Right', controller: own),
+            ],
+          ),
+        ),
+      );
+      await _open(tester);
+      for (final name in ['Left', 'Right']) {
+        final rect = tester.getRect(
+          find.ancestor(
+            of: find.text('$name 0'),
+            matching: find.byType(Scrollable),
+          ),
+        );
+        final mouse = TestPointer(1, PointerDeviceKind.mouse);
+        await tester.sendEventToBinding(mouse.hover(rect.center));
+        await tester.sendEventToBinding(mouse.scroll(const Offset(0, 40)));
+        await tester.pumpAndSettle();
+        await tester.dragFrom(
+          Offset(rect.right - 3, rect.top + 20),
+          const Offset(0, 40),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('us20/fr06: the scrim multiplies a translucent token by '
+        'opacity.scrim', (tester) async {
+      final translucent = fakeTheme.copyWith(
+        color: StratumColorTokens.fromMap({
+          ...defaultThemeConfig.color.light,
+          'background.default.normal-inverse': const Color(0x80000000),
+        }),
+      );
+      await _pumpApp(tester, const _Opener(), theme: translucent);
+      await _open(tester);
+      final color = tester.widget<ContainerLayout>(_scrim).style!;
+      expect(
+        color.backgroundColor!.a,
+        closeTo(0x80 / 0xFF * fakeTheme.opacity.scrim, 0.01),
+      );
+    });
+
+    testWidgets('NFR-U06: us20/fr02: an open sheet reads its built-in label '
+        'in the language the app switches to', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpApp(tester, const _Opener());
+      await _open(tester);
+      expect(find.semantics.byLabel('Sheet'), findsOneWidget);
+      await tester.pumpWidget(
+        _app(const _Opener(), locale: const Locale('th')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.semantics.byLabel('ชีต'), findsOneWidget);
+      expect(find.semantics.byLabel('Sheet'), findsNothing);
+      handle.dispose();
+    });
+
+    group('useRootNavigator', () {
+      var tabTaps = 0;
+      setUp(() => tabTaps = 0);
+
+      /// A nested navigator showing an opener above a tab bar it does not
+      /// cover.
+      Widget nested({required bool root}) => ColumnLayout(
+        children: [
+          Expanded(
+            child: Navigator(
+              onGenerateRoute: (_) => MaterialPageRoute<void>(
+                builder: (_) => _Opener(useRootNavigator: root),
+              ),
+            ),
+          ),
+          TextButton(onPressed: () => tabTaps++, child: const Text('Tab bar')),
+        ],
+      );
+
+      testWidgets('us20/fr02: by default the route covers a tab bar outside '
+          'a nested navigator', (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpApp(tester, nested(root: true), size: _desktop);
+        await _open(tester);
+        expect(find.semantics.byLabel('Tab bar'), findsNothing);
+        await tester.tapAt(tester.getCenter(find.text('Tab bar')));
+        await tester.pumpAndSettle();
+        expect(tabTaps, 0);
+        expect(find.byType(ModalLayout), findsNothing);
+        handle.dispose();
+      });
+
+      testWidgets('us20/fr02: useRootNavigator false keeps the route inside '
+          'the nearest navigator', (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpApp(tester, nested(root: false), size: _desktop);
+        await _open(tester);
+        expect(find.semantics.byLabel('Tab bar'), findsOneWidget);
+        await tester.tap(find.text('Tab bar'));
+        await tester.pumpAndSettle();
+        expect(tabTaps, 1);
+        expect(find.byType(ModalLayout), findsOneWidget);
+        handle.dispose();
+      });
+    });
   });
 }
