@@ -67,6 +67,24 @@ class _ReorderSliverState extends SliverReorderableListState {
   /// build; a ticker callback runs outside the build, so it reads this.
   var _reducesMotion = false;
 
+  /// The extents the list lays its slots out by under a fixed extent. The
+  /// sliver compares builders by identity, so a new one, made whenever the
+  /// app's `itemExtent` or `itemExtentBuilder` changes, lays it out again.
+  late ItemExtentBuilder _extents = _newExtents();
+
+  /// [_slotExtent] for the app's current `itemExtent` and
+  /// `itemExtentBuilder`, which it holds.
+  ItemExtentBuilder _newExtents() {
+    final itemExtent = widget.itemExtent;
+    final itemExtentBuilder = widget.itemExtentBuilder;
+    return (slot, dimensions) => _slotExtent(
+      slot,
+      dimensions,
+      itemExtent: itemExtent,
+      itemExtentBuilder: itemExtentBuilder,
+    );
+  }
+
   Axis get _scrollDirection => axisDirectionToAxis(_scrollable.axisDirection);
   bool get _reverse => axisDirectionIsReversed(_scrollable.axisDirection);
 
@@ -99,6 +117,10 @@ class _ReorderSliverState extends SliverReorderableListState {
     // The SDK's own State cancels on a count change through cancelReorder,
     // which this State overrides.
     super.didUpdateWidget(oldWidget);
+    if (widget.itemExtent != oldWidget.itemExtent ||
+        widget.itemExtentBuilder != oldWidget.itemExtentBuilder) {
+      _extents = _newExtents();
+    }
     if (widget.autoScrollerVelocityScalar !=
         oldWidget.autoScrollerVelocityScalar) {
       _autoScroller?.stopAutoScroll();
@@ -483,16 +505,22 @@ class _ReorderSliverState extends SliverReorderableListState {
     );
   }
 
-  /// The extent the plan gives [slot] under a fixed extent: none for a
-  /// leaving item, which fades over the item that takes its place (E11);
+  /// The extent the plan gives [slot] under a fixed extent of
+  /// [itemExtent], [itemExtentBuilder], or the measured prototype: none for
+  /// a leaving item, which fades over the item that takes its place (E11);
   /// null past the last slot.
-  double? _slotExtent(int slot, SliverLayoutDimensions dimensions) {
+  double? _slotExtent(
+    int slot,
+    SliverLayoutDimensions dimensions, {
+    required double? itemExtent,
+    required ItemExtentBuilder? itemExtentBuilder,
+  }) {
     final plan = _body._plan;
     if (slot < 0 || slot >= plan.childCount) return null;
     final (:data, :exit) = plan.at(slot);
     if (exit != null || data == null) return 0;
-    return widget.itemExtent ??
-        widget.itemExtentBuilder?.call(data, dimensions) ??
+    return itemExtent ??
+        itemExtentBuilder?.call(data, dimensions) ??
         _body._prototypeExtent ??
         0;
   }
@@ -564,11 +592,17 @@ class _ReorderSliverState extends SliverReorderableListState {
       addSemanticIndexes: false,
     );
     // Under a fixed extent a leaving item takes a slot of no extent, so
-    // every fixed kind lays out through the plan's extents.
+    // every fixed kind lays out through the plan's extents. The prototype
+    // takes no Tab stop and no screen-reader node (invariant 58).
     if (_body._fixedExtent) {
-      return SliverVariedExtentList(
+      final prototype = widget.prototypeItem;
+      return _PrototypeExtent(
         delegate: delegate,
-        itemExtentBuilder: _slotExtent,
+        itemExtentBuilder: _extents,
+        prototypeItem: prototype == null
+            ? null
+            : ExcludeFocus(child: ExcludeSemantics(child: prototype)),
+        onExtent: (extent) => _body._prototypeExtent = extent,
       );
     }
     return SliverList(delegate: delegate);

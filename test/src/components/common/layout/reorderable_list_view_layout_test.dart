@@ -13729,15 +13729,29 @@ void main() {
 
     testWidgets(
       'us11/fr04/e05 and s03/inv58 (R47): a removed item exits in a sliver '
-      'child of its own, its render object under the same parent',
+      'child of its own, its render object under the same sliver child',
       (tester) async {
+        // The sliver child that holds [box]: its ancestor whose parent is
+        // the list's sliver.
+        RenderObject sliverChildOf(RenderObject box) {
+          var node = box;
+          for (
+            var parent = node.parent;
+            parent != null && parent is! RenderSliverMultiBoxAdaptor;
+            parent = node.parent
+          ) {
+            node = parent;
+          }
+          return node;
+        }
+
         await tester.pumpWidget(
           _app(
             _Harness(count: 5, itemsController: ReorderableItemsController()),
           ),
         );
         final box = tester.renderObject(find.byKey(const ValueKey(2)));
-        final parent = box.parent;
+        final child = sliverChildOf(box);
 
         _harness(tester).remove(2);
         await tester.pump();
@@ -13749,7 +13763,7 @@ void main() {
           ),
           same(box),
         );
-        expect(box.parent, same(parent));
+        expect(sliverChildOf(box), same(child));
       },
     );
 
@@ -13825,13 +13839,192 @@ void main() {
             _enteringOpacity(tester, 0),
             allOf(greaterThan(0), lessThan(1)),
           );
-          // At offset 0 the exit still paints: its layer is in the tree.
+          // The exit keeps its room and paints: its layer is in the tree.
           expect(_compositeOrder(tester, [0]), [0]);
         }
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       },
       variant: lastExits,
+    );
+
+    testWidgets(
+      'us11/fr01/input-output and s03/inv29 (R47): findChildIndexCallback '
+      'gets only the keys itemBuilder gave, across a settled moveItem and a '
+      'remove whose exit ends off screen',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 30,
+              appIndex: true,
+              itemsController: ReorderableItemsController(),
+            ),
+          ),
+        );
+        final harness = _harness(tester);
+        // Casts the key as Flutter's own sample does: any other key throws.
+        harness.answer = (key) {
+          final index = harness.ids.indexOf((key as ValueKey<int>).value);
+          return index < 0 ? null : index;
+        };
+
+        harness.move(0, 3);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        harness.remove(1);
+        await tester.pump();
+        final position =
+            tester.state<ScrollableState>(find.byType(Scrollable)).position
+              ..jumpTo(600);
+        await tester.pump();
+        // The exit ends off screen, so its empty slot stays until it is laid
+        // out again and a build drops it.
+        await tester.pumpAndSettle();
+        position.jumpTo(0);
+        await tester.pump();
+        harness.replaceData(0, harness.ids[0]);
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ids.take(4), [1, 3, 0, 4]);
+      },
+    );
+
+    final extentKinds = ValueVariant<String>({
+      'itemExtent',
+      'itemExtentBuilder',
+    });
+    testWidgets(
+      'us11/fr04/e11 (R47): a new fixed extent lays the list out again in '
+      'its own frame',
+      (tester) async {
+        final byBuilder = extentKinds.currentValue == 'itemExtentBuilder';
+        Widget list(double extent) => _app(
+          _Harness(
+            count: 5,
+            itemExtent: byBuilder ? null : extent,
+            itemExtentBuilder: byBuilder ? (index, dimensions) => extent : null,
+          ),
+        );
+        await tester.pumpWidget(list(40));
+        expect(_offsetBetween(tester, 0, 1), 40);
+
+        await tester.pumpWidget(list(56));
+
+        expect(_offsetBetween(tester, 0, 1), 56);
+      },
+      variant: extentKinds,
+    );
+
+    testWidgets(
+      'us11/fr04/e11 and NFR-U04 (R47): a prototypeItem measured again at a '
+      'text scale of 2 lays the list out again in its own frame',
+      (tester) async {
+        Widget list(double scale) => _app(
+          Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: const _Harness(
+                count: 5,
+                prototypeItem: Text(
+                  'P',
+                  style: TextStyle(fontSize: 20, height: 1),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(list(1));
+        expect(_offsetBetween(tester, 0, 1), 20);
+
+        await tester.pumpWidget(list(2));
+
+        expect(_offsetBetween(tester, 0, 1), 40);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e14 and D9 (R47): a move of the first laid-out item ends the '
+      'leaving item above the cache origin with no item on screen moving',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(count: 200, itemsController: ReorderableItemsController()),
+            theme: _normalTheme(const Duration(seconds: 2)),
+          ),
+        );
+        final position =
+            tester.state<ScrollableState>(find.byType(Scrollable)).position
+              ..jumpTo(4000);
+        await tester.pump();
+        // Item 93 sits at the cache origin, 3750; its exit shrinks there.
+        _harness(tester).remove(93);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        // The exit now lies wholly above the cache origin, 3790, and item
+        // 94 is the first laid-out item.
+        position.jumpTo(4040);
+        await tester.pump();
+        expect(_laidOut(tester).first, 94);
+        final top = _top(tester, 102);
+
+        _harness(tester).move(93, 143);
+        await tester.pump();
+
+        expect(_top(tester, 102), top);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e13 and s03/inv35 (R47): a raw change the app answers for, '
+      'in the frame a leaving item ends, puts each key in one slot',
+      (tester) async {
+        final theme = _normalTheme(const Duration(milliseconds: 250));
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 20,
+              appIndex: true,
+              itemsController: ReorderableItemsController(),
+            ),
+            theme: theme,
+          ),
+        );
+        final harness = _harness(tester)..remove(2);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        // In the frame the exit at gap 2 ends and drops: item 10 moves from
+        // index 9 into index 5, item 6 at 5 leaves, and item 99 fills 9.
+        harness
+          ..replaceData(5, 10)
+          ..replaceData(9, 99);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byKey(const ValueKey(6), skipOffstage: false),
+          findsNothing,
+        );
+        for (final id in [10, 99]) {
+          expect(find.byKey(ValueKey(id), skipOffstage: false), findsOneWidget);
+        }
+        expect(_offsetBetween(tester, 5, 10), 40);
+        await tester.pumpAndSettle();
+        final position = tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position;
+        position.jumpTo(position.maxScrollExtent);
+        await tester.pump();
+        position.jumpTo(0);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      },
     );
   });
 

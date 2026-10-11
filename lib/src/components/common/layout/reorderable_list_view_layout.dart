@@ -17,6 +17,7 @@ import 'package:flutter/rendering.dart'
         RenderRepaintBoundary,
         RenderShiftedBox,
         RenderSliverMultiBoxAdaptor,
+        RenderSliverVariedExtentList,
         ScrollCacheExtent,
         SliverLayoutDimensions,
         applyGrowthDirectionToAxisDirection;
@@ -467,17 +468,22 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The index each item a move the list knows put in a slot the last
   /// frame did not lay out takes in this build, and the parked item's, by
-  /// the item's key: the sliver's `findChildIndexCallback` moves the item's
-  /// element there in place, before any other answer ([_findIndex],
-  /// invariant 35). Filled by [_resolvePending], emptied after the frame.
+  /// the item's key: the first answer [_resolveIndices] takes, so the
+  /// sliver moves the item's element there in place (invariant 35). Filled
+  /// by each [_resolvePending].
   final _movedTo = <Key, int>{};
 
   /// The index each built item takes in this build by this turn's calls
-  /// alone, by the item's key, for each item the calls shift: the sliver
-  /// reads it only when [_movedTo] and the app's own answer know nothing
-  /// of the key ([_findIndex], D3). Filled by [_resolvePending], emptied
-  /// after the frame.
+  /// alone, by the item's key: the last answer [_resolveIndices] takes,
+  /// only when [_movedTo] and the app's own answer know nothing of the key
+  /// (D3). Filled by each [_resolvePending].
   final _shiftedTo = <Key, int>{};
+
+  /// The index of the app's data each key the last frame built takes in
+  /// this build, one key per index ([_resolveIndices]); the sliver's
+  /// `findChildIndexCallback` turns it into the key's slot ([_findIndex]).
+  /// Kept until the next build resolves the keys again.
+  final _resolvedAt = <Key, int>{};
 
   /// The item key [_buildItem] read last, for the reorder sliver's frame.
   Key? _builtKey;
@@ -486,8 +492,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// gap out (R47).
   _FramePlan _plan = _FramePlan.none;
 
-  /// The main-axis extent of `prototypeItem`, measured in each layout
-  /// before the list's own sliver lays out.
+  /// The main-axis extent of `prototypeItem`, which the list's sliver
+  /// measures in each layout before it lays its slots out.
   double? _prototypeExtent;
 
   /// The frame of each built item, by the item's key: the keep-alive client
@@ -964,23 +970,34 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     setState(() {});
   }
 
-  /// Ends [exit]'s animation. Its slot stays, empty and of no extent,
-  /// while it sits before the laid-out range: the sliver keeps each slot's
-  /// offset by its number, so dropping a slot there would move every item
-  /// on screen by one ([_dropEndedExits], R47).
+  /// The end of [exit]'s own animation.
   void _finishExit(_Exit exit) {
     if (!mounted || exit.ended || !_exits.contains(exit)) return;
-    exit
-      ..ended = true
-      ..motion.dispose();
+    _endExit(exit);
     setState(() {});
   }
 
+  /// Ends [exit]'s animation at once. Every path that ends an exit comes
+  /// here, and none takes it out of [_exits]: its slot stays, empty and of
+  /// no extent, until [_dropEndedExits] can drop it with no item on screen
+  /// moving, for the sliver keeps each slot's offset by its number (R47).
+  void _endExit(_Exit exit) {
+    if (exit.ended) return;
+    exit
+      ..ended = true
+      ..motion.dispose();
+  }
+
   /// Drops each ended exit the last frame laid out or that sits past the
-  /// first laid-out item: its slot then moves no item on screen.
-  void _dropEndedExits() {
+  /// first laid-out item, by its index after [calls]: its slot then moves
+  /// no item on screen. With that item taken out by a call, an exit not
+  /// laid out waits for a later build.
+  void _dropEndedExits(List<_Call> calls) {
     if (!_exits.any((exit) => exit.ended)) return;
-    final first = _laidOut()?.first;
+    final laid = _laidOut();
+    final first = laid == null
+        ? null
+        : _dataIndexOf(_FrameIndex(laid.first), calls: calls);
     final laidOut = <_Exit>{};
     final sliver = _sliver();
     for (
@@ -993,9 +1010,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _exits.removeWhere(
       (exit) =>
           exit.ended &&
-          (first == null ||
+          (laid == null ||
               laidOut.contains(exit) ||
-              exit.gap > _DataIndex(first)),
+              (first != null && exit.gap > first)),
     );
   }
 
@@ -1161,13 +1178,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _movedTo.clear();
       _releasePark();
     }
-    // The sliver reads both maps only in this frame's build.
-    if (_movedTo.isNotEmpty || _shiftedTo.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _movedTo.clear();
-        _shiftedTo.clear();
-      });
-    }
+    _resolveIndices();
     final returning = <Key>{};
     for (final insert in _pendingInserts) {
       final key = keyAt(insert.index);
@@ -1191,8 +1202,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       returning.addAll(_keysInView(keyAt));
     }
     _yieldExitsTo(returning);
-    _dropEndedExits();
-    if (_fixedExtent) _dropEndExits();
+    if (_fixedExtent) _endExitsPastEnd();
+    _dropEndedExits(calls);
     // This build draws every exit left, so none adds a box after it.
     for (final exit in _exits) {
       exit.fresh = false;
@@ -1252,6 +1263,42 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       if (key == null) continue;
       final at = _dataIndexOf(index, calls: calls);
       if (at != null) _shiftedTo[key] = at.value;
+    }
+  }
+
+  /// Resolves, once per build, the index each key the last frame built
+  /// takes in this build ([_resolvedAt]), in D3's order: a move the list
+  /// knows ([_movedTo]), the app's answer ([_appIndexOf]), then where this
+  /// turn's calls put it ([_shiftedTo]). An answer never takes an index an
+  /// earlier one holds, and a key the app answers null for has left its
+  /// data, so the calls never place it: two keys never take one slot,
+  /// which the sliver would resolve by dropping one element unseen.
+  void _resolveIndices() {
+    _resolvedAt.clear();
+    final taken = <int>{};
+    void take(Key key, int at) {
+      if (taken.add(at)) _resolvedAt[key] = at;
+    }
+
+    for (final MapEntry(:key, value: at) in _movedTo.entries) {
+      take(key, at);
+    }
+    final gone = <Key>{};
+    if (_layout.findChildIndexCallback != null) {
+      for (final look in _itemLooks.values) {
+        final key = look.key;
+        if (key == null || _resolvedAt.containsKey(key)) continue;
+        final at = _appIndexOf(key);
+        if (at == null) {
+          gone.add(key);
+        } else {
+          take(key, at);
+        }
+      }
+    }
+    for (final MapEntry(:key, value: at) in _shiftedTo.entries) {
+      if (_resolvedAt.containsKey(key) || gone.contains(key)) continue;
+      take(key, at);
     }
   }
 
@@ -1694,23 +1741,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// the item's State and keeps leaving.
   void _yieldExitsTo(Set<Key> keys) {
     if (keys.isEmpty) return;
-    _exits.removeWhere((exit) {
+    for (final exit in _exits) {
       // A moved item's closing slot holds neither its look nor its State,
       // nor does an ended exit's empty slot.
-      if (exit.closing || exit.ended || !keys.contains(exit.subKey)) {
-        return false;
-      }
+      if (exit.closing || exit.ended || !keys.contains(exit.subKey)) continue;
       if (exit.builder != null) {
         exit.keepsState = false;
-        return false;
+      } else {
+        _endExit(exit);
       }
-      exit.motion.dispose();
-      return true;
-    });
+    }
   }
 
   /// The keys of the data's items from the first index the last build drew
-  /// to its last, plus one per leaving item: a closing gap shows one more.
+  /// to its last, plus one per running leaving item: a closing gap shows
+  /// one more, and an ended one shows none.
   /// The sliver rebuilds its children by index number, so with [_pending]
   /// clear the converter reads the last build's range in the new data.
   Set<Key> _keysInView(Key? Function(_DataIndex index) keyAt) {
@@ -1723,18 +1768,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final start = first == null ? null : _dataIndexOf(first);
     final end = last == null ? null : _dataIndexOf(last);
     if (start == null || end == null) return {};
-    final stop = end + _exits.length;
+    final stop = end + _exits.where((exit) => !exit.ended).length;
     return {for (var i = start; i <= stop && i < _dataEnd; i += 1) ?keyAt(i)};
   }
 
   /// Ends at once each removed item past the last item of the data: a
   /// fixed extent gives it no room and no item to fade over (E11).
-  void _dropEndExits() {
-    _exits.removeWhere((exit) {
-      if (exit.gap < _dataEnd) return false;
-      if (!exit.ended) exit.motion.dispose();
-      return true;
-    });
+  void _endExitsPastEnd() {
+    for (final exit in _exits) {
+      if (exit.gap >= _dataEnd) _endExit(exit);
+    }
   }
 
   /// Ends every insert and remove animation at once.
@@ -1745,12 +1788,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     for (final motion in _incoming.values) {
       motion.dispose();
     }
-    for (final exit in _exits) {
-      if (!exit.ended) exit.motion.dispose();
-    }
+    _exits.forEach(_endExit);
     _pendingInserts.clear();
     _incoming.clear();
-    _exits.clear();
   }
 
   void _registerItem(_FrameIndex index, FocusNode node, Widget look) {
@@ -2121,20 +2161,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// item, those after it. A closing gap stays: it closes in step with its
   /// own moved item, so the items past both slots hold still (FR-05), and
   /// in a sliver child of its own it never travels with another item
-  /// (R47). An ended exit stays an empty slot until [_dropEndedExits] can
-  /// drop it with no item on screen moving.
+  /// (R47). An exit already ended stays as it is ([_endExit]).
   void _endExitsBeside(_FrameIndex index) {
     final at = _dataIndexOf(index);
     if (at == null) return;
     final last = at == _dataEnd - 1;
-    final count = _exits.length;
-    _exits.removeWhere((exit) {
-      if (exit.closing || exit.ended) return false;
-      if (exit.gap != at && !(last && exit.gap >= _dataEnd)) return false;
-      exit.motion.dispose();
-      return true;
-    });
-    if (_exits.length != count) setState(() {});
+    var ended = false;
+    for (final exit in _exits) {
+      if (exit.closing || exit.ended) continue;
+      if (exit.gap != at && !(last && exit.gap >= _dataEnd)) continue;
+      _endExit(exit);
+      ended = true;
+    }
+    if (ended) setState(() {});
   }
 
   /// Starts a drag, and ends it at once when it starts between a call, or a
@@ -2156,25 +2195,25 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// The sliver's `findChildIndexCallback`: a leaving item's or closing
-  /// gap's own slot in the frame plan, else, in D3's order, a move the
-  /// list knows ([_movedTo]), else the app's answer for the item's own key
-  /// ([_appIndexOf]), else where this turn's calls put it ([_shiftedTo]),
-  /// each a data index the plan turns into its slot; else null (invariant
-  /// 35). The app's injective answer comes before the calls, so two keys
-  /// never answer one index.
+  /// gap's own slot in the frame plan, else the data index this build
+  /// resolved for the key ([_resolveIndices], D3), which the plan turns
+  /// into its slot; else null (invariant 35).
   int? _findIndex(Key key) {
     if (key is! _IndexFreeKey) return null;
     final itemKey = key.value;
+    // A slot the list owns answers from the plan alone, so its key never
+    // reaches the app (the callback gets only keys `itemBuilder` gave).
+    if (itemKey is _ExitKey) return _plan.slotOfExit(itemKey);
     final leaving = _plan.slotOfExit(itemKey);
     if (leaving != null) return leaving;
-    final at = _movedTo[itemKey] ?? _appIndexOf(itemKey) ?? _shiftedTo[itemKey];
+    final at = _resolvedAt[itemKey];
     return at == null ? null : _plan.slotOfData(at);
   }
 
   /// The index of the app's data this build draws the item [key] at, by
   /// the app's `findChildIndexCallback`; null with no callback, or when the
-  /// app does not know the key or answers past its data. The sliver builds
-  /// after the body cleared [_pending], so the app's index is this build's;
+  /// app does not know the key or answers past its data. Asked once
+  /// [_pending] is clear, so the app's index is this build's;
   /// [_builtIndexOf] maps to the last frame.
   int? _appIndexOf(Key key) {
     final app = _layout.findChildIndexCallback;
@@ -3024,7 +3063,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     if (!_exitsTakeNoExtent(context)) {
       entered += _exits
-          .where((exit) => exit.fresh && counts(exit.gap.nextSlot))
+          .where(
+            (exit) => exit.fresh && !exit.ended && counts(exit.gap.nextSlot),
+          )
           .length;
     }
     return entered;
@@ -3393,17 +3434,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     });
   }
 
-  /// The list's padding along its cross axis only: the prototype measures
-  /// at the items' own cross extent and adds no room.
-  EdgeInsets get _crossPadding {
-    final padding = (widget.padding ?? EdgeInsets.zero).resolve(
-      Directionality.maybeOf(context),
-    );
-    return _layout.scrollDirection == Axis.vertical
-        ? EdgeInsets.only(left: padding.left, right: padding.right)
-        : EdgeInsets.only(top: padding.top, bottom: padding.bottom);
-  }
-
   Widget _scrollView(ReorderableListViewLayout layout, int listCount) {
     return _ReorderScrollView(
       scrollDirection: layout.scrollDirection,
@@ -3422,19 +3452,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       // (invariant 58).
       semanticChildCount: layout.itemCount,
       slivers: [
-        // Measured before the list's own sliver lays out, with no Tab stop
-        // and no screen-reader node (E11, invariant 58).
-        if (layout.prototypeItem case final prototype?)
-          SliverPadding(
-            padding: _crossPadding,
-            sliver: SliverToBoxAdapter(
-              child: _PrototypeExtent(
-                axis: layout.scrollDirection,
-                onExtent: (extent) => _prototypeExtent = extent,
-                child: ExcludeFocus(child: ExcludeSemantics(child: prototype)),
-              ),
-            ),
-          ),
         SliverPadding(
           padding: widget.padding ?? EdgeInsets.zero,
           sliver: _ReorderSliver(
@@ -3817,6 +3834,14 @@ class _IndexFreeKey extends ValueKey<Key> {
   const new(super.value);
 }
 
+/// The key of a slot the list owns: a closing gap, a leaving copy that gave
+/// its State up, or an ended exit. Only the frame plan answers for it, so
+/// the app's `findChildIndexCallback` never gets it ([_ReorderableBodyState
+/// ._findIndex]).
+class _ExitKey extends ValueKey<_Exit> {
+  const new(super.value);
+}
+
 /// The frame around an SDK item, keyed by the item's own key: it moves in
 /// place across indices, and keeps the item alive while the body parks it
 /// (invariant 35).
@@ -3966,8 +3991,8 @@ class _Exit {
 
   /// The key of the exit's sliver child: the item's own key while it keeps
   /// the item's State, so the item's element leaves in place (R47), else
-  /// this exit's own.
-  Key get frameKey => keepsState && !ended ? subKey : ObjectKey(this);
+  /// this exit's own, which only the list reads.
+  Key get frameKey => keepsState && !ended ? subKey : _ExitKey(this);
 
   /// Whether the exit's animation ended: an empty slot of no extent that
   /// waits until dropping it moves no item on screen (R47).

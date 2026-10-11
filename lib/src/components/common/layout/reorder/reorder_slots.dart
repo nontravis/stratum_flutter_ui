@@ -7,7 +7,8 @@ part of '../reorderable_list_view_layout.dart';
 // semantics stays an index of the app's data; the slot render objects give
 // a data item its data index, a leaving item no screen-reader node, a
 // leaving item that takes no room its place over the item that took its
-// own, and `prototypeItem` its measure with no paint, room, or focus.
+// own, and `prototypeItem` its measure, as the sliver's own child, with no
+// paint, room, or focus.
 
 /// Where a build lays each data item and each leaving item or closing gap
 /// out, as sliver slots (R47): a slot holds a data item or one of [exits],
@@ -383,58 +384,173 @@ class _RenderHang extends RenderProxyBox {
   }
 }
 
-/// Measures the list's `prototypeItem` with no paint, no room, and no
-/// semantics, and hands its main-axis extent to [onExtent] during layout,
-/// before the list's own sliver lays out; every fixed kind lays out through
-/// the plan's extents ([_ReorderSliverState._slotExtent]).
-class _PrototypeExtent extends SingleChildRenderObjectWidget {
-  const new({required this.axis, required this.onExtent, super.child});
+/// The list's sliver under every fixed extent: a varied-extent list whose
+/// slots take the plan's extents ([_ReorderSliverState._slotExtent]), and
+/// which measures [prototypeItem], when given, as a child of its own before
+/// it lays its slots out, so a new size of the prototype lays the list out
+/// again, as `SliverPrototypeExtentList` does. The prototype has no paint,
+/// no hit test, and no semantics, and hands its main-axis extent to
+/// [onExtent].
+class _PrototypeExtent extends SliverVariedExtentList {
+  const new({
+    required super.delegate,
+    required super.itemExtentBuilder,
+    required this.prototypeItem,
+    required this.onExtent,
+  });
 
-  final Axis axis;
+  final Widget? prototypeItem;
   final ValueSetter<double> onExtent;
 
   @override
-  RenderObject createRenderObject(BuildContext context) =>
-      _RenderPrototypeExtent(axis, onExtent);
+  SliverMultiBoxAdaptorElement createElement() => _PrototypeExtentElement(this);
+
+  @override
+  _RenderPrototypeExtent createRenderObject(BuildContext context) =>
+      _RenderPrototypeExtent(
+        childManager: context as _PrototypeExtentElement,
+        itemExtentBuilder: itemExtentBuilder,
+        onExtent: onExtent,
+      );
 
   @override
   void updateRenderObject(
     BuildContext context,
-    _RenderPrototypeExtent renderObject,
+    covariant _RenderPrototypeExtent renderObject,
   ) {
-    renderObject
-      ..axis = axis
-      ..onExtent = onExtent;
+    super.updateRenderObject(context, renderObject);
+    renderObject.onExtent = onExtent;
   }
 }
 
-class _RenderPrototypeExtent extends RenderProxyBox {
-  new(this.axis, this.onExtent);
-
-  Axis axis;
-  ValueSetter<double> onExtent;
-
-  @override
-  Size computeDryLayout(covariant BoxConstraints constraints) =>
-      constraints.smallest;
+/// The SDK's `_SliverPrototypeExtentListElement`, with an optional
+/// prototype: it holds the prototype's element in a slot of its own beside
+/// the list's children.
+class _PrototypeExtentElement extends SliverMultiBoxAdaptorElement {
+  new(_PrototypeExtent super.widget);
 
   @override
-  void performLayout() {
-    final child = this.child;
-    if (child != null) {
-      child.layout(constraints, parentUsesSize: true);
-      onExtent(axis == Axis.vertical ? child.size.height : child.size.width);
+  _RenderPrototypeExtent get renderObject =>
+      super.renderObject as _RenderPrototypeExtent;
+
+  Element? _prototype;
+  static final Object _prototypeSlot = Object();
+
+  @override
+  void insertRenderObjectChild(
+    covariant RenderObject child,
+    covariant Object slot,
+  ) {
+    if (slot == _prototypeSlot) {
+      renderObject.child = child as RenderBox;
+    } else {
+      super.insertRenderObjectChild(child, slot as int);
     }
-    size = constraints.smallest;
   }
 
   @override
-  void paint(PaintingContext context, Offset offset) {}
+  void didAdoptChild(RenderBox child) {
+    if (child != renderObject.child) super.didAdoptChild(child);
+  }
 
   @override
-  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
-      false;
+  void moveRenderObjectChild(RenderBox child, Object oldSlot, Object newSlot) {
+    assert(newSlot != _prototypeSlot, 'The prototype never moves');
+    super.moveRenderObjectChild(child, oldSlot as int, newSlot as int);
+  }
 
   @override
-  void visitChildrenForSemantics(RenderObjectVisitor visitor) {}
+  void removeRenderObjectChild(RenderBox child, Object slot) {
+    if (renderObject.child == child) {
+      renderObject.child = null;
+    } else {
+      super.removeRenderObjectChild(child, slot as int);
+    }
+  }
+
+  @override
+  void visitChildren(ElementVisitor visitor) {
+    if (_prototype case final prototype?) visitor(prototype);
+    super.visitChildren(visitor);
+  }
+
+  @override
+  void mount(Element? parent, Object? newSlot) {
+    super.mount(parent, newSlot);
+    _prototype = updateChild(
+      _prototype,
+      (widget as _PrototypeExtent).prototypeItem,
+      _prototypeSlot,
+    );
+  }
+
+  @override
+  void update(covariant _PrototypeExtent newWidget) {
+    super.update(newWidget);
+    _prototype = updateChild(
+      _prototype,
+      newWidget.prototypeItem,
+      _prototypeSlot,
+    );
+  }
+}
+
+class _RenderPrototypeExtent extends RenderSliverVariedExtentList {
+  new({
+    required _PrototypeExtentElement super.childManager,
+    required super.itemExtentBuilder,
+    required this.onExtent,
+  });
+
+  ValueSetter<double> onExtent;
+
+  /// The prototype, laid out with its size used: a new size of it lays
+  /// this sliver out again.
+  RenderBox? get child => _child;
+  RenderBox? _child;
+  set child(RenderBox? value) {
+    if (_child case final old?) dropChild(old);
+    _child = value;
+    if (value != null) adoptChild(value);
+    markNeedsLayout();
+  }
+
+  @override
+  void performLayout() {
+    if (_child case final child?) {
+      child.layout(constraints.asBoxConstraints(), parentUsesSize: true);
+      onExtent(
+        constraints.axis == Axis.vertical
+            ? child.size.height
+            : child.size.width,
+      );
+    }
+    super.performLayout();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _child?.attach(owner);
+  }
+
+  @override
+  void detach() {
+    super.detach();
+    _child?.detach();
+  }
+
+  @override
+  void redepthChildren() {
+    if (_child case final child?) redepthChild(child);
+    super.redepthChildren();
+  }
+
+  // The prototype takes no part in paint, hit testing, or semantics: the
+  // sliver's own paint, hit test, and semantics walk read only its slots.
+  @override
+  void visitChildren(RenderObjectVisitor visitor) {
+    if (_child case final child?) visitor(child);
+    super.visitChildren(visitor);
+  }
 }
