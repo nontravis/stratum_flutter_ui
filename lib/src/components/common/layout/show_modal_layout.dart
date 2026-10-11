@@ -157,7 +157,10 @@ class _ModalLayoutRoute<T> extends PopupRoute<T> {
     child: child,
   );
 
-  void _dismiss() => navigator?.maybePop();
+  /// Dismisses this route when it is the top one (US-20 FR-02).
+  void _dismiss() {
+    if (isCurrent) navigator?.maybePop();
+  }
 }
 
 /// The sheet's route: a slide on the theme's `standard` curve, or a fade
@@ -234,8 +237,9 @@ class _SheetContentState extends State<_SheetContent> {
   /// The status bar height at the last build.
   var _statusBar = 0.0;
 
-  /// The pointers down on the sheet: while any is, a drag may still move
-  /// it, so reaching the hidden height dismisses nothing yet.
+  /// The pointers down on the sheet, a trackpad pan included: while any
+  /// is, a drag may still move it, so reaching the hidden height dismisses
+  /// nothing yet.
   var _pointers = 0;
 
   /// Whether the sheet sits hidden and has asked the route to pop, so it
@@ -276,19 +280,26 @@ class _SheetContentState extends State<_SheetContent> {
 
   /// Pops the route with null once the sheet settles hidden (US-20 FR-07
   /// E02); a route a pop scope keeps open brings the sheet back to full
-  /// height, and the scope still hears the attempt.
+  /// height, and the scope still hears the attempt. Does nothing once the
+  /// route is no longer the top one, so it never pops another route.
   ///
   /// The settle reports its last offset from inside its own tick, so the
   /// way back starts after the frame, once that settle has ended.
   void _settleHidden() {
-    if (ModalRoute.of(context)?.popDisposition ==
-        RoutePopDisposition.doNotPop) {
+    final route = ModalRoute.of(context);
+    if (!(route?.isCurrent ?? false)) return;
+    if (route?.popDisposition == RoutePopDisposition.doNotPop) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         unawaited(
           _controller.animateTo(
             const SheetOffset(1),
-            duration: _physics.duration,
+            duration: _physics.duration > Duration.zero
+                ? _physics.duration
+                // WORKAROUND: smooth_sheets 1.3.0 animateTo asserts a
+                // non-zero duration and exposes no jump; remove when it
+                // does.
+                : const Duration(microseconds: 1),
             curve: _physics.curve,
           ),
         );
@@ -297,7 +308,12 @@ class _SheetContentState extends State<_SheetContent> {
     Navigator.maybePop(context);
   }
 
-  void _dismiss() => Navigator.maybePop(context);
+  /// Dismisses this route when it is the top one (US-20 FR-02).
+  void _dismiss() {
+    if (ModalRoute.of(context)?.isCurrent ?? false) {
+      Navigator.maybePop(context);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -328,6 +344,8 @@ class _SheetContentState extends State<_SheetContent> {
           onPointerDown: (_) => _pointers++,
           onPointerUp: (_) => _pointers--,
           onPointerCancel: (_) => _pointers--,
+          onPointerPanZoomStart: (_) => _pointers++,
+          onPointerPanZoomEnd: (_) => _pointers--,
           child: Builder(
             builder: (context) => PrimaryScrollController(
               controller: PrimaryScrollController.of(context),

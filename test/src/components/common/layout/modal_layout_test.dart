@@ -1676,27 +1676,94 @@ void main() {
       expect(_opener(tester).result, isNull);
     });
 
-    testWidgets('us20/fr07/e02: a sheet a pop scope keeps open returns to '
-        'full height, and the scope hears one attempt', (tester) async {
-      var attempts = 0;
+    final motions = <String, Future<void> Function(WidgetTester, Widget)>{
+      'motion on': _pumpApp,
+      ...reducedPumps,
+    };
+    for (final MapEntry(key: motion, value: pump) in motions.entries) {
+      testWidgets('us20/fr07/e02: with $motion a sheet a pop scope keeps open '
+          'returns to full height, and the scope hears one attempt', (
+        tester,
+      ) async {
+        var attempts = 0;
+        await pump(
+          tester,
+          _Opener(
+            body: PopScope<Object?>(
+              canPop: false,
+              onPopInvokedWithResult: (_, _) => attempts++,
+              child: _tall(400),
+            ),
+          ),
+        );
+        await _open(tester);
+        final height = tester.getSize(find.byType(ModalLayout)).height;
+        final full = _top(tester);
+        await _slowDrag(tester, height * 0.85);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.byType(ModalLayout), findsOneWidget);
+        expect(_top(tester), closeTo(full, 0.5));
+        expect(attempts, 1);
+      });
+    }
+
+    testWidgets('us20/fr07/e02: a sheet popped while it settles hidden '
+        'leaves the page below it in place', (tester) async {
       await _pumpApp(
         tester,
-        _Opener(
-          body: PopScope<Object?>(
-            canPop: false,
-            onPopInvokedWithResult: (_, _) => attempts++,
-            child: _tall(400),
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => Scaffold(body: _Opener(body: _tall(400))),
+              ),
+            ),
+            child: const Text('Next'),
           ),
         ),
       );
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
       await _open(tester);
       final height = tester.getSize(find.byType(ModalLayout)).height;
-      final full = _top(tester);
       await _slowDrag(tester, height * 0.85);
+      await tester.pump();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(ModalLayout), findsNothing);
+      expect(find.byType(_Opener), findsOneWidget);
+    });
+
+    testWidgets('us20/fr07/e02: a trackpad drag past hidden that comes back '
+        'up keeps the sheet', (tester) async {
+      await _pumpApp(tester, _Opener(body: _tall(400)));
+      await _open(tester);
+      final height = tester.getSize(find.byType(ModalLayout)).height;
+      final point =
+          tester.getTopLeft(find.byType(ModalLayout)) + const Offset(40, 24);
+      final gesture = await tester.startGesture(
+        point,
+        kind: PointerDeviceKind.trackpad,
+      );
+      for (var i = 0; i < 12; i++) {
+        await gesture.panZoomUpdate(
+          point,
+          pan: Offset(0, height * (i + 1) / 10),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(find.byType(ModalLayout), findsOneWidget);
+      for (var i = 12; i >= 0; i--) {
+        await gesture.panZoomUpdate(point, pan: Offset(0, height * i / 10));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.panZoomEnd();
       await tester.pumpAndSettle();
       expect(find.byType(ModalLayout), findsOneWidget);
-      expect(_top(tester), closeTo(full, 0.5));
-      expect(attempts, 1);
+      expect(_opener(tester).result, 'none');
     });
 
     testWidgets('us20/fr06: a tap outside a sheet dismisses it with null', (
@@ -1850,8 +1917,8 @@ void main() {
         ],
       );
 
-      testWidgets('us20/fr02: by default the route covers a tab bar outside '
-          'a nested navigator', (tester) async {
+      testWidgets('us20/fr02/e07: by default the route covers a tab bar '
+          'outside a nested navigator', (tester) async {
         final handle = tester.ensureSemantics();
         await _pumpApp(tester, nested(root: true), size: _desktop);
         await _open(tester);
@@ -1863,8 +1930,8 @@ void main() {
         handle.dispose();
       });
 
-      testWidgets('us20/fr02: useRootNavigator false keeps the route inside '
-          'the nearest navigator', (tester) async {
+      testWidgets('us20/fr02/e07: useRootNavigator false keeps the route '
+          'inside the nearest navigator', (tester) async {
         final handle = tester.ensureSemantics();
         await _pumpApp(tester, nested(root: false), size: _desktop);
         await _open(tester);
