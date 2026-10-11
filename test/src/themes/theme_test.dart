@@ -83,26 +83,6 @@ void main() {
       expect((xs2, full), (8, 999));
     });
 
-    testWidgets('us01/fr01: the sheet radius token reads 40 on the default '
-        'light theme', (tester) async {
-      double? sheet;
-
-      await tester.pumpWidget(
-        StratumThemeApplication(
-          themes: StratumThemeSet(light: defaultThemeSet.light),
-          themeMode: ThemeMode.light,
-          child: Builder(
-            builder: (context) {
-              sheet = StratumTheme.of(context).radius.sheet;
-              return const SizedBox();
-            },
-          ),
-        ),
-      );
-
-      expect(sheet, 40);
-    });
-
     testWidgets('a layouts percent is that share of the window width', (
       tester,
     ) async {
@@ -174,6 +154,26 @@ void main() {
 
       expect(kept.space.md, 32);
     });
+  });
+
+  testWidgets('fo01/us01/fr01: the sheet radius token reads 40 on the '
+      'default light theme', (tester) async {
+    double? sheet;
+
+    await tester.pumpWidget(
+      StratumThemeApplication(
+        themes: StratumThemeSet(light: defaultThemeSet.light),
+        themeMode: ThemeMode.light,
+        child: Builder(
+          builder: (context) {
+            sheet = StratumTheme.of(context).radius.sheet;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+
+    expect(sheet, 40);
   });
 
   group('rebuilds on resize', () {

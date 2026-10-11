@@ -966,6 +966,13 @@ typography:
     final opacityCases = <(String, String, String)>[
       ('a value above 1', '1.5', '$expectedNumber 1.5 [expected_opacity]'),
       ('a value below 0', '-0.1', '$expectedNumber -0.1 [expected_opacity]'),
+      ('NaN', '.nan', '$expectedNumber NaN [expected_opacity]'),
+      ('infinity', '.inf', '$expectedNumber Infinity [expected_opacity]'),
+      (
+        'minus infinity',
+        '-.inf',
+        '$expectedNumber -Infinity [expected_opacity]',
+      ),
       ('a quoted number', '"0.5"', '$expectedNumber "0.5" [expected_opacity]'),
       ('a boolean', 'true', '$expectedNumber true [expected_opacity]'),
       ('a percent', '50%', '$expectedNumber "50%" [expected_opacity]'),
