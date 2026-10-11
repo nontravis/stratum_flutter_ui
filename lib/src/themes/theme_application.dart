@@ -10,14 +10,16 @@ class StratumThemeApplication
   /// `ScreenRadiusScope` that publishes the native screen radius on iOS
   /// and macOS and a [WindowSizeScope], each when none is above the
   /// application, a Material [Theme] of the active data, and
-  /// [StratumComponentDefaults] built by [componentDefaults] from the
-  /// active theme (spec sections 7.3, 7.9, and 10.1; FO-07 US-04 FR-03).
+  /// [StratumComponentDefaults] built by [componentDefaults] and
+  /// [componentPartDefaults] from the active theme (spec sections 7.3,
+  /// 7.9, and 10.1; FO-07 US-04 FR-03).
   new({
     super.key,
     required StratumThemeSet themes,
     required this.themeMode,
     this.highContrast = StratumHighContrastMode.system,
     this.componentDefaults,
+    this.componentPartDefaults,
     required Widget child,
   }) : _themes = themes,
        super(child: _StratumThemeBody(child: child));
@@ -31,6 +33,7 @@ class StratumThemeApplication
     required this.themeMode,
     this.highContrast = StratumHighContrastMode.system,
     this.componentDefaults,
+    this.componentPartDefaults,
     required Widget child,
   }) : _themes = null,
        super(
@@ -50,6 +53,12 @@ class StratumThemeApplication
   /// active theme changes. Never compared in [updateShouldNotify]: a
   /// closure literal differs on every build (spec G10).
   final StratumComponentDefaultsBuilder? componentDefaults;
+
+  /// The app-wide parts style per multi-part component type (L2), built
+  /// again whenever the active theme changes. Never compared in
+  /// [updateShouldNotify], for the same reason as [componentDefaults]
+  /// (spec G10; FO-03 US-06 FR-01).
+  final StratumComponentPartDefaultsBuilder? componentPartDefaults;
 
   /// The theme set: the one the unnamed constructor took, else the
   /// [controller]'s active set.
@@ -112,6 +121,7 @@ class StratumThemeApplication
         themeMode: application.themeMode,
         highContrast: application.highContrast,
         componentDefaults: application.componentDefaults,
+        componentPartDefaults: application.componentPartDefaults,
         child: child,
       );
     }
@@ -120,6 +130,7 @@ class StratumThemeApplication
       themeMode: application.themeMode,
       highContrast: application.highContrast,
       componentDefaults: application.componentDefaults,
+      componentPartDefaults: application.componentPartDefaults,
       child: child,
     );
   }
@@ -191,8 +202,8 @@ class _StratumMaterialTheme extends StatelessWidget {
 
 /// Publishes the application's component defaults for the active theme
 /// (spec section 7.9, G14). Built again with the body, so a new
-/// `componentDefaults` closure takes effect, while an equal map notifies
-/// no component.
+/// `componentDefaults` or `componentPartDefaults` closure takes effect,
+/// while an equal map notifies no component.
 class _StratumComponentDefaultsLayer extends StatelessWidget {
   const new({required this.child});
 
@@ -200,11 +211,12 @@ class _StratumComponentDefaultsLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final builder = context
-        .getInheritedWidgetOfExactType<StratumThemeApplication>()
-        ?.componentDefaults;
+    final application = context
+        .getInheritedWidgetOfExactType<StratumThemeApplication>();
+    final theme = StratumTheme.of(context);
     return StratumComponentDefaults(
-      styles: builder?.call(StratumTheme.of(context)) ?? const {},
+      styles: application?.componentDefaults?.call(theme) ?? const {},
+      parts: application?.componentPartDefaults?.call(theme) ?? const {},
       child: child,
     );
   }

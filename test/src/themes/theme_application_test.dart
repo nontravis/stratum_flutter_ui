@@ -18,6 +18,7 @@ final StratumThemeSet _set = StratumThemeSet(
 );
 
 Map<Type, WidgetStyle> _defaults(StratumTheme theme) => const {};
+Map<Type, Object> _parts(StratumTheme theme) => const {};
 
 /// A dark platform with high contrast on, then the application, then a
 /// reader that stores what [StratumThemeApplication.maybeOf] gives.
@@ -361,6 +362,7 @@ void main() {
           themeMode: ThemeMode.dark,
           highContrast: StratumHighContrastMode.on,
           componentDefaults: _defaults,
+          componentPartDefaults: _parts,
           child: Builder(
             builder: (context) {
               wrapped = StratumThemeApplication.wrap(context, child: child);
@@ -384,6 +386,11 @@ void main() {
               (app) => app.componentDefaults,
               'componentDefaults',
               same(_defaults),
+            )
+            .having(
+              (app) => app.componentPartDefaults,
+              'componentPartDefaults',
+              same(_parts),
             ),
       );
     });
@@ -649,6 +656,7 @@ void main() {
           themeMode: ThemeMode.dark,
           highContrast: StratumHighContrastMode.on,
           componentDefaults: _defaults,
+          componentPartDefaults: _parts,
           child: Builder(
             builder: (context) {
               wrapped = StratumThemeApplication.wrap(
@@ -676,6 +684,11 @@ void main() {
               (app) => app.componentDefaults,
               'componentDefaults',
               same(_defaults),
+            )
+            .having(
+              (app) => app.componentPartDefaults,
+              'componentPartDefaults',
+              same(_parts),
             ),
       );
     });

@@ -26,6 +26,13 @@
   number. A `shadow` level holds at most 8 layers, else `expected_shadow`. The messages of `border`, `blur`, and the
   layer numbers now name the range (`expected a number from 0 to 10000, got <value>`). A downloaded theme can no
   longer ask for an unbounded stack of blurred shadows or hand the renderer an infinite size.
+- New `StratumComponentDefaults.parts`, built by the new `StratumThemeApplication(componentPartDefaults:)` and
+  `.controlled(componentPartDefaults:)`, lets an app restyle every part of a multi-part component type, such as a
+  page layout, a modal layout, or a notice, from one place: `componentPartDefaults: (theme) => {ModalLayout:
+  ModalLayoutStyle(...)}`. Read a part style with `StratumComponentDefaults.partsOf<S>(context, type)`: null when
+  none is registered for `type`, or a thrown `FlutterError` naming both `type` and `S` when the registered value is
+  not an `S`. `StratumThemeApplication.wrap` copies `componentPartDefaults` the same way it copies
+  `componentDefaults`.
 - New `HoverBuilder` and `FocusBuilder` build a look, or run a listener, from whether a pointer is over a widget or
   focus sits anywhere inside it. They add no Tab stop, focus ring, tap handling, cursor, or size, read false inside a
   disabled component, and take an optional `semantics` that labels the wrapped group for screen readers.
