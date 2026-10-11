@@ -12939,6 +12939,63 @@ void main() {
       variant: heldKeys,
     );
 
+    // Whether the app lets the move's jump through and holds the offset it
+    // reached, so the reach gives up away from where it started.
+    final jumpThrough = ValueVariant<bool>({false, true});
+    testWidgets(
+      'matrix I08xT16 and us11/fr03/e12 (R46, R13): an unfocused "Move down" '
+      'while the app holds the scroll gives the reach up and hands no focus '
+      'on: the text field outside the list keeps it',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final outside = FocusNode(debugLabel: 'outside');
+        addTearDown(outside.dispose);
+        // "Move down" from the trailing laid-out item 113 past a 400 px item
+        // (test:6486), in a list 260 px tall above the text field and with no
+        // cache extent, so the move's jump misses the item's slot.
+        await tester.pumpWidget(
+          _app(
+            Column(
+              children: [
+                const Expanded(
+                  child: _Harness(
+                    count: 200,
+                    heights: {114: 400},
+                    scrollCacheExtent: ScrollCacheExtent.pixels(0),
+                  ),
+                ),
+                SizedBox(height: 40, child: TextField(focusNode: outside)),
+              ],
+            ),
+          ),
+        );
+        final position = positionOf(tester)..jumpTo(4300);
+        await tester.pump();
+        expect(lastLaidOut(tester), 113);
+        outside.requestFocus();
+        await tester.pump();
+        expect(outside.hasPrimaryFocus, isTrue);
+        // The app holds the scroll, as _pinScroll does for the list alone.
+        var held = jumpThrough.currentValue! ? null : 4300.0;
+        position.addListener(() {
+          final pixels = held ??= position.pixels;
+          if (position.pixels != pixels) position.jumpTo(pixels);
+        });
+
+        moveActionNow(tester, 113, 'Move down');
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        if (jumpThrough.currentValue!) expect(held, isNot(4300));
+        expect(position.pixels, held);
+        expect(_statesOf(tester, 113), isEmpty);
+        expect(FocusManager.instance.primaryFocus, same(outside));
+        expect(_harness(tester).moves, [(113, 114)]);
+        handle.dispose();
+      },
+      variant: jumpThrough,
+    );
+
     testWidgets(
       'matrix I12xT16 and us11/fr04/e17: a focused item removed and inserted '
       'back far off while the app holds the scroll gives the reach up and '
