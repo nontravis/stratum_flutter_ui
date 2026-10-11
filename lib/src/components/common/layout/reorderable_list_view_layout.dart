@@ -1,7 +1,11 @@
+import 'dart:ui' as ui show Image;
+
 import 'package:flutter/rendering.dart'
     show
         ItemExtentBuilder,
+        OffsetLayer,
         RenderAbstractViewport,
+        RenderRepaintBoundary,
         RenderSliverMultiBoxAdaptor,
         ScrollCacheExtent;
 import 'package:flutter/scheduler.dart' show Ticker, TickerCallback;
@@ -9,6 +13,8 @@ import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
 import 'package:stratum_ui/src/src.dart';
+
+part 'reorder/reorder_sliver.dart';
 
 /// A lazy list whose items the user reorders, inside a [WidgetStyle] box.
 ///
@@ -432,26 +438,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// after it returns, so a cancel waits for a microtask.
   var _inReorderStart = false;
 
-  /// The key of the item whose State the drag proxy holds, from the frame
-  /// the proxy takes the item until the frame it lets the item go.
+  /// The key of the item a drag holds, from its drag start until the drag
+  /// resets; the item stays in its own slot throughout.
   Key? _liftedKey;
 
-  /// The lifted item whose slot keeps the drag's gap, from the build that
-  /// ends its drag until the proxy lets it go.
-  ///
-  /// The SDK ends a drag inside the build that changes the item count, and
-  /// the overlay drops the proxy only after that frame: the item's global
-  /// keys would sit in the proxy and in the slot at once.
-  Key? _standInKey;
-
-  /// The size of the item the drag in progress lifted: the gap's size.
-  Size? _liftedSize;
-
   /// The follow of a raw move of the lifted item, with the item's key
-  /// node, until the end of the frame the drag proxy lets the item go
-  /// ([_liftedLetGo]): until then the proxy holds the item outside its
-  /// slot (invariant 28), and until the build after that the item has no
-  /// registration, so the watch reads it from here ([_watchedKeys]).
+  /// node, until the end of the frame the drag lets the item go
+  /// ([_liftedLetGo]), which runs the follow (invariant 28); until then
+  /// the watch reads the item from here ([_watchedKeys]).
   ({_MoveTarget target, FocusNode node})? _liftedFollow;
 
   /// Reaches [SliverReorderableListState.cancelReorder] and the list's
@@ -465,7 +459,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// frame.
   final _movedTo = <Key, int>{};
 
-  /// The item key [_buildItem] read last, for [_rewrapped].
+  /// The item key [_buildItem] read last, for the reorder sliver's frame.
   Key? _builtKey;
 
   /// The frame of each built item, by the item's key: the keep-alive client
@@ -1114,8 +1108,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final watched = _watchedKeys();
     if (!explained) _resetMotion();
     _dataCount = count;
+    final calls = List.of(_pending);
     if (_pending.isNotEmpty) {
-      _settledPending = List.of(_pending);
+      _settledPending = calls;
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _settledPending = const [],
       );
@@ -1130,6 +1125,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (explained || _layout.findChildIndexCallback != null) {
       final dropped = explained ? const <Key>{} : _dropMoveTargets();
       _bookMovedKeys(keyAt, watched, dropped);
+      if (explained) _bookShiftedKeys(calls);
     } else {
       _movedTo.clear();
       _releasePark();
@@ -1209,15 +1205,32 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     WidgetsBinding.instance.addPostFrameCallback((_) => _movedTo.clear());
   }
 
+  /// Maps every built item that [calls] shift to its index after them, so
+  /// the sliver moves the item's element in place instead of building a
+  /// new one and moving the item's subtree by its global key (R44,
+  /// invariant 35). A key [_bookMovedKeys] mapped keeps its index.
+  void _bookShiftedKeys(List<_Call> calls) {
+    if (calls.isEmpty) return;
+    for (final MapEntry(key: index, value: look) in _itemLooks.entries) {
+      final key = look.key;
+      if (key == null) continue;
+      final at = _dataIndexOf(index, calls: calls);
+      if (at == null || at.value == index.value) continue;
+      _movedTo.putIfAbsent(key, () => at.value);
+    }
+    if (_movedTo.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _movedTo.clear());
+  }
+
   /// Maps the item [key], which a move put at [at] of the data, when the
   /// last frame did not lay out the slot it enters (invariant 35), and
-  /// parks it when it holds focus; every other item takes the delegate's
-  /// default path.
-  void _bookMovedKey(Key key, _DataIndex at) {
+  /// parks it when it holds focus or [park] asks; every other item takes
+  /// the delegate's default path.
+  void _bookMovedKey(Key key, _DataIndex at, {bool park = false}) {
     if (_builtSlot(_enteredSlot(at))) return;
     _movedTo[key] = at.value;
     final node = _registeredNodeOf(key);
-    if (node != null && node.hasFocus) _park(key, at, node);
+    if (node != null && (park || node.hasFocus)) _park(key, at, node);
   }
 
   /// Maps the parked item to its index after this turn's calls, so its
@@ -1639,26 +1652,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _parkedFrame = null;
     _parkedNode = null;
     if (frame != null && frame.mounted) frame.setParked(parked: false);
-  }
-
-  /// The SDK's item at [index], from [sdkBuilder], under a frame keyed by
-  /// the item's own key, never its index, so the sliver moves a mapped
-  /// item's element in place ([_movedTo]).
-  Widget? _rewrapped(
-    NullableIndexedWidgetBuilder sdkBuilder,
-    BuildContext context,
-    int index,
-  ) {
-    _builtKey = null;
-    final item = sdkBuilder(context, index);
-    final key = _builtKey;
-    if (item == null || key == null) return item;
-    return _ParkFrame(
-      key: _IndexFreeKey(key),
-      body: this,
-      itemKey: key,
-      child: item,
-    );
   }
 
   /// The items [keys] are in the data while their old copies still leave,
@@ -2096,8 +2089,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _dragIndex = dragged;
     final key = _lookAt(dragged)?.key;
     _dragged = key == null ? null : (key: key, start: dragged);
-    final box = _nodeAt(dragged)?.context?.findRenderObject();
-    _liftedSize = box is RenderBox && box.hasSize ? box.size : null;
     _inReorderStart = true;
     try {
       _layout.onReorderStart?.call(index);
@@ -2107,19 +2098,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
   }
 
-  /// The SDK's delegate [sdk] with each item framed by its own key. Its
-  /// `findChildIndexCallback` answers a move the list knows ([_movedTo]),
-  /// else the app's answer for the item's own key ([_appIndexOf]), else
-  /// null (invariant 35).
-  SliverChildBuilderDelegate _rebuiltDelegate(SliverChildBuilderDelegate sdk) {
-    return SliverChildBuilderDelegate(
-      (context, index) => _rewrapped(sdk.builder, context, index),
-      childCount: sdk.childCount,
-      findChildIndexCallback: (key) => key is _IndexFreeKey
-          ? _movedTo[key.value] ?? _appIndexOf(key.value)
-          : null,
-    );
-  }
+  /// The sliver's `findChildIndexCallback`: a move the list knows
+  /// ([_movedTo]), else the app's answer for the item's own key
+  /// ([_appIndexOf]), else null (invariant 35).
+  int? _findIndex(Key key) => key is _IndexFreeKey
+      ? _movedTo[key.value] ?? _appIndexOf(key.value)
+      : null;
 
   /// The slot this build draws the item [key] at, by the app's
   /// `findChildIndexCallback`; null with no callback, or when the app does
@@ -2207,24 +2191,29 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return _layout.itemBuilder(context, start.value).key != dragged.key;
   }
 
-  /// The drag proxy took the item [key], its State with it.
+  /// The reorder sliver lifted the item [key]; it stays in its own slot,
+  /// hidden, while the drag proxy shows a raster of it (R49).
   void _liftedTook(Key key) => _liftedKey = key;
 
-  /// The drag proxy let the item [key] go, and its State waits among the
-  /// inactive elements until the end of the frame.
+  /// The reorder sliver let the item [key] go: its drag reset, often
+  /// inside the build that ends the drag.
   void _liftedLetGo(Key key) {
     if (_liftedKey == key) _liftedKey = null;
-    if (_standInKey == key) _standInKey = null;
     if (_dragged?.key == key) _dragged = null;
-    // A raw move of the lifted item follows it only now, with the item back
-    // in its slot (invariant 28). The watch reads the item from its follow
-    // until the end of this frame: the item registers again in its build.
+    // A raw move of the lifted item follows it only now (invariant 28).
     final follow = _liftedFollow;
     if (follow == null || follow.target.key != key) return;
-    _followRawMove(follow.target, follow.node);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_liftedFollow == follow) _liftedFollow = null;
-    });
+    // The drag can end inside a build, so the follow runs after that
+    // frame and keeps the frame the drag's end took: a count change in the
+    // next turn still re-aims it (R25). The watch reads the item from its
+    // follow until then.
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) {
+        if (_liftedFollow != follow) return;
+        _liftedFollow = null;
+        if (mounted) _followRawMove(follow.target, follow.node);
+      })
+      ..scheduleFrame();
   }
 
   /// Jumps to the start when [toStart], else to the end. The target slot
@@ -3036,14 +3025,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _builtKey = key;
     // The global key holds the item's key and this State, never the index,
     // so a moved item keeps its State and focus, as in Material's
-    // ReorderableListView. While the drag proxy still holds the item, its
-    // slot keeps the gap instead ([_standInKey]).
-    var body = key == _standInKey
-        ? SizedBox.fromSize(key: _StandInKey(key!), size: _liftedSize)
-        : KeyedSubtree(
-            key: _ReorderItemKey(key!, this),
-            child: _wrapItem(item, index: index, exiting: false),
-          );
+    // ReorderableListView.
+    Widget body = KeyedSubtree(
+      key: _ReorderItemKey(key!, this),
+      child: _wrapItem(item, index: index, exiting: false),
+    );
     // With no motion around it, an item builds as it did before
     // itemsController existed (D7): no lookup, no list.
     if (_exits.isEmpty && _incoming.isEmpty) return body;
@@ -3301,15 +3287,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (listCount != _listCount || _draggedLeftStart()) {
       _listKey.currentState?.cancelReorder();
       _dragged = null;
-      final lifted = _liftedKey;
-      if (lifted != null) {
-        _standInKey = lifted;
-        // The overlay drops the proxy in the next frame, before this State
-        // builds again, so the slot then takes the item's State back.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() {});
-        });
-      }
     }
     _listCount = listCount;
     // The widgets `ReorderableList`'s own tree, built here so the list
@@ -3427,151 +3404,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 }
 
-/// The widgets [SliverReorderableList] whose State routes every drag end
-/// the SDK causes to [body]'s one exit, `_endDrag` (FR-04 E06). Private,
-/// so a test finds it by a `SliverReorderableList` subtype predicate.
-class _ReorderSliver extends SliverReorderableList {
-  const new({
-    required GlobalKey<SliverReorderableListState> super.key,
-    required this.body,
-    required super.itemBuilder,
-    required super.itemCount,
-    required ReorderCallback super.onReorderItem,
-    required void Function(int index) super.onReorderStart,
-    required void Function(int index) super.onReorderEnd,
-    super.itemExtent,
-    super.itemExtentBuilder,
-    super.prototypeItem,
-    super.proxyDecorator,
-    super.autoScrollerVelocityScalar,
-  });
-
-  final _ReorderableBodyState body;
-
-  @override
-  SliverReorderableListState createState() => _ReorderSliverState();
-}
-
-/// Reports to the body each reset the SDK makes through [cancelReorder],
-/// and each canceled gesture through a [_WatchedDrag]; the SDK reports a
-/// drop itself through `onReorderEnd`. Every drag passes through
-/// [startItemDragReorder], from the long-press listener or an app's
-/// `ReorderableDragStartListener` handle alike.
-class _ReorderSliverState extends SliverReorderableListState {
-  _ReorderableBodyState get _body => (widget as _ReorderSliver).body;
-
-  /// Whether the app or the platform asked for less motion at the last
-  /// build; a ticker callback runs outside the build, so it reads this.
-  var _reducesMotion = false;
-
-  // Every SDK reorder controller ticks on this State: each item's reflow
-  // (`updateForGap`) and the drop's settle (`_DragInfo.startDrag`). Under
-  // reduced motion each reads a long elapsed time and ends on its first
-  // tick, the end state the platform's `disableAnimations` scale reaches
-  // (R38, invariant 59). The lifted item's fade runs on its own box.
-  @override
-  Ticker createTicker(TickerCallback onTick) {
-    return super.createTicker(
-      (elapsed) => onTick(_reducesMotion ? _endAtOnce : elapsed),
-    );
-  }
-
-  // Wraps after super: the recognizer reads onStart only when the arena
-  // accepts, after the pointer-down dispatch (multidrag.dart, _startDrag).
-  @override
-  void startItemDragReorder({
-    required int index,
-    required PointerDownEvent event,
-    required MultiDragGestureRecognizer recognizer,
-  }) {
-    super.startItemDragReorder(
-      index: index,
-      event: event,
-      recognizer: recognizer,
-    );
-    final start = recognizer.onStart;
-    if (start == null) return;
-    final body = _body;
-    recognizer.onStart = (position) {
-      final drag = start(position);
-      return drag == null ? null : _WatchedDrag(drag, body._handleListReset);
-    };
-  }
-
-  // The SDK calls this on an item-count change (didUpdateWidget) and on a
-  // second pointer (startItemDragReorder); the body calls it too.
-  @override
-  void cancelReorder() {
-    super.cancelReorder();
-    _body._handleListReset();
-  }
-
-  // The SDK keys each item with its index (`_ReorderableItemGlobalKey`), so
-  // its sliver replaces a moved item's element. The same sliver over a
-  // delegate that frames each item by its own key, with
-  // `findChildIndexCallback`, moves that element in place (invariant 35).
-  @override
-  Widget build(BuildContext context) {
-    _reducesMotion = context.reducesMotion;
-    final sliver = super.build(context);
-    final body = _body;
-    final sdk = sliver is SliverMultiBoxAdaptorWidget ? sliver.delegate : null;
-    final rebuilt = sdk is SliverChildBuilderDelegate
-        ? _rebuilt(sliver, body._rebuiltDelegate(sdk))
-        : null;
-    assert(
-      rebuilt != null,
-      'SliverReorderableListState.build changed shape: '
-      'ReorderableListViewLayout cannot frame its items by key',
-    );
-    return rebuilt ?? sliver;
-  }
-
-  /// [sliver], one of the four slivers the SDK builds, over [delegate];
-  /// null for any other.
-  static Widget? _rebuilt(Widget sliver, SliverChildBuilderDelegate delegate) {
-    return switch (sliver) {
-      SliverFixedExtentList(:final itemExtent) => SliverFixedExtentList(
-        delegate: delegate,
-        itemExtent: itemExtent,
-      ),
-      SliverVariedExtentList(:final itemExtentBuilder) =>
-        SliverVariedExtentList(
-          delegate: delegate,
-          itemExtentBuilder: itemExtentBuilder,
-        ),
-      SliverPrototypeExtentList(:final prototypeItem) =>
-        SliverPrototypeExtentList(
-          delegate: delegate,
-          prototypeItem: prototypeItem,
-        ),
-      SliverList() => SliverList(delegate: delegate),
-      _ => null,
-    };
-  }
-}
-
-/// Forwards a drag to the SDK's own and reports its cancel, which the SDK
-/// resets with neither `onReorderEnd` nor `cancelReorder`.
-class _WatchedDrag extends Drag {
-  new(this._drag, this._onCancel);
-
-  final Drag _drag;
-  final VoidCallback _onCancel;
-
-  @override
-  void update(DragUpdateDetails details) => _drag.update(details);
-
-  @override
-  void end(DragEndDetails details) => _drag.end(details);
-
-  @override
-  void cancel() {
-    _drag.cancel();
-    _onCancel();
-  }
-}
-
 /// The global key of an item: its own key and the list's State, equal by
 /// both, never by the index.
 @optionalTypeArgs
@@ -3625,9 +3457,6 @@ class _ReorderKeysState extends State<_ReorderKeys> {
     skipTraversal: true,
   );
 
-  /// The item's key while the drag proxy holds the item, outside its list.
-  Key? _lifted;
-
   /// Whether the item's node held focus when the item last left the tree:
   /// a disposal that follows hands focus on (R26).
   var _leftFocused = false;
@@ -3645,20 +3474,11 @@ class _ReorderKeysState extends State<_ReorderKeys> {
     _register(widget);
   }
 
-  // The item moved by its global key: into the drag proxy at a drag
-  // start, back into a slot at its end, or from one slot to another.
+  // The item moved by its global key, from one slot to another.
   @override
   void activate() {
     super.activate();
     _leftFocused = false;
-    final body = widget.body;
-    if (widget.exiting ||
-        context.findAncestorStateOfType<_ReorderableBodyState>() == body) {
-      return;
-    }
-    final key = widget.look.key!;
-    _lifted = key;
-    body._liftedTook(key);
   }
 
   @override
@@ -3666,11 +3486,6 @@ class _ReorderKeysState extends State<_ReorderKeys> {
     // Read before the item's own nodes leave the tree, which they do only
     // at its disposal.
     _leftFocused = !widget.exiting && _node.hasFocus;
-    final lifted = _lifted;
-    if (lifted != null) {
-      _lifted = null;
-      widget.body._liftedLetGo(lifted);
-    }
     super.deactivate();
   }
 
@@ -3817,12 +3632,6 @@ class _LandingState extends State<_Landing> {
 /// The key of a slot that shows removed items around an item, equal by the
 /// item's key.
 class _SlotKey extends ValueKey<Key> {
-  const new(super.value);
-}
-
-/// The key of the gap a lifted item keeps in its slot, equal by the item's
-/// key.
-class _StandInKey extends ValueKey<Key> {
   const new(super.value);
 }
 

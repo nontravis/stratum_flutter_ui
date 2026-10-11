@@ -8716,10 +8716,9 @@ void main() {
         expect(harness.ends, [103]);
         expect(harness.moves, isEmpty);
         if (!focused) {
-          // Never parked or followed. The proxy holds the item when the
-          // drag ends, outside the sliver, so the app's own keep-alive does
-          // not keep it either (measured).
-          expect(state.mounted, isFalse);
+          // Never parked or followed. The lifted item stays in its slot
+          // (R49), so the app's own keep-alive keeps it (L4 closed).
+          expect(state.mounted, keptAlive);
           expect(position.pixels, 4000);
           return;
         }
@@ -9314,9 +9313,9 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr01/e07 and s03/inv28: an unfocused dragged item the app keeps '
-      'alive loses its State when an item-count change ends the drag and '
-      'its new slot is not laid out',
+      'us11/fr01/e07 and s03/inv28 (L4 closed, R49): an unfocused dragged '
+      'item the app keeps alive keeps its State when an item-count change '
+      'ends the drag and its new slot is not laid out',
       (tester) async {
         final (state, position) = await pumpItem(
           tester,
@@ -9334,7 +9333,8 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(_harness(tester).ends, [103]);
-        expect(state.mounted, isFalse);
+        expect(state.mounted, isTrue);
+        expect(_statesOf(tester, 103), [same(state)]);
         expect(position.pixels, 4000);
       },
     );
@@ -9913,15 +9913,11 @@ void main() {
       variant: midOps,
     );
 
-    // WORKAROUND: a caller `itemTransitionBuilder` that fades through 0
-    // hides the item below the point where R1's `_Landing` lands it, so
-    // R1 has no flag to flip for it. This is the stated limit (ledger
-    // "Requirement changes", Limit): it fails until Flutter ships
-    // flutter/flutter#193710; remove this tripwire once the floor carries
-    // that fix and the caller fade joins the pins above instead.
-    testWidgets('us11/fr04 and fr05 limit: a caller itemTransitionBuilder that '
-        'fades through 0, around an item holding its own semantics '
-        'boundary, still asserts', (tester) async {
+    // L5 closed (R48): the chain never re-parents the item, so a caller
+    // fade through 0 asserts nothing.
+    testWidgets('us11/fr04 and fr05 (L5 closed): a caller '
+        'itemTransitionBuilder that fades through 0, around an item holding '
+        'its own semantics boundary, lands with no assert', (tester) async {
       final handle = tester.ensureSemantics();
       await pumpBoundary(
         tester,
@@ -9934,7 +9930,7 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isAssertionError);
+      expect(tester.takeException(), isNull);
       handle.dispose();
     });
   });
@@ -12518,6 +12514,31 @@ void main() {
     );
 
     testWidgets(
+      'matrix I14c.M3: a raw reorder with the app index, 100 slots on, of an '
+      'item whose first Tab stop sits in a nested horizontal ListView lands '
+      'with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final state = await pumpAt(
+          tester,
+          const _Harness(
+            count: 1000,
+            appIndex: true,
+            boundaryAt: 500,
+            boundary: _nestedListBoundary,
+          ),
+          id: 500,
+        );
+
+        _harness(tester).moveData(500, 600);
+        await tester.pumpAndSettle();
+
+        expectKept(tester, 500, state, node: state.node);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
       'matrix I17.M3 and I18.M3: an item whose first Tab stop sits in a '
       'nested horizontal ListView, scrolled away and held, comes back on Tab '
       'with no assert',
@@ -13193,6 +13214,138 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
+
+    testWidgets(
+      'us11/fr01 and s03/inv28 (R49): a lifted item keeps its screen-reader '
+      'node in the list, at its slot, for the whole drag',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(_app(const _Harness(count: 5)));
+        final scroll = find.semantics
+            .byFlag(SemanticsFlag.hasImplicitScrolling)
+            .evaluate()
+            .single;
+        final slot = tester.getRect(find.byKey(const ValueKey(1)));
+
+        final gesture = await _liftItem(tester, 1, by: 30);
+        await tester.pump();
+
+        final node = tester.getSemantics(find.byKey(const ValueKey(1)));
+        var inList = false;
+        for (var up = node.parent; up != null; up = up.parent) {
+          if (identical(up, scroll)) inList = true;
+        }
+        expect(inList, isTrue);
+        expect(tester.getRect(find.byKey(const ValueKey(1))), slot);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr01/e14 (R49): an item holding a text field drags with no '
+      'Material of its own, as a still image under the pointer',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              handles: true,
+              boundaryAt: 1,
+              boundary: (child) => Row(
+                children: [
+                  child,
+                  const SizedBox(width: 100, height: 40, child: TextField()),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final gesture = await _grabHandle(tester, 1);
+        final image = tester.widget<RawImage>(find.byType(RawImage)).image;
+        for (var i = 0; i < 3; i++) {
+          await gesture.moveBy(const Offset(0, 5));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.widget<RawImage>(find.byType(RawImage)).image,
+          same(image),
+        );
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    final liftEnds = ValueVariant<String>({'drop', 'cancel'});
+    testWidgets(
+      'us11/fr01 (R49): after a <drop, cancel> the lifted item paints in its '
+      'slot again and lifts again',
+      (tester) async {
+        final painted = <int>[];
+        await tester.pumpWidget(_app(_Harness(count: 5, paintLog: painted)));
+
+        var gesture = await _liftItem(tester, 1);
+        if (liftEnds.currentValue == 'drop') {
+          await gesture.up();
+        } else {
+          await gesture.cancel();
+        }
+        await tester.pumpAndSettle();
+        painted.clear();
+        tester.renderObject(find.byKey(const ValueKey(1))).markNeedsPaint();
+        await tester.pump();
+
+        expect(find.byType(RawImage), findsNothing);
+        expect(painted, contains(1));
+        gesture = await _liftItem(tester, 1);
+        expect(find.byType(RawImage), findsOne);
+        expect(_harness(tester).starts, hasLength(2));
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+      variant: liftEnds,
+    );
+
+    final placements = ValueVariant<String>({'offset page', 'horizontal RTL'});
+    testWidgets(
+      'us11/fr01 (R49): the image under the pointer sits where the item sat, '
+      'plus the drag, in a list <offset in the page, horizontal under RTL>',
+      (tester) async {
+        final horizontal = placements.currentValue == 'horizontal RTL';
+        await tester.pumpWidget(
+          _app(
+            horizontal
+                ? const _Harness(count: 5, axis: Axis.horizontal)
+                : const Padding(
+                    padding: EdgeInsets.only(top: 50, left: 30),
+                    child: _Harness(count: 5),
+                  ),
+            textDirection: horizontal ? TextDirection.rtl : TextDirection.ltr,
+          ),
+        );
+        final topLeft = tester.getTopLeft(find.byKey(const ValueKey(1)));
+        final delta = horizontal ? const Offset(-30, 0) : const Offset(0, 30);
+
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('1')),
+        );
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+        await gesture.moveBy(delta);
+        await tester.pump();
+        await tester.pump();
+
+        expect(tester.getTopLeft(find.byType(RawImage)), topLeft + delta);
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+      variant: placements,
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {
@@ -13581,6 +13734,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(highContrastHost(const _Harness(count: 5)));
         final start = tester.getCenter(find.text('0'));
+        final topLeft = tester.getTopLeft(find.byKey(const ValueKey(0)));
 
         final gesture = await tester.startGesture(start);
         await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
@@ -13588,8 +13742,9 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        // The drag proxy sits in the overlay, outside the list's own tree.
-        final lifted = find.text('0');
+        // R49: the drag proxy floats a raster of the item in the overlay,
+        // outside the list's own tree, under the pointer.
+        final lifted = find.byType(RawImage);
         expect(lifted, findsOne);
         expect(
           find.ancestor(
@@ -13598,7 +13753,7 @@ void main() {
           ),
           findsNothing,
         );
-        expect(tester.getCenter(lifted), start + const Offset(0, 30));
+        expect(tester.getTopLeft(lifted), topLeft + const Offset(0, 30));
         await gesture.up();
         await tester.pumpAndSettle();
       },
