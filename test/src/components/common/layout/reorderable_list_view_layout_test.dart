@@ -14143,6 +14143,32 @@ void main() {
       },
       variant: pushedPastEnd,
     );
+
+    testWidgets(
+      'D9: with no controller and no callback, a short list the app swaps '
+      'for a long one costs no itemBuilder call past the slots the next '
+      'frame lays out',
+      (tester) async {
+        var builds = 0;
+        await tester.pumpWidget(
+          _app(_Harness(count: 5, onItemBuild: (_) => builds += 1)),
+        );
+        expect(_laidOut(tester).count, 5);
+
+        builds = 0;
+        final harness = _harness(tester);
+        for (var i = 0; i < 5; i++) {
+          harness.removeData(0);
+        }
+        for (var i = 0; i < 500; i++) {
+          harness.insertData(i, 1000 + i);
+        }
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(builds, lessThanOrEqualTo(_laidOut(tester).count + 1));
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {

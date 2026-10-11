@@ -1340,17 +1340,22 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// below the list's [Scrollable], where those widgets show.
   ///
   /// When the last frame laid the data out to its end and a count no call
-  /// explains grew it from [changedFrom], the next frame lays out the new
-  /// slots past that end with no scroll: the read goes on into them, up to
-  /// the data's new end, until it finds every key the last frame laid out
-  /// (D9: L2 does not widen).
+  /// explains grew it from [changedFrom], the next frame lays out new slots
+  /// past that end with no scroll, as many as the room that layout left
+  /// past its last child holds (D9: L2 does not widen). The read goes on
+  /// into those slots alone, never further, so the sliver takes each
+  /// widget it reads there, and stops once it finds every key the last
+  /// frame laid out that the app's answer does not place.
   void _readLaidOut(Map<Key, _FrameIndex> built, {required int? changedFrom}) {
     final laid = _laidOut();
     final context = _listKey.currentContext;
     if (laid == null || context == null || _dataCount == 0) return;
     final unfound = {
       for (final MapEntry(:key, value: index) in built.entries)
-        if (index.value >= laid.first && index.value <= laid.last) key,
+        if (index.value >= laid.first &&
+            index.value <= laid.last &&
+            _appAt[key] == null)
+          key,
     };
     void readAt(int i) {
       final look = _layout.itemBuilder(context, i);
@@ -1367,7 +1372,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       readAt(i);
     }
     if (changedFrom != null && laid.last == changedFrom - 1) {
-      for (var i = last + 1; i <= end && unfound.isNotEmpty; i += 1) {
+      // The room at the laid-out extent, plus one slot the room cuts. Items
+      // of no extent, or a room with no bound, lay out to the data's end.
+      final slots = laid.room / laid.extent;
+      final stop = slots.isFinite
+          ? last + slots.floor() + 1
+          : (slots > 0 ? end : last);
+      for (
+        var i = last + 1;
+        i <= stop && i <= end && unfound.isNotEmpty;
+        i += 1
+      ) {
         readAt(i);
       }
     }
@@ -3085,12 +3100,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// The first and last slot the list's sliver laid out in the last frame,
-  /// as the data indices their slot frames hold, and their average extent
-  /// along the main axis; null when it laid out none. The sliver's child
-  /// list holds only laid-out children: Flutter moves a kept-alive child
-  /// out of it into its keep-alive bucket (`_destroyOrCacheChild`), so an
-  /// item kept alive off screen never counts (invariant 35).
-  ({int first, int last, double extent})? _laidOut() {
+  /// as the data indices their slot frames hold, their average extent
+  /// along the main axis, and the room that layout left past its last
+  /// child: the viewport plus cache extent its constraints reached past
+  /// that child's end, where it would have laid out more; null when it laid
+  /// out none. The sliver's child list holds only laid-out children:
+  /// Flutter moves a kept-alive child out of it into its keep-alive bucket
+  /// (`_destroyOrCacheChild`), so an item kept alive off screen never
+  /// counts (invariant 35).
+  ({int first, int last, double extent, double room})? _laidOut() {
     final sliver = _sliver();
     if (sliver == null) return null;
     // Data items only: a leaving item or closing gap has no data index
@@ -3120,16 +3138,26 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         lastChild == null) {
       return null;
     }
-    final size = lastChild.size;
-    final lastExtent = sliver.constraints.axis == Axis.vertical
-        ? size.height
-        : size.width;
+    final constraints = sliver.constraints;
+    double endOf(RenderBox child) =>
+        (sliver.childScrollOffset(child) ?? 0) +
+        (constraints.axis == Axis.vertical
+            ? child.size.height
+            : child.size.width);
     final start = sliver.childScrollOffset(firstChild) ?? 0;
-    final end = (sliver.childScrollOffset(lastChild) ?? 0) + lastExtent;
+    final end = endOf(lastChild);
+    // A leaving item or closing gap after the last data item takes room too.
+    final tail = sliver.lastChild;
+    final childrenEnd = tail != null && tail.hasSize ? endOf(tail) : end;
     return (
       first: first,
       last: last,
       extent: (end - start) / (last - first + 1),
+      room:
+          constraints.scrollOffset +
+          constraints.cacheOrigin +
+          constraints.remainingCacheExtent -
+          childrenEnd,
     );
   }
 
