@@ -143,7 +143,8 @@ class PageDrawerStage extends StatelessWidget {
     required this.child,
   });
 
-  /// The drawer's 0-to-1 animation, which a drag also drives.
+  /// The drawer's 0-to-1 animation, already on the theme's `standard` curve
+  /// in time and following a drag one to one.
   final Animation<double> progress;
 
   /// The side whose drawer shows, opening, open, or closing; null when

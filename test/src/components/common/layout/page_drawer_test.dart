@@ -184,6 +184,29 @@ double _panelOpacity(WidgetTester tester) => tester
     .opacity
     .value;
 
+/// The opacity the scrim's fade reaches this frame.
+double _scrimOpacity(WidgetTester tester) => tester
+    .widget<FadeTransition>(
+      find.descendant(
+        of: find.byType(Scrim),
+        matching: find.byType(FadeTransition),
+      ),
+    )
+    .opacity
+    .value;
+
+/// Moves focus to `Menu` by Tab and presses Enter on it, as a keyboard
+/// user opens the drawer, and returns `Menu`'s focus node.
+Future<FocusNode> _openByKeyboard(WidgetTester tester) async {
+  await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+  await tester.pump();
+  final menu = Focus.of(tester.element(find.text('Menu')));
+  expect(FocusManager.instance.primaryFocus, menu);
+  await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+  await tester.pumpAndSettle();
+  return menu;
+}
+
 void main() {
   group('PageDrawer helpers', () {
     test('us19/fr02/e01: e02: the default type is slide on iOS and front '
@@ -455,6 +478,68 @@ void main() {
       expect(FocusManager.instance.primaryFocus, menu);
     });
 
+    testWidgets('us19/fr05: a drawer a keyboard opened hands focus back to '
+        'its opener on Esc', (tester) async {
+      await _pump(tester, _page());
+      final menu = await _openByKeyboard(tester);
+      expect(_drawer, findsOneWidget);
+      expect(FocusManager.instance.primaryFocus, isNot(menu));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(_drawer, findsNothing);
+      expect(FocusManager.instance.primaryFocus, menu);
+    });
+
+    testWidgets('us19/fr05: focus stays in the page when the opener is gone '
+        'by the time the drawer closes', (tester) async {
+      final show = ValueNotifier(true);
+      addTearDown(show.dispose);
+      await _pump(
+        tester,
+        PageLayout(
+          left: const Text('drawer item'),
+          body: ValueListenableBuilder<bool>(
+            valueListenable: show,
+            builder: (_, on, _) => on ? const _Menu() : const Text('gone'),
+          ),
+        ),
+      );
+      final menu = await _openByKeyboard(tester);
+      show.value = false;
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(_drawer, findsNothing);
+      final focused = FocusManager.instance.primaryFocus;
+      expect(focused, isNot(menu));
+      expect(focused?.context?.mounted, isTrue);
+    });
+
+    testWidgets('us19/fr05: a drawer opened from code behind a covering route '
+        'leaves focus on that route', (tester) async {
+      _view(tester, const Size(390, 844));
+      final controller = PageLayoutController();
+      addTearDown(controller.dispose);
+      final cover = FocusNode(debugLabel: 'cover');
+      addTearDown(cover.dispose);
+      await tester.pumpWidget(_app(_page(controller: controller)));
+      Navigator.of(tester.element(find.text('Menu'))).push(
+        PageRouteBuilder<void>(
+          opaque: false,
+          pageBuilder: (_, _, _) => Focus(
+            focusNode: cover,
+            autofocus: true,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(FocusManager.instance.primaryFocus, cover);
+      controller.openLeft();
+      await tester.pumpAndSettle();
+      expect(FocusManager.instance.primaryFocus, cover);
+    });
+
     testWidgets('us19/fr03/e07: Esc closes the open drawer', (tester) async {
       final reports = <PageDrawerSide?>[];
       await _pump(tester, _page(changed: reports.add));
@@ -614,6 +699,53 @@ void main() {
       expect(reports, [PageDrawerSide.left, null]);
     });
 
+    testWidgets(
+      'us19/fr03/e07: NFR-U09: Esc closes a page drawer on a desktop, and '
+      'focus returns to the opener',
+      (tester) async {
+        // Under 600 on its shortest side, a desktop window is mobile, so its
+        // sides are drawers.
+        _view(tester, const Size(1000, 550));
+        final reports = <PageDrawerSide?>[];
+        await tester.pumpWidget(
+          _app(
+            _page(
+              changed: reports.add,
+              leftSide: const PageSide(type: PageDrawerType.page),
+            ),
+          ),
+        );
+        final menu = await _openByKeyboard(tester);
+        expect(find.text('drawer item'), findsOneWidget);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.text('drawer item'), findsNothing);
+        expect(find.text('Menu'), findsOneWidget);
+        expect(reports, [PageDrawerSide.left, null]);
+        expect(FocusManager.instance.primaryFocus, menu);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets('NFR-U06: us19/fr05: a page drawer reads as a named screen, '
+        'and the page it opened from stays silent', (tester) async {
+      _view(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        _app(_page(leftSide: const PageSide(type: PageDrawerType.page))),
+      );
+      await _openMenu(tester);
+      expect(
+        tester.getSemantics(_drawer),
+        isSemantics(
+          label: 'Navigation menu',
+          scopesRoute: true,
+          namesRoute: true,
+        ),
+      );
+      expect(find.semantics.byLabel('drawer item'), findsOne);
+      expect(find.semantics.byLabel('Menu'), findsNothing);
+    });
+
     for (final (source, app, platform) in [
       ('app', true, false),
       ('platform', false, true),
@@ -688,6 +820,19 @@ void main() {
         color.withValues(alpha: color.a * fakeTheme.opacity.scrim),
       );
       expect(style.backgroundBlur, fakeTheme.blur.level1);
+    });
+
+    testWidgets('us19/fr04: the scrim fades once on the standard curve, as '
+        'the modal scrim does', (tester) async {
+      await _pump(tester, _page());
+      await tester.tap(find.text('Menu'));
+      await tester.pump();
+      final normal = fakeTheme.animation.normal.duration!;
+      await tester.pump(normal ~/ 4);
+      expect(
+        _scrimOpacity(tester),
+        closeTo(Curves.easeInOutSine.transform(0.25), 0.01),
+      );
     });
 
     testWidgets('NFR-E01: us19/fr04/e06: the scrim follows the theme', (

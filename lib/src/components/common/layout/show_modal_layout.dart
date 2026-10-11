@@ -56,6 +56,7 @@ Future<T?> showModalLayout<T>(
   final motion = context.theme.animation.normal;
   final duration = motion.duration ?? Duration.zero;
   final reverseDuration = motion.reverseDuration ?? duration;
+  final curve = motion.curve ?? Curves.easeInOutSine;
   final navigator = Navigator.of(context, rootNavigator: useRootNavigator);
   if (shown == ModalLayoutType.modal) {
     return navigator.push(
@@ -66,6 +67,7 @@ Future<T?> showModalLayout<T>(
         showBackground: showBackground,
         transitionDuration: duration,
         reverseTransitionDuration: reverseDuration,
+        curve: curve,
       ),
     );
   }
@@ -73,10 +75,10 @@ Future<T?> showModalLayout<T>(
     _SheetLayoutRoute<T>(
       transitionDuration: duration,
       reverseTransitionDuration: reverseDuration,
-      transitionCurve: motion.curve ?? Curves.easeInOutSine,
+      transitionCurve: curve,
       barrierLabel: labels.dismissLabel,
       barrierBuilder: (route, dismiss) => Scrim(
-        animation: route.animation!,
+        animation: route.animation!.drive(CurveTween(curve: curve)),
         showBackground: showBackground,
         onDismiss: dismiss,
       ),
@@ -101,9 +103,13 @@ class _ModalLayoutRoute<T> extends PopupRoute<T> {
     required this.showBackground,
     required this.transitionDuration,
     required this.reverseTransitionDuration,
+    required this.curve,
   });
 
   final WidgetBuilder builder;
+
+  /// The theme's `standard` curve, which the scrim fades on.
+  final Curve curve;
 
   /// The route's semantics label; null reads the built-in dialog label.
   final String? label;
@@ -126,8 +132,10 @@ class _ModalLayoutRoute<T> extends PopupRoute<T> {
   bool get barrierDismissible => true;
 
   @override
-  Widget buildModalBarrier() =>
-      Scrim(animation: animation!, showBackground: showBackground);
+  Widget buildModalBarrier() => Scrim(
+    animation: animation!.drive(CurveTween(curve: curve)),
+    showBackground: showBackground,
+  );
 
   @override
   Widget buildPage(

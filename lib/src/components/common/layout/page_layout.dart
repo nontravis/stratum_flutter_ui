@@ -729,11 +729,14 @@ class _PageLayoutState extends State<PageLayout>
   /// Moves focus into [side]'s panel once the frame that shows it lands:
   /// a focus scope node takes a request only while it is in the focus
   /// tree (US-19 FR-05).
+  ///
+  /// A page under another route, such as an open modal, takes no focus
+  /// from it.
   void _focusDrawer(PageDrawerSide side) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _shown == side && _controller._openSide == side) {
-        _drawerFocus.requestFocus();
-      }
+      if (!mounted || _shown != side || _controller._openSide != side) return;
+      if (!(ModalRoute.isCurrentOf(context) ?? true)) return;
+      _drawerFocus.requestFocus();
     });
   }
 
@@ -888,8 +891,8 @@ class _PageLayoutState extends State<PageLayout>
 
   /// [side]'s content as the page a `page` drawer opens, read at the
   /// route's [context]: the side's slot fill over the whole screen and its
-  /// content padded by every inset, read as a named screen (US-19 FR-02
-  /// E03, FR-05).
+  /// content padded by every inset, read as a named screen that takes focus
+  /// and closes by Esc (US-19 FR-02 E03, FR-03 E07, FR-05).
   Widget _drawerPage(BuildContext context, PageDrawerSide side) {
     final start = side == PageDrawerSide.left;
     final style = _style(context);
@@ -899,17 +902,42 @@ class _PageLayoutState extends State<PageLayout>
       explicitChildNodes: true,
       label:
           _sideOf(side).semanticsLabel ?? builtInLabelsOf(context).drawerLabel,
-      child: IconTheme.merge(
-        data: IconThemeData(color: context.theme.color.icon.defaults.primary),
-        child: _slotBox(
-          start ? _Slot.left : _Slot.right,
-          _slotOf(side) ?? const SizedBox.shrink(),
-          start ? style.left : style.right,
-          (insets: _insets(context), textStyle: _textStyle(context)),
-          edges: (top: true, bottom: true, start: true, end: true),
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): () =>
+              _closePage(context),
+        },
+        // The route's own scope holds focus after the push, above any key
+        // binding inside the page; this scope takes it, so Esc reaches the
+        // binding above.
+        child: FocusScope(
+          autofocus: true,
+          child: IconTheme.merge(
+            data: IconThemeData(
+              color: context.theme.color.icon.defaults.primary,
+            ),
+            child: _slotBox(
+              start ? _Slot.left : _Slot.right,
+              _slotOf(side) ?? const SizedBox.shrink(),
+              start ? style.left : style.right,
+              (insets: _insets(context), textStyle: _textStyle(context)),
+              edges: (top: true, bottom: true, start: true, end: true),
+            ),
+          ),
         ),
       ),
     );
+  }
+
+  /// Closes the `page` drawer shown at the route's [context] by the
+  /// controller's close path, with one report; once the page that opened it
+  /// is gone, the route pops itself.
+  void _closePage(BuildContext context) {
+    if (mounted) {
+      _close();
+    } else {
+      Navigator.maybePop(context);
+    }
   }
 
   // MARK: - Layout
