@@ -80,6 +80,7 @@ void main() {
       // 'left' builds once when the drawer shows its content; every other
       // slot builds zero times.
       expect(counts.keys.where((key) => key != 'left'), isEmpty);
+      expect(counts['left'], 1);
     });
 
     testWidgets(
@@ -105,6 +106,7 @@ void main() {
         controller.close();
         await tester.pumpAndSettle();
         expect(counts.keys.where((key) => key != 'left'), isEmpty);
+        expect(counts['left'], 1);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.iOS),
     );
@@ -137,7 +139,8 @@ void main() {
     );
 
     testWidgets(
-      'us18/fr02/e03: a resize within one window size builds no slot',
+      'us18/fr02/e03: a tablet-to-desktop resize, both above the drawer '
+      'cut, builds no slot',
       (tester) async {
         _view(tester, const Size(1000, 800)); // tablet
         final counts = <String, int>{};
@@ -176,6 +179,28 @@ void main() {
         await tester.pump();
         expect(counts.keys.where((key) => key != 'left'), isEmpty);
         expect(counts['left'], 1);
+      },
+    );
+
+    testWidgets(
+      'us19/fr01/e05: a drawer-cut crossing down remounts no center slot',
+      (tester) async {
+        _view(tester, const Size(1000, 800)); // tablet: left is an inline
+        // pane, already built.
+        final counts = <String, int>{};
+        await tester.pumpWidget(
+          _page(
+            header: _Counter('header', counts),
+            left: _Counter('left', counts),
+            body: _Counter('body', counts),
+            footer: _Counter('footer', counts),
+          ),
+        );
+        counts.clear();
+        tester.view.physicalSize = const Size(390, 844); // mobile: left
+        // becomes a closed drawer again; a teardown builds nothing.
+        await tester.pump();
+        expect(counts, isEmpty);
       },
     );
 
