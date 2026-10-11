@@ -742,7 +742,7 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   EndUser resizes by drag, arrow keys, Home, and End, within the side's `minWidth` and `maxWidth`. Nothing paints
   between a pane and the center column; paint a line with `leftDividerBuilder:` or `rightDividerBuilder:`, the same
   `(context, state)` shape as `SplitLayout.dividerBuilder`. A pane opens at the controller's chosen width, else at
-  its drawer width. `rightAsOverlay: true` instead opens `right` at the cut and up as a front drawer over a scrim,
+  Figma's (`left` 280, `right` 380 at desktop and up; 260 and 320 below). `rightAsOverlay: true` instead opens `right` at the cut and up as a front drawer over a scrim,
   450 wide at `bigDesktop` and 400 below, with a close button; open it with `openRight()`.
 - **Controller** — `PageLayout.of(context)` returns the page's `PageLayoutController`, which opens and closes its
   drawers; pass your own `PageLayoutController(leftWidth:, rightWidth:)` to restore kept side pane widths, listen to

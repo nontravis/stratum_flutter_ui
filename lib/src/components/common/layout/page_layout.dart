@@ -2,7 +2,11 @@ import 'dart:math' as math;
 
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/page_drawer.dart'
-    show PageDrawerStage, drawerWidth, overlayDrawerWidth, resolveDrawerType;
+    show
+        PageDrawerStage,
+        inlinePaneWidth,
+        overlayDrawerWidth,
+        resolveDrawerType;
 import 'package:stratum_ui/src/src.dart';
 
 /// Which sides of a [PageLayout] pad their slots by the system insets
@@ -261,7 +265,7 @@ class PageLayoutController extends ChangeNotifier {
 /// paints only what [leftDividerBuilder] or [rightDividerBuilder] paints,
 /// while it always takes the drag, the keys, and focus, and reads as a
 /// slider. Each pane opens at the controller's chosen width, else at its
-/// drawer width, and the controller hears each settled resize as the new
+/// Figma width, and the controller hears each settled resize as the new
 /// width (US-19 FR-06). With [rightAsOverlay], [right] opens there instead
 /// as a front drawer over a scrim, with a close button (US-19 FR-01). A
 /// drawer open as the window crosses into inline panes closes.
@@ -1182,19 +1186,14 @@ class _PageLayoutState extends State<PageLayout>
   }
 
   /// The width [side]'s inline pane opens at: the controller's chosen
-  /// width, else the side's drawer width (layout s03 invariant 67).
+  /// width, else the Figma width of [side] at the window size; the split
+  /// bounds either by the side's width bounds and the window.
   double _paneWidth(PageDrawerSide side) {
-    final config = _sideOf(side);
     final chosen = switch (side) {
       PageDrawerSide.left => _controller.leftWidth,
       PageDrawerSide.right => _controller.rightWidth,
     };
-    return chosen ??
-        drawerWidth(
-          context.deviceWindow.width,
-          min: config.minWidth,
-          max: config.maxWidth,
-        );
+    return chosen ?? inlinePaneWidth(side, _windowSize);
   }
 
   /// [config]'s least width, giving way to its greatest, as the drawer

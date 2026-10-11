@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/layout/page_drawer.dart'
-    show defaultDrawerType, drawerWidth, overlayDrawerWidth;
+    show defaultDrawerType, drawerWidth, inlinePaneWidth, overlayDrawerWidth;
 import 'package:stratum_ui/src/components/common/layout/scrim.dart' show Scrim;
 import 'package:stratum_ui/src/src.dart';
 
@@ -1414,14 +1414,68 @@ void main() {
       expect(tester.getRect(_box('Open right')).left, 240);
     });
 
-    testWidgets('us19/fr06: a pane with no chosen width opens at its drawer '
-        'width', (tester) async {
+    test('us19/fr06: the Figma side widths: left 280 and right 380 at '
+        'desktop and up, 260 and 320 below', () {
+      for (final window in WindowSize.values) {
+        final wide = window >= WindowSize.desktop;
+        expect(inlinePaneWidth(PageDrawerSide.left, window), wide ? 280 : 260);
+        expect(inlinePaneWidth(PageDrawerSide.right, window), wide ? 380 : 320);
+      }
+    });
+
+    for (final (name, size, left, right) in [
+      ('tablet', _tablet, 260.0, 320.0),
+      ('desktop', _desktop, 280.0, 380.0),
+      ('bigDesktop', _bigDesktop, 280.0, 380.0),
+    ]) {
+      testWidgets('us19/fr06: at $name a side with no chosen width opens at '
+          'its Figma width', (tester) async {
+        await _pump(
+          tester,
+          const PageLayout(
+            left: Text('left pane'),
+            right: Text('right pane'),
+            body: _OpenRight(),
+          ),
+          size: size,
+        );
+        expect(tester.getRect(_box('left pane')).width, left);
+        expect(tester.getRect(_box('right pane')).width, right);
+      });
+    }
+
+    testWidgets('us19/fr06/e03: a chosen width wins over the Figma width of '
+        'its side only', (tester) async {
       await _pump(
         tester,
-        const PageLayout(left: Text('left pane'), body: _OpenRight()),
+        PageLayout(
+          controller: _widths(left: 300),
+          left: const Text('left pane'),
+          right: const Text('right pane'),
+          body: const _OpenRight(),
+        ),
         size: _desktop,
       );
-      expect(tester.getRect(_box('left pane')).width, 360);
+      expect(tester.getRect(_box('left pane')).width, 300);
+      expect(tester.getRect(_box('right pane')).width, 380);
+    });
+
+    testWidgets("us19/fr06: the side's width bounds clamp its Figma width", (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const PageLayout(
+          leftSide: PageSide(maxWidth: 250),
+          rightSide: PageSide(minWidth: 400),
+          left: Text('left pane'),
+          right: Text('right pane'),
+          body: _OpenRight(),
+        ),
+        size: _desktop,
+      );
+      expect(tester.getRect(_box('left pane')).width, 250);
+      expect(tester.getRect(_box('right pane')).width, 400);
     });
 
     testWidgets('us19/fr06/e01: a drag past the maximum stops there, and the '
