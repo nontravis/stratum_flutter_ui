@@ -924,11 +924,12 @@ typography:
   });
 
   group('readThemeValues opacity', () {
-    test('fo01/us01/fr01: reads opacity.disabled 0.5 from the base', () {
+    test('fo01/us01/fr01: reads opacity.disabled and scrim 0.5 from the '
+        'base', () {
       final (config, errors) = _read([]);
 
       expect(problems(errors), isEmpty);
-      expect(config.opacity, {'disabled': 0.5});
+      expect(config.opacity, {'disabled': 0.5, 'scrim': 0.5});
     });
 
     test('fo08/us07/fr01/e02: a layer that sets disabled to 0.3 wins', () {
@@ -984,6 +985,18 @@ typography:
       expect(_problems('opacity:\n  disabled:'), [
         'layer1 opacity.disabled: required [required]',
       ]);
+    });
+
+    test('fo01/us01/fr01/e12: a v1.3 file with scrim 1.2 reports '
+        'expected_opacity', () {
+      const scrimBadValue =
+          'layer1 opacity.scrim: expected a number from 0 to 1, got 1.2 '
+          '[expected_opacity]';
+      final (_, errors) = _read([
+        '\$schema: stratum-theme/v1.3.0\nopacity:\n  scrim: 1.2\n',
+      ]);
+
+      expect(problems(errors), [scrimBadValue]);
     });
   });
 

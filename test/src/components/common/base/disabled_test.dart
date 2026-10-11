@@ -395,7 +395,10 @@ void main() {
       tester,
     ) async {
       final theme = fakeTheme.copyWith(
-        opacity: StratumOpacityTokens.fromMap(const {'disabled': 0.3}),
+        opacity: StratumOpacityTokens.fromMap(const {
+          'disabled': 0.3,
+          'scrim': 0.5,
+        }),
       );
       await tester.pumpWidget(
         themedHost(
@@ -409,7 +412,10 @@ void main() {
 
     testWidgets('a theme dimming of 1 paints at full opacity', (tester) async {
       final theme = fakeTheme.copyWith(
-        opacity: StratumOpacityTokens.fromMap(const {'disabled': 1.0}),
+        opacity: StratumOpacityTokens.fromMap(const {
+          'disabled': 1.0,
+          'scrim': 0.5,
+        }),
       );
       await tester.pumpWidget(
         themedHost(
@@ -478,7 +484,10 @@ void main() {
     testWidgets('a theme of opacity 0 still reads as disabled', (tester) async {
       final handle = tester.ensureSemantics();
       final theme = fakeTheme.copyWith(
-        opacity: StratumOpacityTokens.fromMap(const {'disabled': 0.0}),
+        opacity: StratumOpacityTokens.fromMap(const {
+          'disabled': 0.0,
+          'scrim': 0.5,
+        }),
       );
       await tester.pumpWidget(
         themedHost(

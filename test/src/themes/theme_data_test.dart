@@ -101,7 +101,10 @@ void main() {
         types: {},
       );
       final animation = motionTheme().animation;
-      final opacity = StratumOpacityTokens.fromMap(const {'disabled': 0.3});
+      final opacity = StratumOpacityTokens.fromMap(const {
+        'disabled': 0.3,
+        'scrim': 0.5,
+      });
       const transparent = StratumTransparentTokens.builtIn;
       const space = {'md': StratumByWindowSize.all(StratumDimension.fixed(1))};
       const radius = {'md': StratumByWindowSize.all(StratumDimension.fixed(2))};

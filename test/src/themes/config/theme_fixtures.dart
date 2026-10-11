@@ -101,6 +101,7 @@ animation:
     exit: easeIn
 opacity:
   disabled: 0.5
+  scrim: 0.5
 border:
   sm: 0.5
   md: 1

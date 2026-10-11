@@ -39,7 +39,8 @@ abstract class StratumThemeConfig with _$StratumThemeConfig {
     required StratumAnimationConfig animation,
 
     /// The merged `opacity` group: `disabled`, the opacity of a disabled
-    /// component (FO-08 US-07), from 0 to 1; 0.5 in the package default.
+    /// component (FO-08 US-07), and `scrim`, a modal layout's background
+    /// scrim (FO-06 US-20), each from 0 to 1; 0.5 in the package default.
     required Map<String, double> opacity,
 
     /// The merged `border` group: `sm`, `md`, `lg`, each a width in logical

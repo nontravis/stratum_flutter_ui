@@ -362,10 +362,17 @@ void main() {
     expect(builtIn.black.p0, const Color(0x00000000));
   });
 
-  test('fo01/us01/fr01: StratumOpacityTokens reads opacity.disabled', () {
-    expect(StratumOpacityTokens.fromMap(const {'disabled': 0.3}).disabled, 0.3);
+  test('fo01/us01/fr01: StratumOpacityTokens reads opacity.disabled and '
+      'scrim', () {
+    final tokens = StratumOpacityTokens.fromMap(const {
+      'disabled': 0.3,
+      'scrim': 0.4,
+    });
+
+    expect(tokens.disabled, 0.3);
+    expect(tokens.scrim, 0.4);
     expect(
-      () => StratumOpacityTokens.fromMap(const {}),
+      () => StratumOpacityTokens.fromMap(const {'scrim': 0.4}),
       throwsA(
         isA<ArgumentError>().having(
           (error) => error.invalidValue,

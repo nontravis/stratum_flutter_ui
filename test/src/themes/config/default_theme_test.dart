@@ -220,8 +220,8 @@ void main() {
     );
   });
 
-  test('fo01/us01/fr01: the opacity group reads disabled 0.5', () {
-    expect(config.opacity, {'disabled': 0.5});
+  test('fo01/us01/fr01: the opacity group reads disabled and scrim 0.5', () {
+    expect(config.opacity, {'disabled': 0.5, 'scrim': 0.5});
   });
 
   test('fo01/us01/fr01: border, shadow, and blur read the Figma values, '

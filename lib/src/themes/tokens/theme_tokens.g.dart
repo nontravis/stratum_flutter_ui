@@ -1581,10 +1581,14 @@ final class StratumAssetTokens {
 /// The `opacity` tokens, each from 0 to 1.
 final class StratumOpacityTokens {
   StratumOpacityTokens.fromMap(Map<String, double> opacity)
-    : disabled = _opacity(opacity, 'disabled');
+    : disabled = _opacity(opacity, 'disabled'),
+      scrim = _opacity(opacity, 'scrim');
 
   /// `opacity.disabled`
   final double disabled;
+
+  /// `opacity.scrim`
+  final double scrim;
 }
 
 /// The `border` tokens: widths in logical pixels.

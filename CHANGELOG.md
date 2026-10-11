@@ -19,6 +19,10 @@
   up to `v1.1` refuses a `v1.2` theme as `unsupported_schema`. A theme that leaves the three groups out takes the
   package default's Figma values. The new problem code `expected_shadow` reports a `shadow` level that is not a list
   of layers of exactly `x`, `y`, `blur`, `spread`, and `color`.
+- Breaking: the theme format `stratum-theme/v1.3.0` adds `opacity.scrim`, a modal layout's background scrim, to the
+  already-closed `opacity` group, and the package default reads `v1.3.0`. This package reads every `v1.0` to `v1.3`
+  theme; a package build that reads only up to `v1.2` refuses a `v1.3` theme as `unsupported_schema`. A theme that
+  leaves `scrim` out takes the package default's 0.5. `StratumOpacityTokens` gains `scrim`.
 - Breaking: a theme file's lengths and shadow layers are bounded. Every `space`, `radius`, and `layouts` number (each
   window-size entry included), the `N` of a `layouts` `"N%"`, and a shadow layer's `x`, `y`, and `spread` must be a
   finite number from -10000 to 10000, and every `border` width, `blur` radius, and layer `blur` one from 0 to 10000;

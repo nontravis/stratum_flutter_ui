@@ -118,6 +118,7 @@ void main() {
       }
       expect(set.light.animation, StratumAnimation.packageDefault);
       expect(set.light.opacity.disabled, 0.5);
+      expect(set.light.opacity.scrim, 0.5);
     });
 
     test('app colors per set, app ramps shared, extensions, assets', () {

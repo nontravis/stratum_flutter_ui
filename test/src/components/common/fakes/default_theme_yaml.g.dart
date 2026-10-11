@@ -4,7 +4,7 @@
 
 /// The package default theme yaml, for tests that run on the web,
 /// where neither dart:io nor an asset bundle exists.
-const defaultThemeYaml = r"""$schema: stratum-theme/v1.2.0
+const defaultThemeYaml = r"""$schema: stratum-theme/v1.3.0
 name: stratum-default
 
 assets:
@@ -720,6 +720,7 @@ animation:
 
 opacity:
   disabled: 0.5              # a disabled component's opacity, from 0 to 1 (FO-08 US-07)
+  scrim: 0.5                 # a modal layout's background scrim, from 0 to 1 (FO-06 US-20)
 
 border:                      # border widths in logical pixels, the Figma Border collection
   sm: 0.5
