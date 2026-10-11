@@ -399,6 +399,9 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   recipes for the active theme, locale, and window size: display and headline slots read `header`; title, body, and
   label slots read `body`. No slot sets a weight, so each draws its type's yaml weight: title and label slots draw the
   body weight (400 in the package default), not Material's medium.
+- **Custom text size** — `StratumTextStyle.body.size(15)` sets a custom size of 15 logical pixels, with the metrics
+  of the nearest named size. The size must be a finite number above 0: a debug build asserts it, and a release build
+  skips the assert and reads any other size as unset, so the text takes `s16` for its size and its metrics.
 - **Theme models** — the parsed theme types (`StratumThemeConfig`, `StratumColorSets`, `StratumTypography`,
   `StratumTypeStyle`, `StratumAnimationConfig`, and the models inside them) are immutable values with `copyWith`;
   their maps refuse changes, so derive a variant with `config.copyWith(name: ...)` instead of editing a map. A
@@ -558,10 +561,15 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `{x: 0, y: 4, blur: 8, spread: 0, color: "{color.shadow.secondary}"}`, where `blur` is the Figma blur radius and
   `color` is a quoted hex, a `{palette...}` or `{transparent...}` alias, or `"{color.<group>.<name>}"`, a token of
   each color set; a list of at most 8 layers replaces the default's whole, and `[]` is no shadow. Every length a
-  theme sets, in `space`, `radius`, `layouts` (the `N` of a `"N%"` too), `border`, `blur`, and a layer's `x`, `y`,
-  `blur`, and `spread`, is a finite number from -10000 to 10000, and from 0 for `border`, `blur`, and a layer's
-  `blur`. A bad value throws `StratumThemeFormatException` with `expected_dimension`, `expected_shadow`, or
-  `expected_color` at its path, and a key the default lacks, such as `shadow.7`, is `unknown_key`. A package build
+  theme sets, in `space`, `radius`, `layouts` (the `N` of a `"N%"` too), `border`, `blur`, a layer's `x`, `y`, `blur`,
+  and `spread`, and `typography` (`adjustSize`, each `scaleByWindowSize` entry, `spaceHeight`, and `letterSpacing`,
+  the `N` of a `"N%"` too, negatives included), is a finite number from -10000 to 10000, and from 0 for `border`,
+  `blur`, and a layer's `blur`. A bad value throws `StratumThemeFormatException` with `expected_dimension`,
+  `expected_shadow`, or `expected_color` at its path, and a key the default lacks, such as `shadow.7`, is
+  `unknown_key`. A `typography` that draws some text at a font size or a line box of 0 px or less is
+  `expected_dimension` too: at text scale 1 the package tries every size `s10` to `s56`, with no window size and at
+  each one, in every font a tag gives the type, and blames the `adjustSize`, the `scaleByWindowSize` entry, or the
+  `spaceHeight` that does it, once per path, in the app and in the `stratum_theme` CLI alike. A package build
   that reads only up to `v1.1` refuses a
   `v1.2` theme as `unsupported_schema`, so a theme that must load there writes `v1.1.0` and leaves the three groups
   out. `AppBorder`, `AppShadow`, `AppFilter`, `StratumThemeData.filter`, and `screenBorderRadius` no longer exist;

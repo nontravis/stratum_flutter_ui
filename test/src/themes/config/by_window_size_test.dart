@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/plain_by_window_size.dart';
 
 void main() {
   group('StratumByWindowSize.valueFor', () {
@@ -68,5 +69,31 @@ void main() {
 
   test('an empty map asserts', () {
     expect(() => StratumByWindowSize<int>(const {}), throwsAssertionError);
+  });
+
+  group('windowSizeEntryIndex, OQ11', () {
+    test("a window size's own entry, else the nearest smaller one, else the "
+        'smallest one', () {
+      bool mobileAndDesktop(int index) => index == 1 || index == 3;
+
+      expect(
+        [
+          for (var index = 0; index < 5; index++)
+            windowSizeEntryIndex(index, mobileAndDesktop),
+        ],
+        [1, 1, 1, 3, 3],
+      );
+      expect(
+        [
+          for (var index = 0; index < 5; index++)
+            windowSizeEntryIndex(index, (index) => index == 4),
+        ],
+        [4, 4, 4, 4, 4],
+      );
+    });
+
+    test('null when no window size has an entry', () {
+      expect(windowSizeEntryIndex(2, (index) => false), isNull);
+    });
   });
 }

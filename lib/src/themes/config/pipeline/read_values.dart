@@ -225,37 +225,16 @@ final class _Read {
         : PlainByWindowSize(Map.unmodifiable(entries));
   }
 
-  /// [reader]'s dimension of [value] at [path]. Without [percent] (`space`
-  /// and `radius`), a percent is reported as `expected_dimension` and
-  /// dropped (spec section 8.3); so is a dimension past the length bound
-  /// (config s03 invariant 15).
+  /// [reader]'s required dimension of [value] at [path]. Without [percent]
+  /// (`space` and `radius`), a percent is reported as `expected_dimension`
+  /// and dropped (spec section 8.3); `ThemeReader.dimension` holds every
+  /// value to the length bound (config s03 invariant 15).
   StratumDimension? _dimension(
     ThemeReader reader,
     Object? value,
     String path, {
     required bool percent,
-  }) {
-    final dimension = reader.dimension(value, path, required: true);
-    if (dimension == null) return null;
-    if (!percent && dimension is PercentDimension) {
-      reader.report(
-        StratumThemeErrorCode.expectedDimension,
-        path,
-        'expected a number, got ${ThemeReader.show(value)}; a percent is '
-        'allowed only in layouts',
-      );
-      return null;
-    }
-    if (ThemeReader.fitsLength(dimension)) return dimension;
-    const max = ThemeReader.maxLength;
-    final kind = percent ? 'a number or "N%"' : 'a number';
-    reader.report(
-      StratumThemeErrorCode.expectedDimension,
-      path,
-      'expected $kind from -$max to $max, got ${ThemeReader.show(value)}',
-    );
-    return null;
-  }
+  }) => reader.dimension(value, path, percent: percent, required: true);
 
   /// Like [_tokens], held un-wrapped by `frozenMap` here: `convertThemeConfig`
   /// rebuilds this into `Color` values for the freezed model.

@@ -32,6 +32,16 @@
   number. A `shadow` level holds at most 8 layers, else `expected_shadow`. The messages of `border`, `blur`, and the
   layer numbers now name the range (`expected a number from 0 to 10000, got <value>`). A downloaded theme can no
   longer ask for an unbounded stack of blurred shadows or hand the renderer an infinite size.
+- Breaking: a theme file's `typography` lengths are bounded too. Every `adjustSize`, `scaleByWindowSize` entry
+  (theme-wide or a type's own), `spaceHeight`, and `letterSpacing` must be a number, or a `"N%"` whose `N` is one,
+  that is finite and from -10000 to 10000, negatives included; anything else is `expected_dimension` at its path
+  (`expected a number or "N%" from -10000 to 10000, got <value>`), where these four used to take an infinite, NaN, or
+  huge value. A `typography` that draws some text at a font size or a line box of 0 px or less at text scale 1, at
+  any size `s10` to `s56`, with no window size or at any one, in any font a tag gives the type, is refused too:
+  `expected_dimension` once per path, at the `adjustSize`, the `scaleByWindowSize` entry, or the `spaceHeight` to
+  blame, such as `expected an adjustSize that keeps s10 above 0 px, got -12 (s10 draws at -2 px)`, in the app and in
+  the `stratum_theme` CLI alike. `StratumTextStyle.size` now asserts a finite custom size above 0 in a debug build; a
+  release build draws any other custom size at `s16`.
 - New `StratumComponentDefaults.parts`, built by the new `StratumThemeApplication(componentPartDefaults:)` and
   `.controlled(componentPartDefaults:)`, lets an app restyle every part of a multi-part component type, such as a
   page layout, a modal layout, or a notice, from one place: `componentPartDefaults: (theme) => {ModalLayout:

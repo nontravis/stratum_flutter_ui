@@ -5,6 +5,7 @@ import 'package:stratum_ui/src/themes/constant/font_size.dart';
 import 'package:stratum_ui/src/themes/constant/font_type.dart';
 import 'package:stratum_ui/src/themes/font_data.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
+import 'package:stratum_ui/src/themes/typography/text_size.dart';
 import 'package:stratum_ui/src/themes/typography/typography_models.dart';
 
 /// One entry of `typography.types` as stage 5 reads it: the plain twin of
@@ -105,7 +106,7 @@ class _TypographyParser {
     if (familiesNode != null) {
       _checkDefaultFamily(familiesNode, '$_path.families.default');
     }
-    return PlainTypography(
+    final typography = PlainTypography(
       fonts: fonts,
       families: families,
       scaleByWindowSize: scale == null || scale.isEmpty
@@ -113,6 +114,8 @@ class _TypographyParser {
           : PlainByWindowSize(scale),
       types: types,
     );
+    _DrawSizeCheck(_reader, node, typography).run();
+    return typography;
   }
 
   Map<String, StratumFontData> _fonts(Map<String, Object?>? node, String path) {
@@ -144,6 +147,7 @@ class _TypographyParser {
       final adjustSize = _reader.dimension(
         font['adjustSize'],
         '$fontPath.adjustSize',
+        percent: true,
       );
       final files = font.containsKey('files')
           ? _files(font['files'], '$fontPath.files')
@@ -378,7 +382,12 @@ class _TypographyParser {
         );
         continue;
       }
-      final dimension = _reader.dimension(value, sizePath, required: true);
+      final dimension = _reader.dimension(
+        value,
+        sizePath,
+        percent: true,
+        required: true,
+      );
       if (dimension != null) scale[key] = dimension;
     }
     return Map.unmodifiable(scale);
@@ -461,11 +470,13 @@ class _TypographyParser {
       final spaceHeight = _reader.dimension(
         metrics['spaceHeight'],
         '$sizePath.spaceHeight',
+        percent: true,
         required: true,
       );
       final letterSpacing = _reader.dimension(
         metrics['letterSpacing'],
         '$sizePath.letterSpacing',
+        percent: true,
       );
       if (spaceHeight == null) continue;
       sizes[size] = StratumSizeMetrics(
@@ -526,4 +537,235 @@ class _TypographyParser {
 
   void _error(StratumThemeErrorCode code, String path, String message) =>
       _reader.report(code, path, message);
+}
+
+/// FO-02 typography s03 invariant 14: at text scale 1, every text the app
+/// can draw under a parsed typography has a font size and a line box above
+/// 0 px.
+///
+/// Tries every `FontSize`, with no window size and at each window size, in
+/// every font a tag can give the type, through `textSizeOf`, the size math
+/// `TypographyResolver` draws with. Reports one `expected_dimension` per
+/// path to blame, its message named by the first text that fails there: by
+/// size, then window size, then `FontType` order, then the order the tags
+/// list the fonts (US-07 FR-02 E17 to E19).
+final class _DrawSizeCheck {
+  new(this._reader, this._node, this._typography);
+
+  static const _path = 'typography';
+  static const _zero = StratumDimension.fixed(0);
+
+  final ThemeReader _reader;
+
+  /// The `typography` subtree, for the value a message shows.
+  final Map<String, Object?> _node;
+
+  /// The values that parsed: a value another rule refuses is not here, so
+  /// it draws no second error at its path (E19).
+  final PlainTypography _typography;
+
+  /// The message of each path to blame, in the order its first text fails.
+  final _messages = <String, String>{};
+
+  void run() {
+    final fontKeys = {
+      for (final type in FontType.values) type: _fontKeys(type),
+    };
+    final declaredSizes = {
+      for (final type in FontType.values) type: _declaredSizes(type),
+    };
+    final ownDeclaredWindows = {
+      for (final type in FontType.values) type: _declaredWindowsOf(type),
+    };
+    final themeDeclaredWindows = _declaredWindows(['scaleByWindowSize']);
+    for (final size in FontSize.values) {
+      for (final window in <String?>[null, ...windowSizeNames]) {
+        for (final type in FontType.values) {
+          final metricsType = type == FontType.table ? FontType.body : type;
+          _check(
+            size,
+            window,
+            type,
+            fontKeys[type]!,
+            declaredSizes[metricsType]!,
+            ownDeclaredWindows[metricsType]!,
+            themeDeclaredWindows,
+          );
+        }
+      }
+    }
+    for (final MapEntry(key: path, value: message) in _messages.entries) {
+      _reader.report(StratumThemeErrorCode.expectedDimension, path, message);
+    }
+  }
+
+  void _check(
+    FontSize size,
+    String? window,
+    FontType type,
+    Set<String> fontKeys,
+    Set<FontSize> declaredSizes,
+    Set<String> ownDeclaredWindows,
+    Set<String> themeDeclaredWindows,
+  ) {
+    final metricsType = type == FontType.table ? FontType.body : type;
+    final style = _typography.types[metricsType];
+    if (style == null) return;
+    final nearest = nearestFontSize(
+      declaredSizes.isEmpty ? style.sizes.keys : declaredSizes,
+      size.value,
+    );
+    if (nearest == null) return;
+    final metrics = style.sizes[nearest];
+    // The nearest size the type declares may have failed to parse (E19):
+    // no other declared size answers for it, so this size draws no
+    // line-box error here. The font-size checks below do not read
+    // spaceHeight, so they still run over every value that parsed.
+    final spaceHeight = metrics?.spaceHeight ?? _zero;
+    if (metrics != null && window == null) {
+      final lineBox = _sizeOf(size, null, style, _zero, spaceHeight).lineBox;
+      if (!isDrawableSize(lineBox)) {
+        _blame(
+          ['types', metricsType.name, 'sizes', nearest.name, 'spaceHeight'],
+          'a spaceHeight that keeps ${size.name} above 0 px',
+          '(line box ${_px(lineBox)} px)',
+        );
+      }
+    }
+    // A window whose scale entry would come from a declared-but-refused
+    // value, own or theme-wide, draws no window-scale error here: the
+    // value a passing theme would have used is unknown, so the check must
+    // not fall through further and blame a different, unrelated entry
+    // (E19).
+    final shadowed =
+        window != null &&
+        (ownDeclaredWindows.contains(window)
+            ? !(style.scaleByWindowSize?.containsKey(window) ?? false)
+            : _themeFallbackRefused(window, themeDeclaredWindows));
+    for (final key in fontKeys) {
+      final adjustSize = _typography.fonts[key]?.adjustSize;
+      if (adjustSize == null) continue;
+      final unscaled = _sizeOf(size, null, style, adjustSize, spaceHeight);
+      if (!isDrawableSize(unscaled.fontSize)) {
+        if (window == null) {
+          _blame(
+            ['fonts', key, 'adjustSize'],
+            'an adjustSize that keeps ${size.name} above 0 px',
+            '(${size.name} draws at ${_px(unscaled.fontSize)} px)',
+          );
+        }
+        continue;
+      }
+      if (window == null || shadowed) continue;
+      final sizes = _sizeOf(size, window, style, adjustSize, spaceHeight);
+      final entry = sizes.windowScale;
+      if (entry == null || isDrawableSize(sizes.fontSize)) continue;
+      _blame(
+        entry.own
+            ? ['types', metricsType.name, 'scaleByWindowSize', entry.name]
+            : ['scaleByWindowSize', entry.name],
+        'a scaleByWindowSize that keeps ${size.name} above 0 px',
+        '(${size.name} draws at ${_px(sizes.fontSize)} px)',
+      );
+    }
+  }
+
+  /// Whether the theme-wide entry [window] would read, by `windowSizeNames`
+  /// order over [declared] (every key the raw node names, parsed or
+  /// refused), failed to parse: present in [declared] but missing from the
+  /// parsed `scaleByWindowSize.sizes` map.
+  bool _themeFallbackRefused(String window, Set<String> declared) {
+    final index = windowSizeEntryIndex(
+      windowSizeNames.indexOf(window),
+      (index) => declared.contains(windowSizeNames[index]),
+    );
+    if (index == null) return false;
+    final name = windowSizeNames[index];
+    return !(_typography.scaleByWindowSize.sizes?.containsKey(name) ?? false);
+  }
+
+  TextSize _sizeOf(
+    FontSize size,
+    String? window,
+    PlainTypeStyle style,
+    StratumDimension adjustSize,
+    StratumDimension spaceHeight,
+  ) => textSizeOf(
+    base: size.value,
+    window: window,
+    ownScale: style.scaleByWindowSize,
+    themeScale: _typography.scaleByWindowSize.sizes,
+    adjustSize: adjustSize,
+    spaceHeight: spaceHeight,
+  );
+
+  /// Every font key a tag gives [type], in the order the tags list them:
+  /// each tag's font for the type, then, for every type but `code`, which
+  /// draws no mono font, the type's mono and the tag's theme-wide mono
+  /// (s03 step 2).
+  Set<String> _fontKeys(FontType type) => {
+    for (final family in _typography.families.values) ...[
+      ?family.types[type]?.font,
+      if (type != FontType.code) ...[?family.types[type]?.mono, ?family.mono],
+    ],
+  };
+
+  /// The `FontSize` keys the raw node declares for [type]'s `sizes`,
+  /// parsed or refused, so `_check` finds the nearest by every size the
+  /// author wrote, not only the ones that parsed (E19).
+  Set<FontSize> _declaredSizes(FontType type) {
+    final node = _valueAt(['types', type.name, 'sizes']);
+    if (node is! Map<String, Object?>) return const {};
+    final names = FontSize.values.asNameMap();
+    return {for (final key in node.keys) ?names[key]};
+  }
+
+  /// The window-size names [type]'s own `scaleByWindowSize` declares,
+  /// parsed or refused (E19, mirroring [_declaredSizes]); every window
+  /// size name when the value itself is not a map (`expected_map`), since
+  /// no entry it would have held is known to have parsed.
+  Set<String> _declaredWindowsOf(FontType type) {
+    final keys = ['types', type.name, 'scaleByWindowSize'];
+    final value = _valueAt(keys);
+    return value != null && value is! Map<String, Object?>
+        ? windowSizeNames.toSet()
+        : _declaredWindows(keys);
+  }
+
+  /// The window-size names the raw node declares at [keys], parsed or
+  /// refused.
+  Set<String> _declaredWindows(List<String> keys) {
+    final node = _valueAt(keys);
+    if (node is! Map<String, Object?>) return const {};
+    return {
+      for (final key in node.keys)
+        if (windowSizeNames.contains(key)) key,
+    };
+  }
+
+  /// Records the message of the path [keys] names below `typography`,
+  /// unless an earlier text already named it.
+  void _blame(List<String> keys, String expected, String drawn) =>
+      _messages.putIfAbsent(
+        [_path, ...keys].join('.'),
+        () =>
+            'expected $expected, got ${ThemeReader.show(_valueAt(keys))} '
+            '$drawn',
+      );
+
+  Object? _valueAt(List<String> keys) {
+    Object? value = _node;
+    for (final key in keys) {
+      value = value is Map<String, Object?> ? value[key] : null;
+    }
+    return value;
+  }
+
+  /// [px] rounded to two decimals, with no trailing zero: -2.0 shows `-2`.
+  static String _px(double px) {
+    final rounded = double.parse(px.toStringAsFixed(2));
+    return rounded == rounded.truncateToDouble()
+        ? '${rounded.toInt()}'
+        : '$rounded';
+  }
 }
