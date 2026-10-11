@@ -93,10 +93,16 @@ class _SystemStyleRootState extends State<SystemStyleRoot> {
   );
 }
 
-/// The bar colors a root paints, each over the view's padding at its edge
-/// in logical pixels: `status` across the `top` padding, and `navigation`
-/// across the `bottom` padding with `divider` as its edge line.
+/// The bar colors a root paints, anchored to the view's own bounds, not
+/// the root's: `origin` is the view's top-left point in the root's local
+/// coordinates and `viewSize` its logical size, so a root inset by a
+/// `SafeArea` or the like paints under the real bar instead of over its
+/// own content (themes s03 invariant 45). `status` fills the view's `top`
+/// padding, and `navigation` fills its `bottom` padding with `divider` as
+/// its edge line.
 typedef _SystemBarStrips = ({
+  Offset origin,
+  Size viewSize,
   double top,
   Color? status,
   double bottom,
@@ -118,16 +124,26 @@ class _SystemBarStripPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final value = strips.value;
     if (value == null) return;
-    _fill(canvas, Rect.fromLTWH(0, 0, size.width, value.top), value.status);
-    final edge = size.height - value.bottom;
+    final rect = Rect.fromLTWH(
+      value.origin.dx,
+      value.origin.dy,
+      value.viewSize.width,
+      value.viewSize.height,
+    );
+    _fill(
+      canvas,
+      Rect.fromLTWH(rect.left, rect.top, rect.width, value.top),
+      value.status,
+    );
+    final edge = rect.bottom - value.bottom;
     final divider = value.divider;
     final line = divider == null || divider.a == 0
         ? 0.0
         : math.min(1.0, value.bottom);
-    _fill(canvas, Rect.fromLTWH(0, edge, size.width, line), divider);
+    _fill(canvas, Rect.fromLTWH(rect.left, edge, rect.width, line), divider);
     _fill(
       canvas,
-      Rect.fromLTRB(0, edge + line, size.width, size.height),
+      Rect.fromLTRB(rect.left, edge + line, rect.right, rect.bottom),
       value.navigation,
     );
   }
@@ -282,7 +298,14 @@ final class _SystemStyleResolver {
   final _hosts = <_SystemStyleRootState>[];
   RenderView? _renderView;
   bool _scheduled = false;
+
+  /// The bar mode last sent; null before any layer has ever set one, so
+  /// the resolver leaves the platform's own bar mode untouched (R11).
   SystemBarMode? _barMode;
+
+  /// The orientations last sent; null before any layer has ever set them,
+  /// so the resolver leaves the platform's own rotation lock untouched
+  /// (R11).
   List<DeviceOrientation>? _orientations;
   (String, int)? _description;
 
@@ -357,6 +380,8 @@ final class _SystemStyleResolver {
     final strips = bars == null
         ? null
         : (
+            origin: -region.localToGlobal(Offset.zero),
+            viewSize: size,
             top: padding.top / ratio,
             status: bars.statusBarColor,
             bottom: padding.bottom / ratio,
@@ -371,13 +396,22 @@ final class _SystemStyleResolver {
         !_isWeb &&
         (platform == TargetPlatform.android || platform == TargetPlatform.iOS);
     if (!_isWeb) SystemChrome.setSystemUIOverlayStyle(bars.overlay);
-    if (mobile && bars.barMode != _barMode) {
-      _barMode = bars.barMode;
-      unawaited(_setMode(bars.barMode));
+    if (mobile) {
+      final barMode =
+          bars.barMode ?? (_barMode == null ? null : SystemBarMode.edgeToEdge);
+      if (barMode != null && barMode != _barMode) {
+        _barMode = barMode;
+        unawaited(_setMode(barMode));
+      }
     }
-    if (mobile && !listEquals(bars.orientations, _orientations)) {
-      _orientations = bars.orientations;
-      unawaited(SystemChrome.setPreferredOrientations(bars.orientations));
+    if (mobile) {
+      final orientations =
+          bars.orientations ??
+          (_orientations == null ? null : const <DeviceOrientation>[]);
+      if (orientations != null && !listEquals(orientations, _orientations)) {
+        _orientations = orientations;
+        unawaited(SystemChrome.setPreferredOrientations(orientations));
+      }
     }
     _sendDescription(bars);
   }
@@ -406,12 +440,13 @@ final class _SystemStyleResolver {
   };
 
   /// Sends the merged label, else the title of the nearest app widget
-  /// `Title` read now, with the merged `appSwitcherColor` made opaque, when
-  /// either changed or the app widget rebuilt, which builds a new `Title`
-  /// that may have sent its own description (themes s03 invariant 42).
+  /// `Title` read now, with the merged `appSwitcherColor` made opaque,
+  /// else that `Title`'s own color when no layer sets one, when either
+  /// changed or the app widget rebuilt, which builds a new `Title` that
+  /// may have sent its own description (themes s03 invariant 42).
   void _sendDescription(SystemBars bars) {
     final title = _title();
-    final color = bars.appSwitcherColor;
+    final color = bars.appSwitcherColor ?? title?.color;
     final label = bars.appSwitcherLabel ?? title?.title;
     if (color == null || label == null) return;
     final description = (label, color.withValues(alpha: 1).toARGB32());

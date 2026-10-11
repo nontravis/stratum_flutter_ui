@@ -192,12 +192,13 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('us14/fr03: with no layer setting them, the app is edge to '
-        'edge with no lock; the app-wide style sets them', (tester) async {
+    testWidgets('us14/fr03, R11: with no layer setting them, the platform '
+        'keeps its own bar mode and rotation lock; the app-wide style sets '
+        'them', (tester) async {
       final calls = systemBarsView(tester);
       await tester.pumpWidget(systemStyleApp(home: const SizedBox()));
-      expect(lastMode(calls), 'SystemUiMode.edgeToEdge');
-      expect(lastOrientations(calls), isEmpty);
+      expect(lastMode(calls), isNull);
+      expect(lastOrientations(calls), isNull);
 
       await tester.pumpWidget(
         systemStyleApp(
@@ -342,6 +343,34 @@ void main() {
       );
       expect(barStrips(tester, index: 1), paintsNothing);
     });
+
+    testWidgets('review minor 1, invariant 45: a root inset by a SafeArea '
+        "paints the strip under the real bar, not over the app's content", (
+      tester,
+    ) async {
+      systemBarsView(tester);
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => SafeArea(
+            child: StratumThemeApplication(
+              themes: defaultThemeSet,
+              themeMode: ThemeMode.light,
+              systemStyle: const SystemStyle(statusBarColor: Color(0xFFFF0000)),
+              child: child!,
+            ),
+          ),
+          home: const SizedBox(),
+        ),
+      );
+
+      expect(
+        barStrips(tester),
+        paints..rect(
+          rect: const Rect.fromLTWH(0, -statusBarHeight, 800, statusBarHeight),
+          color: const Color(0xFFFF0000),
+        ),
+      );
+    });
   });
 
   group('us14: one writer', () {
@@ -447,6 +476,31 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(lastLabel(calls), 'Shop');
     });
+
+    testWidgets('review minor 3: with no merged appSwitcherColor, the label '
+        "still sends, with the app widget's Title color", (tester) async {
+      final calls = systemBarsView(tester);
+      final theme = StratumThemeSet(
+        light: fakeStratumTheme().copyWith(systemStyle: const SystemStyle()),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          color: const Color(0xFF123456),
+          builder: (context, child) => StratumThemeApplication(
+            themes: theme,
+            themeMode: ThemeMode.light,
+            child: child!,
+          ),
+          home: const SystemStyleScope(
+            style: SystemStyle(appSwitcherLabel: 'Shop'),
+            child: SizedBox(),
+          ),
+        ),
+      );
+
+      expect(lastLabel(calls), 'Shop');
+      expect(lastSwitcherColor(calls), 0xFF123456);
+    });
   });
 
   group('us14/fr02: icons against the fill', () {
@@ -462,6 +516,24 @@ void main() {
         Brightness.light,
       );
       expect(SystemChrome.latestStyle?.statusBarBrightness, Brightness.dark);
+    });
+
+    testWidgets('us14/fr02/e05: a foreign translucent status color with no '
+        'brightness field adds no fill under auto', (tester) async {
+      systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(
+          home: const AnnotatedRegion<SystemUiOverlayStyle>(
+            value: SystemUiOverlayStyle(statusBarColor: Color(0x80000000)),
+            child: SizedBox(),
+          ),
+        ),
+      );
+
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
     });
 
     testWidgets('us14/s4, us14/fr02/e02, us14/fr05/e02: a translucent scrim '
@@ -638,8 +710,8 @@ void main() {
       await tester.pumpWidget(
         systemStyleApp(navigatorKey: navigator, home: const SizedBox()),
       );
-      expect(lastMode(calls), 'SystemUiMode.edgeToEdge');
-      expect(lastOrientations(calls), isEmpty);
+      expect(lastMode(calls), isNull);
+      expect(lastOrientations(calls), isNull);
 
       navigator.currentState!.push(
         MaterialPageRoute<void>(
@@ -860,6 +932,29 @@ void main() {
         expect(lastMode(calls), isNull);
       });
     }
+
+    testWidgets('us14/fr03/e05, us14/fr04/e04: on macOS the bar mode and '
+        'orientations stay unset while the label still sends on the same '
+        'pump', (tester) async {
+      final calls = systemBarsView(tester);
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      await tester.pumpWidget(
+        systemStyleApp(
+          systemStyle: const SystemStyle(
+            barMode: SystemBarMode.immersive,
+            orientations: [DeviceOrientation.portraitUp],
+            appSwitcherLabel: 'Shop',
+          ),
+          home: const SizedBox(),
+        ),
+      );
+      debugDefaultTargetPlatformOverride = null;
+
+      expect(tester.takeException(), isNull);
+      expect(lastMode(calls), isNull);
+      expect(lastOrientations(calls), isNull);
+      expect(lastLabel(calls), 'Shop');
+    });
 
     testWidgets('us14/s12, us14/fr03/e05: in a web browser the lock is '
         'ignored with no error', (tester) async {

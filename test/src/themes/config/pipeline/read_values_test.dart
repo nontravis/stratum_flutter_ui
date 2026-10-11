@@ -1606,6 +1606,12 @@ shadow:
             'is outside the token groups [alias_not_token]',
       ),
       (
+        'config s03 invariant 16: an alias elsewhere names the system group',
+        'space:\n  md: "{system.light.statusBarColor}"',
+        'layer1 space.md: "{system.light.statusBarColor}" is outside the '
+            'token groups [alias_not_token]',
+      ),
+      (
         'fo01/us01/fr01/e18: an icons value outside auto, light, dark',
         'system:\n  light:\n    statusBarIcons: bright',
         'layer1 system.light.statusBarIcons: expected one of auto, light, '

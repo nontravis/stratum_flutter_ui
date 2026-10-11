@@ -24,11 +24,15 @@ final class SystemBars {
   /// invariant 45).
   final SystemUiOverlayStyle overlay;
 
-  /// `edgeToEdge` when no layer sets one.
-  final SystemBarMode barMode;
+  /// Null when no layer sets one this frame; the resolver falls back to
+  /// `edgeToEdge` only once some layer has set it during its life, and
+  /// before that leaves the platform's own bar mode untouched (R11).
+  final SystemBarMode? barMode;
 
-  /// Empty, no lock, when no layer sets them.
-  final List<DeviceOrientation> orientations;
+  /// Null when no layer sets one this frame; the resolver falls back to
+  /// no lock only once some layer has set it during its life, and before
+  /// that leaves the platform's own rotation lock untouched (R11).
+  final List<DeviceOrientation>? orientations;
 
   /// Null when no layer sets one.
   final String? appSwitcherLabel;
@@ -64,7 +68,7 @@ final class SystemBars {
   int get hashCode => Object.hash(
     overlay,
     barMode,
-    Object.hashAll(orientations),
+    orientations == null ? null : Object.hashAll(orientations!),
     appSwitcherLabel,
     appSwitcherColor,
     statusBarColor,
@@ -127,8 +131,8 @@ SystemBars? resolveSystemBars(
           : _iconBrightness(navigationLight),
       systemNavigationBarContrastEnforced: bottom?.style.navigationBarContrast,
     ),
-    barMode: behavior.barMode ?? SystemBarMode.edgeToEdge,
-    orientations: behavior.orientations ?? const [],
+    barMode: behavior.barMode,
+    orientations: behavior.orientations,
     appSwitcherLabel: behavior.appSwitcherLabel,
     appSwitcherColor: style.appSwitcherColor,
     statusBarColor: style.statusBarColor,

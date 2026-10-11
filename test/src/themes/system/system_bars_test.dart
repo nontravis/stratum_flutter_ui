@@ -66,10 +66,16 @@ void main() {
       expect(bars.overlay.statusBarColor, const Color(0x00000000));
       expect(bars.overlay.systemStatusBarContrastEnforced, isFalse);
       expect(bars.overlay.systemNavigationBarContrastEnforced, isTrue);
-      expect(bars.barMode, SystemBarMode.edgeToEdge);
-      expect(bars.orientations, isEmpty);
       expect(bars.appSwitcherLabel, isNull);
       expect(bars.appSwitcherColor, _white);
+    });
+
+    test('R11: with no layer setting the bar mode or the orientations, '
+        'both stay null', () {
+      final bars = resolveSystemBars(const [_base], navigation: const [_base])!;
+
+      expect(bars.barMode, isNull);
+      expect(bars.orientations, isNull);
     });
 
     test('us14/fr02/e01: a dark opaque fill under the status bar gives '
