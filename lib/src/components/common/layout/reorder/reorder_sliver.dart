@@ -6,7 +6,8 @@
 // Adapted from packages/flutter/lib/src/widgets/reorderable_list.dart of
 // Flutter 3.47.7, lines 759-1229, 1231-1392, and 1496-1729: the reorder
 // layer of SliverReorderableList, addressed by item key instead of index
-// (R44), with a raster of the lifted item as its drag proxy (R49).
+// (R44), with a raster of the lifted item as its drag proxy (R49), and with
+// each leaving item or closing gap in a sliver child of its own (R47).
 part of '../reorderable_list_view_layout.dart';
 
 /// The list's reorder sliver. It stays a [SliverReorderableList], so that
@@ -163,6 +164,11 @@ class _ReorderSliverState extends SliverReorderableListState {
   }
 
   void _registerItem(_ReorderItemState item) {
+    // A leaving item takes no part in a drag.
+    if (item.widget.exiting) {
+      _unregisterItem(item.key, item);
+      return;
+    }
     final lift = _lift;
     if (lift != null && _items[item.key] != item) {
       item.updateForGap(
@@ -418,34 +424,82 @@ class _ReorderSliverState extends SliverReorderableListState {
     return _sizeExtent(item.targetGeometry().size, _scrollDirection);
   }
 
-  /// The item the body built at [index], under the reorder item
-  /// that moves it for the drag's gap and hides it while it is lifted, and
-  /// under a frame keyed by the item's own key, so the sliver moves the
-  /// item's element in place to its new index (invariant 35).
-  Widget _itemBuilder(BuildContext context, int index) {
-    final body = _body.._builtKey = null;
-    final child = widget.itemBuilder(context, index);
-    final key = body._builtKey;
+  /// The sliver child at [slot] of the body's frame plan: a data item, or
+  /// a leaving item or closing gap, under the reorder item that moves it
+  /// for the drag's gap and hides it while it is lifted, and under a frame
+  /// keyed by the item's own key, so the sliver moves the item's element
+  /// in place to its new slot (invariant 35). One widget shape serves every
+  /// state, so an item's subtree never changes parent from its insert to
+  /// the end of its exit (R47).
+  Widget _itemBuilder(BuildContext context, int slot) {
+    final body = _body;
+    final plan = body._plan;
+    final (:data, :exit) = plan.at(slot);
+    final int index;
+    final Widget child;
+    final Key key;
+    if (exit == null) {
+      index = data!;
+      body._builtKey = null;
+      child = widget.itemBuilder(context, index);
+      key = body._builtKey ?? child.key!;
+    } else {
+      index = -1;
+      child = body._buildExit(context, exit.exit);
+      key = exit.exit.frameKey;
+    }
+    // Under a fixed extent a leaving item keeps its own size, clipped to
+    // the slot it fades over (E03, E11).
+    final size = exit?.exit.size;
+    final hangExtent = size != null && body._fixedExtent
+        ? _sizeExtent(size, _scrollDirection)
+        : null;
     final overlay = Overlay.of(context, debugRequiredFor: widget);
-    final item = _ReorderItem(
-      itemKey: key ?? child.key!,
-      index: index,
-      capturedThemes: InheritedTheme.capture(
-        from: context,
-        to: overlay.context,
-      ),
-      child: _wrapWithSemantics(child, index),
-    );
-    if (key == null) return item;
     return _ParkFrame(
       key: _IndexFreeKey(key),
       body: body,
       itemKey: key,
-      child: item,
+      child: _SlotSemantics(
+        index: exit == null ? index : null,
+        exit: exit?.exit,
+        child: _Hang(
+          axis: _scrollDirection,
+          hang: exit != null && plan.noRoom,
+          back: exit?.back ?? false,
+          clip: exit != null && plan.noRoom && body._fixedExtent,
+          extent: hangExtent,
+          child: _ReorderItem(
+            itemKey: key,
+            index: index,
+            exiting: exit != null,
+            capturedThemes: InheritedTheme.capture(
+              from: context,
+              to: overlay.context,
+            ),
+            child: _wrapWithSemantics(child, index, exiting: exit != null),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _wrapWithSemantics(Widget child, int index) {
+  /// The extent the plan gives [slot] under a fixed extent: none for a
+  /// leaving item, which fades over the item that takes its place (E11);
+  /// null past the last slot.
+  double? _slotExtent(int slot, SliverLayoutDimensions dimensions) {
+    final plan = _body._plan;
+    if (slot < 0 || slot >= plan.childCount) return null;
+    final (:data, :exit) = plan.at(slot);
+    if (exit != null || data == null) return 0;
+    return widget.itemExtent ??
+        widget.itemExtentBuilder?.call(data, dimensions) ??
+        _body._prototypeExtent ??
+        0;
+  }
+
+  Widget _wrapWithSemantics(Widget child, int index, {required bool exiting}) {
+    // A leaving item has no screen-reader node (E05).
+    if (exiting) return Semantics(child: child);
     final semanticsActions = <CustomSemanticsAction, VoidCallback>{};
 
     void moveToStart() => _handleReorderItem(index, 0);
@@ -501,25 +555,20 @@ class _ReorderSliverState extends SliverReorderableListState {
     _reducesMotion = context.reducesMotion;
     final delegate = SliverChildBuilderDelegate(
       _itemBuilder,
-      childCount: widget.itemCount,
+      childCount: _body._plan.childCount,
       findChildIndexCallback: _body._findIndex,
       // The reorder item holds the item's own boundary, which it rasters
-      // for the drag proxy.
+      // for the drag proxy; the slot frame gives each data item its
+      // semantic index and a leaving item none (invariant 58).
       addRepaintBoundaries: false,
+      addSemanticIndexes: false,
     );
-    if (widget.itemExtent case final itemExtent?) {
-      return SliverFixedExtentList(delegate: delegate, itemExtent: itemExtent);
-    }
-    if (widget.itemExtentBuilder case final itemExtentBuilder?) {
+    // Under a fixed extent a leaving item takes a slot of no extent, so
+    // every fixed kind lays out through the plan's extents.
+    if (_body._fixedExtent) {
       return SliverVariedExtentList(
         delegate: delegate,
-        itemExtentBuilder: itemExtentBuilder,
-      );
-    }
-    if (widget.prototypeItem case final prototypeItem?) {
-      return SliverPrototypeExtentList(
-        delegate: delegate,
-        prototypeItem: prototypeItem,
+        itemExtentBuilder: _slotExtent,
       );
     }
     return SliverList(delegate: delegate);
@@ -534,12 +583,16 @@ class _ReorderItem extends StatefulWidget {
   const new({
     required this.itemKey,
     required this.index,
+    required this.exiting,
     required this.capturedThemes,
     required this.child,
   });
 
   final Key itemKey;
   final int index;
+
+  /// Whether this is a leaving item, which takes no part in a drag.
+  final bool exiting;
   final CapturedThemes capturedThemes;
   final Widget child;
 

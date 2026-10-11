@@ -2,7 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/rendering.dart'
     show
+        ContainerLayer,
         ItemExtentBuilder,
+        Layer,
+        RenderRepaintBoundary,
         RenderSliverMultiBoxAdaptor,
         ScrollCacheExtent,
         SliverLayoutDimensions;
@@ -722,6 +725,40 @@ List<Widget> _runningTransitions(WidgetTester tester) => [
     })
       widget,
 ];
+
+/// The ids among [ids] in the order the list composites them, back to
+/// front: each item paints into its own repaint boundary (R49), so the
+/// order of those layers is its paint order.
+List<int> _compositeOrder(WidgetTester tester, List<int> ids) {
+  final byLayer = <Layer, int>{};
+  for (final id in ids) {
+    RenderObject? node = tester.renderObject(
+      find.byKey(ValueKey(id), skipOffstage: false),
+    );
+    while (node != null && node is! RenderRepaintBoundary) {
+      node = node.parent;
+    }
+    final layer = node?.debugLayer;
+    if (layer != null) byLayer[layer] = id;
+  }
+  final order = <int>[];
+  void visit(Layer layer) {
+    final id = byLayer[layer];
+    if (id != null) order.add(id);
+    if (layer is ContainerLayer) {
+      for (
+        var child = layer.firstChild;
+        child != null;
+        child = child.nextSibling
+      ) {
+        visit(child);
+      }
+    }
+  }
+
+  visit(tester.binding.renderViews.first.debugLayer!);
+  return order;
+}
 
 /// Long-presses item [id] past the long-press delay and moves it [by] px
 /// down: a drag of the item in progress, on [pointer] when given.
@@ -2302,7 +2339,9 @@ void main() {
         painted.clear();
         await tester.pump();
 
-        expect(painted.where((id) => id >= 2).toList(), [3, 2, 4]);
+        // Each item composites in its own repaint boundary (R49), so the
+        // order of their layers is the paint order.
+        expect(_compositeOrder(tester, [2, 3, 4]), [3, 2, 4]);
         final host = tester.getRect(find.byKey(const ValueKey(3)));
         expect(tester.getRect(find.byKey(const ValueKey(2))), host);
         expect(
@@ -2562,8 +2601,8 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr04/e05: a leaving item takes no focus and, once its removeItem '
-      'landing frame passes, has no screen-reader node',
+      'us11/fr04/e05: a leaving item takes no focus and has no screen-reader '
+      'node from its first frame',
       (tester) async {
         final handle = tester.ensureSemantics();
         final controller = ReorderableItemsController();
@@ -2577,9 +2616,9 @@ void main() {
 
         _harness(tester).remove(2);
         await tester.pump();
-        // The removeItem frame: R1 keeps the leaving item live so the
-        // semantics walk that refreshes its stale parent always runs.
-        expect(_liveSemanticsLabel(tester, '2'), isTrue);
+        // The removeItem frame: the leaving item keeps its own sliver child
+        // (R47), so no subtree moves and no landing frame is needed.
+        expect(_liveSemanticsLabel(tester, '2'), isFalse);
         await tester.pump(const Duration(milliseconds: 16));
         // `find.bySemanticsLabel` would still match here: it reads a
         // RenderObject's own cached node, which a subtree that stops
@@ -13686,6 +13725,113 @@ void main() {
         handle.dispose();
       },
       variant: unfocusedReach,
+    );
+
+    testWidgets(
+      'us11/fr04/e05 and s03/inv58 (R47): a removed item exits in a sliver '
+      'child of its own, its render object under the same parent',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(count: 5, itemsController: ReorderableItemsController()),
+          ),
+        );
+        final box = tester.renderObject(find.byKey(const ValueKey(2)));
+        final parent = box.parent;
+
+        _harness(tester).remove(2);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        expect(
+          tester.renderObject(
+            find.byKey(const ValueKey(2), skipOffstage: false),
+          ),
+          same(box),
+        );
+        expect(box.parent, same(parent));
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e11 and s03/inv58: the sliver that measures prototypeItem '
+      'adds no Tab stop and no screen-reader node',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final prototype = FocusNode(debugLabel: 'prototype');
+        addTearDown(prototype.dispose);
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 3,
+              prototypeItem: Focus(
+                focusNode: prototype,
+                child: const SizedBox(width: 40, height: 40, child: Text('P')),
+              ),
+            ),
+          ),
+        );
+
+        expect(_liveSemanticsLabel(tester, 'P'), isFalse);
+        for (var i = 0; i < 6; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          expect(prototype.hasFocus, isFalse);
+        }
+        handle.dispose();
+      },
+    );
+
+    final lastExits = ValueVariant<String>({'itemExtent', 'reduced motion'});
+    testWidgets(
+      'us11/fr04/e01 and e11: the only item removed <under itemExtent leaves '
+      'at once, under reduced motion keeps its size while it fades>',
+      (tester) async {
+        final fixed = lastExits.currentValue == 'itemExtent';
+        await tester.pumpWidget(
+          _app(
+            Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(disableAnimations: !fixed),
+                child: _Harness(
+                  count: 1,
+                  itemExtent: fixed ? 40 : null,
+                  itemsController: ReorderableItemsController(),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        _harness(tester).remove(0);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        final sliver = tester.renderObject<RenderSliverMultiBoxAdaptor>(
+          find.byWidgetPredicate(
+            (widget) => widget is SliverMultiBoxAdaptorWidget,
+            skipOffstage: false,
+          ),
+        );
+        if (fixed) {
+          expect(
+            find.byKey(const ValueKey(0), skipOffstage: false),
+            findsNothing,
+          );
+        } else {
+          expect(sliver.geometry!.scrollExtent, 40);
+          expect(
+            _enteringOpacity(tester, 0),
+            allOf(greaterThan(0), lessThan(1)),
+          );
+          // At offset 0 the exit still paints: its layer is in the tree.
+          expect(_compositeOrder(tester, [0]), [0]);
+        }
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+      variant: lastExits,
     );
   });
 
