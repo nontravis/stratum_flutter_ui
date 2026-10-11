@@ -3041,30 +3041,31 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _builtKey = key;
     // The global key holds the item's key and this State, never the index,
     // so a moved item keeps its State and focus, as in Material's
-    // ReorderableListView.
-    Widget body = KeyedSubtree(
-      key: _ReorderItemKey(key!, this),
-      child: _wrapItem(item, index: index, exiting: false),
+    // ReorderableListView. Every item builds inside its transition, at
+    // rest a completed one, so a grow-in changes only the animation the
+    // chain reads and never moves the item's subtree to another parent
+    // (R48).
+    final body = _transition(
+      context,
+      _incoming[key]?.curved ?? kAlwaysCompleteAnimation,
+      KeyedSubtree(
+        key: _ReorderItemKey(key!, this),
+        child: _wrapItem(item, index: index, exiting: false),
+      ),
     );
-    // With no motion around it, an item builds as it did before
-    // itemsController existed (D7): no lookup, no list.
-    if (_exits.isEmpty && _incoming.isEmpty) return body;
+    if (_exits.isEmpty) return body;
     assert(
       !_exits.any((exit) => exit.keepsState && exit.subKey == key),
       'ReorderableListViewLayout builds item $key while its removed copy '
       'still leaves: a leaving key returns to the data only through '
       'insertItem on its itemsController',
     );
-    final incoming = _incoming[key];
     final before = <_Exit>[];
     final after = <_Exit>[];
     for (final exit in _exits) {
       if (exit.hostKey == key) (exit.before ? before : after).add(exit);
     }
-    if (incoming == null && before.isEmpty && after.isEmpty) return body;
-    if (incoming != null) {
-      body = _transition(context, incoming.curved, body, subject: key);
-    }
+    if (before.isEmpty && after.isEmpty) return body;
     final slotted = KeyedSubtree(
       key: const ValueKey<String>('item'),
       child: body,
@@ -3153,12 +3154,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
             subject: subject,
             builder: (landed) => ExcludeSemantics(
               excluding: landed,
-              child: _transition(
-                context,
-                exit.motion.curved,
-                item,
-                subject: subject,
-              ),
+              child: _transition(context, exit.motion.curved, item),
             ),
           ),
         ),
@@ -3166,32 +3162,28 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     );
   }
 
-  /// The transition of an inserted or removed item.
+  /// The transition of every item: at rest, inserted or moved in, or
+  /// removed.
   ///
   /// Built in, the item grows or shrinks along the main axis and fades as
   /// [animation] runs; under reduced motion or a fixed extent the size
   /// jumps and the fade keeps its full duration (E01, E11). A caller
   /// `itemTransitionBuilder` replaces all of it and gets [animation]
-  /// unchanged (E02).
+  /// unchanged, `kAlwaysCompleteAnimation` for an item at rest (E02).
   ///
-  /// [subject] is the item's key when [child] holds the item's subtree
-  /// under its global key: the built-in fade keeps it in semantics in the
-  /// frame it lands, at any opacity (R1, [_Landing]).
+  /// The built-in fade keeps the item in semantics at any opacity (FR-05);
+  /// a caller transition keeps its own semantics choice.
   Widget _transition(
     BuildContext context,
     Animation<double> animation,
-    Widget child, {
-    Key? subject,
-  }) {
+    Widget child,
+  ) {
     final builder = _layout.itemTransitionBuilder;
     if (builder != null) return builder(context, animation, child);
-    final fade = _Landing(
-      subject: subject,
-      builder: (landed) => FadeTransition(
-        opacity: animation,
-        alwaysIncludeSemantics: !landed,
-        child: _stretched(child),
-      ),
+    final fade = FadeTransition(
+      opacity: animation,
+      alwaysIncludeSemantics: true,
+      child: _stretched(child),
     );
     if (_fixedExtent || context.reducesMotion) return fade;
     return SizeTransition(

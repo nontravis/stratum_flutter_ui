@@ -9609,12 +9609,13 @@ void main() {
 
   group('ReorderableListViewLayout reparents an item holding its own semantics '
       'boundary into a hidden branch (R1)', () {
-    /// Pumps a 200-item [_Harness] whose item 100 wraps in [boundary],
-    /// scrolled to 4000 px, with item 100 focused unless [focus] is
-    /// false.
+    /// Pumps a 200-item [_Harness] whose item [boundaryAt] wraps in
+    /// [boundary], scrolled to 4000 px, with item 100 focused unless [focus]
+    /// is false.
     Future<void> pumpBoundary(
       WidgetTester tester, {
       required Widget Function(Widget child) boundary,
+      int boundaryAt = 100,
       bool focus = true,
       Widget Function(BuildContext, Animation<double>, Widget)?
       itemTransitionBuilder,
@@ -9625,7 +9626,7 @@ void main() {
           _Harness(
             count: 200,
             itemsController: ReorderableItemsController(),
-            boundaryAt: 100,
+            boundaryAt: boundaryAt,
             boundary: boundary,
             itemTransitionBuilder: itemTransitionBuilder,
             heights: heights,
@@ -9758,17 +9759,12 @@ void main() {
       },
     );
 
-    // WORKAROUND: a far move whose slot the landing frame does not lay out
-    // parks the item in the sliver's keep-alive bucket, which semantics
-    // never visits, so R1's `_Landing` has no hidden branch it owns to flip
-    // (fix-1.findings.md, Root cause). This is R3's second stated limit
-    // beside the caller fade (ledger R3): it fails until Flutter ships
-    // flutter/flutter#193710; remove this tripwire once the floor carries
-    // that fix and this case joins the pins above instead.
+    // L6 closed (R44, R47): the identity sliver lands a parked item with no
+    // global-key retake.
     testWidgets(
-      'us11/fr05/e04 limit: a far move whose jump misses the new slot, '
-      'past taller items, of an item whose first Tab stop sits in a '
-      'nested horizontal ListView, still asserts',
+      'us11/fr05/e04 (L6 closed): a far move whose jump misses the new slot, '
+      'past taller items, of an item whose first Tab stop sits in a nested '
+      'horizontal ListView lands with no assert',
       (tester) async {
         final handle = tester.ensureSemantics();
         // Items past 100 are three times as tall as the ones the list laid
@@ -9784,21 +9780,17 @@ void main() {
         await tester.pump();
         await tester.pumpAndSettle();
 
-        expect(tester.takeException(), isAssertionError);
+        expect(tester.takeException(), isNull);
         handle.dispose();
       },
     );
 
-    // WORKAROUND: the same parked landing as above (R3), forced instead by
-    // the app holding the scroll at a fixed offset, so the move's own
-    // reveal springs back and the sliver keeps the item in its keep-alive
-    // bucket. It fails until Flutter ships flutter/flutter#193710; remove
-    // this tripwire once the floor carries that fix and this case joins
-    // the pins above instead.
+    // L6 closed (R44, R47): the identity sliver lands a parked item with no
+    // global-key retake.
     testWidgets(
-      'us11/fr05/e04 limit: a far move while the app holds the scroll, of '
-      'an item whose first Tab stop sits in a nested horizontal ListView, '
-      'still asserts',
+      'us11/fr05/e04 (L6 closed): a far move while the app holds the scroll, '
+      'of an item whose first Tab stop sits in a nested horizontal ListView, '
+      'lands with no assert',
       (tester) async {
         final handle = tester.ensureSemantics();
         await pumpBoundary(tester, boundary: _nestedListBoundary);
@@ -9812,7 +9804,7 @@ void main() {
         _harness(tester).move(100, 150);
         await tester.pump();
 
-        expect(tester.takeException(), isAssertionError);
+        expect(tester.takeException(), isNull);
         handle.dispose();
       },
     );
@@ -9913,9 +9905,8 @@ void main() {
       variant: midOps,
     );
 
-    // L5 closed (R44): the item's element moves in place by its key until
-    // Task 6 builds the chain (R48), so a caller fade through 0 asserts
-    // nothing.
+    // L5 closed (R48): the chain never re-parents the item, so a caller fade
+    // through 0 asserts nothing.
     testWidgets('us11/fr04 and fr05 (L5 closed): a caller '
         'itemTransitionBuilder that fades through 0, around an item holding '
         'its own semantics boundary, lands with no assert', (tester) async {
@@ -9928,6 +9919,27 @@ void main() {
       );
 
       _harness(tester).move(100, 150);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
+
+    testWidgets('us11/fr04/e02 (R48): an insertItem grow-in under a caller '
+        'itemTransitionBuilder that fades through 0, of an item holding its '
+        'own semantics boundary, lands with no assert', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpBoundary(
+        tester,
+        boundary: _nestedListBoundary,
+        boundaryAt: 1000,
+        focus: false,
+        itemTransitionBuilder: (context, animation, child) =>
+            FadeTransition(opacity: animation, child: child),
+      );
+
+      _harness(tester).insert(102, 1000);
       await tester.pump();
       await tester.pumpAndSettle();
 
@@ -13404,6 +13416,111 @@ void main() {
         expect(image.dy, moreOrLessEquals(slot.dy, epsilon: 1));
         await tester.pumpAndSettle();
         expect(_harness(tester).moves, [(50, 48)]);
+      },
+    );
+
+    testWidgets(
+      'matrix I06.M3 (L6 closed): Alt+Down past an unbuilt item taller than '
+      'the laid-out average, of an item whose first Tab stop sits in a '
+      'nested horizontal ListView, lands with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(
+            count: 200,
+            heights: {114: 400},
+            boundaryAt: 113,
+            boundary: _nestedListBoundary,
+          ),
+        );
+        final state = _itemState(tester, 113)..expanded = true;
+        final node = await _focusItem(tester, 113);
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        expect(position.pixels, 4000);
+        await tester.pumpAndSettle();
+
+        expectKept(tester, 113, state, node: node);
+        expect(shown(tester, 113), isTrue);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e03 and s03/inv24 (R48): a moved item grows in with its '
+      'render object under the same parent as at rest',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(count: 5, itemsController: ReorderableItemsController()),
+          ),
+        );
+        final box = tester.renderObject(find.byKey(const ValueKey(2)));
+        final parent = box.parent;
+
+        _harness(tester).move(2, 0);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        expect(tester.renderObject(find.byKey(const ValueKey(2))), same(box));
+        expect(box.parent, same(parent));
+        await tester.pumpAndSettle();
+        expect(box.parent, same(parent));
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e02 (R48): a caller itemTransitionBuilder wraps every item, '
+      'an item at rest with a completed animation',
+      (tester) async {
+        final received = <Animation<double>>[];
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 3,
+              itemsController: ReorderableItemsController(),
+              itemTransitionBuilder: (context, animation, child) {
+                received.add(animation);
+                return child;
+              },
+            ),
+          ),
+        );
+
+        expect(received, hasLength(greaterThanOrEqualTo(3)));
+        expect(
+          received.every(
+            (animation) => animation.isCompleted && animation.value == 1,
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    testWidgets(
+      'us11/fr05 (R48): under a fixed extent, a moved item sits in the live '
+      'screen-reader tree from the frame it lands, while its fade starts at 0',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              itemExtent: 40,
+              itemsController: ReorderableItemsController(),
+            ),
+          ),
+        );
+
+        _harness(tester).move(3, 1);
+        await tester.pump();
+
+        expect(_enteringOpacity(tester, 3), lessThan(0.5));
+        expect(_liveSemanticsLabel(tester, '3'), isTrue);
+        await tester.pumpAndSettle();
+        expect(_liveSemanticsLabel(tester, '3'), isTrue);
+        handle.dispose();
       },
     );
   });
