@@ -55,8 +55,12 @@ void main() {
     expect(config.color.highContrastDark, hasLength(192));
     expect(config.palette, hasLength(88));
     expect(config.space, hasLength(27));
-    expect(config.radius, hasLength(17));
+    expect(config.radius, hasLength(18));
     expect(config.layouts, hasLength(7));
+    expect(
+      config.radius['sheet'],
+      const StratumByWindowSize.all(StratumDimension.fixed(40)),
+    );
   });
 
   test(

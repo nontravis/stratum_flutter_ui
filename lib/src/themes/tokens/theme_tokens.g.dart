@@ -1521,6 +1521,9 @@ final class StratumRadiusTokens {
   /// `radius.samsung`
   double get samsung => _read('samsung');
 
+  /// `radius.sheet`
+  double get sheet => _read('sheet');
+
   /// `radius.sm`
   double get sm => _read('sm');
 

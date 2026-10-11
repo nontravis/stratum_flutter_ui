@@ -54,6 +54,7 @@ radius:
   lg: 12
   md: 10
   samsung: 8
+  sheet: 40
   sm: 8
   xl: 14
   xs: 6
