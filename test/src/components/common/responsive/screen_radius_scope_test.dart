@@ -90,11 +90,16 @@ Widget _reader(void Function(BorderRadius?) onRadius, {MediaQueryData? data}) =>
       ),
     );
 
-/// Counts its State's [State.initState] calls in [initStates].
+/// Counts its State's [State.initState], [State.deactivate], and
+/// [State.activate] calls, so a move that remounts the tree, rather than
+/// an in-place rebuild, shows up even when [initStates] alone would not
+/// (deactivate/activate never touch initState).
 class _Counter extends StatefulWidget {
-  const new(this.initStates);
+  const new(this.initStates, {this.deactivates, this.activates});
 
   final List<int> initStates;
+  final List<int>? deactivates;
+  final List<int>? activates;
 
   @override
   State<_Counter> createState() => _CounterState();
@@ -108,7 +113,58 @@ class _CounterState extends State<_Counter> {
   }
 
   @override
+  void deactivate() {
+    widget.deactivates?.add(1);
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    widget.activates?.add(1);
+  }
+
+  @override
   Widget build(BuildContext context) => const SizedBox();
+}
+
+/// A non-radius dependent: reads `deviceWindow.height` and counts
+/// [State.deactivate]/[State.activate] alongside builds, so a move that
+/// remounts it, rather than an in-place rebuild, is visible.
+class _HeightProbe extends StatefulWidget {
+  const new({
+    required this.builds,
+    required this.deactivates,
+    required this.activates,
+  });
+
+  final List<int> builds;
+  final List<int> deactivates;
+  final List<int> activates;
+
+  @override
+  State<_HeightProbe> createState() => _HeightProbeState();
+}
+
+class _HeightProbeState extends State<_HeightProbe> {
+  @override
+  void deactivate() {
+    widget.deactivates.add(1);
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    widget.activates.add(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    context.deviceWindow.height;
+    widget.builds.add(1);
+    return const SizedBox();
+  }
 }
 
 void main() {
@@ -326,10 +382,13 @@ void main() {
 
   testWidgets(
     'us04/fr03/e06: a change event rebuilds the radius reader once and no '
-    'height reader',
+    'height reader, on the first event, a value change, and a nil event',
     (tester) async {
       late MockStreamHandlerEventSink sink;
-      _mockProbe(tester, onListen: (s) => sink = s..success(_r46));
+      // No value on listen: the first event below is null to value, the
+      // gap left by the old e06, which sent the first value on listen and
+      // only ever measured a later value-to-value change.
+      _mockProbe(tester, onListen: (s) => sink = s);
       var radiusBuilds = 0;
       var heightBuilds = 0;
       await tester.pumpWidget(
@@ -364,13 +423,179 @@ void main() {
       radiusBuilds = 0;
       heightBuilds = 0;
 
+      sink.success(_r46);
+      await _pumpEvent(tester);
+      expect(radiusBuilds, 1, reason: 'first event, null to value');
+      expect(heightBuilds, 0, reason: 'first event, null to value');
+      radiusBuilds = 0;
+      heightBuilds = 0;
+
       sink.success(_r12);
+      await _pumpEvent(tester);
+      expect(radiusBuilds, 1, reason: 'later event, value to value');
+      expect(heightBuilds, 0, reason: 'later event, value to value');
+      radiusBuilds = 0;
+      heightBuilds = 0;
+
+      sink.success(null);
+      await _pumpEvent(tester);
+      expect(radiusBuilds, 1, reason: 'nil event, value to null');
+      expect(heightBuilds, 0, reason: 'nil event, value to null');
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'us04/fr03: the first probe event moves nothing — zero rebuilds, '
+    'deactivate, or activate on a non-radius State',
+    (tester) async {
+      late MockStreamHandlerEventSink sink;
+      _mockProbe(tester, onListen: (s) => sink = s);
+      var radiusBuilds = 0;
+      final heightBuilds = <int>[];
+      final deactivates = <int>[];
+      final activates = <int>[];
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(size: Size(400, 800)),
+          child: ScreenRadiusScope(
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: Column(
+                children: [
+                  Builder(
+                    builder: (c) {
+                      c.deviceWindow.radius;
+                      radiusBuilds++;
+                      return const SizedBox();
+                    },
+                  ),
+                  _HeightProbe(
+                    builds: heightBuilds,
+                    deactivates: deactivates,
+                    activates: activates,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      radiusBuilds = 0;
+      heightBuilds.clear();
+      deactivates.clear();
+      activates.clear();
+
+      sink.success(_r46);
       await _pumpEvent(tester);
 
       expect(radiusBuilds, 1);
-      expect(heightBuilds, 0);
+      expect(heightBuilds, isEmpty);
+      expect(deactivates, isEmpty);
+      expect(activates, isEmpty);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'us04/fr03: a reverse event (value to null) moves nothing either',
+    (tester) async {
+      late MockStreamHandlerEventSink sink;
+      _mockProbe(tester, onListen: (s) => sink = s..success(_r46));
+      var radiusBuilds = 0;
+      final heightBuilds = <int>[];
+      final deactivates = <int>[];
+      final activates = <int>[];
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(size: Size(400, 800)),
+          child: ScreenRadiusScope(
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: Column(
+                children: [
+                  Builder(
+                    builder: (c) {
+                      c.deviceWindow.radius;
+                      radiusBuilds++;
+                      return const SizedBox();
+                    },
+                  ),
+                  _HeightProbe(
+                    builds: heightBuilds,
+                    deactivates: deactivates,
+                    activates: activates,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      radiusBuilds = 0;
+      heightBuilds.clear();
+      deactivates.clear();
+      activates.clear();
+
+      sink.success(null);
+      await _pumpEvent(tester);
+
+      expect(radiusBuilds, 1);
+      expect(heightBuilds, isEmpty);
+      expect(deactivates, isEmpty);
+      expect(activates, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'us04/fr03: on iOS the pass-through MediaQuery is present before any '
+    'probe event',
+    (tester) async {
+      _mockProbe(tester, onListen: (_) {});
+
+      await tester.pumpWidget(
+        const MediaQuery(
+          data: MediaQueryData(),
+          child: ScreenRadiusScope(child: SizedBox()),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(ScreenRadiusScope),
+          matching: find.byType(MediaQuery),
+        ),
+        findsOneWidget,
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'us04/fr03: on Android the scope inserts no MediaQuery before any '
+    "probe event, matching today's tree",
+    (tester) async {
+      await tester.pumpWidget(
+        const MediaQuery(
+          data: MediaQueryData(),
+          child: ScreenRadiusScope(child: SizedBox()),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(ScreenRadiusScope),
+          matching: find.byType(MediaQuery),
+        ),
+        findsNothing,
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
 
   testWidgets(
@@ -380,13 +605,23 @@ void main() {
       late MockStreamHandlerEventSink sink;
       _mockProbe(tester, onListen: (s) => sink = s);
       final initStates = <int>[];
+      final deactivates = <int>[];
+      final activates = <int>[];
       await tester.pumpWidget(
         MediaQuery(
           data: const MediaQueryData(),
-          child: ScreenRadiusScope(child: _Counter(initStates)),
+          child: ScreenRadiusScope(
+            child: _Counter(
+              initStates,
+              deactivates: deactivates,
+              activates: activates,
+            ),
+          ),
         ),
       );
       await tester.pump();
+      deactivates.clear();
+      activates.clear();
 
       sink.success(_r46);
       await _pumpEvent(tester);
@@ -394,6 +629,8 @@ void main() {
       await _pumpEvent(tester);
 
       expect(initStates, hasLength(1));
+      expect(deactivates, isEmpty);
+      expect(activates, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );

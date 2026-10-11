@@ -16,6 +16,12 @@ import 'package:flutter/widgets.dart';
 /// One per tree: `StratumThemeApplication` inserts it only when [hasScope]
 /// is false, so a tree publishes one [MediaQuery]. Every scope alive in the
 /// process shares one subscription to the probe.
+///
+/// On iOS and macOS, where the probe subscribes, the scope keeps one
+/// pass-through [MediaQuery] present from its first frame, with no
+/// [GlobalKey]: every State below stays mounted across every probe event,
+/// including the first one and any flip to or from null. Every other
+/// platform inserts no [MediaQuery] (responsive s03 invariant 9).
 class ScreenRadiusScope extends StatefulWidget {
   const new({super.key, required this.child});
 
@@ -38,10 +44,6 @@ class ScreenRadiusScope extends StatefulWidget {
 }
 
 class _ScreenRadiusScopeState extends State<ScreenRadiusScope> {
-  /// Keeps every State below for this State's whole life, while the
-  /// published [MediaQuery] comes and goes above the child.
-  final GlobalKey _childKey = GlobalKey();
-
   bool _subscribed = false;
   BorderRadius? _probe;
 
@@ -66,15 +68,16 @@ class _ScreenRadiusScopeState extends State<ScreenRadiusScope> {
 
   @override
   Widget build(BuildContext context) {
-    final child = KeyedSubtree(key: _childKey, child: widget.child);
+    if (!_subscribed) return _ScreenRadiusMarker(child: widget.child);
+    final base = MediaQuery.of(context);
     final probe = _probe;
     return _ScreenRadiusMarker(
-      child: probe == null || MediaQuery.displayCornerRadiiOf(context) != null
-          ? child
-          : MediaQuery(
-              data: MediaQuery.of(context).applyDisplayCornerRadii(probe),
-              child: child,
-            ),
+      child: MediaQuery(
+        data: probe == null || base.displayCornerRadii != null
+            ? base
+            : base.applyDisplayCornerRadii(probe),
+        child: widget.child,
+      ),
     );
   }
 
