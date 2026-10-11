@@ -41,8 +41,8 @@ class StratumComponentDefaults extends InheritedWidget {
 
   /// The app-wide parts style registered for [type]; null when no
   /// application is above [context], or none is registered for [type].
-  /// Throws a [FlutterError] naming [type] and the registered value's
-  /// runtime type when it is not an [S] (FO-03 US-06 FR-01 E03).
+  /// Throws a [FlutterError] naming [S], [type], and the registered
+  /// value's runtime type when it is not an [S] (FO-03 US-06 FR-01 E03).
   static S? partsOf<S extends Object>(BuildContext context, Type type) {
     final value = context
         .dependOnInheritedWidgetOfExactType<StratumComponentDefaults>()
