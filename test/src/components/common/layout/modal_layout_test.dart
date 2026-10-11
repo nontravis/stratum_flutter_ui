@@ -27,6 +27,7 @@ Widget _modal({
   BorderRadiusGeometry? radius,
   bool? safeArea,
   bool? fullHeight,
+  bool scrollBody = true,
 }) => ModalLayout(
   type: type,
   size: size,
@@ -38,6 +39,7 @@ Widget _modal({
   borderRadius: radius,
   safeArea: safeArea,
   fullHeight: fullHeight,
+  scrollBody: scrollBody,
   customStyle: style,
 );
 
@@ -92,6 +94,15 @@ Finder _part(String label) => find.byWidgetPredicate(
 );
 
 Finder get _close => _part('Close');
+
+/// The scroll view the modal layout wraps its body in.
+Finder get _bodyScroll => find.descendant(
+  of: find.byType(ModalLayout),
+  matching: find.byType(SingleChildScrollView),
+);
+
+SingleChildScrollView _bodyScrollView(WidgetTester tester) =>
+    tester.widget<SingleChildScrollView>(_bodyScroll);
 
 Finder get _handle => _part('Dismiss');
 
@@ -320,14 +331,17 @@ void main() {
 
     test('us06/fr01: equal part styles are equal, so an equal app-wide map '
         'rebuilds no modal layout', () {
-      ModalLayoutStyle make() =>
-          const ModalLayoutStyle(surface: WidgetStyle(width: 1));
-      expect(make(), make());
-      expect(make().hashCode, make().hashCode);
-      expect(
-        make(),
-        isNot(const ModalLayoutStyle(handle: WidgetStyle(width: 1))),
-      );
+      // Built at run time, so no const canonicalization makes them one
+      // instance and the check reads `==`, not identity.
+      ModalLayoutStyle make(double width) =>
+          ModalLayoutStyle(surface: WidgetStyle(width: width));
+      final a = make(1);
+      final b = make(1);
+      expect(identical(a, b), isFalse);
+      expect(a == b, isTrue);
+      expect(a.hashCode, b.hashCode);
+      expect(a, isNot(make(2)));
+      expect(a, isNot(const ModalLayoutStyle(handle: WidgetStyle(width: 1))));
     });
   });
 
@@ -577,6 +591,51 @@ void main() {
       expect(_partStyle(tester, _close).backgroundBlur, fakeTheme.blur.level3);
     });
 
+    testWidgets('us20/fr01/e05: with scrollBody false a list body gets the '
+        'bounded height unwrapped and scrolls itself', (tester) async {
+      _view(tester, const Size(390, 600));
+      await tester.pumpWidget(
+        themedHost(
+          _modal(
+            type: null,
+            scrollBody: false,
+            top: const Text('Top'),
+            body: ListView.builder(
+              itemCount: 77,
+              itemBuilder: (_, index) =>
+                  SizedBox(height: 40, child: Text('Row $index')),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(
+        find.descendant(
+          of: find.byType(ModalLayout),
+          matching: find.byType(SingleChildScrollView),
+        ),
+        findsNothing,
+      );
+      expect(tester.getBottomLeft(_surface).dy, lessThanOrEqualTo(600));
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pump();
+      expect(find.text('Row 0'), findsNothing);
+      expect(find.text('Row 12'), findsOneWidget);
+    });
+
+    testWidgets('us20/fr01: the body scroll view takes the primary scroll '
+        'controller under a route scope, never inline', (tester) async {
+      _view(tester, _phone);
+      await tester.pumpWidget(themedHost(_modal(type: null)));
+      expect(_bodyScrollView(tester).primary, isFalse);
+      await tester.pumpWidget(
+        themedHost(
+          _scoped(_modal(type: null), type: ModalLayoutType.bottomSheet),
+        ),
+      );
+      expect(_bodyScrollView(tester).primary, isTrue);
+    });
+
     group('route scope', () {
       testWidgets('us20/fr03: a null type takes the scope type; an own type '
           'wins', (tester) async {
@@ -729,18 +788,17 @@ void main() {
             _modal(
               type: null,
               top: const Text('Top'),
-              body: Text('A long body line. ' * 60),
+              body: ColumnLayout(
+                children: [for (var i = 0; i < 20; i++) Text('Field label $i')],
+              ),
             ),
           ),
         );
         expect(tester.takeException(), isNull);
-        expect(
-          find.descendant(
-            of: find.byType(ModalLayout),
-            matching: find.byType(Scrollable),
-          ),
-          findsOneWidget,
-        );
+        expect(_bodyScroll, findsOneWidget);
+        await tester.drag(_bodyScroll, const Offset(0, -200));
+        await tester.pump();
+        expect(tester.getTopLeft(find.text('Field label 0')).dy, lessThan(0));
       });
 
       for (final type in [ModalLayoutType.modal, ModalLayoutType.bottomSheet]) {

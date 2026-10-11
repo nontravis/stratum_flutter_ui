@@ -245,8 +245,8 @@ class ModalLayoutScope extends InheritedWidget {
 /// shows a close button at the surface's top end corner. Place it inline
 /// in a page, where it draws no scrim and no route, or show it through
 /// `showModalLayout`, whose route state it reads where its own fields are
-/// null. The [body] scrolls inside the surface when the surface has a
-/// bounded height.
+/// null. With a bounded height the [body] takes the height left under the
+/// other slots and, unless [scrollBody] is false, scrolls inside it.
 ///
 /// Each part's style layers the theme defaults, then the app-wide
 /// [ModalLayoutStyle] the application registers for [ModalLayout], then
@@ -267,6 +267,7 @@ class ModalLayout extends StatelessWidget {
     this.borderRadius,
     this.safeArea,
     this.fullHeight,
+    this.scrollBody = true,
     this.customStyle,
   });
 
@@ -307,6 +308,14 @@ class ModalLayout extends StatelessWidget {
   /// take the screen radius (US-20 FR-04 E03). Null takes the route's,
   /// else false.
   final bool? fullHeight;
+
+  /// Whether a scroll view wraps [body], so a body taller than the height
+  /// left scrolls, as at large text. Pass false for a body that scrolls
+  /// itself, such as a list view: it then gets that height unwrapped
+  /// (US-20 FR-01 E05). The wrapper takes the route's primary scroll
+  /// controller under `showModalLayout`, and never inline, where it would
+  /// take the host page's.
+  final bool scrollBody;
 
   /// The per-instance part styles, the highest layer (NFR-E02).
   final ModalLayoutStyle? customStyle;
@@ -387,6 +396,7 @@ class ModalLayout extends StatelessWidget {
                     style,
                     handle: handle,
                     bounded: constraints.hasBoundedHeight,
+                    inRoute: scope != null,
                   ),
                 ),
                 ?close,
@@ -466,12 +476,15 @@ class ModalLayout extends StatelessWidget {
     );
   }
 
-  /// The handle and the slots, top to bottom; the body takes the height
-  /// left and scrolls when [bounded], and sizes to its content otherwise.
+  /// The handle and the slots, top to bottom. When [bounded], the body
+  /// takes the height left and, under [scrollBody], scrolls on the route's
+  /// primary scroll controller when [inRoute] and on its own otherwise;
+  /// unbounded, it sizes to its content.
   Widget _slots(
     ModalLayoutStyle style, {
     required Widget? handle,
     required bool bounded,
+    required bool inRoute,
   }) {
     final top = this.top;
     final tab = this.tab;
@@ -479,7 +492,7 @@ class ModalLayout extends StatelessWidget {
       order: const NumericFocusOrder(3),
       child: ContainerLayout(
         style: style.body ?? const WidgetStyle(),
-        scroll: bounded ? const Scroll(primary: false) : null,
+        scroll: bounded && scrollBody ? Scroll(primary: inRoute) : null,
         child: body,
       ),
     );

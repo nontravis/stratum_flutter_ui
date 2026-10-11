@@ -635,8 +635,10 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 
 - **`ModalLayout`** — the slot widget of every sheet and modal: `ModalLayout(top: title, tab: tabs, body: content)`
   shows an optional `top`, an optional `tab`, and the required `body`, in that order; a null slot shows nothing. The
-  `body` scrolls inside the surface when the surface has a bounded height, so pass content, not a second scroll
-  view; in an unbounded parent, such as a scrolling page, it sizes to its content.
+  `body` scrolls inside the surface when the surface has a bounded height; in an unbounded parent, such as a
+  scrolling page, it sizes to its content.
+- **List body** — a body that scrolls itself, such as `ListView.builder`, takes `scrollBody: false`: it then gets the
+  height left unwrapped, with no second scroll view around it.
 - **Type and size** — `type: ModalLayoutType.bottomSheet`, `.floating`, or `.modal`; null picks a bottom sheet
   below the tablet window size and a centered modal at tablet and up. `size: ModalLayoutSize.medium` (400, the
   default), `.large` (800), `.extraLarge` (1000), or `.fillWidth` (the window less the theme's `lg` space on each
