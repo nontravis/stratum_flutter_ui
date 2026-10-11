@@ -677,6 +677,26 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `blur.level3`), then over the app-wide `componentPartDefaults` entry for `ModalLayout`.
 - Placed inline in a page it draws its surface and slots with no scrim and no route.
 
+## Split layout
+
+- **`SplitLayout`** — `SplitLayout(panes: [SplitPane(size: 320, min: 240, max: 480, child: list), SplitPane(flex: 1,
+  min: 320, child: detail)])` splits a body into panes along `axis` (default horizontal; under right-to-left text the
+  first pane sits on the right). A null pane hides and the others fill the split; `resizable: false` turns every
+  divider off. The split needs a bounded width (or height, vertical).
+- **Resize** — the EndUser drags a divider, steps it by the arrow keys along the axis (16 px, 64 with Shift), jumps
+  by Home and End to the start pane's min and max, or uses a screen reader's increase and decrease actions; every
+  move stays within both panes' `min` and `max`. Each divider is a Tab stop with the focus ring and reads as a slider
+  valued by the start pane's percent; `dividerLabel:` replaces the built-in "Resize panes" label.
+- **Divider look** — nothing paints by default and the divider takes no space, so the panes stay flush; its hit area
+  is the platform's minimum target size centered on the seam, with a resize cursor on hover. Paint one with
+  `dividerBuilder: (context, state) => ...`, where `state.hovered`, `state.dragging`, and `state.focused` pick the
+  look; the widget fills the hit area, so center a thin line in it and read its color from a theme token.
+- **Keep widths** — Stratum stores nothing. Pass a `SplitLayoutController(fractions: saved)` to restore kept
+  fractions (one per pane in `panes`, a null pane included), listen to it to save `controller.fractions`, and set
+  `controller.fractions = [...]` from code. It notifies once per settled move (a drag's end, one key step, a slider
+  action, or a code set), never per drag frame and never when a narrow window only squeezes the panes. With no
+  controller the split makes and disposes its own; it never disposes one you pass.
+
 ## Hover and focus observers
 
 - **`HoverBuilder`** — `HoverBuilder(builder: (context, hovered, child) => ..., child: c, onHover: (hovered) {})`

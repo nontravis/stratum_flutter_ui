@@ -189,3 +189,12 @@
   keyboard focus inside the modal layout, and returns focus to the opener on close; Esc, a tap outside, back, a
   drag down on a sheet, and the close button dismiss it. The package depends on `smooth_sheets` (`^1.3.0`) for the
   sheet types' drag and snap behavior.
+- New `SplitLayout`, which splits a body into `SplitPane`s (`size` or `flex`, `min`, `max`) along `axis`, mirrored
+  under right-to-left text, with a null pane hidden. Each divider takes no layout space and paints nothing unless a
+  `dividerBuilder` paints it from a `SplitDividerState` (`hovered`, `dragging`, `focused`); its hit area spans the
+  platform's minimum target size on the seam, with a resize cursor. The EndUser drags it, steps it by the arrow keys
+  (16 px, 64 with Shift), takes it to the start pane's min and max by Home and End, or adjusts it as a screen-reader
+  slider labeled by `dividerLabel` or the built-in "Resize panes"; `resizable: false` turns this off. An optional
+  `SplitLayoutController` holds each pane's chosen fraction, restores it from its constructor, takes one set from
+  code, and notifies once per settled move, never per drag frame or on a window clamp.
+- The package depends on `multi_split_view` (`^3.6.2`) for `SplitLayout`'s drag engine and layout.
