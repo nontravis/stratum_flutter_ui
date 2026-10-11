@@ -120,6 +120,48 @@ List<StratumTextStyle> _weighted(StratumTextStyle recipe) => [
 (String?, FontWeight?) _drawn(TextStyle style) =>
     (style.fontFamily, style.fontWeight);
 
+/// [_recipe] with a custom size that skipped the recipe's debug assert, as
+/// a release build reads it; the members the resolver reads forward to
+/// [_recipe].
+class _ReleaseCustomSize implements StratumTextStyle {
+  const new(this._recipe, this.customSize);
+
+  final StratumTextStyle _recipe;
+
+  @override
+  final double? customSize;
+
+  @override
+  FontType get fontType => _recipe.fontType;
+
+  @override
+  FontSize get fontSize => _recipe.fontSize;
+
+  @override
+  FontWeight? get fontWeight => _recipe.fontWeight;
+
+  @override
+  bool get isMono => _recipe.isMono;
+
+  @override
+  FontStyle? get fontStyle => _recipe.fontStyle;
+
+  @override
+  TextDecoration? get textDecoration => _recipe.textDecoration;
+
+  @override
+  List<Shadow>? get textShadows => _recipe.textShadows;
+
+  @override
+  FontColor get colorRole => _recipe.colorRole;
+
+  @override
+  Color? get customColor => _recipe.customColor;
+
+  @override
+  Object? noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   late StratumThemeData theme;
 
@@ -540,6 +582,20 @@ typography:
       expect(style.fontSize, 5);
       expect(style.height, 9 / 5);
     });
+  });
+
+  group('TypographyResolver custom size', () {
+    for (final size in [0.0, -1.0, double.infinity, double.nan]) {
+      test('us01/fr01/e07: a release build reads a custom size of $size as '
+          'unset: the text takes s16 for its size and its metrics', () {
+        final style = resolve(_ReleaseCustomSize(StratumTextStyle.body, size));
+        final named = resolve(StratumTextStyle.body);
+
+        expect(style.fontSize, named.fontSize);
+        expect(style.height, named.height);
+        expect(style.letterSpacing, named.letterSpacing);
+      });
+    }
   });
 
   group('TypographyResolver fonts', () {

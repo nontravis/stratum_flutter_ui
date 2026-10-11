@@ -399,6 +399,9 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   recipes for the active theme, locale, and window size: display and headline slots read `header`; title, body, and
   label slots read `body`. No slot sets a weight, so each draws its type's yaml weight: title and label slots draw the
   body weight (400 in the package default), not Material's medium.
+- **Custom text size** — `StratumTextStyle.body.size(15)` sets a custom size of 15 logical pixels, with the metrics
+  of the nearest named size. The size must be a finite number above 0: a debug build asserts it, and a release build
+  skips the assert and reads any other size as unset, so the text takes `s16` for its size and its metrics.
 - **Theme models** — the parsed theme types (`StratumThemeConfig`, `StratumColorSets`, `StratumTypography`,
   `StratumTypeStyle`, `StratumAnimationConfig`, and the models inside them) are immutable values with `copyWith`;
   their maps refuse changes, so derive a variant with `config.copyWith(name: ...)` instead of editing a map. A

@@ -117,6 +117,25 @@ void main() {
     });
   });
 
+  group('StratumTextStyle custom size', () {
+    for (final size in [
+      0.0,
+      -1.0,
+      double.infinity,
+      double.negativeInfinity,
+      double.nan,
+    ]) {
+      test('us01/fr01/e06: a custom size of $size fails the assertion', () {
+        expect(() => StratumTextStyle.body.size(size), throwsAssertionError);
+      });
+    }
+
+    test('us01/fr01: a custom size above 0 sets it, however small', () {
+      expect(StratumTextStyle.body.size(0.5).customSize, 0.5);
+      expect(StratumTextStyle.body.size(15).customSize, 15);
+    });
+  });
+
   group('StratumTextStyle immutability', () {
     test('us01/s2: a stored style is not changed by a later getter', () {
       final caption = StratumTextStyle.body.s12.colorTertiary;

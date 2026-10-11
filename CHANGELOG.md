@@ -40,7 +40,8 @@
   any size `s10` to `s56`, with no window size or at any one, in any font a tag gives the type, is refused too:
   `expected_dimension` once per path, at the `adjustSize`, the `scaleByWindowSize` entry, or the `spaceHeight` to
   blame, such as `expected an adjustSize that keeps s10 above 0 px, got -12 (s10 draws at -2 px)`, in the app and in
-  the `stratum_theme` CLI alike.
+  the `stratum_theme` CLI alike. `StratumTextStyle.size` now asserts a finite custom size above 0 in a debug build; a
+  release build draws any other custom size at `s16`.
 - New `StratumComponentDefaults.parts`, built by the new `StratumThemeApplication(componentPartDefaults:)` and
   `.controlled(componentPartDefaults:)`, lets an app restyle every part of a multi-part component type, such as a
   page layout, a modal layout, or a notice, from one place: `componentPartDefaults: (theme) => {ModalLayout:

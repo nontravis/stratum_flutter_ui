@@ -52,7 +52,7 @@ abstract final class TypographyResolver {
     if (style == null) {
       throw StateError('No style for type "${metricsType.name}".');
     }
-    final base = recipe.customSize ?? recipe.fontSize.value;
+    final base = _customSize(recipe) ?? recipe.fontSize.value;
     final metrics = _metrics(style, recipe);
     final mono = recipe.isMono && type != FontType.code;
     final tags = _tags(locale, typography);
@@ -156,7 +156,7 @@ abstract final class TypographyResolver {
     StratumTypeStyle style,
     StratumTextStyle recipe,
   ) {
-    final custom = recipe.customSize;
+    final custom = _customSize(recipe);
     if (custom != null) {
       return style.sizes[_nearest(style, custom, recipe.fontType)]!;
     }
@@ -167,6 +167,15 @@ abstract final class TypographyResolver {
       'using ${nearest.name}',
     );
     return style.sizes[nearest]!;
+  }
+
+  /// [recipe]'s custom size when it is a finite number above 0, else null.
+  /// The recipe asserts it in a debug build; a release build skips the
+  /// assert, so an invalid one reads as unset here and the text takes the
+  /// recipe's named size (FO-02 US-01 FR-01 E07).
+  static double? _customSize(StratumTextStyle recipe) {
+    final custom = recipe.customSize;
+    return custom != null && isDrawableSize(custom) ? custom : null;
   }
 
   /// The defined size closest to [target], the smaller one on a tie
