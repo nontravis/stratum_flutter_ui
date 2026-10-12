@@ -32,16 +32,8 @@ GoogleService-Info.plist
 migrate_working_dir/
 
 # ---------------------------------------------------------------------------
-# AI agents and local tooling
+# Git worktrees
 # ---------------------------------------------------------------------------
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
-.claude/worktrees/
-.claude.local.md
-.mcp.local.json
-.serena/
-.superpowers/
-.playwright-mcp/
 .worktrees/
 
 # ---------------------------------------------------------------------------
@@ -63,6 +55,5 @@ migrate_working_dir/
 .Trashes
 *.swp
 *.log
-!.claude/skills/flutter-device-test/scripts/tests/fixtures/*.log
 *.pyc
 *.class
