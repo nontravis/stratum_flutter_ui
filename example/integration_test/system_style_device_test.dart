@@ -1,9 +1,9 @@
 // Applies the system bar style on a device or a browser (FO-03 US-14 FR-01
-// E06 and FR-02 to FR-04; design D12 and R9): the device-test.toml targets
-// pixel_2 (Android API 28), pixel_8 (Android API 36), and iphone, plus the
-// desktop and web targets for the checks that a setting the platform lacks
-// is ignored with no error. Runs in roadmap phase stratum-device-round,
-// never in a feature session:
+// E06 and FR-02 to FR-04; design D12 and R9): the .claude/device-test.toml
+// targets pixel_2 (Android API 28), pixel_8 (Android API 36), and iphone,
+// plus the desktop and web targets for the checks that a setting the
+// platform lacks is ignored with no error. Runs in roadmap phase
+// stratum-device-round, never in a feature session:
 //
 //   flutter test integration_test/system_style_device_test.dart -d <device>
 //   flutter drive --driver=test_driver/integration_test.dart \
