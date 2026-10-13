@@ -81,9 +81,11 @@ class _FramePlan {
     return data ?? exit?.after ?? 0;
   }
 
-  /// The slot the SDK's varied-extent list finds at [offset] when each data
-  /// item takes [extent] and each leaving one none: the first slot whose
-  /// end reaches [offset], or the last slot when none does.
+  /// The slot the SDK's fixed-extent list's *max* formula finds at [offset]
+  /// when each data item takes [extent] and each leaving one none: the
+  /// first slot whose end reaches [offset], or the last slot when none
+  /// does. [minSlotAt] mirrors the SDK's other, *min* formula; the two
+  /// differ at an offset that is an exact multiple of [extent].
   ///
   /// Reads products of [extent], as the SDK's fixed-extent list does, so
   /// it costs O(exits), not a sum from slot 0.
@@ -95,6 +97,25 @@ class _FramePlan {
     if (items > 1 && extent * (items - 1) >= offset) items -= 1;
     if (extent * items < offset) items += 1;
     return slotOfData(items - 1);
+  }
+
+  /// The slot the SDK's fixed-extent list's *min* formula finds at [offset]
+  /// when each data item takes [extent] and each leaving one none: the
+  /// data item [offset] falls inside, rounded to the nearest item within
+  /// `precisionErrorTolerance` first so a scroll offset landing on an exact
+  /// multiple of [extent] does not fall short of it.
+  ///
+  /// Reads products of [extent], as the SDK's fixed-extent list does, so
+  /// it costs O(exits), not a sum from slot 0.
+  int minSlotAt(double offset, double extent) {
+    if (offset == 0) return 0;
+    if (!(extent > 0) || extent * dataCount < offset) return childCount - 1;
+    final estimate = offset / extent;
+    final rounded = estimate.round();
+    final item = (estimate - rounded).abs() * extent < precisionErrorTolerance
+        ? rounded
+        : estimate.floor();
+    return slotOfData(item.clamp(0, dataCount - 1));
   }
 
   /// The slot of the data item at [index].
@@ -670,7 +691,7 @@ class _RenderPrototypeExtent extends RenderSliverVariedExtentList
     if (uniform == null) {
       return super.getMinChildIndexForScrollOffset(scrollOffset, itemExtent);
     }
-    return uniform.plan.slotAt(scrollOffset, uniform.extent);
+    return uniform.plan.minSlotAt(scrollOffset, uniform.extent);
   }
 
   @override

@@ -14467,6 +14467,51 @@ void main() {
         expect(renders / children, 14);
       },
     );
+
+    testWidgets(
+      'fix for task 11 review Important 1: with an itemExtent list, a '
+      'scroll that, with the cache extent, lands on an exact extent '
+      "multiple keeps the same first laid-out index as master's own "
+      'fixed-extent list',
+      (tester) async {
+        const itemExtent = 50.0;
+        const count = 200;
+        const offset = 2000.0;
+
+        Future<int> firstIndexAt(Widget app) async {
+          await tester.pumpWidget(app);
+          tester
+              .state<ScrollableState>(find.byType(Scrollable))
+              .position
+              .jumpTo(offset);
+          await tester.pump();
+          return _laidOut(tester).first;
+        }
+
+        final master = await firstIndexAt(
+          MaterialApp(
+            home: Material(
+              child: SizedBox(
+                width: 200,
+                height: 300,
+                child: ListView.builder(
+                  itemExtent: itemExtent,
+                  itemCount: count,
+                  itemBuilder: (context, index) =>
+                      SizedBox(key: ValueKey('master $index')),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final reorder = await firstIndexAt(
+          _app(const _Harness(count: count, itemExtent: itemExtent)),
+        );
+
+        expect(reorder, master);
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {
