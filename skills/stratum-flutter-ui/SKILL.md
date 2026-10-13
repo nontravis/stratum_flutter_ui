@@ -972,3 +972,12 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   (`topStart` … `bottomEnd`, start and end following the text direction), or
   `const StratumToastPlacement.solid(StratumToastEdge.top)` for a full-width bar at an edge. Omitted placement defaults
   by window size: bottom center on mobile and tablet, bottom start on desktop.
+- A notice closes after 4 s, or 8 s with `action: StratumToastAction(label: 'Undo', onPressed: undo)`; hover, focus,
+  and touch pause it, and a notice with an action never closes by itself while a screen reader runs. A swipe, the
+  close button, or Esc while focus is inside it closes a notice; a tap on the action runs its callback, then closes
+  it. Each notice announces once on show, the kind's name then the message, taking no focus.
+- The plain look draws every value from theme tokens, each kind with its own icon as well as color. Pass
+  `StratumToastHost(builder: (context, notice) => ...)` for your own look instead; placement, timing, and the
+  announcement stay the host's. A solid notice's plain-look fill declares itself under the status bar or home
+  indicator, as a page layout's fills do, so the bar icons stay readable over it; your own look declares its own
+  fill. `customStyle` on the call wins over the theme and the app-wide notice style, field by field.

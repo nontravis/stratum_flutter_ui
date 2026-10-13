@@ -421,28 +421,8 @@ class ModalLayout extends StatelessWidget {
       // declares the solid color it paints wherever it covers a bar's
       // point, else fully transparent, which blends as nothing
       // (system_bars.dart:269; US-20 FR-06 E08).
-      child: SystemBarFill(color: _fillColor(surface), child: surfaceBox()),
+      child: SystemBarFill(color: solidFillColor(surface), child: surfaceBox()),
     );
-  }
-
-  /// Whether [fill] paints one solid color: a background color with no
-  /// gradient and no image (US-20 FR-06 E08).
-  static bool _paintsSolid(WidgetStyle fill) =>
-      fill.backgroundColor != null &&
-      fill.backgroundGradient == null &&
-      fill.backgroundImage == null;
-
-  /// [fill]'s declared color: its [WidgetStyle.backgroundColor] with
-  /// [WidgetStyle.opacity] folded into the alpha, so the resolver reads the
-  /// alpha the box actually paints (correctness review Minor 1), else
-  /// fully transparent while [fill] paints no single solid color.
-  static Color _fillColor(WidgetStyle fill) {
-    if (!_paintsSolid(fill)) return const Color(0x00000000);
-    final color = fill.backgroundColor!;
-    final opacity = fill.opacity;
-    return opacity == null || opacity >= 1
-        ? color
-        : color.withValues(alpha: color.a * opacity);
   }
 
   /// The theme layer of every part (NFR-E01).

@@ -1,8 +1,14 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/semantics.dart' show SemanticsService;
+import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
-import 'package:stratum_ui/src/components/common/layout/container_layout.dart';
+import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
+import 'package:stratum_ui/src/components/feedback/toast/toast_notice.dart';
 import 'package:stratum_ui/src/components/feedback/toast/toast_placement.dart';
+import 'package:stratum_ui/src/components/feedback/toast/toast_plain_look.dart';
 import 'package:stratum_ui/src/extensions/context_extension.dart';
 import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
 import 'package:toastification/toastification.dart'
@@ -16,8 +22,8 @@ import 'package:toastification/toastification.dart'
 
 /// The one notice a `showToast` call hands the host.
 ///
-/// Public for the call extension and the later notice work (M4-T26), but
-/// no barrel exports it; it stays inside the toast folder.
+/// Public for the call extension and the plain look, but no barrel exports
+/// it; it stays inside the toast folder.
 class StratumToastRequest {
   const new({
     required this.message,
@@ -47,9 +53,14 @@ class StratumToastRequest {
 /// The host wraps `toastification`; an app that already wraps its root in
 /// a `ToastificationWrapper` keeps it, and the host adds none.
 class StratumToastHost extends StatefulWidget {
-  const new({super.key, required this.child});
+  const new({super.key, required this.child, this.builder});
 
   final Widget child;
+
+  /// The app's own look for every notice, replacing the plain look only:
+  /// placement, queue, timers, close paths, and the announcement stay the
+  /// host's (US-01 FR-06 E04; s03 invariant 13).
+  final StratumToastBuilder? builder;
 
   /// The host state above [context], or the `FlutterError` of a tree with
   /// none (US-01 FR-01 E05).
@@ -97,10 +108,6 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// A float corner holds at most this many notices (s03 invariant 3).
   static const int _floatCap = 3;
 
-  /// A notice closes after this long until the plain look task (M4-T26)
-  /// splits it by action (US-01 FR-04 E01, Scenario 6).
-  static const Duration _closeTime = Duration(seconds: 4);
-
   bool _disposed = false;
 
   @override
@@ -143,26 +150,82 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   /// Hands [request] to `toastification` at its manager key under the
   /// direction of the show context, so solid notices reach the solid
-  /// config and float notices the float one (s03 invariant 4).
+  /// config and float notices the float one (s03 invariant 4), and
+  /// announces it on show, never while queued (US-01 FR-05 E03).
   ToastificationItem _present(StratumToastRequest request) {
     final context = switch (request.placement) {
       StratumToastSolid() => _solidKey.currentContext,
       StratumToastFloat() => _floatKey.currentContext,
     };
     assert(context != null, 'the host is not mounted');
-    final alignment = toastManagerKey(
-      request.placement,
-      Directionality.of(context!),
-    );
+    final direction = Directionality.of(context!);
+    final alignment = toastManagerKey(request.placement, direction);
+    _announce(context, request);
     return toastification.showCustom(
       context: context,
       alignment: alignment,
-      autoCloseDuration: _closeTime,
-      builder: (buildContext, _) => _ToastSurface(request: request, host: this),
+      autoCloseDuration: toastCloseTime(
+        hasAction: request.action != null,
+        screenReader: MediaQuery.accessibleNavigationOf(context),
+      ),
+      animationDuration: _animationDuration(context),
+      animationBuilder: _animate,
+      builder: (buildContext, item) =>
+          _ToastView(request: request, host: this, item: item),
       callbacks: ToastificationCallbacks(
         onAutoCompleteCompleted: (item) => _closed(request.placement, item),
       ),
     );
+  }
+
+  /// Announces [request] as its FO-09 kind name, then its message, in the
+  /// app's text direction, taking no focus (US-01 FR-05).
+  void _announce(BuildContext context, StratumToastRequest request) {
+    final labels = builtInLabelsOf(context);
+    final kindName = switch (request.kind) {
+      FeedbackState.positive => labels.noticePositiveLabel,
+      FeedbackState.negative => labels.noticeNegativeLabel,
+      FeedbackState.warning => labels.noticeWarningLabel,
+      FeedbackState.info => labels.noticeInfoLabel,
+    };
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        '$kindName, ${request.message}',
+        Directionality.of(context),
+      ),
+    );
+  }
+
+  /// The show and hide duration: the theme's `normal` level, zero under
+  /// reduced motion, where the look fades its own opacity only (NFR-U03;
+  /// s03 invariant 14).
+  Duration _animationDuration(BuildContext context) {
+    // WORKAROUND: toastification animates each item's heightFactor from 0
+    // to 1 over the first 60% of the show whatever the animationBuilder
+    // returns, so a nonzero duration still resizes and slides the notice
+    // under reduced motion; remove when a toastification release skips its
+    // size animation under disabled animations.
+    return context.reducesMotion
+        ? Duration.zero
+        : context.theme.animation.normal.duration ??
+              const Duration(milliseconds: 300);
+  }
+
+  /// Fades [child] on [animation]; toastification pre-curves the intervals
+  // it hands (easeInOut), and the size curve stays theirs (s01 Effects;
+  // s03 invariant 14).
+  Widget _animate(
+    BuildContext context,
+    Animation<double> animation,
+    Alignment alignment,
+    Widget child,
+  ) {
+    // WORKAROUND: toastification hard-codes Curves.easeInOut intervals, so
+    // the theme's easeInOutSine cannot drive the show and hide through the
+    // package's builder; remove when a toastification release takes a
+    // curve per phase.
+    return FadeTransition(opacity: animation, child: child);
   }
 
   /// Closes that corner's oldest notice when the corner holds the cap and
@@ -216,6 +279,13 @@ class StratumToastHostState extends State<StratumToastHost> {
       ),
       StratumToastFloat() => EdgeInsets.zero,
     };
+  }
+
+  /// Closes [item] with no removal animation: every close path of the
+  /// host's own look ends here, so a dismissed `Dismissible` never
+  /// remounts (s03 invariant 9).
+  void _closeItem(ToastificationItem item) {
+    toastification.dismiss(item, showRemoveAnimation: false);
   }
 
   @override
@@ -324,34 +394,155 @@ class _StratumToastHostScope extends InheritedWidget {
   bool updateShouldNotify(_StratumToastHostScope oldWidget) => false;
 }
 
-/// The minimal surface of one notice until the plain look task (M4-T26):
-/// the theme's default background fill, the message in the theme's
-/// primary text color, and the solid edge inset as padding, so a solid
-/// fill runs under the status bar while its text stays below it (US-01
-/// FR-02 E04).
-///
-/// The surface widens itself to its manager's `itemWidth` cap, since
-/// `toastification` hands each item a loose constraint, and a solid
-/// notice to the full screen width.
-class _ToastSurface extends StatelessWidget {
-  const new({required this.request, required this.host});
+/// One notice as its look reads it, wrapped in its pause, key, and swipe
+/// close paths: hover, focus inside, and touch each pause the close
+/// timer, and the timer resumes only once all three have ended, a
+/// cancelled touch counting as ended; Esc while focus is inside, the
+/// close button, and a horizontal swipe close it (US-01 FR-04; s03
+/// invariants 7, 9).
+class _ToastView extends StatefulWidget {
+  const new({required this.request, required this.host, required this.item});
 
   final StratumToastRequest request;
   final StratumToastHostState host;
+  final ToastificationItem item;
+
+  @override
+  State<_ToastView> createState() => _ToastViewState();
+}
+
+class _ToastViewState extends State<_ToastView> {
+  /// Why the close timer is paused right now; it resumes only once every
+  /// reason has ended (s03 invariant 7).
+  final Set<_PauseReason> _pauses = {};
+
+  void _pause(_PauseReason reason) {
+    if (_pauses.add(reason) && _pauses.length == 1) {
+      widget.item.pause();
+    }
+  }
+
+  void _resume(_PauseReason reason) {
+    if (_pauses.remove(reason) && _pauses.isEmpty) {
+      widget.item.start();
+    }
+  }
+
+  void _close() => widget.host._closeItem(widget.item);
+
+  /// The notice as its look reads it (s03 invariant 4, 16).
+  StratumToastNotice get _notice => StratumToastNotice(
+    message: widget.request.message,
+    kind: widget.request.kind,
+    placement: widget.request.placement,
+    insets: widget.host._edgeInset(widget.request),
+    pageSnack: null,
+    customStyle: widget.request.customStyle,
+    close: _close,
+    action: widget.request.action,
+  );
+
+  /// The look: the app `builder`'s when set, else the plain look; both
+  /// read the same notice (US-01 FR-06 E04; s03 invariant 13).
+  Widget _look(BuildContext context) {
+    final builder = widget.host.widget.builder;
+    return builder != null
+        ? builder(context, _notice)
+        : StratumToastPlainLook(notice: _notice);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-    return ContainerLayout(
-      style: WidgetStyle(
-        width: double.infinity,
-        backgroundColor: theme.color.background.defaults.normal,
-        padding: host._edgeInset(request),
-      ),
-      child: DefaultTextStyle(
-        style: TextStyle(color: theme.color.text.defaults.primary),
-        child: Text(request.message),
+    return Dismissible(
+      key: ValueKey(widget.item.id),
+      direction: DismissDirection.horizontal,
+      onDismissed: (_) => _close(),
+      child: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        includeSemantics: false,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            _close();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: MouseRegion(
+          onEnter: (_) => _pause(_PauseReason.hover),
+          onExit: (_) => _resume(_PauseReason.hover),
+          child: Listener(
+            onPointerDown: (_) => _pause(_PauseReason.touch),
+            onPointerUp: (_) => _resume(_PauseReason.touch),
+            onPointerCancel: (_) => _resume(_PauseReason.touch),
+            child: _PauseOnFocus(
+              onFocusInside: (inside) => inside
+                  ? _pause(_PauseReason.focus)
+                  : _resume(_PauseReason.focus),
+              child: _look(context),
+            ),
+          ),
+        ),
       ),
     );
   }
+}
+
+/// Why a notice's close timer is paused (s03 invariant 7).
+enum _PauseReason { hover, focus, touch }
+
+/// Pauses the notice's timer while focus holds inside [child], however
+/// many focusable children it holds, and resumes once focus leaves them
+/// all (s03 invariant 7).
+///
+/// Owns a pass-through node, never a scope: a `FocusScopeNode` with
+/// `canRequestFocus` false blocks Tab's descent into the notice's buttons,
+/// while a plain unfocusable node reports `hasFocus` for every descendant
+/// and stays out of traversal.
+class _PauseOnFocus extends StatefulWidget {
+  const new({required this.onFocusInside, required this.child});
+
+  final ValueChanged<bool> onFocusInside;
+  final Widget child;
+
+  @override
+  State<_PauseOnFocus> createState() => _PauseOnFocusState();
+}
+
+class _PauseOnFocusState extends State<_PauseOnFocus> {
+  /// Whether focus is inside right now, from every focus change under the
+  /// notice's subtree.
+  bool _inside = false;
+
+  late final FocusNode _node = FocusNode(
+    debugLabel: 'StratumToast.notice',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _node.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    _node.removeListener(_changed);
+    _node.dispose();
+    super.dispose();
+  }
+
+  void _changed() {
+    final inside = _node.hasFocus;
+    if (inside != _inside) {
+      _inside = inside;
+      widget.onFocusInside(inside);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Focus(focusNode: _node, child: widget.child);
 }

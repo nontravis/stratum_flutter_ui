@@ -689,7 +689,7 @@ class _PageLayoutState extends State<PageLayout>
       // declares itself as every slot does (US-18 FR-07), else fully
       // transparent, which blends as nothing (system_bars.dart:269).
       child: SystemBarFill(
-        color: _fillColor(style.outer ?? const WidgetStyle()),
+        color: solidFillColor(style.outer ?? const WidgetStyle()),
         child: _outerBox(style, look, theme, page),
       ),
     );
@@ -749,26 +749,6 @@ class _PageLayoutState extends State<PageLayout>
       ),
     ),
   );
-
-  /// Whether [fill] paints one solid color: a background color with no
-  /// gradient and no image (US-18 FR-07).
-  static bool _fillsSolid(WidgetStyle fill) =>
-      fill.backgroundColor != null &&
-      fill.backgroundGradient == null &&
-      fill.backgroundImage == null;
-
-  /// [fill]'s declared color: its [WidgetStyle.backgroundColor] with
-  /// [WidgetStyle.opacity] folded into the alpha, so the resolver reads the
-  /// alpha the box actually paints (correctness review Minor 1), else
-  /// fully transparent while [fill] paints no single solid color.
-  static Color _fillColor(WidgetStyle fill) {
-    if (!_fillsSolid(fill)) return const Color(0x00000000);
-    final color = fill.backgroundColor!;
-    final opacity = fill.opacity;
-    return opacity == null || opacity >= 1
-        ? color
-        : color.withValues(alpha: color.a * opacity);
-  }
 
   /// Each part's style at [context]: the theme defaults, then the app-wide
   /// [PageLayoutStyle], then [PageLayout.customStyle] (FO-08 US-06 FR-01).
@@ -1501,7 +1481,7 @@ class _PageLayoutState extends State<PageLayout>
       // line resets no slot State (performance review Minor); a solid
       // fill declares itself, else fully transparent, which blends as
       // nothing (system_bars.dart:269; US-18 FR-07).
-      child: SystemBarFill(color: _fillColor(box), child: slots),
+      child: SystemBarFill(color: solidFillColor(box), child: slots),
     );
   }
 }
