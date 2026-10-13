@@ -1,4 +1,3 @@
-import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The close time of a notice: 4 s with no action, 8 s with one, and none
@@ -148,9 +147,19 @@ class StratumToastPlainLook extends StatelessWidget {
             ),
             child: RowLayout(
               children: [
-                Icon(
-                  _iconOf(notice.kind),
-                  color: _kindIcon(theme, notice.kind),
+                // `container: true` gives the icon its own semantics node;
+                // a bare `Icon.semanticLabel` has no boundary of its own
+                // and merges into the row's nearest one, combining with
+                // the message text instead of staying its own node.
+                Semantics(
+                  container: true,
+                  label: notice.kindLabel,
+                  child: ExcludeSemantics(
+                    child: Icon(
+                      _iconOf(notice.kind),
+                      color: _kindIcon(theme, notice.kind),
+                    ),
+                  ),
                 ),
                 Expanded(
                   child: Text(
@@ -172,9 +181,7 @@ class StratumToastPlainLook extends StatelessWidget {
                   ),
                 StratumInkWell(
                   onTap: notice.close,
-                  semantics: SemanticsProperties(
-                    label: builtInLabelsOf(context).closeButtonLabel,
-                  ),
+                  semantics: SemanticsProperties(label: notice.closeLabel),
                   child: const Icon(Icons.close),
                 ),
               ],

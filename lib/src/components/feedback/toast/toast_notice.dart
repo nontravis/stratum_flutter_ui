@@ -24,6 +24,8 @@ class StratumToastNotice {
     required this.pageSnack,
     required this.customStyle,
     required this.close,
+    required this.closeLabel,
+    required this.kindLabel,
     this.action,
   });
 
@@ -46,4 +48,13 @@ class StratumToastNotice {
 
   /// Closes this notice now, any close path's equal (US-01 FR-04).
   final VoidCallback close;
+
+  /// The close button's accessible name: `StratumToastHost.closeButtonLabel`
+  /// when the app set one, else FO-09's built-in label (s03 invariant 11).
+  final String closeLabel;
+
+  /// The kind's accessible name: `StratumToastHost.kindLabels[kind]` when
+  /// the app set one, else FO-09's built-in name — the same name the host
+  /// announces on show (FO-09 FR-01 E08; s03 invariant 11).
+  final String kindLabel;
 }

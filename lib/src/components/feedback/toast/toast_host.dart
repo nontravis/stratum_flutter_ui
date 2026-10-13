@@ -20,6 +20,25 @@ import 'package:toastification/toastification.dart'
         ToastificationWrapper,
         toastification;
 
+/// [kind]'s accessible name: [kindLabels]'s entry for [kind] when it holds
+/// one, else FO-09's built-in name — the same name the host's announcement
+/// and the plain look's icon both show (FO-09 FR-01 E08; s03 invariant 11).
+String _kindLabel(
+  BuildContext context,
+  FeedbackState kind,
+  Map<FeedbackState, String>? kindLabels,
+) {
+  final override = kindLabels?[kind];
+  if (override != null) return override;
+  final labels = builtInLabelsOf(context);
+  return switch (kind) {
+    FeedbackState.positive => labels.noticePositiveLabel,
+    FeedbackState.negative => labels.noticeNegativeLabel,
+    FeedbackState.warning => labels.noticeWarningLabel,
+    FeedbackState.info => labels.noticeInfoLabel,
+  };
+}
+
 /// The one notice a `showToast` call hands the host.
 ///
 /// Public for the call extension and the plain look, but no barrel exports
@@ -53,7 +72,13 @@ class StratumToastRequest {
 /// The host wraps `toastification`; an app that already wraps its root in
 /// a `ToastificationWrapper` keeps it, and the host adds none.
 class StratumToastHost extends StatefulWidget {
-  const new({super.key, required this.child, this.builder});
+  const new({
+    super.key,
+    required this.child,
+    this.builder,
+    this.closeButtonLabel,
+    this.kindLabels,
+  });
 
   final Widget child;
 
@@ -61,6 +86,17 @@ class StratumToastHost extends StatefulWidget {
   /// placement, queue, timers, close paths, and the announcement stay the
   /// host's (US-01 FR-06 E04; s03 invariant 13).
   final StratumToastBuilder? builder;
+
+  /// Replaces FO-09's close button label in the announcement and the
+  /// close button's accessible name; null keeps the built-in label
+  /// (`architecture/localization.md` rule 2; s03 invariant 11).
+  final String? closeButtonLabel;
+
+  /// Replaces FO-09's kind name per [FeedbackState] in the announcement
+  /// and the icon's accessible name; a kind missing from the map, or a
+  /// null [kindLabels], keeps that kind's built-in name
+  /// (`architecture/localization.md` rule 2; s03 invariant 11).
+  final Map<FeedbackState, String>? kindLabels;
 
   /// The host state above [context], or the `FlutterError` of a tree with
   /// none (US-01 FR-01 E05).
@@ -115,14 +151,47 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// (edge finding 3: two hosts in one process).
   static int _liveHosts = 0;
 
+  /// Every open notice's own focus-tracking node, so [_trackFocus] can
+  /// tell focus inside a notice from focus outside every notice (probe-tab
+  /// findings, "second defect").
+  final Set<FocusNode> _noticeFocusNodes = {};
+
+  /// The most recent focus that sat outside every open notice, so a manual
+  /// close can return focus there instead of wherever the route scope's
+  /// own traversal history parks it, which drops the node Tab's
+  /// `parentScope` edge unfocused on the way in (probe-tab findings,
+  /// "second defect found").
+  FocusNode? _lastFocusOutsideNotices;
+
   @override
   void initState() {
     super.initState();
     _liveHosts++;
+    FocusManager.instance.addListener(_trackFocus);
   }
+
+  /// Remembers [FocusManager.instance]'s primary focus whenever it sits
+  /// outside every open notice, so a later manual close knows where to
+  /// return it.
+  void _trackFocus() {
+    final current = FocusManager.instance.primaryFocus;
+    if (current != null && !_insideANotice(current)) {
+      _lastFocusOutsideNotices = current;
+    }
+  }
+
+  void _registerNoticeFocus(FocusNode node) => _noticeFocusNodes.add(node);
+
+  void _unregisterNoticeFocus(FocusNode node) => _noticeFocusNodes.remove(node);
+
+  /// Whether [node] sits inside any open notice's own focus-tracking node.
+  bool _insideANotice(FocusNode node) =>
+      _noticeFocusNodes.contains(node) ||
+      node.ancestors.any(_noticeFocusNodes.contains);
 
   @override
   void dispose() {
+    FocusManager.instance.removeListener(_trackFocus);
     _liveHosts--;
     if (_liveHosts == 0) {
       // WORKAROUND: toastification keeps process-wide managers keyed by
@@ -206,16 +275,10 @@ class StratumToastHostState extends State<StratumToastHost> {
     );
   }
 
-  /// Announces [request] as its FO-09 kind name, then its message, in the
-  /// app's text direction, taking no focus (US-01 FR-05).
+  /// Announces [request] as its kind name, then its message, in the app's
+  /// text direction, taking no focus (US-01 FR-05).
   void _announce(BuildContext context, StratumToastRequest request) {
-    final labels = builtInLabelsOf(context);
-    final kindName = switch (request.kind) {
-      FeedbackState.positive => labels.noticePositiveLabel,
-      FeedbackState.negative => labels.noticeNegativeLabel,
-      FeedbackState.warning => labels.noticeWarningLabel,
-      FeedbackState.info => labels.noticeInfoLabel,
-    };
+    final kindName = _kindLabel(context, request.kind, widget.kindLabels);
     unawaited(
       SemanticsService.sendAnnouncement(
         View.of(context),
@@ -252,7 +315,10 @@ class StratumToastHostState extends State<StratumToastHost> {
     // WORKAROUND: toastification hard-codes Curves.easeInOut intervals, so
     // the theme's easeInOutSine cannot drive the show and hide through the
     // package's builder; remove when a toastification release takes a
-    // curve per phase.
+    // curve per phase. No widget test can assert the curve's shape (the
+    // animated rect under full motion only proves the show is not
+    // vacuous, s01/s18); removing this line early would compile and pass
+    // every test while silently reverting to easeInOut.
     return FadeTransition(opacity: animation, child: child);
   }
 
@@ -309,11 +375,15 @@ class StratumToastHostState extends State<StratumToastHost> {
     };
   }
 
-  /// Closes [item] with no removal animation: every close path of the
-  /// host's own look ends here, so a dismissed `Dismissible` never
-  /// remounts (s03 invariant 9).
-  void _closeItem(ToastificationItem item) {
+  /// Closes [item], shown at [placement], with no removal animation: every
+  /// close path of the host's own look (close button, Esc, swipe, and an
+  /// action tap) ends here, so a dismissed `Dismissible` never remounts
+  /// (s03 invariant 9) and runs the same bookkeeping [_closed] gives a
+  /// timer close, so a float leaves its corner's list and the next queued
+  /// solid notice shows (US-01 FR-03, FR-04).
+  void _closeItem(StratumToastPlacement placement, ToastificationItem item) {
     toastification.dismiss(item, showRemoveAnimation: false);
+    _closed(placement, item);
   }
 
   @override
@@ -462,10 +532,25 @@ class _ToastViewState extends State<_ToastView> {
     }
   }
 
-  void _close() => widget.host._closeItem(widget.item);
+  /// Whether focus sits inside this notice right now (s03 invariant 7).
+  bool _focusInside = false;
 
-  /// The notice as its look reads it (s03 invariant 4, 16).
-  StratumToastNotice get _notice => StratumToastNotice(
+  /// Closes the notice, then, when focus sat inside it, returns focus to
+  /// the node that held it before Tab's `parentScope` edge unfocused that
+  /// node on the way in, rather than leaving it parked on the route
+  /// scope's first control (probe-tab findings, "second defect found").
+  void _close() {
+    widget.host._closeItem(widget.request.placement, widget.item);
+    if (_focusInside) {
+      final target = widget.host._lastFocusOutsideNotices;
+      if (target != null && target.context != null) target.requestFocus();
+    }
+  }
+
+  /// The notice as its look reads it (s03 invariant 4, 16), with [context]
+  /// resolving the close button and kind labels, a passed prop winning
+  /// over FO-09's built-in one (s03 invariant 11).
+  StratumToastNotice _notice(BuildContext context) => StratumToastNotice(
     message: widget.request.message,
     kind: widget.request.kind,
     placement: widget.request.placement,
@@ -474,15 +559,24 @@ class _ToastViewState extends State<_ToastView> {
     customStyle: widget.request.customStyle,
     close: _close,
     action: widget.request.action,
+    closeLabel:
+        widget.host.widget.closeButtonLabel ??
+        builtInLabelsOf(context).closeButtonLabel,
+    kindLabel: _kindLabel(
+      context,
+      widget.request.kind,
+      widget.host.widget.kindLabels,
+    ),
   );
 
   /// The look: the app `builder`'s when set, else the plain look; both
   /// read the same notice (US-01 FR-06 E04; s03 invariant 13).
   Widget _look(BuildContext context) {
     final builder = widget.host.widget.builder;
+    final notice = _notice(context);
     return builder != null
-        ? builder(context, _notice)
-        : StratumToastPlainLook(notice: _notice);
+        ? builder(context, notice)
+        : StratumToastPlainLook(notice: notice);
   }
 
   @override
@@ -511,9 +605,13 @@ class _ToastViewState extends State<_ToastView> {
             onPointerUp: (_) => _resume(_PauseReason.touch),
             onPointerCancel: (_) => _resume(_PauseReason.touch),
             child: _PauseOnFocus(
-              onFocusInside: (inside) => inside
-                  ? _pause(_PauseReason.focus)
-                  : _resume(_PauseReason.focus),
+              host: widget.host,
+              onFocusInside: (inside) {
+                _focusInside = inside;
+                inside
+                    ? _pause(_PauseReason.focus)
+                    : _resume(_PauseReason.focus);
+              },
               child: _look(context),
             ),
           ),
@@ -535,7 +633,16 @@ enum _PauseReason { hover, focus, touch }
 /// while a plain unfocusable node reports `hasFocus` for every descendant
 /// and stays out of traversal.
 class _PauseOnFocus extends StatefulWidget {
-  const new({required this.onFocusInside, required this.child});
+  const new({
+    required this.host,
+    required this.onFocusInside,
+    required this.child,
+  });
+
+  /// Registers this notice's own focus-tracking node with the host while
+  /// mounted, so the host can tell this notice's focus from focus outside
+  /// every notice.
+  final StratumToastHostState host;
 
   final ValueChanged<bool> onFocusInside;
   final Widget child;
@@ -559,10 +666,12 @@ class _PauseOnFocusState extends State<_PauseOnFocus> {
   void initState() {
     super.initState();
     _node.addListener(_changed);
+    widget.host._registerNoticeFocus(_node);
   }
 
   @override
   void dispose() {
+    widget.host._unregisterNoticeFocus(_node);
     _node.removeListener(_changed);
     _node.dispose();
     super.dispose();

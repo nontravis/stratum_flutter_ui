@@ -486,6 +486,89 @@ void main() {
   );
 
   testWidgets(
+    'us01/fr04: a manual close runs the same bookkeeping as the timer, so '
+    'a queued solid notice can show',
+    (tester) async {
+      _view(tester, _phone);
+      final handle = tester.ensureSemantics();
+      const solidBottom = StratumToastPlacement.solid(StratumToastEdge.bottom);
+      await tester.pumpWidget(
+        _app(
+          ColumnLayout(
+            children: [
+              _button(
+                'go',
+                (c) => c.showToast(message: 'one', placement: solidBottom),
+              ),
+              _button(
+                'go2',
+                (c) => c.showToast(message: 'two', placement: solidBottom),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('one'), findsOneWidget);
+      // A manual close (the close button) must run the same bookkeeping
+      // the timer close does, clearing `_solidShowing`, or a queued and a
+      // freshly-called solid notice both wait behind it forever.
+      await tester.tap(find.bySemanticsLabel('Close'));
+      await tester.pumpAndSettle();
+      expect(find.text('one'), findsNothing);
+      await tester.tap(find.text('go2'));
+      await tester.pumpAndSettle();
+      expect(find.text('two'), findsOneWidget);
+      handle.dispose();
+    },
+  );
+
+  testWidgets('fr03: a manual close frees its corner, so a later show needs no '
+      'extra eviction', (tester) async {
+    _view(tester, _phone);
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      _app(
+        ColumnLayout(
+          children: [
+            _button('go', (c) {
+              for (final m in ['a', 'b', 'c']) {
+                c.showToast(message: m);
+              }
+            }),
+            _button('go2', (c) => c.showToast(message: 'd')),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    for (final m in ['a', 'b', 'c']) {
+      expect(find.text(m), findsOneWidget);
+    }
+    // Manually close the newest ('c'); a stale entry left behind in the
+    // corner's own list would still read 3 live and wrongly evict the
+    // oldest ('a') once a 4th notice lands, though only 2 are live.
+    await tester.tap(
+      find.descendant(
+        of: find
+            .ancestor(of: find.text('c'), matching: find.byType(RowLayout))
+            .first,
+        matching: find.bySemanticsLabel('Close'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('c'), findsNothing);
+    await tester.tap(find.text('go2'));
+    await tester.pumpAndSettle();
+    expect(find.text('a'), findsOneWidget);
+    expect(find.text('b'), findsOneWidget);
+    expect(find.text('d'), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets(
     'fr03/e04 second half: a 4th show at one corner leaves another untouched',
     (tester) async {
       _view(tester, _phone);

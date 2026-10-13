@@ -32,14 +32,19 @@ Widget _app(
   Widget? home, {
   MediaQueryData Function(MediaQueryData data)? media,
   TextDirection direction = TextDirection.ltr,
+  Locale locale = const Locale('en'),
+  StratumHighContrastMode highContrast = StratumHighContrastMode.system,
+  StratumComponentPartDefaultsBuilder? componentPartDefaults,
 }) => MaterialApp(
-  locale: const Locale('en'),
-  supportedLocales: const [Locale('en'), Locale('th')],
+  locale: locale,
+  supportedLocales: const [Locale('en'), Locale('th'), Locale('ja')],
   localizationsDelegates: GlobalMaterialLocalizations.delegates,
   builder: (context, child) {
     final app = StratumThemeApplication(
       themes: StratumThemeSet(light: fakeTheme),
       themeMode: ThemeMode.light,
+      highContrast: highContrast,
+      componentPartDefaults: componentPartDefaults,
       child: Directionality(
         textDirection: direction,
         child: StratumToastHost(child: child!),
@@ -100,12 +105,18 @@ List<String> _announceRecorder(WidgetTester tester) {
   return announced;
 }
 
-/// A light-headered page whose host can show a dark solid top notice
-/// (`go`), a gradient one (`gradient`), or an app-builder one (`mine`), for
-/// the fill the notice declares under the status bar. [builder] replaces
-/// the look of every notice when set; [goStyle] overrides the `go` notice.
-Widget _systemApp({StratumToastBuilder? builder, WidgetStyle? goStyle}) {
-  const top = StratumToastPlacement.solid(StratumToastEdge.top);
+/// A light-headered (or, on [edge] bottom, light-footered) page whose host
+/// can show a dark solid notice on [edge] (`go`), a gradient one
+/// (`gradient`), or an app-builder one (`mine`), for the fill the notice
+/// declares under the status or navigation bar. [builder] replaces the
+/// look of every notice when set; [goStyle] overrides the `go` notice.
+Widget _systemApp({
+  StratumToastBuilder? builder,
+  WidgetStyle? goStyle,
+  StratumToastEdge edge = StratumToastEdge.top,
+}) {
+  final placement = StratumToastPlacement.solid(edge);
+  final top = edge == StratumToastEdge.top;
   return MaterialApp(
     builder: (context, child) => StratumThemeApplication(
       themes: defaultThemeSet,
@@ -114,19 +125,25 @@ Widget _systemApp({StratumToastBuilder? builder, WidgetStyle? goStyle}) {
     ),
     home: Scaffold(
       body: PageLayout(
-        header: const SizedBox(),
-        customStyle: const PageLayoutStyle(
-          header: WidgetStyle(backgroundColor: _white),
+        header: top ? const SizedBox() : null,
+        footer: top ? null : const SizedBox(),
+        customStyle: PageLayoutStyle(
+          header: top ? const WidgetStyle(backgroundColor: _white) : null,
+          footer: top ? null : const WidgetStyle(backgroundColor: _white),
         ),
         body: ColumnLayout(
           children: [
             _button('go', (c) {
-              c.showToast(message: 'Top', placement: top, customStyle: goStyle);
+              c.showToast(
+                message: 'Top',
+                placement: placement,
+                customStyle: goStyle,
+              );
             }),
             _button('gradient', (c) {
               c.showToast(
                 message: 'Grad',
-                placement: top,
+                placement: placement,
                 customStyle: const WidgetStyle(
                   backgroundGradient: LinearGradient(
                     colors: [Color(0xFF000000), Color(0xFFFFFFFF)],
@@ -135,7 +152,7 @@ Widget _systemApp({StratumToastBuilder? builder, WidgetStyle? goStyle}) {
               );
             }),
             _button('mine', (c) {
-              c.showToast(message: 'Mine', placement: top);
+              c.showToast(message: 'Mine', placement: placement);
             }),
           ],
         ),
@@ -205,6 +222,38 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Hold'), findsNothing);
   });
+
+  testWidgets(
+    'n16: hover then focus pause the timer; it resumes only once both end',
+    (tester) async {
+      _view(tester);
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _app(_button('go', (c) => c.showToast(message: 'Both', action: undo))),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(find.text('Both')));
+      _focusViaSemantics(tester, 'Undo');
+      await tester.pump();
+      // The pointer leaves first, with focus still held; a regression
+      // that resets the whole pause set on any single `_resume` call,
+      // instead of removing only the one reason that ended, would wrongly
+      // let the full 8 s close time run out here.
+      await mouse.moveTo(Offset.zero);
+      await tester.pump(const Duration(seconds: 9));
+      expect(find.text('Both'), findsOneWidget);
+      // Focus leaves too; only now does every reason end and the timer
+      // resumes, running out its full remaining time (nothing counted
+      // down while it sat paused).
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump(const Duration(seconds: 9));
+      await tester.pumpAndSettle();
+      expect(find.text('Both'), findsNothing);
+      handle.dispose();
+    },
+  );
 
   testWidgets('us01/s8: us01/fr04/e01: held while a screen reader runs', (
     tester,
@@ -276,6 +325,73 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(find.text('Esc me'), findsNothing);
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'probe-tab defect 3: focus returns to the node that held it before it '
+    'entered the notice, not the route scope, once Esc closes it',
+    (tester) async {
+      _view(tester);
+      final handle = tester.ensureSemantics();
+      final field = FocusNode(debugLabel: 'field');
+      addTearDown(field.dispose);
+      await tester.pumpWidget(
+        _app(
+          Column(
+            children: [
+              Focus(
+                focusNode: field,
+                child: const SizedBox.square(dimension: 1),
+              ),
+              _button(
+                'go',
+                (c) => c.showToast(message: 'Tab close', action: undo),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      field.requestFocus();
+      await tester.pump();
+      expect(FocusManager.instance.primaryFocus, field);
+      // Real Tab presses off the web with a plain Navigator reach the
+      // notice after the route's last control (probe-tab findings, table
+      // rows 1-2); the route's own traversal edge unfocuses whatever held
+      // focus on the way in, which is the defect's root cause, so this
+      // must be a real key press, never a semantics focus-action
+      // shortcut. `field` is not necessarily that node: the route may
+      // hold other controls (here, "go") Tab visits first, so the node
+      // to expect back is whatever this loop last saw before the press
+      // that lands inside the notice, not `field` itself.
+      FocusNode? before;
+      var reached = false;
+      for (var i = 0; i < 6 && !reached; i++) {
+        before = FocusManager.instance.primaryFocus;
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        reached =
+            tester
+                .getSemantics(find.bySemanticsLabel('Undo'))
+                .flagsCollection
+                .isFocused ==
+            Tristate.isTrue;
+      }
+      expect(
+        reached,
+        isTrue,
+        reason: 'Tab never reached the notice within 6 presses',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Tab close'), findsNothing);
+      // Never the route scope itself (where Tab's `parentScope` edge
+      // would otherwise park it): focus is back on whatever held it
+      // immediately before the notice.
+      expect(FocusManager.instance.primaryFocus, before);
       handle.dispose();
     },
   );
@@ -363,6 +479,51 @@ void main() {
   });
 
   testWidgets(
+    'NFR-U06: us01/fr01/e08: the kind icon, the action, and the close '
+    'button each carry their own accessible name',
+    (tester) async {
+      _view(tester);
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _app(
+          _button(
+            'go',
+            (c) => c.showToast(
+              message: 'Low battery',
+              kind: FeedbackState.warning,
+              action: undo,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      // The kind icon's own node: FO-09 FR-01 E08 names the kind as the
+      // source of both the announcement and the icon's accessible name.
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Warning')),
+        matchesSemantics(label: 'Warning'),
+      );
+      for (final label in ['Undo', 'Close']) {
+        expect(
+          tester.getSemantics(find.bySemanticsLabel(label)),
+          matchesSemantics(
+            label: label,
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            isFocusable: true,
+            hasTapAction: true,
+            hasFocusAction: true,
+          ),
+          reason: label,
+        );
+      }
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
     'us01/s21: us01/fr06/e04: an app builder draws the look, the host '
     'keeps timing',
     (tester) async {
@@ -389,25 +550,26 @@ void main() {
     },
   );
 
-  testWidgets('NFR-U08: us01/s20: us01/fr06/e03: each kind shows its own '
-      'icon', (tester) async {
+  testWidgets('NFR-U08: us01/s20: us01/fr06/e03: each of the four kinds '
+      'shows its own icon under high contrast', (tester) async {
     _view(tester);
-    await tester.pumpWidget(
-      _app(
-        _button('go', (c) {
-          c
-            ..showToast(message: 'ok', kind: FeedbackState.positive)
-            ..showToast(message: 'bad', kind: FeedbackState.negative);
-        }),
-      ),
-    );
-    await tester.tap(find.text('go'));
-    await tester.pumpAndSettle();
-    final icons = tester
-        .widgetList<Icon>(find.byType(Icon))
-        .map((i) => i.icon)
-        .toSet();
-    expect(icons.length, greaterThanOrEqualTo(3)); // two kinds plus close
+    final icons = <IconData?>{};
+    for (final kind in FeedbackState.values) {
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) => c.showToast(message: kind.name, kind: kind)),
+          highContrast: StratumHighContrastMode.on,
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      icons.addAll(
+        tester.widgetList<Icon>(find.byType(Icon)).map((i) => i.icon),
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    }
+    expect(icons.length, greaterThanOrEqualTo(5)); // four kinds plus close
   });
 
   testWidgets(
@@ -500,42 +662,51 @@ void main() {
       _view(tester);
       final handle = tester.ensureSemantics();
       for (final theme in [defaultThemeSet.light, defaultThemeSet.dark!]) {
-        Widget app() => MaterialApp(
-          builder: (context, child) => StratumThemeApplication(
-            themes: StratumThemeSet(light: theme),
-            themeMode: ThemeMode.light,
-            child: StratumToastHost(child: child!),
-          ),
-          home: Scaffold(
-            body: _button(
-              'go',
-              (c) => c.showToast(message: 'Item deleted', action: undo),
-            ),
-          ),
-        );
-        await tester.pumpWidget(app());
-        await tester.tap(find.text('go'));
-        await tester.pumpAndSettle();
-        // Drop the page's blue Material button, keeping the host and its
-        // notice, so the guidelines read the notice alone.
-        await tester.pumpWidget(
-          MaterialApp(
+        // FR-06 E05 names every kind, not only `info`: a border or icon
+        // color regression in `_kindBorder`/`_kindIcon` for one kind must
+        // fail here too.
+        for (final kind in FeedbackState.values) {
+          Widget app() => MaterialApp(
             builder: (context, child) => StratumThemeApplication(
               themes: StratumThemeSet(light: theme),
               themeMode: ThemeMode.light,
               child: StratumToastHost(child: child!),
             ),
-            home: const Scaffold(body: SizedBox()),
-          ),
-        );
-        await tester.pumpAndSettle();
-        expect(find.text('Item deleted'), findsOneWidget);
-        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
-        await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
-        await expectLater(tester, meetsGuideline(textContrastGuideline));
-        await tester.pumpWidget(const SizedBox());
-        await tester.pumpAndSettle();
+            home: Scaffold(
+              body: _button(
+                'go',
+                (c) => c.showToast(
+                  message: 'Item deleted',
+                  action: undo,
+                  kind: kind,
+                ),
+              ),
+            ),
+          );
+          await tester.pumpWidget(app());
+          await tester.tap(find.text('go'));
+          await tester.pumpAndSettle();
+          // Drop the page's blue Material button, keeping the host and
+          // its notice, so the guidelines read the notice alone.
+          await tester.pumpWidget(
+            MaterialApp(
+              builder: (context, child) => StratumThemeApplication(
+                themes: StratumThemeSet(light: theme),
+                themeMode: ThemeMode.light,
+                child: StratumToastHost(child: child!),
+              ),
+              home: const Scaffold(body: SizedBox()),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Item deleted'), findsOneWidget);
+          await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+          await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+          await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+          await expectLater(tester, meetsGuideline(textContrastGuideline));
+          await tester.pumpWidget(const SizedBox());
+          await tester.pumpAndSettle();
+        }
       }
       handle.dispose();
     },
@@ -575,20 +746,32 @@ void main() {
     },
   );
 
-  testWidgets(
-    'NFR-U09: us01/s13: us01/fr04/e05: the close button and Esc close it',
-    (tester) async {
-      _view(tester);
-      await tester.pumpWidget(
-        _app(_button('go', (c) => c.showToast(message: 'Swipe'))),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.bySemanticsLabel('Close'));
-      await tester.pumpAndSettle();
-      expect(find.text('Swipe'), findsNothing);
-    },
-  );
+  testWidgets('NFR-U09: us01/s13: us01/fr04/e05: the close button (the swipe '
+      "gesture's tap alternative) closes it", (tester) async {
+    _view(tester);
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      _app(_button('go', (c) => c.showToast(message: 'Swipe'))),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Close')),
+      matchesSemantics(
+        label: 'Close',
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        isFocusable: true,
+        hasTapAction: true,
+        hasFocusAction: true,
+      ),
+    );
+    await tester.tap(find.bySemanticsLabel('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Swipe'), findsNothing);
+    handle.dispose();
+  });
 
   testWidgets(
     'NFR-E01: us01/fr06/e01: review focus 5: the look follows the theme '
@@ -641,6 +824,87 @@ void main() {
     expect(style.dropShadow, isNotEmpty);
   });
 
+  testWidgets('us01/fr06: s03 invariant 16: the app-wide '
+      'StratumComponentDefaults.partsOf<WidgetStyle> layer wins over the '
+      'theme, with no customStyle set', (tester) async {
+    _view(tester);
+    const green = Color(0xFF00FF00);
+    await tester.pumpWidget(
+      _app(
+        _button('go', (c) => c.showToast(message: 'P')),
+        componentPartDefaults: (theme) => {
+          StratumToastHost: const WidgetStyle(backgroundColor: green),
+        },
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    final style = tester.widget<ContainerLayout>(_fill('P')).style!;
+    expect(style.backgroundColor, green);
+  });
+
+  testWidgets(
+    'n20: us01/fr06/e06: StratumToastHost(closeButtonLabel:, kindLabels:) '
+    "override FO-09's built-in labels (s03 invariant 11)",
+    (tester) async {
+      _view(tester);
+      final handle = tester.ensureSemantics();
+      final announced = _announceRecorder(tester);
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => StratumThemeApplication(
+            themes: StratumThemeSet(light: fakeTheme),
+            themeMode: ThemeMode.light,
+            child: StratumToastHost(
+              closeButtonLabel: 'Dismiss',
+              kindLabels: const {FeedbackState.info: 'FYI'},
+              child: child!,
+            ),
+          ),
+          home: Scaffold(body: _button('go', (c) => c.showToast(message: 'x'))),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(announced, ['FYI, x']);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('FYI')),
+        matchesSemantics(label: 'FYI'),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Dismiss')),
+        matchesSemantics(
+          label: 'Dismiss',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          isFocusable: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+        ),
+      );
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'us01/fr05/e02: an unheld locale (Japanese) reads the English kind '
+    'name',
+    (tester) async {
+      _view(tester);
+      final announced = _announceRecorder(tester);
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) => c.showToast(message: 'x')),
+          locale: const Locale('ja'),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(announced, ['Information, x']);
+    },
+  );
+
   testWidgets(
     'us01/fr02/e08: a dark solid top notice over a light header flips the '
     'status bar icons',
@@ -669,6 +933,40 @@ void main() {
       // The notice gone, the header's fill wins again.
       expect(
         SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
+    },
+  );
+
+  testWidgets(
+    'us01/fr02/e08: a dark solid bottom notice over a light footer flips '
+    'the navigation bar icons',
+    (tester) async {
+      systemBarsView(tester);
+      await tester.pumpWidget(
+        _systemApp(
+          edge: StratumToastEdge.bottom,
+          goStyle: const WidgetStyle(backgroundColor: Color(0xFF1F242E)),
+        ),
+      );
+      // A light page footer: dark icons win on it.
+      expect(
+        SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
+        Brightness.dark,
+      );
+      // A dark solid bottom notice covers the bar point: light icons win
+      // on its declared fill while it shows (piece 5, both edges).
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(
+        SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
+        Brightness.light,
+      );
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      // The notice gone, the footer's fill wins again.
+      expect(
+        SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
         Brightness.dark,
       );
     },
