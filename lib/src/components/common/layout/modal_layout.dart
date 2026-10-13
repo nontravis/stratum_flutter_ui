@@ -256,6 +256,10 @@ class ModalLayoutScope extends InheritedWidget {
 ///
 /// Tab visits [top], [tab], and [body], then the handle and the close
 /// button, whatever their place on screen (NFR-U02).
+///
+/// The surface declares the solid color it paints under a system bar: a
+/// bottom sheet runs under the navigation bar, and a full-height sheet and
+/// a full-screen modal under both bars (US-20 FR-06 E08).
 class ModalLayout extends StatelessWidget {
   const new({
     super.key,
@@ -385,36 +389,53 @@ class ModalLayout extends StatelessWidget {
           )
         : null;
 
-    return FocusTraversalGroup(
-      policy: OrderedTraversalPolicy(),
-      child: ContainerLayout(
-        style: surface.copyWith(
-          padding: (surface.padding ?? EdgeInsets.zero).add(insets),
-        ),
-        child: DefaultTextStyle.merge(
-          style: TextStyle(color: theme.color.text.defaults.primary),
-          child: IconTheme.merge(
-            data: IconThemeData(color: theme.color.icon.defaults.primary),
-            child: StackLayout(
-              alignment: AlignmentDirectional.topEnd,
-              clipBehavior: Clip.none,
-              children: [
-                LayoutBuilder(
-                  builder: (context, constraints) => _slots(
-                    style,
-                    handle: handle,
-                    bounded: constraints.hasBoundedHeight,
-                    inRoute: scope != null,
-                  ),
+    Widget surfaceBox() => ContainerLayout(
+      style: surface.copyWith(
+        padding: (surface.padding ?? EdgeInsets.zero).add(insets),
+      ),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: theme.color.text.defaults.primary),
+        child: IconTheme.merge(
+          data: IconThemeData(color: theme.color.icon.defaults.primary),
+          child: StackLayout(
+            alignment: AlignmentDirectional.topEnd,
+            clipBehavior: Clip.none,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) => _slots(
+                  style,
+                  handle: handle,
+                  bounded: constraints.hasBoundedHeight,
+                  inRoute: scope != null,
                 ),
-                ?close,
-              ],
-            ),
+              ),
+              ?close,
+            ],
           ),
         ),
       ),
     );
+    return FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      // The surface declares the solid color it paints under a bar: a
+      // bottom sheet runs under the navigation bar and a full-height one
+      // and a full-screen modal under both (US-20 FR-06 E08).
+      child: switch (surface.backgroundColor) {
+        final color? when _paintsSolid(surface) => SystemBarFill(
+          color: color,
+          child: surfaceBox(),
+        ),
+        _ => surfaceBox(),
+      },
+    );
   }
+
+  /// Whether [fill] paints one solid color: a background color with no
+  /// gradient and no image (US-20 FR-06 E08).
+  static bool _paintsSolid(WidgetStyle fill) =>
+      fill.backgroundColor != null &&
+      fill.backgroundGradient == null &&
+      fill.backgroundImage == null;
 
   /// The theme layer of every part (NFR-E01).
   ModalLayoutStyle _themeStyle(

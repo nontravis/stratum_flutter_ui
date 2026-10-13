@@ -11,7 +11,10 @@ import 'package:stratum_ui/src/src.dart';
 /// US-19 FR-04, FR-05).
 ///
 /// It reads the theme from its own context, so a theme switch restyles an
-/// open scrim (US-20 FR-06 E02, E06; US-19 FR-04 E06).
+/// open scrim (US-20 FR-06 E02, E06; US-19 FR-04 E06). It declares the
+/// color it paints at this frame for the automatic bar icons, so the icons
+/// flip when the blend crosses the contrast pick, as the eye sees it, in
+/// every mode the fade runs (US-19 FR-04 E08; US-20 FR-06 E07).
 class Scrim extends StatelessWidget {
   const new({
     super.key,
@@ -41,12 +44,21 @@ class Scrim extends StatelessWidget {
           IgnorePointer(
             child: FadeTransition(
               opacity: animation,
-              child: ContainerLayout(
-                style: WidgetStyle(
-                  backgroundColor: color.withValues(
-                    alpha: color.a * theme.data.opacity.scrim,
+              child: AnimatedBuilder(
+                animation: animation,
+                builder: (context, child) => SystemBarFill(
+                  color: color.withValues(
+                    alpha: color.a * theme.data.opacity.scrim * animation.value,
                   ),
-                  backgroundBlur: theme.blur.level1,
+                  child: child!,
+                ),
+                child: ContainerLayout(
+                  style: WidgetStyle(
+                    backgroundColor: color.withValues(
+                      alpha: color.a * theme.data.opacity.scrim,
+                    ),
+                    backgroundBlur: theme.blur.level1,
+                  ),
                 ),
               ),
             ),

@@ -285,6 +285,13 @@ class PageLayoutController extends ChangeNotifier {
 /// [right], [footer], then [snack] (NFR-U02).
 ///
 /// The page needs bounded constraints, as a route's page has.
+///
+/// A solid slot fill or page fill declares itself to the system bar
+/// resolver, so the automatic bar icons pick against what the page paints
+/// under each bar; a gradient or image fill declares nothing, and the app
+/// wraps its own `SystemBarFill` or sets explicit icons (US-18 FR-07).
+/// [systemStyle] sets this page's bar style as an inner scope over the
+/// app-wide one.
 class PageLayout extends StatefulWidget {
   const new({
     super.key,
@@ -312,6 +319,7 @@ class PageLayout extends StatefulWidget {
     this.edgeSwipe = true,
     this.onDrawerChanged,
     this.customStyle,
+    this.systemStyle,
   });
 
   /// The slot across the full width on top.
@@ -403,6 +411,10 @@ class PageLayout extends StatefulWidget {
 
   /// The per-instance part styles, the highest layer (NFR-E02).
   final PageLayoutStyle? customStyle;
+
+  /// The system bar style of this page, an inner scope over the app-wide
+  /// style; null adds no scope (US-18 FR-07).
+  final SystemStyle? systemStyle;
 
   /// The controller of the nearest [PageLayout] above [context].
   ///
@@ -649,6 +661,22 @@ class _PageLayoutState extends State<PageLayout>
         ?_snack(style, look, keyboard),
       ],
     );
+    return widget.systemStyle == null
+        ? _page(style, look, theme, page)
+        : SystemStyleScope(
+            // Outermost, so the scope's sized look annotation covers both
+            // bars' points (US-18 FR-07).
+            style: widget.systemStyle!,
+            child: _page(style, look, theme, page),
+          );
+  }
+
+  Widget _page(
+    PageLayoutStyle style,
+    _SlotLook look,
+    StratumTheme theme,
+    Widget page,
+  ) {
     return ValueListenableBuilder<_DrawerView>(
       valueListenable: _drawerView,
       builder: (context, drawer, child) => _PageLayoutScope(
@@ -656,56 +684,79 @@ class _PageLayoutState extends State<PageLayout>
         drawer: drawer,
         child: child ?? const SizedBox.shrink(),
       ),
-      child: ContainerLayout(
-        style: style.outer ?? const WidgetStyle(),
-        child: Material(
-          type: MaterialType.transparency,
-          textStyle: look.textStyle,
-          child: IconTheme.merge(
-            data: IconThemeData(color: theme.color.icon.defaults.primary),
-            child: StackLayout(
-              fit: StackFit.expand,
-              children: [
-                Focus(
-                  focusNode: _slotsNode,
-                  canRequestFocus: false,
-                  skipTraversal: true,
-                  includeSemantics: false,
-                  descendantsAreFocusable: !widget.loading,
-                  descendantsAreTraversable: !widget.loading,
-                  child: FocusTraversalGroup(
-                    policy: OrderedTraversalPolicy(),
-                    child: _DrawerReader(
-                      builder: (drawer) => PageDrawerStage(
-                        progress: _drawer,
-                        shown: drawer.shown,
-                        open: drawer.open,
-                        left: _drawerSide(PageDrawerSide.left),
-                        right: _drawerSide(PageDrawerSide.right),
-                        edgeSwipe: widget.edgeSwipe,
-                        focusNode: _drawerFocus,
-                        panel: (side, corners) =>
-                            _drawerPanel(side, corners, style, look),
-                        onClose: _close,
-                        onDragStart: _dragStart,
-                        onDragUpdate: _dragUpdate,
-                        onDragEnd: _dragEnd,
-                        child: page,
-                      ),
-                    ),
-                  ),
-                ),
-                _LoadingLayer(
-                  loading: widget.loading,
-                  builder: widget.loadingBuilder,
-                ),
-              ],
-            ),
-          ),
+      child: switch (style.outer?.backgroundColor) {
+        // A solid page fill declares itself, as every slot does (US-18
+        // FR-07); the resolver reads only what sits under a bar's point.
+        final color? when _fillsSolid(style.outer) => SystemBarFill(
+          color: color,
+          child: _outerBox(style, look, theme, page),
         ),
-      ),
+        _ => _outerBox(style, look, theme, page),
+      },
     );
   }
+
+  /// The page's own box: [child] under the page [style]'s `outer` fill.
+  Widget _outerBox(
+    PageLayoutStyle style,
+    _SlotLook look,
+    StratumTheme theme,
+    Widget child,
+  ) => ContainerLayout(
+    style: style.outer ?? const WidgetStyle(),
+    child: Material(
+      type: MaterialType.transparency,
+      textStyle: look.textStyle,
+      child: IconTheme.merge(
+        data: IconThemeData(color: theme.color.icon.defaults.primary),
+        child: StackLayout(
+          fit: StackFit.expand,
+          children: [
+            Focus(
+              focusNode: _slotsNode,
+              canRequestFocus: false,
+              skipTraversal: true,
+              includeSemantics: false,
+              descendantsAreFocusable: !widget.loading,
+              descendantsAreTraversable: !widget.loading,
+              child: FocusTraversalGroup(
+                policy: OrderedTraversalPolicy(),
+                child: _DrawerReader(
+                  builder: (drawer) => PageDrawerStage(
+                    progress: _drawer,
+                    shown: drawer.shown,
+                    open: drawer.open,
+                    left: _drawerSide(PageDrawerSide.left),
+                    right: _drawerSide(PageDrawerSide.right),
+                    edgeSwipe: widget.edgeSwipe,
+                    focusNode: _drawerFocus,
+                    panel: (side, corners) =>
+                        _drawerPanel(side, corners, style, look),
+                    onClose: _close,
+                    onDragStart: _dragStart,
+                    onDragUpdate: _dragUpdate,
+                    onDragEnd: _dragEnd,
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+            _LoadingLayer(
+              loading: widget.loading,
+              builder: widget.loadingBuilder,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  /// Whether [fill] paints one solid color: a background color with no
+  /// gradient and no image (US-18 FR-07).
+  static bool _fillsSolid(WidgetStyle? fill) =>
+      fill?.backgroundColor != null &&
+      fill?.backgroundGradient == null &&
+      fill?.backgroundImage == null;
 
   /// Each part's style at [context]: the theme defaults, then the app-wide
   /// [PageLayoutStyle], then [PageLayout.customStyle] (FO-08 US-06 FR-01).
@@ -1412,28 +1463,37 @@ class _PageLayoutState extends State<PageLayout>
       end: touched.end ? pad.end : 0,
     );
     final box = fill ?? const WidgetStyle();
-    return FocusTraversalOrder(
-      order: NumericFocusOrder(slot.index + 1),
-      child: ContainerLayout(
-        repaintBoundary: true,
-        style: box.copyWith(
-          padding: (box.padding ?? EdgeInsets.zero).add(padding),
+    final slots = ContainerLayout(
+      repaintBoundary: true,
+      style: box.copyWith(
+        padding: (box.padding ?? EdgeInsets.zero).add(padding),
+      ),
+      child: _SlotMedia(
+        keep: (
+          top: touched.top && (isBody || !safe.top),
+          bottom: touched.bottom && (isBody || !safe.bottom),
+          start: touched.start && !safe.left,
+          end: touched.end && !safe.right,
         ),
-        child: _SlotMedia(
-          keep: (
-            top: touched.top && (isBody || !safe.top),
-            bottom: touched.bottom && (isBody || !safe.bottom),
-            start: touched.start && !safe.left,
-            end: touched.end && !safe.right,
-          ),
-          removeKeyboard: widget.resizeToAvoidKeyboard,
-          child: Material(
-            type: MaterialType.transparency,
-            textStyle: look.textStyle,
-            child: child,
-          ),
+        removeKeyboard: widget.resizeToAvoidKeyboard,
+        child: Material(
+          type: MaterialType.transparency,
+          textStyle: look.textStyle,
+          child: child,
         ),
       ),
+    );
+    return FocusTraversalOrder(
+      order: NumericFocusOrder(slot.index + 1),
+      // A solid fill declares itself; a gradient, an image, or none paints
+      // no single color for the resolver to read (US-18 FR-07).
+      child: switch (box.backgroundColor) {
+        final color? when _fillsSolid(box) => SystemBarFill(
+          color: color,
+          child: slots,
+        ),
+        _ => slots,
+      },
     );
   }
 }

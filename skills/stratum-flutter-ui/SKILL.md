@@ -764,6 +764,7 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   main column of `top` over the center column (`tab`, `body`, `bottom`) and `right`, `footer` at the end, and
   `snack` floating at the bottom center. A null slot takes no space; under right-to-left text `left` sits on the
   right. Each slot hosts any widget, a `ListTile` included, with no `Scaffold`. The page needs bounded constraints.
+  `systemStyle: SystemStyle(...)` sets this page's system bar style as an inner scope over the app-wide one.
 - **Rebuild scope** — slots take plain widgets, so you pick what rebuilds: put a `BlocBuilder`, `BlocSelector`,
   `Consumer` (Riverpod), or `context.select` (Provider) inside one slot to rebuild only that slot, or around the
   whole `PageLayout` to rebuild every slot.
