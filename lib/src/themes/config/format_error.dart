@@ -27,7 +27,7 @@ enum StratumThemeErrorCode {
   expectedShadow,
   expectedBarIcons,
   expectedBoolean,
-  // FO-02 typography (docs/specs/stratum_ui/themes/typography/s05_errors.md)
+  // FO-02 typography
   emptyFonts,
   unknownFontKey,
   invalidTag,

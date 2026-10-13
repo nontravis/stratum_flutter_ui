@@ -9,8 +9,7 @@ import WebKit
   #error("Unsupported platform.")
 #endif
 
-/// The iOS and macOS half of the native sender channel of `StratumWebView`
-/// (docs/specs/stratum_ui/components/common/web_view/s01_architecture.md).
+/// The iOS and macOS half of the native sender channel of `StratumWebView`.
 ///
 /// `attach` adds a script message handler named `StratumBridge` and a
 /// document-start alias `window.StratumBridge` to the `WKWebView` that

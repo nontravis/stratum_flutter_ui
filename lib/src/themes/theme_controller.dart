@@ -11,8 +11,7 @@ import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 typedef _Registered = ({String sourceId, String folder});
 
 /// Thrown by `StratumThemeController.switchTo` for an id that names no
-/// registered theme: the error `theme_not_found` of
-/// `docs/specs/stratum_ui/themes/s05_errors.md`.
+/// registered theme: the error `theme_not_found`.
 @immutable
 class StratumThemeNotFoundException implements Exception {
   const new(this.id, this.registeredIds);

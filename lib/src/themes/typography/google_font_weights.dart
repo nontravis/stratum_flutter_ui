@@ -1,8 +1,6 @@
 import 'package:stratum_ui/src/src.dart';
 
-/// The weights each Google font of a typography loads in: its weight set
-/// (`docs/specs/stratum_ui/themes/typography/s03_domain.md` invariant 13,
-/// `docs/specs/stratum_ui/themes/s03_domain.md` invariant 4).
+/// The weights each Google font of a typography loads in: its weight set.
 ///
 /// The one home of the weight-set rule: the theme controller's Google
 /// wait loads each Google font in these weights, and `TypographyResolver`

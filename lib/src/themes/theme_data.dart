@@ -113,12 +113,10 @@ class StratumThemeData {
     return StratumAppPalette(name, shades);
   }
 
-  /// The Material theme of spec section 10: the [ColorScheme] of section
-  /// 10.2, the fields of section 10.3, and the text theme of
-  /// `docs/specs/stratum_ui/themes/s01_architecture.md`
-  /// `### Material text theme`, resolved for [locale], [windowSize], and
-  /// [textScaler]. No slot sets a weight, so each draws its type's yaml
-  /// weight. A null [windowSize] adds no window scale to the text theme.
+  /// The Material theme: the [ColorScheme], its fields, and the text theme,
+  /// resolved for [locale], [windowSize], and [textScaler]. No slot sets a
+  /// weight, so each draws its type's yaml weight. A null [windowSize] adds
+  /// no window scale to the text theme.
   /// Its page transitions install one `StratumPageTransitionsBuilder` of
   /// [animation] for every [TargetPlatform], so every plain Material page
   /// takes the theme's transition (FO-03 US-08 FR-01 E04). It sets no
