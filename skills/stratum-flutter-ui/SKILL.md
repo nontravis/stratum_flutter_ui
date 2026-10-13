@@ -30,6 +30,11 @@ as deprecated aliases; write the new names.
 
   Remove them once stratum_ui's own `pubspec.yaml` no longer carries the override.
 
+- Before adding the override, check what else in the app graph reads `equatable`: run `flutter pub deps --style=list` and
+  look for other `equatable` dependents. The override silences every package's `equatable` constraint, and `equatable`
+  3.0.0 is breaking (removed `EquatableMixin`, changed `toString`, dropped the `runtimeType` comparison of props), so a
+  dependency still on `^2.x` runs on 3.0.0 untested. Run the app's tests after adding it.
+
 ## Box layouts
 
 Each entry: usage, key parameters, keyboard behavior.
@@ -939,3 +944,31 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   button, and from a scrim tap if you want one. A later ask that answers anything but `available` — up to date,
   required, maintenance, or a failure — closes it first. The gate needs a navigator below it, as `MaterialApp.builder`
   gives.
+
+## Notices
+
+- **`StratumToastHost`** — place it once in `MaterialApp.builder`, below `StratumThemeApplication` and above the app's
+  navigator, so every notice shows above every route, modal routes included. It wraps `toastification` itself: call
+  `context.showToast(...)`, never `toastification.show`, since a raw call can freeze the wrong per-alignment config.
+  An app that already wraps its root in its own `ToastificationWrapper` keeps it; the host adds none. One solid notice
+  shows at a time (further ones queue in call order), and float notices stack up to 3 per corner, the newest nearest
+  the screen edge; a fourth closes that corner's oldest.
+
+  ```dart
+  MaterialApp(
+    builder: (context, child) => StratumThemeApplication(
+      themes: themes,
+      themeMode: ThemeMode.system,
+      child: StratumToastHost(child: child!),
+    ),
+    home: HomePage(),
+  );
+  ```
+
+- **`context.showToast`** — shows one notice from any context under the host: `message` (required), `kind`
+  (`FeedbackState.info`, the default, `.positive`, `.warning`, `.negative`), `action` (a `StratumToastAction` of label
+  and callback), and `placement`. A call with no host above throws a `FlutterError` naming `StratumToastHost`.
+- **`StratumToastPlacement`** — `const StratumToastPlacement.float(StratumToastCorner.bottomEnd)` for a corner
+  (`topStart` … `bottomEnd`, start and end following the text direction), or
+  `const StratumToastPlacement.solid(StratumToastEdge.top)` for a full-width bar at an edge. Omitted placement defaults
+  by window size: bottom center on mobile and tablet, bottom start on desktop.
