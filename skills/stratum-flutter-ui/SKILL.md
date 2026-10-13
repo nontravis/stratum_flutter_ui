@@ -17,6 +17,19 @@ or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old n
 `StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` still compile for one minor version
 as deprecated aliases; write the new names.
 
+## Install
+
+- Stratum's notices wrap `toastification`, which pins `equatable ^2.0.5`, while Stratum's own `flutter_falconx`
+  needs `equatable ^3.0.0`. pub reads overrides only in the app, so add these two lines to the app's `pubspec.yaml`
+  when you add stratum_ui, and run `flutter pub get`:
+
+  ```yaml
+  dependency_overrides:
+    equatable: ^3.0.0
+  ```
+
+  Remove them once stratum_ui's own `pubspec.yaml` no longer carries the override.
+
 ## Box layouts
 
 Each entry: usage, key parameters, keyboard behavior.
