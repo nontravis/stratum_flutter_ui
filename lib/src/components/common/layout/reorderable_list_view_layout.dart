@@ -2543,8 +2543,18 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// The reorder sliver lifted the item [key]; it stays in its own slot,
-  /// hidden, while the drag proxy shows a raster of it (R49).
-  void _liftedTook(Key key) => _liftedKey = key;
+  /// hidden, while the drag proxy shows a raster of it (R49). The lift is
+  /// a move of the item (D12): it ends, at once, each leaving item drawn
+  /// beside it, as a key move does ([_endExitsBeside]), and the item's own
+  /// grow-in, before the drag proxy's raster is taken, so it shows the
+  /// item at full size with no leaving item riding it (FR-04 E14,
+  /// invariant 30).
+  void _liftedTook(Key key) {
+    _liftedKey = key;
+    final index = _dragIndex;
+    if (index != null) _endExitsBeside(index);
+    _incoming[key]?.controller.value = 1;
+  }
 
   /// The reorder sliver let the item [key] go: its drag reset, often
   /// inside the build that ends the drag.

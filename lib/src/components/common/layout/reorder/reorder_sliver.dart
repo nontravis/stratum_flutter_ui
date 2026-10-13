@@ -158,6 +158,14 @@ class _ReorderSliverState extends SliverReorderableListState {
       0 <= index && index < widget.itemCount,
       'startItemDragReorder($index) is out of range',
     );
+    // A long press inside the item's own focused text field is the
+    // field's, never a drag start; a handle's own listener still starts
+    // one (D10 I01xT15, FR-01 E12). Only the item-wide long-press
+    // listener offers this recognizer type.
+    if (recognizer is DelayedMultiDragGestureRecognizer &&
+        _pointerInFocusedField(index, event.position)) {
+      return;
+    }
     setState(() {
       if (isSettlingDrop) {
         // A drag that starts while a drop settles completes it at once
@@ -198,6 +206,42 @@ class _ReorderSliverState extends SliverReorderableListState {
     return null;
   }
 
+  /// Whether [position] lies inside the focused [EditableText] of the
+  /// item at [index]: its own long press runs there, never a drag's
+  /// (D10 I01xT15).
+  bool _pointerInFocusedField(int index, Offset position) {
+    if (!primaryFocusInEditableText()) return false;
+    final focusContext = FocusManager.instance.primaryFocus!.context!;
+    final item = _itemAt(index);
+    if (item == null) return false;
+    var underItem = false;
+    focusContext.visitAncestorElements((ancestor) {
+      if (!identical(ancestor, item.context)) return true;
+      underItem = true;
+      return false;
+    });
+    if (!underItem) return false;
+    final editable = _editableTextContext(focusContext);
+    final box = editable?.findRenderObject();
+    if (box is! RenderBox || !box.attached) return false;
+    return (Offset.zero & box.size).contains(box.globalToLocal(position));
+  }
+
+  /// [context] itself when it is an [EditableText], else its nearest
+  /// [EditableText] ancestor; null when there is none.
+  BuildContext? _editableTextContext(BuildContext context) {
+    if (context.widget is EditableText) return context;
+    BuildContext? found;
+    context.visitAncestorElements((ancestor) {
+      if (ancestor.widget is EditableText) {
+        found = ancestor;
+        return false;
+      }
+      return true;
+    });
+    return found;
+  }
+
   void _registerItem(_ReorderItemState item) {
     // A leaving item takes no part in a drag.
     if (item.widget.exiting) {
@@ -234,6 +278,16 @@ class _ReorderSliverState extends SliverReorderableListState {
     _dragIndex = item.index;
     item.dragging = true;
     widget.onReorderStart?.call(item.index);
+    // The lift is a move of the item (D12): the body ends what runs
+    // beside it, which marks the item's own size factor dirty at once, so
+    // this flushes layout and paint before the drag proxy reads the
+    // item's size and takes its raster ([_Lift.new]); otherwise that read
+    // finds the size still dirty.
+    _body._liftedTook(item.key);
+    final owner = item.context.findRenderObject()?.owner;
+    owner?.flushLayout();
+    owner?.flushCompositingBits();
+    owner?.flushPaint();
     item.rebuild();
     _insertIndex = item.index;
     final lift = _lift = _Lift(
@@ -247,7 +301,6 @@ class _ReorderSliverState extends SliverReorderableListState {
       proxyDecorator: widget.proxyDecorator,
       tickerProvider: this,
     )..startDrag();
-    _body._liftedTook(item.key);
 
     final overlay = Overlay.of(context, debugRequiredFor: widget);
     assert(_overlayEntry == null, 'A drag proxy is already in the overlay');

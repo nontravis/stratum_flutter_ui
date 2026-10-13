@@ -15083,6 +15083,121 @@ void main() {
         await tester.pumpAndSettle();
       },
     );
+
+    testWidgets(
+      'matrix I01xT08 and I03xT08, us11/fr04/e14: a lift of the item a '
+      'leaving item is drawn beside ends that leaving item at once, and the '
+      'drop finds none',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              handles: true,
+              itemsController: ReorderableItemsController(),
+            ),
+          ),
+        );
+        final harness = _harness(tester)..remove(2);
+        await tester.pump();
+        final leaving = find.byKey(const ValueKey(2), skipOffstage: false);
+        expect(leaving, findsOne);
+
+        final gesture = await _grabHandle(tester, 3);
+        expect(leaving, findsNothing);
+        await gesture.moveBy(const Offset(0, 40));
+        await tester.pump(const Duration(milliseconds: 16));
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(leaving, findsNothing);
+        expect(harness.ends, hasLength(1));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'matrix I01xT07 and us11/fr01/e10: a drag that starts on an item still '
+      'growing in ends its grow-in at once, and the item lifts at full size',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              handles: true,
+              itemsController: ReorderableItemsController(),
+            ),
+            theme: _normalTheme(const Duration(seconds: 2)),
+          ),
+        );
+        _harness(tester).insert(1, 9);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        expect(_offsetBetween(tester, 0, 1), lessThan(80));
+
+        final gesture = await _grabHandle(tester, 9);
+
+        expect(_runningTransitions(tester), isEmpty);
+        expect(_offsetBetween(tester, 0, 1), 80);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    final starters = ValueVariant<String>({'long press', 'handle'});
+    testWidgets(
+      'matrix I01xT15 and us11/fr01/e12: a <long press, handle drag> on an '
+      'item whose text field holds focus <leaves the item in place, lifts it>',
+      (tester) async {
+        final field = FocusNode();
+        addTearDown(field.dispose);
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              handles: true,
+              boundaryAt: 1,
+              boundary: (child) => Row(
+                children: [
+                  child,
+                  SizedBox(
+                    width: 100,
+                    height: 40,
+                    child: TextField(focusNode: field),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        field.requestFocus();
+        await tester.pump();
+        final harness = _harness(tester);
+
+        if (starters.currentValue == 'long press') {
+          final gesture = await tester.startGesture(
+            tester.getCenter(find.byType(TextField)),
+          );
+          await tester.pump(
+            kLongPressTimeout + const Duration(milliseconds: 50),
+          );
+          await gesture.moveBy(const Offset(0, 40));
+          await tester.pump();
+          expect(harness.starts, isEmpty);
+          await gesture.up();
+        } else {
+          final gesture = await _grabHandle(tester, 1);
+          expect(harness.starts, [1]);
+          await gesture.up();
+        }
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(field.hasPrimaryFocus, isTrue);
+      },
+      variant: starters,
+    );
   });
 
   group('renames', () {
