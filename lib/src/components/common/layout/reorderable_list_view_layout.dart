@@ -83,9 +83,10 @@ part 'reorder/reorder_slots.dart';
 /// started at, and [onReorderItem] does not fire. A drag that starts
 /// between an `insertItem`, `removeItem`, or `moveItem` call, or a move
 /// the list reported through [onReorderItem], and the next frame ends the
-/// same way at once. A reorder key or a screen reader's move during a
-/// drag, or while a dropped item settles, ends it the same way before it
-/// moves.
+/// same way at once. A reorder key or a screen reader's move during a drag
+/// ends it the same way before it moves; while a dropped item settles, it
+/// completes the drop at once — one [onReorderItem], the item in its new
+/// slot, no second [onReorderEnd] — then moves (R52).
 class ReorderableListViewLayout extends StatelessWidget {
   const new builder({
     super.key,
@@ -2072,9 +2073,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       if (event is KeyDownEvent) _announceBlocked(intent);
       return KeyEventResult.handled;
     }
-    // A drag, or a drop still settling, ends first, as a call ends it
-    // (invariant 28): the move changes the data under it.
-    _cancelDrag();
+    // A drag ends first, as a call ends it (invariant 28): the move changes
+    // the data under it. A settling drop completes at once instead, its move
+    // reported, then this move runs (R52).
+    _endDragForInput();
     final moved = _reportMove(
       index,
       from,
@@ -2171,7 +2173,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// call during a drag ends it first (invariant 28); a screen-reader move
   /// is decoded into its intent and takes the reorder keys' target (R4),
   /// so it acts at once, also between a call and its frame (FR-03 E07),
-  /// and ends a drag or a settling drop first, as a call does (FR-03 E08).
+  /// and ends a drag first, as a call does (FR-03 E08); a settling drop it
+  /// completes at once instead (R52).
   /// Every screen-reader action, once reported, books a focused move's jump
   /// for the next frame's start when its slot is not laid out
   /// ([_bookMoveJump], R46), which [_jumpForMove] makes exact at the data's
@@ -2188,7 +2191,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final intent = drop ? null : _intentOf(index, to);
     final target = intent == null ? _dataIndexOf(to) : _targetOf(from, intent);
     if (target == null) return;
-    if (!drop) _cancelDrag();
+    if (!drop) _endDragForInput();
     // A screen-reader move takes a focused move's jump (R46); only a drop
     // keeps its own edge jump.
     final edge =
@@ -2404,7 +2407,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// Starts a drag, and ends it at once when it starts between a call, or a
   /// move the list reported (R6), and the frame that settles it: that frame
   /// would build a leaving copy, or the dragged item at another index,
-  /// whose keys the drag proxy holds.
+  /// whose keys the drag proxy holds. A start that completed the settling
+  /// drop of its own pointer down (R52) skips that end for the drop's own
+  /// booking.
   void _handleReorderStart(int index) {
     final dragged = _FrameIndex(index);
     _dragIndex = dragged;
@@ -2413,7 +2418,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _inReorderStart = true;
     try {
       _layout.onReorderStart?.call(index);
-      if (_pending.isNotEmpty) _cancelDrag();
+      final state = _listKey.currentState;
+      final ownDrop = state is _ReorderSliverState && state.completesOwnDrop();
+      if (_pending.isNotEmpty && !ownDrop) _cancelDrag();
     } finally {
       _inReorderStart = false;
     }
@@ -2456,12 +2463,25 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// the SDK gives the drop (FR-04 E06).
   void _handleReorderEnd(int index) => _endDrag(now: true, at: index);
 
-  /// Cancels a drag in progress before an insert, remove, or move, a key
-  /// move or a screen-reader move among them, or one that starts before
-  /// their frame (E06): the dragged item returns to its slot,
-  /// `onReorderEnd` fires at once with the index the drag started at, and
-  /// `onReorderItem` does not fire. A dropped item still settling ends the
-  /// same way, with no second `onReorderEnd`.
+  /// Ends the drag or settling drop an EndUser input this body is about to
+  /// run would land in: a settling drop completes at once, its move
+  /// reported (R52); a live drag ends as a call ends it (E06).
+  void _endDragForInput() {
+    final state = _listKey.currentState;
+    if (state is _ReorderSliverState && state.isSettlingDrop) {
+      state.completeSettlingDrop();
+      return;
+    }
+    _cancelDrag();
+  }
+
+  /// Cancels a drag in progress before an insert, remove, or move, or one
+  /// that starts before their frame (E06): the dragged item returns to its
+  /// slot, `onReorderEnd` fires at once with the index the drag started at,
+  /// and `onReorderItem` does not fire. A dropped item still settling ends
+  /// the same way, with no second `onReorderEnd`. A key move or a
+  /// screen-reader move takes [_endDragForInput] instead, which completes
+  /// a settling drop (R52).
   void _cancelDrag() {
     if (_inReorderStart) {
       // The drag `onReorderStart` reports is set up after it returns.

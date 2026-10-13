@@ -159,7 +159,11 @@ class _ReorderSliverState extends SliverReorderableListState {
       'startItemDragReorder($index) is out of range',
     );
     setState(() {
-      if (_lift != null) {
+      if (isSettlingDrop) {
+        // A drag that starts while a drop settles completes it at once
+        // (R52), so the drop's move reports and the new drag lifts.
+        _completeDropForStart();
+      } else if (_lift != null) {
         cancelReorder();
       } else if (_recognizer != null && _recognizerPointer != event.pointer) {
         _recognizer!.dispose();
@@ -319,6 +323,45 @@ class _ReorderSliverState extends SliverReorderableListState {
     final newIndex = _insertIndex!;
     _handleReorderItem(oldIndex, newIndex);
     setState(_dragReset);
+  }
+
+  /// Whether a dropped item still settles: its drag ended and the proxy's
+  /// settle runs, so the drag's reset has not (R52).
+  bool get isSettlingDrop => _lift != null && _finalDropPosition != null;
+
+  /// How many calls the body held when the drag start this State is arming
+  /// completed its own settling drop, null when none did: that start skips
+  /// the "between a move reported and its frame" cancel for the drop's own
+  /// booking and nothing later added (R52, FR-04 E06).
+  int? _completedDropForStart;
+
+  /// Completes the settling drop at once (R52): the same path its settle's
+  /// end runs — one `onReorderItem` with the drop's indices, the item in
+  /// its new slot, no second `onReorderEnd`.
+  void completeSettlingDrop() {
+    if (!isSettlingDrop) return;
+    _dropCompleted();
+  }
+
+  /// [completeSettlingDrop] for the drag this State is arming, marking the
+  /// booking it leaves for that drag's own start (R52).
+  void _completeDropForStart() {
+    _completedDropForStart = _body._pending.length;
+    _dropCompleted();
+  }
+
+  /// Whether the drag being started completes the settling drop its own
+  /// start booked ([_completeDropForStart]), with no call added since, so
+  /// its start skips the "between a move reported and its frame" cancel
+  /// (FR-04 E06); takes the mark, so one start consumes it.
+  bool completesOwnDrop() {
+    final at = _completedDropForStart;
+    if (at == null || at != _body._pending.length) {
+      _completedDropForStart = null;
+      return false;
+    }
+    _completedDropForStart = null;
+    return true;
   }
 
   /// Ends the drag: the lifted item shows in its slot again, the proxy and

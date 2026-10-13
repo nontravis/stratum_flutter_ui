@@ -5966,23 +5966,34 @@ void main() {
       return (null, [..._harness(tester).ends]);
     }
 
-    // After the input moved item 2 below item 3: the drag or the drop ended
-    // as a call ends it, with one onReorderEnd and no move of its own.
+    // After the input moved item 2: a drag ended as a call ends it, or a
+    // settling drop completed first (R52).
     void expectDragEndedFirst(
       WidgetTester tester,
       List<int> ends,
       _ItemState state,
     ) {
       final harness = _harness(tester);
-      expect(harness.moves, [(2, 3)]);
-      expect(harness.ends, ends.isEmpty ? [3] : ends);
-      expect(harness.ids, [0, 1, 3, 2, 4]);
+      if (ends.isEmpty) {
+        // During a drag: the input ends it as a call does, with no move of
+        // its own, then moves item 2.
+        expect(harness.moves, [(2, 3)]);
+        expect(harness.ends, [3]);
+        expect(harness.ids, [0, 1, 3, 2, 4]);
+      } else {
+        // While a drop settles: the input completes the drop at once (R52),
+        // then moves item 2.
+        expect(harness.moves, [(3, 4), (2, 3)]);
+        expect(harness.ends, ends);
+        expect(harness.ids, [0, 1, 4, 2, 3]);
+      }
       expect(_itemState(tester, 2), same(state));
     }
 
     testWidgets(
-      'us11/fr02/e08: a reorder key during a pointer drag, or while a drop '
-      'settles, ends it first and then moves the focused item',
+      'us11/fr02/e08 (R52): a reorder key during a pointer drag ends it first, '
+      'or while a drop settles completes it first, and then moves the focused '
+      'item',
       (tester) async {
         final (gesture, ends) = await holdThree(tester);
         final state = _itemState(tester, 2);
@@ -6003,8 +6014,9 @@ void main() {
     );
 
     testWidgets(
-      'us11/fr03/e08: a screen-reader move during a pointer drag, or while a '
-      'drop settles, ends it first and then moves the item',
+      'us11/fr03/e08 (R52): a screen-reader move during a pointer drag ends it '
+      'first, or while a drop settles completes it first, and then moves the '
+      'item',
       (tester) async {
         final handle = tester.ensureSemantics();
         final (gesture, ends) = await holdThree(tester);
@@ -14696,6 +14708,32 @@ void main() {
         expect(_statesOf(tester, 100), [same(state)]);
         expect(state.expanded, isTrue);
         handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'matrix I01xT03 and us11/fr01/e10 (R52): a drag that starts while a '
+      'drop settles completes the drop at once, then lifts the new item',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 5, handles: true)));
+        final harness = _harness(tester);
+        final first = await _grabHandle(tester, 0);
+        await _dragPastNeighbor(tester, first);
+        await tester.pumpAndSettle();
+        await first.up();
+        await tester.pump();
+        expect(harness.moves, isEmpty);
+        expect(harness.ends, hasLength(1));
+
+        final second = await _grabHandle(tester, 3, pointer: 2);
+
+        expect(harness.moves, [(0, 1)]);
+        expect(harness.ends, hasLength(1));
+        expect(harness.starts, [0, 3]);
+        await second.up();
+        await tester.pumpAndSettle();
+        expect(harness.ends, hasLength(2));
+        expect(tester.takeException(), isNull);
       },
     );
   });
