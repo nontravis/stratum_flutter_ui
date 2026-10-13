@@ -258,7 +258,7 @@ class StratumToastHostState extends State<StratumToastHost> {
     final direction = Directionality.of(context!);
     final alignment = toastManagerKey(request.placement, direction);
     _announce(context, request);
-    return toastification.showCustom(
+    final item = toastification.showCustom(
       context: context,
       alignment: alignment,
       autoCloseDuration: toastCloseTime(
@@ -273,6 +273,10 @@ class StratumToastHostState extends State<StratumToastHost> {
         onAutoCompleteCompleted: (item) => _closed(request.placement, item),
       ),
     );
+    // WORKAROUND: toastification queues the insert in a post-frame callback
+    // without scheduling a frame; remove when it schedules one itself.
+    SchedulerBinding.instance.ensureVisualUpdate();
+    return item;
   }
 
   /// Announces [request] as its kind name, then its message, in the app's

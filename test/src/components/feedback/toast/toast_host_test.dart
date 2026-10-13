@@ -569,6 +569,68 @@ void main() {
   });
 
   testWidgets(
+    'fix-t26b: fr03: a bare showToast with no gesture still reaches a '
+    'float corner with live entries',
+    (tester) async {
+      _view(tester, _phone);
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) {
+            for (final m in ['a', 'b', 'c']) {
+              c.showToast(message: m);
+            }
+          }),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      for (final m in ['a', 'b', 'c']) {
+        expect(find.text(m), findsOneWidget);
+      }
+      // No tap, no setState: an async callback's own call (fix-t26b), on a
+      // float corner that already holds 3 live entries.
+      final context = tester.element(find.text('go'));
+      unawaited(Future<void>.microtask(() => context.showToast(message: 'd')));
+      await tester.pumpAndSettle();
+      for (final m in ['b', 'c', 'd']) {
+        expect(find.text(m), findsOneWidget);
+      }
+      expect(find.text('a'), findsNothing);
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'fix-t26b: a bare showToast with no gesture, from a Future callback, '
+    'lands on a corner that already has a live entry',
+    (tester) async {
+      _view(tester, _phone);
+      late BuildContext ctx;
+      await tester.pumpWidget(
+        _app(
+          Builder(
+            builder: (c) {
+              ctx = c;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      ctx.showToast(message: 'first');
+      await tester.pumpAndSettle();
+      expect(find.text('first'), findsOneWidget);
+      // No tap, no setState: an async callback's own call (an await then
+      // show, a timer, a stream event all reach this same path), on a
+      // corner whose overlay entry already exists, must still flush
+      // toastification's post-frame insert (fix-t26b).
+      unawaited(Future<void>.microtask(() => ctx.showToast(message: 'second')));
+      await tester.pumpAndSettle();
+      expect(find.text('second'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'fr03/e04 second half: a 4th show at one corner leaves another untouched',
     (tester) async {
       _view(tester, _phone);
