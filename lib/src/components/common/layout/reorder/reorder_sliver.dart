@@ -505,6 +505,9 @@ class _ReorderSliverState extends SliverReorderableListState {
     );
   }
 
+  /// The body's frame plan as it stands at the sliver's layout.
+  _FramePlan _plan() => _body._plan;
+
   /// The extent the plan gives [slot] under a fixed extent of
   /// [itemExtent], [itemExtentBuilder], or the measured prototype: none for
   /// a leaving item, which fades over the item that takes its place (E11);
@@ -601,6 +604,7 @@ class _ReorderSliverState extends SliverReorderableListState {
       return _PrototypeExtent(
         delegate: delegate,
         itemExtentBuilder: _extents,
+        uniformPlan: widget.itemExtentBuilder == null ? _plan : null,
         prototypeItem: prototype == null
             ? null
             : ExcludeFocus(child: ExcludeSemantics(child: prototype)),
@@ -711,9 +715,8 @@ class _ReorderItemState extends State<_ReorderItem> {
     _list._registerItem(this);
     return IgnorePointer(
       ignoring: _dragging,
-      child: Opacity(
-        opacity: _dragging ? 0 : 1,
-        alwaysIncludeSemantics: true,
+      child: _LiftHide(
+        hidden: _dragging,
         child: Transform.translate(
           offset: offset,
           child: _SnapshotBoundary(child: widget.child),
@@ -804,8 +807,46 @@ class _ReorderItemState extends State<_ReorderItem> {
   }
 }
 
-/// A repaint boundary that rasters what it painted last, for the drag
-/// proxy.
+/// Hides a lifted item where it lay: paints nothing while [hidden], and
+/// keeps the item's semantics. Unlike an `Opacity`, it never composites,
+/// so an item at rest keeps its one layer (D15).
+class _LiftHide extends SingleChildRenderObjectWidget {
+  const new({required this.hidden, super.child});
+
+  final bool hidden;
+
+  @override
+  _RenderLiftHide createRenderObject(BuildContext context) =>
+      _RenderLiftHide(hidden: hidden);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderLiftHide renderObject) {
+    renderObject.hidden = hidden;
+  }
+}
+
+class _RenderLiftHide extends RenderProxyBox {
+  new({required bool hidden}) : _hidden = hidden;
+
+  bool _hidden;
+  set hidden(bool value) {
+    if (value == _hidden) return;
+    _hidden = value;
+    markNeedsPaint();
+  }
+
+  @override
+  bool paintsChild(RenderBox child) => !_hidden;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (_hidden) return;
+    super.paint(context, offset);
+  }
+}
+
+/// The one layer of an item at rest: a repaint boundary that rasters what
+/// it painted last, for the drag proxy.
 class _SnapshotBoundary extends SingleChildRenderObjectWidget {
   const new({super.child});
 

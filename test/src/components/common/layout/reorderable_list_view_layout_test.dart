@@ -571,13 +571,16 @@ double _top(WidgetTester tester, int id) =>
     tester.getTopLeft(find.byKey(ValueKey(id))).dy -
     tester.getTopLeft(find.byType(Scrollable)).dy;
 
-/// The opacity of the nearest [FadeTransition] around item [id].
+/// The opacity of the nearest [FadeTransition] around item [id], or of a
+/// subtype of it, as the built-in fade is.
 double _opacity(WidgetTester tester, int id) => tester
     .widget<FadeTransition>(
       find
           .ancestor(
             of: find.byKey(ValueKey(id)),
-            matching: find.byType(FadeTransition),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is FadeTransition,
+            ),
           )
           .first,
     )
@@ -592,7 +595,10 @@ double _enteringOpacity(WidgetTester tester, int id) => tester
       find
           .ancestor(
             of: find.byKey(ValueKey(id), skipOffstage: false),
-            matching: find.byType(FadeTransition, skipOffstage: false),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is FadeTransition,
+              skipOffstage: false,
+            ),
           )
           .first,
     )
@@ -607,7 +613,10 @@ RenderBox _sizeBox(WidgetTester tester, int id) =>
               find
                   .ancestor(
                     of: find.byKey(ValueKey(id), skipOffstage: false),
-                    matching: find.byType(FadeTransition, skipOffstage: false),
+                    matching: find.byWidgetPredicate(
+                      (widget) => widget is FadeTransition,
+                      skipOffstage: false,
+                    ),
                   )
                   .first,
             )
@@ -2208,8 +2217,11 @@ void main() {
           ),
         );
         final mid = Curves.easeInOutSine.transform(0.5);
-        Finder inList(Type type) =>
-            find.descendant(of: _reorderSliver(), matching: find.byType(type));
+        // A subtype counts: the built-in fade is one of FadeTransition.
+        Finder inList<T extends Widget>() => find.descendant(
+          of: _reorderSliver(),
+          matching: find.byWidgetPredicate((widget) => widget is T),
+        );
         // The caller's own transition around the item that moves (R48).
         final running = find.descendant(
           of: _reorderSliver(),
@@ -2228,8 +2240,8 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 125));
         expect(running, findsOneWidget);
-        expect(inList(SizeTransition), findsNothing);
-        expect(inList(FadeTransition), findsNothing);
+        expect(inList<SizeTransition>(), findsNothing);
+        expect(inList<FadeTransition>(), findsNothing);
         expect(callerBox(), 40);
         expect(_offsetBetween(tester, 0, 1), 80);
         expect(received!.value, moreOrLessEquals(mid));
@@ -2240,7 +2252,7 @@ void main() {
         expect(received!.value, 1);
         await tester.pump(_halfReverse(theme));
         expect(running, findsOneWidget);
-        expect(inList(SizeTransition), findsNothing);
+        expect(inList<SizeTransition>(), findsNothing);
         expect(callerBox(), 40);
         expect(received!.value, moreOrLessEquals(mid));
         await tester.pumpAndSettle();
@@ -14391,6 +14403,69 @@ void main() {
         expect(tester.takeException(), isNull);
       },
       variant: edgeExits,
+    );
+
+    testWidgets(
+      'us11/fr04/e02 and s03/inv24 (D15): an item at rest costs one layer, '
+      'and the element and render-object counts the chain lands at',
+      (tester) async {
+        tester.view
+          ..physicalSize = const Size(200, 2000)
+          ..devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Material(
+              child: themedHost(
+                SizedBox(
+                  width: 200,
+                  height: 2000,
+                  child: ReorderableListViewLayout.builder(
+                    itemCount: 50,
+                    onReorderItem: (from, to) {},
+                    itemBuilder: (context, index) =>
+                        SizedBox(key: ValueKey(index), height: 40),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final sliver = tester.element(
+          find
+              .byWidgetPredicate(
+                (widget) => widget is SliverMultiBoxAdaptorWidget,
+              )
+              .first,
+        );
+        var children = 0;
+        var elements = 0;
+        var renders = 0;
+        var layers = 0;
+        void count(Element element) {
+          elements += 1;
+          if (element is RenderObjectElement) {
+            renders += 1;
+            if (element.renderObject.debugLayer != null) layers += 1;
+          }
+          element.visitChildren(count);
+        }
+
+        sliver.visitChildren((child) {
+          children += 1;
+          count(child);
+        });
+        debugPrint(
+          'COST per item: elements ${elements / children}, render objects '
+          '${renders / children}, layers ${layers / children}',
+        );
+        expect(children, 50);
+        expect(layers / children, 1);
+        expect(elements / children, 28);
+        expect(renders / children, 14);
+      },
     );
   });
 

@@ -74,6 +74,29 @@ class _FramePlan {
     return (data: slot - before, exit: null);
   }
 
+  /// The data items before [slot], from 0 to [childCount]: a leaving item
+  /// or closing gap counts the ones before it.
+  int dataBefore(int slot) {
+    final (:data, :exit) = at(slot.clamp(0, childCount));
+    return data ?? exit?.after ?? 0;
+  }
+
+  /// The slot the SDK's varied-extent list finds at [offset] when each data
+  /// item takes [extent] and each leaving one none: the first slot whose
+  /// end reaches [offset], or the last slot when none does.
+  ///
+  /// Reads products of [extent], as the SDK's fixed-extent list does, so
+  /// it costs O(exits), not a sum from slot 0.
+  int slotAt(double offset, double extent) {
+    if (offset == 0) return 0;
+    if (!(extent > 0) || extent * dataCount < offset) return childCount - 1;
+    // The fewest data items that reach the offset; division may miss by one.
+    var items = (offset / extent).ceil().clamp(1, dataCount);
+    if (items > 1 && extent * (items - 1) >= offset) items -= 1;
+    if (extent * items < offset) items += 1;
+    return slotOfData(items - 1);
+  }
+
   /// The slot of the data item at [index].
   int slotOfData(int index) {
     var slot = index;
@@ -494,9 +517,14 @@ class _PrototypeExtent extends SliverVariedExtentList {
   const new({
     required super.delegate,
     required super.itemExtentBuilder,
+    required this.uniformPlan,
     required this.prototypeItem,
     required this.onExtent,
   });
+
+  /// The plan the slots lay out by when every data item takes one extent,
+  /// under `itemExtent` or `prototypeItem`; null under `itemExtentBuilder`.
+  final ValueGetter<_FramePlan>? uniformPlan;
 
   final Widget? prototypeItem;
   final ValueSetter<double> onExtent;
@@ -509,6 +537,7 @@ class _PrototypeExtent extends SliverVariedExtentList {
       _RenderPrototypeExtent(
         childManager: context as _PrototypeExtentElement,
         itemExtentBuilder: itemExtentBuilder,
+        uniformPlan: uniformPlan,
         onExtent: onExtent,
       );
 
@@ -518,7 +547,9 @@ class _PrototypeExtent extends SliverVariedExtentList {
     covariant _RenderPrototypeExtent renderObject,
   ) {
     super.updateRenderObject(context, renderObject);
-    renderObject.onExtent = onExtent;
+    renderObject
+      ..uniformPlan = uniformPlan
+      ..onExtent = onExtent;
   }
 }
 
@@ -599,10 +630,69 @@ class _RenderPrototypeExtent extends RenderSliverVariedExtentList
   new({
     required _PrototypeExtentElement super.childManager,
     required super.itemExtentBuilder,
+    required ValueGetter<_FramePlan>? uniformPlan,
     required this.onExtent,
-  });
+  }) : _uniformPlan = uniformPlan;
 
   ValueSetter<double> onExtent;
+
+  ValueGetter<_FramePlan>? _uniformPlan;
+  set uniformPlan(ValueGetter<_FramePlan>? value) {
+    if (value == _uniformPlan) return;
+    _uniformPlan = value;
+    markNeedsLayout();
+  }
+
+  /// The plan and the one extent of its data items, under `itemExtent` or
+  /// `prototypeItem`; null under `itemExtentBuilder`.
+  ///
+  /// Under one extent a slot's offset is a product, as on the SDK's
+  /// fixed-extent list, not the varied-extent list's sum from slot 0.
+  ({_FramePlan plan, double extent})? get _uniform {
+    final plan = _uniformPlan?.call();
+    if (plan == null) return null;
+    if (plan.dataCount == 0) return (plan: plan, extent: 0);
+    final first = plan.slotOfData(0);
+    final extent = itemExtentBuilder(first, layoutDimensions) ?? 0;
+    return (plan: plan, extent: extent);
+  }
+
+  @override
+  double indexToLayoutOffset(double itemExtent, int index) {
+    final uniform = _uniform;
+    if (uniform == null) return super.indexToLayoutOffset(itemExtent, index);
+    return uniform.extent * uniform.plan.dataBefore(index);
+  }
+
+  @override
+  int getMinChildIndexForScrollOffset(double scrollOffset, double itemExtent) {
+    final uniform = _uniform;
+    if (uniform == null) {
+      return super.getMinChildIndexForScrollOffset(scrollOffset, itemExtent);
+    }
+    return uniform.plan.slotAt(scrollOffset, uniform.extent);
+  }
+
+  @override
+  int getMaxChildIndexForScrollOffset(double scrollOffset, double itemExtent) {
+    final uniform = _uniform;
+    if (uniform == null) {
+      return super.getMaxChildIndexForScrollOffset(scrollOffset, itemExtent);
+    }
+    return uniform.plan.slotAt(scrollOffset, uniform.extent);
+  }
+
+  @override
+  double computeMaxScrollOffset(
+    SliverConstraints constraints,
+    double itemExtent,
+  ) {
+    final uniform = _uniform;
+    if (uniform == null) {
+      return super.computeMaxScrollOffset(constraints, itemExtent);
+    }
+    return uniform.extent * uniform.plan.dataCount;
+  }
 
   /// The prototype, laid out with its size used: a new size of it lays
   /// this sliver out again.

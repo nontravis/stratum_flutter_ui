@@ -12,6 +12,7 @@ import 'package:flutter/rendering.dart'
         PaintingContext,
         PipelineOwner,
         RenderAbstractViewport,
+        RenderAnimatedOpacity,
         RenderObjectVisitor,
         RenderProxyBox,
         RenderRepaintBoundary,
@@ -20,6 +21,7 @@ import 'package:flutter/rendering.dart'
         RenderSliverMultiBoxAdaptor,
         RenderSliverVariedExtentList,
         ScrollCacheExtent,
+        SliverConstraints,
         SliverLayoutDimensions,
         SliverMultiBoxAdaptorParentData,
         applyGrowthDirectionToAxisDirection;
@@ -3544,7 +3546,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return _ItemSize(
       axis: _layout.scrollDirection,
       factor: jumps ? kAlwaysCompleteAnimation : animation,
-      child: FadeTransition(
+      child: _ItemFade(
         opacity: animation,
         alwaysIncludeSemantics: true,
         child: _stretched(child),
@@ -4044,6 +4046,72 @@ class _RenderItemSize extends RenderShiftedBox {
                   : childSize.height),
       ),
     );
+  }
+}
+
+/// The built-in fade of an item, which takes a layer of its own only while
+/// it shows the item part-way: an item at rest paints into its one boundary
+/// (D15).
+class _ItemFade extends FadeTransition {
+  const new({
+    required super.opacity,
+    super.alwaysIncludeSemantics,
+    super.child,
+  });
+
+  @override
+  RenderAnimatedOpacity createRenderObject(BuildContext context) =>
+      _RenderItemFade(
+        opacity: opacity,
+        alwaysIncludeSemantics: alwaysIncludeSemantics,
+      );
+}
+
+/// The SDK's [RenderAnimatedOpacity], a repaint boundary only while its
+/// alpha lies between 0 and 255; the SDK's is one at any alpha above 0.
+class _RenderItemFade extends RenderAnimatedOpacity {
+  new({required super.opacity, required super.alwaysIncludeSemantics});
+
+  /// Whether the fade shows the item part-way, the only time it composites.
+  var _fading = false;
+
+  @override
+  bool get isRepaintBoundary => child != null && _fading;
+
+  @override
+  set opacity(Animation<double> value) {
+    if (!attached) {
+      super.opacity = value;
+      _updateFading();
+      return;
+    }
+    if (value == opacity) return;
+    opacity.removeListener(_updateFading);
+    super.opacity = value;
+    value.addListener(_updateFading);
+    _updateFading();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    opacity.addListener(_updateFading);
+    _updateFading();
+  }
+
+  @override
+  void detach() {
+    opacity.removeListener(_updateFading);
+    super.detach();
+  }
+
+  void _updateFading() {
+    final alpha = Color.getAlphaFromOpacity(opacity.value);
+    final fading = alpha > 0 && alpha < 255;
+    if (fading == _fading) return;
+    _fading = fading;
+    // The SDK marks the compositing bits only when the alpha crosses 0.
+    if (child != null) markNeedsCompositingBitsUpdate();
   }
 }
 
