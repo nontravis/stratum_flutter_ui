@@ -14166,7 +14166,70 @@ void main() {
         await tester.pump();
 
         expect(tester.takeException(), isNull);
-        expect(builds, lessThanOrEqualTo(_laidOut(tester).count + 1));
+        expect(builds, lessThanOrEqualTo(_laidOut(tester).count));
+      },
+    );
+
+    /// Items 0 to 3 at 60 px and 9 to 15 at 10 px: seven short items put
+    /// before the four tall ones push the last tall one past the slots the
+    /// room after them holds at the 60 px laid-out average (R54).
+    final shortBeforeTall = {
+      for (var id = 0; id < 4; id++) id: 60.0,
+      for (var id = 9; id < 16; id++) id: 10.0,
+    };
+
+    testWidgets(
+      'us11/fr04/e10 and D9 (L14, R54): with no controller and no callback, '
+      'inserts of items shorter than the laid-out average that push the last '
+      'item of a list laid out to its end past the slots the room holds end '
+      "that item's State, though the next frame lays it out on screen",
+      (tester) async {
+        await tester.pumpWidget(
+          _app(_Harness(count: 4, heights: shortBeforeTall)),
+        );
+        final state = _itemState(tester, 3);
+
+        final harness = _harness(tester);
+        for (var i = 0; i < 7; i++) {
+          harness.insertData(0, 9 + i);
+        }
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(_top(tester, 3), 250);
+        expect(state.mounted, isFalse);
+        expect(_statesOf(tester, 3), [isNot(same(state))]);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e10 and D9 (R54): under itemExtentBuilder, with no '
+      'controller and no callback, the same inserts keep the pushed last '
+      "item's State: the read counts the next layout at the builder's extents",
+      (tester) async {
+        _HarnessState? holder;
+        double extentOf(int index, SliverLayoutDimensions dimensions) =>
+            shortBeforeTall[holder?.ids[index] ?? index]!;
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 4,
+              heights: shortBeforeTall,
+              itemExtentBuilder: extentOf,
+            ),
+          ),
+        );
+        final state = _itemState(tester, 3);
+
+        final harness = holder = _harness(tester);
+        for (var i = 0; i < 7; i++) {
+          harness.insertData(0, 9 + i);
+        }
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(_top(tester, 3), 250);
+        expect(_statesOf(tester, 3), [same(state)]);
       },
     );
   });

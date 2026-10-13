@@ -1341,11 +1341,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   ///
   /// When the last frame laid the data out to its end and a count no call
   /// explains grew it from [changedFrom], the next frame lays out new slots
-  /// past that end with no scroll, as many as the room that layout left
-  /// past its last child holds (D9: L2 does not widen). The read goes on
-  /// into those slots alone, never further, so the sliver takes each
-  /// widget it reads there, and stops once it finds every key the last
-  /// frame laid out that the app's answer does not place.
+  /// past that end with no scroll (D9: L2 does not widen). The read goes on
+  /// into those slots alone, as [_nextLayoutLast] counts them, so the
+  /// sliver takes each widget it reads there, and stops once it finds every
+  /// key the last frame laid out that the app's answer does not place.
   void _readLaidOut(Map<Key, _FrameIndex> built, {required int? changedFrom}) {
     final laid = _laidOut();
     final context = _listKey.currentContext;
@@ -1372,12 +1371,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       readAt(i);
     }
     if (changedFrom != null && laid.last == changedFrom - 1) {
-      // The room at the laid-out extent, plus one slot the room cuts. Items
-      // of no extent, or a room with no bound, lay out to the data's end.
-      final slots = laid.room / laid.extent;
-      final stop = slots.isFinite
-          ? last + slots.floor() + 1
-          : (slots > 0 ? end : last);
+      final stop = _nextLayoutLast(laid, last: last, end: end);
       for (
         var i = last + 1;
         i <= stop && i <= end && unfound.isNotEmpty;
@@ -1388,6 +1382,46 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     // A widget the sliver did not take never shows in a later frame.
     WidgetsBinding.instance.addPostFrameCallback((_) => _readLooks.clear());
+  }
+
+  /// The last index, at most [end], that the next layout lays out with no
+  /// scroll after the last frame [laid] the data out to its end at [last].
+  ///
+  /// - Exact under `itemExtentBuilder`: it lays the new data out as the
+  ///   sliver does, at the builder's extents, to the last frame's cache end.
+  /// - Else an estimate, the room at the laid-out average, exact under one
+  ///   extent: items shorter than that average lay out more slots, and a
+  ///   laid-out key pushed past the estimate loses its State (L14, R54).
+  /// - Laid-out items all of 0 extent give no average, so it reads on to
+  ///   [end], past the slots new items with an extent take.
+  int _nextLayoutLast(
+    ({int first, int last, double extent, double room}) laid, {
+    required int last,
+    required int end,
+  }) {
+    final extentOf = _layout.itemExtentBuilder;
+    final sliver = _sliver();
+    if (extentOf != null && sliver is RenderSliverVariedExtentList) {
+      final constraints = sliver.constraints;
+      final cacheEnd =
+          constraints.scrollOffset +
+          constraints.cacheOrigin +
+          constraints.remainingCacheExtent;
+      final dimensions = sliver.layoutDimensions;
+      // The sliver lays out every item that starts before the cache end.
+      var offset = 0.0;
+      var index = 0;
+      while (index <= end && offset < cacheEnd) {
+        final extent = extentOf(index, dimensions);
+        if (extent == null) break;
+        offset += extent;
+        index += 1;
+      }
+      return index - 1;
+    }
+    final slots = laid.room / laid.extent;
+    // A room with no bound lays the data out to its end.
+    return slots.isFinite ? last + slots.ceil() : (slots > 0 ? end : last);
   }
 
   /// The app's `findChildIndexCallback` answer for [key] in this build
