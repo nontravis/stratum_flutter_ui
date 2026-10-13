@@ -247,6 +247,9 @@ class _RenderHang extends RenderProxyBox {
     markNeedsLayout();
   }
 
+  /// Whether this leaving item paints back over the item before it.
+  bool get hangsBack => _hang && _back;
+
   final _clipHandle = LayerHandle<ClipRectLayer>();
 
   double _main(Size size) => _axis == Axis.vertical ? size.height : size.width;
@@ -384,6 +387,102 @@ class _RenderHang extends RenderProxyBox {
   }
 }
 
+/// Paints each leaving item of no extent that hangs back over the item the
+/// trailing edge cuts (D9 item 5): the sliver's own paint skips it, as it
+/// paints a child only when the child's leading edge lies inside the paint
+/// extent. Its hit test and semantics stay off ([_RenderHang]).
+mixin _PaintsHangs on RenderSliverMultiBoxAdaptor {
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    final end = constraints.remainingPaintExtent;
+    var hosted = false;
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      final extent = paintExtentOf(child);
+      if (childMainAxisPosition(child) < end) {
+        hosted = hosted || extent > 0;
+        continue;
+      }
+      // A box with an extent past the edge leaves no item there to hang
+      // over, nor does any slot after it.
+      if (extent > 0) return;
+      final hang = child is _RenderSlotSemantics ? child.child : null;
+      if (!hosted || hang is! _RenderHang || !hang.hangsBack) continue;
+      final transform = Matrix4.identity();
+      applyPaintTransform(child, transform);
+      if (MatrixUtils.getAsTranslation(transform) case final shift?) {
+        context.paintChild(child, offset + shift);
+      }
+    }
+  }
+}
+
+/// The list's sliver under varied extents: a [SliverList] whose element
+/// keeps the item the last frame laid out first where it stands when a
+/// build adds or drops [slotsBefore] slots before it (D9 item 4).
+class _SlotList extends SliverList {
+  const new({required super.delegate, required this.slotsBefore});
+
+  /// The slots this build added, less those it dropped, before the item
+  /// the last frame laid out first.
+  final int slotsBefore;
+
+  @override
+  SliverMultiBoxAdaptorElement createElement() => _SlotListElement(this);
+
+  @override
+  RenderSliverList createRenderObject(BuildContext context) =>
+      _RenderSlotList(childManager: context as SliverMultiBoxAdaptorElement);
+}
+
+/// The SDK's [SliverList] element, which keeps each slot's layout offset by
+/// its number across a rebuild, with that number shifted by
+/// [_SlotList.slotsBefore]: the item laid out first keeps its own offset,
+/// so nothing on screen moves. The sliver lays the slots before it out
+/// back from it, as after any change before its first child, and corrects
+/// its scroll offset at the list's start.
+class _SlotListElement extends SliverMultiBoxAdaptorElement {
+  new(_SlotList super.widget) : super(replaceMovedChildren: true);
+
+  /// The widget whose shift this element applied: a rebuild under the same
+  /// widget applies none.
+  Widget? _shifted;
+
+  @override
+  void performRebuild() {
+    final widget = this.widget as _SlotList;
+    final shift = identical(widget, _shifted) ? 0 : widget.slotsBefore;
+    _shifted = widget;
+    if (shift == 0) {
+      super.performRebuild();
+      return;
+    }
+    final sliver = renderObject;
+    final offsets = <int, double>{
+      for (
+        var child = sliver.firstChild;
+        child != null;
+        child = sliver.childAfter(child)
+      )
+        sliver.indexOf(child): ?sliver.childScrollOffset(child),
+    };
+    super.performRebuild();
+    for (
+      var child = sliver.firstChild;
+      child != null;
+      child = sliver.childAfter(child)
+    ) {
+      if (child.parentData case final SliverMultiBoxAdaptorParentData data) {
+        data.layoutOffset = offsets[sliver.indexOf(child) - shift];
+      }
+    }
+  }
+}
+
+class _RenderSlotList extends RenderSliverList with _PaintsHangs {
+  new({required super.childManager});
+}
+
 /// The list's sliver under every fixed extent: a varied-extent list whose
 /// slots take the plan's extents ([_ReorderSliverState._slotExtent]), and
 /// which measures [prototypeItem], when given, as a child of its own before
@@ -495,7 +594,8 @@ class _PrototypeExtentElement extends SliverMultiBoxAdaptorElement {
   }
 }
 
-class _RenderPrototypeExtent extends RenderSliverVariedExtentList {
+class _RenderPrototypeExtent extends RenderSliverVariedExtentList
+    with _PaintsHangs {
   new({
     required _PrototypeExtentElement super.childManager,
     required super.itemExtentBuilder,

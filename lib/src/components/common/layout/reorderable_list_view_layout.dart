@@ -16,10 +16,12 @@ import 'package:flutter/rendering.dart'
         RenderProxyBox,
         RenderRepaintBoundary,
         RenderShiftedBox,
+        RenderSliverList,
         RenderSliverMultiBoxAdaptor,
         RenderSliverVariedExtentList,
         ScrollCacheExtent,
         SliverLayoutDimensions,
+        SliverMultiBoxAdaptorParentData,
         applyGrowthDirectionToAxisDirection;
 import 'package:flutter/scheduler.dart' show Ticker, TickerCallback;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
@@ -511,6 +513,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// gap out (R47).
   _FramePlan _plan = _FramePlan.none;
 
+  /// The slots this turn's `moveItem` calls added, less those they dropped,
+  /// before the item the last frame laid out first ([_countSlotsBefore]);
+  /// the next build's sliver takes it once ([_takeSlotsBefore]), so they
+  /// never move the screen (D9 item 4).
+  var _slotsBefore = 0;
+
+  /// The index, in the data after this turn's calls so far, of the item the
+  /// last frame laid out first; null before the turn's first call counts.
+  _DataIndex? _firstLaidOut;
+
   /// The main-axis extent of `prototypeItem`, which the list's sliver
   /// measures in each layout before it lays its slots out.
   double? _prototypeExtent;
@@ -715,6 +727,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     );
     if (index < const _DataIndex(0) || index > _dataEnd) return;
     _cancelDrag();
+    _countSlotsBefore(to: index);
     _shiftForInsert(index);
     _pending.add((from: null, to: index, reported: false));
     _dataCount += 1;
@@ -741,6 +754,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final look = built == null ? null : _lookAt(built);
     final focused = node?.hasFocus ?? false;
     final around = _takeExitsAround(index);
+    _countSlotsBefore(from: index);
     _shiftForRemove(index);
     _pending.add((from: index, to: null, reported: false));
     _dataCount -= 1;
@@ -845,19 +859,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final reaimed = _moveTargets
         .where((target) => target.index == from)
         .toList(growable: false);
+    // The old slot closes as the item grows in; at once under reduced
+    // motion or a fixed extent, where the item only fades in (E02).
+    final gap =
+        key != null && size != null && !_fixedExtent && !context.reducesMotion
+        ? _startClosingGap(from, key, size)
+        : null;
+    _countSlotsBefore(from: from, to: to, exit: gap != null, moved: true);
     _shiftForRemove(from);
     // A remove while the insert side below reads the data without the
     // item, then one move entry.
     _pending.add((from: from, to: null, reported: false));
     _dataCount -= 1;
-    // The old slot closes as the item grows in; at once under reduced
-    // motion or a fixed extent, where the item only fades in (E02).
-    if (key != null &&
-        size != null &&
-        !_fixedExtent &&
-        !context.reducesMotion) {
-      _joinGap(from, [_startClosingGap(from, key, size)]);
-    }
+    if (gap != null) _joinGap(from, [gap]);
     _shiftForInsert(to);
     // `_shiftForRemove` above left each reaimed target's index null, the
     // "taken out" case; this call re-inserts the same key at [to], so the
@@ -1165,6 +1179,50 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
   }
 
+  /// Follows the item the last frame laid out first through a call's remove
+  /// at [from] and insert at [to] ([_firstLaidOut]), read before the call
+  /// shifts the data; an insert at that item's own index lands in the
+  /// laid-out range. For a `moveItem` call, [moved], counts the slots they
+  /// add or drop before that item ([_slotsBefore]): the remove drops one,
+  /// unless its item leaves through an [exit] that keeps a slot there, and
+  /// the insert adds one. Under a fixed extent the sliver places each slot
+  /// by the extents before it, so nothing counts.
+  void _countSlotsBefore({
+    _DataIndex? from,
+    _DataIndex? to,
+    bool exit = false,
+    bool moved = false,
+  }) {
+    if (_fixedExtent) return;
+    var first = _firstLaidOut;
+    if (first == null) {
+      final laid = _laidOut();
+      if (laid == null) return;
+      first = _dataIndexOf(_FrameIndex(laid.first));
+      if (first == null) return;
+    }
+    if (from != null && from < first) {
+      first -= 1;
+      // With no room an exit sits after the item that takes its place.
+      final kept = exit && (!_exitsTakeNoExtent(context) || from + 1 <= first);
+      if (moved && !kept) _slotsBefore -= 1;
+    }
+    if (to != null && to < first) {
+      first += 1;
+      if (moved) _slotsBefore += 1;
+    }
+    _firstLaidOut = first;
+  }
+
+  /// [_slotsBefore], for the sliver's rebuild in this build alone: the
+  /// count, and the index it counts from, start over for the next turn.
+  int _takeSlotsBefore() {
+    final slots = _slotsBefore;
+    _slotsBefore = 0;
+    _firstLaidOut = null;
+    return slots;
+  }
+
   /// Settles the calls since the last build against the app's new data:
   /// reads each inserted item's key. An item count the calls do not
   /// explain ends every animation at once (E12).
@@ -1174,7 +1232,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final explained = count == _dataCount;
     // Read before the clear: where this turn's calls put each watched key.
     final watched = _watchedKeys();
-    if (!explained) _resetMotion();
+    if (!explained) {
+      _resetMotion();
+      // The data shifted where no call says: the sliver keeps each slot's
+      // offset by its number.
+      _slotsBefore = 0;
+    }
     _dataCount = count;
     final calls = List.of(_pending);
     if (_pending.isNotEmpty) {
@@ -2246,6 +2309,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         if (insert.index == from) insert,
     ];
     _pendingInserts.removeWhere(own.contains);
+    _countSlotsBefore(from: from, to: to);
     _shiftForRemove(from);
     // A remove while the insert side reads the data without the item, then
     // one move entry, as in [_moveItem].
@@ -3092,6 +3156,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       final item = jump.node.context;
       final position = item == null ? null : Scrollable.maybeOf(item)?.position;
       if (item == null || position == null) continue;
+      // The jump moves the screen by design, and its estimate reads each
+      // slot at the offset its number held: so does the next layout.
+      _slotsBefore = 0;
       final toStart = jump.toStart;
       if (toStart == null) {
         jump.target.origin = _jumpForMove(at, item, position);
@@ -3204,17 +3271,20 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// The slot the item at [to] of the current data enters in the next
-  /// frame, for a move either way (invariant 35). The next frame anchors
-  /// its layout at the first slot the last frame built, so the count
-  /// starts there: that slot plus the boxes the next frame draws at full
-  /// extent from it through [to]. Those are the items before [to], save
-  /// an insert of this turn that grows in from 0 px, and each exit started
-  /// since the last build, the slot a move left or the leaving copy of a
-  /// built item, unless exits take no room. A box before that first slot
-  /// counts nothing, and a target before it enters a slot the last frame
-  /// did not build. Slots only, as [_builtSlot] reads them.
+  /// frame, for a move either way (invariant 35), numbered as the last
+  /// frame's slots. The next frame anchors its layout where the last frame
+  /// laid out its first slot, at the slot that item takes past the slots
+  /// this turn added before it ([_slotsBefore]), so the count starts there:
+  /// that slot plus the boxes the next frame draws at full extent from it
+  /// through [to]. Those are the items before [to], save an insert of this
+  /// turn that grows in from 0 px, and each exit started since the last
+  /// build, the slot a move left or the leaving copy of a built item,
+  /// unless exits take no room. A box before that first slot counts
+  /// nothing, and a target before it enters a slot the last frame did not
+  /// build. Slots only, as [_builtSlot] reads them.
   int _enteredSlot(_DataIndex to) {
-    final slot = to.nextSlot;
+    final shift = _slotsBefore;
+    final slot = to.nextSlot - shift;
     final built = _laidOut()?.first;
     if (built == null || slot < built) return slot;
     final first = built;
@@ -3226,14 +3296,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         !_fixedExtent &&
         !context.reducesMotion) {
       entered -= _pendingInserts.where((insert) {
-        final at = insert.index.nextSlot;
+        final at = insert.index.nextSlot - shift;
         return at < slot && counts(at);
       }).length;
     }
     if (!_exitsTakeNoExtent(context)) {
       entered += _exits
           .where(
-            (exit) => exit.fresh && !exit.ended && counts(exit.gap.nextSlot),
+            (exit) =>
+                exit.fresh && !exit.ended && counts(exit.gap.nextSlot - shift),
           )
           .length;
     }
@@ -4157,7 +4228,9 @@ class _Exit {
 /// and the move announcement.
 extension type const _DataIndex(int value) {
   /// The slot the item at this index takes in the next frame: the sliver
-  /// keeps each slot's offset by its number across a rebuild.
+  /// keeps each slot's offset by its number across a rebuild, shifted by
+  /// the slots a `moveItem` adds or drops before the first laid-out slot
+  /// ([_SlotListElement]).
   int get nextSlot => value;
 
   bool operator <(_DataIndex other) => value < other.value;

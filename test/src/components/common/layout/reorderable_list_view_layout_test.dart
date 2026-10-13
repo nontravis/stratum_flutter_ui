@@ -14232,6 +14232,76 @@ void main() {
         expect(_statesOf(tester, 3), [same(state)]);
       },
     );
+
+    // from, to, and an item on screen that neither slot's motion moves.
+    final earlyMoves = ValueVariant<(int, int, int)>({
+      (10, 20, 103),
+      (10, 100, 95),
+      (100, 10, 95),
+    });
+    testWidgets(
+      'us11/fr05 and s03/inv58 (D9): a moveItem whose closing gap or target '
+      'lies before the laid-out range moves no item on screen',
+      (tester) async {
+        final (from, to, still) = earlyMoves.currentValue!;
+        // The still item sits fourth on screen.
+        await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+          offset: (still - 3) * 40.0,
+        );
+        final top = _top(tester, still);
+
+        _harness(tester).move(from, to);
+        await tester.pump();
+        expect(_top(tester, still), top);
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(_top(tester, still), top);
+        await tester.pumpAndSettle();
+        expect(_top(tester, still), top);
+      },
+      variant: earlyMoves,
+    );
+
+    // A no-room exit whose host the trailing edge cuts, and one that hangs
+    // past the last item: the item count, the removed id, and the item it
+    // paints over or past.
+    final edgeExits = ValueVariant<(String, int, int, int)>({
+      ('trailing edge', 20, 7, 8),
+      ('last item', 5, 4, 3),
+    });
+    testWidgets(
+      'us11/fr04/e01 and s03/inv58 (D9): under reduced motion a removed item '
+      'still paints at <the trailing edge, past the last item>',
+      (tester) async {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        final (_, count, id, host) = edgeExits.currentValue!;
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: count,
+              itemsController: ReorderableItemsController(),
+            ),
+          ),
+        );
+
+        _harness(tester).remove(id);
+        await tester.pump();
+
+        // Each item composites in its own repaint boundary, so an exit the
+        // sliver paints has its layer in the tree, after its host's
+        // (`_compositeOrder`, as pin 2240 reads it since Task 8). A paint log
+        // cannot tell: an exit that moves in place keeps its clean layer.
+        expect(_compositeOrder(tester, [host, id]), [host, id]);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+      variant: edgeExits,
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {

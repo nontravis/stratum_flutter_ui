@@ -581,6 +581,8 @@ class _ReorderSliverState extends SliverReorderableListState {
       'ReorderableListViewLayout needs an Overlay',
     );
     _reducesMotion = context.reducesMotion;
+    // Taken at every build, so one turn's count reaches one rebuild alone.
+    final slotsBefore = _body._takeSlotsBefore();
     final delegate = SliverChildBuilderDelegate(
       _itemBuilder,
       childCount: _body._plan.childCount,
@@ -605,7 +607,7 @@ class _ReorderSliverState extends SliverReorderableListState {
         onExtent: (extent) => _body._prototypeExtent = extent,
       );
     }
-    return SliverList(delegate: delegate);
+    return _SlotList(delegate: delegate, slotsBefore: slotsBefore);
   }
 }
 
