@@ -63,6 +63,10 @@ StratumToastPlacement defaultToastPlacement(WindowSize window) =>
 /// corner uses (-0.5); the full width hides it.
 ///
 /// Internal to the toast folder; the barrel hides it.
+// WORKAROUND: toastification keys a manager, and the config it freezes,
+// by resolved `Alignment` alone, with no way to carry a second config at
+// the same alignment; remove when toastification keys a manager per
+// config, not per alignment (upstream issue #250).
 Alignment toastManagerKey(
   StratumToastPlacement placement,
   TextDirection direction,

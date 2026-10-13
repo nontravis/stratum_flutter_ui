@@ -110,30 +110,58 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   bool _disposed = false;
 
+  /// How many `StratumToastHost` widgets are mounted in this process right
+  /// now, so a dispose only clears the shared managers once none are left
+  /// (edge finding 3: two hosts in one process).
+  static int _liveHosts = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _liveHosts++;
+  }
+
   @override
   void dispose() {
-    // WORKAROUND: toastification keeps process-wide managers keyed by
-    // alignment, each holding its overlay entry and the running close
-    // timers, so they outlive any host and fail the test teardown; remove
-    // when a toastification release owns its managers' lifecycle
-    // (upstream PR #247).
-    // ignore: invalid_use_of_visible_for_testing_member, reads the process-wide managers of toastification 3.2.0
-    for (final manager in toastification.managers.values) {
-      // ignore: invalid_use_of_visible_for_testing_member, see above.
-      for (final item in manager.notifications) {
-        if (item.isRunning) item.stop();
+    _liveHosts--;
+    if (_liveHosts == 0) {
+      // WORKAROUND: toastification keeps process-wide managers keyed by
+      // alignment, each holding its overlay entry and the running close
+      // timers, so they outlive any host and fail the test teardown; remove
+      // when a toastification release owns its managers' lifecycle
+      // (upstream PR #247).
+      // ignore: invalid_use_of_visible_for_testing_member, reads the process-wide managers of toastification 3.2.0
+      for (final manager in toastification.managers.values) {
+        // ignore: invalid_use_of_visible_for_testing_member, see above.
+        for (final item in manager.notifications) {
+          if (item.isRunning) item.stop();
+        }
       }
+      // ignore: invalid_use_of_visible_for_testing_member, see above.
+      toastification.managers.clear();
     }
-    // ignore: invalid_use_of_visible_for_testing_member, see above.
-    toastification.managers.clear();
     _disposed = true;
     super.dispose();
   }
 
   /// Shows [request] now, or queues it when it is a solid notice and one
-  /// shows already (US-01 FR-03).
+  /// shows already (US-01 FR-03); a call reached during build or layout
+  /// defers to the next frame, since `toastification` inserts into the
+  /// overlay synchronously and that insert asserts outside the idle phase
+  /// (edge finding 4).
   void show(StratumToastRequest request) {
     if (_disposed) return;
+    if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.idle) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!_disposed) _show(request);
+      });
+      return;
+    }
+    _show(request);
+  }
+
+  /// [show]'s own work, once the frame is idle.
+  void _show(StratumToastRequest request) {
     switch (request.placement) {
       case StratumToastSolid():
         if (_solidShowing) {
@@ -290,10 +318,8 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-    final floatWidth = _floatWidth(context, theme.layouts.maxWidthMobile);
     return ToastificationConfigProvider(
-      config: _floatConfig(floatWidth),
+      config: _floatConfig,
       child: Builder(
         key: _floatKey,
         builder: (floatContext) => _StratumToastHostScope(
@@ -313,6 +339,10 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   /// The host's own wrapper, only when no `ToastificationWrapper` sits
   /// above, since its global key allows one per tree (s01, O1).
+  // WORKAROUND: toastification's `ToastificationWrapper` holds a single
+  // `GlobalKey<OverlayState>`, so a second instance under the same app
+  // throws on the duplicate key; remove when the wrapper supports more
+  // than one per tree or drops the global key (upstream issue #248).
   Widget _wrapWhenNoWrapperAbove(BuildContext context, Widget child) {
     if (context.findAncestorWidgetOfExactType<ToastificationWrapper>() !=
         null) {
@@ -321,15 +351,23 @@ class StratumToastHostState extends State<StratumToastHost> {
     return ToastificationWrapper(child: child);
   }
 
-  /// The float config: the notice width token capped by the window less
-  /// the margin on each side, and the keyboard owned by the margin itself
-  /// (s03 invariants 5, 12).
-  static ToastificationConfig _floatConfig(double width) =>
-      ToastificationConfig(
-        itemWidth: width,
-        applyMediaQueryViewInsets: false,
-        marginBuilder: _floatMargin,
-      );
+  /// The float config: no width of its own — the plain look clamps its
+  /// own surface to the notice width token capped by the window at build
+  /// time instead, so a resize while a float shows is not frozen (s03
+  /// invariants 5, 12).
+  // WORKAROUND: toastification creates one `ToastificationManager` per
+  // alignment on the first show (`managers.putIfAbsent` in
+  // `lib/src/core/toastification.dart`) and that manager's config, read
+  // once at creation (`toastification_manager.dart`, `config.itemWidth`),
+  // outlives every later build of this `ToastificationConfigProvider`; an
+  // `itemWidth` here would freeze at the window size of the first show;
+  // remove when a toastification release re-reads the config per item,
+  // not per manager (upstream issue #249).
+  static const ToastificationConfig _floatConfig = ToastificationConfig(
+    itemWidth: double.infinity,
+    applyMediaQueryViewInsets: false,
+    marginBuilder: _floatMargin,
+  );
 
   /// The solid config: full width, the edge's negative `viewPadding` as
   /// the margin that cancels what `toastification` adds, and the keyboard
@@ -361,10 +399,13 @@ class StratumToastHostState extends State<StratumToastHost> {
     );
   }
 
-  /// The solid margin of the edge: the negative `viewPadding` of that
-  /// edge, cancelling the `viewPadding` `toastification` adds on top, so
-  /// the fill reaches the screen edge; a pure function of the overlay
-  /// entry's own context (s03 invariants 4, 16).
+  /// The solid margin of the edge: on top, the negative `viewPadding` that
+  /// cancels the `viewPadding` `toastification` adds on top, so the fill
+  /// reaches the screen edge; on bottom, the keyboard height less that
+  /// same `viewPadding`, so the net margin is zero with the keyboard
+  /// closed and the keyboard's own height with it open (s03 invariant 5,
+  /// FR-02 E06); a pure function of the overlay entry's own context (s03
+  /// invariants 4, 16).
   static EdgeInsets _solidMargin(
     BuildContext context,
     AlignmentGeometry alignment,
@@ -372,15 +413,8 @@ class StratumToastHostState extends State<StratumToastHost> {
     final y = alignment.resolve(Directionality.of(context)).y;
     final viewPadding = MediaQuery.viewPaddingOf(context);
     if (y < 0) return EdgeInsets.only(top: -viewPadding.top);
-    return EdgeInsets.only(bottom: -viewPadding.bottom);
-  }
-
-  /// The float width token `layouts.max-width-mobile`, capped by the
-  /// window less `space.lg` on each side (s03 invariant 12).
-  static double _floatWidth(BuildContext context, double token) {
-    final lg = context.theme.space.lg;
-    final cap = MediaQuery.sizeOf(context).width - 2 * lg;
-    return token < cap ? token : cap;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    return EdgeInsets.only(bottom: keyboard - viewPadding.bottom);
   }
 }
 

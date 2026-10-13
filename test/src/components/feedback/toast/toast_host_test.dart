@@ -46,6 +46,37 @@ Widget _button(String label, void Function(BuildContext) show) => Builder(
   builder: (c) => TextButton(onPressed: () => show(c), child: Text(label)),
 );
 
+/// Calls `context.showToast` from `initState`, so a test can prove a
+/// build-phase call defers past the build instead of crashing
+/// `overlay.insert` (edge finding 4).
+class _ShowOnMount extends StatefulWidget {
+  const new(this.message);
+
+  final String message;
+
+  @override
+  State<_ShowOnMount> createState() => _ShowOnMountState();
+}
+
+class _ShowOnMountState extends State<_ShowOnMount> {
+  @override
+  void initState() {
+    super.initState();
+    // An explicit placement skips `context.windowSize`'s own inherited
+    // widget read, isolating the host's build-phase deferral from that
+    // unrelated initState restriction.
+    context.showToast(
+      message: widget.message,
+      placement: const StratumToastPlacement.float(
+        StratumToastCorner.bottomCenter,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
 /// The surface box of the notice holding [message]: the outermost
 /// `ContainerLayout` under it.
 Finder _fill(String message) => find
@@ -334,4 +365,157 @@ void main() {
       reason: 'the host must reuse the app wrapper, not assert on a second',
     );
   });
+
+  testWidgets('us01/fr02/e06: a solid bottom notice rides above the keyboard', (
+    tester,
+  ) async {
+    _view(tester, _phone);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await _show(tester, [
+      'Up solid',
+    ], placement: const StratumToastPlacement.solid(StratumToastEdge.bottom));
+    expect(
+      tester.getRect(_fill('Up solid')).bottom,
+      lessThanOrEqualTo(844 - 300),
+    );
+  });
+
+  testWidgets(
+    'edge i2: a float notice width follows a window widened while it shows',
+    (tester) async {
+      // A narrow first show freezes a small cap (320 = 360 - 2*lg) if the
+      // width lives in toastification's config; widening past the token's
+      // own cap (430 = 480 - 2*lg) must still grow the rendered width, or
+      // the viewport-clamped frozen value would mask a narrower resize.
+      _view(tester, const Size(360, 844));
+      await _show(
+        tester,
+        ['Wide'],
+        placement: const StratumToastPlacement.float(
+          StratumToastCorner.bottomCenter,
+        ),
+      );
+      final narrowWidth = tester.getRect(_fill('Wide')).width;
+      _view(tester, const Size(800, 844));
+      await tester.pump();
+      expect(tester.getRect(_fill('Wide')).width, greaterThan(narrowWidth));
+    },
+  );
+
+  testWidgets(
+    'edge minor 3: a nested host dispose does not freeze the outer host',
+    (tester) async {
+      _view(tester, _phone);
+      await tester.pumpWidget(
+        _app(
+          Column(
+            children: [
+              _button('outer', (c) => c.showToast(message: 'Outer')),
+              StratumToastHost(
+                child: _button('inner', (c) => c.showToast(message: 'Inner')),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.tap(find.text('outer'));
+      await tester.pumpAndSettle();
+      expect(find.text('Outer'), findsOneWidget);
+      // Unmount the inner host only; the outer host and its notice stay.
+      await tester.pumpWidget(
+        _app(_button('outer', (c) => c.showToast(message: 'Outer'))),
+      );
+      await tester.pump();
+      expect(find.text('Outer'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text('Outer'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'edge minor 4: a showToast call from initState defers past the build phase',
+    (tester) async {
+      _view(tester, _phone);
+      await tester.pumpWidget(_app(const _ShowOnMount('OnMount')));
+      await tester.pumpAndSettle();
+      expect(find.text('OnMount'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'fr03/e02: three solid notices show one after another in call order',
+    (tester) async {
+      _view(tester, _phone);
+      await _show(tester, [
+        'one',
+        'two',
+        'three',
+      ], placement: const StratumToastPlacement.solid(StratumToastEdge.bottom));
+      expect(find.text('one'), findsOneWidget);
+      expect(find.text('two'), findsNothing);
+      expect(find.text('three'), findsNothing);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text('one'), findsNothing);
+      expect(find.text('two'), findsOneWidget);
+      expect(find.text('three'), findsNothing);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text('two'), findsNothing);
+      expect(find.text('three'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'fr03/e03 e05 top half: the newest top-corner notice sits nearest the edge',
+    (tester) async {
+      _view(tester, _phone);
+      await _show(
+        tester,
+        ['old', 'new'],
+        placement: const StratumToastPlacement.float(
+          StratumToastCorner.topCenter,
+        ),
+      );
+      final oldTop = tester.getRect(find.text('old')).top;
+      final newTop = tester.getRect(find.text('new')).top;
+      // R25 mirrored: at a top corner, the newest lands nearest the edge.
+      expect(newTop, lessThan(oldTop));
+    },
+  );
+
+  testWidgets(
+    'fr03/e04 second half: a 4th show at one corner leaves another untouched',
+    (tester) async {
+      _view(tester, _phone);
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) {
+            for (final m in ['a', 'b', 'c', 'd']) {
+              c.showToast(
+                message: m,
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.bottomCenter,
+                ),
+              );
+            }
+            c.showToast(
+              message: 'top',
+              placement: const StratumToastPlacement.float(
+                StratumToastCorner.topCenter,
+              ),
+            );
+          }),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('a'), findsNothing);
+      for (final m in ['b', 'c', 'd']) {
+        expect(find.text(m), findsOneWidget);
+      }
+      expect(find.text('top'), findsOneWidget);
+    },
+  );
 }

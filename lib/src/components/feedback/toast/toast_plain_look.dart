@@ -34,8 +34,50 @@ class StratumToastPlainLook extends StatelessWidget {
         color: solidFillColor(style),
         child: surface,
       ),
-      StratumToastFloat() => surface,
+      // WORKAROUND: toastification freezes `itemWidth` inside the
+      // manager it builds at the first show per alignment and ignores
+      // every later `ToastificationConfig`, so the width cap cannot live
+      // in that config and must be read fresh from this context on every
+      // build instead, with the corner's own hugged side replicated here
+      // too, since the host no longer hands toastification a narrower
+      // `itemWidth` to align within; remove when a toastification release
+      // re-reads the config per item, not per manager (upstream issue
+      // #249).
+      StratumToastFloat(:final corner) => Align(
+        alignment: _floatAlign(context, corner),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: _floatWidthCap(context)),
+          child: surface,
+        ),
+      ),
     };
+  }
+
+  /// The float notice's width cap: the notice width token
+  /// `layouts.max-width-mobile`, capped by the window less `space.lg` on
+  /// each side (US-01 FR-02 statement).
+  static double _floatWidthCap(BuildContext context) {
+    final theme = context.theme;
+    final lg = theme.space.lg;
+    final cap = MediaQuery.sizeOf(context).width - 2 * lg;
+    final token = theme.layouts.maxWidthMobile;
+    return token < cap ? token : cap;
+  }
+
+  /// The side of its slot a float notice hugs: start or end corners hug
+  /// that side under [context]'s text direction, a center corner stays
+  /// centered (US-01 FR-02 E01).
+  static Alignment _floatAlign(
+    BuildContext context,
+    StratumToastCorner corner,
+  ) {
+    final start = Directionality.of(context) == TextDirection.ltr ? -1.0 : 1.0;
+    final x = switch (corner) {
+      StratumToastCorner.topStart || StratumToastCorner.bottomStart => start,
+      StratumToastCorner.topCenter || StratumToastCorner.bottomCenter => 0.0,
+      StratumToastCorner.topEnd || StratumToastCorner.bottomEnd => -start,
+    };
+    return Alignment(x, 0);
   }
 
   /// The notice's surface style, each later source winning: theme tokens,
