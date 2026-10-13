@@ -2964,14 +2964,15 @@ void main() {
         );
         await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
         await gesture.moveBy(const Offset(0, 100));
-        // The lift runs its full 250 ms, so the drop takes 250 ms to settle.
+        // The lift and the drop's settle each run over the theme's 200 ms
+        // normal level.
         await tester.pump(const Duration(milliseconds: 300));
         await gesture.up();
         await tester.pump();
         final ends = [..._harness(tester).ends];
         expect(ends, hasLength(1));
         // 50 ms of the settle left: less than the next frame's step.
-        await tester.pump(const Duration(milliseconds: 200));
+        await tester.pump(const Duration(milliseconds: 150));
 
         _harness(tester).remove(3);
         await tester.pumpAndSettle();
@@ -5954,11 +5955,12 @@ void main() {
       }
       // Left alone, the drop reports the move (3, 4) once it settles.
       await gesture.moveBy(const Offset(0, 100));
-      // The lift runs its full 250 ms, so the drop takes 250 ms to settle.
+      // The lift and the drop's settle each run over the theme's 200 ms
+      // normal level.
       await tester.pump(const Duration(milliseconds: 300));
       await gesture.up();
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 150));
       expect(_harness(tester).starts, [3]);
       expect(_harness(tester).ends, hasLength(1));
       return (null, [..._harness(tester).ends]);
@@ -7874,7 +7876,8 @@ void main() {
         );
         await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
         await gesture.moveBy(const Offset(0, 100));
-        // The lift runs its full 250 ms, so the drop takes 250 ms to settle.
+        // The lift and the drop's settle each run over the theme's 200 ms
+        // normal level.
         await tester.pump(const Duration(milliseconds: 300));
         await gesture.up();
         await tester.pump();
@@ -14512,6 +14515,54 @@ void main() {
         expect(reorder, master);
       },
     );
+
+    testWidgets(
+      'us11/fr01 and s03/inv59 (D7): a neighbor a drag passes slides over the '
+      "theme's normal level",
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            const _Harness(count: 5),
+            theme: _normalTheme(const Duration(milliseconds: 400)),
+          ),
+        );
+        final gesture = await _liftItem(tester, 0);
+        await _dragPastNeighbor(tester, gesture);
+
+        // 300 ms after the crossing: the SDK's 250 ms reflow has ended, the
+        // theme's 400 ms one has not.
+        await tester.pump(const Duration(milliseconds: 284));
+        expect(_top(tester, 1), greaterThan(0));
+        await tester.pump(const Duration(milliseconds: 120));
+        expect(_top(tester, 1), 0);
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      "us11/fr01 and s03/inv59 (D7): a dropped item settles over the theme's "
+      'normal level',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            const _Harness(count: 5),
+            theme: _normalTheme(const Duration(milliseconds: 400)),
+          ),
+        );
+        final gesture = await _liftItem(tester, 0);
+        await _dragPastNeighbor(tester, gesture);
+        await tester.pumpAndSettle();
+
+        await gesture.up();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        // The drop reports its move once its settle ends (pin 12116).
+        expect(_harness(tester).moves, isEmpty);
+        await tester.pump(const Duration(milliseconds: 150));
+        expect(_harness(tester).moves, [(0, 1)]);
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {
@@ -14589,9 +14640,9 @@ void main() {
         await gesture.up();
         await tester.pump();
         // `onReorderEnd` always fires at once (FR-04 E06, `_endDrag`), so it
-        // cannot tell reduced motion from plain; the drop's own 250 ms
-        // settle, ticked on the same seamed State as the gap reflow, only
-        // lands `onReorderItem` (`moves`) once it ends.
+        // cannot tell reduced motion from plain; the drop's own settle, over
+        // the theme's normal level, ticked on the same seamed State as the
+        // gap reflow, only lands `onReorderItem` (`moves`) once it ends.
         expect(
           _harness(tester).moves,
           motion.currentValue == 'no' ? isEmpty : [(0, 1)],

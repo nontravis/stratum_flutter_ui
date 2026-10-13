@@ -88,6 +88,15 @@ class _ReorderSliverState extends SliverReorderableListState {
   Axis get _scrollDirection => axisDirectionToAxis(_scrollable.axisDirection);
   bool get _reverse => axisDirectionIsReversed(_scrollable.axisDirection);
 
+  /// The theme's `normal` level duration: the drag's reflow and the drop's
+  /// settle run over it, the motion of every other move of the list (D7).
+  Duration get _settleDuration =>
+      _body._motion.normal.duration ?? Duration.zero;
+
+  /// The theme's `standard` curve token, the one that level runs on.
+  Curve get _standardCurve =>
+      _body._motion.normal.curve ?? Curves.easeInOutSine;
+
   // Every reorder controller ticks on this State: each item's reflow and
   // the drop's settle. Under reduced motion each reads a long elapsed time
   // and ends on its first tick (R38, invariant 59).
@@ -728,7 +737,7 @@ class _ReorderItemState extends State<_ReorderItem> {
   Offset get offset {
     final animation = _offsetAnimation;
     if (animation != null) {
-      final value = Curves.easeInOut.transform(animation.value);
+      final value = _list._standardCurve.transform(animation.value);
       return Offset.lerp(_startOffset, _targetOffset, value)!;
     }
     return _targetOffset;
@@ -762,10 +771,7 @@ class _ReorderItemState extends State<_ReorderItem> {
       final animation = _offsetAnimation;
       if (animation == null) {
         _offsetAnimation =
-            AnimationController(
-                vsync: _list,
-                duration: const Duration(milliseconds: 250),
-              )
+            AnimationController(vsync: _list, duration: _list._settleDuration)
               ..addListener(rebuild)
               ..addStatusListener((status) {
                 if (status.isCompleted) {
@@ -776,7 +782,7 @@ class _ReorderItemState extends State<_ReorderItem> {
               })
               ..forward();
       } else {
-        final value = Curves.easeInOut.transform(animation.value);
+        final value = _list._standardCurve.transform(animation.value);
         _startOffset = Offset.lerp(_startOffset, previousTarget, value)!;
         animation.forward(from: 0);
       }
@@ -930,7 +936,7 @@ class _Lift extends Drag {
     _proxyAnimation =
         AnimationController(
             vsync: tickerProvider,
-            duration: const Duration(milliseconds: 250),
+            duration: listState._settleDuration,
           )
           ..addStatusListener((status) {
             if (status.isDismissed) _dropCompleted();
@@ -1042,7 +1048,7 @@ class _LiftProxy extends StatelessWidget {
             effectivePosition = Offset.lerp(
               dropPosition - overlayOrigin,
               effectivePosition,
-              Curves.easeOut.transform(animation.value),
+              listState._standardCurve.transform(animation.value),
             )!;
           }
           return Positioned(
