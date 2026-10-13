@@ -1184,9 +1184,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// shifts the data; an insert at that item's own index lands in the
   /// laid-out range. For a `moveItem` call, [moved], counts the slots they
   /// add or drop before that item ([_slotsBefore]): the remove drops one,
-  /// unless its item leaves through an [exit] that keeps a slot there, and
-  /// the insert adds one. Under a fixed extent the sliver places each slot
-  /// by the extents before it, so nothing counts.
+  /// unless its item leaves through an [exit], which takes room and so keeps
+  /// its slot, and the insert adds one. Under a fixed extent the sliver
+  /// places each slot by the extents before it, so nothing counts.
   void _countSlotsBefore({
     _DataIndex? from,
     _DataIndex? to,
@@ -1194,6 +1194,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     bool moved = false,
   }) {
     if (_fixedExtent) return;
+    // A no-room exit sits after the item that takes its place, which this
+    // count does not follow: only a closing gap, which takes room, comes here.
+    assert(
+      !exit || !_exitsTakeNoExtent(context),
+      'an exit counted before the laid-out range takes room',
+    );
     var first = _firstLaidOut;
     if (first == null) {
       final laid = _laidOut();
@@ -1203,9 +1209,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     if (from != null && from < first) {
       first -= 1;
-      // With no room an exit sits after the item that takes its place.
-      final kept = exit && (!_exitsTakeNoExtent(context) || from + 1 <= first);
-      if (moved && !kept) _slotsBefore -= 1;
+      if (moved && !exit) _slotsBefore -= 1;
     }
     if (to != null && to < first) {
       first += 1;
@@ -1235,8 +1239,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (!explained) {
       _resetMotion();
       // The data shifted where no call says: the sliver keeps each slot's
-      // offset by its number.
+      // offset by its number, and the index the count follows is stale.
       _slotsBefore = 0;
+      _firstLaidOut = null;
     }
     _dataCount = count;
     final calls = List.of(_pending);

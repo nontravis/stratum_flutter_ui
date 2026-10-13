@@ -14263,6 +14263,96 @@ void main() {
       variant: earlyMoves,
     );
 
+    testWidgets(
+      'us11/fr05/e04 and s03/inv58 (D9): a focused item moved past the '
+      'laid-out range in a turn whose moveItem drops a slot before that range '
+      'shows on screen in the next frame',
+      (tester) async {
+        await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // The frame laid out slots 93 to 113, and its cache ends at 4550.
+        // Item 10's move drops a slot before them and item 100's closing gap
+        // adds one among them, so index 112 starts at 4560: only the jump
+        // at the next frame's start lays it out.
+        _harness(tester)
+          ..move(10, 150)
+          ..move(99, 112);
+        await tester.pump();
+        expect(_builtInView(tester, 100), isTrue);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_itemState(tester, 100), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_itemInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05/e04 and s03/inv58 (D9): a focused item moved to an unbuilt '
+      'slot in a turn whose later moveItem calls add slots before the '
+      'laid-out range shows on screen in the next frame',
+      (tester) async {
+        await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        final state = _itemState(tester, 100);
+        final focused = await _focusItem(tester, 100);
+
+        // The jump at the next frame's start lands by slot numbers, so that
+        // frame keeps each slot at the offset its number held: the two slots
+        // the later calls add before the laid-out range would put the item
+        // two slots off where the jump put it, out of view.
+        _harness(tester)
+          ..move(100, 150)
+          ..move(190, 10)
+          ..move(191, 11);
+        await tester.pump();
+        expect(_builtInView(tester, 100), isTrue);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(_itemState(tester, 100), same(state));
+        expect(FocusManager.instance.primaryFocus, same(focused));
+        expect(_itemInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05 and s03/inv58 (D9): a moveItem past the laid-out range, in a '
+      'turn after one that moved an item before another range, moves no item '
+      'on screen',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+          offset: 3680,
+        );
+        _harness(tester).move(10, 100);
+        await tester.pumpAndSettle();
+        position.jumpTo(2000);
+        await tester.pump();
+        final top = _top(tester, 53);
+
+        // The last turn counted from slot 85; this turn counts from the
+        // first slot its own last frame laid out, so index 70 lies past the
+        // range and drops no slot before it.
+        _harness(tester).move(70, 150);
+        await tester.pump();
+        expect(_top(tester, 53), top);
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(_top(tester, 53), top);
+        await tester.pumpAndSettle();
+        expect(_top(tester, 53), top);
+      },
+    );
+
     // A no-room exit whose host the trailing edge cuts, and one that hangs
     // past the last item: the item count, the removed id, and the item it
     // paints over or past.
