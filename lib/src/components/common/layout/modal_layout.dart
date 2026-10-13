@@ -257,9 +257,8 @@ class ModalLayoutScope extends InheritedWidget {
 /// Tab visits [top], [tab], and [body], then the handle and the close
 /// button, whatever their place on screen (NFR-U02).
 ///
-/// The surface declares the solid color it paints under a system bar: a
-/// bottom sheet runs under the navigation bar, and a full-height sheet and
-/// a full-screen modal under both bars (US-20 FR-06 E08).
+/// The surface declares the solid color it paints wherever it covers a
+/// system bar's point (US-20 FR-06 E08).
 class ModalLayout extends StatelessWidget {
   const new({
     super.key,
@@ -417,16 +416,12 @@ class ModalLayout extends StatelessWidget {
     );
     return FocusTraversalGroup(
       policy: OrderedTraversalPolicy(),
-      // The surface declares the solid color it paints under a bar: a
-      // bottom sheet runs under the navigation bar and a full-height one
-      // and a full-screen modal under both (US-20 FR-06 E08).
-      child: switch (surface.backgroundColor) {
-        final color? when _paintsSolid(surface) => SystemBarFill(
-          color: color,
-          child: surfaceBox(),
-        ),
-        _ => surfaceBox(),
-      },
+      // Always wraps, so a style animation crossing the solid/non-solid
+      // line resets no State (performance review Minor); the surface
+      // declares the solid color it paints wherever it covers a bar's
+      // point, else fully transparent, which blends as nothing
+      // (system_bars.dart:269; US-20 FR-06 E08).
+      child: SystemBarFill(color: _fillColor(surface), child: surfaceBox()),
     );
   }
 
@@ -436,6 +431,19 @@ class ModalLayout extends StatelessWidget {
       fill.backgroundColor != null &&
       fill.backgroundGradient == null &&
       fill.backgroundImage == null;
+
+  /// [fill]'s declared color: its [WidgetStyle.backgroundColor] with
+  /// [WidgetStyle.opacity] folded into the alpha, so the resolver reads the
+  /// alpha the box actually paints (correctness review Minor 1), else
+  /// fully transparent while [fill] paints no single solid color.
+  static Color _fillColor(WidgetStyle fill) {
+    if (!_paintsSolid(fill)) return const Color(0x00000000);
+    final color = fill.backgroundColor!;
+    final opacity = fill.opacity;
+    return opacity == null || opacity >= 1
+        ? color
+        : color.withValues(alpha: color.a * opacity);
+  }
 
   /// The theme layer of every part (NFR-E01).
   ModalLayoutStyle _themeStyle(

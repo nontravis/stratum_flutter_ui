@@ -684,15 +684,14 @@ class _PageLayoutState extends State<PageLayout>
         drawer: drawer,
         child: child ?? const SizedBox.shrink(),
       ),
-      child: switch (style.outer?.backgroundColor) {
-        // A solid page fill declares itself, as every slot does (US-18
-        // FR-07); the resolver reads only what sits under a bar's point.
-        final color? when _fillsSolid(style.outer) => SystemBarFill(
-          color: color,
-          child: _outerBox(style, look, theme, page),
-        ),
-        _ => _outerBox(style, look, theme, page),
-      },
+      // Always wraps, so a style animation crossing the solid/non-solid
+      // line resets no State (performance review Minor); a page fill
+      // declares itself as every slot does (US-18 FR-07), else fully
+      // transparent, which blends as nothing (system_bars.dart:269).
+      child: SystemBarFill(
+        color: _fillColor(style.outer ?? const WidgetStyle()),
+        child: _outerBox(style, look, theme, page),
+      ),
     );
   }
 
@@ -753,10 +752,23 @@ class _PageLayoutState extends State<PageLayout>
 
   /// Whether [fill] paints one solid color: a background color with no
   /// gradient and no image (US-18 FR-07).
-  static bool _fillsSolid(WidgetStyle? fill) =>
-      fill?.backgroundColor != null &&
-      fill?.backgroundGradient == null &&
-      fill?.backgroundImage == null;
+  static bool _fillsSolid(WidgetStyle fill) =>
+      fill.backgroundColor != null &&
+      fill.backgroundGradient == null &&
+      fill.backgroundImage == null;
+
+  /// [fill]'s declared color: its [WidgetStyle.backgroundColor] with
+  /// [WidgetStyle.opacity] folded into the alpha, so the resolver reads the
+  /// alpha the box actually paints (correctness review Minor 1), else
+  /// fully transparent while [fill] paints no single solid color.
+  static Color _fillColor(WidgetStyle fill) {
+    if (!_fillsSolid(fill)) return const Color(0x00000000);
+    final color = fill.backgroundColor!;
+    final opacity = fill.opacity;
+    return opacity == null || opacity >= 1
+        ? color
+        : color.withValues(alpha: color.a * opacity);
+  }
 
   /// Each part's style at [context]: the theme defaults, then the app-wide
   /// [PageLayoutStyle], then [PageLayout.customStyle] (FO-08 US-06 FR-01).
@@ -1485,15 +1497,11 @@ class _PageLayoutState extends State<PageLayout>
     );
     return FocusTraversalOrder(
       order: NumericFocusOrder(slot.index + 1),
-      // A solid fill declares itself; a gradient, an image, or none paints
-      // no single color for the resolver to read (US-18 FR-07).
-      child: switch (box.backgroundColor) {
-        final color? when _fillsSolid(box) => SystemBarFill(
-          color: color,
-          child: slots,
-        ),
-        _ => slots,
-      },
+      // Always wraps, so a style animation crossing the solid/non-solid
+      // line resets no slot State (performance review Minor); a solid
+      // fill declares itself, else fully transparent, which blends as
+      // nothing (system_bars.dart:269; US-18 FR-07).
+      child: SystemBarFill(color: _fillColor(box), child: slots),
     );
   }
 }

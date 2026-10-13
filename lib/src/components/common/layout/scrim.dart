@@ -52,12 +52,18 @@ class Scrim extends StatelessWidget {
                   ),
                   child: child!,
                 ),
-                child: ContainerLayout(
-                  style: WidgetStyle(
-                    backgroundColor: color.withValues(
-                      alpha: color.a * theme.data.opacity.scrim,
+                // The box behind this boundary paints the same pixels every
+                // frame; only the declaration above it changes. Isolating
+                // it here stops the per-frame fill color from re-executing
+                // the blur (performance review I1).
+                child: RepaintBoundary(
+                  child: ContainerLayout(
+                    style: WidgetStyle(
+                      backgroundColor: color.withValues(
+                        alpha: color.a * theme.data.opacity.scrim,
+                      ),
+                      backgroundBlur: theme.blur.level1,
                     ),
-                    backgroundBlur: theme.blur.level1,
                   ),
                 ),
               ),
