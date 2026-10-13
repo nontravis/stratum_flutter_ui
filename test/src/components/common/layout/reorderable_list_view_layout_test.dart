@@ -15145,6 +15145,50 @@ void main() {
       },
     );
 
+    testWidgets(
+      "invariant 30: a lift ends the item's own grow-in through the file's "
+      'own ending path, so a later build reads it at rest, never a '
+      'leftover entry',
+      (tester) async {
+        Animation<double>? incoming;
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              handles: true,
+              itemsController: ReorderableItemsController(),
+              itemTransitionBuilder: (context, animation, child) {
+                // R48: the builder wraps every item, at rest with a
+                // completed animation; the entering or leaving one runs.
+                if (animation != kAlwaysCompleteAnimation) incoming = animation;
+                return FadeTransition(opacity: animation, child: child);
+              },
+            ),
+            theme: _normalTheme(const Duration(seconds: 2)),
+          ),
+        );
+        _harness(tester).insert(1, 9);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        expect(incoming, isNotNull);
+
+        final gesture = await _grabHandle(tester, 9);
+        incoming = null;
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(
+          incoming,
+          isNull,
+          reason:
+              "a lift ends the item's own grow-in through _finishInsert, so "
+              'a later build of it reads the default kAlwaysCompleteAnimation, '
+              'never the incoming entry the lift only froze in place',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     final starters = ValueVariant<String>({'long press', 'handle'});
     testWidgets(
       'matrix I01xT15 and us11/fr01/e12: a <long press, handle drag> on an '
@@ -15198,6 +15242,69 @@ void main() {
       },
       variant: starters,
     );
+
+    testWidgets('matrix I01xT15 and us11/fr01/e12: a long press on a focused '
+        'EditableText with no long-press recognizer of its own still leaves '
+        'the item in place, never starting a drag', (tester) async {
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      final field = FocusNode();
+      addTearDown(field.dispose);
+      await tester.pumpWidget(
+        _app(
+          _Harness(
+            count: 5,
+            handles: true,
+            boundaryAt: 1,
+            boundary: (child) => Row(
+              children: [
+                child,
+                SizedBox(
+                  width: 100,
+                  height: 40,
+                  // A bare EditableText, unlike TextField, arms no
+                  // recognizer of its own (no TextSelectionGestureDetector),
+                  // so only this guard keeps the item's own long press
+                  // from winning the arena here.
+                  child: EditableText(
+                    controller: controller,
+                    focusNode: field,
+                    style: const TextStyle(),
+                    cursorColor: _red,
+                    backgroundCursorColor: _red,
+                    // RenderEditable itself otherwise arms its own
+                    // _tap/_longPress on every pointer down (SDK
+                    // rendering/editable.dart's handleEvent), which wins
+                    // this arena first regardless of the guard; this is
+                    // the one switch that leaves a focused field with
+                    // truly no long-press recognizer of its own.
+                    rendererIgnoresPointer: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      field.requestFocus();
+      await tester.pump();
+      final harness = _harness(tester);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(EditableText)),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(0, 10));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(harness.starts, isEmpty);
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(field.hasPrimaryFocus, isTrue);
+    });
   });
 
   group('renames', () {

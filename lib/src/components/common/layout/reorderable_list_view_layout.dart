@@ -999,13 +999,24 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   void _finishInsert(_ItemMotion motion) {
-    if (!mounted) return;
+    if (!mounted || !_endInsert(motion)) return;
+    setState(() {});
+  }
+
+  /// The bookkeeping [_finishInsert] ends an insert's motion with: takes
+  /// [motion] out of [_incoming] and [_pendingInserts] and disposes it.
+  /// Answers whether it found and removed one, so a caller that already
+  /// has its own rebuild arranged (a lift, [_liftedTook]) can skip a
+  /// second, unsafe one of its own: a lift ends this motion from inside
+  /// the drag's own gesture callback, where [setState] can land mid an
+  /// unrelated build already in progress.
+  bool _endInsert(_ItemMotion motion) {
     final held = _incoming.length + _pendingInserts.length;
     _incoming.removeWhere((_, other) => identical(other, motion));
     _pendingInserts.removeWhere((insert) => identical(insert.motion, motion));
-    if (_incoming.length + _pendingInserts.length == held) return;
+    if (_incoming.length + _pendingInserts.length == held) return false;
     motion.dispose();
-    setState(() {});
+    return true;
   }
 
   /// The end of [exit]'s own animation.
@@ -2548,12 +2559,23 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// beside it, as a key move does ([_endExitsBeside]), and the item's own
   /// grow-in, before the drag proxy's raster is taken, so it shows the
   /// item at full size with no leaving item riding it (FR-04 E14,
-  /// invariant 30).
+  /// invariant 30). The grow-in ends through [_endInsert], [_finishInsert]'s
+  /// own bookkeeping, so its entry leaves [_incoming] and its motion
+  /// disposes, as every other ended motion does; freezing the value alone
+  /// would strand the entry and its `AnimationController` undisposed,
+  /// since a direct value write cancels the `forward()` that was to call
+  /// [_finishInsert] itself. This runs inside the drag's own gesture
+  /// callback, so it skips [_finishInsert]'s own [setState]: the drag
+  /// that follows rebuilds the list on its own.
   void _liftedTook(Key key) {
     _liftedKey = key;
     final index = _dragIndex;
     if (index != null) _endExitsBeside(index);
-    _incoming[key]?.controller.value = 1;
+    final motion = _incoming[key];
+    if (motion != null) {
+      motion.controller.value = 1;
+      _endInsert(motion);
+    }
   }
 
   /// The reorder sliver let the item [key] go: its drag reset, often
