@@ -919,7 +919,7 @@ void main() {
 
     // autofocus has no activation callback and no shortcuts, so it never
     // satisfies tapSurfaceTakesFocus's activation check. autofocus still
-    // honors a directional NavigationMode (49a2d6b), which ignores that
+    // honors a directional NavigationMode (542001a), which ignores that
     // check (us04/fr03).
     testWidgets(
       '(pin) autofocus with no activation holds focus in directional mode',
