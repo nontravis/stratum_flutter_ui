@@ -15085,19 +15085,47 @@ void main() {
         final harness = _harness(tester)
           ..onMove = (_, _) => other.requestFocus();
 
+        // Slot 7 runs from 280 to 320: past the 300 px viewport by 20 px,
+        // inside its cache extent, so the reveal the app's focus redirect
+        // skips would otherwise scroll that 20 px to show it whole.
         final gesture = await _liftItem(tester, 2);
-        for (var i = 0; i < 4; i++) {
+        for (var i = 0; i < 17; i++) {
           await gesture.moveBy(const Offset(0, 10));
           await tester.pump(const Duration(milliseconds: 16));
         }
         await gesture.up();
         await tester.pumpAndSettle();
 
-        expect(harness.moves, [(2, 3)]);
+        expect(harness.moves, [(2, 7)]);
         expect(FocusManager.instance.primaryFocus, same(other));
         expect(position.pixels, 0);
+        expect(_itemInView(tester, 2), isFalse);
       },
     );
+
+    testWidgets("us11/fr03/e13: a focus the app moves from inside a key move's "
+        'onReorderItem stays, and the list scrolls nothing for the moved '
+        'item, as a drop extends R13', (tester) async {
+      await tester.pumpWidget(_app(const _Harness(count: 20)));
+      final position = positionOf(tester);
+      await _focusItem(tester, 2);
+      final other = _itemState(tester, 0).node;
+      final harness = _harness(tester);
+      for (var i = 0; i < 4; i++) {
+        await _alt(tester, LogicalKeyboardKey.arrowDown);
+      }
+      expect(position.pixels, 0);
+
+      // Slot 7 runs from 280 to 320: past the 300 px viewport by 20 px,
+      // inside its cache extent, as the drop pin above uses.
+      harness.onMove = (_, _) => other.requestFocus();
+      await _alt(tester, LogicalKeyboardKey.arrowDown);
+
+      expect(harness.ids.indexOf(2), 7);
+      expect(FocusManager.instance.primaryFocus, same(other));
+      expect(position.pixels, 0);
+      expect(_itemInView(tester, 2), isFalse);
+    });
   });
 
   group('ReorderableListViewLayout reduced motion', () {
