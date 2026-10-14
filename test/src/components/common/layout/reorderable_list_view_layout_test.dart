@@ -15011,6 +15011,64 @@ void main() {
       expect(harness.moves, isEmpty);
       expect(find.byType(RawImage), findsNothing);
     }, variant: releases);
+
+    final rawIndexed = ValueVariant<bool>({false, true});
+    testWidgets(
+      'matrix I14nxT07 and I14cxT07, us11/fr05/e14: a raw move of an item '
+      'still growing in ends its grow-in at once, and the item keeps its '
+      'State and focus',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              appIndex: rawIndexed.currentValue!,
+              itemsController: ReorderableItemsController(),
+            ),
+          ),
+        );
+        final harness = _harness(tester)..insert(1, 9);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        final state = _itemState(tester, 9)..expanded = true;
+        final node = await _focusItem(tester, 9);
+
+        harness.moveData(1, 3);
+        await tester.pump();
+
+        expect(_runningTransitions(tester), isEmpty);
+        expectKept(tester, 9, state, node: node);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+      variant: rawIndexed,
+    );
+
+    testWidgets(
+      'matrix I03xT14 and us11/fr03/e13: a focus the app moves from inside a '
+      "drop's onReorderItem stays, and the list scrolls nothing for the "
+      'dropped item',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 20)));
+        final position = positionOf(tester);
+        await _focusItem(tester, 2);
+        final other = _itemState(tester, 0).node;
+        final harness = _harness(tester)
+          ..onMove = (_, _) => other.requestFocus();
+
+        final gesture = await _liftItem(tester, 2);
+        for (var i = 0; i < 4; i++) {
+          await gesture.moveBy(const Offset(0, 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(harness.moves, [(2, 3)]);
+        expect(FocusManager.instance.primaryFocus, same(other));
+        expect(position.pixels, 0);
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {

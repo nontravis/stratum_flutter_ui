@@ -1404,7 +1404,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         if (_appAnswer(key) == null) unanswered = true;
       }
     }
-    if (read && unanswered) _readLaidOut(built, changedFrom: changedFrom);
+    if (read && unanswered) {
+      _readLaidOut(built, changedFrom: changedFrom, calls: calls);
+    }
     for (final MapEntry(:key, value: index) in built.entries) {
       if (_knownAt.containsKey(key) || (app && _appAnswer(key) == null)) {
         continue;
@@ -1428,7 +1430,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// into those slots alone, as [_nextLayoutLast] counts them, so the
   /// sliver takes each widget it reads there, and stops once it finds every
   /// key the last frame laid out that the app's answer does not place.
-  void _readLaidOut(Map<Key, _FrameIndex> built, {required int? changedFrom}) {
+  ///
+  /// A key this read finds away from where [calls] alone would place it, with
+  /// no app `findChildIndexCallback` to book it as [_bookRawMove] does, is a
+  /// raw move this read itself learns of: its own running grow-in, if any,
+  /// ends at once, with no gap closing and no motion of its own (FR-05 E14,
+  /// invariant 35).
+  void _readLaidOut(
+    Map<Key, _FrameIndex> built, {
+    required int? changedFrom,
+    required List<_Call> calls,
+  }) {
     final laid = _laidOut();
     final context = _listKey.currentContext;
     if (laid == null || context == null || _dataCount == 0) return;
@@ -1444,6 +1456,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _readLooks[i] = look;
       final key = look.key;
       if (key == null || !built.containsKey(key)) return;
+      final motion = _incoming[key];
+      if (motion != null) {
+        final was = _dataIndexOf(built[key]!, calls: calls);
+        if (was != null && was.value != i) {
+          motion.controller.value = 1;
+          _endInsert(motion);
+        }
+      }
       _knownAt[key] = i;
       unfound.remove(key);
     }
@@ -1800,7 +1820,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// a call's shift of the focused item out of view, from [to] to [to]
   /// ([_followShiftOutOfView]), which reveals it in [revealIn]. The move
   /// re-aims a reach that looks for the item, as `moveItem` does, and an
-  /// earlier move of the item reveals nothing (invariant 35).
+  /// earlier move of the item reveals nothing (invariant 35). An actual move,
+  /// [from] distinct from [to], ends the item's own running grow-in at once,
+  /// with no gap closing and no motion of its own, as a `moveItem` of a
+  /// growing item ends it (FR-05 E14, invariant 35).
   void _bookRawMove(
     Key key,
     FocusNode node, {
@@ -1811,6 +1834,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (key == _reachKey) _stopReach();
     for (final target in _moveTargets) {
       if (target.key == key) target.index = null;
+    }
+    if (from != to) {
+      final motion = _incoming[key];
+      if (motion != null) {
+        motion.controller.value = 1;
+        _endInsert(motion);
+      }
     }
     if (!_builtSlot(_enteredSlot(to))) {
       _movedTo[key] = to.value;
@@ -2661,7 +2691,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     final key = moved.key;
     if (key != null) _releasePark(key);
-    final noFocusOwnerElsewhere = FocusManager.instance.primaryFocus == null;
+    final primary = FocusManager.instance.primaryFocus;
+    // A focus the app moved to another node in this move's turn wins, for a
+    // drop too (R13, FR-03 E13): the list pulls no focus back to the moved
+    // item and skips its reveal.
+    final appFocused = primary != null && primary != moved.focusAtCall;
+    if (appFocused && !node.hasFocus) return;
+    final noFocusOwnerElsewhere = primary == null;
     if (byKey && noFocusOwnerElsewhere) firstTabStopIn(node)?.requestFocus();
     final levels = moved.revealIn;
     _revealOwn(node, origin: moved.origin, levels: levels);
