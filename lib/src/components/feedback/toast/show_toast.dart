@@ -2,7 +2,6 @@ import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/components/feedback/toast/toast_host.dart';
 import 'package:stratum_ui/src/components/feedback/toast/toast_placement.dart';
-import 'package:stratum_ui/src/extensions/context_extension.dart';
 import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
 
 extension StratumToastContextExtension on BuildContext {
@@ -11,6 +10,10 @@ extension StratumToastContextExtension on BuildContext {
   /// `info`, a [placement] that defaults by window size, and a per-call
   /// [customStyle] that wins the notice's style order (US-01 FR-01,
   /// FR-06).
+  ///
+  /// The host shows and announces [message] as is, above every route;
+  /// never pass a secret or personal data. The default placement is read
+  /// from the host, so this call ties this context to no window size.
   ///
   /// Throws the host's `FlutterError` when none is above.
   void showToast({
@@ -24,7 +27,7 @@ extension StratumToastContextExtension on BuildContext {
       StratumToastRequest(
         message: message,
         kind: kind,
-        placement: placement ?? defaultToastPlacement(windowSize),
+        placement: placement,
         action: action,
         customStyle: customStyle,
       ),

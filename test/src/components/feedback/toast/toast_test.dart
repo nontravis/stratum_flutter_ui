@@ -1548,6 +1548,326 @@ void main() {
     });
     handle.dispose();
   });
+
+  // Final fix wave A: review-final-m4 edge I1, I4, I9; correctness 8, 9, 10.
+
+  testWidgets(
+    'us01/fr04/e03: edge I1: a later notice at the same corner leaves the '
+    'first one focused, paused, and reachable by the shortcut',
+    (tester) async {
+      _view(tester);
+      final handle = tester.ensureSemantics();
+      await _withTargetPlatform(TargetPlatform.linux, () async {
+        final field = FocusNode(debugLabel: 'field');
+        addTearDown(field.dispose);
+        late BuildContext ctx;
+        await tester.pumpWidget(
+          _app(
+            Column(
+              children: [
+                Focus(
+                  focusNode: field,
+                  child: const SizedBox.square(dimension: 1),
+                ),
+                Builder(
+                  builder: (c) {
+                    ctx = c;
+                    return const SizedBox();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+        ctx.showToast(
+          message: 'First',
+          action: const StratumToastAction(label: 'A', onPressed: _noop),
+        );
+        await tester.pumpAndSettle();
+        field.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await tester.pumpAndSettle();
+        _expectFocusedInRing(tester, find.text('A'));
+        // toastification inserts the later notice at index 0 of the same
+        // corner's list, which shifts the first notice's slot.
+        ctx.showToast(message: 'Second');
+        await tester.pumpAndSettle();
+        expect(find.text('Second'), findsOneWidget);
+        _expectFocusedInRing(tester, find.text('A'));
+        // Focus inside holds the first notice past both close times.
+        await tester.pump(const Duration(seconds: 9));
+        await tester.pumpAndSettle();
+        expect(find.text('Second'), findsNothing);
+        expect(find.text('First'), findsOneWidget);
+        // The shortcut still reaches it once focus has left it.
+        field.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await tester.pumpAndSettle();
+        _expectFocusedInRing(tester, find.text('A'));
+        // Its timer resumes with the remaining time once focus leaves.
+        field.requestFocus();
+        await tester.pump(const Duration(seconds: 8));
+        await tester.pumpAndSettle();
+        expect(find.text('First'), findsNothing);
+      });
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'us01/fr03/e04: us01/fr04/e07: correctness 8, edge I4: evicting the '
+    'focused oldest notice returns focus as a close does',
+    (tester) async {
+      _view(tester);
+      final handle = tester.ensureSemantics();
+      final field = FocusNode(debugLabel: 'field');
+      addTearDown(field.dispose);
+      await tester.pumpWidget(
+        _app(
+          Column(
+            children: [
+              Focus(
+                focusNode: field,
+                child: const SizedBox.square(dimension: 1),
+              ),
+              _button('go', (c) {
+                for (final label in ['A', 'B', 'C']) {
+                  c.showToast(
+                    message: 'n$label',
+                    action: StratumToastAction(label: label, onPressed: _noop),
+                  );
+                }
+              }),
+            ],
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      field.requestFocus();
+      await tester.pump();
+      // Real Tab presses, as in probe-tab defect 3: the route's traversal
+      // edge drops its own focus history on the way into a notice, so only
+      // the host's kept node can bring focus back.
+      FocusNode? before;
+      var reached = false;
+      for (var i = 0; i < 6 && !reached; i++) {
+        before = FocusManager.instance.primaryFocus;
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        reached =
+            tester
+                .getSemantics(find.bySemanticsLabel('A'))
+                .flagsCollection
+                .isFocused ==
+            Tristate.isTrue;
+      }
+      expect(reached, isTrue, reason: 'Tab never reached the oldest notice');
+      tester.element(find.text('go')).showToast(message: 'nD');
+      await tester.pumpAndSettle();
+      expect(find.text('nA'), findsNothing);
+      expect(find.text('nD'), findsOneWidget);
+      expect(FocusManager.instance.primaryFocus, before);
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'us01/fr04/e09: its page closed while focus sat in the notice, focus '
+    'goes to the page now on top',
+    (tester) async {
+      _view(tester);
+      final handle = tester.ensureSemantics();
+      await _withTargetPlatform(TargetPlatform.linux, () async {
+        final field = FocusNode(debugLabel: 'field');
+        addTearDown(field.dispose);
+        await tester.pumpWidget(
+          _app(
+            _button('go', (c) => c.showToast(message: 'Gone', action: undo)),
+          ),
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        final home = tester.element(find.text('go'));
+        Navigator.of(home).push(
+          MaterialPageRoute<void>(
+            builder: (_) => Scaffold(
+              body: Focus(
+                focusNode: field,
+                child: const SizedBox.square(dimension: 1),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        field.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await tester.pumpAndSettle();
+        _expectFocusedInRing(tester, find.text('Undo'));
+        Navigator.of(home).pop();
+        await tester.pumpAndSettle();
+        // The route now on top takes focus as it becomes current
+        // (`ModalRoute` `setFirstFocus`), so the notice holds none.
+        expect(field.parent, isNull, reason: 'its page closed');
+        _expectFocusInside(FocusScope.of(home));
+        expect(find.text('Gone'), findsOneWidget);
+      });
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'us01/fr04/e09: correctness 9, edge I4: with the control that held '
+    'focus gone, a close focuses the page on top, and the control coming '
+    'back takes no focus',
+    (tester) async {
+      _view(tester);
+      final handle = tester.ensureSemantics();
+      await _withTargetPlatform(TargetPlatform.linux, () async {
+        final field = FocusNode(debugLabel: 'field');
+        addTearDown(field.dispose);
+        final fieldShown = ValueNotifier(true);
+        addTearDown(fieldShown.dispose);
+        await tester.pumpWidget(
+          _app(
+            Column(
+              children: [
+                ValueListenableBuilder(
+                  valueListenable: fieldShown,
+                  builder: (_, shown, _) => shown
+                      ? Focus(
+                          focusNode: field,
+                          child: const SizedBox.square(dimension: 1),
+                        )
+                      : const SizedBox(),
+                ),
+                _button(
+                  'go',
+                  (c) => c.showToast(message: 'Gone', action: undo),
+                ),
+              ],
+            ),
+          ),
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        field.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await tester.pumpAndSettle();
+        _expectFocusedInRing(tester, find.text('Undo'));
+        fieldShown.value = false;
+        await tester.pump();
+        expect(field.parent, isNull, reason: 'the control is gone');
+        _expectFocusedInRing(tester, find.text('Undo'));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.text('Gone'), findsNothing);
+        final pageScope = FocusScope.of(tester.element(find.text('go')));
+        _expectFocusInside(pageScope);
+        // A detached node asked for focus would take it on its return.
+        fieldShown.value = true;
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, isNot(field));
+        _expectFocusInside(pageScope);
+      });
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'NFR-U03: us01/s18: correctness 10: under reduced motion the notice '
+    'fades in, with no slide',
+    (tester) async {
+      _view(tester);
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) => c.showToast(message: 'Fade')),
+          media: (data) => data.copyWith(disableAnimations: true),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      var frames = 0;
+      while (find.text('Fade').evaluate().isEmpty && frames < 10) {
+        await tester.pump(const Duration(milliseconds: 16));
+        frames++;
+      }
+      double opacity() => tester
+          .widgetList<FadeTransition>(
+            find.ancestor(
+              of: find.text('Fade'),
+              matching: find.byType(FadeTransition),
+            ),
+          )
+          .fold(1, (product, fade) => product * fade.opacity.value);
+      final first = tester.getRect(find.text('Fade'));
+      expect(opacity(), lessThan(1));
+      await tester.pumpAndSettle();
+      expect(opacity(), 1);
+      expect(tester.getRect(find.text('Fade')), first);
+    },
+  );
+
+  testWidgets(
+    'NFR-U03: NFR-U09: us01/fr04/e05: edge I9: under reduced motion a swipe '
+    'closes the notice at once, with no move or resize animation',
+    (tester) async {
+      _view(tester);
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) => c.showToast(message: 'Swipe')),
+          media: (data) => data.copyWith(disableAnimations: true),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.text('Swipe'), const Offset(-300, 0));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Swipe'), findsNothing);
+      expect(tester.takeException(), isNull);
+      // Lets toastification's own 50 ms overlay teardown timer run out.
+      await tester.pump(const Duration(milliseconds: 50));
+    },
+  );
+
+  testWidgets(
+    'NFR-U09: us01/fr04/e05: edge I9: a fling closes a solid notice, and the '
+    'queued one shows',
+    (tester) async {
+      _view(tester);
+      const solid = StratumToastPlacement.solid(StratumToastEdge.bottom);
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) {
+            for (final m in ['one', 'two']) {
+              c.showToast(message: m, placement: solid);
+            }
+          }),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      await tester.fling(find.text('one'), const Offset(-300, 0), 1000);
+      await tester.pumpAndSettle();
+      expect(find.text('one'), findsNothing);
+      expect(find.text('two'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+}
+
+/// Expects the primary focus on [scope] or one of its descendants.
+void _expectFocusInside(FocusScopeNode scope) {
+  final primary = FocusManager.instance.primaryFocus;
+  expect(
+    primary == scope || (primary?.ancestors.contains(scope) ?? false),
+    isTrue,
+    reason: 'focus sits on $primary, outside $scope',
+  );
 }
 
 /// The fill color of the notice holding [message].

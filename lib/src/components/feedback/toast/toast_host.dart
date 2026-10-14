@@ -98,10 +98,10 @@ FocusNode? _firstTraversableDescendant(FocusNode notice) {
 /// picks the oldest, not the newest, once two notices show inside the
 /// same frame (R27 fix: correctness finding 2, edge finding D).
 FocusNode? _newestTrackedNotice(
-  List<ToastificationItem> showOrder,
+  Iterable<ToastificationItem> showOrder,
   Map<ToastificationItem, FocusNode> tracking,
 ) {
-  for (final item in showOrder.reversed) {
+  for (final item in showOrder.toList().reversed) {
     final node = tracking[item];
     if (node != null) return node;
   }
@@ -124,7 +124,7 @@ class _FocusNewestNoticeAction extends Action<_FocusNewestNoticeIntent> {
   @override
   bool invoke(_FocusNewestNoticeIntent intent) {
     final notice = _newestTrackedNotice(
-      _host._showOrder,
+      _host._open.keys,
       _host._noticeTrackingNodes,
     );
     final target = notice == null ? null : _firstTraversableDescendant(notice);
@@ -147,14 +147,17 @@ class StratumToastRequest {
   const new({
     required this.message,
     required this.kind,
-    required this.placement,
+    this.placement,
     this.action,
     this.customStyle,
   });
 
   final String message;
   final FeedbackState kind;
-  final StratumToastPlacement placement;
+
+  /// Where the notice shows; null takes the host's default for the window
+  /// size, read from the host's own context (US-01 FR-01 E04).
+  final StratumToastPlacement? placement;
   final StratumToastAction? action;
   final WidgetStyle? customStyle;
 }
@@ -169,8 +172,13 @@ class StratumToastRequest {
 /// width, its fill under the status bar or home indicator and its content
 /// padded by that inset (US-01 FR-02).
 ///
-/// The host wraps `toastification`; an app that already wraps its root in
-/// a `ToastificationWrapper` keeps it, and the host adds none.
+/// Mount ONE root host per process: `toastification` keeps one wrapper
+/// `GlobalKey` and one manager per alignment for the whole process, so a
+/// second root host, in another view or window, draws its notices into
+/// the first one's navigator; a debug build throws on it. A host nested
+/// under another reuses the outer one's wrapper. An app that already
+/// wraps its root in a `ToastificationWrapper` keeps it, and the host adds
+/// none.
 class StratumToastHost extends StatefulWidget {
   const new({
     super.key,
@@ -245,42 +253,44 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// The show context below the solid config; solid notices read it.
   final GlobalKey _solidKey = GlobalKey(debugLabel: 'StratumToastHost.solid');
 
-  /// Solid notices waiting for the one on screen to close, in call order
-  /// (US-01 FR-03, s03 invariant 2).
-  final List<StratumToastRequest> _solidQueue = [];
+  /// Solid notices waiting for the one on screen to close, in call order,
+  /// each with its resolved edge (US-01 FR-03, s03 invariant 2).
+  final List<(StratumToastRequest, StratumToastSolid)> _solidQueue = [];
 
-  /// Whether a solid notice is on screen (US-01 FR-03).
+  /// Whether a solid notice holds the solid slot: from its show until it
+  /// closes with no solid notice queued behind it, the slot passing
+  /// straight to the next queued one otherwise (US-01 FR-03).
   bool _solidShowing = false;
 
-  /// The live items of each float corner, oldest first (s03 invariant 3).
-  final Map<StratumToastCorner, List<ToastificationItem>> _floats = {};
+  /// Every open notice, shown and not yet closed, in true show order: the
+  /// order [_present] ran, never a queued one, and never the order its
+  /// widget happened to mount (s03 invariants 2, 3, 7; R27 fix:
+  /// correctness finding 2, edge finding D).
+  ///
+  /// [_closed] is the one transition out of it.
+  final Map<ToastificationItem, _OpenNotice> _open = {};
 
   /// A float corner holds at most this many notices (s03 invariant 3).
   static const int _floatCap = 3;
 
   bool _disposed = false;
 
-  /// How many `StratumToastHost` widgets are mounted in this process right
-  /// now, so a dispose only clears the shared managers once none are left
-  /// (edge finding 3: two hosts in one process).
-  static int _liveHosts = 0;
+  /// Every mounted host in this process: a dispose clears the shared
+  /// managers only once none is left (edge finding 3), and a debug build
+  /// throws on a second root host (security S1).
+  static final Set<StratumToastHostState> _liveHosts = {};
 
-  /// Every open notice's own focus-tracking node, so [_trackFocus] can
+  /// Every mounted notice's own focus-tracking node, so [_trackFocus] can
   /// tell focus inside a notice from focus outside every notice (probe-tab
   /// findings, "second defect").
   final Set<FocusNode> _noticeFocusNodes = {};
 
-  /// Each shown notice's `ToastificationItem`, in true show order: the
-  /// order [_present] ran, never a queued one, and never the order its
-  /// widget happened to mount (R27 fix: correctness finding 2, edge
-  /// finding D).
-  final List<ToastificationItem> _showOrder = [];
-
   /// Each currently-mounted notice's own focus-tracking node, by its
   /// `ToastificationItem`: the host shortcut requests focus on the first
-  /// traversable descendant of the newest [_showOrder] entry that has
-  /// one, whatever look built it (US-01 FR-05 E05, E09; FR-06 E04; s03
-  /// invariants 13, 18).
+  /// traversable descendant of the newest [_open] entry that has one,
+  /// whatever look built it, and [_closed] returns focus when the closing
+  /// notice's node holds it (US-01 FR-04, FR-05 E05, E09; FR-06 E04; s03
+  /// invariants 13, 18, 19).
   final Map<ToastificationItem, FocusNode> _noticeTrackingNodes = {};
 
   /// The shortcut's bound action, created once so its enabled check reads
@@ -288,24 +298,48 @@ class StratumToastHostState extends State<StratumToastHost> {
   late final _FocusNewestNoticeAction _focusNewestNoticeAction =
       _FocusNewestNoticeAction(this);
 
-  /// The most recent focus that sat outside every open notice, so a manual
-  /// close can return focus there instead of wherever the route scope's
-  /// own traversal history parks it, which drops the node Tab's
-  /// `parentScope` edge unfocused on the way in (probe-tab findings,
-  /// "second defect found").
+  /// The most recent focus that sat outside every open notice, so a close
+  /// can return focus there instead of wherever the route scope's own
+  /// traversal history parks it, which drops the node Tab's `parentScope`
+  /// edge unfocused on the way in (probe-tab findings, "second defect
+  /// found").
   FocusNode? _lastFocusOutsideNotices;
-
-  /// Each open notice's return-focus hook, run once by [_closed], whichever
-  /// close path fires it first: a manual close (through [_closeItem]) or
-  /// the notice's own timer, so both return focus the same way (R27 fix:
-  /// edge finding A; probe-tab findings, "second defect found").
-  final Map<ToastificationItem, VoidCallback> _closeFocusHandlers = {};
 
   @override
   void initState() {
     super.initState();
-    _liveHosts++;
+    final othersLive = _liveHosts.isNotEmpty;
+    _liveHosts.add(this);
     FocusManager.instance.addListener(_trackFocus);
+    assert(() {
+      // Checked once the frame ends: a host that replaces another in one
+      // frame meets it here, before the old one's dispose.
+      if (othersLive) {
+        SchedulerBinding.instance.addPostFrameCallback(
+          (_) => _debugCheckOneRootHost(),
+        );
+      }
+      return true;
+    }(), 'schedules the debug-only one-root-host check');
+  }
+
+  /// Throws while a second host with no host above it is mounted
+  /// (security S1).
+  void _debugCheckOneRootHost() {
+    if (_disposed) return;
+    final roots = _liveHosts.where(
+      (host) =>
+          !host._disposed &&
+          host.context.findAncestorStateOfType<StratumToastHostState>() == null,
+    );
+    if (roots.length <= 1) return;
+    throw FlutterError(
+      'More than one root StratumToastHost is mounted.\n'
+      'toastification keeps one wrapper GlobalKey and one manager per '
+      'alignment for the whole process, so a second root host draws its '
+      "notices into the first one's navigator. Keep one root "
+      'StratumToastHost per process, in MaterialApp.builder.',
+    );
   }
 
   /// Remembers [FocusManager.instance]'s primary focus whenever it sits
@@ -323,18 +357,14 @@ class StratumToastHostState extends State<StratumToastHost> {
     _noticeTrackingNodes[item] = node;
   }
 
+  /// Drops [node] for [item] only while it is still the one registered, so
+  /// a stale state never clears a live registration.
   void _unregisterNoticeFocus(ToastificationItem item, FocusNode node) {
     _noticeFocusNodes.remove(node);
-    _noticeTrackingNodes.remove(item);
+    if (identical(_noticeTrackingNodes[item], node)) {
+      _noticeTrackingNodes.remove(item);
+    }
   }
-
-  void _registerCloseFocusHandler(
-    ToastificationItem item,
-    VoidCallback handler,
-  ) => _closeFocusHandlers[item] = handler;
-
-  void _unregisterCloseFocusHandler(ToastificationItem item) =>
-      _closeFocusHandlers.remove(item);
 
   /// Whether [node] sits inside any open notice's own focus-tracking node.
   bool _insideANotice(FocusNode node) =>
@@ -344,13 +374,12 @@ class StratumToastHostState extends State<StratumToastHost> {
   @override
   void dispose() {
     FocusManager.instance.removeListener(_trackFocus);
-    _liveHosts--;
-    if (_liveHosts == 0) {
+    _liveHosts.remove(this);
+    if (_liveHosts.isEmpty) {
       // WORKAROUND: toastification keeps process-wide managers keyed by
       // alignment, each holding its overlay entry and the running close
       // timers, so they outlive any host and fail the test teardown; remove
-      // when a toastification release owns its managers' lifecycle
-      // (upstream PR #247).
+      // when a toastification release owns its managers' lifecycle.
       // ignore: invalid_use_of_visible_for_testing_member, reads the process-wide managers of toastification 3.2.0
       for (final manager in toastification.managers.values) {
         // ignore: invalid_use_of_visible_for_testing_member, see above.
@@ -366,49 +395,67 @@ class StratumToastHostState extends State<StratumToastHost> {
   }
 
   /// Shows [request] now, or queues it when it is a solid notice and one
-  /// shows already (US-01 FR-03); a call reached during build or layout
-  /// defers to the next frame, since `toastification` inserts into the
-  /// overlay synchronously and that insert asserts outside the idle phase
-  /// (edge finding 4).
+  /// shows already (US-01 FR-03).
+  ///
+  /// A request with no placement takes the default for the window size,
+  /// read here from the host's own context, so the caller registers no
+  /// rebuild tie to the window size (US-01 FR-01 E04).
   void show(StratumToastRequest request) {
     if (_disposed) return;
-    if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.idle) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (!_disposed) _show(request);
-      });
-      return;
-    }
-    _show(request);
+    final placement =
+        request.placement ?? defaultToastPlacement(context.windowSize);
+    _whenOverlayIsFree(() => _show(request, placement));
   }
 
-  /// [show]'s own work, once the frame is idle.
-  void _show(StratumToastRequest request) {
-    switch (request.placement) {
-      case StratumToastSolid():
+  /// Runs [work] now while the scheduler is idle or running post-frame
+  /// callbacks, where an overlay insert is legal, else once this frame
+  /// ends, with a frame requested so it never waits for an unrelated one
+  /// (edge findings 4, I3; correctness finding 1).
+  void _whenOverlayIsFree(VoidCallback work) {
+    final scheduler = SchedulerBinding.instance;
+    switch (scheduler.schedulerPhase) {
+      case SchedulerPhase.idle || SchedulerPhase.postFrameCallbacks:
+        work();
+      case SchedulerPhase.transientCallbacks ||
+          SchedulerPhase.midFrameMicrotasks ||
+          SchedulerPhase.persistentCallbacks:
+        scheduler
+          ..addPostFrameCallback((_) {
+            if (!_disposed) work();
+          })
+          ..ensureVisualUpdate();
+    }
+  }
+
+  /// [show]'s own work, once the overlay takes an insert.
+  void _show(StratumToastRequest request, StratumToastPlacement placement) {
+    switch (placement) {
+      case final StratumToastSolid solid:
         if (_solidShowing) {
-          _solidQueue.add(request);
+          _solidQueue.add((request, solid));
           return;
         }
         _solidShowing = true;
-        _present(request);
+        _present(request, solid);
       case StratumToastFloat(:final corner):
-        _floats.putIfAbsent(corner, () => []).add(_present(request));
+        _present(request, placement);
         _evictOverCap(corner);
     }
   }
 
-  /// Hands [request] to `toastification` at its manager key under the
-  /// direction of the show context, so solid notices reach the solid
-  /// config and float notices the float one (s03 invariant 4), and
-  /// announces it on show, never while queued (US-01 FR-05 E03).
-  ToastificationItem _present(StratumToastRequest request) {
-    final context = switch (request.placement) {
+  /// Hands [request] to `toastification` at [placement]'s manager key
+  /// under the direction of the show context, so solid notices reach the
+  /// solid config and float notices the float one (s03 invariant 4), opens
+  /// it in [_open], and announces it on show, never while queued (US-01
+  /// FR-05 E03).
+  void _present(StratumToastRequest request, StratumToastPlacement placement) {
+    final context = switch (placement) {
       StratumToastSolid() => _solidKey.currentContext,
       StratumToastFloat() => _floatKey.currentContext,
     };
     assert(context != null, 'the host is not mounted');
     final direction = Directionality.of(context!);
-    final alignment = toastManagerKey(request.placement, direction);
+    final alignment = toastManagerKey(placement, direction);
     _announce(context, request);
     final item = toastification.showCustom(
       context: context,
@@ -419,19 +466,23 @@ class StratumToastHostState extends State<StratumToastHost> {
       ),
       animationDuration: _animationDuration(context),
       animationBuilder: _animate,
-      builder: (buildContext, item) =>
-          _ToastView(request: request, host: this, item: item),
-      callbacks: ToastificationCallbacks(
-        onAutoCompleteCompleted: (item) => _closed(request.placement, item),
+      // The global key keeps the notice's element, and every state under
+      // it, across toastification's unkeyed list slots, which shift by one
+      // each time a notice lands or leaves at the same corner (edge
+      // finding I1).
+      builder: (buildContext, item) => _ToastView(
+        key: GlobalObjectKey(item),
+        request: request,
+        placement: placement,
+        host: this,
+        item: item,
       ),
+      callbacks: ToastificationCallbacks(onAutoCompleteCompleted: _closed),
     );
-    // True show order, never the order the item's widget happens to mount
-    // (R27 fix: correctness finding 2, edge finding D).
-    _showOrder.add(item);
+    _open[item] = _OpenNotice(item, placement);
     // WORKAROUND: toastification queues the insert in a post-frame callback
     // without scheduling a frame; remove when it schedules one itself.
     SchedulerBinding.instance.ensureVisualUpdate();
-    return item;
   }
 
   /// Announces [request] as its kind name, then its message, then, on
@@ -473,24 +524,27 @@ class StratumToastHostState extends State<StratumToastHost> {
     return builtInLabelsOf(context).noticeShortcutHint(keyName);
   }
 
-  /// The show and hide duration: the theme's `normal` level, zero under
-  /// reduced motion, where the look fades its own opacity only (NFR-U03;
-  /// s03 invariant 14).
+  /// The theme's `normal` animation level, the show and hide duration
+  /// (NFR-U03; s01 Effects).
+  static Duration _normalDuration(BuildContext context) =>
+      context.theme.animation.normal.duration ??
+      const Duration(milliseconds: 300);
+
+  /// toastification's show and hide duration: the theme's `normal` level,
+  /// zero under reduced motion, where `_ToastView` fades the look in on
+  /// its own (NFR-U03; s03 invariant 14).
   Duration _animationDuration(BuildContext context) {
     // WORKAROUND: toastification animates each item's heightFactor from 0
     // to 1 over the first 60% of the show whatever the animationBuilder
     // returns, so a nonzero duration still resizes and slides the notice
     // under reduced motion; remove when a toastification release skips its
     // size animation under disabled animations.
-    return context.reducesMotion
-        ? Duration.zero
-        : context.theme.animation.normal.duration ??
-              const Duration(milliseconds: 300);
+    return context.reducesMotion ? Duration.zero : _normalDuration(context);
   }
 
   /// Fades [child] on [animation]; toastification pre-curves the intervals
-  // it hands (easeInOut), and the size curve stays theirs (s01 Effects;
-  // s03 invariant 14).
+  /// it hands (easeInOut), and the size curve stays theirs (s01 Effects;
+  /// s03 invariant 14).
   Widget _animate(
     BuildContext context,
     Animation<double> animation,
@@ -507,15 +561,21 @@ class StratumToastHostState extends State<StratumToastHost> {
     return FadeTransition(opacity: animation, child: child);
   }
 
-  /// Closes that corner's oldest notice when the corner holds the cap and
-  /// the new one landed, both in this frame's order: `toastification`
-  /// adds each item in a post-frame callback, and this eviction registers
-  /// after that add, so it dismisses a live item (s03 invariant 3).
+  /// Closes that corner's oldest notice when the corner holds more than the
+  /// cap, through [_closed] as any close, then dismisses it after this
+  /// frame's add: `toastification` adds each item in a post-frame
+  /// callback, and this one registers after that add, so it dismisses a
+  /// live item (s03 invariants 3, 19).
   void _evictOverCap(StratumToastCorner corner) {
-    final items = _floats[corner]!;
-    if (items.length <= _floatCap) return;
-    final oldest = items.removeAt(0);
-    _showOrder.remove(oldest);
+    final atCorner = [
+      for (final MapEntry(key: item, value: notice) in _open.entries)
+        if (notice.placement case StratumToastFloat(corner: final at)
+            when at == corner)
+          item,
+    ];
+    if (atCorner.length <= _floatCap) return;
+    final oldest = atCorner.first;
+    _closed(oldest);
     // WORKAROUND: toastification adds each item in a post-frame callback
     // and dismisses only an item already in the list, so the eviction of
     // a same-frame add must run after it; remove when toastification adds
@@ -525,57 +585,110 @@ class StratumToastHostState extends State<StratumToastHost> {
     });
   }
 
-  /// A notice closed by its own timer or a manual close, both reaching here
-  /// through [_closeItem] or straight from `toastification`'s callback:
-  /// returns focus first, when it sat inside the notice, through the
-  /// handler [_ToastViewState] registered (R27 fix: edge finding A), then a
-  /// float leaves its corner's list; the next queued solid notice shows
-  /// (US-01 FR-03, FR-04, s03 invariants 2, 3, 19).
-  void _closed(StratumToastPlacement placement, ToastificationItem item) {
-    _closeFocusHandlers.remove(item)?.call();
-    _showOrder.remove(item);
-    if (placement case StratumToastFloat(:final corner)) {
-      _floats[corner]?.remove(item);
-      return;
-    }
+  /// The one transition out of [_open], run once per notice whatever
+  /// closed it: its own timer, any close path of its look, or an eviction
+  /// (US-01 FR-03, FR-04; s03 invariants 2, 3, 19).
+  ///
+  /// A later call for the same notice does nothing, so a second close
+  /// never shows a second queued solid notice. It returns focus when the
+  /// notice held it, frees the notice's manager once its alignment holds
+  /// no open notice, and hands the solid slot to the next queued notice.
+  void _closed(ToastificationItem item) {
+    final notice = _open.remove(item);
+    if (notice == null) return;
+    _returnFocusIfInside(item);
+    _retireManagerOf(item);
+    if (notice.placement is StratumToastSolid) _passSolidSlot();
+  }
+
+  /// Hands the solid slot to the next queued solid notice, or frees it
+  /// with none queued (US-01 FR-03; s03 invariant 2).
+  void _passSolidSlot() {
     if (_solidQueue.isEmpty) {
       _solidShowing = false;
       return;
     }
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (_disposed || _solidQueue.isEmpty) return;
-      _present(_solidQueue.removeAt(0));
+    _whenOverlayIsFree(() {
+      final (request, placement) = _solidQueue.removeAt(0);
+      _present(request, placement);
     });
   }
 
-  /// The edge inset of a solid notice, read from the host's own context
-  /// outside `toastification`'s list, whose `MediaQuery.removePadding`
-  /// zeroes it, so the fill runs under the bar while the content pads by
-  /// it (s03 invariant 4).
-  EdgeInsets _edgeInset(StratumToastRequest request) {
+  /// Returns focus from a closing notice that holds it: to the last focus
+  /// outside every notice while that node is still in the focus tree and
+  /// can take focus, else to the focus its scope held before, which is the
+  /// current route's (s03 invariant 19; US-01 FR-04 E06 to E09).
+  void _returnFocusIfInside(ToastificationItem item) {
+    final notice = _noticeTrackingNodes[item];
+    if (notice == null || !notice.hasFocus) return;
+    final target = _lastFocusOutsideNotices;
+    // A detached node keeps its context, and a focus request on it waits
+    // for its return, so only its parent tells it is still in the tree.
+    if (target != null && target.parent != null && target.canRequestFocus) {
+      target.requestFocus();
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus(
+      disposition: UnfocusDisposition.previouslyFocusedChild,
+    );
+  }
+
+  /// Drops [item]'s `toastification` manager from the process-wide map
+  /// once its alignment holds no open notice, so the next show there
+  /// builds a fresh manager and overlay entry.
+  // WORKAROUND: toastification removes an emptied manager's overlay entry
+  // on a wall-clock timer, 50 ms after a close without animation or the
+  // exit animation plus 50 ms after one with it, while it adds an item to
+  // that entry only in a post-frame callback, so a show landing between
+  // the two goes into an entry the timer then removes, and never draws;
+  // remove when toastification keeps an emptied entry for an item added
+  // after the close, or adds items synchronously.
+  void _retireManagerOf(ToastificationItem item) {
+    final alignment = item.alignment;
+    if (_open.keys.any((open) => open.alignment == alignment)) return;
+    // ignore: invalid_use_of_visible_for_testing_member, reads the process-wide managers of toastification 3.2.0
+    final manager = toastification.managers[alignment];
+    // ignore: invalid_use_of_visible_for_testing_member, see above.
+    if (manager == null || manager.notifications.isNotEmpty) return;
+    // ignore: invalid_use_of_visible_for_testing_member, see above.
+    toastification.managers.remove(alignment);
+  }
+
+  /// Pauses [item]'s close timer for [reason] while it is open (s03
+  /// invariant 7).
+  void _pause(ToastificationItem item, _PauseReason reason) =>
+      _open[item]?.pause(reason);
+
+  /// Ends [reason]'s pause of [item]'s close timer while it is open (s03
+  /// invariant 7).
+  void _resume(ToastificationItem item, _PauseReason reason) =>
+      _open[item]?.resume(reason);
+
+  /// The edge inset of a solid notice at [placement], read from the host's
+  /// own context outside `toastification`'s list, whose
+  /// `MediaQuery.removePadding` zeroes it, so the fill runs under the bar
+  /// while the content pads by it (s03 invariant 4).
+  ///
+  /// Reads the `viewPadding` aspect alone, so a keyboard or resize frame
+  /// rebuilds no host builder (performance finding 4).
+  EdgeInsets _edgeInset(StratumToastPlacement placement) {
+    if (placement is! StratumToastSolid) return EdgeInsets.zero;
     final context = _solidKey.currentContext;
     if (context == null) return EdgeInsets.zero;
-    final viewPadding = MediaQuery.of(context).viewPadding;
-    return switch (request.placement) {
-      StratumToastSolid(edge: StratumToastEdge.top) => EdgeInsets.only(
-        top: viewPadding.top,
-      ),
-      StratumToastSolid(edge: StratumToastEdge.bottom) => EdgeInsets.only(
-        bottom: viewPadding.bottom,
-      ),
-      StratumToastFloat() => EdgeInsets.zero,
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+    return switch (placement.edge) {
+      StratumToastEdge.top => EdgeInsets.only(top: viewPadding.top),
+      StratumToastEdge.bottom => EdgeInsets.only(bottom: viewPadding.bottom),
     };
   }
 
-  /// Closes [item], shown at [placement], with no removal animation: every
-  /// close path of the host's own look (close button, Esc, swipe, and an
-  /// action tap) ends here, so a dismissed `Dismissible` never remounts
-  /// (s03 invariant 9) and runs the same bookkeeping [_closed] gives a
-  /// timer close, so a float leaves its corner's list and the next queued
-  /// solid notice shows (US-01 FR-03, FR-04).
-  void _closeItem(StratumToastPlacement placement, ToastificationItem item) {
+  /// Closes [item] with no removal animation: every close path of a look
+  /// (close button, Esc, swipe, and an action tap) ends here, so a
+  /// dismissed `Dismissible` never remounts (s03 invariant 9), then runs
+  /// [_closed] as a timer close does (US-01 FR-03, FR-04).
+  void _closeItem(ToastificationItem item) {
     toastification.dismiss(item, showRemoveAnimation: false);
-    _closed(placement, item);
+    _closed(item);
   }
 
   @override
@@ -621,7 +734,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   // WORKAROUND: toastification's `ToastificationWrapper` holds a single
   // `GlobalKey<OverlayState>`, so a second instance under the same app
   // throws on the duplicate key; remove when the wrapper supports more
-  // than one per tree or drops the global key (upstream issue #248).
+  // than one per tree or drops the global key.
   Widget _wrapWhenNoWrapperAbove(BuildContext context, Widget child) {
     if (context.findAncestorWidgetOfExactType<ToastificationWrapper>() !=
         null) {
@@ -641,7 +754,7 @@ class StratumToastHostState extends State<StratumToastHost> {
   // outlives every later build of this `ToastificationConfigProvider`; an
   // `itemWidth` here would freeze at the window size of the first show;
   // remove when a toastification release re-reads the config per item,
-  // not per manager (upstream issue #249).
+  // not per manager.
   static const ToastificationConfig _floatConfig = ToastificationConfig(
     itemWidth: double.infinity,
     applyMediaQueryViewInsets: false,
@@ -800,6 +913,30 @@ class _StratumToastHostScope extends InheritedWidget {
   bool updateShouldNotify(_StratumToastHostScope oldWidget) => false;
 }
 
+/// One open notice of the host: its placement, and why its close timer is
+/// paused right now, so the timer resumes only once every reason has
+/// ended (s03 invariant 7).
+///
+/// Lives in the host, never in the notice's widget state, so it outlasts
+/// any rebuild of `toastification`'s list (edge finding I1).
+final class _OpenNotice {
+  new(this.item, this.placement);
+
+  final ToastificationItem item;
+  final StratumToastPlacement placement;
+  final Set<_PauseReason> _pauses = {};
+
+  /// Pauses the close timer when [reason] is the first one to hold it.
+  void pause(_PauseReason reason) {
+    if (_pauses.add(reason) && _pauses.length == 1) item.pause();
+  }
+
+  /// Resumes the close timer when [reason] was the last one holding it.
+  void resume(_PauseReason reason) {
+    if (_pauses.remove(reason) && _pauses.isEmpty) item.start();
+  }
+}
+
 /// One notice as its look reads it, wrapped in its pause, key, and swipe
 /// close paths: hover, focus inside, and touch each pause the close
 /// timer, and the timer resumes only once all three have ended, a
@@ -807,9 +944,18 @@ class _StratumToastHostScope extends InheritedWidget {
 /// close button, and a horizontal swipe close it (US-01 FR-04; s03
 /// invariants 7, 9).
 class _ToastView extends StatefulWidget {
-  const new({required this.request, required this.host, required this.item});
+  const new({
+    super.key,
+    required this.request,
+    required this.placement,
+    required this.host,
+    required this.item,
+  });
 
   final StratumToastRequest request;
+
+  /// [request]'s placement, its default resolved by the host.
+  final StratumToastPlacement placement;
   final StratumToastHostState host;
   final ToastificationItem item;
 
@@ -817,55 +963,53 @@ class _ToastView extends StatefulWidget {
   State<_ToastView> createState() => _ToastViewState();
 }
 
-class _ToastViewState extends State<_ToastView> {
-  /// Why the close timer is paused right now; it resumes only once every
-  /// reason has ended (s03 invariant 7).
-  final Set<_PauseReason> _pauses = {};
+class _ToastViewState extends State<_ToastView>
+    with SingleTickerProviderStateMixin {
+  /// `Dismissible`'s own settle and resize durations, kept under full
+  /// motion.
+  static const Duration _swipeSettle = Duration(milliseconds: 200);
+  static const Duration _swipeResize = Duration(milliseconds: 300);
 
-  /// Whether focus sits inside this notice right now (s03 invariant 7).
-  bool _focusInside = false;
+  /// The look's own fade-in under reduced motion, where `toastification`
+  /// shows in zero time; it rests at full opacity otherwise (s03
+  /// invariant 14).
+  late final AnimationController _reducedMotionFade = AnimationController(
+    vsync: this,
+    value: 1,
+  );
+
+  late final Animation<double> _opacity = CurvedAnimation(
+    parent: _reducedMotionFade,
+    curve: Curves.easeInOutSine,
+  );
+
+  bool _faded = false;
 
   @override
-  void initState() {
-    super.initState();
-    widget.host._registerCloseFocusHandler(widget.item, _returnFocusIfInside);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_faded) return;
+    _faded = true;
+    if (!context.reducesMotion) return;
+    _reducedMotionFade
+      ..duration = StratumToastHostState._normalDuration(context)
+      ..forward(from: 0);
   }
 
   @override
   void dispose() {
-    widget.host._unregisterCloseFocusHandler(widget.item);
+    _reducedMotionFade.dispose();
     super.dispose();
   }
 
-  void _pause(_PauseReason reason) {
-    if (_pauses.add(reason) && _pauses.length == 1) {
-      widget.item.pause();
-    }
-  }
+  void _pause(_PauseReason reason) => widget.host._pause(widget.item, reason);
 
-  void _resume(_PauseReason reason) {
-    if (_pauses.remove(reason) && _pauses.isEmpty) {
-      widget.item.start();
-    }
-  }
+  void _resume(_PauseReason reason) => widget.host._resume(widget.item, reason);
 
   /// Closes the notice through the host's single close path
   /// ([StratumToastHostState._closeItem] then
-  /// [StratumToastHostState._closed]), which runs [_returnFocusIfInside]
-  /// for every close, this notice's own timer included (R27 fix: edge
-  /// finding A).
-  void _close() =>
-      widget.host._closeItem(widget.request.placement, widget.item);
-
-  /// Returns focus to the node that held it before Tab's `parentScope`
-  /// edge unfocused that node on the way in, rather than leaving it parked
-  /// on the route scope's first control, when focus sat inside this notice
-  /// (probe-tab findings, "second defect found").
-  void _returnFocusIfInside() {
-    if (!_focusInside) return;
-    final target = widget.host._lastFocusOutsideNotices;
-    if (target != null && target.context != null) target.requestFocus();
-  }
+  /// [StratumToastHostState._closed]), the one a timer close takes too.
+  void _close() => widget.host._closeItem(widget.item);
 
   /// The notice as its look reads it (s03 invariant 4, 16), with [context]
   /// resolving the close button and kind labels, a passed prop winning
@@ -873,8 +1017,8 @@ class _ToastViewState extends State<_ToastView> {
   StratumToastNotice _notice(BuildContext context) => StratumToastNotice(
     message: widget.request.message,
     kind: widget.request.kind,
-    placement: widget.request.placement,
-    insets: widget.host._edgeInset(widget.request),
+    placement: widget.placement,
+    insets: widget.host._edgeInset(widget.placement),
     pageSnack: StratumToastHostState._currentAreasOf(context)?.snack,
     customStyle: widget.request.customStyle,
     close: _close,
@@ -905,11 +1049,17 @@ class _ToastViewState extends State<_ToastView> {
     // margin, so every areas write moves a showing notice (N12, N13).
     final pagePadding = StratumToastHostState._pagePadding(
       context,
-      widget.request.placement,
+      widget.placement,
     );
+    final reducesMotion = context.reducesMotion;
     return Dismissible(
       key: ValueKey(widget.item.id),
       direction: DismissDirection.horizontal,
+      // Under reduced motion the finger's own drag is the only motion: no
+      // settle after release, and no resize of the notices beside it
+      // (s03 invariant 14; edge finding I9).
+      movementDuration: reducesMotion ? Duration.zero : _swipeSettle,
+      resizeDuration: reducesMotion ? null : _swipeResize,
       onDismissed: (_) => _close(),
       child: Focus(
         canRequestFocus: false,
@@ -935,13 +1085,10 @@ class _ToastViewState extends State<_ToastView> {
               child: _PauseOnFocus(
                 host: widget.host,
                 item: widget.item,
-                onFocusInside: (inside) {
-                  _focusInside = inside;
-                  inside
-                      ? _pause(_PauseReason.focus)
-                      : _resume(_PauseReason.focus);
-                },
-                child: _look(context),
+                onFocusInside: (inside) => inside
+                    ? _pause(_PauseReason.focus)
+                    : _resume(_PauseReason.focus),
+                child: FadeTransition(opacity: _opacity, child: _look(context)),
               ),
             ),
           ),
@@ -972,11 +1119,12 @@ class _PauseOnFocus extends StatefulWidget {
 
   /// Registers this notice's own focus-tracking node with the host while
   /// mounted, so the host can tell this notice's focus from focus outside
-  /// every notice, and so the host shortcut can find it by true show
-  /// order (R27 fix: correctness finding 2, edge finding D).
+  /// every notice, return focus when it closes holding it, and find it by
+  /// true show order for the host shortcut (R27 fix: correctness finding
+  /// 2, edge finding D).
   final StratumToastHostState host;
 
-  /// This notice's own item, the key [StratumToastHostState._showOrder]
+  /// This notice's own item, the key [StratumToastHostState._open]
   /// resolves by.
   final ToastificationItem item;
 

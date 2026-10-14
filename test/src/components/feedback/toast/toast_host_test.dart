@@ -27,19 +27,25 @@ void _bars(WidgetTester tester, FakeViewPadding padding) {
 const _phone = Size(390, 844);
 
 /// [home] under the theme, a direction, and the toast host above the
-/// app's navigator, as `MaterialApp.builder` places it.
-Widget _app(Widget home, {TextDirection direction = TextDirection.ltr}) =>
-    MaterialApp(
-      builder: (context, child) => StratumThemeApplication(
-        themes: StratumThemeSet(light: fakeTheme),
-        themeMode: ThemeMode.light,
-        child: Directionality(
-          textDirection: direction,
-          child: StratumToastHost(child: child!),
-        ),
-      ),
-      home: Scaffold(body: home),
-    );
+/// app's navigator, as `MaterialApp.builder` places it; [builder] replaces
+/// the look of every notice when set.
+Widget _app(
+  Widget home, {
+  TextDirection direction = TextDirection.ltr,
+  StratumToastBuilder? builder,
+}) => MaterialApp(
+  builder: (context, child) => StratumThemeApplication(
+    themes: StratumThemeSet(light: fakeTheme),
+    themeMode: ThemeMode.light,
+    child: Directionality(
+      textDirection: direction,
+      child: StratumToastHost(builder: builder, child: child!),
+    ),
+  ),
+  home: Scaffold(body: home),
+);
+
+const _solidBottom = StratumToastPlacement.solid(StratumToastEdge.bottom);
 
 /// A button labeled [label] whose tap runs [show] with its context.
 Widget _button(String label, void Function(BuildContext) show) => Builder(
@@ -62,15 +68,9 @@ class _ShowOnMountState extends State<_ShowOnMount> {
   @override
   void initState() {
     super.initState();
-    // An explicit placement skips `context.windowSize`'s own inherited
-    // widget read, isolating the host's build-phase deferral from that
-    // unrelated initState restriction.
-    context.showToast(
-      message: widget.message,
-      placement: const StratumToastPlacement.float(
-        StratumToastCorner.bottomCenter,
-      ),
-    );
+    // No placement: the host, never this caller, reads the window size for
+    // the default, so the call holds in initState too (edge finding I3).
+    context.showToast(message: widget.message);
   }
 
   @override
@@ -661,6 +661,206 @@ void main() {
         expect(find.text(m), findsOneWidget);
       }
       expect(find.text('top'), findsOneWidget);
+    },
+  );
+
+  // Final fix wave A: review-final-m4 correctness 1, 7; edge I3, M3;
+  // performance 2, 4, 5; security S1.
+
+  testWidgets(
+    'us01/fr03/e01: performance 2: a manual close shows the queued solid '
+    'notice even when the 50 ms overlay teardown lands between its frames',
+    (tester) async {
+      _view(tester, _phone);
+      final handle = tester.ensureSemantics();
+      await _show(tester, ['one', 'two'], placement: _solidBottom);
+      expect(find.text('one'), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Close'));
+      // Frame by frame, never 100 ms steps: toastification tears an emptied
+      // overlay entry down 50 ms after the close, between the two frames a
+      // reused entry needs for its post-frame add.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+      expect(find.text('one'), findsNothing);
+      expect(find.text('two'), findsOneWidget);
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'us01/fr03/e02: performance 2: under reduced motion a timer close shows '
+    'the queued solid notice, stepped frame by frame',
+    (tester) async {
+      _view(tester, _phone);
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) {
+            for (final m in ['one', 'two']) {
+              c.showToast(message: m, placement: _solidBottom);
+            }
+          }),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('one'), findsOneWidget);
+      // The close timer fires at the end of this step; under reduced motion
+      // the overlay teardown follows 50 ms later.
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+      expect(find.text('one'), findsNothing);
+      expect(find.text('two'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'us01/fr03/e02: correctness 7, edge M3: a second close of one notice '
+    'never shows two solid notices at once',
+    (tester) async {
+      _view(tester, _phone);
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) {
+            for (final m in ['one', 'two', 'three']) {
+              c.showToast(message: m, placement: _solidBottom);
+            }
+          }),
+          // An app look that closes twice, as a late async call can.
+          builder: (context, notice) => TextButton(
+            onPressed: () {
+              notice
+                ..close()
+                ..close();
+            },
+            child: Text(notice.message),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('one'), findsOneWidget);
+      await tester.tap(find.text('one'));
+      await tester.pumpAndSettle();
+      expect(find.text('one'), findsNothing);
+      expect(find.text('two'), findsOneWidget);
+      expect(find.text('three'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'us01/fr01: correctness 1, edge I3: a show from a post-frame callback '
+    'requests the frame that lands it',
+    (tester) async {
+      _view(tester, _phone);
+      late BuildContext ctx;
+      await tester.pumpWidget(
+        _app(
+          Builder(
+            builder: (c) {
+              ctx = c;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      // An idle screen: one frame runs, and its post-frame callback shows.
+      tester.binding
+        ..addPostFrameCallback((_) => ctx.showToast(message: 'PostFrame'))
+        ..scheduleFrame();
+      await tester.pump();
+      expect(tester.binding.hasScheduledFrame, isTrue);
+      await tester.pumpAndSettle();
+      expect(find.text('PostFrame'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'us01/fr01/e04: performance 5: the default placement leaves the caller '
+    'independent of the window size',
+    (tester) async {
+      _view(tester, _phone);
+      var builds = 0;
+      await tester.pumpWidget(
+        _app(
+          Builder(
+            builder: (c) {
+              builds++;
+              return TextButton(
+                onPressed: () => c.showToast(message: 'Default'),
+                child: const Text('go'),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('Default'), findsOneWidget);
+      final before = builds;
+      // Phone to desktop crosses two breakpoints.
+      _view(tester, const Size(1400, 900));
+      await tester.pumpAndSettle();
+      expect(builds, before);
+    },
+  );
+
+  testWidgets(
+    'us01/fr02: performance 4: a keyboard change rebuilds no host builder '
+    'while a float notice shows',
+    (tester) async {
+      _view(tester, _phone);
+      await _show(tester, ['Float']);
+      var hostRebuilds = 0;
+      debugOnRebuildDirtyWidget = (element, builtOnce) {
+        if ('${element.widget.key}'.contains('StratumToastHost.solid')) {
+          hostRebuilds++;
+        }
+      };
+      try {
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        await tester.pump();
+      } finally {
+        debugOnRebuildDirtyWidget = null;
+      }
+      expect(hostRebuilds, 0);
+    },
+  );
+
+  testWidgets(
+    'security S1: a second root host beside the first fails in debug, since '
+    'toastification keeps one wrapper and its managers per process',
+    (tester) async {
+      await tester.pumpWidget(
+        const ToastificationWrapper(
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Row(
+              children: [
+                Expanded(child: StratumToastHost(child: SizedBox())),
+                Expanded(child: StratumToastHost(child: SizedBox())),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester.takeException(),
+        isA<FlutterError>().having(
+          (e) => e.message,
+          'message',
+          contains('one root StratumToastHost'),
+        ),
+      );
     },
   );
 }
