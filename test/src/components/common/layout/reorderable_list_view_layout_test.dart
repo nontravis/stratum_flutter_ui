@@ -15952,6 +15952,218 @@ void main() {
         expect(_builtInView(tester, 100), isTrue);
       },
     );
+
+    testWidgets(
+      'R45: an app jumpTo in the turn the app removes the focused item holds '
+      'every frame, and focus moves on from the gap with no scroll',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        await _focusItem(tester, 100);
+
+        _harness(tester).remove(100);
+        position.jumpTo(5000);
+        expect(await laidFrames(tester, 10), everyElement(5000.0));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(position.pixels, 5000);
+        final focused = FocusManager.instance.primaryFocus?.debugLabel;
+        expect(focused, startsWith('item '));
+        expect(focused, isNot('item 100'));
+      },
+    );
+
+    // A call before the shown focused item that shifts it, in the same turn
+    // as the app's jumpTo.
+    final shifts = ValueVariant<String>({'removeItem', 'insertItem'});
+    testWidgets(
+      'R45: an app jumpTo after a call that shifts the shown focused item, '
+      'in one turn, holds every frame, and the item stays parked with its '
+      'State and focus',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+
+        final harness = _harness(tester);
+        if (shifts.currentValue == 'removeItem') {
+          harness.remove(50);
+        } else {
+          harness.insert(50, 900);
+        }
+        position.jumpTo(2000);
+        expect(await laidFrames(tester, 10), everyElement(2000.0));
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, 2000);
+        expectParked(tester, 100, state, node);
+      },
+      variant: shifts,
+    );
+
+    // A far move of the focused item while the EndUser drags another one:
+    // by a call, by a reorder key, and by a screen reader's action.
+    final movesInDrag = ValueVariant<String>({
+      'moveItem',
+      'Alt+End',
+      'Move to the end',
+    });
+    testWidgets(
+      'R45: a far move of the focused item during a live drag of another '
+      'item ends the drag first, and the list shows the item where it lands',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            handles: true,
+            itemsController: ReorderableItemsController(),
+          ),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+        final harness = _harness(tester);
+        final gesture = await _grabHandle(tester, 103);
+        expect(harness.starts, hasLength(1));
+
+        switch (movesInDrag.currentValue!) {
+          case 'moveItem':
+            harness.move(100, 199);
+          case 'Alt+End':
+            await _altNow(tester, LogicalKeyboardKey.end);
+          default:
+            moveActionNow(tester, 100, 'Move to the end');
+        }
+        await tester.pumpAndSettle();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(harness.ends, hasLength(1));
+        expect(harness.ids.last, 100);
+        expectKept(tester, 100, state, node: node);
+        expect(_builtInView(tester, 100), isTrue);
+        handle.dispose();
+      },
+      variant: movesInDrag,
+    );
+
+    testWidgets(
+      'R45: a far moveItem of the focused item from onReorderStart ends the '
+      'drag it reports, and the list shows the item where it lands',
+      (tester) async {
+        await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            handles: true,
+            itemsController: ReorderableItemsController(),
+          ),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+        final harness = _harness(tester)
+          ..onStart = (_) => _harness(tester).move(100, 199);
+
+        final gesture = await _grabHandle(tester, 103);
+        await tester.pumpAndSettle();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(harness.starts, hasLength(1));
+        expect(harness.ends, hasLength(1));
+        expect(harness.ids.last, 100);
+        expectKept(tester, 100, state, node: node);
+        expect(_builtInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets('R60: an app scroll during the grow-in of a near move, then an '
+        'unrelated call, leaves no re-reveal to scroll over the app', (
+      tester,
+    ) async {
+      final position = await _pumpScrolled(
+        tester,
+        _Harness(count: 200, itemsController: ReorderableItemsController()),
+      );
+      final state = _itemState(tester, 100)..expanded = true;
+      final node = await _focusItem(tester, 100);
+      final harness = _harness(tester)..move(100, 103);
+      await tester.pump();
+      expect(_runningTransitions(tester), isNotEmpty);
+
+      // The item, at slot 103 from 4120 to 4160, stays shown but clipped
+      // at the viewport's bottom edge.
+      position.jumpTo(3850);
+      await tester.pump();
+      harness.insert(199, 900);
+      expect(await laidFrames(tester, 30), everyElement(3850.0));
+      await tester.pumpAndSettle();
+
+      expect(position.pixels, 3850);
+      expectKept(tester, 100, state, node: node);
+    });
+
+    testWidgets(
+      'R45: a mouse-wheel scroll after an app moveItem, then an unrelated '
+      'call, both before the frame: no reach the move left scrolls over the '
+      'wheel',
+      (tester) async {
+        final (position, state, node) = await wallScene(tester);
+        final harness = _harness(tester)..move(100, 150);
+
+        final view = tester.getRect(find.byType(Scrollable));
+        final pointer = TestPointer(81, PointerDeviceKind.mouse);
+        await tester.sendEventToBinding(pointer.hover(view.center));
+        await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
+        final wheeled = position.pixels;
+        expect(wheeled, 4120.0);
+        harness.insert(199, 900);
+        expect(await laidFrames(tester, 8), everyElement(wheeled));
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, wheeled);
+        expectParked(tester, 100, state, node);
+      },
+    );
+
+    testWidgets(
+      'R56: a frame jump, a reveal, and a second frame jump booked for one '
+      "frame's start run in booking order, so the last one stands",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        // Item 107 runs 20 px past the viewport's bottom edge at 4000.
+        await _focusItem(tester, 107);
+
+        // Posted before the key move, so it runs ahead of the move's reveal
+        // in the next post-frame batch: a jump to the end.
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => moveActionNow(tester, 110, 'Move to the end'),
+        );
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        // Posted after the key move's reveal: a jump to the start.
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => moveActionNow(tester, 111, 'Move to the start'),
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(laidOffset(tester), 0);
+
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {

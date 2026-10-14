@@ -461,11 +461,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// waits.
   int? _frameStartId;
 
-  /// How many inputs the list yields to ([_yieldToInput]) arrived since
-  /// it mounted, an EndUser grab or a scroll the EndUser or the app
-  /// started: a scroll this list books in an earlier turn drops at the
-  /// frame's start ([_scrollInFrame], R45).
+  /// The turn the scroll belongs to now. A new one opens each time the
+  /// scroll changes hands: an EndUser grab or a scroll the EndUser or the
+  /// app started takes it ([_yieldToInput]), the end of their hold
+  /// ([_endHold]), and an input that asks the list to show an item while
+  /// they hold it, which takes it back ([_takeScroll]). Each scroll the
+  /// list books, and each continuation an input schedules, carries the turn
+  /// of that input ([_bookingTurn]) and scrolls only while that turn is
+  /// still the latest ([_mayScroll], R45).
   var _inputTurn = 0;
+
+  /// The turn of the continuation running now ([_inTurn]); null outside
+  /// one, where work books in the latest turn.
+  int? _workTurn;
 
   /// Whether [_runFrameStart] is committing the work the list booked: a
   /// scroll that starts meanwhile is the list's own ([_startedByOther]).
@@ -481,18 +489,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// drag lets the item go ([_liftedLetGo]).
   var _lifting = false;
 
-  /// Whether the EndUser or the app took the scroll ([_yieldToInput])
-  /// since the last input that asks the list to show an item
-  /// ([_takeScroll]).
+  /// Whether the latest turn is the EndUser's or the app's
+  /// ([_yieldToInput]), until an input that asks the list to show an item
+  /// takes it back ([_takeScroll]).
   var _scrollTaken = false;
 
   /// Whether the EndUser or the app holds the list's scroll (R45): a lift
-  /// or a scroll of theirs still lasts, or took the scroll since the last
-  /// input that asks the list to show an item. While it holds, the list
-  /// commits no scroll ([_scrollInFrame], [_runFrameJump]) and starts no
-  /// reach ([_startReach]): every continuation an earlier input left waits
-  /// on this one state, and the item stays parked with its State and focus
-  /// (R29).
+  /// or a scroll of theirs still lasts, or the latest turn is theirs. While
+  /// it holds, the list commits no scroll and starts no reach
+  /// ([_mayScroll]), and the item stays parked with its State and focus
+  /// (R29). A take opens a new turn, so a continuation an earlier input
+  /// left never scrolls after it: it ends with no scroll.
   bool get _scrollHeld => _lifting || _otherScrolling || _scrollTaken;
 
   /// Whether a scroll that starts now belongs to the lift, so it neither
@@ -509,6 +516,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// Whether `onReorderStart` is running: the SDK sets the drag up only
   /// after it returns, so a cancel waits for a microtask.
   var _inReorderStart = false;
+
+  /// Whether a call in `onReorderStart` already ended the drag the SDK
+  /// sets up after it returns: that lift holds and takes nothing
+  /// ([_liftedTook]), since the call is the newer input.
+  var _liftEndedByCall = false;
 
   /// The key of the item a drag holds, from its drag start until the drag
   /// resets; the item stays in its own slot throughout.
@@ -751,14 +763,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       then();
       return;
     }
-    final estimate = frames == 0 ? null : _estimateTowards(slot);
+    // A turn that may no longer scroll runs [then] where the item stands.
+    final estimate = frames == 0 || !_mayScroll(_bookingTurn)
+        ? null
+        : _estimateTowards(slot);
     if (estimate == null) {
       then();
       return;
     }
     _scrollInFrame(() => estimate.position.jumpTo(estimate.offset));
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _bringBack(keys, then, frames: frames - 1, origin: start),
+    _afterFrame(
+      () => _bringBack(keys, then, frames: frames - 1, origin: start),
     );
   }
 
@@ -782,8 +797,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       'items',
     );
     if (index < const _DataIndex(0) || index > _dataEnd) return;
-    _takeScroll();
-    _cancelDrag();
+    _endDragForCall();
     _countSlotsBefore(to: index);
     _shiftForInsert(index);
     _pending.add((from: null, to: index, reported: false));
@@ -805,8 +819,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       'items',
     );
     if (index < const _DataIndex(0) || index >= _dataEnd) return;
-    _takeScroll();
-    _cancelDrag();
+    _endDragForCall();
     final built = _builtIndexOf(index, inPlace: true);
     final node = built == null ? null : _nodeAt(built);
     final look = built == null ? null : _lookAt(built);
@@ -821,55 +834,57 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _handoffKey = look?.key;
       // Once the call's frame is laid out, before its post-frame callbacks:
       // a focus request the app makes in any of them wins (R27, R13).
-      _runAfterLayout(() {
-        final gap = _handoffGap;
-        final key = _handoffKey;
-        final returnAt = _returnAt;
-        _handoffGap = null;
-        _handoffKey = null;
-        _returnAt = null;
-        if (!mounted || gap == null) return;
-        final primary = FocusManager.instance.primaryFocus;
-        // The key came back in this turn into a slot the frame built, with
-        // its State: focus stays with the item, or, gone, goes to the
-        // item's first node, and the list shows it (E16, E18).
-        if (key != null &&
-            node != null &&
-            node.context != null &&
-            _itemNodes.containsValue(node)) {
-          // Parked off screen: registered, but not laid out (E17).
-          if (returnAt != null && !_builtSlot(returnAt.slot)) {
-            if (node.hasFocus || primary == null) {
-              _startReach(returnAt, key, gap);
-            } else {
-              _releasePark(key);
+      _runAfterLayout(
+        _inTurn(() {
+          final gap = _handoffGap;
+          final key = _handoffKey;
+          final returnAt = _returnAt;
+          _handoffGap = null;
+          _handoffKey = null;
+          _returnAt = null;
+          if (!mounted || gap == null) return;
+          final primary = FocusManager.instance.primaryFocus;
+          // The key came back in this turn into a slot the frame built, with
+          // its State: focus stays with the item, or, gone, goes to the
+          // item's first node, and the list shows it (E16, E18).
+          if (key != null &&
+              node != null &&
+              node.context != null &&
+              _itemNodes.containsValue(node)) {
+            // Parked off screen: registered, but not laid out (E17).
+            if (returnAt != null && !_builtSlot(returnAt.slot)) {
+              if (node.hasFocus || primary == null) {
+                _startReach(returnAt, key, gap);
+              } else {
+                _releasePark(key);
+              }
+              return;
             }
+            _releasePark(key);
+            if (!node.hasFocus && primary != null) return;
+            if (!node.hasFocus) {
+              firstTabStopIn(node, reveal: false)?.requestFocus();
+            }
+            // The reveal scrolls, so it waits for the post-frame callbacks.
+            _afterFrame(() {
+              if (mounted && _itemNodes.containsValue(node)) {
+                _revealReturned(node, key);
+              }
+            });
             return;
           }
-          _releasePark(key);
-          if (!node.hasFocus && primary != null) return;
-          if (!node.hasFocus) {
-            firstTabStopIn(node, reveal: false)?.requestFocus();
+          // Focus the app moved in the same turn stays where the app put it.
+          final kept = primary == null || (node?.hasFocus ?? false);
+          if (!kept) return;
+          // The key came back into a slot the frame did not build, so its
+          // State is gone: reach the slot (E17).
+          if (key != null && returnAt != null) {
+            _startReach(returnAt, key, gap);
+            return;
           }
-          // The reveal scrolls, so it waits for the post-frame callbacks.
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && _itemNodes.containsValue(node)) {
-              _revealReturned(node, key);
-            }
-          });
-          return;
-        }
-        // Focus the app moved in the same turn stays where the app put it.
-        final kept = primary == null || (node?.hasFocus ?? false);
-        if (!kept) return;
-        // The key came back into a slot the frame did not build, so its
-        // State is gone: reach the slot (E17).
-        if (key != null && returnAt != null) {
-          _startReach(returnAt, key, gap);
-          return;
-        }
-        _requestHandOff(gap);
-      });
+          _requestHandOff(gap);
+        }),
+      );
     }
     // An item that is not built is off screen: nothing shows it leave.
     final exit = look != null && node?.context != null
@@ -898,8 +913,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       return;
     }
     if (from == to) return;
-    _takeScroll();
-    _cancelDrag();
+    _endDragForCall();
     final built = _builtIndexOf(from, inPlace: true);
     final node = built == null ? null : _nodeAt(built);
     final key = built == null ? null : _lookAt(built)?.key;
@@ -960,9 +974,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       // reads it.
       final target = _MoveTarget(to);
       _bookMoveJump(to, node, target, owned: true);
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _followMoved(node, key, target.origin),
-      );
+      _afterFrame(() => _followMoved(node, key, target.origin));
     }
     setState(() {});
   }
@@ -1832,6 +1844,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       }
       final offScreen = frame != null && !shown;
       if (offScreen && !rebooked && !_focusOwned(key)) continue;
+      // A raw move asks the list to show the item (R45).
+      _takeScroll();
       _bookRawMove(key, node, from: at, to: to);
     }
   }
@@ -1886,7 +1900,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     required _DataIndex to,
     Set<ScrollableState>? revealIn,
   }) {
-    _takeScroll();
     if (key == _reachKey) _stopReach();
     for (final target in _moveTargets) {
       if (target.key == key) target.index = null;
@@ -1944,7 +1957,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void _focusedItemGone(_FrameIndex slot, Key? key) {
     if (!_inTree || key == null || _focusOwned(key)) return;
     final gap = _dataIndexOf(slot, calls: _settledPending);
-    if (gap != null) _requestHandOff(gap);
+    if (gap == null) return;
+    // A removal no call explains asks the list to show the focus it hands
+    // on (R45); a removeItem took the scroll at its own call.
+    if (key != _handoffKey) _takeScroll();
+    _requestHandOff(gap);
   }
 
   /// Requests focus now for the node [_handOffFocus] would pick from [gap]:
@@ -1959,7 +1976,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// nothing until the focus move after the frame, and does neither when
   /// another request replaced its own (R13).
   void _requestHandOff(_DataIndex gap) {
-    _takeScroll();
     final next = _builtNear(gap, 1);
     final previous = _builtNear(gap - 1, -1);
     bool laidOut(_FrameIndex? index) => index != null && _builtSlot(index.slot);
@@ -1976,16 +1992,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     target.requestFocus();
     final held = _HeldGap(gap);
     if (reach) _givenUpGaps.add(held);
+    final handOff = _inTurn(() {
+      _givenUpGaps.remove(held);
+      if (!mounted || FocusManager.instance.primaryFocus != target) return;
+      if (reach) {
+        _handOffFocus(held.index, interim: target);
+      } else {
+        _revealHandOff(target);
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => scheduleMicrotask(() {
-        _givenUpGaps.remove(held);
-        if (!mounted || FocusManager.instance.primaryFocus != target) return;
-        if (reach) {
-          _handOffFocus(held.index, interim: target);
-        } else {
-          _revealHandOff(target);
-        }
-      }),
+      (_) => scheduleMicrotask(handOff),
     );
   }
 
@@ -2008,14 +2025,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   void _followRawMove(_MoveTarget target, FocusNode node) {
     final at = target.index;
     if (at == null) return;
-    final binding = WidgetsBinding.instance;
-    void follow(Duration _) => _afterMove(target, byKey: false);
+    void follow() => _afterMove(target, byKey: false);
     if (_builtSlot(_enteredSlot(at))) {
-      binding.addPostFrameCallback(follow);
+      _afterFrame(follow);
       return;
     }
     _bookFrameJump(node, target);
-    binding.addPostFrameCallback((_) => binding.addPostFrameCallback(follow));
+    _afterFrame(() => _afterFrame(follow));
   }
 
   /// The index the last build registered the key node [node] at, the slot
@@ -2175,8 +2191,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // A drag ends first, as a call ends it (invariant 28): the move changes
     // the data under it. A settling drop completes at once instead, its move
     // reported, then this move runs (R52).
-    _takeScroll();
     _endDragForInput();
+    _takeScroll();
     final moved = _reportMove(
       index,
       from,
@@ -2298,8 +2314,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // report takes nothing: a scroll the app made while it settled wins
     // over its reveal (R61).
     if (!drop) {
-      _takeScroll();
       _endDragForInput();
+      _takeScroll();
     }
     // A screen-reader move takes a focused move's jump (R46); only a drop
     // keeps its own edge jump.
@@ -2347,7 +2363,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _layout.onReorderItem(from.value, to.value);
     final toStart = to == const _DataIndex(0);
     _readySlot(moved, node, edgeJump: edgeJump, toStart: toStart);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    _afterFrame(() {
       _afterMove(moved, byKey: byKey);
       final last = moved == _lastReported;
       if (last) _lastReported = null;
@@ -2615,6 +2631,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _endDrag(now: true);
   }
 
+  /// Ends the drag a call lands in ([_cancelDrag]), then takes the scroll
+  /// ([_takeScroll]): the call is the newer input. A call in
+  /// `onReorderStart` lands before the SDK sets its drag up, so that lift
+  /// holds and takes nothing ([_liftedTook]).
+  void _endDragForCall() {
+    _cancelDrag();
+    if (_inReorderStart) {
+      _liftEndedByCall = true;
+      scheduleMicrotask(() => _liftEndedByCall = false);
+    }
+    _takeScroll();
+  }
+
   /// The list's sliver reset its drag outside [_cancelDrag]: a second
   /// pointer that takes the drag over, a pointer cancel, or an item-count
   /// change. The SDK resets inside its own `setState` or a build, so the end
@@ -2674,13 +2703,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// that follows rebuilds the list on its own.
   void _liftedTook(Key key) {
     _liftedKey = key;
-    _lifting = true;
     // The EndUser's newest input wins: a drag that starts while a reach
     // runs ends it at once, on its stale token, and the item it looked
     // for stays parked off screen with its State and focus (R29, FR-04
     // E20); a scroll the list booked before the grab never lands under
-    // the lifted item.
-    _yieldToInput();
+    // the lifted item. A lift a call in `onReorderStart` already ended
+    // holds and takes nothing: that call is the newer input.
+    if (!_liftEndedByCall) {
+      _lifting = true;
+      _yieldToInput();
+    }
     final index = _dragIndex;
     if (index != null) _endExitsBeside(index);
     final motion = _incoming[key];
@@ -2704,13 +2736,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // frame and keeps the frame the drag's end took: a count change in the
     // next turn still re-aims it (R25). The watch reads the item from its
     // follow until then.
-    WidgetsBinding.instance
-      ..addPostFrameCallback((_) {
-        if (_liftedFollow != follow) return;
-        _liftedFollow = null;
-        if (mounted) _followRawMove(follow.target, follow.node);
-      })
-      ..scheduleFrame();
+    _afterFrame(() {
+      if (_liftedFollow != follow) return;
+      _liftedFollow = null;
+      if (mounted) _followRawMove(follow.target, follow.node);
+    });
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   /// Jumps to the start when [toStart], else to the end. The target slot
@@ -2726,13 +2757,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (toStart) {
       position.jumpTo(position.minScrollExtent);
     } else {
+      final turn = _bookingTurn;
       jumpToEnd(
         position,
         attached: () =>
             mounted &&
             item.mounted &&
             Scrollable.maybeOf(item)?.position == position,
-        retry: _scrollInFrame,
+        retry: (jump) => _scrollInFrame(jump, turn: turn),
       );
     }
   }
@@ -2824,20 +2856,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     Set<ScrollableState>? levels,
   }) {
     final generation = _scrollGeneration;
+    final reveal = _inTurn(() {
+      // A FocusNode keeps its context once disposed: the item is live
+      // only while its node is registered.
+      if (!mounted || !_itemNodes.containsValue(node)) return;
+      // A scroll that took the item out of view since the move leaves
+      // it there (invariant 26).
+      if (_scrollTookOffScreen(node, generation)) return;
+      if (!byKey || node.hasFocus) {
+        _revealOwn(node, levels: levels);
+      }
+    });
     void grown(AnimationStatus status) {
       if (!status.isCompleted) return;
       motion.controller.removeStatusListener(grown);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // A FocusNode keeps its context once disposed: the item is live
-        // only while its node is registered.
-        if (!mounted || !_itemNodes.containsValue(node)) return;
-        // A scroll that took the item out of view since the move leaves
-        // it there (invariant 26).
-        if (_scrollTookOffScreen(node, generation)) return;
-        if (!byKey || node.hasFocus) {
-          _revealOwn(node, levels: levels);
-        }
-      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => reveal());
     }
 
     motion.controller.addStatusListener(grown);
@@ -2890,14 +2923,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     bool laidOut(_FrameIndex? index) => index != null && _builtSlot(index.slot);
     if (!laidOut(next) && !laidOut(previous)) {
-      final estimate = frames == 0 ? null : _estimateTowards(gap.nextSlot);
+      // A turn that may no longer scroll moves focus with no probe jump.
+      final estimate = frames == 0 || !_mayScroll(_bookingTurn)
+          ? null
+          : _estimateTowards(gap.nextSlot);
       if (estimate != null) {
         // Held before the jump: its scroll notifications may reach an app
         // listener that calls the controller at once.
         final held = _HeldGap(gap);
         _givenUpGaps.add(held);
         _scrollInFrame(() => estimate.position.jumpTo(estimate.offset));
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+        _afterFrame(() {
           _givenUpGaps.remove(held);
           _handOffFocus(
             held.index,
@@ -2941,20 +2977,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       ..._incoming.values,
     };
     final generation = _scrollGeneration;
+    final reveal = _inTurn(() {
+      // A scroll that took the item out of view since the handoff leaves
+      // it there (invariant 26).
+      if (mounted && node.hasFocus && !_scrollTookOffScreen(node, generation)) {
+        _revealOwn(node);
+      }
+    });
     for (final motion in motions) {
       final controller = motion.controller;
       void ended(AnimationStatus status) {
         if (status.isAnimating) return;
         controller.removeStatusListener(ended);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          // A scroll that took the item out of view since the handoff
-          // leaves it there (invariant 26).
-          if (mounted &&
-              node.hasFocus &&
-              !_scrollTookOffScreen(node, generation)) {
-            _revealOwn(node);
-          }
-        });
+        WidgetsBinding.instance.addPostFrameCallback((_) => reveal());
       }
 
       controller.addStatusListener(ended);
@@ -3014,19 +3049,20 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final motion = _incoming[key];
     if (motion == null) return;
     final generation = _scrollGeneration;
+    final reveal = _inTurn(() {
+      // A scroll that took the item out of view since the return leaves
+      // it there (invariant 26).
+      if (mounted &&
+          _itemNodes.containsValue(node) &&
+          node.hasFocus &&
+          !_scrollTookOffScreen(node, generation)) {
+        _revealOwn(node, levels: levels);
+      }
+    });
     void grown(AnimationStatus status) {
       if (!status.isCompleted) return;
       motion.dropGrown();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // A scroll that took the item out of view since the return leaves
-        // it there (invariant 26).
-        if (mounted &&
-            _itemNodes.containsValue(node) &&
-            node.hasFocus &&
-            !_scrollTookOffScreen(node, generation)) {
-          _revealOwn(node, levels: levels);
-        }
-      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => reveal());
     }
 
     // The motion leaves this reveal's hands when it is disposed or reused
@@ -3147,29 +3183,63 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Commits [scroll], a scroll this list makes, at the next frame's start
   /// ([_atFrameStart]), so the frame that commits the offset lays it out
-  /// and no input lands between them (R45). An input the list yields to
-  /// before then ([_yieldToInput]), the EndUser's or a scroll the app
-  /// started, drops it unrun: the newest input wins.
-  void _scrollInFrame(VoidCallback scroll) {
-    final turn = _inputTurn;
+  /// and no input lands between them (R45). It carries [turn], by default
+  /// the turn of the input whose work books it ([_bookingTurn]), and drops
+  /// unrun once a newer turn opened or the scroll is held ([_mayScroll]):
+  /// the newest input wins.
+  void _scrollInFrame(VoidCallback scroll, {int? turn}) {
+    final at = turn ?? _bookingTurn;
+    final run = _inTurn(scroll, turn: at);
     _atFrameStart(() {
-      if (turn == _inputTurn && !_scrollHeld) scroll();
+      if (_mayScroll(at)) run();
     });
   }
 
+  /// The turn a scroll or a continuation booked now carries: the turn of
+  /// the continuation running now, else the latest ([_inputTurn]).
+  int get _bookingTurn => _workTurn ?? _inputTurn;
+
+  /// Whether a scroll of [turn] may commit now: [turn] is still the latest
+  /// and nothing holds the scroll ([_scrollHeld], R45).
+  bool _mayScroll(int turn) => turn == _inputTurn && !_scrollHeld;
+
+  /// [work] as a continuation of the input running now: it runs later in
+  /// [turn], by default that input's ([_bookingTurn]), so each scroll it
+  /// books and each continuation it schedules carry that turn.
+  VoidCallback _inTurn(VoidCallback work, {int? turn}) {
+    final at = turn ?? _bookingTurn;
+    return () {
+      final outer = _workTurn;
+      _workTurn = at;
+      try {
+        work();
+      } finally {
+        _workTurn = outer;
+      }
+    };
+  }
+
+  /// Runs [work] after this frame as a continuation of the input running
+  /// now ([_inTurn]).
+  void _afterFrame(VoidCallback work) {
+    final run = _inTurn(work);
+    WidgetsBinding.instance.addPostFrameCallback((_) => run());
+  }
+
   /// The newest input wins, the EndUser's or a scroll the app started
-  /// (R45, FR-04 E20): ends a running reach on its stale token, its item
-  /// left parked with its State and focus (R29), and drops each scroll the
-  /// list booked before the input ([_scrollInFrame]), so none lands under
-  /// or over it.
+  /// (R45, FR-04 E20): opens a new turn that holds the scroll, ends a
+  /// running reach on its stale token, its item left parked with its State
+  /// and focus (R29), and drops each scroll and continuation of an earlier
+  /// turn ([_mayScroll]), so none lands under or over it.
   void _yieldToInput() {
     _inputTurn += 1;
     _scrollTaken = true;
     _stopReach();
   }
 
-  /// Ends a hold of the EndUser's or the app's ([_scrollHeld]): each
-  /// scroll the list booked while it lasted drops ([_inputTurn]).
+  /// Ends a hold of the EndUser's or the app's ([_scrollHeld]) in a new
+  /// turn, still theirs: each scroll the list booked while it lasted drops
+  /// ([_inputTurn]).
   void _endHold() {
     _inputTurn += 1;
   }
@@ -3183,11 +3253,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// An input that asks the list to show an item: a call, a key or
   /// screen-reader move, a drop at pointer-up, a Tab from a parked item, or
-  /// a data change that moves or takes a focused item. The list takes the
-  /// scroll back from the EndUser or the app ([_scrollTaken]), unless a
+  /// a data change no call explains that moves or takes a focused item,
+  /// found in the build it changed. When the latest turn is the EndUser's
+  /// or the app's, the list takes the scroll back in a new turn, unless a
   /// lift or a scroll of theirs still lasts: the newest input wins (R45).
+  /// An input that ends a lift ends it first ([_endDragForCall],
+  /// [_endDragForInput], [_handleReorderEnd]); a continuation never takes.
   void _takeScroll() {
-    if (!_lifting && !_otherScrolling) _scrollTaken = false;
+    if (_lifting || _otherScrolling || !_scrollTaken) return;
+    _scrollTaken = false;
+    _inputTurn += 1;
   }
 
   /// Starts [_reach] in a microtask after this frame's post-frame
@@ -3206,28 +3281,31 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     Set<ScrollableState>? levels,
     bool placesFocus = true,
   }) {
-    // The EndUser or the app holds the scroll: the item stays parked with
-    // its State and focus (R29, R45).
-    if (_scrollHeld) return;
+    // The EndUser or the app holds the scroll, or took it since the input
+    // this reach follows: the item stays parked with its State and focus
+    // (R29, R45).
+    if (!_mayScroll(_bookingTurn)) return;
     final token = Object();
     final previous = _reachKey;
     if (previous != null && previous != key) _releasePark(previous);
     _reachToken = token;
     _reachGap = gap;
     _reachKey = key;
-    scheduleMicrotask(() {
-      final settled = FocusManager.instance.primaryFocus;
-      _reach(
-        token,
-        index,
-        key,
-        settled,
-        _reachFrames,
-        origin,
-        levels: levels,
-        placesFocus: placesFocus,
-      );
-    });
+    scheduleMicrotask(
+      _inTurn(() {
+        final settled = FocusManager.instance.primaryFocus;
+        _reach(
+          token,
+          index,
+          key,
+          settled,
+          _reachFrames,
+          origin,
+          levels: levels,
+          placesFocus: placesFocus,
+        );
+      }),
+    );
   }
 
   /// Ends the reach in progress and the park of the item it looked for.
@@ -3296,8 +3374,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // origin record above stay positions the Scrollable held when read; a
     // later swap is sorted out where the record returns.
     _scrollInFrame(() => position.jumpTo(estimate.offset));
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _reach(
+    _afterFrame(
+      () => _reach(
         token,
         index,
         key,
@@ -3345,7 +3423,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         final held = _HeldGap(gap);
         _givenUpGaps.add(held);
         _scrollInFrame(() => live.jumpTo(pixels));
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+        _afterFrame(() {
           _givenUpGaps.remove(held);
           _handOffFocus(held.index);
         });
@@ -3462,9 +3540,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       target,
       toStart: toStart,
       owned: owned,
-      turn: _inputTurn,
+      turn: _bookingTurn,
     );
-    _atFrameStart(() => _runFrameJump(jump));
+    _atFrameStart(_inTurn(() => _runFrameJump(jump), turn: jump.turn));
   }
 
   /// At the next frame's start, after the turn's focus settled and before
@@ -3477,8 +3555,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// reader's action (invariant 35).
   void _runFrameJump(_FrameJump jump) {
     if (jump.owned) _moveTargets.remove(jump.target);
-    // An input since the booking wins (R45, [_scrollInFrame]).
-    if (jump.turn != _inputTurn || _scrollHeld) return;
+    // A newer input since the booking wins (R45, [_scrollInFrame]).
+    if (!_mayScroll(jump.turn)) return;
     final at = jump.target.index;
     if (at == null) return;
     final primary = FocusManager.instance.primaryFocus;
@@ -4878,8 +4956,8 @@ class _FrameJump {
   /// Whether [target] sits among the moves' targets only for this jump.
   final bool owned;
 
-  /// The body's input turn at the booking: a later input the list yields
-  /// to drops the jump (R45).
+  /// The turn of the input that booked the jump: a newer turn drops it
+  /// (R45).
   final int turn;
 }
 
