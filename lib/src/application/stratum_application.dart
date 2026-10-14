@@ -69,8 +69,8 @@ class StratumApplication extends StatefulWidget {
   final List<StratumRemoteTheme> remoteThemes;
 
   /// Called once for each kept zip that fails to install; a preload
-  /// input, read once at the first build. With none, a release build
-  /// drops the failure unseen.
+  /// input, read once at the first build. With none, the failure instead
+  /// goes to [FlutterError.reportError].
   final void Function(String id, StratumRemoteThemeException error)?
   onRemoteThemeError;
 

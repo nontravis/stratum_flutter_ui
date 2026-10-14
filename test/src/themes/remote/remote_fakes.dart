@@ -151,6 +151,16 @@ List<String> captureRemoteLogs() {
   return messages;
 }
 
+/// Every `FlutterError.reportError` call of this test; restores the
+/// previous handler after.
+List<FlutterErrorDetails> captureRemoteErrorReports() {
+  final reports = <FlutterErrorDetails>[];
+  final saved = FlutterError.onError;
+  FlutterError.onError = reports.add;
+  addTearDown(() => FlutterError.onError = saved);
+  return reports;
+}
+
 /// Parses on the calling isolate for this test, as `fakeAsync` and the web
 /// need.
 void useSyncParse() {

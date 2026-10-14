@@ -38,7 +38,8 @@ class StratumThemePreloader extends StatefulWidget {
   final List<StratumRemoteTheme> remoteThemes;
 
   /// Called once for each kept zip that fails to install, so the app
-  /// deletes it and downloads it again; preload goes on without it.
+  /// deletes it and downloads it again; preload goes on without it. With
+  /// none, the failure instead goes to [FlutterError.reportError].
   final void Function(String id, StratumRemoteThemeException error)?
   onRemoteThemeError;
 

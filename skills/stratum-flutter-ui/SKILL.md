@@ -653,8 +653,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   frame for a start theme that fails to load, and the failure reaches only it, so log it there; with none, the failure
   goes to `FlutterError.reportError` and the background stays. Both build above the app widget, with no
   `Directionality` or theme: give a `Text` its `textDirection`.
-- `onRemoteThemeError:` gets each kept zip that fails to install, so you delete it and download it again; with none, a
-  release build drops the failure unseen.
+- `onRemoteThemeError:` gets each kept zip that fails to install, so you delete it and download it again; with none,
+  the failure goes to `FlutterError.reportError` instead.
 - `updateGate:` wraps the inner layers in your own update gate; see Update gate.
 - `noticeHost:` replaces the plain notice host `notices: true` builds; see Notices. Mount one `StratumApplication`
   with `notices: true` per process: the notice host is process-wide, so every other view's wrapper passes
