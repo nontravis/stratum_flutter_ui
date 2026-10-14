@@ -1116,7 +1116,7 @@ void main() {
     expect(find.text('1'), findsOneWidget);
   });
 
-  testWidgets('us13/fr01/e08: a nested wrapper sharing the outer '
+  testWidgets('us13/fr01: a nested wrapper sharing the outer '
       'controller works, with notices false', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -1154,6 +1154,8 @@ void main() {
       initialRouteInformation: RouteInformation(uri: Uri.parse('/')),
     );
     final delegate = _StackRouterDelegate();
+    addTearDown(provider.dispose);
+    addTearDown(delegate.dispose);
     await tester.pumpWidget(
       StratumApplication(
         controller: await _controller(),
@@ -1183,5 +1185,48 @@ void main() {
     );
     expect(find.text('home'), findsNothing);
     expect(find.byType(Navigator), findsOneWidget);
+  });
+
+  testWidgets('us13/fr01/e01: adding updateGate on a rebuild keeps the '
+      'Router State identity and the pushed page, with MaterialApp.router', (
+    tester,
+  ) async {
+    final controller = await _controller();
+    final provider = PlatformRouteInformationProvider(
+      initialRouteInformation: RouteInformation(uri: Uri.parse('/')),
+    );
+    final delegate = _StackRouterDelegate();
+    addTearDown(provider.dispose);
+    addTearDown(delegate.dispose);
+    Widget app({required bool gate}) => StratumApplication(
+      controller: controller,
+      updateGate: gate
+          ? (child) => StratumUpdateGate(
+              checker: _OneAnswer(Future.value(UpdateStatus.upToDate)),
+              builder: (context, g) => const Text('Required'),
+              child: child,
+            )
+          : null,
+      appBuilder: (c, s) => MaterialApp.router(
+        routerConfig: RouterConfig<Object>(
+          routeInformationProvider: provider,
+          routeInformationParser: _NoOpRouteInformationParser(),
+          routerDelegate: delegate,
+        ),
+        builder: s.builder,
+      ),
+    );
+    await tester.pumpWidget(app(gate: false));
+    await tester.pumpAndSettle();
+    delegate.push(
+      const MaterialPage<void>(key: ValueKey('pushed'), child: Text('pushed')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('pushed'), findsOneWidget);
+    final before = tester.state(find.byType(Router<Object>));
+    await tester.pumpWidget(app(gate: true));
+    await tester.pumpAndSettle();
+    expect(tester.state(find.byType(Router<Object>)), same(before));
+    expect(find.text('pushed'), findsOneWidget);
   });
 }

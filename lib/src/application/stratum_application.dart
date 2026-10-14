@@ -12,10 +12,12 @@ import 'package:stratum_ui/src/src.dart';
 /// - Mount ONE per process with [notices] true, since toastification under
 ///   the notice host is process-wide (CO-05-07); every other view's
 ///   wrapper passes `notices: false`.
-/// - A rebuild that flips [controller] between null and non-null, or that
+/// - A rebuild that flips [controller] from null to non-null, or that
 ///   adds or removes [updateGate], [webZoom], or [notices], keeps the app
 ///   widget [appBuilder] returns, and the navigator inside it, mounted
-///   under a stable key each. The notice host and [StratumWebZoom] carry
+///   under a stable key each; from non-null to null, a fresh theme
+///   preload starts, showing its loading frame, and the app remounts
+///   fresh once it settles. The notice host and [StratumWebZoom] carry
 ///   no key of their own, so that rebuild remounts them fresh: an open
 ///   notice or a zoom scale does not survive it.
 class StratumApplication extends StatefulWidget {
@@ -167,7 +169,7 @@ class StratumApplication extends StatefulWidget {
 /// mounted under its own [GlobalKey] (class dartdoc's rebuild bullet).
 class _StratumApplicationState extends State<StratumApplication> {
   /// Keys the app widget for this State's whole life, so a controller
-  /// flip (null to non-null) reparents it instead of unmounting it;
+  /// flip from null to non-null reparents it instead of unmounting it;
   /// [_navigatorKey] does the same for `stratum.builder`'s child across a
   /// gate, zoom, or notices change.
   final GlobalKey _appKey = GlobalKey();
