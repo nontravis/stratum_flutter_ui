@@ -296,29 +296,16 @@ class _ReorderSliverState extends SliverReorderableListState {
     item.dragging = true;
     widget.onReorderStart?.call(item.index);
     // The lift is a move of the item (D12): the body ends what runs
-    // beside it, which marks the item's own size factor dirty at once, so
-    // this flushes layout and paint before the drag proxy reads the
-    // item's size and takes its raster ([_Lift.new]); otherwise that read
-    // finds the size still dirty.
+    // beside it, and the item's own grow-in, before the drag proxy takes
+    // its raster ([_Lift.new]). That raster reads the snapshot boundary
+    // below the grow-in ([_SnapshotBoundary], D5), the item as the last
+    // frame already painted it, so this needs no flush of its own: a
+    // flush run inside the grab's own pointer callback laid out and
+    // painted whatever the tree held pending at that instant, never the
+    // frame the EndUser touched, and could retire this item from the
+    // built range before its own lift read it (R45). The next frame lays
+    // the grow-in's now-dirty size out as any other build does.
     _body._liftedTook(item.key);
-    final owner = item.context.findRenderObject()?.owner;
-    owner?.flushLayout();
-    owner?.flushCompositingBits();
-    owner?.flushPaint();
-    // The flush above can resolve a reach's own deferred jump (E20),
-    // retiring this item from the built range before its lift reads it:
-    // its touch target scrolled away in the same tick, never a frame
-    // apart in production. Read through the walking getter, never
-    // findRenderObject, which asserts active; end the start already
-    // reported, with no lift, rather than read a render object the
-    // flush just tore down.
-    final liftBox = (item.context as Element).renderObject;
-    if (liftBox == null || !liftBox.attached) {
-      widget.onReorderEnd?.call(_dragIndex!);
-      _dragKey = null;
-      _dragIndex = null;
-      return null;
-    }
     item.rebuild();
     _insertIndex = item.index;
     final lift = _lift = _Lift(
@@ -438,9 +425,24 @@ class _ReorderSliverState extends SliverReorderableListState {
   void _dropCompleted() {
     final oldIndex = _dragIndex!;
     final newIndex = _insertIndex!;
-    _handleReorderItem(oldIndex, newIndex);
+    _reportingDrop = true;
+    try {
+      _handleReorderItem(oldIndex, newIndex);
+    } finally {
+      _reportingDrop = false;
+    }
     setState(_dragReset);
   }
+
+  var _reportingDrop = false;
+
+  /// Whether this call to [_handleReorderItem] reports the drag's own
+  /// drop, never a screen-reader move action (R4, invariant 28): the
+  /// body reads this, never the last build's look, which a drop whose
+  /// lifted item the build left out still reads as a screen-reader move
+  /// (FR-04 E20), and a screen-reader move on the lifted item's own slot
+  /// still reads as a drop (the mirror case).
+  bool get isReportingDrop => _reportingDrop;
 
   /// Whether a dropped item still settles: its drag ended and the proxy's
   /// settle runs, so the drag's reset has not (R52).
@@ -874,7 +876,13 @@ class _ReorderItemState extends State<_ReorderItem> {
 
   /// A raster of the item as it painted last, at [pixelRatio]; null when
   /// it never painted.
-  ui.Image? snapshot(double pixelRatio) {
+  ui.Image? snapshot(double pixelRatio) =>
+      snapshotBoundary?.snapshot(pixelRatio);
+
+  /// The boundary below the item's grow-in transition
+  /// ([_SnapshotBoundary], D5), as the last frame laid it out and
+  /// painted it.
+  _RenderSnapshotBoundary? get snapshotBoundary {
     final boundary = context.findRenderObject();
     _RenderSnapshotBoundary? found;
     void visit(RenderObject child) {
@@ -887,7 +895,7 @@ class _ReorderItemState extends State<_ReorderItem> {
     }
 
     if (boundary != null) visit(boundary);
-    return found?.snapshot(pixelRatio);
+    return found;
   }
 
   @override
@@ -897,10 +905,7 @@ class _ReorderItemState extends State<_ReorderItem> {
       ignoring: _dragging,
       child: _LiftHide(
         hidden: _dragging,
-        child: Transform.translate(
-          offset: offset,
-          child: _SnapshotBoundary(child: widget.child),
-        ),
+        child: Transform.translate(offset: offset, child: widget.child),
       ),
     );
   }
@@ -1060,12 +1065,13 @@ class _Lift extends Drag {
     this.proxyDecorator,
     required this.tickerProvider,
   }) {
-    final itemRenderBox = item.context.findRenderObject()! as RenderBox;
+    final itemRenderBox =
+        item.snapshotBoundary ?? item.context.findRenderObject()! as RenderBox;
     listState = item._list;
     index = item.index;
     capturedThemes = item.widget.capturedThemes;
     dragOffset = itemRenderBox.globalToLocal(initialPosition);
-    itemSize = item.context.size!;
+    itemSize = itemRenderBox.size;
     _rawDragPosition = initialPosition;
     boundary = DragBoundary.forRectMaybeOf(listState.context);
     dragPosition = _adjustedDragOffset(initialPosition);

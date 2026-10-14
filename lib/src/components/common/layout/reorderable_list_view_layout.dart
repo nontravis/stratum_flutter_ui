@@ -2179,14 +2179,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// The list's own moves: a drop and a screen reader's move actions, told
-  /// apart by drag state: the drag proxy holds the dropped item
-  /// ([_liftedKey]) until after the SDK reports the drop, so a report of
-  /// that item is the drop. A drop converts its frame indices, since a
-  /// call during a drag ends it first (invariant 28); a screen-reader move
-  /// is decoded into its intent and takes the reorder keys' target (R4),
-  /// so it acts at once, also between a call and its frame (FR-03 E07),
-  /// and ends a drag first, as a call does (FR-03 E08); a settling drop it
-  /// completes at once instead (R52).
+  /// apart by the sliver's own report of which call this is
+  /// ([_ReorderSliverState.isReportingDrop], R4, invariant 28), never by
+  /// what the last build drew at [fromIndex]: a drop whose lifted item the
+  /// build left out still reads as a drop, and a screen-reader move on the
+  /// lifted item's own slot never misreads as one. A drop converts its
+  /// frame indices, since a call during a drag ends it first (invariant
+  /// 28); a screen-reader move is decoded into its intent and takes the
+  /// reorder keys' target (R4), so it acts at once, also between a call
+  /// and its frame (FR-03 E07), and ends a drag first, as a call does
+  /// (FR-03 E08); a settling drop it completes at once instead (R52).
   /// Every screen-reader action, once reported, books a focused move's jump
   /// for the next frame's start when its slot is not laid out
   /// ([_bookMoveJump], R46), which [_jumpForMove] makes exact at the data's
@@ -2195,7 +2197,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// ([_bookFrameJump]).
   void _handleReorderItem(int fromIndex, int toIndex) {
     final index = _FrameIndex(fromIndex);
-    final drop = _liftedKey != null && _lookAt(index)?.key == _liftedKey;
+    final state = _listKey.currentState;
+    final drop = state is _ReorderSliverState && state.isReportingDrop;
     final from = _dataIndexOf(index);
     // An item the app removed in this turn does not move (R2).
     if (from == null) return;
@@ -2573,11 +2576,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // The EndUser's newest input wins: a drag that starts while a reach
     // runs ends it at once, on its stale token, and the item it looked
     // for stays parked off screen with its State and focus (R29, FR-04
-    // E20). Nothing scrolls back: the reach commits its jump outside the
-    // frame pipeline (R45), so a jump the last laid-out frame has not
-    // shown yet is reverted first, before the sliver's own flushLayout,
-    // right after this, reads a render tree that jump never let a frame
-    // lay out.
+    // E20).
+    // WORKAROUND: the reach commits each jump outside the frame pipeline
+    // (R45); remove when the reach commits its jumps inside the frame
+    // that lays them out.
     _revertUncommittedReachJump();
     _stopReach();
     final index = _dragIndex;
@@ -3610,7 +3612,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
           child: _transition(
             context,
             animation,
-            _wrapItem(look, index: index, exiting: exiting),
+            // The boundary a lift's raster reads sits below the grow-in
+            // (D5), so a grab mid grow-in lifts the item at full size,
+            // with no flush of its own (R45).
+            _SnapshotBoundary(
+              child: _wrapItem(look, index: index, exiting: exiting),
+            ),
           ),
         ),
       ),

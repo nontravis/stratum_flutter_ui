@@ -14780,6 +14780,147 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
+
+    testWidgets(
+      'R45: an app jumpTo with no reach, then an immediate handle grab '
+      'before the next frame, lifts and drops the touched item with no '
+      'exception',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(const _Harness(count: 200, handles: true)),
+        );
+        final harness = _harness(tester);
+        final position = positionOf(tester);
+        final at = tester.getCenter(find.byKey(const ValueKey('handle 2')));
+        position.jumpTo(4000);
+
+        final gesture = await tester.startGesture(at);
+        await gesture.moveBy(const Offset(0, 20));
+        expect(tester.takeException(), isNull);
+        expect(harness.starts, hasLength(1));
+        expect(harness.ends, isEmpty);
+        await tester.pump();
+        expect(find.byType(RawImage), findsOne);
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, hasLength(1));
+        expect(find.byType(RawImage), findsNothing);
+      },
+    );
+
+    testWidgets(
+      "R45: the EndUser's own scroll ends a reach for a parked item, then "
+      'an immediate handle grab before the next frame, lifts and drops '
+      'the touched item with no exception',
+      (tester) async {
+        await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            heights: wall,
+            handles: true,
+            itemsController: ReorderableItemsController(),
+          ),
+        );
+        final harness = _harness(tester);
+        _itemState(tester, 100).expanded = true;
+        await _focusItem(tester, 100);
+        harness.move(100, 150);
+        await tester.pump();
+
+        final view = tester.getRect(find.byType(Scrollable));
+        final built = [
+          for (var id = 0; id < 200; id++)
+            if (find.byKey(ValueKey('handle $id')).evaluate().isNotEmpty &&
+                view.intersect(
+                      tester.getRect(find.byKey(ValueKey('handle $id'))),
+                    ) ==
+                    tester.getRect(find.byKey(ValueKey('handle $id'))))
+              id,
+        ];
+        expect(built, isNotEmpty);
+        final at = tester.getCenter(
+          find.byKey(ValueKey('handle ${built.first}')),
+        );
+
+        final scroll = await tester.startGesture(view.center, pointer: 22);
+        await scroll.moveBy(const Offset(0, -60));
+        await scroll.up();
+
+        final gesture = await tester.startGesture(at, pointer: 21);
+        await gesture.moveBy(const Offset(0, 20));
+        expect(tester.takeException(), isNull);
+        expect(harness.starts, hasLength(1));
+        expect(harness.ends, isEmpty);
+        final liftedId = harness.ids[harness.starts.single];
+        await tester.pump();
+        expect(find.byType(RawImage), findsOne);
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, hasLength(1));
+        expect(find.byType(RawImage), findsNothing);
+        final liftedElement = find
+            .byKey(ValueKey(liftedId), skipOffstage: false)
+            .evaluate()
+            .single;
+        expect((liftedElement.renderObject! as RenderBox).attached, isTrue);
+      },
+    );
+
+    testWidgets('R45: a drop of a lifted item the edge scroll carried past the '
+        'built range raises no exception', (tester) async {
+      await tester.pumpWidget(_app(const _Harness(count: 200, handles: true)));
+      final view = tester.getRect(find.byType(Scrollable));
+      final gesture = await _grabHandle(tester, 2);
+      await gesture.moveTo(Offset(view.center.dx, view.bottom - 2));
+      for (var i = 0; i < 400; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'R4, invariant 28, FR-03 E08: a screen-reader move action on the '
+      'lifted item during its own drag reports the move and ends the '
+      'drag at once, synchronously, never reading as the drop',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(_app(const _Harness(count: 5, handles: true)));
+        final harness = _harness(tester);
+        await _grabHandle(tester, 2);
+        expect(harness.starts, hasLength(1));
+        expect(find.byType(RawImage), findsOne);
+
+        // A buggy read of the drop by the last build's look, never the
+        // sliver's own report, only tears the drag down later, in a
+        // frame the SDK's own count-change cancel runs, by which time a
+        // second report on the same stale index would recurse (the drop
+        // this read starves, T15 RCA P5); the fix ends the drag inside
+        // this very call, with no frame between the action and the end
+        // (R4, invariant 28, FR-03 E08). Read with no pump between: a
+        // pump would run that same count-change cancel regardless of
+        // which read this proves, and mask the difference. The pointer
+        // this grab started stays down: the drag already ended through
+        // this action, never through that pointer's own up or cancel.
+        moveActionNow(tester, 2, 'Move down');
+
+        expect(harness.ends, hasLength(1));
+        expect(harness.moves, [(2, 3)]);
+        handle.dispose();
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {
