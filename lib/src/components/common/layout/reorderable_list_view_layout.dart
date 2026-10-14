@@ -21,6 +21,7 @@ import 'package:flutter/rendering.dart'
         RenderSliverMultiBoxAdaptor,
         RenderSliverVariedExtentList,
         ScrollCacheExtent,
+        ScrollDirection,
         SliverConstraints,
         SliverLayoutDimensions,
         SliverMultiBoxAdaptorParentData,
@@ -692,7 +693,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final start = origin ?? _currentOrigin;
     final slot = keys.widget.index.slot;
     if (_builtSlot(slot)) {
-      revealInViewports(keys._node, origin: start);
+      _revealOwn(keys._node, origin: start);
       then();
       return;
     }
@@ -2569,6 +2570,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// that follows rebuilds the list on its own.
   void _liftedTook(Key key) {
     _liftedKey = key;
+    // The EndUser's newest input wins: a drag that starts while a reach
+    // runs ends it at once, on its stale token, and the item it looked
+    // for stays parked off screen with its State and focus (R29, FR-04
+    // E20). Nothing scrolls back.
+    _stopReach();
     final index = _dragIndex;
     if (index != null) _endExitsBeside(index);
     final motion = _incoming[key];
@@ -2651,7 +2657,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final noFocusOwnerElsewhere = FocusManager.instance.primaryFocus == null;
     if (byKey && noFocusOwnerElsewhere) firstTabStopIn(node)?.requestFocus();
     final levels = moved.revealIn;
-    revealInViewports(node, origin: moved.origin, levels: levels);
+    _revealOwn(node, origin: moved.origin, levels: levels);
     for (final MapEntry(key: at, value: look) in _itemLooks.entries) {
       final motion = at < built ? _incoming[look.key] : null;
       if (motion == null) continue;
@@ -2700,6 +2706,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     required bool byKey,
     Set<ScrollableState>? levels,
   }) {
+    final generation = _scrollGeneration;
     void grown(AnimationStatus status) {
       if (!status.isCompleted) return;
       motion.controller.removeStatusListener(grown);
@@ -2707,8 +2714,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         // A FocusNode keeps its context once disposed: the item is live
         // only while its node is registered.
         if (!mounted || !_itemNodes.containsValue(node)) return;
+        // A scroll that took the item out of view since the move leaves
+        // it there (invariant 26).
+        if (_scrollTookOffScreen(node, generation)) return;
         if (!byKey || node.hasFocus) {
-          revealInViewports(node, levels: levels);
+          _revealOwn(node, levels: levels);
         }
       });
     }
@@ -2809,18 +2819,25 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     FocusNode node, {
     ({ScrollPosition position, double pixels})? origin,
   }) {
-    revealInViewports(node, origin: origin);
+    _revealOwn(node, origin: origin);
     final motions = {
       for (final exit in _exits) exit.motion,
       ..._incoming.values,
     };
+    final generation = _scrollGeneration;
     for (final motion in motions) {
       final controller = motion.controller;
       void ended(AnimationStatus status) {
         if (status.isAnimating) return;
         controller.removeStatusListener(ended);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && node.hasFocus) revealInViewports(node);
+          // A scroll that took the item out of view since the handoff
+          // leaves it there (invariant 26).
+          if (mounted &&
+              node.hasFocus &&
+              !_scrollTookOffScreen(node, generation)) {
+            _revealOwn(node);
+          }
         });
       }
 
@@ -2877,15 +2894,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     ({ScrollPosition position, double pixels})? origin,
     Set<ScrollableState>? levels,
   }) {
-    revealInViewports(node, origin: origin, levels: levels);
+    _revealOwn(node, origin: origin, levels: levels);
     final motion = _incoming[key];
     if (motion == null) return;
+    final generation = _scrollGeneration;
     void grown(AnimationStatus status) {
       if (!status.isCompleted) return;
       motion.dropGrown();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _itemNodes.containsValue(node) && node.hasFocus) {
-          revealInViewports(node, levels: levels);
+        // A scroll that took the item out of view since the return leaves
+        // it there (invariant 26).
+        if (mounted &&
+            _itemNodes.containsValue(node) &&
+            node.hasFocus &&
+            !_scrollTookOffScreen(node, generation)) {
+          _revealOwn(node, levels: levels);
         }
       });
     }
@@ -2918,6 +2941,41 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// hands focus on from it: each call moves them, as it moves
   /// [_handoffGap] (D7).
   final _givenUpGaps = <_HeldGap>[];
+
+  /// How many scroll notifications from this list's own Scrollable
+  /// arrived since the list last mounted, outside a reveal of its own:
+  /// a re-reveal that waits for a motion to end reads it to learn whether
+  /// a scroll took its item out of view since the move or handoff that
+  /// first revealed it (invariant 26).
+  int _scrollGeneration = 0;
+
+  /// How many of the list's own reveals ([revealInViewports] calls this
+  /// State makes) are running: while one is, its jumps are the list's own
+  /// scroll and count for no re-reveal's skip (invariant 26).
+  int _revealDepth = 0;
+
+  /// Whether a scroll since [generation] took the item whose key node is
+  /// [node] out of view: a scroll the EndUser or the app made after the
+  /// move or handoff that first revealed it, which leaves the item off
+  /// screen (invariant 26, FR-03 E11).
+  bool _scrollTookOffScreen(FocusNode node, int generation) =>
+      _scrollGeneration != generation && !_shownLastFrame(node);
+
+  /// Reveals [node] through [revealInViewports] with [_revealDepth] held,
+  /// so the jumps the reveal makes leave [_scrollGeneration] alone
+  /// (invariant 26).
+  void _revealOwn(
+    FocusNode node, {
+    ({ScrollPosition position, double pixels})? origin,
+    Set<ScrollableState>? levels,
+  }) {
+    _revealDepth += 1;
+    try {
+      revealInViewports(node, origin: origin, levels: levels);
+    } finally {
+      _revealDepth -= 1;
+    }
+  }
 
   /// Starts [_reach] in a microtask after this frame's post-frame
   /// callbacks. Flutter moves focus off the item's disposed node in its own
@@ -3708,7 +3766,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final context = node.context;
     final keys = context?.findAncestorStateOfType<_ReorderKeysState>();
     if (context == null || keys == null || keys.widget.body != this) {
-      revealInViewports(node);
+      _revealOwn(node);
       afterFrame();
       return;
     }
@@ -3717,52 +3775,84 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       return;
     }
     if (keys._node.rect.isFinite) {
-      revealInViewports(node);
+      _revealOwn(node);
       afterFrame();
       return;
     }
     _bringBack(keys, () {
-      if (!node.rect.isFinite) revealInViewports(node);
+      if (!node.rect.isFinite) _revealOwn(node);
       afterFrame();
     });
   }
 
+  /// Ends a running reach when the EndUser's own scroll starts: a
+  /// [ScrollStartNotification] or [ScrollUpdateNotification] with drag
+  /// details, or a [UserScrollNotification] off idle, from this list's
+  /// own Scrollable (depth 0). The list's own jumps fire the start
+  /// notification with no drag details, so they leave the reach running
+  /// (FR-04 E20): the EndUser's newest input wins, the reach ends on its
+  /// stale token, nothing scrolls back, and the item stays parked off
+  /// screen with its State and focus (R29).
+  bool _endsReachOn(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    switch (notification) {
+      case ScrollStartNotification() ||
+          ScrollUpdateNotification() ||
+          UserScrollNotification():
+        if (_revealDepth == 0) _scrollGeneration += 1;
+      default:
+        return false;
+    }
+    final userDriven = switch (notification) {
+      ScrollStartNotification(:final dragDetails) => dragDetails != null,
+      ScrollUpdateNotification(:final dragDetails) => dragDetails != null,
+      UserScrollNotification(:final direction) =>
+        direction != ScrollDirection.idle,
+      _ => false,
+    };
+    if (userDriven) _stopReach();
+    return false;
+  }
+
   Widget _scrollView(ReorderableListViewLayout layout, int listCount) {
-    return _ReorderScrollView(
-      scrollDirection: layout.scrollDirection,
-      reverse: layout.reverse,
-      controller: widget.controller,
-      primary: layout.primary,
-      physics: layout.physics,
-      shrinkWrap: layout.shrinkWrap,
-      scrollCacheExtent: layout.scrollCacheExtent,
-      dragStartBehavior: layout.dragStartBehavior,
-      keyboardDismissBehavior: layout.keyboardDismissBehavior,
-      restorationId: layout.restorationId,
-      clipBehavior: layout.clipBehavior,
-      // A leaving item or closing gap has no semantic index, so the count
-      // and every semantic index stay indices of the app's data
-      // (invariant 58).
-      semanticChildCount: layout.itemCount,
-      slivers: [
-        SliverPadding(
-          padding: widget.padding ?? EdgeInsets.zero,
-          sliver: _ReorderSliver(
-            key: _listKey,
-            body: this,
-            itemBuilder: _buildItem,
-            itemCount: listCount,
-            onReorderItem: _handleReorderItem,
-            onReorderStart: _handleReorderStart,
-            onReorderEnd: _handleReorderEnd,
-            itemExtent: layout.itemExtent,
-            itemExtentBuilder: layout.itemExtentBuilder,
-            prototypeItem: layout.prototypeItem,
-            proxyDecorator: layout.dragStyle == null ? null : _proxy,
-            autoScrollerVelocityScalar: layout.autoScrollerVelocityScalar,
+    return NotificationListener<ScrollNotification>(
+      onNotification: _endsReachOn,
+      child: _ReorderScrollView(
+        scrollDirection: layout.scrollDirection,
+        reverse: layout.reverse,
+        controller: widget.controller,
+        primary: layout.primary,
+        physics: layout.physics,
+        shrinkWrap: layout.shrinkWrap,
+        scrollCacheExtent: layout.scrollCacheExtent,
+        dragStartBehavior: layout.dragStartBehavior,
+        keyboardDismissBehavior: layout.keyboardDismissBehavior,
+        restorationId: layout.restorationId,
+        clipBehavior: layout.clipBehavior,
+        // A leaving item or closing gap has no semantic index, so the count
+        // and every semantic index stay indices of the app's data
+        // (invariant 58).
+        semanticChildCount: layout.itemCount,
+        slivers: [
+          SliverPadding(
+            padding: widget.padding ?? EdgeInsets.zero,
+            sliver: _ReorderSliver(
+              key: _listKey,
+              body: this,
+              itemBuilder: _buildItem,
+              itemCount: listCount,
+              onReorderItem: _handleReorderItem,
+              onReorderStart: _handleReorderStart,
+              onReorderEnd: _handleReorderEnd,
+              itemExtent: layout.itemExtent,
+              itemExtentBuilder: layout.itemExtentBuilder,
+              prototypeItem: layout.prototypeItem,
+              proxyDecorator: layout.dragStyle == null ? null : _proxy,
+              autoScrollerVelocityScalar: layout.autoScrollerVelocityScalar,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

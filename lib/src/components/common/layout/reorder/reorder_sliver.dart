@@ -63,6 +63,13 @@ class _ReorderSliverState extends SliverReorderableListState {
   EdgeDraggingAutoScroller? _autoScroller;
   late ScrollableState _scrollable;
 
+  /// Where the scroll sat when the last edge auto-scroll step was asked
+  /// for, and whether the app's hold sprang that step back: once it did,
+  /// the edge scroll stops stepping until the lifted item leaves the edge
+  /// and comes back (FR-01 E11).
+  double? _autoScrollStepFrom;
+  bool _autoScrollGaveWay = false;
+
   /// Whether the app or the platform asked for less motion at the last
   /// build; a ticker callback runs outside the build, so it reads this.
   var _reducesMotion = false;
@@ -324,8 +331,34 @@ class _ReorderSliverState extends SliverReorderableListState {
     setState(() {
       _overlayEntry?.markNeedsBuild();
       _dragUpdateItems();
-      _autoScroller?.startAutoScrollIfNecessary(_dragTargetRect);
+      _startAutoScrollIfNecessary();
     });
+  }
+
+  /// Starts the edge auto-scroll when the lifted item sits past an edge,
+  /// yielding to the app's hold: a step whose scroll the position did not
+  /// hold (it sprang back) stops the auto-scroller, which stays stopped
+  /// until the lifted item leaves the edge and comes back (FR-01 E11).
+  void _startAutoScrollIfNecessary() {
+    final lift = _lift;
+    if (lift == null) return;
+    if (_autoScrollGaveWay) {
+      // Back inside the viewport: the drag earns the edge scroll again.
+      final view = _scrollable.context.findRenderObject();
+      if (view is! RenderBox || !view.hasSize) return;
+      final origin = view.localToGlobal(Offset.zero);
+      final target = _dragTargetRect;
+      final vertical = _scrollDirection == Axis.vertical;
+      final start = vertical ? target.top : target.left;
+      final end = vertical ? target.bottom : target.right;
+      final viewStart = vertical ? origin.dy : origin.dx;
+      final viewEnd =
+          viewStart + (vertical ? view.size.height : view.size.width);
+      if (start < viewStart || end > viewEnd) return;
+      _autoScrollGaveWay = false;
+    }
+    _autoScrollStepFrom = _scrollable.position.pixels;
+    _autoScroller?.startAutoScrollIfNecessary(_dragTargetRect);
   }
 
   void _dragCancel(_Lift lift) {
@@ -433,6 +466,8 @@ class _ReorderSliverState extends SliverReorderableListState {
     _lift?.dispose();
     _lift = null;
     _autoScroller?.stopAutoScroll();
+    _autoScrollStepFrom = null;
+    _autoScrollGaveWay = false;
     _resetItemGap();
     _recognizer?.dispose();
     _recognizer = null;
@@ -458,7 +493,16 @@ class _ReorderSliverState extends SliverReorderableListState {
   void _handleScrollableAutoScrolled() {
     if (_lift == null) return;
     _dragUpdateItems();
-    _autoScroller?.startAutoScrollIfNecessary(_dragTargetRect);
+    // The step the scroller just ran did not hold: the app's hold sprang
+    // it back, so the edge scroll stops stepping (FR-01 E11).
+    final from = _autoScrollStepFrom;
+    final pixels = _scrollable.position.pixels;
+    if (from != null && (pixels - from).abs() < 1.0) {
+      _autoScroller?.stopAutoScroll();
+      _autoScrollGaveWay = true;
+      return;
+    }
+    _startAutoScrollIfNecessary();
   }
 
   void _dragUpdateItems() {

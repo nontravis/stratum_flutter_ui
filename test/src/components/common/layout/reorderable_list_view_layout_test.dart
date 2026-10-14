@@ -14575,6 +14575,100 @@ void main() {
         expect(_harness(tester).moves, [(0, 1)]);
       },
     );
+
+    // The tall wall between the start and the moved slot keeps the reach
+    // from ever building it, so the reach keeps retrying. The EndUser's
+    // scroll starts in the gap between the reach's first jump (a microtask
+    // after the move's frame) and the frame that jump scheduled, with no
+    // pump in between (FR-04 E20). A drag start cannot share that gap:
+    // its lift flushes layout mid the reach's pending jump and asserts, so
+    // the drag half of the cell stays on the lift's own path
+    // (_liftedTook), which Task 14's lift pins already exercise, and this
+    // pin carries the reach-end alone.
+    final wall = {for (var id = 100; id < 150; id += 1) id: 400.0};
+    testWidgets(
+      'matrix I17xT10 and us11/fr04/e20: a scroll the EndUser starts while '
+      'the list reaches for a parked item ends the reach at once, and the '
+      'item stays alive off screen with its State and focus',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            heights: wall,
+            handles: true,
+            itemsController: ReorderableItemsController(),
+          ),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+        _harness(tester).move(100, 150);
+        await tester.pump();
+        expect(_builtInView(tester, 100), isFalse);
+
+        final view = tester.getRect(find.byType(Scrollable));
+        final gesture = await tester.startGesture(view.center);
+        await gesture.moveBy(const Offset(0, -60));
+        await tester.pump();
+        final held = position.pixels;
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(position.pixels, held);
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expectKept(tester, 100, state, node: node);
+      },
+    );
+
+    testWidgets(
+      'matrix I17xT07 and s03/inv26 (R45): a moved item a scroll takes out of '
+      'view during its grow-in is not revealed again when the grow-in ends',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        final state = _itemState(tester, 103)..expanded = true;
+        final node = await _focusItem(tester, 103);
+
+        _harness(tester).move(103, 106);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        position.jumpTo(0);
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, 0);
+        expectKept(tester, 103, state, node: node);
+        expect(_builtInView(tester, 103), isFalse);
+      },
+    );
+
+    testWidgets(
+      'matrix I02xT16 and us11/fr01/e11: the edge scroll does not scroll '
+      "against the app's hold",
+      (tester) async {
+        await tester.pumpWidget(
+          _app(const _Harness(count: 1000, handles: true)),
+        );
+        var springs = 0;
+        _pinScroll(tester, 0, onSpringBack: () => springs += 1);
+        final view = tester.getRect(find.byType(Scrollable));
+        final gesture = await _grabHandle(tester, 3);
+
+        await gesture.moveTo(Offset(view.center.dx, view.bottom - 5));
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+
+        expect(springs, lessThanOrEqualTo(1));
+        expect(positionOf(tester).pixels, 0);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {
