@@ -23,18 +23,28 @@ class _OneAnswer implements UpdateChecker {
 void main() {
   setUp(ThemeFontLoader.reset);
 
-  // Every Build Gate row the US-13 block does not answer n/a is covered
-  // above by its own test. The n/a rows, each quoted from
-  // USER_STORY.md:63-81 (the wrapper draws nothing of its own):
-  // - NFR-U06, NFR-U02, NFR-U09, NFR-U03, NFR-U04, NFR-U05, NFR-U01/U07,
-  //   NFR-U08: "the wrapper draws [nothing/no ...] of its own"; "each
-  //   layer it inserts answers its own gate" or "each layer draws from
-  //   theme tokens".
-  // - empty, disabled: "an app always shows content"; "an app has no
-  //   disabled state".
-  // - feedback after an action: "the wrapper takes no action of its own".
-  // - NFR-E01, NFR-E02: "the wrapper draws no look of its own and takes
-  //   no instance-level style override".
+  // NFR-U06 is not n/a: it gets its own test below ("NFR-U06: the
+  // wrapper adds no node"), per SKILL.md:81's "owns no node" rule. Every
+  // other Build Gate row the US-13 block answers n/a, each quoted
+  // verbatim from USER_STORY.md:63-81:
+  // - NFR-U02: "n/a: the wrapper holds no focusable node of its own."
+  // - NFR-U09: "n/a: the wrapper handles no gesture of its own."
+  // - NFR-U03: "n/a: the wrapper runs no animation of its own; the
+  //   splash exit (US-12) and the notices (CO-05-07) answer theirs."
+  // - NFR-U04: "n/a: the wrapper shows no text of its own."
+  // - NFR-U05: "n/a: the wrapper holds no target of its own."
+  // - NFR-U01, NFR-U07: "n/a: the wrapper draws nothing; each layer
+  //   draws from theme tokens."
+  // - NFR-U08: "n/a: the wrapper shows no state."
+  // - empty: "n/a: an app always shows content."
+  // - disabled: "n/a: an app has no disabled state."
+  // - feedback after an action: "n/a: the wrapper takes no action of
+  //   its own."
+  // - NFR-E01, NFR-E02: "n/a: the wrapper draws no look of its own and
+  //   takes no instance-level style override."
+  //
+  // `us13/s7` (splash in front) is out of scope for this task: `splash`
+  // stays `planned` (themes `s01_architecture.md:183`); M5-T31 defers it.
 
   testWidgets('us13/s1: us13/fr02: the app builds its MaterialApp from '
       'the config', (tester) async {
@@ -231,6 +241,31 @@ void main() {
     );
   });
 
+  testWidgets('us13/fr01/e02: a component reads the live corner radius, '
+      'unaffected by the wrapper', (tester) async {
+    const radius = BorderRadius.all(Radius.circular(24));
+    BorderRadius? seen;
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(displayCornerRadii: radius),
+        child: StratumApplication(
+          controller: await _controller(),
+          appBuilder: (c, s) => MaterialApp(
+            builder: s.builder,
+            home: Builder(
+              builder: (context) {
+                seen = context.deviceWindow.radius;
+                return const Text('home');
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(seen, radius);
+  });
+
   testWidgets('us13/fr01/e05: notices false leaves the host out and '
       'showToast throws', (tester) async {
     await tester.pumpWidget(
@@ -279,6 +314,24 @@ void main() {
     expect(find.byType(StratumToastHost), findsNothing);
   });
 
+  testWidgets('us13/fr01/e06: a rebuild with a new noticeHost takes '
+      'effect', (tester) async {
+    final controller = await _controller();
+    Widget app(Key key) => StratumApplication(
+      controller: controller,
+      noticeHost: (child) => StratumToastHost(key: key, child: child),
+      appBuilder: (c, s) =>
+          MaterialApp(builder: s.builder, home: const Text('home')),
+    );
+    await tester.pumpWidget(app(const Key('first')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('first')), findsOneWidget);
+    await tester.pumpWidget(app(const Key('second')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('first')), findsNothing);
+    expect(find.byKey(const Key('second')), findsOneWidget);
+  });
+
   testWidgets('us13/fr02/e03: a mode change runs the app builder '
       'again', (tester) async {
     final modes = <ThemeMode>[];
@@ -317,6 +370,21 @@ void main() {
     await controller.switchTo('brand');
     await tester.pump();
     expect(calls, greaterThan(before));
+  });
+
+  testWidgets('us13/fr01: an app-held controller stays usable after the '
+      'wrapper unmounts', (tester) async {
+    final controller = await _controller();
+    await tester.pumpWidget(
+      StratumApplication(
+        controller: controller,
+        appBuilder: (c, s) =>
+            MaterialApp(builder: s.builder, home: const Text('home')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox());
+    expect(() => controller.addListener(() {}), returnsNormally);
   });
 
   testWidgets('us13/s4: us13/fr02/e02: the app keeps its own locale; the theme '
@@ -375,6 +443,58 @@ void main() {
       find.byType(StratumThemeApplication),
     );
     expect(app.componentPartDefaults, same(parts));
+  });
+
+  testWidgets('us13/fr01: componentDefaults and highContrast reach '
+      'StratumThemeApplication', (tester) async {
+    Map<Type, WidgetStyle> defaults(StratumTheme theme) => const {};
+    await tester.pumpWidget(
+      StratumApplication(
+        controller: await _controller(),
+        componentDefaults: defaults,
+        highContrast: StratumHighContrastMode.on,
+        appBuilder: (c, s) =>
+            MaterialApp(builder: s.builder, home: const Text('home')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final app = tester.widget<StratumThemeApplication>(
+      find.byType(StratumThemeApplication),
+    );
+    expect(app.componentDefaults, same(defaults));
+    expect(app.highContrast, StratumHighContrastMode.on);
+  });
+
+  testWidgets('us13/fr01: the preload inputs reach StratumThemePreloader', (
+    tester,
+  ) async {
+    void onThemeChanged(String id) {}
+    void onRemoteThemeError(String id, StratumRemoteThemeException error) {}
+    Widget errorBuilder(BuildContext context, Object error) =>
+        const SizedBox.shrink();
+    final remoteThemes = <StratumRemoteTheme>[];
+    await tester.pumpWidget(
+      StratumApplication(
+        initialThemeId: 'brand',
+        onThemeChanged: onThemeChanged,
+        googleFontsTimeout: const Duration(seconds: 7),
+        remoteThemes: remoteThemes,
+        onRemoteThemeError: onRemoteThemeError,
+        error: errorBuilder,
+        appBuilder: (c, s) =>
+            MaterialApp(builder: s.builder, home: const Text('home')),
+      ),
+    );
+    final preloader = tester.widget<StratumThemePreloader>(
+      find.byType(StratumThemePreloader),
+    );
+    expect(preloader.initialThemeId, 'brand');
+    expect(preloader.onThemeChanged, same(onThemeChanged));
+    expect(preloader.googleFontsTimeout, const Duration(seconds: 7));
+    expect(preloader.remoteThemes, same(remoteThemes));
+    expect(preloader.onRemoteThemeError, same(onRemoteThemeError));
+    expect(preloader.error, same(errorBuilder));
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('us13/fr04/e03: the gate sits first inside '
@@ -469,6 +589,67 @@ void main() {
       ),
       findsOneWidget,
     );
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('us13/fr01/e04: themeMode system with platform brightness '
+      'dark shows the dark background', (tester) async {
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(platformBrightness: Brightness.dark),
+        child: StratumApplication(
+          themeMode: ThemeMode.system,
+          appBuilder: (c, s) =>
+              MaterialApp(builder: s.builder, home: const Text('home')),
+        ),
+      ),
+    );
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is ColoredBox &&
+            w.color == StratumApplication.noSplashDarkBackground,
+      ),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('us13/fr01/e04: themeMode system with platform brightness '
+      'light shows the light background', (tester) async {
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(platformBrightness: Brightness.light),
+        child: StratumApplication(
+          themeMode: ThemeMode.system,
+          appBuilder: (c, s) =>
+              MaterialApp(builder: s.builder, home: const Text('home')),
+        ),
+      ),
+    );
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is ColoredBox &&
+            w.color == StratumApplication.noSplashLightBackground,
+      ),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('us13/fr01/e04: loadingBuilder replaces the default '
+      'background', (tester) async {
+    await tester.pumpWidget(
+      StratumApplication(
+        loadingBuilder: (context) =>
+            const Text('loading-mine', textDirection: TextDirection.ltr),
+        appBuilder: (c, s) =>
+            MaterialApp(builder: s.builder, home: const Text('home')),
+      ),
+    );
+    expect(find.text('loading-mine'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is ColoredBox), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 
