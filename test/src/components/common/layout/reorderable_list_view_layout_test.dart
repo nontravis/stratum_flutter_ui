@@ -7733,6 +7733,40 @@ void main() {
       },
     );
 
+    final firstReleases = ValueVariant<String>({'up', 'cancel'});
+    testWidgets(
+      'us11/fr01/e01: with long-press dragging too, a second pointer on a '
+      'handle takes the first one over, and releasing the first pointer '
+      'afterward raises no exception, with one onReorderEnd',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 20, handles: true)));
+        final gesture = await _grabHandle(tester, 2);
+        final harness = _harness(tester);
+        expect(harness.starts, [2]);
+        final second = TestPointer(9);
+
+        _sendPointer(
+          tester,
+          second.down(tester.getCenter(find.byKey(const ValueKey('handle 5')))),
+        );
+        expect(harness.ends, isEmpty);
+        await tester.idle();
+        expect(harness.ends, [2]);
+
+        if (firstReleases.currentValue == 'up') {
+          await gesture.up();
+        } else {
+          await gesture.cancel();
+        }
+        _sendPointer(tester, second.up());
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, [2]);
+      },
+      variant: firstReleases,
+    );
+
     testWidgets(
       'us11/fr01/e01: a second handle drag ends the first one before it '
       'starts',
@@ -14660,12 +14694,7 @@ void main() {
         final liftedBox = liftedElement.renderObject! as RenderBox;
         expect(liftedBox.attached, isTrue);
         expect(liftedBox.hasSize, isTrue);
-        expect(
-          liftedElement
-              .findAncestorWidgetOfExactType<IgnorePointer>()
-              ?.ignoring,
-          isNot(isTrue),
-        );
+        expect(_ignoringAncestors(liftedElement), isEmpty);
 
         expectKept(tester, 100, state, node: node);
       },
