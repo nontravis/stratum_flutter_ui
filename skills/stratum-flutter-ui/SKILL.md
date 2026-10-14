@@ -616,6 +616,35 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   thrown `FlutterError` naming both types when the registered value is not a `ModalLayoutStyle`. Both builders run
   again whenever the active theme changes, and `StratumThemeApplication.wrap` copies both to a nested application.
 
+## App assembly
+
+- Wrap the app once:
+
+  ```dart
+  StratumApplication(
+    initialThemeId: savedId,
+    onThemeChanged: save,
+    webZoom: (child) => StratumWebZoom(child: child),
+    appBuilder: (context, stratum) => MaterialApp.router(
+      theme: stratum.theme,
+      darkTheme: stratum.darkTheme,
+      themeMode: stratum.themeMode,
+      builder: stratum.builder,
+      routerConfig: router,
+    ),
+  )
+  ```
+
+  `stratum.builder` inserts the theme application, the update gate, the notice host (`notices: false` leaves it
+  out), and web zoom, outer to inner; your router, locales, and providers stay yours. With a builder of your own,
+  chain it: `builder: (context, child) => stratum.builder(context, MyWrapper(child: child!))`. `CupertinoApp` and
+  `WidgetsApp` take the same `builder`. Add the `## Install` override lines first.
+- `updateGate:` wraps the inner layers in your own update gate; see Update gate.
+- `noticeHost:` replaces the plain notice host `notices: true` builds; see Notices.
+- `systemStyle:` forwards the app-wide system bar style to the theme application; see System bars.
+- `componentPartDefaults:` forwards the app-wide parts style per component type to the theme application; see
+  Themes, App-wide component defaults.
+
 ## System bars
 
 - **The theme's look** — `StratumTheme.of(context).systemStyle` is the theme's `SystemStyle` for the active mode: the
@@ -899,6 +928,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 
 ## Update gate
 
+- Under `StratumApplication`, pass `updateGate: (child) => StratumUpdateGate(..., child: child)` instead of placing
+  the gate yourself (see App assembly).
 - **`StratumUpdateGate`** — wrap the app's navigator in `MaterialApp.builder`, below `StratumThemeApplication`, so the
   gate covers every route. It asks your `UpdateChecker` and draws nothing itself: `builder` returns your own screen
   for each `UpdateGateState`.
@@ -947,6 +978,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 
 ## Notices
 
+- Under `StratumApplication`, pass `noticeHost:` to customize the host, or keep `notices: true`, instead of placing
+  one yourself (see App assembly).
 - **`StratumToastHost`** — place it once in `MaterialApp.builder`, below `StratumThemeApplication` and above the app's
   navigator, so every notice shows above every route, modal routes included. It wraps `toastification` itself: call
   `context.showToast(...)`, never `toastification.show`, since a raw call can freeze the wrong per-alignment config.

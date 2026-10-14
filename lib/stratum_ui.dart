@@ -25,6 +25,7 @@ export 'package:smooth_page_indicator/smooth_page_indicator.dart'
     hide ColorBuilder, ScaleEffect, SlideEffect, SlideType, SwapEffect;
 
 export 'src/animations/animations.dart';
+export 'src/application/application.dart';
 export 'src/components/components.dart';
 export 'src/extensions/extensions.dart';
 export 'src/themes/themes.dart';
