@@ -2573,7 +2573,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // The EndUser's newest input wins: a drag that starts while a reach
     // runs ends it at once, on its stale token, and the item it looked
     // for stays parked off screen with its State and focus (R29, FR-04
-    // E20). Nothing scrolls back.
+    // E20). Nothing scrolls back: the reach commits its jump outside the
+    // frame pipeline (R45), so a jump the last laid-out frame has not
+    // shown yet is reverted first, before the sliver's own flushLayout,
+    // right after this, reads a render tree that jump never let a frame
+    // lay out.
+    _revertUncommittedReachJump();
     _stopReach();
     final index = _dragIndex;
     if (index != null) _endExitsBeside(index);
@@ -2932,6 +2937,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// each call moves it, as it moves [_handoffGap].
   _DataIndex? _reachGap;
 
+  /// The offset the last laid-out frame showed, before the reach's own
+  /// jump that frame has not laid out yet, if one is still pending; null
+  /// once that jump's own frame confirms it (read at [_reach]'s own
+  /// entry). The reach commits each jump outside the frame pipeline
+  /// (R45), so a newer input meeting it before that frame runs
+  /// ([_stopReach]) restores this instead of leaving the screen at an
+  /// offset no frame has shown.
+  ({ScrollPosition position, double pixels})? _reachUncommittedJump;
+
   /// The key of the item the reach in progress looks for: its end releases
   /// that item's park (invariant 35).
   Key? _reachKey;
@@ -3021,11 +3035,30 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (key != null) _releasePark(key);
   }
 
-  /// Ends the reach in progress and leaves its item parked.
+  /// Ends the reach in progress and leaves its item parked. Drops
+  /// [_reachUncommittedJump] with no jump of its own: a scroll
+  /// notification mid its own activity calls this too ([_endsReachOn]),
+  /// where a nested jumpTo would corrupt that activity's own state; only
+  /// [_revertUncommittedReachJump] (a drag's own lift, never a scroll)
+  /// acts on it, and does so first.
   void _stopReach() {
+    _reachUncommittedJump = null;
     _reachToken = null;
     _reachGap = null;
     _reachKey = null;
+  }
+
+  /// Reverts the reach's own jump the last laid-out frame has not shown
+  /// yet, if one is pending, to the offset that frame did show (R45): a
+  /// drag's own lift runs its layout flush synchronously right after, and
+  /// with nothing left uncommitted that flush finds nothing new to lay
+  /// out, so it never retires the item under the drag's own touch (FR-04
+  /// E20). Call before [_stopReach] drops the record with no jump.
+  void _revertUncommittedReachJump() {
+    final uncommitted = _reachUncommittedJump;
+    if (uncommitted == null) return;
+    final live = _livePositionOf(uncommitted.position) ?? uncommitted.position;
+    if (live.pixels != uncommitted.pixels) live.jumpTo(uncommitted.pixels);
   }
 
   /// Reaches slot [index], where the item [key] came back after a frame
@@ -3048,6 +3081,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     required bool placesFocus,
   }) {
     if (!mounted || _reachToken != token) return;
+    _reachUncommittedJump = null;
     final primary = FocusManager.instance.primaryFocus;
     if (primary != null && primary != settled && primary is! FocusScopeNode) {
       _endReach();
@@ -3079,6 +3113,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // The estimate re-derives the position each frame, so this jump and the
     // origin record below stay positions the Scrollable held when read; a
     // later swap is sorted out where the record returns.
+    _reachUncommittedJump = (position: position, pixels: position.pixels);
     position.jumpTo(estimate.offset);
     WidgetsBinding.instance
       ..addPostFrameCallback(

@@ -14580,7 +14580,7 @@ void main() {
     // spring-back the reach does not watch for, so it retries all four
     // frames and gives up, with the EndUser's input landing anywhere in
     // that run, never racing the jump's own gap (FR-04 E20).
-    final wall = {for (var id = 100; id < 150; id += 1) id: 400.0};
+    final wall = {for (var id = 100; id < 150; id += 1) id: 250.0};
     testWidgets(
       'matrix I01xT11 and us11/fr04/e20: an immediate handle drag the '
       'EndUser starts while the list reaches for a parked item ends the '
@@ -14602,26 +14602,67 @@ void main() {
         await tester.pump();
         expect(_builtInView(tester, 100), isFalse);
 
-        // A handle of a built item, grabbed with no long-press timer: the
-        // lift lands in the same microtask-to-frame gap every reach jump
+        // A handle of an item wholly inside the viewport (never one the
+        // cache alone built: its coordinate would read from a cache-only
+        // box, off screen), grabbed with no long-press timer: the lift
+        // lands in the same microtask-to-frame gap every reach jump
         // opens, with no frame between the pointer down and this move.
+        final view = tester.getRect(find.byType(Scrollable));
         final built = [
           for (var id = 0; id < 200; id++)
-            if (find.byKey(ValueKey('handle $id')).evaluate().isNotEmpty) id,
+            if (find.byKey(ValueKey('handle $id')).evaluate().isNotEmpty &&
+                view.intersect(
+                      tester.getRect(find.byKey(ValueKey('handle $id'))),
+                    ) ==
+                    tester.getRect(find.byKey(ValueKey('handle $id'))))
+              id,
         ];
         expect(built, isNotEmpty);
+        final dragged = built.first;
+        final harness = _harness(tester);
         final gesture = await tester.startGesture(
-          tester.getCenter(find.byKey(ValueKey('handle ${built.first}'))),
+          tester.getCenter(find.byKey(ValueKey('handle $dragged'))),
         );
         await gesture.moveBy(const Offset(0, 20));
         expect(tester.takeException(), isNull);
+        // The touched item lifted: one onReorderStart, no onReorderEnd
+        // before the drop.
+        expect(harness.starts, hasLength(1));
+        expect(harness.ends, isEmpty);
+        // The touched item may have shifted index since the handle grab
+        // (a concurrent park reflow), so its id comes from the start the
+        // list itself reported, never the id this scene guessed first.
+        final liftedId = harness.ids[harness.starts.single];
         await tester.pump();
+        // Its proxy shows, drawn over the list (R49).
+        expect(find.byType(RawImage), findsOne);
         for (var i = 0; i < 5; i++) {
           await tester.pump(const Duration(milliseconds: 16));
         }
         await gesture.up();
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        // The drop lands: visible and taking pointer input in its slot,
+        // with exactly the one onReorderEnd the drop itself reports. The
+        // old abort path's own defect (Critical 1, fix round 2) left
+        // `item.dragging` true forever, wrapping the item in a permanent
+        // `IgnorePointer(ignoring: true)`; this proves neither that nor
+        // a lingering drag proxy survives the drop.
+        expect(harness.ends, hasLength(1));
+        expect(find.byType(RawImage), findsNothing);
+        final liftedElement = find
+            .byKey(ValueKey(liftedId), skipOffstage: false)
+            .evaluate()
+            .single;
+        final liftedBox = liftedElement.renderObject! as RenderBox;
+        expect(liftedBox.attached, isTrue);
+        expect(liftedBox.hasSize, isTrue);
+        expect(
+          liftedElement
+              .findAncestorWidgetOfExactType<IgnorePointer>()
+              ?.ignoring,
+          isNot(isTrue),
+        );
 
         expectKept(tester, 100, state, node: node);
       },
@@ -14721,17 +14762,16 @@ void main() {
         final view = tester.getRect(find.byType(Scrollable));
         final gesture = await _grabHandle(tester, 3);
         await gesture.moveTo(Offset(view.center.dx, view.bottom - 5));
-        // Several pointer moves inside each 16 ms frame, as a
-        // continuously moving finger makes: some land inside one step's
-        // own animateTo, each re-stamping the step's start were it not
-        // guarded to a new step alone (FR-01 E11).
-        for (var i = 0; i < 40; i++) {
-          for (var j = 0; j < 4; j++) {
-            await gesture.moveTo(
-              Offset(view.center.dx, view.bottom - 5 + (i * 4 + j) * 0.01),
-            );
-          }
-          await tester.pump(const Duration(milliseconds: 16));
+        // A short time slice, then a pointer move, repeated: each slice
+        // lets the running step's own animateTo tick forward some, so the
+        // move that follows re-stamps mid-step, as a continuously moving
+        // finger does, were the stamp not guarded to a new step alone
+        // (FR-01 E11).
+        for (var i = 0; i < 150; i++) {
+          await tester.pump(const Duration(milliseconds: 2));
+          await gesture.moveTo(
+            Offset(view.center.dx, view.bottom - 5 + i * 0.1),
+          );
         }
 
         expect(positionOf(tester).pixels, greaterThan(100));
