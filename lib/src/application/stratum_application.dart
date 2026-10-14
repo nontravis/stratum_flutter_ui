@@ -14,11 +14,12 @@ import 'package:stratum_ui/src/src.dart';
 ///   wrapper passes `notices: false`.
 /// - A rebuild that flips [controller] from null to non-null, or that
 ///   adds or removes [updateGate], [webZoom], or [notices], keeps the app
-///   widget [appBuilder] returns, and the navigator inside it, mounted
-///   under a stable key each; from non-null to null, a fresh theme
-///   preload starts, showing its loading frame, and the app remounts
-///   fresh once it settles. The notice host and [StratumWebZoom] carry
-///   no key of their own, so that rebuild remounts them fresh: an open
+///   widget [appBuilder] returns mounted; the navigator inside it stays
+///   mounted because the app widget's own GlobalObjectKey on its navigator
+///   keeps it. From non-null to null, a fresh theme preload starts, showing
+///   its loading frame, and the app remounts fresh once it settles. State
+///   inside a removed layer goes with it. The notice host and [StratumWebZoom]
+///   carry no key of their own, so that rebuild remounts them fresh: an open
 ///   notice or a zoom scale does not survive it.
 class StratumApplication extends StatefulWidget {
   const new({
@@ -169,12 +170,8 @@ class StratumApplication extends StatefulWidget {
 /// mounted under its own [GlobalKey] (class dartdoc's rebuild bullet).
 class _StratumApplicationState extends State<StratumApplication> {
   /// Keys the app widget for this State's whole life, so a controller
-  /// flip from null to non-null reparents it instead of unmounting it;
-  /// [_navigatorKey] does the same for `stratum.builder`'s child across a
-  /// gate, zoom, or notices change.
+  /// flip from null to non-null reparents it instead of unmounting it.
   final GlobalKey _appKey = GlobalKey();
-
-  final GlobalKey _navigatorKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
@@ -244,10 +241,7 @@ class _StratumApplicationState extends State<StratumApplication> {
   /// `stratum.builder` is given (themes s03 invariant 34).
   TransitionBuilder _inner(StratumThemeController controller) {
     return (context, child) {
-      Widget w = KeyedSubtree(
-        key: _navigatorKey,
-        child: child ?? const SizedBox.shrink(),
-      );
+      var w = child ?? const SizedBox.shrink();
       final zoom = widget.webZoom;
       if (zoom != null) w = zoom(w);
       if (widget.notices) {
