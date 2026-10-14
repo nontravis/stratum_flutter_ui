@@ -219,8 +219,13 @@ void main() {
   });
 
   test('us01/fr04: StratumToastAction has value equality and copyWith', () {
-    const a = StratumToastAction(label: 'Undo', onPressed: _noop);
-    const b = StratumToastAction(label: 'Undo', onPressed: _noop);
+    // Built at run time from a parameter, so no const canonicalization
+    // makes them one instance and the check reads `==`, not identity.
+    StratumToastAction make(String label) =>
+        StratumToastAction(label: label, onPressed: _noop);
+    final a = make('Undo');
+    final b = make('Undo');
+    expect(identical(a, b), isFalse);
     expect(a, b);
     expect(a.hashCode, b.hashCode);
     final c = a.copyWith(label: 'Redo');
@@ -228,15 +233,36 @@ void main() {
     expect(c.onPressed, _noop);
   });
 
-  test('us01/fr02: StratumToastPlacement has value equality and copyWith', () {
-    const a = StratumToastPlacement.float(StratumToastCorner.bottomStart);
-    const b = StratumToastPlacement.float(StratumToastCorner.bottomStart);
+  test('us01/fr02: StratumToastPlacement.float has value equality and '
+      'copyWith', () {
+    // Built at run time from a parameter, so no const canonicalization
+    // makes them one instance and the check reads `==`, not identity.
+    StratumToastPlacement make(StratumToastCorner corner) =>
+        StratumToastPlacement.float(corner);
+    final a = make(StratumToastCorner.bottomStart);
+    final b = make(StratumToastCorner.bottomStart);
+    expect(identical(a, b), isFalse);
     expect(a, b);
     expect(a.hashCode, b.hashCode);
     final c = (a as StratumToastFloat).copyWith(
       corner: StratumToastCorner.topEnd,
     );
     expect(c.corner, StratumToastCorner.topEnd);
+  });
+
+  test('us01/fr02: StratumToastPlacement.solid has value equality and '
+      'copyWith', () {
+    // Built at run time from a parameter, so no const canonicalization
+    // makes them one instance and the check reads `==`, not identity.
+    StratumToastPlacement make(StratumToastEdge edge) =>
+        StratumToastPlacement.solid(edge);
+    final a = make(StratumToastEdge.bottom);
+    final b = make(StratumToastEdge.bottom);
+    expect(identical(a, b), isFalse);
+    expect(a, b);
+    expect(a.hashCode, b.hashCode);
+    final c = (a as StratumToastSolid).copyWith(edge: StratumToastEdge.top);
+    expect(c.edge, StratumToastEdge.top);
   });
 
   test('us01/fr06: StratumToastNotice has value equality and copyWith', () {

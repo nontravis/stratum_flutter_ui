@@ -13,8 +13,15 @@ import 'package:stratum_ui/src/src.dart';
 void main() {
   group('PageAreas', () {
     test('us18/fr01: has value equality and copyWith', () {
-      const a = PageAreas(body: Rect.fromLTWH(0, 0, 10, 10), footerTop: 5);
-      const b = PageAreas(body: Rect.fromLTWH(0, 0, 10, 10), footerTop: 5);
+      // Built at run time from a parameter, so no const canonicalization
+      // makes them one instance and the check reads `==`, not identity.
+      PageAreas make(double footerTop) => PageAreas(
+        body: const Rect.fromLTWH(0, 0, 10, 10),
+        footerTop: footerTop,
+      );
+      final a = make(5);
+      final b = make(5);
+      expect(identical(a, b), isFalse);
       expect(a, b);
       expect(a.hashCode, b.hashCode);
       final c = a.copyWith(footerTop: 9);

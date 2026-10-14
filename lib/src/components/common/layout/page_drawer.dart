@@ -4,26 +4,6 @@ import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/scrim.dart' show Scrim;
 import 'package:stratum_ui/src/src.dart';
 
-/// How a [PageLayout] side opens as a drawer (US-19 FR-02; layout s03
-/// invariant 65).
-enum PageDrawerType {
-  /// The drawer moves in over the still page.
-  front,
-
-  /// The page moves aside to show the still drawer behind it.
-  back,
-
-  /// The drawer and the page move together.
-  slide,
-
-  /// The drawer shows and hides with no motion.
-  permanent,
-
-  /// The drawer content opens as a new page through the page transitions,
-  /// and closes by going back.
-  page,
-}
-
 /// A [PageLayout] side that holds a drawer: [left] is the start side and
 /// [right] the end side, so under [TextDirection.rtl] [left] opens from the
 /// right edge.

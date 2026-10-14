@@ -1,8 +1,26 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:stratum_ui/src/components/common/layout/page_drawer.dart'
-    show PageDrawerType;
 
 part 'generated/page_side.freezed.dart';
+
+/// How a `PageLayout` side opens as a drawer (US-19 FR-02; layout s03
+/// invariant 65).
+enum PageDrawerType {
+  /// The drawer moves in over the still page.
+  front,
+
+  /// The page moves aside to show the still drawer behind it.
+  back,
+
+  /// The drawer and the page move together.
+  slide,
+
+  /// The drawer shows and hides with no motion.
+  permanent,
+
+  /// The drawer content opens as a new page through the page transitions,
+  /// and closes by going back.
+  page,
+}
 
 /// How one side of a `PageLayout` behaves as a drawer (US-19 FR-02, FR-04,
 /// FR-05); its width bounds also bound the side's inline pane (FR-06).
