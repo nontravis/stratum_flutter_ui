@@ -173,28 +173,38 @@ class _ReorderSliverState extends SliverReorderableListState {
         _pointerInFocusedField(index, event.position)) {
       return;
     }
-    setState(() {
-      if (isSettlingDrop) {
-        // A drag that starts while a drop settles completes it at once
-        // (R52), so the drop's move reports and the new drag lifts.
-        _completeDropForStart();
-      } else if (_lift != null) {
-        cancelReorder();
-      } else if (_recognizer != null && _recognizerPointer != event.pointer) {
-        _recognizer!.dispose();
-        _recognizer = null;
-        _recognizerPointer = null;
-      }
-      final item = _itemAt(index);
-      if (item == null) {
-        throw Exception('Attempting to start a drag on a non-visible item');
-      }
-      _dragKey = item.key;
-      _recognizer = recognizer
-        ..onStart = _dragStart
-        ..addPointer(event);
-      _recognizerPointer = event.pointer;
-    });
+    // Neither the recognizer bookkeeping below nor _dragKey (read only
+    // once _lift exists, never by a build before then) shows on screen,
+    // so it takes no setState of its own: an outer one here left this
+    // element dirty on every pointer down, a mark a frame usually clears
+    // before the drag's own synchronous flushLayout runs, but an
+    // immediate handle grab or a long press whose timer fires inside one
+    // pump reaches that flush first, and a sliver child's own, narrower
+    // build scope then finds this ancestor outside it and throws ("wrong
+    // build scope") — one cause behind both gesture shapes, a pending
+    // reach's jump only one trigger of it, never the cause. The two
+    // branches that do change what is on screen already carry their own
+    // setState (cancelReorder, _completeDropForStart's _dropCompleted).
+    if (isSettlingDrop) {
+      // A drag that starts while a drop settles completes it at once
+      // (R52), so the drop's move reports and the new drag lifts.
+      _completeDropForStart();
+    } else if (_lift != null) {
+      cancelReorder();
+    } else if (_recognizer != null && _recognizerPointer != event.pointer) {
+      _recognizer!.dispose();
+      _recognizer = null;
+      _recognizerPointer = null;
+    }
+    final item = _itemAt(index);
+    if (item == null) {
+      throw Exception('Attempting to start a drag on a non-visible item');
+    }
+    _dragKey = item.key;
+    _recognizer = recognizer
+      ..onStart = _dragStart
+      ..addPointer(event);
+    _recognizerPointer = event.pointer;
   }
 
   // Every reset reaches the body's one drag exit (FR-04 E06): the SDK's
@@ -295,6 +305,20 @@ class _ReorderSliverState extends SliverReorderableListState {
     owner?.flushLayout();
     owner?.flushCompositingBits();
     owner?.flushPaint();
+    // The flush above can resolve a reach's own deferred jump (E20),
+    // retiring this item from the built range before its lift reads it:
+    // its touch target scrolled away in the same tick, never a frame
+    // apart in production. Read through the walking getter, never
+    // findRenderObject, which asserts active; end the start already
+    // reported, with no lift, rather than read a render object the
+    // flush just tore down.
+    final liftBox = (item.context as Element).renderObject;
+    if (liftBox == null || !liftBox.attached) {
+      widget.onReorderEnd?.call(_dragIndex!);
+      _dragKey = null;
+      _dragIndex = null;
+      return null;
+    }
     item.rebuild();
     _insertIndex = item.index;
     final lift = _lift = _Lift(
@@ -357,7 +381,14 @@ class _ReorderSliverState extends SliverReorderableListState {
       if (start < viewStart || end > viewEnd) return;
       _autoScrollGaveWay = false;
     }
-    _autoScrollStepFrom = _scrollable.position.pixels;
+    // A step already runs: _dragUpdate calls this on every pointer move,
+    // several of which can land inside one step's own animateTo (FR-01
+    // E11); only a new step's own start stamps where it began, so the
+    // spring-back check below compares against that step's true start,
+    // never a value this mid-step call would overwrite it with.
+    if (!(_autoScroller?.scrolling ?? false)) {
+      _autoScrollStepFrom = _scrollable.position.pixels;
+    }
     _autoScroller?.startAutoScrollIfNecessary(_dragTargetRect);
   }
 

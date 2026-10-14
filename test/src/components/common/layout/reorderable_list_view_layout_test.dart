@@ -14576,16 +14576,57 @@ void main() {
       },
     );
 
-    // The tall wall between the start and the moved slot keeps the reach
-    // from ever building it, so the reach keeps retrying. The EndUser's
-    // scroll starts in the gap between the reach's first jump (a microtask
-    // after the move's frame) and the frame that jump scheduled, with no
-    // pump in between (FR-04 E20). A drag start cannot share that gap:
-    // its lift flushes layout mid the reach's pending jump and asserts, so
-    // the drag half of the cell stays on the lift's own path
-    // (_liftedTook), which Task 14's lift pins already exercise, and this
-    // pin carries the reach-end alone.
+    // Pinning the scroll keeps the reach's own jump from ever landing: a
+    // spring-back the reach does not watch for, so it retries all four
+    // frames and gives up, with the EndUser's input landing anywhere in
+    // that run, never racing the jump's own gap (FR-04 E20).
     final wall = {for (var id = 100; id < 150; id += 1) id: 400.0};
+    testWidgets(
+      'matrix I01xT11 and us11/fr04/e20: an immediate handle drag the '
+      'EndUser starts while the list reaches for a parked item ends the '
+      'reach at once with no exception, and the item stays alive off '
+      'screen with its State and focus',
+      (tester) async {
+        await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            heights: wall,
+            handles: true,
+            itemsController: ReorderableItemsController(),
+          ),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+        _harness(tester).move(100, 150);
+        await tester.pump();
+        expect(_builtInView(tester, 100), isFalse);
+
+        // A handle of a built item, grabbed with no long-press timer: the
+        // lift lands in the same microtask-to-frame gap every reach jump
+        // opens, with no frame between the pointer down and this move.
+        final built = [
+          for (var id = 0; id < 200; id++)
+            if (find.byKey(ValueKey('handle $id')).evaluate().isNotEmpty) id,
+        ];
+        expect(built, isNotEmpty);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byKey(ValueKey('handle ${built.first}'))),
+        );
+        await gesture.moveBy(const Offset(0, 20));
+        expect(tester.takeException(), isNull);
+        await tester.pump();
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        expectKept(tester, 100, state, node: node);
+      },
+    );
+
     testWidgets(
       'matrix I17xT10 and us11/fr04/e20: a scroll the EndUser starts while '
       'the list reaches for a parked item ends the reach at once, and the '
@@ -14664,6 +14705,36 @@ void main() {
 
         expect(springs, lessThanOrEqualTo(1));
         expect(positionOf(tester).pixels, 0);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us11/fr01/e11: the edge scroll keeps stepping through a continuous '
+      'drag near the edge, with no app hold on the scroll',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(const _Harness(count: 1000, handles: true)),
+        );
+        final view = tester.getRect(find.byType(Scrollable));
+        final gesture = await _grabHandle(tester, 3);
+        await gesture.moveTo(Offset(view.center.dx, view.bottom - 5));
+        // Several pointer moves inside each 16 ms frame, as a
+        // continuously moving finger makes: some land inside one step's
+        // own animateTo, each re-stamping the step's start were it not
+        // guarded to a new step alone (FR-01 E11).
+        for (var i = 0; i < 40; i++) {
+          for (var j = 0; j < 4; j++) {
+            await gesture.moveTo(
+              Offset(view.center.dx, view.bottom - 5 + (i * 4 + j) * 0.01),
+            );
+          }
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+
+        expect(positionOf(tester).pixels, greaterThan(100));
         await gesture.up();
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
