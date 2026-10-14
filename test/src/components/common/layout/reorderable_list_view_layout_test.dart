@@ -685,6 +685,18 @@ List<_ItemState> _statesOf(WidgetTester tester, int id) => tester
 bool _builtInView(WidgetTester tester, int id) =>
     find.byKey(ValueKey(id)).evaluate().isNotEmpty && _itemInView(tester, id);
 
+/// The [IgnorePointer] ancestors of [element] that ignore pointers, nearest
+/// first: empty when no ancestor keeps a pointer from reaching it.
+List<IgnorePointer> _ignoringAncestors(Element element) {
+  final ignoring = <IgnorePointer>[];
+  element.visitAncestorElements((ancestor) {
+    final widget = ancestor.widget;
+    if (widget is IgnorePointer && widget.ignoring) ignoring.add(widget);
+    return true;
+  });
+  return ignoring;
+}
+
 /// Pumps [harness] in [_app] and scrolls its list to [offset].
 Future<ScrollPosition> _pumpScrolled(
   WidgetTester tester,
@@ -14777,8 +14789,9 @@ void main() {
       'before the next frame, lifts and drops the touched item with no '
       'exception',
       (tester) async {
+        final painted = <int>[];
         await tester.pumpWidget(
-          _app(const _Harness(count: 200, handles: true)),
+          _app(_Harness(count: 200, handles: true, paintLog: painted)),
         );
         final harness = _harness(tester);
         final position = positionOf(tester);
@@ -14790,6 +14803,7 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(harness.starts, hasLength(1));
         expect(harness.ends, isEmpty);
+        final liftedId = harness.ids[harness.starts.single];
         await tester.pump();
         expect(find.byType(RawImage), findsOne);
         for (var i = 0; i < 5; i++) {
@@ -14800,7 +14814,24 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(harness.ends, hasLength(1));
+        expect(harness.moves, hasLength(1));
         expect(find.byType(RawImage), findsNothing);
+        // The grab read the frame before the jump, so the drop lands the
+        // item near the list's start, out of view at 4000. Scrolled back,
+        // it builds in its slot painted and taking pointer input: no lift
+        // outlives the drop to hide it again as it registers.
+        position.jumpTo(0);
+        await tester.pump();
+        expect(_builtInView(tester, liftedId), isTrue);
+        painted.clear();
+        tester.renderObject(find.byKey(ValueKey(liftedId))).markNeedsPaint();
+        await tester.pump();
+        expect(painted, contains(liftedId));
+        expect(find.byKey(ValueKey(liftedId)).hitTestable(), findsOne);
+        expect(
+          _ignoringAncestors(find.byKey(ValueKey(liftedId)).evaluate().single),
+          isEmpty,
+        );
       },
     );
 
@@ -14864,13 +14895,19 @@ void main() {
             .byKey(ValueKey(liftedId), skipOffstage: false)
             .evaluate()
             .single;
-        expect((liftedElement.renderObject! as RenderBox).attached, isTrue);
+        final liftedBox = liftedElement.renderObject! as RenderBox;
+        expect(liftedBox.attached, isTrue);
+        expect(liftedBox.hasSize, isTrue);
+        expect(_ignoringAncestors(liftedElement), isEmpty);
       },
     );
 
     testWidgets('R45: a drop of a lifted item the edge scroll carried past the '
-        'built range raises no exception', (tester) async {
+        'built range reports its move and one end, with no exception', (
+      tester,
+    ) async {
       await tester.pumpWidget(_app(const _Harness(count: 200, handles: true)));
+      final harness = _harness(tester);
       final view = tester.getRect(find.byType(Scrollable));
       final gesture = await _grabHandle(tester, 2);
       await gesture.moveTo(Offset(view.center.dx, view.bottom - 2));
@@ -14880,6 +14917,10 @@ void main() {
       await gesture.up();
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      // The lifted item is no longer built where it drops, yet the drop
+      // still reports its one move and its one end.
+      expect(harness.moves, hasLength(1));
+      expect(harness.ends, hasLength(1));
     });
 
     testWidgets(
@@ -14912,6 +14953,64 @@ void main() {
         handle.dispose();
       },
     );
+
+    // The handle's own listener and the item's long-press listener both
+    // arm a recognizer for the one pointer down. A drag ended by a
+    // non-pointer path leaves that pointer down, and its later release or
+    // cancel must reach no lift the end already disposed.
+    final releases = ValueVariant<String>({'up', 'cancel'});
+    testWidgets(
+      'FR-03 E08: after a screen-reader move action ends a handle drag, the '
+      "release of the drag's own pointer raises no exception",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(_app(const _Harness(count: 5, handles: true)));
+        final harness = _harness(tester);
+        final gesture = await _grabHandle(tester, 2);
+        moveActionNow(tester, 2, 'Move down');
+        await tester.pump();
+        expect(harness.ends, hasLength(1));
+        expect(harness.moves, [(2, 3)]);
+
+        if (releases.currentValue == 'up') {
+          await gesture.up();
+        } else {
+          await gesture.cancel();
+        }
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, hasLength(1));
+        expect(harness.moves, [(2, 3)]);
+        expect(find.byType(RawImage), findsNothing);
+        handle.dispose();
+      },
+      variant: releases,
+    );
+
+    testWidgets('FR-04 E06: after an item-count change ends a handle drag, the '
+        "release of the drag's own pointer raises no exception", (
+      tester,
+    ) async {
+      await tester.pumpWidget(_app(const _Harness(count: 5, handles: true)));
+      final harness = _harness(tester);
+      final gesture = await _grabHandle(tester, 2);
+      harness.insertData(0, 9);
+      await tester.pump();
+      expect(harness.ends, hasLength(1));
+
+      if (releases.currentValue == 'up') {
+        await gesture.up();
+      } else {
+        await gesture.cancel();
+      }
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(harness.ends, hasLength(1));
+      expect(harness.moves, isEmpty);
+      expect(find.byType(RawImage), findsNothing);
+    }, variant: releases);
   });
 
   group('ReorderableListViewLayout reduced motion', () {
@@ -15476,6 +15575,13 @@ void main() {
 
         expect(_runningTransitions(tester), isEmpty);
         expect(_offsetBetween(tester, 0, 1), 80);
+        // The proxy shows the item at its full 40 px, box and raster alike,
+        // though the grab landed on a slot grown only partway: the lift
+        // reads the boundary below the grow-in (D5).
+        final proxy = tester.widget<RawImage>(find.byType(RawImage));
+        final pixelRatio = tester.view.devicePixelRatio;
+        expect(tester.getSize(find.byType(RawImage)).height, 40);
+        expect(proxy.image!.height / pixelRatio, 40);
         await gesture.up();
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

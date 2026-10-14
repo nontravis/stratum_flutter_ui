@@ -58,7 +58,12 @@ class _ReorderSliverState extends SliverReorderableListState {
   _Lift? _lift;
   int? _insertIndex;
   Offset? _finalDropPosition;
-  MultiDragGestureRecognizer? _recognizer;
+
+  /// The recognizers armed for [_recognizerPointer]: an item's handle
+  /// listener and its long-press listener each arm one for the same
+  /// pointer down, and the drag runs through whichever wins, so a reset
+  /// disposes them all ([_disposeRecognizers]).
+  final _recognizers = <MultiDragGestureRecognizer>[];
   int? _recognizerPointer;
   EdgeDraggingAutoScroller? _autoScroller;
   late ScrollableState _scrollable;
@@ -151,7 +156,7 @@ class _ReorderSliverState extends SliverReorderableListState {
   @override
   void dispose() {
     _dragReset();
-    _recognizer?.dispose();
+    _disposeRecognizers();
     super.dispose();
   }
 
@@ -175,36 +180,40 @@ class _ReorderSliverState extends SliverReorderableListState {
     }
     // Neither the recognizer bookkeeping below nor _dragKey (read only
     // once _lift exists, never by a build before then) shows on screen,
-    // so it takes no setState of its own: an outer one here left this
-    // element dirty on every pointer down, a mark a frame usually clears
-    // before the drag's own synchronous flushLayout runs, but an
-    // immediate handle grab or a long press whose timer fires inside one
-    // pump reaches that flush first, and a sliver child's own, narrower
-    // build scope then finds this ancestor outside it and throws ("wrong
-    // build scope") — one cause behind both gesture shapes, a pending
-    // reach's jump only one trigger of it, never the cause. The two
-    // branches that do change what is on screen already carry their own
-    // setState (cancelReorder, _completeDropForStart's _dropCompleted).
+    // so it takes no setState of its own. The two branches that do change
+    // what is on screen carry their own setState (cancelReorder,
+    // _completeDropForStart's _dropCompleted).
     if (isSettlingDrop) {
       // A drag that starts while a drop settles completes it at once
       // (R52), so the drop's move reports and the new drag lifts.
       _completeDropForStart();
     } else if (_lift != null) {
       cancelReorder();
-    } else if (_recognizer != null && _recognizerPointer != event.pointer) {
-      _recognizer!.dispose();
-      _recognizer = null;
-      _recognizerPointer = null;
+    } else if (_recognizerPointer != event.pointer) {
+      _disposeRecognizers();
     }
     final item = _itemAt(index);
     if (item == null) {
       throw Exception('Attempting to start a drag on a non-visible item');
     }
     _dragKey = item.key;
-    _recognizer = recognizer
-      ..onStart = _dragStart
-      ..addPointer(event);
+    _recognizers.add(
+      recognizer
+        ..onStart = _dragStart
+        ..addPointer(event),
+    );
     _recognizerPointer = event.pointer;
+  }
+
+  /// Disposes every recognizer armed for [_recognizerPointer], which drops
+  /// each one's route for it: a release or cancel of that pointer after
+  /// the drag ended another way reaches no lift a reset disposed.
+  void _disposeRecognizers() {
+    for (final recognizer in _recognizers) {
+      recognizer.dispose();
+    }
+    _recognizers.clear();
+    _recognizerPointer = null;
   }
 
   // Every reset reaches the body's one drag exit (FR-04 E06): the SDK's
@@ -502,8 +511,7 @@ class _ReorderSliverState extends SliverReorderableListState {
     _autoScrollStepFrom = null;
     _autoScrollGaveWay = false;
     _resetItemGap();
-    _recognizer?.dispose();
-    _recognizer = null;
+    _disposeRecognizers();
     _overlayEntry?.remove();
     _overlayEntry?.dispose();
     _overlayEntry = null;

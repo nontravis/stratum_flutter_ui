@@ -3051,11 +3051,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// Reverts the reach's own jump the last laid-out frame has not shown
-  /// yet, if one is pending, to the offset that frame did show (R45): a
-  /// drag's own lift runs its layout flush synchronously right after, and
-  /// with nothing left uncommitted that flush finds nothing new to lay
-  /// out, so it never retires the item under the drag's own touch (FR-04
-  /// E20). Call before [_stopReach] drops the record with no jump.
+  /// yet, if one is pending, to the offset that frame did show (R45), so
+  /// that jump never lands under the lifted proxy on the frame after the
+  /// grab (FR-04 E20). Its one caller is the WORKAROUND in [_liftedTook]:
+  /// a scroll that ends the reach cannot call it. Call before [_stopReach]
+  /// drops the record with no jump.
   void _revertUncommittedReachJump() {
     final uncommitted = _reachUncommittedJump;
     if (uncommitted == null) return;
