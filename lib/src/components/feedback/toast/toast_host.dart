@@ -660,9 +660,17 @@ class StratumToastHostState extends State<StratumToastHost> {
         if (window >= WindowSize.desktop) {
           // A desktop bottom float stays beside the pane, not above any
           // page bar; the start side clears `left`, the end side the gap
-          // right of `right` (E07).
+          // right of `right` (E07); `bottomCenter` clears both sides at
+          // once, so it centers inside the body rather than drifting
+          // over whichever pane is open.
           final body = areas.body;
           if (body == null) return EdgeInsets.zero;
+          if (corner == StratumToastCorner.bottomCenter) {
+            return EdgeInsets.only(
+              left: body.left,
+              right: size.width - body.right,
+            );
+          }
           final start = corner == StratumToastCorner.bottomStart;
           final rtl = Directionality.of(context) == TextDirection.rtl;
           final ltrStart = start != rtl;

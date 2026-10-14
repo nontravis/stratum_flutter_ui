@@ -41,11 +41,16 @@ class PageAreas {
 /// host reads the innermost one whose route is current (s03 toast
 /// invariant 16).
 class PageAreasHandle extends ValueNotifier<PageAreas?> {
-  new({required this.isCurrentRoute}) : super(null);
+  new({required this.isCurrentRoute, required this.context}) : super(null);
 
   /// Whether the page's route is the current route of its navigator;
   /// a covered route's page never wins.
   final bool Function() isCurrentRoute;
+
+  /// The page's own build context, read only to settle which of two
+  /// handles on the same current route truly nests inside the other
+  /// (s03 toast invariant 16; N14).
+  final BuildContext Function() context;
 
   /// While true, value writes notify no listener.
   bool _quiet = false;
@@ -81,9 +86,17 @@ class PageAreasRegistry extends StatefulWidget {
 
   final Widget child;
 
-  /// The registry controller above [context], null with no registry.
+  /// The registry controller above [context], null with no registry: a
+  /// *dependent* read, for a reader (the toast host's margin) that must
+  /// rebuild on every version bump.
   static PageAreasController? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_PageAreasScope>()?.controller;
+
+  /// The registry controller above [context], null with no registry: a
+  /// non-dependent read, for a page's own registration bookkeeping, which
+  /// must not subscribe the page to every other page's areas writes.
+  static PageAreasController? controllerOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_PageAreasScope>()?.controller;
 
   @override
   State<PageAreasRegistry> createState() => _PageAreasRegistryState();
@@ -148,13 +161,36 @@ class PageAreasController extends ChangeNotifier {
 
   void _handleWrote() => version.value++;
 
-  /// The innermost added handle whose route is current; null while none
-  /// is (s03 toast invariant 16).
+  /// The innermost handle whose route is current; null while none is
+  /// (s03 toast invariant 16; N14).
+  ///
+  /// Walks from the most recently added current-route handle, promoting
+  /// an earlier one only when it truly nests inside the pick so far
+  /// ([_nestedIn]): tree position wins over add order. Siblings that
+  /// nest in neither direction keep the add-order tie-break.
   PageAreasHandle? current() {
+    PageAreasHandle? best;
     for (final handle in _handles.reversed) {
-      if (handle.isCurrentRoute()) return handle;
+      if (!handle.isCurrentRoute()) continue;
+      if (best == null || _nestedIn(handle, best)) best = handle;
     }
-    return null;
+    return best;
+  }
+
+  /// Whether [candidate]'s context sits below [of]'s in the widget tree,
+  /// so [candidate] is the one actually nested inside [of] regardless of
+  /// which one registered first.
+  static bool _nestedIn(PageAreasHandle candidate, PageAreasHandle of) {
+    final target = of.context();
+    var nested = false;
+    candidate.context().visitAncestorElements((element) {
+      if (element == target) {
+        nested = true;
+        return false;
+      }
+      return true;
+    });
+    return nested;
   }
 
   @override

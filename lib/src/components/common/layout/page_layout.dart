@@ -523,6 +523,7 @@ class _PageLayoutState extends State<PageLayout>
   /// handle on the current route (s03 toast invariant 16).
   late final _handle = PageAreasHandle(
     isCurrentRoute: () => mounted && (ModalRoute.isCurrentOf(context) ?? true),
+    context: () => context,
   );
 
   /// The last areas this page wrote, so a reporter for one slot rewrites
@@ -598,8 +599,13 @@ class _PageLayoutState extends State<PageLayout>
   /// A registration during a build defers to after the frame, since the
   /// registry's scope rebuilds on the version bump; a dispose quiets the
   /// handle instead and defers the removal the same way.
+  ///
+  /// Reads the registry through [PageAreasRegistry.controllerOf], the
+  /// non-dependent accessor: a dependent read here would subscribe this
+  /// page to the registry's version notifier for its own bookkeeping
+  /// alone, so every other mounted page's write would rebuild this one.
   void _register() {
-    final registry = PageAreasRegistry.maybeOf(context);
+    final registry = PageAreasRegistry.controllerOf(context);
     if (identical(registry, _registry)) return;
     final old = _registry;
     _registry = registry;
@@ -1479,18 +1485,28 @@ class _PageLayoutState extends State<PageLayout>
   /// [PageLayout.snack] at the bottom center, above the bottom inset and
   /// the keyboard the page makes room for and within the side insets;
   /// null when there is none.
+  ///
+  /// Defers the area write to a post-frame callback, like the other four
+  /// slots' render-level reporters: writing from `build()` once the
+  /// registry has a listener would ask an ancestor to `markNeedsBuild()`
+  /// mid-build and crash (a theme or `customStyle.snack` change on an
+  /// already-registered page is the ordinary trigger).
   Widget? _snack(PageLayoutStyle style, _SlotLook look, double keyboard) {
     final snack = widget.snack;
     if (snack == null) return null;
-    _writeAreas(
-      (areas) => PageAreas(
-        body: areas?.body,
-        footerTop: areas?.footerTop,
-        bottomTop: areas?.bottomTop,
-        left: areas?.left,
-        snack: style.snack,
-      ),
-    );
+    final snackStyle = style.snack;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _writeAreas(
+        (areas) => PageAreas(
+          body: areas?.body,
+          footerTop: areas?.footerTop,
+          bottomTop: areas?.bottomTop,
+          left: areas?.left,
+          snack: snackStyle,
+        ),
+      );
+    });
     final insets = look.insets;
     return ContainerLayout(
       style: WidgetStyle(

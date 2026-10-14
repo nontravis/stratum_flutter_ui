@@ -10,6 +10,7 @@ import '../../common/fakes/fake_stratum_theme.dart';
 // page rebuild (N12).
 
 const _desktop = Size(1400, 900);
+const _tablet = Size(700, 1000);
 const _phone = Size(390, 844);
 
 /// A test view [size] logical pixels large, reset after the test (N4).
@@ -20,15 +21,19 @@ void _view(WidgetTester tester, Size size) {
 }
 
 /// [home] under the theme and the toast host above the app's navigator,
-/// as `MaterialApp.builder` places it.
-Widget _app(Widget home) => MaterialApp(
-  builder: (context, child) => StratumThemeApplication(
-    themes: StratumThemeSet(light: fakeTheme),
-    themeMode: ThemeMode.light,
-    child: StratumToastHost(child: child!),
-  ),
-  home: home,
-);
+/// as `MaterialApp.builder` places it, in [direction] (E07, E01).
+Widget _app(Widget home, {TextDirection direction = TextDirection.ltr}) =>
+    MaterialApp(
+      builder: (context, child) => StratumThemeApplication(
+        themes: StratumThemeSet(light: fakeTheme),
+        themeMode: ThemeMode.light,
+        child: Directionality(
+          textDirection: direction,
+          child: StratumToastHost(child: child!),
+        ),
+      ),
+      home: home,
+    );
 
 /// A button labeled [label] whose tap runs [show] with its context.
 Widget _button(String label, void Function(BuildContext) show) => Builder(
@@ -517,6 +522,297 @@ void main() {
       // No page: the fill runs under the home indicator, its bottom at
       // the screen bottom.
       expect(tester.getRect(_fill('Gone2')).bottom, closeTo(844, 1));
+    },
+  );
+
+  testWidgets(
+    'critical: a customStyle.snack change on an already-registered page '
+    'does not crash the registry scope',
+    (tester) async {
+      _view(tester, _phone);
+      late StateSetter setColor;
+      var color = const Color(0xFF00FF00);
+      await tester.pumpWidget(
+        _app(
+          StatefulBuilder(
+            builder: (context, setState) {
+              setColor = setState;
+              return PageLayout(
+                customStyle: PageLayoutStyle(
+                  snack: WidgetStyle(backgroundColor: color),
+                ),
+                snack: const Text('snack widget'),
+                body: const SizedBox(),
+              );
+            },
+          ),
+        ),
+      );
+      // Settles one frame first: the handle's registry listener attaches
+      // only post-frame, so the crash this proves against needs the page
+      // already registered before the style write below.
+      await tester.pumpAndSettle();
+      setColor(() => color = const Color(0xFF0000FF));
+      await tester.pumpAndSettle();
+      // No `markNeedsBuild() called during build` from `_snack` writing
+      // the registry straight from `build()` (the Critical finding).
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('perf: a pane-width write on one mounted page does not rebuild '
+      'another mounted page sharing the same registry', (tester) async {
+    _view(tester, _desktop);
+    final keyA = GlobalKey();
+    final keyB = GlobalKey();
+    final controllerA = PageLayoutController();
+    final controllerB = PageLayoutController();
+    addTearDown(controllerA.dispose);
+    addTearDown(controllerB.dispose);
+    await tester.pumpWidget(
+      _app(
+        IndexedStack(
+          index: 0,
+          children: [
+            PageLayout(
+              key: keyA,
+              left: const SizedBox(width: 200, child: Text('leftA')),
+              body: const SizedBox(),
+              controller: controllerA,
+            ),
+            PageLayout(
+              key: keyB,
+              body: const SizedBox(),
+              controller: controllerB,
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // `debugOnRebuildDirtyWidget` fires on every dirtied Element's
+    // rebuild, unlike a child-widget build counter, which an unchanged
+    // widget instance further down the tree would mask (Flutter reuses
+    // that Element outright): it catches B's own `PageLayoutState`
+    // rebuilding even though every widget it then passes down is
+    // unchanged.
+    var bRebuilds = 0;
+    debugOnRebuildDirtyWidget = (element, _) {
+      if (element.widget.key == keyB) bRebuilds++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = null);
+    // A's pane write bumps the shared registry's version; only a
+    // dependent of that version should rebuild, and B's own
+    // registration bookkeeping must not be one (Performance Important
+    // 1).
+    controllerA.leftWidth = 500;
+    await tester.pumpAndSettle();
+    expect(bRebuilds, 0);
+  });
+
+  testWidgets(
+    'n12: a real pointer drag of the left divider moves a showing float '
+    'once it settles',
+    (tester) async {
+      _view(tester, _desktop);
+      final controller = PageLayoutController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            left: const SizedBox(width: 300, child: Text('left')),
+            body: _button(
+              'go',
+              (c) => c.showToast(
+                message: 'Dragged',
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.bottomStart,
+                ),
+              ),
+            ),
+            controller: controller,
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final divider = find.bySemanticsLabel('Resize panes');
+      await tester.dragFrom(tester.getCenter(divider), const Offset(200, 0));
+      await tester.pumpAndSettle();
+      final paneRight = tester.getRect(find.text('left')).right;
+      expect(
+        tester.getRect(_fill('Dragged')).left,
+        greaterThanOrEqualTo(paneRight),
+      );
+    },
+  );
+
+  testWidgets(
+    'r26: a bottom float with the keyboard open rises above the footer '
+    'beyond it',
+    (tester) async {
+      _view(tester, _phone);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            body: _button(
+              'go',
+              (c) => c.showToast(
+                message: 'FloatKeyboard',
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.bottomStart,
+                ),
+              ),
+            ),
+            footer: const SizedBox(height: 60, child: Text('footer')),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      // The keyboard (300) is taller than the footer (60): the float
+      // rides above the keyboard plus its own margin, not one footer
+      // height above it (R26 extends N15's rule to floats).
+      final lg = tester.element(find.text('FloatKeyboard')).theme.space.lg;
+      expect(
+        tester.getRect(_fill('FloatKeyboard')).bottom,
+        closeTo(844 - 300 - lg, 1),
+      );
+    },
+  );
+
+  testWidgets(
+    'r26: us01/fr02/e10: a bottom float sits above the footer on tablet',
+    (tester) async {
+      _view(tester, _tablet);
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            body: _button(
+              'go',
+              (c) => c.showToast(
+                message: 'TabletFloat',
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.bottomStart,
+                ),
+              ),
+            ),
+            footer: const SizedBox(height: 60, child: Text('footer')),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final footerTop = tester.getRect(find.text('footer')).top;
+      final lg = tester.element(find.text('TabletFloat')).theme.space.lg;
+      expect(
+        tester.getRect(_fill('TabletFloat')).bottom,
+        closeTo(footerTop - lg, 1),
+      );
+    },
+  );
+
+  testWidgets(
+    'us01/fr02/e07: a desktop float mirrors the left-pane clearance under '
+    'rtl',
+    (tester) async {
+      _view(tester, _desktop);
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            left: const SizedBox(width: 300, child: Text('left')),
+            body: _button(
+              'go',
+              (c) => c.showToast(
+                message: 'InsideRtl',
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.bottomStart,
+                ),
+              ),
+            ),
+          ),
+          direction: TextDirection.rtl,
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      // Under rtl the `left` slot renders at the physically right edge,
+      // and `bottomStart` mirrors to that same corner: the float still
+      // clears the pane, now measured from the right (E07).
+      final paneLeft = tester.getRect(find.text('left')).left;
+      expect(
+        tester.getRect(_fill('InsideRtl')).right,
+        lessThanOrEqualTo(paneLeft),
+      );
+    },
+  );
+
+  testWidgets(
+    'us01/fr02/e07: a desktop float stays inside the body, never over the '
+    'right pane',
+    (tester) async {
+      _view(tester, _desktop);
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            right: const SizedBox(width: 300, child: Text('right')),
+            body: _button(
+              'go',
+              (c) => c.showToast(
+                message: 'InsideEnd',
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.bottomEnd,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final paneLeft = tester.getRect(find.text('right')).left;
+      expect(
+        tester.getRect(_fill('InsideEnd')).right,
+        lessThanOrEqualTo(paneLeft),
+      );
+    },
+  );
+
+  testWidgets(
+    'desktop float at bottomCenter centers in the body, never over the '
+    'left pane',
+    (tester) async {
+      _view(tester, _desktop);
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            left: const SizedBox(width: 300, child: Text('left')),
+            body: _button(
+              'go',
+              (c) => c.showToast(
+                message: 'Center',
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.bottomCenter,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final paneRight = tester.getRect(find.text('left')).right;
+      final expectedCenter = (paneRight + _desktop.width) / 2;
+      expect(
+        tester.getRect(_fill('Center')).center.dx,
+        closeTo(expectedCenter, 1),
+      );
+      expect(
+        tester.getRect(_fill('Center')).left,
+        greaterThanOrEqualTo(paneRight),
+      );
     },
   );
 }
