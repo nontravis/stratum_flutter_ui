@@ -1250,6 +1250,86 @@ void main() {
     await tester.pumpAndSettle();
     expect(await pageRebuildsOverPushAndPop(tester, key), 0);
   });
+
+  testWidgets(
+    'r29: a desktop float sits above the footer, inside the body, beside '
+    'the left pane',
+    (tester) async {
+      _view(tester, _desktop);
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            left: const SizedBox(width: 300, child: Text('left')),
+            body: _button(
+              'go',
+              (c) => c.showToast(
+                message: 'DesktopFloat',
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.bottomEnd,
+                ),
+              ),
+            ),
+            footer: const SizedBox(height: 60, child: Text('footer')),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final footerTop = tester.getRect(find.text('footer')).top;
+      final paneRight = tester.getRect(find.text('left')).right;
+      final lg = tester.element(find.text('DesktopFloat')).theme.space.lg;
+      // R29 extends R26 to desktop: a bottom float rises above the
+      // footer there too, still clear of the left pane (E07).
+      expect(
+        tester.getRect(_fill('DesktopFloat')).bottom,
+        closeTo(footerTop - lg, 1),
+      );
+      expect(
+        tester.getRect(_fill('DesktopFloat')).left,
+        greaterThanOrEqualTo(paneRight),
+      );
+    },
+  );
+
+  testWidgets(
+    'r29: a desktop float with the keyboard open still clears a taller '
+    'footer, the max rule unchanged',
+    (tester) async {
+      _view(tester, _desktop);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 100);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            body: _button(
+              'go',
+              (c) => c.showToast(
+                message: 'DesktopFloatTallFooter',
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.bottomStart,
+                ),
+              ),
+            ),
+            footer: const SizedBox(height: 300, child: Text('footer')),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final footerTop = tester.getRect(find.text('footer')).top;
+      final lg = tester
+          .element(find.text('DesktopFloatTallFooter'))
+          .theme
+          .space
+          .lg;
+      // The footer (300) outranks the keyboard (100): the max rule still
+      // picks the taller one on desktop (R29 extends N15 to floats).
+      expect(
+        tester.getRect(_fill('DesktopFloatTallFooter')).bottom,
+        closeTo(footerTop - lg, 1),
+      );
+    },
+  );
 }
 
 /// A page route that runs [transitions] whatever the theme's map says.

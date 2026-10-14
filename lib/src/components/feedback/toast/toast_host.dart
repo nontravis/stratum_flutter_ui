@@ -924,8 +924,8 @@ final class _FloatFrame {
   /// width wide: a start or end corner hugs its side, a center one stays
   /// centered. Its gap from a top edge clears the status bar, and on a
   /// desktop page the header; from a bottom edge, the higher of the home
-  /// indicator, the keyboard, and, on mobile and tablet, the page's
-  /// `footer` and `bottom` (E05, E06, E10; N15; R26).
+  /// indicator, the keyboard, and the page's `footer` and `bottom`, on
+  /// every window size (E05, E06, E10; N15; R26; R29).
   factory of(
     BuildContext context,
     Alignment alignment, {
@@ -954,7 +954,7 @@ final class _FloatFrame {
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final below = math.max(
       math.max(viewPadding.bottom, keyboard),
-      desktop ? 0.0 : StratumToastHostState._barHeight(areas, size),
+      StratumToastHostState._barHeight(areas, size),
     );
     return _FloatFrame(
       left: left,
