@@ -1,41 +1,7 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
-import 'package:stratum_ui/src/components/common/model/widget_style.dart';
-
-/// The page areas a notice places itself against, in global coordinates
-/// (s03 toast invariant 16).
-@immutable
-class PageAreas {
-  const new({this.body, this.footerTop, this.bottomTop, this.left, this.snack});
-
-  /// The body slot's global rect.
-  final Rect? body;
-
-  /// The footer slot's global top; null with no footer.
-  final double? footerTop;
-
-  /// The bottom slot's global top; null with no bottom.
-  final double? bottomTop;
-
-  /// The inline `left` pane's global rect; null below the drawer cut.
-  final Rect? left;
-
-  /// The page's resolved `PageLayoutStyle.snack`.
-  final WidgetStyle? snack;
-
-  @override
-  bool operator ==(Object other) =>
-      other is PageAreas &&
-      other.body == body &&
-      other.footerTop == footerTop &&
-      other.bottomTop == bottomTop &&
-      other.left == left &&
-      other.snack == snack;
-
-  @override
-  int get hashCode => Object.hash(body, footerTop, bottomTop, left, snack);
-}
+import 'package:stratum_ui/src/components/common/model/page_layout/page_areas.dart';
 
 /// The handle one `PageLayout` publishes its [PageAreas] through; the
 /// host reads the innermost one whose route is current (s03 toast

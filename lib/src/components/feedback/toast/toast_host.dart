@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/scheduler.dart';
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/page_areas.dart';
+import 'package:stratum_ui/src/components/common/model/page_layout/page_areas.dart';
 import 'package:stratum_ui/src/components/feedback/toast/toast_placement.dart'
     show defaultToastPlacement, toastManagerKey;
 import 'package:stratum_ui/src/components/feedback/toast/toast_plain_look.dart';

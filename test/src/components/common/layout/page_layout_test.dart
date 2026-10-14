@@ -549,6 +549,16 @@ void main() {
       expect(_rect(tester, 'right'), const Rect.fromLTRB(668, 0, 768, 1024));
     });
 
+    test('us18/fr04: PageSafeArea has value equality and copyWith', () {
+      const a = PageSafeArea(top: false, left: false);
+      const b = PageSafeArea(top: false, left: false);
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+      final c = a.copyWith(left: true);
+      expect(c.left, isTrue);
+      expect(c.top, isFalse);
+    });
+
     testWidgets('R20: right under top takes no top inset', (tester) async {
       _view(tester, size: const Size(768, 1024), padding: statusBar);
       await tester.pumpWidget(
@@ -798,6 +808,16 @@ void main() {
       for (var field = 0; field < 10; field++) {
         expect(style(field), isNot(style()), reason: 'field $field');
       }
+    });
+
+    test('us18/fr03: PageLayoutStyle has value equality and copyWith', () {
+      const a = PageLayoutStyle(header: WidgetStyle(width: 1));
+      const b = PageLayoutStyle(header: WidgetStyle(width: 1));
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+      final c = a.copyWith(header: const WidgetStyle(width: 2));
+      expect(c.header, const WidgetStyle(width: 2));
+      expect(c.outer, a.outer);
     });
 
     test('us18/fr03: merge replaces only the fields the other style sets', () {

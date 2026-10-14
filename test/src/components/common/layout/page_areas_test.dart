@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/layout/page_areas.dart';
+import 'package:stratum_ui/src/components/common/model/page_layout/page_areas.dart';
 import 'package:stratum_ui/src/src.dart';
 
 // The registry primitives M4-T27 built, unit-tested directly (Edge Minor
@@ -10,6 +11,18 @@ import 'package:stratum_ui/src/src.dart';
 // file.
 
 void main() {
+  group('PageAreas', () {
+    test('us18/fr01: has value equality and copyWith', () {
+      const a = PageAreas(body: Rect.fromLTWH(0, 0, 10, 10), footerTop: 5);
+      const b = PageAreas(body: Rect.fromLTWH(0, 0, 10, 10), footerTop: 5);
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+      final c = a.copyWith(footerTop: 9);
+      expect(c.footerTop, 9);
+      expect(c.body, a.body);
+    });
+  });
+
   group('PageAreasHandle', () {
     test('detach is a no-op once the value is already null', () {
       final handle = PageAreasHandle();

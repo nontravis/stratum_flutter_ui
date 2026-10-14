@@ -52,36 +52,6 @@ double splitStep({
   return (start + delta).clamp(lower, math.max(lower, upper));
 }
 
-/// What a [SplitLayout] divider passes its [SplitDividerBuilder].
-@immutable
-class SplitDividerState {
-  const new({
-    this.hovered = false,
-    this.dragging = false,
-    this.focused = false,
-  });
-
-  /// True while a pointer rests over the divider's hit area and no drag
-  /// runs.
-  final bool hovered;
-
-  /// True while the EndUser drags the divider.
-  final bool dragging;
-
-  /// True while the divider holds keyboard focus and shows its focus ring.
-  final bool focused;
-
-  @override
-  bool operator ==(Object other) =>
-      other is SplitDividerState &&
-      other.hovered == hovered &&
-      other.dragging == dragging &&
-      other.focused == focused;
-
-  @override
-  int get hashCode => Object.hash(hovered, dragging, focused);
-}
-
 /// Paints a [SplitLayout] divider over its seam for [state].
 ///
 /// The widget fills the divider's hit area, the platform's minimum target
@@ -137,41 +107,6 @@ class SplitLayoutController extends ChangeNotifier {
   /// number of at least 0 read as null.
   static List<double?>? _held(List<double?>? value) =>
       value == null ? null : List.unmodifiable(value.map(_usableFraction));
-}
-
-/// One pane of a [SplitLayout]: its [child] and its size along the split
-/// axis, in logical pixels.
-///
-/// A pane opens at [size], or shares the space the sized panes leave in
-/// proportion to [flex], 1 when both are null; [min] and [max] bound it
-/// whatever opens it, a drag, a key, or a narrower window, while the
-/// window leaves room for every pane's minimum.
-@immutable
-class SplitPane {
-  const new({required this.child, this.size, this.flex, this.min, this.max})
-    : assert(
-        size == null || flex == null,
-        'A pane opens at a size or a flex, never both.',
-      ),
-      assert(
-        min == null || max == null || min <= max,
-        "A pane's min cannot pass its max.",
-      );
-
-  /// The pane's content, laid out at the pane's full size.
-  final Widget child;
-
-  /// The size the pane opens at, in logical pixels.
-  final double? size;
-
-  /// The pane's share of the space the sized panes leave.
-  final double? flex;
-
-  /// The smallest size the pane takes, in logical pixels.
-  final double? min;
-
-  /// The largest size the pane takes, in logical pixels.
-  final double? max;
 }
 
 /// Lays out its [panes] side by side along [axis], with a divider the

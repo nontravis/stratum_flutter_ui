@@ -482,6 +482,16 @@ void main() {
       expect(base.merge(null), base);
     });
 
+    test(
+      'us20/fr01: ModalLayoutStyle copyWith changes only the given part',
+      () {
+        const base = ModalLayoutStyle(surface: WidgetStyle(width: 1));
+        final copy = base.copyWith(top: const WidgetStyle(width: 2));
+        expect(copy.top, const WidgetStyle(width: 2));
+        expect(copy.surface, base.surface);
+      },
+    );
+
     test('us06/fr01: equal part styles are equal, so an equal app-wide map '
         'rebuilds no modal layout', () {
       // Built at run time, so no const canonicalization makes them one

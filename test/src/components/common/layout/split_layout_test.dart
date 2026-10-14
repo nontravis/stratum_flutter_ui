@@ -233,6 +233,17 @@ void main() {
   });
 
   group('SplitLayout panes', () {
+    test('us21/fr01: SplitPane has value equality and copyWith', () {
+      const child = SizedBox();
+      const a = SplitPane(child: child, size: 100, min: 50);
+      const b = SplitPane(child: child, size: 100, min: 50);
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+      final c = a.copyWith(min: 60);
+      expect(c.min, 60);
+      expect(c.size, 100);
+    });
+
     testWidgets('us21/fr01/e01: two panes side by side with one divider', (
       tester,
     ) async {
@@ -670,6 +681,16 @@ void main() {
   });
 
   group('SplitLayout divider look', () {
+    test('us21/fr05: SplitDividerState has value equality and copyWith', () {
+      const a = SplitDividerState(hovered: true, focused: true);
+      const b = SplitDividerState(hovered: true, focused: true);
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+      final c = a.copyWith(focused: false);
+      expect(c.focused, isFalse);
+      expect(c.hovered, isTrue);
+    });
+
     testWidgets('us21/fr05/e02: with no dividerBuilder nothing paints, yet '
         'the hit area and focus ring work', (tester) async {
       _view(tester);

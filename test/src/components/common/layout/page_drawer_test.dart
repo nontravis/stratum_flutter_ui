@@ -700,6 +700,16 @@ void main() {
   });
 
   group('PageDrawer types and motion', () {
+    test('us19/fr02: PageSide has value equality and copyWith', () {
+      const a = PageSide(type: PageDrawerType.front, minWidth: 200);
+      const b = PageSide(type: PageDrawerType.front, minWidth: 200);
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+      final c = a.copyWith(minWidth: 240);
+      expect(c.minWidth, 240);
+      expect(c.type, PageDrawerType.front);
+    });
+
     testWidgets(
       'us19/fr02/e02: with no type on Android the drawer moves in over the '
       'still page',

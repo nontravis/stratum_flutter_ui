@@ -218,6 +218,48 @@ void main() {
     );
   });
 
+  test('us01/fr04: StratumToastAction has value equality and copyWith', () {
+    const a = StratumToastAction(label: 'Undo', onPressed: _noop);
+    const b = StratumToastAction(label: 'Undo', onPressed: _noop);
+    expect(a, b);
+    expect(a.hashCode, b.hashCode);
+    final c = a.copyWith(label: 'Redo');
+    expect(c.label, 'Redo');
+    expect(c.onPressed, _noop);
+  });
+
+  test('us01/fr02: StratumToastPlacement has value equality and copyWith', () {
+    const a = StratumToastPlacement.float(StratumToastCorner.bottomStart);
+    const b = StratumToastPlacement.float(StratumToastCorner.bottomStart);
+    expect(a, b);
+    expect(a.hashCode, b.hashCode);
+    final c = (a as StratumToastFloat).copyWith(
+      corner: StratumToastCorner.topEnd,
+    );
+    expect(c.corner, StratumToastCorner.topEnd);
+  });
+
+  test('us01/fr06: StratumToastNotice has value equality and copyWith', () {
+    StratumToastNotice notice({String message = 'Hi'}) => StratumToastNotice(
+      message: message,
+      kind: FeedbackState.info,
+      placement: const StratumToastPlacement.solid(StratumToastEdge.bottom),
+      insets: EdgeInsets.zero,
+      pageSnack: null,
+      customStyle: null,
+      close: _noop,
+      closeLabel: 'Close',
+      kindLabel: 'Info',
+    );
+    final a = notice();
+    final b = notice();
+    expect(a, b);
+    expect(a.hashCode, b.hashCode);
+    final c = a.copyWith(message: 'Bye');
+    expect(c.message, 'Bye');
+    expect(c.kind, a.kind);
+  });
+
   const undo = StratumToastAction(label: 'Undo', onPressed: _noop);
 
   testWidgets('us01/s6: a notice with an action closes after 8 s', (
