@@ -15470,6 +15470,402 @@ void main() {
       expect(tester.takeException(), isNull);
       handle.dispose();
     });
+
+    /// Pumps the [wall] list scrolled to [offset], with item 100 expanded
+    /// and focused; returns its position, State, and node.
+    Future<(ScrollPosition, _ItemState, FocusNode)> wallScene(
+      WidgetTester tester, {
+      double offset = 4000,
+    }) async {
+      final position = await _pumpScrolled(
+        tester,
+        _Harness(
+          count: 200,
+          heights: wall,
+          handles: true,
+          itemsController: ReorderableItemsController(),
+        ),
+        offset: offset,
+      );
+      final state = _itemState(tester, 100)..expanded = true;
+      final node = await _focusItem(tester, 100);
+      return (position, state, node);
+    }
+
+    /// [wallScene] with item 100 moved far, to 150: the move's frame misses
+    /// its slot, so the list reaches for it; returns with that reach
+    /// running and the item parked off screen.
+    Future<(ScrollPosition, _ItemState, FocusNode)> reachRunning(
+      WidgetTester tester,
+    ) async {
+      final scene = await wallScene(tester);
+      _harness(tester).move(100, 150);
+      await tester.pump();
+      expect(_builtInView(tester, 100), isFalse);
+      return scene;
+    }
+
+    /// Item [id] kept [state], its expanded flag, and primary focus on
+    /// [node], parked off screen (R29).
+    void expectParked(
+      WidgetTester tester,
+      int id,
+      _ItemState state,
+      FocusNode node,
+    ) {
+      expectKept(tester, id, state, node: node);
+      expect(_builtInView(tester, id), isFalse);
+    }
+
+    /// The offsets the next [count] frames, 16 ms apart, lay the list out
+    /// at.
+    Future<List<double>> laidFrames(WidgetTester tester, int count) async {
+      final laid = <double>[];
+      for (var i = 0; i < count; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        laid.add(laidOffset(tester));
+      }
+      return laid;
+    }
+
+    testWidgets(
+      'R45: an app jumpTo while a reach runs is what the next frame lays '
+      'out, no later frame jumps over it, and the item stays parked',
+      (tester) async {
+        final (position, state, node) = await reachRunning(tester);
+        final target = laidOffset(tester) + 300;
+
+        position.jumpTo(target);
+        await tester.pump();
+        expect(laidOffset(tester), target);
+        expect(await laidFrames(tester, 10), everyElement(target));
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, target);
+        expectParked(tester, 100, state, node);
+      },
+    );
+
+    testWidgets(
+      'R45: an app animateTo while a reach runs runs to its end on its own '
+      'path, and the item stays parked',
+      (tester) async {
+        final (position, state, node) = await reachRunning(tester);
+        final shownOffset = laidOffset(tester);
+        final target = shownOffset + 600;
+
+        final done = position.animateTo(
+          target,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutSine,
+        );
+        final laid = await laidFrames(tester, 30);
+        await tester.pumpAndSettle();
+        await done;
+
+        // Every frame lies on the animation's own path, from the shown
+        // offset on toward the target: no reach jump lands between them.
+        expect(laid, everyElement(inInclusiveRange(shownOffset, target)));
+        expect([...laid]..sort(), laid);
+        expect(laid.last, target);
+        expect(position.pixels, target);
+        expectParked(tester, 100, state, node);
+      },
+    );
+
+    testWidgets(
+      'R45: an app jumpTo from the frame callbacks that build and lay out, '
+      'as from an app build or layout, ends a running reach',
+      (tester) async {
+        final (position, state, node) = await reachRunning(tester);
+        final target = laidOffset(tester) + 300;
+        var jumped = false;
+        // A persistent callback stays for the binding's life: it acts once.
+        tester.binding.addPersistentFrameCallback((_) {
+          if (jumped) return;
+          jumped = true;
+          position.jumpTo(target);
+        });
+
+        await tester.pump();
+        expect(jumped, isTrue);
+        expect(await laidFrames(tester, 10), everyElement(target));
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, target);
+        expectParked(tester, 100, state, node);
+      },
+    );
+
+    testWidgets(
+      'R45: an app jumpTo past the end while a reach runs ends the reach, '
+      'and only the physics settles the offset back to the end',
+      (tester) async {
+        final (position, state, node) = await reachRunning(tester);
+
+        position.jumpTo(position.maxScrollExtent + 200);
+        final laid = await laidFrames(tester, 30);
+        await tester.pumpAndSettle();
+
+        // The settle moves only back toward the end, frame by frame.
+        expect([...laid]..sort((a, b) => b.compareTo(a)), laid);
+        expect(position.pixels, position.maxScrollExtent);
+        expectParked(tester, 100, state, node);
+      },
+    );
+
+    testWidgets(
+      'R45: a grab after an app moveItem, before its frame, keeps every '
+      'frame where the EndUser grabbed: no reach the move left scrolls '
+      'under it',
+      (tester) async {
+        // Items 95 to 99 show above item 100, so a handle other than the
+        // moved item's sits in view before the move's frame.
+        await wallScene(tester, offset: 3800);
+        final shownOffset = laidOffset(tester);
+        final handle = find.byKey(const ValueKey('handle 95'));
+        final view = tester.getRect(find.byType(Scrollable));
+        expect(view.intersect(tester.getRect(handle)), tester.getRect(handle));
+
+        final harness = _harness(tester)..move(100, 150);
+        final gesture = await tester.startGesture(tester.getCenter(handle));
+        await gesture.moveBy(const Offset(0, 20));
+        expect(tester.takeException(), isNull);
+        expect(harness.starts, hasLength(1));
+        await tester.pump();
+        await tester.pump();
+        expect(laidOffset(tester), shownOffset);
+        expect(await laidFrames(tester, 5), everyElement(shownOffset));
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, hasLength(1));
+      },
+    );
+
+    testWidgets(
+      'R45: a scroll drag held still after an app moveItem, before its '
+      'frame, keeps every frame under the finger: no reach the move left '
+      'scrolls under it',
+      (tester) async {
+        final (position, _, _) = await wallScene(tester);
+        final shownOffset = laidOffset(tester);
+        _harness(tester).move(100, 150);
+
+        final before = position.pixels;
+        final view = tester.getRect(find.byType(Scrollable));
+        final gesture = await tester.startGesture(view.center);
+        await gesture.moveBy(const Offset(0, -60));
+        final userDelta = position.pixels - before;
+        expect(userDelta, isNot(0.0));
+        await tester.pump();
+        await tester.pump();
+        expect(laidOffset(tester), shownOffset + userDelta);
+        expect(
+          await laidFrames(tester, 5),
+          everyElement(shownOffset + userDelta),
+        );
+
+        // The drag still follows the finger: no list jump ended it.
+        final held = position.pixels;
+        await gesture.moveBy(const Offset(0, -40));
+        await tester.pump();
+        expect(position.pixels - held, 40.0);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'R45: a mouse-wheel scroll after an app moveItem, before its frame, '
+      'is what every frame lays out, and the moved item stays parked',
+      (tester) async {
+        final (position, state, node) = await wallScene(tester);
+        _harness(tester).move(100, 150);
+
+        final view = tester.getRect(find.byType(Scrollable));
+        final pointer = TestPointer(81, PointerDeviceKind.mouse);
+        await tester.sendEventToBinding(pointer.hover(view.center));
+        await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
+        final wheeled = position.pixels;
+        expect(wheeled, 4120.0);
+        expect(await laidFrames(tester, 8), everyElement(wheeled));
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, wheeled);
+        expectParked(tester, 100, state, node);
+      },
+    );
+
+    testWidgets(
+      'R60: an app jumpTo one frame into a reach, while the reached item '
+      'grows in, is what every later frame lays out: no re-reveal scrolls '
+      'over it',
+      (tester) async {
+        final (position, state, node) = await reachRunning(tester);
+        await tester.pump();
+        expect(_runningTransitions(tester), isNotEmpty);
+        final target = laidOffset(tester) - 300;
+
+        position.jumpTo(target);
+        await tester.pump();
+        expect(laidOffset(tester), target);
+        expect(await laidFrames(tester, 10), everyElement(target));
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, target);
+        expectKept(tester, 100, state, node: node);
+        expect(_builtInView(tester, 100), isFalse);
+      },
+    );
+
+    testWidgets(
+      'R62: an app jumpTo in the turn of its own far moveItem wins: every '
+      'frame lays out its offset, and the moved item stays parked with its '
+      'State and focus',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+
+        _harness(tester).move(100, 150);
+        position.jumpTo(2000);
+        expect(await laidFrames(tester, 12), everyElement(2000.0));
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, 2000);
+        expectParked(tester, 100, state, node);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e04 and e17 (R45): an app jumpTo after the app removes a '
+      'focused item and inserts it back at an unbuilt slot in one turn wins, '
+      'and the item stays parked with its State and focus, never lost',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+
+        // The insert moves the item's element, with its State, into the new
+        // slot in place, so the park keeps it while the app's scroll holds:
+        // focus never falls to nothing (E04).
+        _harness(tester)
+          ..remove(100)
+          ..insert(0, 100);
+        position.jumpTo(4040);
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, 4040);
+        expectParked(tester, 100, state, node);
+      },
+    );
+
+    testWidgets(
+      "R63 (limit): an app listener's jump inside the list's own reach jump "
+      "counts as the list's, so the reach runs on and reaches the item",
+      (tester) async {
+        final (position, state, node) = await reachRunning(tester);
+        final shownOffset = laidOffset(tester);
+        var sprang = false;
+        position.addListener(() {
+          if (sprang || position.pixels == shownOffset) return;
+          sprang = true;
+          position.jumpTo(shownOffset);
+        });
+
+        await tester.pumpAndSettle();
+
+        // Flutter dispatches the app's jump inside the list's own: nothing
+        // tells the two apart, so the list owns both (R63).
+        expect(sprang, isTrue);
+        expectKept(tester, 100, state, node: node);
+        expect(_builtInView(tester, 100), isTrue);
+      },
+    );
+
+    testWidgets(
+      'R63 (limit): an app animateTo that starts while a physics settle runs '
+      'sends no scroll start, so the list keeps the scroll and its move jump '
+      'lands over it',
+      (tester) async {
+        var starts = 0;
+        await tester.pumpWidget(
+          _app(
+            NotificationListener<ScrollStartNotification>(
+              onNotification: (_) {
+                starts += 1;
+                return false;
+              },
+              child: _Harness(
+                count: 200,
+                itemsController: ReorderableItemsController(),
+              ),
+            ),
+          ),
+        );
+        final position = positionOf(tester)..jumpTo(7700);
+        await tester.pump();
+        final state = _itemState(tester, 190)..expanded = true;
+        final node = await _focusItem(tester, 190);
+        final harness = _harness(tester);
+        // Three items fewer leave the offset past the new end: the physics
+        // starts its settle in the layout that measures it.
+        for (var i = 0; i < 3; i++) {
+          harness.removeData(197);
+        }
+        await tester.pump();
+        expect(position.outOfRange, isTrue);
+
+        harness.move(190, 10);
+        final before = starts;
+        final animation = position.animateTo(
+          3000,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutSine,
+        );
+        // An activity that takes over a running one starts no scroll
+        // (R63): the list never sees the app's.
+        expect(starts, before);
+        await tester.pumpAndSettle();
+        await animation;
+
+        expectKept(tester, 190, state, node: node);
+        expect(_builtInView(tester, 190), isTrue);
+      },
+    );
+
+    testWidgets(
+      'R63 (limit): an app jump past the end from the frame callbacks that '
+      'build and lay out counts as the physics settle, so the reach runs on '
+      'and reaches the item',
+      (tester) async {
+        final (position, state, node) = await reachRunning(tester);
+        var jumped = false;
+        // A persistent callback stays for the binding's life: it acts once.
+        tester.binding.addPersistentFrameCallback((_) {
+          if (jumped) return;
+          jumped = true;
+          position.jumpTo(position.maxScrollExtent + 200);
+        });
+
+        await tester.pumpAndSettle();
+
+        // A start in layout past the end reads as the physics' own settle
+        // (R63): the list cannot tell the app's jump from it.
+        expect(jumped, isTrue);
+        expectKept(tester, 100, state, node: node);
+        expect(_builtInView(tester, 100), isTrue);
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {
