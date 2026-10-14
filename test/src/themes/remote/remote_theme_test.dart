@@ -41,6 +41,18 @@ void main() {
     );
   });
 
+  test('d1, s05: toString escapes the id, so a control character never '
+      'reaches a log or crash sink raw', () {
+    const error = StratumRemoteThemeException(
+      code: StratumRemoteThemeErrorCode.invalidId,
+      id: 'bra\u0007nd',
+      message: 'gone',
+    );
+
+    expect(error.toString(), contains(r'bra\u0007nd'));
+    expect(error.toString(), isNot(contains('\u0007')));
+  });
+
   test('d1: theme_format wraps the FO-01 report', () {
     const report = StratumThemeFormatException([]);
     const error = StratumRemoteThemeException(

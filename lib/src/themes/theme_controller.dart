@@ -404,10 +404,10 @@ class StratumThemeController extends ChangeNotifier {
             appDefault: controller._appDefault,
           ),
         );
-      } on StratumRemoteThemeException catch (error) {
+      } on StratumRemoteThemeException catch (error, stack) {
         _warn(
-          'kept zip "${theme.id}" failed to install (${error.code.key}); '
-          'skipped',
+          'kept zip "${escapeZipText(theme.id)}" failed to install '
+          '(${error.code.key}); skipped',
         );
         if (onRemoteThemeError != null) {
           onRemoteThemeError(theme.id, error);
@@ -415,6 +415,7 @@ class StratumThemeController extends ChangeNotifier {
           FlutterError.reportError(
             FlutterErrorDetails(
               exception: error,
+              stack: stack,
               library: 'stratum_ui',
               context: ErrorDescription(
                 'while installing the kept zip '

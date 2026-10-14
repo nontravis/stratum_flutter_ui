@@ -181,6 +181,17 @@ void main() {
     expect(report.context.toString(), contains('invalid_id'));
     expect(report.context.toString(), contains(r'bra\u0007nd'));
     expect(report.context.toString(), isNot(contains('\u0007')));
+    expect(report.exceptionAsString(), contains(r'bra\u0007nd'));
+    expect(report.exceptionAsString(), isNot(contains('\u0007')));
+    expect(report.stack, isNotNull);
+    expect(
+      logs,
+      contains(
+        r'Stratum theme: kept zip "bra\u0007nd" failed to install '
+        '(invalid_id); skipped',
+      ),
+    );
+    expect(logs.join(), isNot(contains('\u0007')));
   });
 
   test('us01/fr04/e09, s05: with a callback, only it gets a failed kept '

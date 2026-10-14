@@ -84,5 +84,6 @@ class StratumRemoteThemeException implements Exception {
 
   @override
   String toString() =>
-      'StratumRemoteThemeException(${code.key}) "$id": $message';
+      'StratumRemoteThemeException(${code.key}) "${escapeZipText(id)}": '
+      '$message';
 }
