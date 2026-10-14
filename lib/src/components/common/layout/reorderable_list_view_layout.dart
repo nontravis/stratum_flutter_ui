@@ -481,9 +481,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   var _otherScrolling = false;
 
   /// Whether the EndUser holds a lifted item: from the lift
-  /// ([_liftedTook]) until its drop reports ([_handleReorderItem]) or the
-  /// drag lets the item go ([_liftedLetGo]). A scroll that starts meanwhile,
-  /// the edge auto-scroll included, belongs to the lift.
+  /// ([_liftedTook]) until pointer-up drops it ([_handleReorderEnd]) or the
+  /// drag lets the item go ([_liftedLetGo]).
   var _lifting = false;
 
   /// Whether the EndUser or the app took the scroll ([_yieldToInput])
@@ -499,6 +498,17 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// on this one state, and the item stays parked with its State and focus
   /// (R29).
   bool get _scrollHeld => _lifting || _otherScrolling || _scrollTaken;
+
+  /// Whether a scroll that starts now belongs to the lift, so it neither
+  /// holds nor takes the scroll ([_startedByOther]): every start while the
+  /// EndUser holds the item, and, from pointer-up until the drag resets, a
+  /// step of the lift's own edge auto-scroll, which runs on through the
+  /// drop's settle (R61).
+  bool get _liftScrolls {
+    if (_liftedKey == null) return false;
+    final state = _listKey.currentState;
+    return _lifting || (state is _ReorderSliverState && state.isEdgeScrolling);
+  }
 
   /// Whether `onReorderStart` is running: the SDK sets the drag up only
   /// after it returns, so a cancel waits for a microtask.
@@ -2169,6 +2179,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // A drag ends first, as a call ends it (invariant 28): the move changes
     // the data under it. A settling drop completes at once instead, its move
     // reported, then this move runs (R52).
+    _takeScroll();
     _endDragForInput();
     final moved = _reportMove(
       index,
@@ -2287,9 +2298,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final intent = drop ? null : _intentOf(index, to);
     final target = intent == null ? _dataIndexOf(to) : _targetOf(from, intent);
     if (target == null) return;
-    // The drop ends the lift: it asks the list to show the dropped item.
-    if (drop) _endLift();
-    if (!drop) _endDragForInput();
+    // A drop took the scroll at pointer-up ([_handleReorderEnd]), so its
+    // report takes nothing: a scroll the app made while it settled wins
+    // over its reveal (R61).
+    if (!drop) {
+      _takeScroll();
+      _endDragForInput();
+    }
     // A screen-reader move takes a focused move's jump (R46); only a drop
     // keeps its own edge jump.
     final edge =
@@ -2325,7 +2340,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     required bool byKey,
     bool screenReader = false,
   }) {
-    _takeScroll();
     final key = _lookAt(index)?.key;
     _endExitsBeside(index);
     _bookReportedMove(from, to);
@@ -2559,8 +2573,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// The SDK's own end of a drag, a drop: reported at once with the index
-  /// the SDK gives the drop (FR-04 E06).
-  void _handleReorderEnd(int index) => _endDrag(now: true, at: index);
+  /// the SDK gives the drop (FR-04 E06). The drop asks the list to show the
+  /// dropped item, so pointer-up ends the lift and takes the scroll: a
+  /// scroll the app makes while the drop settles is newer, and wins over
+  /// the drop's reveal (R61).
+  void _handleReorderEnd(int index) {
+    _endLift();
+    _takeScroll();
+    _endDrag(now: true, at: index);
+  }
 
   /// Ends the drag or settling drop an EndUser input this body is about to
   /// run would land in: a settling drop completes at once, its move
@@ -3162,10 +3183,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   }
 
   /// An input that asks the list to show an item: a call, a key or
-  /// screen-reader move, a drop, a Tab from a parked item, or a data change
-  /// that moves or takes a focused item. The list takes the scroll back
-  /// from the EndUser or the app ([_scrollTaken]), unless a lift or a
-  /// scroll of theirs still lasts: the newest input wins (R45).
+  /// screen-reader move, a drop at pointer-up, a Tab from a parked item, or
+  /// a data change that moves or takes a focused item. The list takes the
+  /// scroll back from the EndUser or the app ([_scrollTaken]), unless a
+  /// lift or a scroll of theirs still lasts: the newest input wins (R45).
   void _takeScroll() {
     if (!_lifting && !_otherScrolling) _scrollTaken = false;
   }
@@ -4022,7 +4043,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _ => false,
     };
     final other = _startedByOther(notification);
-    if (other && !_lifting) _otherScrolling = true;
+    if (other) _otherScrolling = true;
     if (userDriven || other) _yieldToInput();
     return false;
   }
@@ -4032,13 +4053,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// [ScrollStartNotification] fires inside the call that starts it; the
   /// updates and the end that follow belong to that start. The list
   /// starts its own scrolls only while [_runFrameStart] commits them
-  /// ([_committingOwn]), and the physics starts a settle only in layout,
+  /// ([_committingOwn]), a start the lift owns is the lift's
+  /// ([_liftScrolls]), and the physics starts a settle only in layout,
   /// when a new extent leaves the offset out of range
   /// (`IdleScrollActivity.applyNewDimensions`). Every other start is the
   /// EndUser's or the app's.
   bool _startedByOther(ScrollNotification notification) =>
       notification is ScrollStartNotification &&
       !_committingOwn &&
+      !_liftScrolls &&
       !(WidgetsBinding.instance.schedulerPhase ==
               SchedulerPhase.persistentCallbacks &&
           notification.metrics.outOfRange);

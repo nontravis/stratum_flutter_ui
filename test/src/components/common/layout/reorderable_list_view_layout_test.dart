@@ -15744,6 +15744,46 @@ void main() {
     );
 
     testWidgets(
+      "R61: an app jumpTo while a drop settles wins over the drop's reveal: "
+      'the offset stays, and the dropped item stays parked with its State '
+      'and focus',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 200,
+              handles: true,
+              itemsController: ReorderableItemsController(),
+            ),
+          ),
+        );
+        final position = positionOf(tester);
+        final state = _itemState(tester, 3)..expanded = true;
+        final node = await _focusItem(tester, 3);
+        final harness = _harness(tester);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byKey(const ValueKey('handle 3'))),
+        );
+        for (var i = 0; i < 5; i++) {
+          await gesture.moveBy(const Offset(0, 20));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.up();
+        await tester.pump(const Duration(milliseconds: 50));
+        // The drag ended at pointer-up, and its drop still settles.
+        expect(harness.ends, hasLength(1));
+        expect(harness.moves, isEmpty);
+
+        position.jumpTo(4000);
+        await tester.pumpAndSettle();
+
+        expect(harness.moves, [(3, 6)]);
+        expect(position.pixels, 4000);
+        expectParked(tester, 3, state, node);
+      },
+    );
+
+    testWidgets(
       'us11/fr04/e04 and e17 (R45): an app jumpTo after the app removes a '
       'focused item and inserts it back at an unbuilt slot in one turn wins, '
       'and the item stays parked with its State and focus, never lost',

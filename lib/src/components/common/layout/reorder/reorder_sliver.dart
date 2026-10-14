@@ -443,6 +443,10 @@ class _ReorderSliverState extends SliverReorderableListState {
     setState(_dragReset);
   }
 
+  /// Whether the edge auto-scroll still steps: it runs on after pointer-up,
+  /// through the drop's settle, until the drag resets ([_dragReset]).
+  bool get isEdgeScrolling => _autoScroller?.scrolling ?? false;
+
   var _reportingDrop = false;
 
   /// Whether this call to [_handleReorderItem] reports the drag's own
