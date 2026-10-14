@@ -114,18 +114,30 @@ AxisDirection? arrowAlong(LogicalKeyboardKey key, Axis axis) {
 /// Jumps [position] to its end. A lazy list only estimates its extent, so
 /// it jumps again after each frame until the extent stops changing, at
 /// most three more times, while [attached] holds.
-void jumpToEnd(ScrollPosition position, {required ValueGetter<bool> attached}) {
+///
+/// - [retry]: runs each later jump; by default at once, in the post-frame
+///   callback that saw the extent change.
+void jumpToEnd(
+  ScrollPosition position, {
+  required ValueGetter<bool> attached,
+  void Function(VoidCallback jump) retry = _jumpNow,
+}) {
   void jump(int retries) {
     final extent = position.maxScrollExtent;
     position.jumpTo(extent);
     if (retries == 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (attached() && position.maxScrollExtent != extent) jump(retries - 1);
+      if (attached() && position.maxScrollExtent != extent) {
+        retry(() => jump(retries - 1));
+      }
     });
   }
 
   jump(3);
 }
+
+/// Runs [jump] at once: [jumpToEnd]'s default retry.
+void _jumpNow(VoidCallback jump) => jump();
 
 /// [style]'s duration, else [Duration.zero] for a hand-built [AnimationStyle]
 /// that sets none (for example [AnimationStyle.noAnimation]).

@@ -7203,8 +7203,8 @@ void main() {
 
         // Item 101's own jump stays, at its own estimate: the frame never
         // reverts to item 100's origin of 4000, which would scroll item
-        // 101 back off screen. The landing reveal that follows the jump,
-        // within this one pump, already clamps the estimate to the
+        // 101 back off screen. The landing reveal that follows the jump
+        // commits at the next frame's start and clamps the estimate to the
         // least scroll from item 101's own origin, 20 px short of it.
         // R56: the list commits its scroll at the next frame's start
         // (D13 frame shift).
@@ -8490,7 +8490,7 @@ void main() {
       'us11/fr05/e04 and s03/inv32: the scroll offset read right after a '
       "far moveItem has not moved; the probe moves it at the next frame's "
       'start, before that frame builds, and the landing reveal then '
-      'corrects it to the least scroll in the same frame',
+      "corrects it to the least scroll at the following frame's start",
       (tester) async {
         double? atBuild;
         var armed = false;
@@ -8516,10 +8516,10 @@ void main() {
 
         // The probe's plain-edge jump moves the list before the frame
         // builds slot 150, landing at its leading edge, 6000 (D29, G5): the
-        // build sees it there, not at 4000. The landing reveal then runs,
-        // in the same frame, clamping to the least scroll from 4000, the
-        // trailing edge, so by the time this line reads it the offset has
-        // moved again, past where the build saw it.
+        // build sees it there, not at 4000. The landing reveal then commits
+        // at the following frame's start, clamping to the least scroll
+        // from 4000, the trailing edge, so the offset read after that frame
+        // has moved again, past where the build saw it.
         expect(atBuild, 6000.0);
         // R56: the list commits its scroll at the next frame's start
         // (D13 frame shift).
@@ -15429,8 +15429,15 @@ void main() {
         // lands under the lifted proxy (R45).
         expect(laidOffset(tester), shownOffset);
         expect(find.byType(RawImage), findsOne);
+        // The lifted wall item runs past the viewport's bottom edge, so only
+        // the lift's own edge scroll moves the list while it holds: each
+        // frame moves by at most one 20 px edge step, never by a jump the
+        // reach booked.
+        var heldOffset = shownOffset;
         for (var i = 0; i < 5; i++) {
           await tester.pump(const Duration(milliseconds: 16));
+          expect(laidOffset(tester) - heldOffset, inInclusiveRange(0, 20));
+          heldOffset = laidOffset(tester);
         }
         await gesture.up();
         await tester.pumpAndSettle();
@@ -15470,6 +15477,45 @@ void main() {
       expect(tester.takeException(), isNull);
       handle.dispose();
     });
+
+    testWidgets(
+      'R56: a list scroll an app scroll listener throws on is reported, and '
+      "each scroll booked after it for the same frame's start still runs",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        var armed = false;
+        await tester.pumpWidget(
+          _app(
+            NotificationListener<ScrollStartNotification>(
+              onNotification: (notification) {
+                if (!armed) return false;
+                armed = false;
+                throw StateError('app scroll listener');
+              },
+              child: _Harness(
+                count: 200,
+                itemsController: ReorderableItemsController(),
+              ),
+            ),
+          ),
+        );
+        positionOf(tester).jumpTo(4000);
+        await tester.pump();
+
+        // Both moves book a jump for the next frame's start (R46): the
+        // first, to the end, meets the throwing listener.
+        armed = true;
+        moveActionNow(tester, 100, 'Move to the end');
+        moveActionNow(tester, 101, 'Move to the start');
+        await tester.pump();
+
+        expect(tester.takeException(), isA<StateError>());
+        expect(laidOffset(tester), 0);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
 
     /// Pumps the [wall] list scrolled to [offset], with item 100 expanded
     /// and focused; returns its position, State, and node.
