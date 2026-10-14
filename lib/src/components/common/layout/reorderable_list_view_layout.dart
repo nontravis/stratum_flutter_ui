@@ -456,6 +456,19 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// (invariant 35): a move's turn scrolls nothing.
   final _frameJumps = <_FrameJump>[];
 
+  /// The work booked for the next frame's start ([_atFrameStart]), in
+  /// booking order.
+  final _frameStart = <VoidCallback>[];
+
+  /// The id of the frame callback that runs [_frameStart]; null when none
+  /// waits.
+  int? _frameStartId;
+
+  /// How many EndUser inputs the list yields to ([_yieldToInput]) arrived
+  /// since it mounted: a scroll this list books in an earlier turn drops
+  /// at the frame's start ([_scrollInFrame], R45).
+  var _inputTurn = 0;
+
   /// Whether `onReorderStart` is running: the SDK sets the drag up only
   /// after it returns, so a cancel waits for a microtask.
   var _inReorderStart = false;
@@ -645,6 +658,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   @override
   void dispose() {
+    final frameStart = _frameStartId;
+    if (frameStart != null) {
+      WidgetsBinding.instance.cancelFrameCallbackWithId(frameStart);
+    }
     FocusManager.instance.removeListener(_holdFocusedFrame);
     if (_hearsKeyUp) HardwareKeyboard.instance.removeHandler(_handleKeyUp);
     _liveTimer?.cancel();
@@ -702,12 +719,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       then();
       return;
     }
-    estimate.position.jumpTo(estimate.offset);
-    WidgetsBinding.instance
-      ..addPostFrameCallback(
-        (_) => _bringBack(keys, then, frames: frames - 1, origin: start),
-      )
-      ..scheduleFrame();
+    _scrollInFrame(() => estimate.position.jumpTo(estimate.offset));
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _bringBack(keys, then, frames: frames - 1, origin: start),
+    );
   }
 
   /// Runs [_holdFocusedFrame] after this frame: a frame built for the item
@@ -2606,12 +2621,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // The EndUser's newest input wins: a drag that starts while a reach
     // runs ends it at once, on its stale token, and the item it looked
     // for stays parked off screen with its State and focus (R29, FR-04
-    // E20).
-    // WORKAROUND: the reach commits each jump outside the frame pipeline
-    // (R45); remove when the reach commits its jumps inside the frame
-    // that lays them out.
-    _revertUncommittedReachJump();
-    _stopReach();
+    // E20); a scroll the list booked before the grab never lands under
+    // the lifted item.
+    _yieldToInput();
     final index = _dragIndex;
     if (index != null) _endExitsBeside(index);
     final motion = _incoming[key];
@@ -2653,14 +2665,30 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (toStart) {
       position.jumpTo(position.minScrollExtent);
     } else {
-      jumpToEnd(
-        position,
-        attached: () =>
-            mounted &&
-            item.mounted &&
-            Scrollable.maybeOf(item)?.position == position,
-      );
+      _jumpToEnd(item, position, retries: 3);
     }
+  }
+
+  /// Jumps [position] to its end, as [jumpToEnd] does: a lazy list only
+  /// estimates its extent, so after each frame that changed it, the list
+  /// jumps again at the next frame's start ([_scrollInFrame]), at most
+  /// [retries] more times, while [item] sits in [position]'s Scrollable.
+  void _jumpToEnd(
+    BuildContext item,
+    ScrollPosition position, {
+    required int retries,
+  }) {
+    final extent = position.maxScrollExtent;
+    position.jumpTo(extent);
+    if (retries == 0) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final attached =
+          mounted &&
+          item.mounted &&
+          Scrollable.maybeOf(item)?.position == position;
+      if (!attached || position.maxScrollExtent == extent) return;
+      _scrollInFrame(() => _jumpToEnd(item, position, retries: retries - 1));
+    });
   }
 
   /// Reveals the item at [moved]'s index after a move, by the edge of each
@@ -2698,7 +2726,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final appFocused = primary != null && primary != moved.focusAtCall;
     if (appFocused && !node.hasFocus) return;
     final noFocusOwnerElsewhere = primary == null;
-    if (byKey && noFocusOwnerElsewhere) firstTabStopIn(node)?.requestFocus();
+    if (byKey && noFocusOwnerElsewhere) _revealedStopIn(node)?.requestFocus();
     final levels = moved.revealIn;
     _revealOwn(node, origin: moved.origin, levels: levels);
     for (final MapEntry(key: at, value: look) in _itemLooks.entries) {
@@ -2822,18 +2850,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         // listener that calls the controller at once.
         final held = _HeldGap(gap);
         _givenUpGaps.add(held);
-        estimate.position.jumpTo(estimate.offset);
-        WidgetsBinding.instance
-          ..addPostFrameCallback((_) {
-            _givenUpGaps.remove(held);
-            _handOffFocus(
-              held.index,
-              frames: frames - 1,
-              interim: interim,
-              origin: start,
-            );
-          })
-          ..scheduleFrame();
+        _scrollInFrame(() => estimate.position.jumpTo(estimate.offset));
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _givenUpGaps.remove(held);
+          _handOffFocus(
+            held.index,
+            frames: frames - 1,
+            interim: interim,
+            origin: start,
+          );
+        });
         return;
       }
     }
@@ -2845,7 +2871,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     final own = _ownTabStop();
     if (own != null) {
-      requestFocusInViewports(own);
+      own.requestFocus();
+      _revealOwn(own);
     } else {
       interim?.unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
     }
@@ -2975,15 +3002,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// each call moves it, as it moves [_handoffGap].
   _DataIndex? _reachGap;
 
-  /// The offset the last laid-out frame showed, before the reach's own
-  /// jump that frame has not laid out yet, if one is still pending; null
-  /// once that jump's own frame confirms it (read at [_reach]'s own
-  /// entry). The reach commits each jump outside the frame pipeline
-  /// (R45), so a newer input meeting it before that frame runs
-  /// ([_stopReach]) restores this instead of leaving the screen at an
-  /// offset no frame has shown.
-  ({ScrollPosition position, double pixels})? _reachUncommittedJump;
-
   /// The key of the item the reach in progress looks for: its end releases
   /// that item's park (invariant 35).
   Key? _reachKey;
@@ -3013,20 +3031,72 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   bool _scrollTookOffScreen(FocusNode node, int generation) =>
       _scrollGeneration != generation && !_shownLastFrame(node);
 
-  /// Reveals [node] through [revealInViewports] with [_revealDepth] held,
-  /// so the jumps the reveal makes leave [_scrollGeneration] alone
-  /// (invariant 26).
+  /// Reveals [node] through [revealInViewports] at the next frame's start
+  /// ([_scrollInFrame]), with [_revealDepth] held, so the jumps the reveal
+  /// makes leave [_scrollGeneration] alone (invariant 26).
   void _revealOwn(
     FocusNode node, {
     ({ScrollPosition position, double pixels})? origin,
     Set<ScrollableState>? levels,
   }) {
-    _revealDepth += 1;
-    try {
-      revealInViewports(node, origin: origin, levels: levels);
-    } finally {
-      _revealDepth -= 1;
+    _scrollInFrame(() {
+      _revealDepth += 1;
+      try {
+        revealInViewports(node, origin: origin, levels: levels);
+      } finally {
+        _revealDepth -= 1;
+      }
+    });
+  }
+
+  /// [firstTabStopIn] of [container], its reveal booked through
+  /// [_revealOwn], as every scroll this list makes is (R45).
+  FocusNode? _revealedStopIn(FocusNode container) {
+    final stop = firstTabStopIn(container, reveal: false);
+    if (stop != null) _revealOwn(stop);
+    return stop;
+  }
+
+  /// Runs [work] at the start of the next frame, after the turn's focus
+  /// settled and before that frame's build and layout, in booking order.
+  void _atFrameStart(VoidCallback work) {
+    _frameStartId ??= WidgetsBinding.instance.scheduleFrameCallback(
+      (_) => _runFrameStart(),
+    );
+    _frameStart.add(work);
+  }
+
+  /// Runs the work [_atFrameStart] booked, in booking order; work it books
+  /// meanwhile waits for the frame after.
+  void _runFrameStart() {
+    _frameStartId = null;
+    final queued = [..._frameStart];
+    _frameStart.clear();
+    if (!mounted) return;
+    for (final work in queued) {
+      work();
     }
+  }
+
+  /// Commits [scroll], a scroll this list makes, at the next frame's start
+  /// ([_atFrameStart]), so the frame that commits the offset lays it out
+  /// and no input lands between them (R45). An EndUser input the list
+  /// yields to before then ([_yieldToInput]) drops it unrun: the newest
+  /// input wins.
+  void _scrollInFrame(VoidCallback scroll) {
+    final turn = _inputTurn;
+    _atFrameStart(() {
+      if (turn == _inputTurn) scroll();
+    });
+  }
+
+  /// The EndUser's newest input wins (R45, FR-04 E20): ends a running
+  /// reach on its stale token, its item left parked with its State and
+  /// focus (R29), and drops each scroll the list booked before the input
+  /// ([_scrollInFrame]), so none lands under it.
+  void _yieldToInput() {
+    _inputTurn += 1;
+    _stopReach();
   }
 
   /// Starts [_reach] in a microtask after this frame's post-frame
@@ -3073,30 +3143,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (key != null) _releasePark(key);
   }
 
-  /// Ends the reach in progress and leaves its item parked. Drops
-  /// [_reachUncommittedJump] with no jump of its own: a scroll
-  /// notification mid its own activity calls this too ([_endsReachOn]),
-  /// where a nested jumpTo would corrupt that activity's own state; only
-  /// [_revertUncommittedReachJump] (a drag's own lift, never a scroll)
-  /// acts on it, and does so first.
+  /// Ends the reach in progress and leaves its item parked.
   void _stopReach() {
-    _reachUncommittedJump = null;
     _reachToken = null;
     _reachGap = null;
     _reachKey = null;
-  }
-
-  /// Reverts the reach's own jump the last laid-out frame has not shown
-  /// yet, if one is pending, to the offset that frame did show (R45), so
-  /// that jump never lands under the lifted proxy on the frame after the
-  /// grab (FR-04 E20). Its one caller is the WORKAROUND in [_liftedTook]:
-  /// a scroll that ends the reach cannot call it. Call before [_stopReach]
-  /// drops the record with no jump.
-  void _revertUncommittedReachJump() {
-    final uncommitted = _reachUncommittedJump;
-    if (uncommitted == null) return;
-    final live = _livePositionOf(uncommitted.position) ?? uncommitted.position;
-    if (live.pixels != uncommitted.pixels) live.jumpTo(uncommitted.pixels);
   }
 
   /// Reaches slot [index], where the item [key] came back after a frame
@@ -3119,7 +3170,6 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     required bool placesFocus,
   }) {
     if (!mounted || _reachToken != token) return;
-    _reachUncommittedJump = null;
     final primary = FocusManager.instance.primaryFocus;
     if (primary != null && primary != settled && primary is! FocusScopeNode) {
       _endReach();
@@ -3136,7 +3186,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       // A parked item kept its State and the node that holds focus; an
       // item whose node held no focus at the action never takes it (R46).
       if (placesFocus && !node.hasFocus) {
-        firstTabStopIn(node)?.requestFocus();
+        _revealedStopIn(node)?.requestFocus();
       }
       _revealReturned(node, key, origin: origin, levels: levels);
       return;
@@ -3149,24 +3199,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final position = estimate.position;
     final start = origin ?? (position: position, pixels: position.pixels);
     // The estimate re-derives the position each frame, so this jump and the
-    // origin record below stay positions the Scrollable held when read; a
+    // origin record above stay positions the Scrollable held when read; a
     // later swap is sorted out where the record returns.
-    _reachUncommittedJump = (position: position, pixels: position.pixels);
-    position.jumpTo(estimate.offset);
-    WidgetsBinding.instance
-      ..addPostFrameCallback(
-        (_) => _reach(
-          token,
-          index,
-          key,
-          settled,
-          frames - 1,
-          start,
-          levels: levels,
-          placesFocus: placesFocus,
-        ),
-      )
-      ..scheduleFrame();
+    _scrollInFrame(() => position.jumpTo(estimate.offset));
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _reach(
+        token,
+        index,
+        key,
+        settled,
+        frames - 1,
+        start,
+        levels: levels,
+        placesFocus: placesFocus,
+      ),
+    );
   }
 
   /// Gives up a reach that did not reach its slot (R5): the list returns
@@ -3196,20 +3243,18 @@ class _ReorderableBodyState extends State<_ReorderableBody>
           live.maxScrollExtent,
         );
         if (!placesFocus) {
-          live.jumpTo(pixels);
+          _scrollInFrame(() => live.jumpTo(pixels));
           return;
         }
         // Held before the jump: its scroll notifications may reach an app
         // listener that calls the controller at once.
         final held = _HeldGap(gap);
         _givenUpGaps.add(held);
-        live.jumpTo(pixels);
-        WidgetsBinding.instance
-          ..addPostFrameCallback((_) {
-            _givenUpGaps.remove(held);
-            _handOffFocus(held.index);
-          })
-          ..scheduleFrame();
+        _scrollInFrame(() => live.jumpTo(pixels));
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _givenUpGaps.remove(held);
+          _handOffFocus(held.index);
+        });
         return;
       }
     }
@@ -3316,10 +3361,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     bool? toStart,
     bool owned = false,
   }) {
-    if (_frameJumps.isEmpty) {
-      WidgetsBinding.instance.scheduleFrameCallback((_) => _runFrameJumps());
-    }
-    _frameJumps.add(_FrameJump(node, target, toStart: toStart, owned: owned));
+    if (_frameJumps.isEmpty) _atFrameStart(_runFrameJumps);
+    _frameJumps.add(
+      _FrameJump(
+        node,
+        target,
+        toStart: toStart,
+        owned: owned,
+        turn: _inputTurn,
+      ),
+    );
   }
 
   /// At the next frame's start, after the turn's focus settled and before
@@ -3338,6 +3389,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     }
     if (!mounted) return;
     for (final jump in jumps) {
+      // An EndUser input since the booking wins (R45, [_scrollInFrame]).
+      if (jump.turn != _inputTurn) continue;
       final at = jump.target.index;
       if (at == null) continue;
       final primary = FocusManager.instance.primaryFocus;
@@ -3567,7 +3620,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (node == null || node.context == null || !_builtSlot(index.slot)) {
       return null;
     }
-    return firstTabStopIn(node, reveal: reveal);
+    return reveal ? _revealedStopIn(node) : firstTabStopIn(node, reveal: false);
   }
 
   /// The list's own Tab stop when the list is focusable: the first node
@@ -3888,7 +3941,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         direction != ScrollDirection.idle,
       _ => false,
     };
-    if (userDriven) _stopReach();
+    if (userDriven) _yieldToInput();
     return false;
   }
 
@@ -4689,7 +4742,13 @@ class _ReorderScrollView extends CustomScrollView {
 
 /// A reveal jump a move booked for the next frame's start (invariant 35).
 class _FrameJump {
-  new(this.node, this.target, {required this.toStart, required this.owned});
+  new(
+    this.node,
+    this.target, {
+    required this.toStart,
+    required this.owned,
+    required this.turn,
+  });
 
   /// The moved item's key node.
   final FocusNode node;
@@ -4704,6 +4763,10 @@ class _FrameJump {
 
   /// Whether [target] sits among the moves' targets only for this jump.
   final bool owned;
+
+  /// The body's input turn at the booking: a later EndUser input drops the
+  /// jump (R45).
+  final int turn;
 }
 
 /// A gap of the app's data, before the item at [index], that a reader

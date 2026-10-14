@@ -5677,6 +5677,9 @@ void main() {
         await tester.pump();
 
         expect(harness.ids.indexOf(6), 8);
+        // R56: the list commits its scroll at the next frame's start
+        // (D13 frame shift).
+        await tester.pump();
         expect(position.pixels, 20);
         await tester.pumpAndSettle();
         handle.dispose();
@@ -7203,6 +7206,9 @@ void main() {
         // 101 back off screen. The landing reveal that follows the jump,
         // within this one pump, already clamps the estimate to the
         // least scroll from item 101's own origin, 20 px short of it.
+        // R56: the list commits its scroll at the next frame's start
+        // (D13 frame shift).
+        await tester.pump();
         expect(position.pixels, 6160.0);
         await tester.pumpAndSettle();
         expect(FocusManager.instance.primaryFocus, same(other));
@@ -7532,6 +7538,9 @@ void main() {
         // frame's reach to correct: a later move re-aims the booked
         // target (D8), so the one frame-start jump already lands the
         // item in view.
+        // R56: the list commits its scroll at the next frame's start
+        // (D13 frame shift).
+        await tester.pump();
         expect(position.pixels, 6160.0);
         expect(_builtInView(tester, 100), isTrue);
       },
@@ -7555,6 +7564,9 @@ void main() {
         expect(position.pixels, 4000);
         await tester.pump();
 
+        // R56: the list commits its scroll at the next frame's start
+        // (D13 frame shift).
+        await tester.pump();
         expect(position.pixels, 6560.0);
         expect(_builtInView(tester, 100), isTrue);
       },
@@ -8509,6 +8521,9 @@ void main() {
         // trailing edge, so by the time this line reads it the offset has
         // moved again, past where the build saw it.
         expect(atBuild, 6000.0);
+        // R56: the list commits its scroll at the next frame's start
+        // (D13 frame shift).
+        await tester.pump();
         expect(position.pixels, 5760.0);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
@@ -12271,6 +12286,20 @@ void main() {
       return view.intersect(rect) == rect;
     }
 
+    /// The scroll offset the last frame laid the list's own sliver out at.
+    double laidOffset(WidgetTester tester) {
+      final sliver = tester.renderObject<RenderSliverMultiBoxAdaptor>(
+        find
+            .byWidgetPredicate(
+              (widget) => widget is SliverMultiBoxAdaptorWidget,
+              skipOffstage: false,
+            )
+            .first,
+      );
+      return sliver.constraints.scrollOffset +
+          sliver.constraints.precedingScrollExtent;
+    }
+
     /// Pumps [harness] scrolled so item [id] sits at the trailing laid-out
     /// edge, or at the last slot wholly in view when [visible]; marks its
     /// State expanded, focuses it unless [focus] is false, and returns it.
@@ -15308,6 +15337,139 @@ void main() {
         expect(_harness(tester).ends.length, 1);
       },
     );
+
+    testWidgets('R56: an EndUser scroll that ends a reach shows no jump', (
+      tester,
+    ) async {
+      final position = await _pumpScrolled(
+        tester,
+        _Harness(
+          count: 200,
+          heights: wall,
+          handles: true,
+          itemsController: ReorderableItemsController(),
+        ),
+      );
+      _itemState(tester, 100).expanded = true;
+      await _focusItem(tester, 100);
+      _harness(tester).move(100, 150);
+      await tester.pump();
+      expect(_builtInView(tester, 100), isFalse);
+
+      final shownOffset = laidOffset(tester);
+      final before = position.pixels;
+      final view = tester.getRect(find.byType(Scrollable));
+      final gesture = await tester.startGesture(view.center);
+      await gesture.moveBy(const Offset(0, -60));
+      final userDelta = position.pixels - before;
+      expect(userDelta, isNot(0.0));
+      await tester.pump();
+      // The frame after the EndUser's scroll shows the offset the last
+      // frame showed, moved by that scroll alone: no jump the reach
+      // issued lands.
+      expect(laidOffset(tester), shownOffset + userDelta);
+
+      // The EndUser's drag still follows the finger: no list jump
+      // ended it.
+      final held = position.pixels;
+      await gesture.moveBy(const Offset(0, -40));
+      await tester.pump();
+      expect(position.pixels - held, 40.0);
+      expect(laidOffset(tester), position.pixels);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'R56: a grab during a reach lifts the touched item and the list '
+      'stays where the EndUser grabbed it',
+      (tester) async {
+        await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            heights: wall,
+            handles: true,
+            itemsController: ReorderableItemsController(),
+          ),
+        );
+        _itemState(tester, 100).expanded = true;
+        await _focusItem(tester, 100);
+        _harness(tester).move(100, 150);
+        await tester.pump();
+        expect(_builtInView(tester, 100), isFalse);
+
+        final shownOffset = laidOffset(tester);
+        final view = tester.getRect(find.byType(Scrollable));
+        final built = [
+          for (var id = 0; id < 200; id++)
+            if (find.byKey(ValueKey('handle $id')).evaluate().isNotEmpty &&
+                view.intersect(
+                      tester.getRect(find.byKey(ValueKey('handle $id'))),
+                    ) ==
+                    tester.getRect(find.byKey(ValueKey('handle $id'))))
+              id,
+        ];
+        expect(built, isNotEmpty);
+        final dragged = built.first;
+        final harness = _harness(tester);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byKey(ValueKey('handle $dragged'))),
+        );
+        await gesture.moveBy(const Offset(0, 20));
+        expect(tester.takeException(), isNull);
+        expect(harness.starts, hasLength(1));
+        expect(harness.ends, isEmpty);
+        final liftedId = harness.ids[harness.starts.single];
+        await tester.pump();
+        expect(liftedId, dragged);
+        // The reach's own jump, booked before the grab, drops: it never
+        // lands under the lifted proxy (R45).
+        expect(laidOffset(tester), shownOffset);
+        expect(find.byType(RawImage), findsOne);
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(harness.ends, hasLength(1));
+        expect(find.byType(RawImage), findsNothing);
+      },
+    );
+
+    testWidgets('R56: a grab right after a screen-reader move lifts with no '
+        'reveal landing under it', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _app(
+          _Harness(
+            count: 20,
+            handles: true,
+            itemsController: ReorderableItemsController(),
+          ),
+        ),
+      );
+      moveActionNow(tester, 6, 'Move down');
+      await tester.pump();
+      final shownOffset = laidOffset(tester);
+      final harness = _harness(tester);
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('handle 2'))),
+      );
+      await gesture.moveBy(const Offset(0, 20));
+      expect(harness.starts, hasLength(1));
+      await tester.pump();
+      // A reveal the move booked before the grab never lands under the
+      // lifted item (R45).
+      expect(laidOffset(tester), shownOffset);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
   });
 
   group('ReorderableListViewLayout reduced motion', () {
