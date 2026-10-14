@@ -79,23 +79,64 @@ class _FocusNewestNoticeIntent extends Intent {
   const new();
 }
 
+/// [notice]'s first descendant a [FocusTraversalPolicy] would reach, or
+/// null when it holds none: generic over whatever look rendered it, plain
+/// or an app `builder` (US-01 FR-05; FR-06 E04; s03 invariants 13, 18).
+FocusNode? _firstTraversableDescendant(FocusNode notice) {
+  for (final node in notice.traversalDescendants) {
+    return node;
+  }
+  return null;
+}
+
+/// The newest entry of [showOrder] that [tracking] holds a node for, or
+/// null while none of them do: [showOrder] is
+/// [StratumToastHostState._present]'s own call order, never the order a
+/// notice's widget happened to mount, since
+/// `toastification`'s `AnimatedList` always inserts the newest at index 0
+/// and builds children in ascending index order, so a mount-order list
+/// picks the oldest, not the newest, once two notices show inside the
+/// same frame (R27 fix: correctness finding 2, edge finding D).
+FocusNode? _newestTrackedNotice(
+  List<ToastificationItem> showOrder,
+  Map<ToastificationItem, FocusNode> tracking,
+) {
+  for (final item in showOrder.reversed) {
+    final node = tracking[item];
+    if (node != null) return node;
+  }
+  return null;
+}
+
 /// Invokes [_FocusNewestNoticeIntent]: requests focus on the newest open
-/// notice's entry point, its action else its close button; disabled
-/// while none is open, so the shortcut manager passes the key on (s03
-/// invariant 18).
+/// notice's first traversable descendant, whatever look built it; disabled
+/// while none is open, so the shortcut manager passes the key on, and left
+/// unhandled when that notice holds no focusable descendant, so the key
+/// still reaches an outer handler (US-01 FR-05; s03 invariant 18).
 class _FocusNewestNoticeAction extends Action<_FocusNewestNoticeIntent> {
   new(this._host);
 
   final StratumToastHostState _host;
 
   @override
-  bool get isActionEnabled => _host._noticeEntryPoints.isNotEmpty;
+  bool get isActionEnabled => _host._noticeTrackingNodes.isNotEmpty;
 
   @override
-  void invoke(_FocusNewestNoticeIntent intent) {
-    final target = _host._noticeEntryPoints.last;
-    if (target.context != null) target.requestFocus();
+  bool invoke(_FocusNewestNoticeIntent intent) {
+    final notice = _newestTrackedNotice(
+      _host._showOrder,
+      _host._noticeTrackingNodes,
+    );
+    final target = notice == null ? null : _firstTraversableDescendant(notice);
+    target?.requestFocus();
+    return target != null;
   }
+
+  @override
+  KeyEventResult toKeyEventResult(
+    _FocusNewestNoticeIntent intent,
+    covariant Object? invokeResult,
+  ) => invokeResult == true ? KeyEventResult.handled : KeyEventResult.ignored;
 }
 
 /// The one notice a `showToast` call hands the host.
@@ -229,10 +270,18 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// findings, "second defect").
   final Set<FocusNode> _noticeFocusNodes = {};
 
-  /// Each open notice's entry point for the host shortcut, its action
-  /// else its close button, in show order, never a queued one (US-01
-  /// FR-05 E05, E09; s03 invariant 18).
-  final List<FocusNode> _noticeEntryPoints = [];
+  /// Each shown notice's `ToastificationItem`, in true show order: the
+  /// order [_present] ran, never a queued one, and never the order its
+  /// widget happened to mount (R27 fix: correctness finding 2, edge
+  /// finding D).
+  final List<ToastificationItem> _showOrder = [];
+
+  /// Each currently-mounted notice's own focus-tracking node, by its
+  /// `ToastificationItem`: the host shortcut requests focus on the first
+  /// traversable descendant of the newest [_showOrder] entry that has
+  /// one, whatever look built it (US-01 FR-05 E05, E09; FR-06 E04; s03
+  /// invariants 13, 18).
+  final Map<ToastificationItem, FocusNode> _noticeTrackingNodes = {};
 
   /// The shortcut's bound action, created once so its enabled check reads
   /// live state from this host.
@@ -245,6 +294,12 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// `parentScope` edge unfocused on the way in (probe-tab findings,
   /// "second defect found").
   FocusNode? _lastFocusOutsideNotices;
+
+  /// Each open notice's return-focus hook, run once by [_closed], whichever
+  /// close path fires it first: a manual close (through [_closeItem]) or
+  /// the notice's own timer, so both return focus the same way (R27 fix:
+  /// edge finding A; probe-tab findings, "second defect found").
+  final Map<ToastificationItem, VoidCallback> _closeFocusHandlers = {};
 
   @override
   void initState() {
@@ -263,13 +318,23 @@ class StratumToastHostState extends State<StratumToastHost> {
     }
   }
 
-  void _registerNoticeFocus(FocusNode node) => _noticeFocusNodes.add(node);
+  void _registerNoticeFocus(ToastificationItem item, FocusNode node) {
+    _noticeFocusNodes.add(node);
+    _noticeTrackingNodes[item] = node;
+  }
 
-  void _unregisterNoticeFocus(FocusNode node) => _noticeFocusNodes.remove(node);
+  void _unregisterNoticeFocus(ToastificationItem item, FocusNode node) {
+    _noticeFocusNodes.remove(node);
+    _noticeTrackingNodes.remove(item);
+  }
 
-  void _registerEntryPoint(FocusNode node) => _noticeEntryPoints.add(node);
+  void _registerCloseFocusHandler(
+    ToastificationItem item,
+    VoidCallback handler,
+  ) => _closeFocusHandlers[item] = handler;
 
-  void _unregisterEntryPoint(FocusNode node) => _noticeEntryPoints.remove(node);
+  void _unregisterCloseFocusHandler(ToastificationItem item) =>
+      _closeFocusHandlers.remove(item);
 
   /// Whether [node] sits inside any open notice's own focus-tracking node.
   bool _insideANotice(FocusNode node) =>
@@ -360,6 +425,9 @@ class StratumToastHostState extends State<StratumToastHost> {
         onAutoCompleteCompleted: (item) => _closed(request.placement, item),
       ),
     );
+    // True show order, never the order the item's widget happens to mount
+    // (R27 fix: correctness finding 2, edge finding D).
+    _showOrder.add(item);
     // WORKAROUND: toastification queues the insert in a post-frame callback
     // without scheduling a frame; remove when it schedules one itself.
     SchedulerBinding.instance.ensureVisualUpdate();
@@ -447,6 +515,7 @@ class StratumToastHostState extends State<StratumToastHost> {
     final items = _floats[corner]!;
     if (items.length <= _floatCap) return;
     final oldest = items.removeAt(0);
+    _showOrder.remove(oldest);
     // WORKAROUND: toastification adds each item in a post-frame callback
     // and dismisses only an item already in the list, so the eviction of
     // a same-frame add must run after it; remove when toastification adds
@@ -456,9 +525,15 @@ class StratumToastHostState extends State<StratumToastHost> {
     });
   }
 
-  /// A notice closed by its timer: a float leaves its corner's list; the
-  /// next queued solid notice shows (US-01 FR-03, s03 invariants 2, 3).
+  /// A notice closed by its own timer or a manual close, both reaching here
+  /// through [_closeItem] or straight from `toastification`'s callback:
+  /// returns focus first, when it sat inside the notice, through the
+  /// handler [_ToastViewState] registered (R27 fix: edge finding A), then a
+  /// float leaves its corner's list; the next queued solid notice shows
+  /// (US-01 FR-03, FR-04, s03 invariants 2, 3, 19).
   void _closed(StratumToastPlacement placement, ToastificationItem item) {
+    _closeFocusHandlers.remove(item)?.call();
+    _showOrder.remove(item);
     if (placement case StratumToastFloat(:final corner)) {
       _floats[corner]?.remove(item);
       return;
@@ -750,34 +825,15 @@ class _ToastViewState extends State<_ToastView> {
   /// Whether focus sits inside this notice right now (s03 invariant 7).
   bool _focusInside = false;
 
-  /// The action button's own node, so the host shortcut can reach it
-  /// first (US-01 FR-05; s03 invariant 18).
-  late final FocusNode _actionFocusNode = FocusNode(
-    debugLabel: 'StratumToast.action',
-  );
-
-  /// The close button's own node, the host shortcut's target when this
-  /// notice has no action (US-01 FR-05; s03 invariant 18).
-  late final FocusNode _closeFocusNode = FocusNode(
-    debugLabel: 'StratumToast.close',
-  );
-
-  /// The notice's own entry point for the host shortcut: its action
-  /// when it has one, else its close button (s03 invariant 18).
-  FocusNode get _entryPoint =>
-      widget.request.action != null ? _actionFocusNode : _closeFocusNode;
-
   @override
   void initState() {
     super.initState();
-    widget.host._registerEntryPoint(_entryPoint);
+    widget.host._registerCloseFocusHandler(widget.item, _returnFocusIfInside);
   }
 
   @override
   void dispose() {
-    widget.host._unregisterEntryPoint(_entryPoint);
-    _actionFocusNode.dispose();
-    _closeFocusNode.dispose();
+    widget.host._unregisterCloseFocusHandler(widget.item);
     super.dispose();
   }
 
@@ -793,16 +849,22 @@ class _ToastViewState extends State<_ToastView> {
     }
   }
 
-  /// Closes the notice, then, when focus sat inside it, returns focus to
-  /// the node that held it before Tab's `parentScope` edge unfocused that
-  /// node on the way in, rather than leaving it parked on the route
-  /// scope's first control (probe-tab findings, "second defect found").
-  void _close() {
-    widget.host._closeItem(widget.request.placement, widget.item);
-    if (_focusInside) {
-      final target = widget.host._lastFocusOutsideNotices;
-      if (target != null && target.context != null) target.requestFocus();
-    }
+  /// Closes the notice through the host's single close path
+  /// ([StratumToastHostState._closeItem] then
+  /// [StratumToastHostState._closed]), which runs [_returnFocusIfInside]
+  /// for every close, this notice's own timer included (R27 fix: edge
+  /// finding A).
+  void _close() =>
+      widget.host._closeItem(widget.request.placement, widget.item);
+
+  /// Returns focus to the node that held it before Tab's `parentScope`
+  /// edge unfocused that node on the way in, rather than leaving it parked
+  /// on the route scope's first control, when focus sat inside this notice
+  /// (probe-tab findings, "second defect found").
+  void _returnFocusIfInside() {
+    if (!_focusInside) return;
+    final target = widget.host._lastFocusOutsideNotices;
+    if (target != null && target.context != null) target.requestFocus();
   }
 
   /// The notice as its look reads it (s03 invariant 4, 16), with [context]
@@ -834,11 +896,7 @@ class _ToastViewState extends State<_ToastView> {
     final notice = _notice(context);
     return builder != null
         ? builder(context, notice)
-        : StratumToastPlainLook(
-            notice: notice,
-            actionFocusNode: _actionFocusNode,
-            closeFocusNode: _closeFocusNode,
-          );
+        : StratumToastPlainLook(notice: notice);
   }
 
   @override
@@ -876,6 +934,7 @@ class _ToastViewState extends State<_ToastView> {
               padding: pagePadding,
               child: _PauseOnFocus(
                 host: widget.host,
+                item: widget.item,
                 onFocusInside: (inside) {
                   _focusInside = inside;
                   inside
@@ -906,14 +965,20 @@ enum _PauseReason { hover, focus, touch }
 class _PauseOnFocus extends StatefulWidget {
   const new({
     required this.host,
+    required this.item,
     required this.onFocusInside,
     required this.child,
   });
 
   /// Registers this notice's own focus-tracking node with the host while
   /// mounted, so the host can tell this notice's focus from focus outside
-  /// every notice.
+  /// every notice, and so the host shortcut can find it by true show
+  /// order (R27 fix: correctness finding 2, edge finding D).
   final StratumToastHostState host;
+
+  /// This notice's own item, the key [StratumToastHostState._showOrder]
+  /// resolves by.
+  final ToastificationItem item;
 
   final ValueChanged<bool> onFocusInside;
   final Widget child;
@@ -937,12 +1002,12 @@ class _PauseOnFocusState extends State<_PauseOnFocus> {
   void initState() {
     super.initState();
     _node.addListener(_changed);
-    widget.host._registerNoticeFocus(_node);
+    widget.host._registerNoticeFocus(widget.item, _node);
   }
 
   @override
   void dispose() {
-    widget.host._unregisterNoticeFocus(_node);
+    widget.host._unregisterNoticeFocus(widget.item, _node);
     _node.removeListener(_changed);
     _node.dispose();
     super.dispose();

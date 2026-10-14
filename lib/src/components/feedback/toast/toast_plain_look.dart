@@ -18,22 +18,9 @@ Duration? toastCloseTime({
 /// Internal: the barrel keeps this inside the toast folder; the host builds
 /// it unless an app `builder` replaces it.
 class StratumToastPlainLook extends StatelessWidget {
-  const new({
-    super.key,
-    required this.notice,
-    this.actionFocusNode,
-    this.closeFocusNode,
-  });
+  const new({super.key, required this.notice});
 
   final StratumToastNotice notice;
-
-  /// The action button's own node, so the host shortcut can request focus
-  /// on it directly (US-01 FR-05; s03 invariant 18).
-  final FocusNode? actionFocusNode;
-
-  /// The close button's own node, the host shortcut's target when the
-  /// notice has no action (US-01 FR-05; s03 invariant 18).
-  final FocusNode? closeFocusNode;
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +170,6 @@ class StratumToastPlainLook extends StatelessWidget {
                 ),
                 if (action != null)
                   StratumInkWell(
-                    focusNode: actionFocusNode,
                     onTap: () {
                       action.onPressed();
                       notice.close();
@@ -194,7 +180,6 @@ class StratumToastPlainLook extends StatelessWidget {
                     ),
                   ),
                 StratumInkWell(
-                  focusNode: closeFocusNode,
                   onTap: notice.close,
                   semantics: SemanticsProperties(label: notice.closeLabel),
                   child: const Icon(Icons.close),

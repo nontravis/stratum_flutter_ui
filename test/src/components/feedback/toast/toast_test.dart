@@ -1317,6 +1317,237 @@ void main() {
       expect(announced, ['ข้อมูล, x, กด F8 เพื่อไปที่การแจ้งเตือนนี้']);
     });
   });
+
+  // R27 fix round 1: review-r27.correctness.review.md finding 1,
+  // review-r27.edge.review.md findings B to E and G.
+
+  testWidgets(
+    'us01/fr05/fr06/e04: the shortcut reaches a custom builder look, its '
+    'first traversable descendant, no plain-look focus-node plumbing '
+    'needed',
+    (tester) async {
+      _view(tester);
+      final handle = tester.ensureSemantics();
+      await _withTargetPlatform(TargetPlatform.linux, () async {
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => StratumThemeApplication(
+              themes: StratumThemeSet(light: fakeTheme),
+              themeMode: ThemeMode.light,
+              child: StratumToastHost(
+                builder: (context, notice) => TextButton(
+                  onPressed: notice.close,
+                  child: Text('mine: ${notice.message}'),
+                ),
+                child: child!,
+              ),
+            ),
+            home: Scaffold(
+              body: _button('go', (c) => c.showToast(message: 'x')),
+            ),
+          ),
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .getSemantics(find.bySemanticsLabel('mine: x'))
+              .flagsCollection
+              .isFocused,
+          Tristate.isTrue,
+        );
+      });
+      handle.dispose();
+    },
+  );
+
+  testWidgets('us01/fr05: a notice with no focusable descendant leaves the key '
+      'unhandled', (tester) async {
+    _view(tester);
+    await _withTargetPlatform(TargetPlatform.linux, () async {
+      final field = FocusNode(debugLabel: 'field');
+      addTearDown(field.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => StratumThemeApplication(
+            themes: StratumThemeSet(light: fakeTheme),
+            themeMode: ThemeMode.light,
+            child: StratumToastHost(
+              builder: (context, notice) => Text(notice.message),
+              child: child!,
+            ),
+          ),
+          home: Scaffold(
+            body: Column(
+              children: [
+                Focus(focusNode: field, child: const SizedBox()),
+                _button('go', (c) => c.showToast(message: 'x')),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      field.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+      await tester.pump();
+      expect(FocusManager.instance.primaryFocus, field);
+    });
+  });
+
+  testWidgets('us01/fr05: the shortcut reaches a close-only notice through its '
+      'close button', (tester) async {
+    _view(tester);
+    await _withTargetPlatform(TargetPlatform.linux, () async {
+      await tester.pumpWidget(
+        _app(_button('go', (c) => c.showToast(message: 'x'))),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+      await tester.pumpAndSettle();
+      _expectFocusedInRing(tester, find.byIcon(Icons.close));
+    });
+  });
+
+  testWidgets(
+    'us01/fr05/e09: with several notices on screen, the shortcut reaches '
+    'the one that showed last',
+    (tester) async {
+      _view(tester);
+      final handle = tester.ensureSemantics();
+      await _withTargetPlatform(TargetPlatform.linux, () async {
+        await tester.pumpWidget(
+          _app(
+            _button('go', (c) {
+              c
+                ..showToast(
+                  message: 'First',
+                  action: const StratumToastAction(
+                    label: 'A',
+                    onPressed: _noop,
+                  ),
+                )
+                ..showToast(
+                  message: 'Second',
+                  action: const StratumToastAction(
+                    label: 'B',
+                    onPressed: _noop,
+                  ),
+                );
+            }),
+          ),
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await tester.pumpAndSettle();
+        _expectFocusedInRing(tester, find.text('B'));
+        expect(
+          tester
+              .getSemantics(find.bySemanticsLabel('A'))
+              .flagsCollection
+              .isFocused,
+          isNot(Tristate.isTrue),
+        );
+      });
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'us01/fr05/e10: a custom non-empty focusShortcuts list moves focus; '
+    'the default key no longer does, and the hint names the custom key',
+    (tester) async {
+      _view(tester);
+      const custom = SingleActivator(LogicalKeyboardKey.keyR, control: true);
+      await _withTargetPlatform(TargetPlatform.linux, () async {
+        final announced = _announceRecorder(tester);
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => StratumThemeApplication(
+              themes: StratumThemeSet(light: fakeTheme),
+              themeMode: ThemeMode.light,
+              child: StratumToastHost(
+                focusShortcuts: const [custom],
+                child: child!,
+              ),
+            ),
+            home: Scaffold(
+              body: _button(
+                'go',
+                (c) => c.showToast(message: 'x', action: undo),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        expect(announced, ['Information, x, Press Ctrl+R to reach it']);
+        final handle = tester.ensureSemantics();
+        // The platform default no longer binds.
+        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await tester.pump();
+        expect(
+          tester
+              .getSemantics(find.bySemanticsLabel('Undo'))
+              .flagsCollection
+              .isFocused,
+          isNot(Tristate.isTrue),
+        );
+        // The app's own key does.
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pumpAndSettle();
+        _expectFocusedInRing(tester, find.text('Undo'));
+        handle.dispose();
+      });
+    },
+  );
+
+  testWidgets('Minor G: popping a route while focus sits in a notice via the '
+      'shortcut crashes nothing, and the notice is still reachable and '
+      'closeable after', (tester) async {
+    _view(tester);
+    final handle = tester.ensureSemantics();
+    await _withTargetPlatform(TargetPlatform.linux, () async {
+      await tester.pumpWidget(
+        _app(_button('go', (c) => c.showToast(message: 'Pop', action: undo))),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final ctx = tester.element(find.text('go'));
+      Navigator.of(ctx).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: SizedBox()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+      await tester.pumpAndSettle();
+      _expectFocusedInRing(tester, find.text('Undo'));
+      // The pop may move focus off the notice's own pre-entry node (a
+      // route's own focus-restore is Flutter's, not this fix's, to
+      // prove); only that nothing crashes is asserted here.
+      Navigator.of(ctx).pop();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      // The notice is still there, and the shortcut still reaches it.
+      await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+      await tester.pumpAndSettle();
+      _expectFocusedInRing(tester, find.text('Undo'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Pop'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+    handle.dispose();
+  });
 }
 
 /// The fill color of the notice holding [message].
