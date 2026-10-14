@@ -7485,68 +7485,59 @@ void main() {
     );
   });
 
-  group(
-    'ReorderableListViewLayout two or more moveItem calls on one focused '
-    "key in one turn re-aim the move's jump (R4)",
-    () {
-      testWidgets(
-        'us11/fr05/e04: a second moveItem call on the key the first call '
-        "moved re-aims the frame-start jump to the second call's slot, "
-        "laid out in the move's own frame, with no reach a later frame "
-        'corrects',
-        (tester) async {
-          final position = await _pumpScrolled(
-            tester,
-            _Harness(
-              count: 200,
-              itemsController: ReorderableItemsController(),
-            ),
-          );
-          await _focusItem(tester, 100);
+  group('ReorderableListViewLayout two or more moveItem calls on one focused '
+      "key in one turn re-aim the move's jump (R4)", () {
+    testWidgets(
+      'us11/fr05/e04: a second moveItem call on the key the first call '
+      "moved re-aims the frame-start jump to the second call's slot, "
+      "laid out in the move's own frame, with no reach a later frame "
+      'corrects',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        await _focusItem(tester, 100);
 
-          _harness(tester)
-            ..move(100, 150)
-            ..move(150, 160);
-          expect(position.pixels, 4000);
-          await tester.pump();
+        _harness(tester)
+          ..move(100, 150)
+          ..move(150, 160);
+        expect(position.pixels, 4000);
+        await tester.pump();
 
-          // The second call's own slot by the built items' average extent,
-          // not the first call's 150, and not left at 4000 for a later
-          // frame's reach to correct: a later move re-aims the booked
-          // target (D8), so the one frame-start jump already lands the
-          // item in view.
-          expect(position.pixels, 6160.0);
-          expect(_builtInView(tester, 100), isTrue);
-        },
-      );
+        // The second call's own slot by the built items' average extent,
+        // not the first call's 150, and not left at 4000 for a later
+        // frame's reach to correct: a later move re-aims the booked
+        // target (D8), so the one frame-start jump already lands the
+        // item in view.
+        expect(position.pixels, 6160.0);
+        expect(_builtInView(tester, 100), isTrue);
+      },
+    );
 
-      testWidgets(
-        'us11/fr05/e04: a third moveItem call on the same key re-aims the '
-        "frame-start jump again, to the third call's slot, in the move's "
-        'own frame',
-        (tester) async {
-          final position = await _pumpScrolled(
-            tester,
-            _Harness(
-              count: 200,
-              itemsController: ReorderableItemsController(),
-            ),
-          );
-          await _focusItem(tester, 100);
+    testWidgets(
+      'us11/fr05/e04: a third moveItem call on the same key re-aims the '
+      "frame-start jump again, to the third call's slot, in the move's "
+      'own frame',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        await _focusItem(tester, 100);
 
-          _harness(tester)
-            ..move(100, 150)
-            ..move(150, 160)
-            ..move(160, 170);
-          expect(position.pixels, 4000);
-          await tester.pump();
+        _harness(tester)
+          ..move(100, 150)
+          ..move(150, 160)
+          ..move(160, 170);
+        expect(position.pixels, 4000);
+        await tester.pump();
 
-          expect(position.pixels, 6560.0);
-          expect(_builtInView(tester, 100), isTrue);
-        },
-      );
-    },
-  );
+        expect(position.pixels, 6560.0);
+        expect(_builtInView(tester, 100), isTrue);
+      },
+    );
+  });
 
   void dragEndsTests() {
     testWidgets(
