@@ -5,12 +5,14 @@ import 'package:flutter/semantics.dart' show SemanticsService;
 import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
+import 'package:stratum_ui/src/components/common/layout/page_areas.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/components/feedback/toast/toast_notice.dart';
 import 'package:stratum_ui/src/components/feedback/toast/toast_placement.dart';
 import 'package:stratum_ui/src/components/feedback/toast/toast_plain_look.dart';
 import 'package:stratum_ui/src/extensions/context_extension.dart';
 import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
+import 'package:stratum_ui/src/themes/constant/window_size.dart';
 import 'package:toastification/toastification.dart'
     show
         ToastificationCallbacks,
@@ -392,18 +394,20 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   @override
   Widget build(BuildContext context) {
-    return ToastificationConfigProvider(
-      config: _floatConfig,
-      child: Builder(
-        key: _floatKey,
-        builder: (floatContext) => _StratumToastHostScope(
-          host: this,
-          child: ToastificationConfigProvider(
-            config: _solidConfig,
-            child: Builder(
-              key: _solidKey,
-              builder: (solidContext) =>
-                  _wrapWhenNoWrapperAbove(solidContext, widget.child),
+    return PageAreasRegistry(
+      child: ToastificationConfigProvider(
+        config: _floatConfig,
+        child: Builder(
+          key: _floatKey,
+          builder: (floatContext) => _StratumToastHostScope(
+            host: this,
+            child: ToastificationConfigProvider(
+              config: _solidConfig,
+              child: Builder(
+                key: _solidKey,
+                builder: (solidContext) =>
+                    _wrapWhenNoWrapperAbove(solidContext, widget.child),
+              ),
             ),
           ),
         ),
@@ -457,6 +461,12 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// from the overlay entry's own context; a pure function of that
   /// context (s03 invariants 5, 16, and s01's `space.lg` margin on each
   /// side).
+  ///
+  /// The manager freezes this margin with its overlay entry for its whole
+  /// lifetime (toastification builds the entry once per alignment), so
+  /// the page-area offsets a placement owes — a footer to clear, a `left`
+  /// pane to stay beside — live in `_ToastView`'s own padding, which
+  /// rebuilds on every areas write (N12, N13).
   static EdgeInsets _floatMargin(
     BuildContext context,
     AlignmentGeometry alignment,
@@ -480,6 +490,9 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// closed and the keyboard's own height with it open (s03 invariant 5,
   /// FR-02 E06); a pure function of the overlay entry's own context (s03
   /// invariants 4, 16).
+  ///
+  /// The footer and `bottom` offsets a solid bottom notice owes the page
+  /// live in `_ToastView`'s own padding, as the float margin's do.
   static EdgeInsets _solidMargin(
     BuildContext context,
     AlignmentGeometry alignment,
@@ -490,6 +503,82 @@ class StratumToastHostState extends State<StratumToastHost> {
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     return EdgeInsets.only(bottom: keyboard - viewPadding.bottom);
   }
+
+  /// The padding a notice at [placement] owes the current page's areas:
+  /// a solid bottom notice rises above the page's `footer` or `bottom`
+  /// beyond the keyboard the manager margin already covers; a bottom
+  /// float does the same on mobile and tablet (R26); a desktop float
+  /// shifts inside the body, clearing a `left` pane or an end-side gap
+  /// (FR-02 E05, E07, E10; s03 invariants 5, 16; N12 to N15).
+  ///
+  /// Read from `_ToastView`'s own context, so every areas write on the
+  /// registered handle rebuilds this padding, unlike the manager's
+  /// frozen margin (N13).
+  static EdgeInsets _pagePadding(
+    BuildContext context,
+    StratumToastPlacement placement,
+  ) {
+    final areas = _currentAreasOf(context);
+    if (areas == null) return EdgeInsets.zero;
+    final size = MediaQuery.sizeOf(context);
+    final window = WindowSize.fromSize(size);
+    switch (placement) {
+      case StratumToastSolid(edge: StratumToastEdge.top):
+        return EdgeInsets.zero;
+      case StratumToastSolid(edge: StratumToastEdge.bottom):
+        final bar = _barBeyond(areas, size, context);
+        return EdgeInsets.only(bottom: bar);
+      case StratumToastFloat(:final corner):
+        final bottom = corner.name.startsWith('bottom');
+        if (!bottom) return EdgeInsets.zero;
+        if (window >= WindowSize.desktop) {
+          // A desktop bottom float stays beside the pane, not above any
+          // page bar; the start side clears `left`, the end side the gap
+          // right of `right` (E07).
+          final body = areas.body;
+          if (body == null) return EdgeInsets.zero;
+          final start = corner == StratumToastCorner.bottomStart;
+          final rtl = Directionality.of(context) == TextDirection.rtl;
+          final ltrStart = start != rtl;
+          final gap = ltrStart ? body.left : size.width - body.right;
+          return EdgeInsets.only(
+            left: ltrStart ? gap : 0,
+            right: ltrStart ? 0 : gap,
+          );
+        }
+        // R26: mobile and tablet bottom floats rise above the page's
+        // `footer` or `bottom` beyond the keyboard, as solid ones do.
+        final bar = _barBeyond(areas, size, context);
+        return EdgeInsets.only(bottom: bar);
+    }
+  }
+
+  /// How far the higher of the page's `footer` and `bottom` tops sits
+  /// above the keyboard top the margin already reached: the keyboard
+  /// covers the footer's screen-bottom distance whenever it is taller
+  /// (N15), so the extra is the bar distance less the keyboard, floored
+  /// at 0.
+  static double _barBeyond(PageAreas areas, Size size, BuildContext context) {
+    var bar = 0.0;
+    final footer = areas.footerTop;
+    final bottom = areas.bottomTop;
+    if (footer != null) bar = size.height - footer;
+    if (bottom != null && size.height - bottom > bar) {
+      bar = size.height - bottom;
+    }
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    return (bar - keyboard).clamp(0.0, double.infinity);
+  }
+
+  /// The areas of the innermost registered page on the current route;
+  /// null with no page registered (s03 invariant 16).
+  ///
+  /// Reads the registry from [context] itself, so every registration
+  /// and areas write rebuilds the overlay entry's margin (N13); a handle
+  /// whose route a push has covered loses to an inner current one rather
+  /// than placing a notice against a covered page (N14).
+  static PageAreas? _currentAreasOf(BuildContext context) =>
+      PageAreasRegistry.maybeOf(context)?.current()?.value;
 }
 
 /// Publishes the host state to `context.showToast` callers.
@@ -559,7 +648,7 @@ class _ToastViewState extends State<_ToastView> {
     kind: widget.request.kind,
     placement: widget.request.placement,
     insets: widget.host._edgeInset(widget.request),
-    pageSnack: null,
+    pageSnack: StratumToastHostState._currentAreasOf(context)?.snack,
     customStyle: widget.request.customStyle,
     close: _close,
     action: widget.request.action,
@@ -585,6 +674,12 @@ class _ToastViewState extends State<_ToastView> {
 
   @override
   Widget build(BuildContext context) {
+    // The page-area offset, read here rather than in the manager's frozen
+    // margin, so every areas write moves a showing notice (N12, N13).
+    final pagePadding = StratumToastHostState._pagePadding(
+      context,
+      widget.request.placement,
+    );
     return Dismissible(
       key: ValueKey(widget.item.id),
       direction: DismissDirection.horizontal,
@@ -608,15 +703,18 @@ class _ToastViewState extends State<_ToastView> {
             onPointerDown: (_) => _pause(_PauseReason.touch),
             onPointerUp: (_) => _resume(_PauseReason.touch),
             onPointerCancel: (_) => _resume(_PauseReason.touch),
-            child: _PauseOnFocus(
-              host: widget.host,
-              onFocusInside: (inside) {
-                _focusInside = inside;
-                inside
-                    ? _pause(_PauseReason.focus)
-                    : _resume(_PauseReason.focus);
-              },
-              child: _look(context),
+            child: Padding(
+              padding: pagePadding,
+              child: _PauseOnFocus(
+                host: widget.host,
+                onFocusInside: (inside) {
+                  _focusInside = inside;
+                  inside
+                      ? _pause(_PauseReason.focus)
+                      : _resume(_PauseReason.focus);
+                },
+                child: _look(context),
+              ),
             ),
           ),
         ),

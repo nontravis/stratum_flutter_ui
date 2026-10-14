@@ -114,6 +114,7 @@ Widget _systemApp({
   StratumToastBuilder? builder,
   WidgetStyle? goStyle,
   StratumToastEdge edge = StratumToastEdge.top,
+  bool pageBars = true,
 }) {
   final placement = StratumToastPlacement.solid(edge);
   final top = edge == StratumToastEdge.top;
@@ -125,11 +126,15 @@ Widget _systemApp({
     ),
     home: Scaffold(
       body: PageLayout(
-        header: top ? const SizedBox() : null,
-        footer: top ? null : const SizedBox(),
+        header: top && pageBars ? const SizedBox() : null,
+        footer: !top && pageBars ? const SizedBox() : null,
         customStyle: PageLayoutStyle(
-          header: top ? const WidgetStyle(backgroundColor: _white) : null,
-          footer: top ? null : const WidgetStyle(backgroundColor: _white),
+          header: top && pageBars
+              ? const WidgetStyle(backgroundColor: _white)
+              : null,
+          footer: !top && pageBars
+              ? const WidgetStyle(backgroundColor: _white)
+              : null,
         ),
         body: ColumnLayout(
           children: [
@@ -943,13 +948,17 @@ void main() {
     'the navigation bar icons',
     (tester) async {
       systemBarsView(tester);
+      // T27 lifts a solid bottom notice above a page footer, so this row
+      // runs on a page without one: the fill runs under the home
+      // indicator and covers the bar point (FR-02 statement).
       await tester.pumpWidget(
         _systemApp(
           edge: StratumToastEdge.bottom,
+          pageBars: false,
           goStyle: const WidgetStyle(backgroundColor: Color(0xFF1F242E)),
         ),
       );
-      // A light page footer: dark icons win on it.
+      // No page fill under the bar: dark icons win on the plain page.
       expect(
         SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
         Brightness.dark,
@@ -964,7 +973,7 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 4));
       await tester.pumpAndSettle();
-      // The notice gone, the footer's fill wins again.
+      // The notice gone, the page's own fill wins again.
       expect(
         SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
         Brightness.dark,

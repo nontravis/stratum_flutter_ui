@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
+import 'package:flutter/scheduler.dart';
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
+import 'package:stratum_ui/src/components/common/layout/page_areas.dart';
 import 'package:stratum_ui/src/components/common/layout/page_drawer.dart'
     show
         PageDrawerStage,
@@ -517,6 +519,16 @@ class _PageLayoutState extends State<PageLayout>
   final _leftSplit = SplitLayoutController();
   final _rightSplit = SplitLayoutController();
 
+  /// The page's own published areas; the host above reads the innermost
+  /// handle on the current route (s03 toast invariant 16).
+  late final _handle = PageAreasHandle(
+    isCurrentRoute: () => mounted && (ModalRoute.isCurrentOf(context) ?? true),
+  );
+
+  /// The last areas this page wrote, so a reporter for one slot rewrites
+  /// only that slot's value: `PageAreas` replaces whole.
+  PageAreas? _written;
+
   /// The width of each split at its last layout, which turns a settled
   /// fraction into a width.
   double _leftExtent = 0;
@@ -537,6 +549,7 @@ class _PageLayoutState extends State<PageLayout>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _register();
     final motion = context.theme.animation.normal;
     final duration = motion.duration ?? Duration.zero;
     _drawer
@@ -559,6 +572,8 @@ class _PageLayoutState extends State<PageLayout>
 
   @override
   void dispose() {
+    _registryDispose();
+    _handle.dispose();
     _detach(_controller);
     _ownController?.dispose();
     _drawer.dispose();
@@ -569,6 +584,70 @@ class _PageLayoutState extends State<PageLayout>
     _leftSplit.dispose();
     _rightSplit.dispose();
     super.dispose();
+  }
+
+  /// The registry the host above this page provides, null with no host;
+  /// re-read each dependency change, since an app may mount one above a
+  /// live page.
+  PageAreasController? _registry;
+
+  /// Registers this page's handle with the nearest registry once it
+  /// exists; the handle's value is null until the first layout reports
+  /// (s03 toast invariant 16).
+  ///
+  /// A registration during a build defers to after the frame, since the
+  /// registry's scope rebuilds on the version bump; a dispose quiets the
+  /// handle instead and defers the removal the same way.
+  void _register() {
+    final registry = PageAreasRegistry.maybeOf(context);
+    if (identical(registry, _registry)) return;
+    final old = _registry;
+    _registry = registry;
+    if (old != null) {
+      _deferRegistry(() => old.remove(_handle));
+    }
+    _written = null;
+    _handle.detach();
+    if (registry != null) {
+      _deferRegistry(() => registry.add(_handle));
+    }
+  }
+
+  /// Drops this page's handle from the registry it last joined; a
+  /// dispose runs while the tree is locked, so the removal defers to a
+  /// frame the tree no longer locks, and the quieted handle reads as no
+  /// areas meanwhile.
+  void _registryDispose() {
+    final registry = _registry;
+    _registry = null;
+    _written = null;
+    _handle.detach();
+    if (registry == null) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      registry.remove(_handle);
+    });
+  }
+
+  /// Runs [write] when the tree is unlocked: at once while idle or in
+  /// the post-frame phase, else after this frame.
+  void _deferRegistry(void Function() write) {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      write();
+      return;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) => write());
+  }
+
+  /// Writes the slot [update] changes into this page's handle, so the
+  /// host's margin builders read the innermost current page's areas.
+  void _writeAreas(PageAreas? Function(PageAreas? areas) update) {
+    final areas = update(_written);
+    if (areas == _written) return;
+    _written = areas;
+    if (_registry == null) return;
+    _handle.value = areas;
   }
 
   /// Disposes the page's own controller once the app passes one, and makes
@@ -1157,18 +1236,75 @@ class _PageLayoutState extends State<PageLayout>
     final page = widget;
     Widget? slot(_Slot which, Widget? child, WidgetStyle? fill) =>
         child == null ? null : _slotBox(which, child, fill, look);
+    Widget reported(_Slot which, Widget child, PageLayoutStyle style) =>
+        PageAreasReporter(
+          report: (rect) {
+            switch (which) {
+              case _Slot.body:
+                _writeAreas(
+                  (areas) => PageAreas(
+                    body: rect,
+                    footerTop: areas?.footerTop,
+                    bottomTop: areas?.bottomTop,
+                    left: areas?.left,
+                    snack: areas?.snack ?? style.snack,
+                  ),
+                );
+              case _Slot.footer:
+                _writeAreas(
+                  (areas) => PageAreas(
+                    body: areas?.body,
+                    footerTop: rect.top,
+                    bottomTop: areas?.bottomTop,
+                    left: areas?.left,
+                    snack: areas?.snack ?? style.snack,
+                  ),
+                );
+              case _Slot.bottom:
+                _writeAreas(
+                  (areas) => PageAreas(
+                    body: areas?.body,
+                    footerTop: areas?.footerTop,
+                    bottomTop: rect.top,
+                    left: areas?.left,
+                    snack: areas?.snack ?? style.snack,
+                  ),
+                );
+              case _Slot.left:
+                _writeAreas(
+                  (areas) => PageAreas(
+                    body: areas?.body,
+                    footerTop: areas?.footerTop,
+                    bottomTop: areas?.bottomTop,
+                    left: rect,
+                    snack: areas?.snack ?? style.snack,
+                  ),
+                );
+              case _Slot.header:
+              case _Slot.top:
+              case _Slot.tab:
+              case _Slot.right:
+              case _Slot.snack:
+                break;
+            }
+          },
+          child: child,
+        );
+    final body = slot(_Slot.body, page.body, style.body);
+    final bottom = slot(_Slot.bottom, page.bottom, style.bottom);
     final center = ColumnLayout(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ?slot(_Slot.tab, page.tab, style.tab),
         Expanded(
-          child:
-              slot(_Slot.body, page.body, style.body) ??
-              const SizedBox.shrink(),
+          child: body == null
+              ? const SizedBox.shrink()
+              : reported(_Slot.body, body, style),
         ),
-        ?slot(_Slot.bottom, page.bottom, style.bottom),
+        ?((bottom == null) ? null : reported(_Slot.bottom, bottom, style)),
       ],
     );
+    final left = slot(_Slot.left, _inlineLeft, style.left);
     final main = ColumnLayout(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1183,6 +1319,7 @@ class _PageLayoutState extends State<PageLayout>
         ),
       ],
     );
+    final footer = slot(_Slot.footer, page.footer, style.footer);
     return ColumnLayout(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1191,7 +1328,7 @@ class _PageLayoutState extends State<PageLayout>
           child: _sideSplit(
             PageDrawerSide.left,
             column: main,
-            pane: slot(_Slot.left, _inlineLeft, style.left),
+            pane: left == null ? null : reported(_Slot.left, left, style),
             order: _Slot.left,
           ),
         ),
@@ -1200,7 +1337,9 @@ class _PageLayoutState extends State<PageLayout>
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.end,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [?slot(_Slot.footer, page.footer, style.footer)],
+          children: [
+            ?((footer == null) ? null : reported(_Slot.footer, footer, style)),
+          ],
         ),
       ],
     );
@@ -1343,6 +1482,15 @@ class _PageLayoutState extends State<PageLayout>
   Widget? _snack(PageLayoutStyle style, _SlotLook look, double keyboard) {
     final snack = widget.snack;
     if (snack == null) return null;
+    _writeAreas(
+      (areas) => PageAreas(
+        body: areas?.body,
+        footerTop: areas?.footerTop,
+        bottomTop: areas?.bottomTop,
+        left: areas?.left,
+        snack: style.snack,
+      ),
+    );
     final insets = look.insets;
     return ContainerLayout(
       style: WidgetStyle(
