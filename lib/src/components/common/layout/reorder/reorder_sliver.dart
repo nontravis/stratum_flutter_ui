@@ -1091,7 +1091,7 @@ class _Lift extends Drag {
     dragOffset = itemRenderBox.globalToLocal(initialPosition);
     itemSize = itemRenderBox.size;
     _rawDragPosition = initialPosition;
-    boundary = DragBoundary.forRectMaybeOf(listState.context);
+    boundary = _dragBoundaryRect(listState.context);
     dragPosition = _adjustedDragOffset(initialPosition);
     itemExtent = _sizeExtent(itemSize, scrollDirection);
     itemLayoutConstraints = itemRenderBox.constraints;
@@ -1106,7 +1106,7 @@ class _Lift extends Drag {
   final ReorderItemProxyDecorator? proxyDecorator;
   final TickerProvider tickerProvider;
 
-  late DragBoundaryDelegate<Rect>? boundary;
+  late Rect? boundary;
   late _ReorderSliverState listState;
   late int index;
   late Offset dragPosition;
@@ -1160,13 +1160,30 @@ class _Lift extends Drag {
     onCancel?.call(this);
   }
 
+  /// The pointer at [offset], kept inside [boundary] (R57): the whole item
+  /// stays inside on an axis it fits, same as [DragBoundaryDelegate] would
+  /// (its `nearestPositionWithinBoundary` throws past that fit, SDK
+  /// drag_boundary.dart:40-50); only the pointer's own point stays inside
+  /// on an axis the item is longer than [boundary].
   Offset _adjustedDragOffset(Offset offset) {
     final boundary = this.boundary;
     if (boundary == null) return offset;
-    return boundary
-        .nearestPositionWithinBoundary((offset - dragOffset) & itemSize)
-        .shift(dragOffset)
-        .topLeft;
+    return Offset(
+      _boundaryPointer(
+        offset.dx,
+        dragOffset.dx,
+        itemSize.width,
+        boundary.left,
+        boundary.right,
+      ),
+      _boundaryPointer(
+        offset.dy,
+        dragOffset.dy,
+        itemSize.height,
+        boundary.top,
+        boundary.bottom,
+      ),
+    );
   }
 
   void _dropCompleted() {
@@ -1203,6 +1220,22 @@ Offset _overlayOrigin(BuildContext context) {
   final overlay = Overlay.of(context, debugRequiredFor: context.widget);
   final overlayBox = overlay.context.findRenderObject()! as RenderBox;
   return overlayBox.localToGlobal(Offset.zero);
+}
+
+/// The app's [DragBoundary] ancestor of [context], as a global [Rect]; null
+/// with none. Read directly, not through the opaque [DragBoundaryDelegate]
+/// `forRectMaybeOf` hands back, since that delegate only throws when a
+/// rect is larger than its boundary instead of saying how large the
+/// boundary is (R57, SDK drag_boundary.dart:40-50).
+Rect? _dragBoundaryRect(BuildContext context) {
+  final element = context
+      .getElementForInheritedWidgetOfExactType<DragBoundary>();
+  final renderObject = element?.findRenderObject();
+  if (renderObject is! RenderBox || !renderObject.hasSize) return null;
+  return Rect.fromPoints(
+    renderObject.localToGlobal(Offset.zero),
+    renderObject.localToGlobal(renderObject.size.bottomRight(Offset.zero)),
+  );
 }
 
 /// The SDK's `_DragItemProxy` over a raster.
@@ -1286,6 +1319,29 @@ double _targetStart(
   final lowest = math.max(start, pointer - length);
   final highest = math.min(end - length, pointer);
   return math.min(math.max(listStart, lowest), highest);
+}
+
+/// The pointer's position on one axis once it keeps the lift inside a
+/// boundary running [boundaryStart] to [boundaryEnd] (R57): clamped by the
+/// whole item, [length] long and held [dragOffsetComponent] from [pointer],
+/// when the item fits the boundary on this axis; clamped by itself, so the
+/// item may stick out on both sides, when it does not.
+double _boundaryPointer(
+  double pointer,
+  double dragOffsetComponent,
+  double length,
+  double boundaryStart,
+  double boundaryEnd,
+) {
+  if (length > boundaryEnd - boundaryStart) {
+    return math.min(math.max(pointer, boundaryStart), boundaryEnd);
+  }
+  final itemStart = pointer - dragOffsetComponent;
+  final clampedStart = math.min(
+    math.max(itemStart, boundaryStart),
+    boundaryEnd - length,
+  );
+  return clampedStart + dragOffsetComponent;
 }
 
 double _sizeExtent(Size size, Axis scrollDirection) {

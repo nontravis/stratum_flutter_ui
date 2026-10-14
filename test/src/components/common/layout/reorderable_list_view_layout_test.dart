@@ -63,6 +63,7 @@ class _Harness extends StatefulWidget {
     this.fillItems = false,
     this.onItemBuild,
     this.heights,
+    this.widths,
     this.keepAliveIds,
     this.plainIds,
     this.scrollCacheExtent,
@@ -132,6 +133,9 @@ class _Harness extends StatefulWidget {
 
   /// The height of an item by id, where it is not 40.
   final Map<int, double>? heights;
+
+  /// The width of an item by id, where it is not 40.
+  final Map<int, double>? widths;
 
   /// The ids of the items that keep themselves alive off screen.
   final Set<int>? keepAliveIds;
@@ -295,6 +299,7 @@ class _HarnessState extends State<_Harness> {
           paintLog: widget.paintLog,
           fill: widget.fillItems,
           height: widget.heights?[ids[index]] ?? 40,
+          width: widget.widths?[ids[index]] ?? 40,
           keepAlive: widget.keepAliveIds?.contains(ids[index]) ?? false,
           plain: widget.plainIds?.contains(ids[index]) ?? false,
           boundary: widget.boundaryAt == ids[index] ? widget.boundary : null,
@@ -317,6 +322,7 @@ class _Item extends StatefulWidget {
     this.paintLog,
     this.fill = false,
     this.height = 40,
+    this.width = 40,
     this.keepAlive = false,
     this.plain = false,
     this.boundary,
@@ -338,8 +344,12 @@ class _Item extends StatefulWidget {
   /// bounded main axis.
   final bool fill;
 
-  /// The item's height; its width stays 40.
+  /// The item's height, its main-axis extent in a vertical list.
   final double height;
+
+  /// The item's width, its main-axis extent in a horizontal list and its
+  /// cross-axis extent in a vertical one.
+  final double width;
 
   /// Whether the item keeps itself alive when it leaves the built range.
   final bool keepAlive;
@@ -377,7 +387,7 @@ class _ItemState extends State<_Item> with AutomaticKeepAliveClientMixin {
       return SizedBox(width: 40, height: 40, child: TextField(focusNode: node));
     }
     final label = SizedBox(
-      width: 40,
+      width: widget.width,
       height: widget.height,
       child: Text('${widget.id}'),
     );
@@ -15212,6 +15222,90 @@ void main() {
         await tester.pumpAndSettle();
         expect(_liveSemanticsLabel(tester, '3'), isTrue);
         handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'us11/fr01 (R57/R58): an item taller than an app DragBoundary lifts '
+      'and drags past the boundary edge with no exception, its pointer '
+      'kept inside the boundary, then drops with one onReorderEnd',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            const DragBoundary(child: _Harness(count: 5, heights: {1: 1000})),
+          ),
+        );
+
+        // Item 1 runs from 40 to 1040 on screen; the press lands near its
+        // top-left, inside both the item and the list.
+        final gesture = await tester.startGesture(
+          tester.getTopLeft(find.text('1')) + const Offset(20, 20),
+        );
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+        expect(tester.takeException(), isNull);
+        expect(find.byType(RawImage), findsOne);
+
+        await gesture.moveBy(const Offset(0, 500));
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        final pinned = tester.getTopLeft(find.byType(RawImage));
+
+        // A second move further past the same edge lands the pointer at
+        // the same clamped point, so the proxy sits exactly where it did.
+        await gesture.moveBy(const Offset(0, 500));
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(tester.getTopLeft(find.byType(RawImage)), pinned);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ends.length, 1);
+      },
+    );
+
+    testWidgets(
+      'us11/fr01 (R57/R58): an item wider than an app DragBoundary lifts '
+      'and drags past the boundary edge with no exception, its pointer '
+      'kept inside the boundary, then drops with one onReorderEnd',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            const DragBoundary(
+              child: _Harness(
+                count: 5,
+                axis: Axis.horizontal,
+                widths: {1: 1000},
+              ),
+            ),
+          ),
+        );
+
+        // Item 1 runs from 40 to 1040 on screen; the press lands near its
+        // top-left, inside both the item and the list.
+        final gesture = await tester.startGesture(
+          tester.getTopLeft(find.text('1')) + const Offset(20, 20),
+        );
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+        expect(tester.takeException(), isNull);
+        expect(find.byType(RawImage), findsOne);
+
+        await gesture.moveBy(const Offset(500, 0));
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        final pinned = tester.getTopLeft(find.byType(RawImage));
+
+        // A second move further past the same edge lands the pointer at
+        // the same clamped point, so the proxy sits exactly where it did.
+        await gesture.moveBy(const Offset(500, 0));
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(tester.getTopLeft(find.byType(RawImage)), pinned);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).ends.length, 1);
       },
     );
   });
