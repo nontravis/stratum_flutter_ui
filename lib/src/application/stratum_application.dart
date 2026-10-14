@@ -12,7 +12,13 @@ import 'package:stratum_ui/src/src.dart';
 /// - Mount ONE per process with [notices] true, since toastification under
 ///   the notice host is process-wide (CO-05-07); every other view's
 ///   wrapper passes `notices: false`.
-class StratumApplication extends StatelessWidget {
+/// - A rebuild that flips [controller] between null and non-null, or that
+///   adds or removes [updateGate], [webZoom], or [notices], keeps the app
+///   widget [appBuilder] returns, and the navigator inside it, mounted
+///   under a stable key each. The notice host and [StratumWebZoom] carry
+///   no key of their own, so that rebuild remounts them fresh: an open
+///   notice or a zoom scale does not survive it.
+class StratumApplication extends StatefulWidget {
   const new({
     super.key,
     this.controller,
@@ -132,20 +138,7 @@ class StratumApplication extends StatelessWidget {
   static const Color noSplashDarkBackground = Color(0xFF111827);
 
   @override
-  Widget build(BuildContext context) {
-    final controller = this.controller;
-    if (controller != null) return _assemble(context, controller);
-    return StratumThemePreloader(
-      initialThemeId: initialThemeId,
-      onThemeChanged: onThemeChanged,
-      googleFontsTimeout: googleFontsTimeout,
-      remoteThemes: remoteThemes,
-      onRemoteThemeError: onRemoteThemeError,
-      error: error ?? _failedStart,
-      loading: loadingBuilder ?? _background,
-      builder: _assemble,
-    );
-  }
+  State<StratumApplication> createState() => _StratumApplicationState();
 
   /// The no-splash background, picked by [themeMode]; platform brightness
   /// only for `system` (R32).
@@ -166,6 +159,37 @@ class StratumApplication extends StatelessWidget {
   Widget _failedStart(BuildContext context, Object failure) =>
       _ReportedStartFailure(failure: failure, child: _background(context));
 
+  static Widget _plainNoticeHost(Widget child) =>
+      StratumToastHost(child: child);
+}
+
+/// Builds the app widget and the navigator's wrapping layers, each kept
+/// mounted under its own [GlobalKey] (class dartdoc's rebuild bullet).
+class _StratumApplicationState extends State<StratumApplication> {
+  /// Keys the app widget for this State's whole life, so a controller
+  /// flip (null to non-null) reparents it instead of unmounting it;
+  /// [_navigatorKey] does the same for `stratum.builder`'s child across a
+  /// gate, zoom, or notices change.
+  final GlobalKey _appKey = GlobalKey();
+
+  final GlobalKey _navigatorKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = widget.controller;
+    if (controller != null) return _assemble(context, controller);
+    return StratumThemePreloader(
+      initialThemeId: widget.initialThemeId,
+      onThemeChanged: widget.onThemeChanged,
+      googleFontsTimeout: widget.googleFontsTimeout,
+      remoteThemes: widget.remoteThemes,
+      onRemoteThemeError: widget.onRemoteThemeError,
+      error: widget.error ?? widget._failedStart,
+      loading: widget.loadingBuilder ?? widget._background,
+      builder: _assemble,
+    );
+  }
+
   /// Builds the config for [controller]'s active theme, again when the
   /// theme, the window size class, the text scale, or the platform locale
   /// changes (FR-02 E03; themes s03 invariant 35).
@@ -174,8 +198,13 @@ class StratumApplication extends StatelessWidget {
       child: _PlatformLocaleBuilder(
         builder: (context, locale) => ListenableBuilder(
           listenable: controller,
-          builder: (context, _) =>
-              appBuilder(context, _config(context, controller, locale)),
+          builder: (context, _) => KeyedSubtree(
+            key: _appKey,
+            child: widget.appBuilder(
+              context,
+              _config(context, controller, locale),
+            ),
+          ),
         ),
       ),
     );
@@ -202,36 +231,39 @@ class StratumApplication extends StatelessWidget {
         windowSize: windowSize,
         textScaler: textScaler,
       ),
-      themeMode: themeMode,
+      themeMode: widget.themeMode,
       builder: _inner(controller),
     );
   }
 
   /// The layers inside the app widget's builder, outer to inner:
-  /// `StratumThemeApplication`, [updateGate], the notice host, [webZoom],
-  /// then the app's own child (themes s03 invariant 34).
+  /// `StratumThemeApplication`, [StratumApplication.updateGate], the
+  /// notice host, [StratumApplication.webZoom], then the navigator
+  /// `stratum.builder` is given (themes s03 invariant 34).
   TransitionBuilder _inner(StratumThemeController controller) {
     return (context, child) {
-      var w = child ?? const SizedBox.shrink();
-      final zoom = webZoom;
+      Widget w = KeyedSubtree(
+        key: _navigatorKey,
+        child: child ?? const SizedBox.shrink(),
+      );
+      final zoom = widget.webZoom;
       if (zoom != null) w = zoom(w);
-      if (notices) w = (noticeHost ?? _plainNoticeHost)(w);
-      final gate = updateGate;
+      if (widget.notices) {
+        w = (widget.noticeHost ?? StratumApplication._plainNoticeHost)(w);
+      }
+      final gate = widget.updateGate;
       if (gate != null) w = gate(w);
       return StratumThemeApplication.controlled(
         controller: controller,
-        themeMode: themeMode,
-        highContrast: highContrast,
-        componentDefaults: componentDefaults,
-        componentPartDefaults: componentPartDefaults,
-        systemStyle: systemStyle,
+        themeMode: widget.themeMode,
+        highContrast: widget.highContrast,
+        componentDefaults: widget.componentDefaults,
+        componentPartDefaults: widget.componentPartDefaults,
+        systemStyle: widget.systemStyle,
         child: w,
       );
     };
   }
-
-  static Widget _plainNoticeHost(Widget child) =>
-      StratumToastHost(child: child);
 }
 
 /// Builds [builder] with the platform locale, again on each platform

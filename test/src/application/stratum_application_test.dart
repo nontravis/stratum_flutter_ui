@@ -54,6 +54,62 @@ class _NoDarkController extends ChangeNotifier
   Object? noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// A counter whose own [State] would reset if its ancestor remounted
+/// (edge case: `StratumApplication.controller` moving null to non-null).
+class _Counter extends StatefulWidget {
+  const new();
+
+  @override
+  State<_Counter> createState() => _CounterState();
+}
+
+class _CounterState extends State<_Counter> {
+  int _count = 0;
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+    onPressed: () => setState(() => _count++),
+    child: Text('$_count'),
+  );
+}
+
+/// A `RouteInformationParser` with one route: this file's `MaterialApp.router`
+/// test pushes pages directly on its delegate, never through route
+/// information.
+class _NoOpRouteInformationParser extends RouteInformationParser<Object> {
+  @override
+  Future<Object> parseRouteInformation(RouteInformation information) async =>
+      Object();
+}
+
+/// A `RouterDelegate` whose page stack grows with [push], for the
+/// `MaterialApp.router` test that pushes a second page (us13/fr02).
+class _StackRouterDelegate extends RouterDelegate<Object>
+    with ChangeNotifier, PopNavigatorRouterDelegateMixin<Object> {
+  List<Page<void>> _pages = const [
+    MaterialPage<void>(key: ValueKey('home'), child: Text('home')),
+  ];
+
+  @override
+  final navigatorKey = GlobalKey<NavigatorState>();
+
+  /// Appends [page] to the stack.
+  void push(Page<void> page) {
+    _pages = [..._pages, page];
+    notifyListeners();
+  }
+
+  @override
+  Widget build(BuildContext context) => Navigator(
+    key: navigatorKey,
+    pages: _pages,
+    onDidRemovePage: (page) => _pages = _pages.where((p) => p != page).toList(),
+  );
+
+  @override
+  Future<void> setNewRoutePath(Object configuration) async {}
+}
+
 void main() {
   setUp(ThemeFontLoader.reset);
 
@@ -975,5 +1031,157 @@ void main() {
       ),
     );
     handle.dispose();
+  });
+
+  testWidgets('us13/fr01/e01: adding updateGate on a rebuild keeps the '
+      'pushed route', (tester) async {
+    final controller = await _controller();
+    Widget app({required bool gate}) => StratumApplication(
+      controller: controller,
+      updateGate: gate
+          ? (child) => StratumUpdateGate(
+              checker: _OneAnswer(Future.value(UpdateStatus.upToDate)),
+              builder: (context, g) => const Text('Required'),
+              child: child,
+            )
+          : null,
+      appBuilder: (c, s) => MaterialApp(
+        builder: s.builder,
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const Text('pushed')),
+            ),
+            child: const Text('home'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(app(gate: false));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('home'));
+    await tester.pumpAndSettle();
+    expect(find.text('pushed'), findsOneWidget);
+    await tester.pumpWidget(app(gate: true));
+    await tester.pumpAndSettle();
+    expect(find.text('pushed'), findsOneWidget);
+  });
+
+  testWidgets('us13/fr01/e01: removing webZoom on a rebuild keeps the '
+      'pushed route', (tester) async {
+    final controller = await _controller();
+    Widget app({required bool zoom}) => StratumApplication(
+      controller: controller,
+      webZoom: zoom ? (child) => StratumWebZoom(child: child) : null,
+      appBuilder: (c, s) => MaterialApp(
+        builder: s.builder,
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const Text('pushed')),
+            ),
+            child: const Text('home'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(app(zoom: true));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('home'));
+    await tester.pumpAndSettle();
+    expect(find.text('pushed'), findsOneWidget);
+    await tester.pumpWidget(app(zoom: false));
+    await tester.pumpAndSettle();
+    expect(find.text('pushed'), findsOneWidget);
+  });
+
+  testWidgets('us13/fr01: controller moving from null to non-null keeps '
+      'the app widget mounted', (tester) async {
+    final controller = await _controller();
+    Widget app(StratumThemeController? c) => DefaultAssetBundle(
+      bundle: FakeThemeBundle(),
+      child: StratumApplication(
+        controller: c,
+        appBuilder: (context, s) =>
+            MaterialApp(builder: s.builder, home: const _Counter()),
+      ),
+    );
+    await tester.pumpWidget(app(null));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('0'));
+    await tester.pump();
+    expect(find.text('1'), findsOneWidget);
+    await tester.pumpWidget(app(controller));
+    await tester.pumpAndSettle();
+    expect(find.text('1'), findsOneWidget);
+  });
+
+  testWidgets('us13/fr01/e08: a nested wrapper sharing the outer '
+      'controller works, with notices false', (tester) async {
+    await tester.pumpWidget(
+      StratumApplication(
+        controller: await _controller(),
+        appBuilder: (c, s) => MaterialApp(
+          builder: s.builder,
+          home: Builder(
+            builder: (outer) => StratumApplication(
+              controller: StratumThemeController.of(outer),
+              notices: false,
+              appBuilder: (c2, s2) => MaterialApp(
+                builder: s2.builder,
+                home: Builder(
+                  builder: (inner) => TextButton(
+                    onPressed: () => inner.showToast(message: 'Hello'),
+                    child: const Text('go'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('Hello'), findsOneWidget);
+  });
+
+  testWidgets('us13/fr02: MaterialApp.router renders a pushed page under '
+      "the toast host, with no route of the wrapper's own", (tester) async {
+    final provider = PlatformRouteInformationProvider(
+      initialRouteInformation: RouteInformation(uri: Uri.parse('/')),
+    );
+    final delegate = _StackRouterDelegate();
+    await tester.pumpWidget(
+      StratumApplication(
+        controller: await _controller(),
+        appBuilder: (c, s) => MaterialApp.router(
+          routerConfig: RouterConfig<Object>(
+            routeInformationProvider: provider,
+            routeInformationParser: _NoOpRouteInformationParser(),
+            routerDelegate: delegate,
+          ),
+          builder: s.builder,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    expect(find.byType(Navigator), findsOneWidget);
+    delegate.push(
+      const MaterialPage<void>(key: ValueKey('pushed'), child: Text('pushed')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(StratumToastHost),
+        matching: find.text('pushed'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('home'), findsNothing);
+    expect(find.byType(Navigator), findsOneWidget);
   });
 }
