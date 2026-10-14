@@ -4,14 +4,18 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'generated/app_config.freezed.dart';
 
 /// Builds the app from `StratumApplication`'s current [StratumAppConfig].
+///
+/// Runs again with each new config, so build the router and providers
+/// outside it.
 typedef StratumAppBuilder = Widget Function(
   BuildContext context,
   StratumAppConfig stratum,
 );
 
 /// The values `StratumApplication` hands its [StratumAppBuilder] (FO-03
-/// US-13 FR-02), built again each time the active theme or mode changes
-/// (themes s03 invariant 35).
+/// US-13 FR-02), built again on each `StratumApplication` rebuild and
+/// when the active theme, the window size class, the text scale, or the
+/// platform locale changes (themes s03 invariant 35).
 @freezed
 class StratumAppConfig with _$StratumAppConfig {
   const new({

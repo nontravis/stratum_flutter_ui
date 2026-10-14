@@ -615,6 +615,7 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `StratumComponentDefaults.partsOf<ModalLayoutStyle>(context, ModalLayout)`, null when none is registered, and a
   thrown `FlutterError` naming both types when the registered value is not a `ModalLayoutStyle`. Both builders run
   again whenever the active theme changes, and `StratumThemeApplication.wrap` copies both to a nested application.
+  Under `StratumApplication`, pass both to it instead (see App assembly).
 
 ## App assembly
 
@@ -624,6 +625,7 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   StratumApplication(
     initialThemeId: savedId,
     onThemeChanged: save,
+    themeMode: savedMode,
     webZoom: (child) => StratumWebZoom(child: child),
     appBuilder: (context, stratum) => MaterialApp.router(
       theme: stratum.theme,
@@ -639,8 +641,24 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   out), and web zoom, outer to inner; your router, locales, and providers stay yours. With a builder of your own,
   chain it: `builder: (context, child) => stratum.builder(context, MyWrapper(child: child!))`. `CupertinoApp` and
   `WidgetsApp` take the same `builder`. Add the `## Install` override lines first.
+- `appBuilder` runs again on a theme switch, a `StratumApplication` rebuild, and a change of window size class, text
+  scale, or platform locale: build the router and providers outside it.
+- `themeMode:`, `highContrast:`, and `componentDefaults:` go on `StratumApplication`, which forwards them to the theme
+  application; pass `stratum.themeMode` to the app widget. Never set the mode on `MaterialApp(themeMode:)` alone: the
+  theme application inside its builder keeps the wrapper's `themeMode` (default `ThemeMode.system`) on every route.
+- `controller:` hands in a `StratumThemeController` you hold, which the wrapper never disposes. With one, the preload
+  inputs (`initialThemeId`, `onThemeChanged`, `googleFontsTimeout`, `remoteThemes`, `onRemoteThemeError`, `error`,
+  `loadingBuilder`) are ignored; with none, the wrapper reads the first five once, at its first build.
+- `loadingBuilder:` replaces the theme's background color shown until the start theme is active. `error:` is the
+  frame for a start theme that fails to load, and the failure reaches only it, so log it there; with none, the failure
+  goes to `FlutterError.reportError` and the background stays. Both build above the app widget, with no
+  `Directionality` or theme: give a `Text` its `textDirection`.
+- `onRemoteThemeError:` gets each kept zip that fails to install, so you delete it and download it again; with none, a
+  release build drops the failure unseen.
 - `updateGate:` wraps the inner layers in your own update gate; see Update gate.
-- `noticeHost:` replaces the plain notice host `notices: true` builds; see Notices.
+- `noticeHost:` replaces the plain notice host `notices: true` builds; see Notices. Mount one `StratumApplication`
+  with `notices: true` per process: the notice host is process-wide, so every other view's wrapper passes
+  `notices: false`.
 - `systemStyle:` forwards the app-wide system bar style to the theme application; see System bars.
 - `componentPartDefaults:` forwards the app-wide parts style per component type to the theme application; see
   Themes, App-wide component defaults.

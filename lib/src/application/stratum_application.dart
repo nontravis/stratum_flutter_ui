@@ -4,10 +4,14 @@ import 'package:stratum_ui/src/src.dart';
 /// (US-01 FR-03, or [controller]), then, inside
 /// [StratumAppConfig.builder], `StratumThemeApplication`, [updateGate],
 /// the notice host, and [webZoom], around the app widget [appBuilder]
-/// returns (themes s03 invariant 34). Add the two `## Install` override
-/// lines to the app's `pubspec.yaml`
-/// (`dependency_overrides: equatable: ^3.0.0`) per US-13 FR-01's last
-/// sentence.
+/// returns (themes s03 invariant 34).
+///
+/// - Add the two `## Install` override lines to the app's `pubspec.yaml`
+///   (`dependency_overrides: equatable: ^3.0.0`) per US-13 FR-01's last
+///   sentence.
+/// - Mount ONE per process with [notices] true, since toastification under
+///   the notice host is process-wide (CO-05-07); every other view's
+///   wrapper passes `notices: false`.
 class StratumApplication extends StatelessWidget {
   const new({
     super.key,
@@ -31,36 +35,47 @@ class StratumApplication extends StatelessWidget {
     required this.appBuilder,
   });
 
-  /// The app's own theme controller; with none, the theme runtime
-  /// preloads its own from [initialThemeId] (US-01 FR-03, US-02 FR-01).
+  /// The app's own theme controller, never disposed by the wrapper; with
+  /// none, the theme runtime preloads its own (US-01 FR-03, US-02 FR-01).
+  ///
+  /// With one, every preload input is ignored: [initialThemeId],
+  /// [onThemeChanged], [googleFontsTimeout], [remoteThemes],
+  /// [onRemoteThemeError], [error], and [loadingBuilder].
   final StratumThemeController? controller;
 
-  /// The theme id the app saved, forwarded to preload with no
-  /// [controller].
+  /// The theme id the app saved; a preload input, read once at the first
+  /// build.
   final String? initialThemeId;
 
-  /// Called with each new active theme id, forwarded to preload.
+  /// Called with each new active theme id; a preload input, read once at
+  /// the first build.
   final ValueChanged<String>? onThemeChanged;
 
-  /// How long preload and every switch wait for Google fonts, forwarded
-  /// to preload.
+  /// How long preload and every switch wait for Google fonts; a preload
+  /// input, read once at the first build.
   final Duration googleFontsTimeout;
 
-  /// The theme zips the app kept, forwarded to preload (FO-04 US-01
-  /// FR-04).
+  /// The theme zips the app kept (FO-04 US-01 FR-04); a preload input,
+  /// read once at the first build.
   final List<StratumRemoteTheme> remoteThemes;
 
-  /// Called once for each kept zip that fails to install, forwarded to
-  /// preload.
+  /// Called once for each kept zip that fails to install; a preload
+  /// input, read once at the first build. With none, a release build
+  /// drops the failure unseen.
   final void Function(String id, StratumRemoteThemeException error)?
   onRemoteThemeError;
 
-  /// The frame for a start theme preload could not read, forwarded to
-  /// preload; the exception goes unreported with none.
+  /// The frame for a start theme preload could not read; a preload input.
+  ///
+  /// - The failure reaches only this frame, so log it here; with none, it
+  ///   goes to [FlutterError.reportError] and the no-splash background
+  ///   stays (FR-01 E07).
+  /// - Builds above the app widget, with no `Directionality` or theme.
   final Widget Function(BuildContext context, Object error)? error;
 
-  /// The frames until the start theme is active; [_background] with none
-  /// (FR-01 E04).
+  /// The frames until the start theme is active, in place of the
+  /// no-splash background (FR-01 E04); a preload input. Builds above the
+  /// app widget, with no `Directionality` or theme.
   final WidgetBuilder? loadingBuilder;
 
   /// The theme mode the active data follows.
@@ -102,15 +117,15 @@ class StratumApplication extends StatelessWidget {
   /// the config FR-02 hands it.
   final StratumAppBuilder appBuilder;
 
-  /// The background [_background] shows under a light [themeMode] (FR-01
-  /// E04): the default theme's `background.default.normal` in its light
+  /// The no-splash background under a light [themeMode] (FR-01 E04,
+  /// E07): the default theme's `background.default.normal` in its light
   /// set (`assets/themes/default/theme.yaml:193`, alias
   /// `transparent.white.100`).
   @visibleForTesting
   static const Color noSplashLightBackground = Color(0xFFFFFFFF);
 
-  /// The background [_background] shows under a dark [themeMode] (FR-01
-  /// E04): the default theme's `background.default.normal` in its dark
+  /// The no-splash background under a dark [themeMode] (FR-01 E04, E07):
+  /// the default theme's `background.default.normal` in its dark
   /// set (`assets/themes/default/theme.yaml:416`, alias
   /// `palette.gray.900`).
   @visibleForTesting
@@ -126,7 +141,7 @@ class StratumApplication extends StatelessWidget {
       googleFontsTimeout: googleFontsTimeout,
       remoteThemes: remoteThemes,
       onRemoteThemeError: onRemoteThemeError,
-      error: error,
+      error: error ?? _failedStart,
       loading: loadingBuilder ?? _background,
       builder: _assemble,
     );
@@ -146,34 +161,49 @@ class StratumApplication extends StatelessWidget {
     );
   }
 
-  /// Builds the config for [controller]'s active theme, again whenever it
+  /// The frame for a start theme that failed with no [error] frame: the
+  /// no-splash background, with [failure] reported once (FR-01 E07).
+  Widget _failedStart(BuildContext context, Object failure) =>
+      _ReportedStartFailure(failure: failure, child: _background(context));
+
+  /// Builds the config for [controller]'s active theme, again when the
+  /// theme, the window size class, the text scale, or the platform locale
   /// changes (FR-02 E03; themes s03 invariant 35).
   Widget _assemble(BuildContext context, StratumThemeController controller) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
-        final themes = controller.themes;
-        final locale = View.of(context).platformDispatcher.locale;
-        final windowSize = WindowSize.fromSize(MediaQuery.sizeOf(context));
-        final textScaler = MediaQuery.textScalerOf(context);
-        return appBuilder(
-          context,
-          StratumAppConfig(
-            theme: themes.light.toThemeData(
-              locale: locale,
-              windowSize: windowSize,
-              textScaler: textScaler,
-            ),
-            darkTheme: themes.dark?.toThemeData(
-              locale: locale,
-              windowSize: windowSize,
-              textScaler: textScaler,
-            ),
-            themeMode: themeMode,
-            builder: _inner(controller),
-          ),
-        );
-      },
+    return WindowSizeScope(
+      child: _PlatformLocaleBuilder(
+        builder: (context, locale) => ListenableBuilder(
+          listenable: controller,
+          builder: (context, _) =>
+              appBuilder(context, _config(context, controller, locale)),
+        ),
+      ),
+    );
+  }
+
+  /// The config for [controller]'s active theme under [locale] and the
+  /// window size class and text scale of [context].
+  StratumAppConfig _config(
+    BuildContext context,
+    StratumThemeController controller,
+    Locale locale,
+  ) {
+    final themes = controller.themes;
+    final windowSize = WindowSizeScope.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    return StratumAppConfig(
+      theme: themes.light.toThemeData(
+        locale: locale,
+        windowSize: windowSize,
+        textScaler: textScaler,
+      ),
+      darkTheme: themes.dark?.toThemeData(
+        locale: locale,
+        windowSize: windowSize,
+        textScaler: textScaler,
+      ),
+      themeMode: themeMode,
+      builder: _inner(controller),
     );
   }
 
@@ -202,4 +232,69 @@ class StratumApplication extends StatelessWidget {
 
   static Widget _plainNoticeHost(Widget child) =>
       StratumToastHost(child: child);
+}
+
+/// Builds [builder] with the platform locale, again on each platform
+/// locale change: nothing above the app widget notifies one.
+class _PlatformLocaleBuilder extends StatefulWidget {
+  const new({required this.builder});
+
+  final Widget Function(BuildContext context, Locale locale) builder;
+
+  @override
+  State<_PlatformLocaleBuilder> createState() => _PlatformLocaleBuilderState();
+}
+
+class _PlatformLocaleBuilderState extends State<_PlatformLocaleBuilder>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeLocales(List<Locale>? locales) => setState(() {});
+
+  @override
+  Widget build(BuildContext context) =>
+      widget.builder(context, View.of(context).platformDispatcher.locale);
+}
+
+/// Shows [child] and reports [failure] to [FlutterError.reportError] once,
+/// when first built, however often the frame rebuilds.
+class _ReportedStartFailure extends StatefulWidget {
+  const new({required this.failure, required this.child});
+
+  final Object failure;
+
+  final Widget child;
+
+  @override
+  State<_ReportedStartFailure> createState() => _ReportedStartFailureState();
+}
+
+class _ReportedStartFailureState extends State<_ReportedStartFailure> {
+  @override
+  void initState() {
+    super.initState();
+    final failure = widget.failure;
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: failure,
+        stack: failure is Error ? failure.stackTrace : null,
+        library: 'stratum_ui',
+        context: ErrorDescription('while preloading the start theme'),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
