@@ -16055,6 +16055,39 @@ void main() {
     );
 
     testWidgets(
+      'R45: an item-count change with no call that moves the focused item '
+      'kept alive off screen during a live drag of another item ends the '
+      'drag first, and the list shows the item at its slot',
+      (tester) async {
+        final controller = ReorderableItemsController();
+        await tester.pumpWidget(
+          _app(
+            _Harness(count: 200, appIndex: true, itemsController: controller),
+          ),
+        );
+        final state = _itemState(tester, 0)..expanded = true;
+        final focused = await _focusItem(tester, 0);
+        final harness = _harness(tester)
+          ..remove(0)
+          ..insert(199, 0);
+        await tester.pump();
+        expect(_statesOf(tester, 0), [same(state)]);
+
+        final gesture = await _liftItem(tester, 2);
+        expect(harness.starts, hasLength(1));
+
+        harness.removeData(5);
+        await tester.pumpAndSettle();
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        expect(harness.ends, hasLength(1));
+        expectKept(tester, 0, state, node: focused);
+        expect(_builtInView(tester, 0), isTrue);
+      },
+    );
+
+    testWidgets(
       'R45: a far moveItem of the focused item from onReorderStart ends the '
       'drag it reports, and the list shows the item where it lands',
       (tester) async {

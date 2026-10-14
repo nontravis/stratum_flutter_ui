@@ -1341,6 +1341,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // watched key by its key (R25): then the booked targets, which no call
     // shifted across that count, give way to the app's answers.
     if (explained || _layout.findChildIndexCallback != null) {
+      // A live drag of another item ends here, the way a call ends it
+      // ([_endDragForCall]), before this books the raw move: ending it only
+      // once the build's own count-change cancel runs, after the book,
+      // would open a newer turn under the scroll the book just took, and
+      // drop it (R45).
+      if (!explained && _lifting) _endDragForCall();
       final dropped = explained ? const <Key>{} : _dropMoveTargets();
       _bookMovedKeys(keyAt, watched, dropped);
     } else {
