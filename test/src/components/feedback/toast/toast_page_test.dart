@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -814,6 +815,267 @@ void main() {
         greaterThanOrEqualTo(paneRight),
       );
     },
+  );
+
+  // A route transition moves the page by a paint-time transform, with no
+  // layout of the page: its areas must follow once the transition
+  // settles, not keep the transition's first frame (performance I1,
+  // edge I5).
+  for (final (name, transitions) in [
+    ('Cupertino', const CupertinoPageTransitionsBuilder()),
+    ('FadeForwards', const FadeForwardsPageTransitionsBuilder()),
+  ]) {
+    testWidgets(
+      'i1/i5: a desktop float on a page pushed through a $name transition '
+      'sits beside the left pane once the transition settles',
+      (tester) async {
+        _view(tester, _desktop);
+        await tester.pumpWidget(
+          _app(
+            _button(
+              'open',
+              (c) => Navigator.of(c).push(
+                _TransitionRoute(
+                  transitions,
+                  builder: (_) => PageLayout(
+                    left: const SizedBox(width: 300, child: Text('left')),
+                    body: _button(
+                      'go',
+                      (b) => b.showToast(
+                        message: 'Pushed',
+                        placement: const StratumToastPlacement.float(
+                          StratumToastCorner.bottomStart,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        // The float's start margin is `space.lg` past the body's left
+        // edge, which is the pane's right edge on this page.
+        final paneRight = tester.getRect(find.text('left')).right;
+        final lg = tester.element(find.text('Pushed')).theme.space.lg;
+        expect(
+          tester.getRect(_fill('Pushed')).left,
+          closeTo(paneRight + lg, 1),
+        );
+      },
+    );
+  }
+
+  testWidgets(
+    'correctness: a height-only window shrink keeps a solid bottom notice '
+    'on the footer, whose offset moved with no layout of its own',
+    (tester) async {
+      _view(tester, _desktop);
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            body: _button(
+              'go',
+              (c) => c.showToast(
+                message: 'Shrunk',
+                placement: const StratumToastPlacement.solid(
+                  StratumToastEdge.bottom,
+                ),
+              ),
+            ),
+            footer: const SizedBox(height: 60, child: Text('footer')),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      // Same width, so the footer's constraints hold and it is never laid
+      // out again; only its offset moves up.
+      tester.view.physicalSize = const Size(1400, 700);
+      await tester.pumpAndSettle();
+      final footerTop = tester.getRect(find.text('footer')).top;
+      expect(tester.getRect(_fill('Shrunk')).bottom, closeTo(footerTop, 1));
+    },
+  );
+
+  testWidgets(
+    'i3: a push and pop over a two-page shell rebuild neither page once a '
+    'notice has built',
+    (tester) async {
+      _view(tester, _phone);
+      final keyA = GlobalKey();
+      final keyB = GlobalKey();
+      await tester.pumpWidget(
+        _app(
+          IndexedStack(
+            index: 0,
+            children: [
+              PageLayout(
+                key: keyA,
+                body: _button('go', (c) => c.showToast(message: 'Shell')),
+              ),
+              PageLayout(key: keyB, body: const SizedBox()),
+            ],
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      var rebuilds = 0;
+      debugOnRebuildDirtyWidget = (element, _) {
+        final key = element.widget.key;
+        if (key == keyA || key == keyB) rebuilds++;
+      };
+      addTearDown(() => debugOnRebuildDirtyWidget = null);
+      final navigator = tester.state<NavigatorState>(
+        find.byType(Navigator).first,
+      )..push(MaterialPageRoute<void>(builder: (_) => const Text('over')));
+      await tester.pumpAndSettle();
+      navigator.pop();
+      await tester.pumpAndSettle();
+      // The route-status read that picks the current page lives in a leaf
+      // under each page, so a push or pop rebuilds that leaf, never the
+      // page (performance I3).
+      expect(rebuilds, 0);
+    },
+  );
+
+  // A branch shell keeps every branch's page mounted on one current route;
+  // only the shown branch's page may win (edge I6).
+  for (final (name, shell) in [
+    (
+      'go_router StatefulShellRoute.indexedStack',
+      (int index, List<Widget> pages) => IndexedStack(
+        index: index,
+        children: [
+          for (final (i, page) in pages.indexed)
+            Offstage(
+              offstage: i != index,
+              child: TickerMode(enabled: i == index, child: page),
+            ),
+        ],
+      ),
+    ),
+    (
+      'IndexedStack',
+      (int index, List<Widget> pages) =>
+          IndexedStack(index: index, children: pages),
+    ),
+  ]) {
+    testWidgets('i6: a page in a hidden $name branch never wins the host, '
+        'even mounted after the shown one', (tester) async {
+      _view(tester, _phone);
+      late StateSetter setIndex;
+      var index = 1;
+      final pages = [
+        PageLayout(
+          footer: const SizedBox(height: 40, child: Text('footer A')),
+          body: _button(
+            'go',
+            (c) => c.showToast(
+              message: 'Branch',
+              placement: const StratumToastPlacement.solid(
+                StratumToastEdge.bottom,
+              ),
+            ),
+          ),
+        ),
+        const PageLayout(
+          footer: SizedBox(height: 120, child: Text('footer B')),
+          body: SizedBox(),
+        ),
+      ];
+      await tester.pumpWidget(
+        _app(
+          StatefulBuilder(
+            builder: (context, setState) {
+              setIndex = setState;
+              return shell(index, pages);
+            },
+          ),
+        ),
+      );
+      // Visit branch B first, so its page has written its areas, then
+      // return to A.
+      await tester.pumpAndSettle();
+      setIndex(() => index = 0);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final footerTop = tester.getRect(find.text('footer A')).top;
+      expect(tester.getRect(_fill('Branch')).bottom, closeTo(footerTop, 1));
+    });
+  }
+
+  testWidgets(
+    'i7: a page with no snack slot publishes each snack style change, and '
+    'drops a removed one',
+    (tester) async {
+      _view(tester, _phone);
+      late StateSetter setSnack;
+      WidgetStyle? snack;
+      await tester.pumpWidget(
+        _app(
+          StatefulBuilder(
+            builder: (context, setState) {
+              setSnack = setState;
+              return PageLayout(
+                customStyle: PageLayoutStyle(snack: snack),
+                body: ColumnLayout(
+                  children: [
+                    for (final message in ['Before', 'Green', 'After'])
+                      _button(message, (c) => c.showToast(message: message)),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Color? fillOf(String message) =>
+          tester.widget<ContainerLayout>(_fill(message)).style!.backgroundColor;
+      await tester.tap(find.text('Before'));
+      await tester.pumpAndSettle();
+      final before = fillOf('Before');
+      const green = Color(0xFF00FF00);
+      setSnack(() => snack = const WidgetStyle(backgroundColor: green));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Green').first);
+      await tester.pumpAndSettle();
+      expect(fillOf('Green'), green);
+      setSnack(() => snack = null);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('After').first);
+      await tester.pumpAndSettle();
+      expect(fillOf('After'), before);
+    },
+  );
+}
+
+/// A page route that runs [transitions] whatever the theme's map says.
+class _TransitionRoute extends MaterialPageRoute<void> {
+  // ignore: unnecessary_type_name_in_constructor, test-local route
+  _TransitionRoute(this.transitions, {required super.builder});
+
+  final PageTransitionsBuilder transitions;
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => transitions.buildTransitions(
+    this,
+    context,
+    animation,
+    secondaryAnimation,
+    child,
   );
 }
 

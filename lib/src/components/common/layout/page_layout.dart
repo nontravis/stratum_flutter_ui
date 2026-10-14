@@ -520,15 +520,21 @@ class _PageLayoutState extends State<PageLayout>
   final _rightSplit = SplitLayoutController();
 
   /// The page's own published areas; the host above reads the innermost
-  /// handle on the current route (s03 toast invariant 16).
-  late final _handle = PageAreasHandle(
-    isCurrentRoute: () => mounted && (ModalRoute.isCurrentOf(context) ?? true),
-    context: () => context,
-  );
+  /// handle on stage, which the [PageAreasProbe] at the root of [build]
+  /// tracks, so no route read subscribes this State (s03 toast invariant
+  /// 16).
+  final _handle = PageAreasHandle();
 
   /// The last areas this page wrote, so a reporter for one slot rewrites
   /// only that slot's value: `PageAreas` replaces whole.
   PageAreas? _written;
+
+  /// The resolved `PageLayoutStyle.snack` of the last build, which the
+  /// deferred write in [_publishSnack] publishes.
+  WidgetStyle? _snackStyle;
+
+  /// Whether a snack write already waits for this frame to end.
+  bool _snackPending = false;
 
   /// The width of each split at its last layout, which turns a settled
   /// fraction into a width.
@@ -656,6 +662,34 @@ class _PageLayoutState extends State<PageLayout>
     _handle.value = areas;
   }
 
+  /// Publishes [snack], the page's resolved `PageLayoutStyle.snack`, once
+  /// this frame ends, whether or not the page has a `snack` slot, so a
+  /// theme or `customStyle.snack` change, or its removal, reaches the
+  /// next notice (s03 toast invariant 16).
+  ///
+  /// Writing from `build()` once the registry has a listener would ask an
+  /// ancestor to `markNeedsBuild()` mid-build and crash; the write takes
+  /// the last build's style, so two builds in one frame publish the later.
+  void _publishSnack(WidgetStyle? snack) {
+    _snackStyle = snack;
+    if (_snackPending || snack == _written?.snack) return;
+    _snackPending = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _snackPending = false;
+      if (!mounted) return;
+      final latest = _snackStyle;
+      _writeAreas(
+        (areas) => PageAreas(
+          body: areas?.body,
+          footerTop: areas?.footerTop,
+          bottomTop: areas?.bottomTop,
+          left: areas?.left,
+          snack: latest,
+        ),
+      );
+    });
+  }
+
   /// Disposes the page's own controller once the app passes one, and makes
   /// a new own one from the app's widths once the app passes none; the
   /// controller in use takes over the side asked open.
@@ -739,6 +773,7 @@ class _PageLayoutState extends State<PageLayout>
     final keyboard = widget.resizeToAvoidKeyboard
         ? MediaQuery.viewInsetsOf(context).bottom
         : 0.0;
+    _publishSnack(style.snack);
     final page = StackLayout(
       fit: StackFit.expand,
       children: [
@@ -746,14 +781,20 @@ class _PageLayoutState extends State<PageLayout>
         ?_snack(style, look, keyboard),
       ],
     );
-    return widget.systemStyle == null
-        ? _page(style, look, theme, page)
-        : SystemStyleScope(
-            // Outermost, so the scope's sized look annotation covers both
-            // bars' points (US-18 FR-07).
-            style: widget.systemStyle!,
-            child: _page(style, look, theme, page),
-          );
+    return PageAreasProbe(
+      // Above every other widget of the page, with no render object of
+      // its own, so a nested page's probe sits below this one's and the
+      // systemStyle switch remounts no probe (s03 toast invariant 16).
+      handle: _handle,
+      child: widget.systemStyle == null
+          ? _page(style, look, theme, page)
+          : SystemStyleScope(
+              // Outermost, so the scope's sized look annotation covers both
+              // bars' points (US-18 FR-07).
+              style: widget.systemStyle!,
+              child: _page(style, look, theme, page),
+            ),
+    );
   }
 
   Widget _page(
@@ -1242,60 +1283,59 @@ class _PageLayoutState extends State<PageLayout>
     final page = widget;
     Widget? slot(_Slot which, Widget? child, WidgetStyle? fill) =>
         child == null ? null : _slotBox(which, child, fill, look);
-    Widget reported(_Slot which, Widget child, PageLayoutStyle style) =>
-        PageAreasReporter(
-          report: (rect) {
-            switch (which) {
-              case _Slot.body:
-                _writeAreas(
-                  (areas) => PageAreas(
-                    body: rect,
-                    footerTop: areas?.footerTop,
-                    bottomTop: areas?.bottomTop,
-                    left: areas?.left,
-                    snack: areas?.snack ?? style.snack,
-                  ),
-                );
-              case _Slot.footer:
-                _writeAreas(
-                  (areas) => PageAreas(
-                    body: areas?.body,
-                    footerTop: rect.top,
-                    bottomTop: areas?.bottomTop,
-                    left: areas?.left,
-                    snack: areas?.snack ?? style.snack,
-                  ),
-                );
-              case _Slot.bottom:
-                _writeAreas(
-                  (areas) => PageAreas(
-                    body: areas?.body,
-                    footerTop: areas?.footerTop,
-                    bottomTop: rect.top,
-                    left: areas?.left,
-                    snack: areas?.snack ?? style.snack,
-                  ),
-                );
-              case _Slot.left:
-                _writeAreas(
-                  (areas) => PageAreas(
-                    body: areas?.body,
-                    footerTop: areas?.footerTop,
-                    bottomTop: areas?.bottomTop,
-                    left: rect,
-                    snack: areas?.snack ?? style.snack,
-                  ),
-                );
-              case _Slot.header:
-              case _Slot.top:
-              case _Slot.tab:
-              case _Slot.right:
-              case _Slot.snack:
-                break;
-            }
-          },
-          child: child,
-        );
+    Widget reported(_Slot which, Widget child) => PageAreasReporter(
+      report: (rect) {
+        switch (which) {
+          case _Slot.body:
+            _writeAreas(
+              (areas) => PageAreas(
+                body: rect,
+                footerTop: areas?.footerTop,
+                bottomTop: areas?.bottomTop,
+                left: areas?.left,
+                snack: areas?.snack,
+              ),
+            );
+          case _Slot.footer:
+            _writeAreas(
+              (areas) => PageAreas(
+                body: areas?.body,
+                footerTop: rect.top,
+                bottomTop: areas?.bottomTop,
+                left: areas?.left,
+                snack: areas?.snack,
+              ),
+            );
+          case _Slot.bottom:
+            _writeAreas(
+              (areas) => PageAreas(
+                body: areas?.body,
+                footerTop: areas?.footerTop,
+                bottomTop: rect.top,
+                left: areas?.left,
+                snack: areas?.snack,
+              ),
+            );
+          case _Slot.left:
+            _writeAreas(
+              (areas) => PageAreas(
+                body: areas?.body,
+                footerTop: areas?.footerTop,
+                bottomTop: areas?.bottomTop,
+                left: rect,
+                snack: areas?.snack,
+              ),
+            );
+          case _Slot.header:
+          case _Slot.top:
+          case _Slot.tab:
+          case _Slot.right:
+          case _Slot.snack:
+            break;
+        }
+      },
+      child: child,
+    );
     final body = slot(_Slot.body, page.body, style.body);
     final bottom = slot(_Slot.bottom, page.bottom, style.bottom);
     final center = ColumnLayout(
@@ -1305,9 +1345,9 @@ class _PageLayoutState extends State<PageLayout>
         Expanded(
           child: body == null
               ? const SizedBox.shrink()
-              : reported(_Slot.body, body, style),
+              : reported(_Slot.body, body),
         ),
-        ?((bottom == null) ? null : reported(_Slot.bottom, bottom, style)),
+        ?((bottom == null) ? null : reported(_Slot.bottom, bottom)),
       ],
     );
     final left = slot(_Slot.left, _inlineLeft, style.left);
@@ -1334,7 +1374,7 @@ class _PageLayoutState extends State<PageLayout>
           child: _sideSplit(
             PageDrawerSide.left,
             column: main,
-            pane: left == null ? null : reported(_Slot.left, left, style),
+            pane: left == null ? null : reported(_Slot.left, left),
             order: _Slot.left,
           ),
         ),
@@ -1344,7 +1384,7 @@ class _PageLayoutState extends State<PageLayout>
           mainAxisAlignment: MainAxisAlignment.end,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ?((footer == null) ? null : reported(_Slot.footer, footer, style)),
+            ?((footer == null) ? null : reported(_Slot.footer, footer)),
           ],
         ),
       ],
@@ -1485,28 +1525,9 @@ class _PageLayoutState extends State<PageLayout>
   /// [PageLayout.snack] at the bottom center, above the bottom inset and
   /// the keyboard the page makes room for and within the side insets;
   /// null when there is none.
-  ///
-  /// Defers the area write to a post-frame callback, like the other four
-  /// slots' render-level reporters: writing from `build()` once the
-  /// registry has a listener would ask an ancestor to `markNeedsBuild()`
-  /// mid-build and crash (a theme or `customStyle.snack` change on an
-  /// already-registered page is the ordinary trigger).
   Widget? _snack(PageLayoutStyle style, _SlotLook look, double keyboard) {
     final snack = widget.snack;
     if (snack == null) return null;
-    final snackStyle = style.snack;
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _writeAreas(
-        (areas) => PageAreas(
-          body: areas?.body,
-          footerTop: areas?.footerTop,
-          bottomTop: areas?.bottomTop,
-          left: areas?.left,
-          snack: snackStyle,
-        ),
-      );
-    });
     final insets = look.insets;
     return ContainerLayout(
       style: WidgetStyle(
