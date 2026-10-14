@@ -15126,6 +15126,94 @@ void main() {
       expect(position.pixels, 0);
       expect(_itemInView(tester, 2), isFalse);
     });
+
+    testWidgets(
+      'us11/fr01 (R49): an item taller than the viewport lifts at a device '
+      'pixel ratio of 3 as one still image',
+      (tester) async {
+        tester.view.devicePixelRatio = 3;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          _app(const _Harness(count: 5, heights: {1: 1000})),
+        );
+
+        // The text's center sits 690 px down, past the list's 450 px end,
+        // so the press lands near its top-left, inside the list.
+        final gesture = await tester.startGesture(
+          tester.getTopLeft(find.text('1')) + const Offset(20, 20),
+        );
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+        await gesture.moveBy(const Offset(0, 10));
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(RawImage), findsOne);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us11/fr01/e08 (R49): an item taller than the viewport scrolls nothing '
+      'while it covers the list, and scrolls the list once its top edge '
+      'shows inside it',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(const _Harness(count: 5, heights: {1: 1000})),
+        );
+        final position = positionOf(tester)..jumpTo(100);
+        await tester.pump();
+
+        // Item 1 runs from 90 to 1090 on screen, past both ends of the list
+        // at 150 to 450; the press lands inside both.
+        final gesture = await tester.startGesture(
+          tester.getTopLeft(find.text('1')) + const Offset(20, 70),
+        );
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+        await gesture.moveBy(const Offset(0, 10));
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(position.pixels, 100);
+
+        await gesture.moveBy(const Offset(0, 60));
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(position.pixels, greaterThan(100));
+        expect(tester.takeException(), isNull);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us11/fr05 (R53): under a size grow-in, a moved item sits in the live '
+      'screen-reader tree from the first frame it has a size, the frame after '
+      'it lands, while its fade still runs',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _app(
+            _Harness(count: 5, itemsController: ReorderableItemsController()),
+          ),
+        );
+
+        _harness(tester).move(3, 1);
+        await tester.pump();
+        expect(_sizeBox(tester, 3).size.height, 0);
+        await tester.pump(const Duration(milliseconds: 16));
+
+        expect(_sizeBox(tester, 3).size.height, greaterThan(0));
+        expect(_enteringOpacity(tester, 3), lessThan(0.5));
+        expect(_liveSemanticsLabel(tester, '3'), isTrue);
+        await tester.pumpAndSettle();
+        expect(_liveSemanticsLabel(tester, '3'), isTrue);
+        handle.dispose();
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {

@@ -611,14 +611,24 @@ class _ReorderSliverState extends SliverReorderableListState {
     }
   }
 
+  /// The lifted item's rect as the edge auto-scroll reads it, cut to the
+  /// list's size on any axis the item is longer on, since the SDK's
+  /// auto-scroller asserts its target fits (R49): an item that covers the
+  /// list scrolls nothing, one whose edge shows scrolls as a shorter item.
   Rect get _dragTargetRect {
     final lift = _lift!;
-    final origin = lift.dragPosition - lift.dragOffset;
+    final item = (lift.dragPosition - lift.dragOffset) & lift.itemSize;
+    final view = _scrollable.context.findRenderObject();
+    if (view is! RenderBox || !view.hasSize) return item;
+    final list = view.localToGlobal(Offset.zero) & view.size;
+    final pointer = lift.dragPosition;
+    final width = math.min(item.width, list.width);
+    final height = math.min(item.height, list.height);
     return Rect.fromLTWH(
-      origin.dx,
-      origin.dy,
-      lift.itemSize.width,
-      lift.itemSize.height,
+      _targetStart(item.left, item.right, pointer.dx, list.left, width),
+      _targetStart(item.top, item.bottom, pointer.dy, list.top, height),
+      width,
+      height,
     );
   }
 
@@ -1259,6 +1269,23 @@ class _LiftProxy extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Where an auto-scroll target [length] long starts on one axis, for an
+/// item from [start] to [end] held at [pointer]: the item's start when it
+/// fits, else the place nearest [listStart] that keeps the pointer inside
+/// the target and the target inside the item.
+double _targetStart(
+  double start,
+  double end,
+  double pointer,
+  double listStart,
+  double length,
+) {
+  if (end - start <= length) return start;
+  final lowest = math.max(start, pointer - length);
+  final highest = math.min(end - length, pointer);
+  return math.min(math.max(listStart, lowest), highest);
 }
 
 double _sizeExtent(Size size, Axis scrollDirection) {
