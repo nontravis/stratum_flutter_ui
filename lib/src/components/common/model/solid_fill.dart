@@ -1,8 +1,12 @@
-import 'package:flutter/widgets.dart';
+import 'dart:ui' show Color;
+
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 
 /// Whether [fill] paints one solid color: a background color with no
 /// gradient and no image (FO-06 US-18 FR-07).
+///
+/// Not exported: `model.dart` leaves this file out, and each fill that
+/// declares itself under a bar imports it by path.
 bool paintsSolidFill(WidgetStyle fill) =>
     fill.backgroundColor != null &&
     fill.backgroundGradient == null &&
@@ -13,6 +17,8 @@ bool paintsSolidFill(WidgetStyle fill) =>
 /// the alpha the box actually paints, else fully transparent while [fill]
 /// paints no single solid color, which blends as nothing
 /// (FO-03 US-14 FR-05; FO-06 US-18 FR-07).
+///
+/// Not exported, as [paintsSolidFill] is not.
 Color solidFillColor(WidgetStyle fill) {
   if (!paintsSolidFill(fill)) return const Color(0x00000000);
   final color = fill.backgroundColor!;

@@ -976,11 +976,34 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   and touch pause it, and a notice with an action never closes by itself while a screen reader runs. A swipe, the
   close button, or Esc while focus is inside it closes a notice; a tap on the action runs its callback, then closes
   it. Each notice announces once on show, the kind's name then the message, taking no focus.
-- The plain look draws every value from theme tokens, each kind with its own icon as well as color. Pass
+- The plain look draws every value from theme tokens, each kind with its own icon as well as color; a float notice's
+  corner next to a rounded screen corner follows the screen's curve. Pass
   `StratumToastHost(builder: (context, notice) => ...)` for your own look instead; placement, timing, and the
   announcement stay the host's. A solid notice's plain-look fill declares itself under the status bar or home
   indicator, as a page layout's fills do, so the bar icons stay readable over it; your own look declares its own
   fill. `customStyle` on the call wins over the theme and the app-wide notice style, field by field.
+- **Your `builder` look** — the host gives it the notice's full slot: the theme's notice width, capped by the window,
+  in its corner, so draw at that width and never place or size the notice yourself. From the `StratumToastNotice`,
+  pad your content by `notice.insets` (a solid notice's status bar or home indicator; zero on a float), close through
+  `notice.close()` from your close button and after your action's callback, so the queue, the focus return, and the
+  timers stay right, and label the close button with `notice.closeLabel` and the kind's icon with
+  `notice.kindLabel`, the same names the announcement speaks. Merge `notice.pageSnack` then `notice.customStyle` over
+  your own style to keep the style order.
+- **`StratumToastHost(closeButtonLabel:, kindLabels:)`** — replace the built-in close-button label and, per
+  `FeedbackState`, the kind's name; each reaches the announcement and the accessible names alike, and a kind missing
+  from `kindLabels` keeps its built-in name.
+- **`context.dismissAllToasts()`** — closes every notice at once, float and solid, and empties the solid queue, so no
+  waiting notice shows later; it does nothing while none shows or waits, runs no exit animation under reduced motion,
+  and returns focus from a notice that held it. Call it on logout and on account switch, as
+  `ScaffoldMessenger.clearSnackBars()` serves snack bars, so a notice from the ended session never reaches the next
+  one.
+
+  ```dart
+  Future<void> logOut(BuildContext context) async {
+    context.dismissAllToasts();
+    await auth.signOut();
+  }
+  ```
 - **`StratumToastHost(focusShortcuts:, focusShortcutHint:)`** — a host shortcut moves focus into the newest notice on
   screen from any page or dialog, to its action, else its close button; it does nothing while no notice shows.
   Platform-ordered by default: Option+T then F8 on macOS and iOS, since F8 is a media key there, and F8 then Alt+T

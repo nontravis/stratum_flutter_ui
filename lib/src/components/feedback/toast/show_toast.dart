@@ -1,8 +1,6 @@
-import 'package:flutter/widgets.dart';
-import 'package:stratum_ui/src/components/common/model/widget_style.dart';
-import 'package:stratum_ui/src/components/feedback/toast/toast_host.dart';
-import 'package:stratum_ui/src/components/feedback/toast/toast_placement.dart';
-import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
+import 'package:stratum_ui/src/components/feedback/toast/toast_host.dart'
+    show StratumToastRequest;
+import 'package:stratum_ui/src/src.dart';
 
 extension StratumToastContextExtension on BuildContext {
   /// Shows one notice on the nearest `StratumToastHost` above this
@@ -33,4 +31,15 @@ extension StratumToastContextExtension on BuildContext {
       ),
     );
   }
+
+  /// Closes every notice of the nearest `StratumToastHost` at once, float
+  /// and solid, and empties its solid queue; does nothing while none shows
+  /// or waits (owner ruling R28; US-01 FR-04 E11 to E14).
+  ///
+  /// Call it on logout and on account switch, so a notice from the ended
+  /// session never reaches the next one, as
+  /// `ScaffoldMessenger.clearSnackBars()` does for snack bars.
+  ///
+  /// Throws the host's `FlutterError` when none is above.
+  void dismissAllToasts() => StratumToastHost.of(this).dismissAll();
 }

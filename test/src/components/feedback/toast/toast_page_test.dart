@@ -1055,6 +1055,201 @@ void main() {
       expect(fillOf('After'), before);
     },
   );
+
+  for (final direction in TextDirection.values) {
+    testWidgets(
+      'correctness 4, edge I11: us01/fr02/e07: a desktop top float stays '
+      'inside the body, beside the left pane and below the header, under '
+      '${direction.name}',
+      (tester) async {
+        _view(tester, _desktop);
+        await tester.pumpWidget(
+          _app(
+            PageLayout(
+              header: const SizedBox(height: 64, child: Text('header')),
+              left: const SizedBox(width: 300, child: Text('left')),
+              body: _button(
+                'go',
+                (c) => c.showToast(
+                  message: 'TopInside',
+                  placement: const StratumToastPlacement.float(
+                    StratumToastCorner.topStart,
+                  ),
+                ),
+              ),
+            ),
+            direction: direction,
+          ),
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        final pane = tester.getRect(find.text('left'));
+        final notice = tester.getRect(_fill('TopInside'));
+        // `topStart` mirrors with the pane: the float clears it from the
+        // pane's side under either direction.
+        if (direction == TextDirection.ltr) {
+          expect(notice.left, greaterThanOrEqualTo(pane.right));
+        } else {
+          expect(notice.right, lessThanOrEqualTo(pane.left));
+        }
+        expect(
+          notice.top,
+          greaterThanOrEqualTo(tester.getRect(find.text('header')).bottom),
+        );
+      },
+    );
+  }
+
+  testWidgets(
+    'edge I2: a bottom float and a solid bottom notice above the footer '
+    'leave the footer under their offset tappable',
+    (tester) async {
+      _view(tester, _phone);
+      var footerTaps = 0;
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            body: _button('go', (c) {
+              c
+                ..showToast(message: 'FloatOver')
+                ..showToast(
+                  message: 'SolidOver',
+                  placement: const StratumToastPlacement.solid(
+                    StratumToastEdge.bottom,
+                  ),
+                );
+            }),
+            footer: SizedBox(
+              height: 60,
+              child: TextButton(
+                onPressed: () => footerTaps++,
+                child: const Text('footer'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('FloatOver'), findsOneWidget);
+      expect(find.text('SolidOver'), findsOneWidget);
+      await tester.tap(find.text('footer'), warnIfMissed: false);
+      await tester.pump();
+      expect(footerTaps, 1);
+    },
+  );
+
+  testWidgets(
+    'edge I2: a desktop float takes no tap beside it, over the pane or the '
+    'body',
+    (tester) async {
+      _view(tester, _desktop);
+      var paneTaps = 0;
+      var bodyTaps = 0;
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            left: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => paneTaps++,
+              child: const SizedBox.expand(child: Text('left')),
+            ),
+            body: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => bodyTaps++,
+              child: const SizedBox.expand(child: Text('body')),
+            ),
+          ),
+        ),
+      );
+      tester
+          .element(find.text('body'))
+          .showToast(
+            message: 'Beside',
+            placement: const StratumToastPlacement.float(
+              StratumToastCorner.bottomStart,
+            ),
+          );
+      await tester.pumpAndSettle();
+      final notice = tester.getRect(_fill('Beside'));
+      final pane = tester.getRect(find.text('left'));
+      expect(notice.left, greaterThanOrEqualTo(pane.right));
+      await tester.tapAt(Offset(pane.center.dx, notice.center.dy));
+      await tester.tapAt(Offset(notice.right + 100, notice.center.dy));
+      await tester.pump();
+      expect(paneTaps, 1);
+      expect(bodyTaps, 1);
+    },
+  );
+
+  // A page's route reads move to the page's probe leaf, so a loading cycle
+  // or a drawer focus leaves the page free of push and pop rebuilds
+  // (final-fix-c report, out-of-scope note).
+
+  Future<int> pageRebuildsOverPushAndPop(
+    WidgetTester tester,
+    GlobalKey page,
+  ) async {
+    var rebuilds = 0;
+    debugOnRebuildDirtyWidget = (element, _) {
+      if (element.widget.key == page) rebuilds++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = null);
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator).first)
+      ..push(MaterialPageRoute<void>(builder: (_) => const Text('over')));
+    await tester.pumpAndSettle();
+    navigator.pop();
+    await tester.pumpAndSettle();
+    debugOnRebuildDirtyWidget = null;
+    return rebuilds;
+  }
+
+  testWidgets('a loading cycle leaves the page free of push and pop rebuilds', (
+    tester,
+  ) async {
+    _view(tester, _phone);
+    final key = GlobalKey();
+    final loading = ValueNotifier(false);
+    addTearDown(loading.dispose);
+    await tester.pumpWidget(
+      _app(
+        ValueListenableBuilder<bool>(
+          valueListenable: loading,
+          builder: (_, on, _) =>
+              PageLayout(key: key, loading: on, body: const Text('page')),
+        ),
+      ),
+    );
+    loading.value = true;
+    await tester.pump(const Duration(milliseconds: 500));
+    loading.value = false;
+    await tester.pumpAndSettle();
+    expect(await pageRebuildsOverPushAndPop(tester, key), 0);
+  });
+
+  testWidgets('a drawer focus leaves the page free of push and pop rebuilds', (
+    tester,
+  ) async {
+    _view(tester, _phone);
+    final key = GlobalKey();
+    final controller = PageLayoutController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      _app(
+        PageLayout(
+          key: key,
+          controller: controller,
+          left: const Text('drawer item'),
+          body: const Text('page'),
+        ),
+      ),
+    );
+    controller.openLeft();
+    await tester.pumpAndSettle();
+    controller.close();
+    await tester.pumpAndSettle();
+    expect(await pageRebuildsOverPushAndPop(tester, key), 0);
+  });
 }
 
 /// A page route that runs [transitions] whatever the theme's map says.

@@ -1,20 +1,12 @@
-import 'dart:async' show unawaited;
+import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/semantics.dart' show SemanticsService;
-import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
-import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/page_areas.dart';
-import 'package:stratum_ui/src/components/common/model/widget_style.dart';
-import 'package:stratum_ui/src/components/feedback/toast/toast_notice.dart';
-import 'package:stratum_ui/src/components/feedback/toast/toast_placement.dart';
+import 'package:stratum_ui/src/components/feedback/toast/toast_placement.dart'
+    show defaultToastPlacement, toastManagerKey;
 import 'package:stratum_ui/src/components/feedback/toast/toast_plain_look.dart';
-import 'package:stratum_ui/src/extensions/context_extension.dart';
-import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
-import 'package:stratum_ui/src/themes/constant/window_size.dart';
+import 'package:stratum_ui/src/src.dart';
 import 'package:toastification/toastification.dart'
     show
         ToastificationCallbacks,
@@ -275,6 +267,10 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   bool _disposed = false;
 
+  /// How many [dismissAll] calls have run: deferred work queued before the
+  /// latest one never runs.
+  int _dismissals = 0;
+
   /// Every mounted host in this process: a dispose clears the shared
   /// managers only once none is left (edge finding 3), and a debug build
   /// throws on a second root host (security S1).
@@ -407,10 +403,56 @@ class StratumToastHostState extends State<StratumToastHost> {
     _whenOverlayIsFree(() => _show(request, placement));
   }
 
+  /// Closes every notice at once, float and solid, shown, paused, or held,
+  /// and empties the solid queue, so no queued notice ever shows; a show
+  /// issued before this call that still waits for its frame never lands
+  /// (owner ruling R28; US-01 FR-04 E11, E12; s03 invariant 20).
+  ///
+  /// Each close runs [_closed], so a notice holding focus returns it
+  /// (E14), and runs no exit animation while `context.reducesMotion` is
+  /// true (E13). With no notice showing or queued, it does nothing (E11).
+  void dismissAll() {
+    if (_disposed) return;
+    _dismissals++;
+    _solidQueue.clear();
+    final animate = !context.reducesMotion;
+    for (final item in _open.keys.toList()) {
+      _dismissWhereverAdded(item, animate: animate);
+      _closed(item);
+    }
+    // A slot passing to a queued notice in a deferred frame callback never
+    // lands now, so nothing holds the slot.
+    _solidShowing = false;
+  }
+
+  /// Dismisses [item] from `toastification` now when its manager already
+  /// lists it, else once this frame's add has run, on the manager that
+  /// holds it: [_closed] may retire that manager from the map first.
+  // WORKAROUND: toastification adds each item in a post-frame callback and
+  // dismisses only an item already in its manager's list, looked up by
+  // alignment, so an item shown this frame needs its own manager after
+  // the add; remove when toastification adds items synchronously.
+  void _dismissWhereverAdded(ToastificationItem item, {required bool animate}) {
+    // ignore: invalid_use_of_visible_for_testing_member, reads the process-wide managers of toastification 3.2.0
+    final manager = toastification.managers[item.alignment];
+    if (manager == null) return;
+    // ignore: invalid_use_of_visible_for_testing_member, see above.
+    if (manager.notifications.contains(item)) {
+      manager.dismiss(item, showRemoveAnimation: animate);
+      return;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      manager.dismiss(item, showRemoveAnimation: false);
+    });
+  }
+
   /// Runs [work] now while the scheduler is idle or running post-frame
   /// callbacks, where an overlay insert is legal, else once this frame
   /// ends, with a frame requested so it never waits for an unrelated one
   /// (edge findings 4, I3; correctness finding 1).
+  ///
+  /// A [dismissAll] call before the deferred run voids it: deferred work
+  /// is always a show or a queued notice taking the solid slot.
   void _whenOverlayIsFree(VoidCallback work) {
     final scheduler = SchedulerBinding.instance;
     switch (scheduler.schedulerPhase) {
@@ -419,9 +461,10 @@ class StratumToastHostState extends State<StratumToastHost> {
       case SchedulerPhase.transientCallbacks ||
           SchedulerPhase.midFrameMicrotasks ||
           SchedulerPhase.persistentCallbacks:
+        final dismissals = _dismissals;
         scheduler
           ..addPostFrameCallback((_) {
-            if (!_disposed) work();
+            if (!_disposed && dismissals == _dismissals) work();
           })
           ..ensureVisualUpdate();
     }
@@ -743,18 +786,18 @@ class StratumToastHostState extends State<StratumToastHost> {
     return ToastificationWrapper(child: child);
   }
 
-  /// The float config: no width of its own — the plain look clamps its
-  /// own surface to the notice width token capped by the window at build
-  /// time instead, so a resize while a float shows is not frozen (s03
-  /// invariants 5, 12).
+  /// The float config: no width of its own, since [_floatMargin] sizes and
+  /// places each float notice through its side margins (s03 invariants 5,
+  /// 12, 16).
   // WORKAROUND: toastification creates one `ToastificationManager` per
   // alignment on the first show (`managers.putIfAbsent` in
   // `lib/src/core/toastification.dart`) and that manager's config, read
   // once at creation (`toastification_manager.dart`, `config.itemWidth`),
   // outlives every later build of this `ToastificationConfigProvider`; an
-  // `itemWidth` here would freeze at the window size of the first show;
-  // remove when a toastification release re-reads the config per item,
-  // not per manager.
+  // `itemWidth` here would freeze at the window size and theme of the
+  // first show, while the margin builder runs on every build of the
+  // overlay entry; remove when a toastification release re-reads the
+  // config per item, not per manager.
   static const ToastificationConfig _floatConfig = ToastificationConfig(
     itemWidth: double.infinity,
     applyMediaQueryViewInsets: false,
@@ -770,43 +813,38 @@ class StratumToastHostState extends State<StratumToastHost> {
     marginBuilder: _solidMargin,
   );
 
-  /// The float margin: `space.lg` off the anchored edge and off each side
-  /// a corner hugs, plus the keyboard height on a bottom edge, all read
-  /// from the overlay entry's own context; a pure function of that
-  /// context (s03 invariants 5, 16, and s01's `space.lg` margin on each
-  /// side).
+  /// The float margin: [_FloatFrame]'s gaps less the `viewPadding`
+  /// `toastification` adds on every side, so the overlay's list box is the
+  /// notice's own rect, its width capped and its corner hugged whatever
+  /// look draws it, and takes no tap beside it (US-01 FR-02, FR-06 E04;
+  /// s03 invariants 5, 12, 13, 16).
   ///
-  /// The manager freezes this margin with its overlay entry for its whole
-  /// lifetime (toastification builds the entry once per alignment), so
-  /// the page-area offsets a placement owes — a footer to clear, a `left`
-  /// pane to stay beside — live in `_ToastView`'s own padding, which
-  /// rebuilds on every areas write (N12, N13).
+  /// A pure function of the overlay entry's own context: `toastification`
+  /// calls it on every build of that entry, and its registry read
+  /// rebuilds the entry on every page-areas write (N12, N13).
   static EdgeInsets _floatMargin(
     BuildContext context,
     AlignmentGeometry alignment,
   ) {
-    final resolved = alignment.resolve(Directionality.of(context));
-    final lg = context.theme.space.lg;
-    return EdgeInsets.only(
-      top: resolved.y < 0 ? lg : 0,
-      bottom: resolved.y >= 0.5
-          ? lg + MediaQuery.viewInsetsOf(context).bottom
-          : 0,
-      left: resolved.x < 0 ? lg : 0,
-      right: resolved.x > 0 ? lg : 0,
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+    final frame = _FloatFrame.of(
+      context,
+      alignment.resolve(Directionality.of(context)),
+      viewPadding: viewPadding,
     );
+    return frame.marginLess(viewPadding);
   }
 
   /// The solid margin of the edge: on top, the negative `viewPadding` that
   /// cancels the `viewPadding` `toastification` adds on top, so the fill
-  /// reaches the screen edge; on bottom, the keyboard height less that
-  /// same `viewPadding`, so the net margin is zero with the keyboard
-  /// closed and the keyboard's own height with it open (s03 invariant 5,
-  /// FR-02 E06); a pure function of the overlay entry's own context (s03
-  /// invariants 4, 16).
+  /// reaches the screen edge; on bottom, the higher of the keyboard and
+  /// the page's `footer` or `bottom` less that same `viewPadding`, so the
+  /// fill reaches the screen edge with neither, and sits directly above
+  /// the higher one otherwise (US-01 FR-02 E05, E06; s03 invariants 4, 5;
+  /// N15).
   ///
-  /// The footer and `bottom` offsets a solid bottom notice owes the page
-  /// live in `_ToastView`'s own padding, as the float margin's do.
+  /// A pure function of the overlay entry's own context, as
+  /// [_floatMargin] is (s03 invariant 16).
   static EdgeInsets _solidMargin(
     BuildContext context,
     AlignmentGeometry alignment,
@@ -815,81 +853,23 @@ class StratumToastHostState extends State<StratumToastHost> {
     final viewPadding = MediaQuery.viewPaddingOf(context);
     if (y < 0) return EdgeInsets.only(top: -viewPadding.top);
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-    return EdgeInsets.only(bottom: keyboard - viewPadding.bottom);
-  }
-
-  /// The padding a notice at [placement] owes the current page's areas:
-  /// a solid bottom notice rises above the page's `footer` or `bottom`
-  /// beyond the keyboard the manager margin already covers; a bottom
-  /// float does the same on mobile and tablet (R26); a desktop float
-  /// shifts inside the body, clearing a `left` pane or an end-side gap
-  /// (FR-02 E05, E07, E10; s03 invariants 5, 16; N12 to N15).
-  ///
-  /// Read from `_ToastView`'s own context, so every areas write on the
-  /// registered handle rebuilds this padding, unlike the manager's
-  /// frozen margin (N13).
-  static EdgeInsets _pagePadding(
-    BuildContext context,
-    StratumToastPlacement placement,
-  ) {
-    final areas = _currentAreasOf(context);
-    if (areas == null) return EdgeInsets.zero;
-    final size = MediaQuery.sizeOf(context);
-    final window = WindowSize.fromSize(size);
-    switch (placement) {
-      case StratumToastSolid(edge: StratumToastEdge.top):
-        return EdgeInsets.zero;
-      case StratumToastSolid(edge: StratumToastEdge.bottom):
-        final bar = _barBeyond(areas, size, context);
-        return EdgeInsets.only(bottom: bar);
-      case StratumToastFloat(:final corner):
-        final bottom = corner.name.startsWith('bottom');
-        if (!bottom) return EdgeInsets.zero;
-        if (window >= WindowSize.desktop) {
-          // A desktop bottom float stays beside the pane, not above any
-          // page bar; the start side clears `left`, the end side the gap
-          // right of `right` (E07); `bottomCenter` clears both sides at
-          // once, so it centers inside the body rather than drifting
-          // over whichever pane is open.
-          final body = areas.body;
-          if (body == null) return EdgeInsets.zero;
-          if (corner == StratumToastCorner.bottomCenter) {
-            return EdgeInsets.only(
-              left: body.left,
-              right: size.width - body.right,
-            );
-          }
-          final start = corner == StratumToastCorner.bottomStart;
-          final rtl = Directionality.of(context) == TextDirection.rtl;
-          final ltrStart = start != rtl;
-          final gap = ltrStart ? body.left : size.width - body.right;
-          return EdgeInsets.only(
-            left: ltrStart ? gap : 0,
-            right: ltrStart ? 0 : gap,
-          );
-        }
-        // R26: mobile and tablet bottom floats rise above the page's
-        // `footer` or `bottom` beyond the keyboard, as solid ones do.
-        final bar = _barBeyond(areas, size, context);
-        return EdgeInsets.only(bottom: bar);
-    }
+    final bar = _barHeight(
+      _currentAreasOf(context),
+      MediaQuery.sizeOf(context),
+    );
+    return EdgeInsets.only(
+      bottom: math.max(keyboard, bar) - viewPadding.bottom,
+    );
   }
 
   /// How far the higher of the page's `footer` and `bottom` tops sits
-  /// above the keyboard top the margin already reached: the keyboard
-  /// covers the footer's screen-bottom distance whenever it is taller
-  /// (N15), so the extra is the bar distance less the keyboard, floored
-  /// at 0.
-  static double _barBeyond(PageAreas areas, Size size, BuildContext context) {
+  /// above the screen bottom; zero with neither.
+  static double _barHeight(PageAreas? areas, Size size) {
     var bar = 0.0;
-    final footer = areas.footerTop;
-    final bottom = areas.bottomTop;
-    if (footer != null) bar = size.height - footer;
-    if (bottom != null && size.height - bottom > bar) {
-      bar = size.height - bottom;
+    for (final top in [areas?.footerTop, areas?.bottomTop].nonNulls) {
+      bar = math.max(bar, size.height - top);
     }
-    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-    return (bar - keyboard).clamp(0.0, double.infinity);
+    return bar;
   }
 
   /// The areas of the innermost registered page on the current route;
@@ -901,6 +881,135 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// than placing a notice against a covered page (N14).
   static PageAreas? _currentAreasOf(BuildContext context) =>
       PageAreasRegistry.maybeOf(context)?.current()?.value;
+
+  /// The window's `viewPadding`, read from the host's own context outside
+  /// `toastification`'s list, whose `MediaQuery.removePadding` zeroes it.
+  EdgeInsets _viewPadding() {
+    final context = _floatKey.currentContext;
+    return context == null
+        ? EdgeInsets.zero
+        : MediaQuery.viewPaddingOf(context);
+  }
+
+  /// Whether [item] is the open notice nearest its screen edge: no notice
+  /// shown after it shares its alignment (s03 invariant 3).
+  bool _nearestItsEdge(ToastificationItem item) {
+    var after = false;
+    for (final open in _open.keys) {
+      if (after && open.alignment == item.alignment) return false;
+      if (identical(open, item)) after = true;
+    }
+    return true;
+  }
+}
+
+/// Where a float notice sits, in global coordinates: its gap from the
+/// screen's left and right edges and from the screen edge it anchors to
+/// (US-01 FR-02; s03 invariants 5, 6, 12).
+final class _FloatFrame {
+  const new({
+    required this.left,
+    required this.right,
+    required this.edge,
+    required this.atTop,
+  });
+
+  /// [alignment]'s frame, read from [context]: the theme's notice width
+  /// and `space.lg` float margin, the window, the keyboard, and the
+  /// innermost registered page; [viewPadding] the window's system insets,
+  /// which a context inside `toastification`'s list no longer holds.
+  ///
+  /// The notice keeps inside the safe area, narrowed to the page body on a
+  /// desktop page (E07), `space.lg` in from each side, at most the notice
+  /// width wide: a start or end corner hugs its side, a center one stays
+  /// centered. Its gap from a top edge clears the status bar, and on a
+  /// desktop page the header; from a bottom edge, the higher of the home
+  /// indicator, the keyboard, and, on mobile and tablet, the page's
+  /// `footer` and `bottom` (E05, E06, E10; N15; R26).
+  factory of(
+    BuildContext context,
+    Alignment alignment, {
+    required EdgeInsets viewPadding,
+  }) {
+    final theme = context.theme;
+    final lg = theme.space.lg;
+    final size = MediaQuery.sizeOf(context);
+    final areas = StratumToastHostState._currentAreasOf(context);
+    final desktop = WindowSize.fromSize(size) >= WindowSize.desktop;
+    final body = desktop ? areas?.body : null;
+    final from = math.max(viewPadding.left, body?.left ?? 0) + lg;
+    final to =
+        math.min(size.width - viewPadding.right, body?.right ?? size.width) -
+        lg;
+    final width = math.max(
+      0.0,
+      math.min(theme.layouts.maxWidthMobile, to - from),
+    );
+    final left = math.max(0.0, switch (alignment.x) {
+      < 0 => from,
+      > 0 => to - width,
+      _ => (from + to - width) / 2,
+    });
+    final atTop = alignment.y < 0;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final below = math.max(
+      math.max(viewPadding.bottom, keyboard),
+      desktop ? 0.0 : StratumToastHostState._barHeight(areas, size),
+    );
+    return _FloatFrame(
+      left: left,
+      right: math.max(0.0, size.width - left - width),
+      edge: atTop ? math.max(viewPadding.top, body?.top ?? 0) + lg : below + lg,
+      atTop: atTop,
+    );
+  }
+
+  final double left;
+  final double right;
+
+  /// The gap from the anchored screen edge, top or bottom.
+  final double edge;
+
+  /// Whether the notice anchors to the top edge, else the bottom one.
+  final bool atTop;
+
+  /// The margin that places the notice here once `toastification` adds
+  /// [viewPadding] on every side.
+  EdgeInsets marginLess(EdgeInsets viewPadding) => EdgeInsets.only(
+    left: left - viewPadding.left,
+    right: right - viewPadding.right,
+    top: atTop ? edge - viewPadding.top : 0,
+    bottom: atTop ? 0 : edge - viewPadding.bottom,
+  );
+
+  /// The notice's corners: each one on the anchored edge takes [screen]'s
+  /// radius at that screen corner less the larger of its two gaps from
+  /// it, never less than [token]; every other corner, every corner of a
+  /// notice not [nearest] the edge, and every corner while [screen] is
+  /// null take [token] (s03 invariant 6; US-01 FR-02 E02, E03).
+  BorderRadius corners(
+    BorderRadius? screen,
+    double token, {
+    required bool nearest,
+  }) {
+    final flat = Radius.circular(token);
+    if (screen == null || !nearest) return BorderRadius.all(flat);
+    Radius curve(Radius corner, double side) =>
+        Radius.circular(math.max(token, corner.x - math.max(side, edge)));
+    return atTop
+        ? BorderRadius.only(
+            topLeft: curve(screen.topLeft, left),
+            topRight: curve(screen.topRight, right),
+            bottomLeft: flat,
+            bottomRight: flat,
+          )
+        : BorderRadius.only(
+            topLeft: flat,
+            topRight: flat,
+            bottomLeft: curve(screen.bottomLeft, left),
+            bottomRight: curve(screen.bottomRight, right),
+          );
+  }
 }
 
 /// Publishes the host state to `context.showToast` callers.
@@ -1040,17 +1149,30 @@ class _ToastViewState extends State<_ToastView>
     final notice = _notice(context);
     return builder != null
         ? builder(context, notice)
-        : StratumToastPlainLook(notice: notice);
+        : StratumToastPlainLook(notice: notice, corners: _corners(context));
+  }
+
+  /// The plain look's corners: a float notice's by s03 invariant 6, null
+  /// for a solid one, which keeps `radius.lg` (US-01 FR-02 E02, E03).
+  BorderRadius? _corners(BuildContext context) {
+    if (widget.placement is! StratumToastFloat) return null;
+    final token = context.theme.radius.lg;
+    final screen = context.deviceWindow.radius;
+    if (screen == null) return BorderRadius.circular(token);
+    final frame = _FloatFrame.of(
+      context,
+      widget.item.alignment,
+      viewPadding: widget.host._viewPadding(),
+    );
+    return frame.corners(
+      screen,
+      token,
+      nearest: widget.host._nearestItsEdge(widget.item),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // The page-area offset, read here rather than in the manager's frozen
-    // margin, so every areas write moves a showing notice (N12, N13).
-    final pagePadding = StratumToastHostState._pagePadding(
-      context,
-      widget.placement,
-    );
     final reducesMotion = context.reducesMotion;
     return Dismissible(
       key: ValueKey(widget.item.id),
@@ -1080,14 +1202,16 @@ class _ToastViewState extends State<_ToastView>
             onPointerDown: (_) => _pause(_PauseReason.touch),
             onPointerUp: (_) => _resume(_PauseReason.touch),
             onPointerCancel: (_) => _resume(_PauseReason.touch),
-            child: Padding(
-              padding: pagePadding,
-              child: _PauseOnFocus(
-                host: widget.host,
-                item: widget.item,
-                onFocusInside: (inside) => inside
-                    ? _pause(_PauseReason.focus)
-                    : _resume(_PauseReason.focus),
+            child: _PauseOnFocus(
+              host: widget.host,
+              item: widget.item,
+              onFocusInside: (inside) => inside
+                  ? _pause(_PauseReason.focus)
+                  : _resume(_PauseReason.focus),
+              // `toastification`'s list loosens the width it gives a
+              // notice; every look fills the slot the margin builder sized.
+              child: SizedBox(
+                width: double.infinity,
                 child: FadeTransition(opacity: _opacity, child: _look(context)),
               ),
             ),

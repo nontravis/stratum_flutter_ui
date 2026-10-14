@@ -863,4 +863,75 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'correctness 2: us01/fr06/e04: an app builder look takes the width cap '
+    'and the corner of every float placement',
+    (tester) async {
+      const window = Size(1400, 900);
+      _view(tester, window);
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) {
+            for (final corner in StratumToastCorner.values) {
+              c.showToast(
+                message: corner.name,
+                placement: StratumToastPlacement.float(corner),
+              );
+            }
+          }),
+          // A look with no width of its own: the host alone places it.
+          builder: (context, notice) => SizedBox(
+            key: ValueKey(notice.message),
+            height: 40,
+            child: Text(notice.message),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final theme = tester.element(find.text('go')).theme;
+      final lg = theme.space.lg;
+      for (final corner in StratumToastCorner.values) {
+        final name = corner.name;
+        final look = tester.getRect(find.byKey(ValueKey(name)));
+        expect(
+          look.width,
+          closeTo(theme.layouts.maxWidthMobile, 0.5),
+          reason: name,
+        );
+        final x = switch (corner) {
+          StratumToastCorner.topStart ||
+          StratumToastCorner.bottomStart => look.left - lg,
+          StratumToastCorner.topCenter ||
+          StratumToastCorner.bottomCenter => look.center.dx - window.width / 2,
+          StratumToastCorner.topEnd ||
+          StratumToastCorner.bottomEnd => window.width - lg - look.right,
+        };
+        expect(x, closeTo(0, 0.5), reason: name);
+        final y = name.startsWith('top')
+            ? look.top - lg
+            : window.height - lg - look.bottom;
+        expect(y, closeTo(0, 0.5), reason: name);
+      }
+    },
+  );
+
+  testWidgets(
+    'edge M1: a bottom float above the keyboard counts the home indicator '
+    'once',
+    (tester) async {
+      _view(tester, _phone);
+      // The keyboard covers the home indicator: the inset stays in
+      // viewPadding while padding drops to zero.
+      tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await _show(tester, ['Once']);
+      final lg = tester.element(find.text('Once')).theme.space.lg;
+      expect(
+        tester.getRect(_fill('Once')).bottom,
+        closeTo(_phone.height - 300 - lg, 0.5),
+      );
+    },
+  );
 }

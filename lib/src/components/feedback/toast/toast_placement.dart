@@ -66,7 +66,7 @@ StratumToastPlacement defaultToastPlacement(WindowSize window) =>
 // WORKAROUND: toastification keys a manager, and the config it freezes,
 // by resolved `Alignment` alone, with no way to carry a second config at
 // the same alignment; remove when toastification keys a manager per
-// config, not per alignment (upstream issue #250).
+// config, not per alignment.
 Alignment toastManagerKey(
   StratumToastPlacement placement,
   TextDirection direction,

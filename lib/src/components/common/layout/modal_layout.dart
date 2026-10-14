@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
+import 'package:stratum_ui/src/components/common/model/solid_fill.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// How a [ModalLayout] sits on the screen (US-20 FR-03), the Figma `type`

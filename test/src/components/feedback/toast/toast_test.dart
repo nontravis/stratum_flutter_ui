@@ -698,7 +698,13 @@ void main() {
     (tester) async {
       _view(tester);
       final handle = tester.ensureSemantics();
-      for (final theme in [defaultThemeSet.light, defaultThemeSet.dark!]) {
+      // NFR-U07: every bundled theme, the two high-contrast ones included.
+      for (final theme in [
+        defaultThemeSet.light,
+        defaultThemeSet.dark!,
+        defaultThemeSet.highContrastLight!,
+        defaultThemeSet.highContrastDark!,
+      ]) {
         // FR-06 E05 names every kind, not only `info`: a border or icon
         // color regression in `_kindBorder`/`_kindIcon` for one kind must
         // fail here too.
@@ -1858,7 +1864,358 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  // s03 invariant 6: the corner next to a screen corner follows its curve
+  // (correctness 3, edge I10).
+
+  for (final (screen, shape) in [(55.0, 'concentric'), (24.0, 'floored')]) {
+    testWidgets(
+      'us01/fr02/e02: a bottom float under a screen corner of radius $screen '
+      'takes the $shape radius at its bottom corners',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(
+          _app(
+            _button(
+              'go',
+              (c) => c.showToast(
+                message: 'Curved',
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.bottomStart,
+                ),
+              ),
+            ),
+            media: (data) => _withScreenRadius(data, screen),
+          ),
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        final theme = tester.element(find.text('Curved')).theme;
+        final token = theme.radius.lg;
+        // On a phone the notice spans the window less the float margin, so
+        // both bottom corners sit `space.lg` off a screen corner on each
+        // axis; its top corners sit next to no screen corner.
+        final concentric = screen - theme.space.lg;
+        final bottom = Radius.circular(concentric > token ? concentric : token);
+        expect(
+          _radius(tester, 'Curved'),
+          BorderRadius.only(
+            topLeft: Radius.circular(token),
+            topRight: Radius.circular(token),
+            bottomLeft: bottom,
+            bottomRight: bottom,
+          ),
+        );
+      },
+    );
+  }
+
+  testWidgets(
+    'us01/fr02/e02: only the notice nearest the screen edge curves with it',
+    (tester) async {
+      _view(tester);
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) {
+            for (final m in ['old', 'new']) {
+              c.showToast(message: m);
+            }
+          }),
+          media: (data) => _withScreenRadius(data, 55),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final theme = tester.element(find.text('old')).theme;
+      final token = BorderRadius.circular(theme.radius.lg);
+      expect(_radius(tester, 'old'), token);
+      expect(_radius(tester, 'new'), isNot(token));
+      // Once the newer one closes, the older one is nearest and curves.
+      await tester.tap(
+        find.descendant(of: _fill('new'), matching: find.byIcon(Icons.close)),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('new'), findsNothing);
+      expect(_radius(tester, 'old'), isNot(token));
+    },
+  );
+
+  testWidgets(
+    'us01/fr02/e03: with no screen radius reported every corner takes '
+    'radius.lg',
+    (tester) async {
+      _view(tester);
+      await tester.pumpWidget(
+        _app(_button('go', (c) => c.showToast(message: 'Plain'))),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final theme = tester.element(find.text('Plain')).theme;
+      expect(_radius(tester, 'Plain'), BorderRadius.circular(theme.radius.lg));
+    },
+  );
+
+  // R28: `context.dismissAllToasts()` (US-01 FR-04 E11 to E14; s03
+  // invariant 20).
+
+  testWidgets(
+    'r28: us01/fr04/e11: a dismiss-all call with nothing showing or queued '
+    'does nothing',
+    (tester) async {
+      _view(tester);
+      final field = FocusNode(debugLabel: 'field');
+      addTearDown(field.dispose);
+      await tester.pumpWidget(
+        _app(
+          Column(
+            children: [
+              TextField(focusNode: field),
+              _button('go', (c) => c.showToast(message: 'Later')),
+            ],
+          ),
+        ),
+      );
+      field.requestFocus();
+      await tester.pump();
+      tester.element(find.text('go')).dismissAllToasts();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(FocusManager.instance.primaryFocus, field);
+      // The host still shows the next call.
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('Later'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'r28: us01/fr04/e12: a dismiss-all call closes every float and solid '
+    'notice at once and empties the solid queue',
+    (tester) async {
+      _view(tester);
+      const top = StratumToastPlacement.solid(StratumToastEdge.top);
+      await tester.pumpWidget(
+        _app(
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _button('go', (c) {
+                  c
+                    ..showToast(
+                      message: 'Float A',
+                      placement: const StratumToastPlacement.float(
+                        StratumToastCorner.bottomStart,
+                      ),
+                    )
+                    ..showToast(
+                      message: 'Float B',
+                      placement: const StratumToastPlacement.float(
+                        StratumToastCorner.topEnd,
+                      ),
+                    )
+                    ..showToast(message: 'Solid 1', placement: top)
+                    ..showToast(message: 'Solid 2', placement: top);
+                }),
+                _button('all', (c) => c.dismissAllToasts()),
+                _button(
+                  'next',
+                  (c) => c.showToast(message: 'Solid 3', placement: top),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('Solid 1'), findsOneWidget);
+      expect(find.text('Solid 2'), findsNothing);
+      await tester.tap(find.text('all'));
+      await tester.pumpAndSettle();
+      for (final m in ['Float A', 'Float B', 'Solid 1', 'Solid 2']) {
+        expect(find.text(m), findsNothing, reason: m);
+      }
+      // The queue is empty: past every close time, the queued notice never
+      // shows.
+      await tester.pump(const Duration(seconds: 9));
+      await tester.pumpAndSettle();
+      expect(find.text('Solid 2'), findsNothing);
+      // The solid slot is free: the next solid notice shows at once.
+      await tester.tap(find.text('next'));
+      await tester.pumpAndSettle();
+      expect(find.text('Solid 3'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'r28: us01/fr04/e12: a notice the same handler showed just before the '
+    'call never lands',
+    (tester) async {
+      _view(tester);
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) {
+            c
+              ..showToast(message: 'Gone')
+              ..dismissAllToasts();
+          }),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('Gone'), findsNothing);
+      // The corner still shows the next call.
+      tester.element(find.text('go')).showToast(message: 'Back');
+      await tester.pumpAndSettle();
+      expect(find.text('Back'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'r28: us01/fr04/e12: a show deferred past the build, then the call in '
+    'the same build, never lands',
+    (tester) async {
+      _view(tester);
+      final mount = ValueNotifier(false);
+      addTearDown(mount.dispose);
+      await tester.pumpWidget(
+        _app(
+          ValueListenableBuilder<bool>(
+            valueListenable: mount,
+            builder: (_, on, _) =>
+                on ? const _ShowThenDismissOnMount() : const SizedBox(),
+          ),
+        ),
+      );
+      // Mounted inside a frame, so the show defers past the build phase.
+      mount.value = true;
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(find.text('Never'), findsNothing);
+    },
+  );
+
+  for (final (motion, reduced) in [('reduced', true), ('full', false)]) {
+    testWidgets('r28: us01/fr04/e13: under $motion motion a dismiss-all call '
+        '${reduced ? 'closes with no exit animation' : 'runs the exit fade'}', (
+      tester,
+    ) async {
+      _view(tester);
+      await tester.pumpWidget(
+        _app(
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _button('go', (c) {
+                  c
+                    ..showToast(message: 'Bye')
+                    ..showToast(
+                      message: 'Solid bye',
+                      placement: const StratumToastPlacement.solid(
+                        StratumToastEdge.top,
+                      ),
+                    );
+                }),
+                _button('all', (c) => c.dismissAllToasts()),
+              ],
+            ),
+          ),
+          media: (data) => data.copyWith(disableAnimations: reduced),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('all'));
+      await tester.pump();
+      final shown = reduced ? findsNothing : findsOneWidget;
+      expect(find.text('Bye'), shown);
+      expect(find.text('Solid bye'), shown);
+      await tester.pumpAndSettle();
+      expect(find.text('Bye'), findsNothing);
+      expect(find.text('Solid bye'), findsNothing);
+    });
+  }
+
+  testWidgets(
+    'r28: us01/fr04/e14: a dismiss-all call that closes the notice holding '
+    'focus returns focus to the text field the shortcut left',
+    (tester) async {
+      _view(tester);
+      await _withTargetPlatform(TargetPlatform.linux, () async {
+        final handle = tester.ensureSemantics();
+        final field = FocusNode(debugLabel: 'field');
+        addTearDown(field.dispose);
+        await tester.pumpWidget(
+          _app(
+            Column(
+              children: [
+                TextField(focusNode: field),
+                _button(
+                  'go',
+                  (c) => c.showToast(message: 'Held', action: undo),
+                ),
+              ],
+            ),
+          ),
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        field.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await tester.pumpAndSettle();
+        _expectFocusedInRing(tester, find.text('Undo'));
+        tester.element(find.text('go')).dismissAllToasts();
+        await tester.pumpAndSettle();
+        expect(find.text('Held'), findsNothing);
+        expect(FocusManager.instance.primaryFocus, field);
+        handle.dispose();
+      });
+    },
+  );
 }
+
+/// Shows a notice and then calls `dismissAllToasts` from `initState`, so a
+/// show deferred past the build meets the call in the same frame (R28).
+class _ShowThenDismissOnMount extends StatefulWidget {
+  const new();
+
+  @override
+  State<_ShowThenDismissOnMount> createState() =>
+      _ShowThenDismissOnMountState();
+}
+
+class _ShowThenDismissOnMountState extends State<_ShowThenDismissOnMount> {
+  @override
+  void initState() {
+    super.initState();
+    context
+      ..showToast(message: 'Never')
+      ..dismissAllToasts();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+/// [data] with every screen corner of radius [radius], as a phone that
+/// reports its corners does; `copyWith` takes no corner radii.
+MediaQueryData _withScreenRadius(MediaQueryData data, double radius) =>
+    MediaQueryData(
+      size: data.size,
+      devicePixelRatio: data.devicePixelRatio,
+      textScaler: data.textScaler,
+      padding: data.padding,
+      viewPadding: data.viewPadding,
+      viewInsets: data.viewInsets,
+      displayCornerRadii: BorderRadius.circular(radius),
+    );
+
+/// The border radius of the notice holding [message].
+BorderRadiusGeometry? _radius(WidgetTester tester, String message) =>
+    tester.widget<ContainerLayout>(_fill(message)).style?.borderRadius;
 
 /// Expects the primary focus on [scope] or one of its descendants.
 void _expectFocusInside(FocusScopeNode scope) {

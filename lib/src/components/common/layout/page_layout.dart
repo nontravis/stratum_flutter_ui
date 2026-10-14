@@ -9,6 +9,7 @@ import 'package:stratum_ui/src/components/common/layout/page_drawer.dart'
         inlinePaneWidth,
         overlayDrawerWidth,
         resolveDrawerType;
+import 'package:stratum_ui/src/components/common/model/solid_fill.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// Which sides of a [PageLayout] pad their slots by the system insets
@@ -725,7 +726,9 @@ class _PageLayoutState extends State<PageLayout>
   /// focus back as loading turns false (US-18 FR-06 E05): to that node, as
   /// long as focus still sits where loading parked it, and then into a
   /// drawer asked open meanwhile, which keeps focus inside (layout s03
-  /// invariant 68). A route above the page keeps its focus.
+  /// invariant 68). A route above the page, or a hidden branch, keeps its
+  /// focus: the page's [PageAreasProbe] answers that, so this State
+  /// depends on no route and rebuilds on no push or pop.
   void _moveFocusForLoading() {
     final manager = FocusManager.instance;
     if (widget.loading) {
@@ -745,7 +748,7 @@ class _PageLayoutState extends State<PageLayout>
     final parked = _parkedFocus;
     _focusBeforeLoading = null;
     _parkedFocus = null;
-    if (!(ModalRoute.isCurrentOf(context) ?? true)) return;
+    if (!_handle.isCurrent) return;
     final restore =
         node != null &&
         (node.context?.mounted ?? false) &&
@@ -981,12 +984,13 @@ class _PageLayoutState extends State<PageLayout>
   /// a focus scope node takes a request only while it is in the focus
   /// tree (US-19 FR-05).
   ///
-  /// A page under another route, such as an open modal, takes no focus
-  /// from it.
+  /// A page under another route, such as an open modal, or in a hidden
+  /// branch, takes no focus from it; the page's [PageAreasProbe] answers
+  /// that, as in [_moveFocusForLoading].
   void _focusDrawer(PageDrawerSide side) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _shown != side || _controller._openSide != side) return;
-      if (!(ModalRoute.isCurrentOf(context) ?? true)) return;
+      if (!_handle.isCurrent) return;
       _drawerFocus.requestFocus();
     });
   }
