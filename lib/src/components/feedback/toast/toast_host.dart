@@ -1,5 +1,7 @@
 import 'dart:async' show unawaited;
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/semantics.dart' show SemanticsService;
 import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
@@ -41,6 +43,61 @@ String _kindLabel(
   };
 }
 
+/// Whether [defaultTargetPlatform] is one of Apple's, where F8 is a media
+/// key, so the host shortcut's default order puts Option+T first (US-01
+/// FR-05 statement; s03 invariant 18).
+bool get _appleTargetPlatform =>
+    defaultTargetPlatform == TargetPlatform.macOS ||
+    defaultTargetPlatform == TargetPlatform.iOS;
+
+/// `focusShortcuts`'s default order: Option+T then F8 on macOS and iOS,
+/// F8 then Alt+T on every other platform (US-01 FR-05 statement; s03
+/// invariant 18).
+List<SingleActivator> _defaultFocusShortcuts() {
+  const optionT = SingleActivator(LogicalKeyboardKey.keyT, alt: true);
+  const f8 = SingleActivator(LogicalKeyboardKey.f8);
+  return _appleTargetPlatform ? [optionT, f8] : [f8, optionT];
+}
+
+/// [activator]'s name for the built-in hint: its modifiers then its key,
+/// joined by `+`, Alt written Option on macOS and iOS (s03 invariant 11).
+String _shortcutKeyName(SingleActivator activator) {
+  final parts = [
+    if (activator.control) 'Ctrl',
+    if (activator.alt && _appleTargetPlatform) 'Option',
+    if (activator.alt && !_appleTargetPlatform) 'Alt',
+    if (activator.meta) 'Meta',
+    if (activator.shift) 'Shift',
+    activator.trigger.keyLabel,
+  ];
+  return parts.join('+');
+}
+
+/// The host shortcut's intent: move focus into the newest notice on
+/// screen (US-01 FR-05; s03 invariant 18).
+class _FocusNewestNoticeIntent extends Intent {
+  const new();
+}
+
+/// Invokes [_FocusNewestNoticeIntent]: requests focus on the newest open
+/// notice's entry point, its action else its close button; disabled
+/// while none is open, so the shortcut manager passes the key on (s03
+/// invariant 18).
+class _FocusNewestNoticeAction extends Action<_FocusNewestNoticeIntent> {
+  new(this._host);
+
+  final StratumToastHostState _host;
+
+  @override
+  bool get isActionEnabled => _host._noticeEntryPoints.isNotEmpty;
+
+  @override
+  void invoke(_FocusNewestNoticeIntent intent) {
+    final target = _host._noticeEntryPoints.last;
+    if (target.context != null) target.requestFocus();
+  }
+}
+
 /// The one notice a `showToast` call hands the host.
 ///
 /// Public for the call extension and the plain look, but no barrel exports
@@ -80,6 +137,8 @@ class StratumToastHost extends StatefulWidget {
     this.builder,
     this.closeButtonLabel,
     this.kindLabels,
+    this.focusShortcuts,
+    this.focusShortcutHint,
   });
 
   final Widget child;
@@ -99,6 +158,18 @@ class StratumToastHost extends StatefulWidget {
   /// null [kindLabels], keeps that kind's built-in name
   /// (`architecture/localization.md` rule 2; s03 invariant 11).
   final Map<FeedbackState, String>? kindLabels;
+
+  /// The keys that move focus into the newest notice on screen, null
+  /// keeping the platform-ordered default (Option+T then F8 on macOS and
+  /// iOS, F8 then Alt+T elsewhere); an empty list turns the shortcut off
+  /// and drops the hint from the announcement (US-01 FR-05 E09 to E11,
+  /// E13; s03 invariant 18).
+  final List<SingleActivator>? focusShortcuts;
+
+  /// Replaces FO-09's shortcut hint in the announcement, which otherwise
+  /// names the first `focusShortcuts` entry; null keeps the built-in hint
+  /// (US-01 FR-05 E12; FR-06 E06; s03 invariant 11).
+  final String? focusShortcutHint;
 
   /// The host state above [context], or the `FlutterError` of a tree with
   /// none (US-01 FR-01 E05).
@@ -158,6 +229,16 @@ class StratumToastHostState extends State<StratumToastHost> {
   /// findings, "second defect").
   final Set<FocusNode> _noticeFocusNodes = {};
 
+  /// Each open notice's entry point for the host shortcut, its action
+  /// else its close button, in show order, never a queued one (US-01
+  /// FR-05 E05, E09; s03 invariant 18).
+  final List<FocusNode> _noticeEntryPoints = [];
+
+  /// The shortcut's bound action, created once so its enabled check reads
+  /// live state from this host.
+  late final _FocusNewestNoticeAction _focusNewestNoticeAction =
+      _FocusNewestNoticeAction(this);
+
   /// The most recent focus that sat outside every open notice, so a manual
   /// close can return focus there instead of wherever the route scope's
   /// own traversal history parks it, which drops the node Tab's
@@ -185,6 +266,10 @@ class StratumToastHostState extends State<StratumToastHost> {
   void _registerNoticeFocus(FocusNode node) => _noticeFocusNodes.add(node);
 
   void _unregisterNoticeFocus(FocusNode node) => _noticeFocusNodes.remove(node);
+
+  void _registerEntryPoint(FocusNode node) => _noticeEntryPoints.add(node);
+
+  void _unregisterEntryPoint(FocusNode node) => _noticeEntryPoints.remove(node);
 
   /// Whether [node] sits inside any open notice's own focus-tracking node.
   bool _insideANotice(FocusNode node) =>
@@ -281,17 +366,43 @@ class StratumToastHostState extends State<StratumToastHost> {
     return item;
   }
 
-  /// Announces [request] as its kind name, then its message, in the app's
-  /// text direction, taking no focus (US-01 FR-05).
+  /// Announces [request] as its kind name, then its message, then, on
+  /// desktop and web only, the shortcut hint, in the app's text
+  /// direction, taking no focus (US-01 FR-05 E13, E14).
   void _announce(BuildContext context, StratumToastRequest request) {
     final kindName = _kindLabel(context, request.kind, widget.kindLabels);
+    final hint = _shortcutHint(context);
+    final announcement = hint == null
+        ? '$kindName, ${request.message}'
+        : '$kindName, ${request.message}, $hint';
     unawaited(
       SemanticsService.sendAnnouncement(
         View.of(context),
-        '$kindName, ${request.message}',
+        announcement,
         Directionality.of(context),
       ),
     );
+  }
+
+  /// Whether [_announce] speaks the shortcut hint: desktop or the web
+  /// only (US-01 FR-05 E13, E14; s03 invariant 10).
+  bool get _hearsShortcutHint =>
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
+
+  /// The announcement's shortcut hint, or null to speak none: off the
+  /// desktop-and-web set, or with `focusShortcuts` empty (US-01 FR-05
+  /// E11, E13, E14; FR-06 E06; s03 invariant 10, 11).
+  String? _shortcutHint(BuildContext context) {
+    if (!_hearsShortcutHint) return null;
+    final shortcuts = widget.focusShortcuts ?? _defaultFocusShortcuts();
+    if (shortcuts.isEmpty) return null;
+    final override = widget.focusShortcutHint;
+    if (override != null) return override;
+    final keyName = _shortcutKeyName(shortcuts.first);
+    return builtInLabelsOf(context).noticeShortcutHint(keyName);
   }
 
   /// The show and hide duration: the theme's `normal` level, zero under
@@ -394,19 +505,34 @@ class StratumToastHostState extends State<StratumToastHost> {
 
   @override
   Widget build(BuildContext context) {
-    return PageAreasRegistry(
-      child: ToastificationConfigProvider(
-        config: _floatConfig,
-        child: Builder(
-          key: _floatKey,
-          builder: (floatContext) => _StratumToastHostScope(
-            host: this,
-            child: ToastificationConfigProvider(
-              config: _solidConfig,
-              child: Builder(
-                key: _solidKey,
-                builder: (solidContext) =>
-                    _wrapWhenNoWrapperAbove(solidContext, widget.child),
+    // The Shortcuts and Actions pair wraps the host's child, above the
+    // Navigator, so a key press from any focused route, a dialog
+    // included, bubbles to it (US-01 FR-05; s03 invariant 18).
+    return Shortcuts(
+      shortcuts: {
+        for (final activator
+            in widget.focusShortcuts ?? _defaultFocusShortcuts())
+          activator: const _FocusNewestNoticeIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _FocusNewestNoticeIntent: _focusNewestNoticeAction,
+        },
+        child: PageAreasRegistry(
+          child: ToastificationConfigProvider(
+            config: _floatConfig,
+            child: Builder(
+              key: _floatKey,
+              builder: (floatContext) => _StratumToastHostScope(
+                host: this,
+                child: ToastificationConfigProvider(
+                  config: _solidConfig,
+                  child: Builder(
+                    key: _solidKey,
+                    builder: (solidContext) =>
+                        _wrapWhenNoWrapperAbove(solidContext, widget.child),
+                  ),
+                ),
               ),
             ),
           ),
@@ -613,6 +739,40 @@ class _ToastViewState extends State<_ToastView> {
   /// reason has ended (s03 invariant 7).
   final Set<_PauseReason> _pauses = {};
 
+  /// Whether focus sits inside this notice right now (s03 invariant 7).
+  bool _focusInside = false;
+
+  /// The action button's own node, so the host shortcut can reach it
+  /// first (US-01 FR-05; s03 invariant 18).
+  late final FocusNode _actionFocusNode = FocusNode(
+    debugLabel: 'StratumToast.action',
+  );
+
+  /// The close button's own node, the host shortcut's target when this
+  /// notice has no action (US-01 FR-05; s03 invariant 18).
+  late final FocusNode _closeFocusNode = FocusNode(
+    debugLabel: 'StratumToast.close',
+  );
+
+  /// The notice's own entry point for the host shortcut: its action
+  /// when it has one, else its close button (s03 invariant 18).
+  FocusNode get _entryPoint =>
+      widget.request.action != null ? _actionFocusNode : _closeFocusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.host._registerEntryPoint(_entryPoint);
+  }
+
+  @override
+  void dispose() {
+    widget.host._unregisterEntryPoint(_entryPoint);
+    _actionFocusNode.dispose();
+    _closeFocusNode.dispose();
+    super.dispose();
+  }
+
   void _pause(_PauseReason reason) {
     if (_pauses.add(reason) && _pauses.length == 1) {
       widget.item.pause();
@@ -624,9 +784,6 @@ class _ToastViewState extends State<_ToastView> {
       widget.item.start();
     }
   }
-
-  /// Whether focus sits inside this notice right now (s03 invariant 7).
-  bool _focusInside = false;
 
   /// Closes the notice, then, when focus sat inside it, returns focus to
   /// the node that held it before Tab's `parentScope` edge unfocused that
@@ -669,7 +826,11 @@ class _ToastViewState extends State<_ToastView> {
     final notice = _notice(context);
     return builder != null
         ? builder(context, notice)
-        : StratumToastPlainLook(notice: notice);
+        : StratumToastPlainLook(
+            notice: notice,
+            actionFocusNode: _actionFocusNode,
+            closeFocusNode: _closeFocusNode,
+          );
   }
 
   @override

@@ -223,6 +223,12 @@ abstract class StratumLabels {
   /// In en, this message translates to:
   /// **'Error'**
   String get noticeNegativeLabel;
+
+  /// Notice shortcut hint: the end of the notice host's announcement, naming the first key of the host's shortcut into the newest notice.
+  ///
+  /// In en, this message translates to:
+  /// **'Press {key} to reach it'**
+  String noticeShortcutHint(String key);
 }
 
 class _StratumLabelsDelegate extends LocalizationsDelegate<StratumLabels> {

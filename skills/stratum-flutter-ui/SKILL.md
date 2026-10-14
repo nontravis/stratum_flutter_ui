@@ -981,3 +981,12 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   announcement stay the host's. A solid notice's plain-look fill declares itself under the status bar or home
   indicator, as a page layout's fills do, so the bar icons stay readable over it; your own look declares its own
   fill. `customStyle` on the call wins over the theme and the app-wide notice style, field by field.
+- **`StratumToastHost(focusShortcuts:, focusShortcutHint:)`** — a host shortcut moves focus into the newest notice on
+  screen from any page or dialog, to its action, else its close button; it does nothing while no notice shows.
+  Platform-ordered by default: Option+T then F8 on macOS and iOS, since F8 is a media key there, and F8 then Alt+T
+  elsewhere. Pass your own `focusShortcuts` to replace the keys, `const []` to turn the shortcut off, and
+  `focusShortcutHint` to replace the announcement's hint, which otherwise names the first key; the hint speaks on
+  desktop and web only.
+- A notice's action is never the only way to do that action: offer it in your own page too, as Gmail offers undo on
+  its `z` key beside the notice's Undo, since a notice can close, or sit under a pushed route, before the end user
+  reaches it.

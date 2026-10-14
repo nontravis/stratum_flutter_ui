@@ -73,4 +73,9 @@ class StratumLabelsTh extends StratumLabels {
 
   @override
   String get noticeNegativeLabel => 'ข้อผิดพลาด';
+
+  @override
+  String noticeShortcutHint(String key) {
+    return 'กด $key เพื่อไปที่การแจ้งเตือนนี้';
+  }
 }

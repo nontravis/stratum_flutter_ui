@@ -10,7 +10,7 @@ const _dir = 'lib/src/components/common/l10n';
 
 /// The value each ARB placeholder takes: a getter with arguments passes
 /// it, and the ARB text is filled with it before the generated compare.
-const _placeholders = {'position': 2, 'count': 5};
+const _placeholders = <String, Object>{'position': 2, 'count': 5, 'key': 'F8'};
 
 /// Each built-in string kind's ARB key and the generated getter that
 /// reads it.
@@ -25,8 +25,8 @@ final _getters = <String, String Function(StratumLabels)>{
   'retryLabel': (labels) => labels.retryLabel,
   'placeholderPageTitle': (labels) => labels.placeholderPageTitle,
   'reorderMoveAnnouncement': (labels) => labels.reorderMoveAnnouncement(
-    _placeholders['position']!,
-    _placeholders['count']!,
+    _placeholders['position']! as int,
+    _placeholders['count']! as int,
   ),
   'reorderAtStartAnnouncement': (labels) => labels.reorderAtStartAnnouncement,
   'reorderAtEndAnnouncement': (labels) => labels.reorderAtEndAnnouncement,
@@ -39,6 +39,7 @@ final _getters = <String, String Function(StratumLabels)>{
   'noticeInfoLabel': (labels) => labels.noticeInfoLabel,
   'noticeWarningLabel': (labels) => labels.noticeWarningLabel,
   'noticeNegativeLabel': (labels) => labels.noticeNegativeLabel,
+  'noticeShortcutHint': (labels) => labels.noticeShortcutHint('F8'),
 };
 
 /// The message entries of the ARB file [name]: every key not starting
@@ -67,9 +68,9 @@ void main() {
   final en = _messages('stratum_labels_en.arb');
   final th = _messages('stratum_labels_th.arb');
 
-  test('us01/fr01: the table holds exactly the 21 built-in string kinds', () {
+  test('us01/fr01: the table holds exactly the 22 built-in string kinds', () {
     expect(en.keys.toSet(), _getters.keys.toSet());
-    expect(_getters, hasLength(21));
+    expect(_getters, hasLength(22));
   });
 
   test('us01/fr01/e05: the retry label stays in both tables', () {
