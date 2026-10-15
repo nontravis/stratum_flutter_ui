@@ -17,14 +17,14 @@ or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old n
 `StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` still compile for one minor version
 as deprecated aliases; write the new names.
 
-Values: these compare by value, field by field, and derive a variant with `copyWith`: `StratumMotionLevels`,
-`StratumAnimation`, `StratumThemeData`, `StratumAppPalette`, `StratumThemeSet`, `StratumRemoteTheme` (its `bytes` by
-content), `StratumFontData`, `StratumTextStyle` (`copyWith` beside its fluent getters),
-`StratumThemeTransitions`, `Interaction`, `InteractionState`, `Scroll`, `FocusGroup`, `StratumWebViewSource` (each
-case), `StratumWebViewMessage`, `StratumWebViewError`. Callbacks, focus nodes, states controllers, and scroll controllers inside a value compare by
-identity. These carry no `map` or
-`when`; read a sealed one with a Dart `switch`: `StratumAppConfig`, `WidgetStyle`, `ImageBlurFilter`,
-`PageLayoutStyle`, `PageSafeArea`, `PageSide`, `SplitPane`, `SplitDividerState`, `ModalLayoutStyle`.
+Values: every Stratum value model compares by value, field by field, and derives a variant with `copyWith`: the
+theme data and its parts (`StratumThemeData`, `StratumThemeSet`, `StratumAnimation`, `StratumTextStyle`,
+`StratumRemoteTheme`, and the rest), `WidgetStyle`, `Interaction`, `InteractionState`, `Scroll`, `FocusGroup`, the
+page, split, modal, and toast values, and the web view values. `StratumByWindowSize` alone has no `copyWith`; its
+`==` compares the value of each window size. Callbacks, focus nodes, states controllers, and scroll controllers
+inside a value compare by identity, and a remote theme's `bytes` and a recipe's shadows compare by content. No value
+carries `map` or `when`: read a sealed one, such as `StratumToastPlacement` or `StratumWebViewSource`, with a Dart
+`switch`.
 
 ## Install
 

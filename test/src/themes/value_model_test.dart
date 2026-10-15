@@ -54,6 +54,10 @@ const _valueModelFiles = [
   'lib/src/components/common/model/web_view/web_view_source.dart',
   // M4-T18: the internal configuration of CO-01-02 (design 5.2, P4).
   'lib/src/components/common/model/web_view/web_view_configuration.dart',
+  // M5-T20: the shipped models of CO-05-07 (design 5.2).
+  'lib/src/components/common/model/toast/stratum_toast_action.dart',
+  'lib/src/components/common/model/toast/stratum_toast_notice.dart',
+  'lib/src/components/common/model/toast/stratum_toast_placement.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside
@@ -88,4 +92,42 @@ void main() {
       expect(generated, isNot(matches(_patterns)));
     });
   }
+
+  test('R4 Q1, D3: every freezed model file under lib/src is listed above, '
+      'and StratumByWindowSize alone keeps its own @Freezed', () {
+    final part = RegExp(
+      r"^part 'generated/\w+\.freezed\.dart';",
+      multiLine: true,
+    );
+    final withFreezedPart = [
+      for (final entity in Directory('lib/src').listSync(recursive: true))
+        if (entity is File &&
+            entity.path.endsWith('.dart') &&
+            !entity.path.contains('/generated/') &&
+            part.hasMatch(entity.readAsStringSync()))
+          entity.path,
+    ];
+
+    expect(withFreezedPart.toSet(), {
+      ..._valueModelFiles,
+      'lib/src/themes/config/by_window_size.dart',
+    });
+  });
+
+  test('R4 Q1: no generated file under lib/src holds a map or when '
+      'extension', () {
+    final generated = [
+      for (final entity in Directory('lib/src').listSync(recursive: true))
+        if (entity is File && entity.path.endsWith('.freezed.dart')) entity,
+    ];
+
+    expect(generated, isNotEmpty);
+    for (final file in generated) {
+      expect(
+        file.readAsStringSync(),
+        isNot(matches(_patterns)),
+        reason: file.path,
+      );
+    }
+  });
 }
