@@ -56,7 +56,11 @@ Widget _liftedItem() => SizedBox(
         child: CircularProgressIndicator(strokeWidth: 2),
       ),
       const SizedBox(width: 8),
-      const Expanded(child: TextField(autofocus: true)),
+      // Opts out of the platform's own outside-tap unfocus: on desktop and
+      // web, any pointer down outside a focused `TextField`'s tap region
+      // unfocuses it by default (editable_text.dart:6881-6904), which is
+      // the SDK's rule, not Stratum's, and is not what group A checks.
+      Expanded(child: TextField(autofocus: true, onTapOutside: (_) {})),
     ],
   ),
 );
@@ -301,7 +305,11 @@ void main() {
           slot.topLeft + totalDrag,
         );
 
-        // The field keeps focus through the drag too, not only before it.
+        // The fixture opted out of the platform's own outside-tap unfocus
+        // above, so this now proves only what Stratum owns: the lift,
+        // raster, and overlay take no focus from a field inside the item
+        // across the drag (FR-03 `:12`, D5), not the platform's separate
+        // desktop tap-outside rule.
         expect(
           tester
               .getSemantics(find.byType(EditableText))
@@ -389,12 +397,11 @@ void main() {
         // FR-04 E02). `moveFar`'s own reach already shifted ids and
         // scrolled the list, so the removed id is looked up by its own
         // current index, never assumed, or the removal and the checks
-        // below could land on two different items. Id 52 sits well inside
-        // the range the reach left on screen (id0's own park target, 50,
-        // plus margin on both sides), so the checks below run on a node
-        // that is actually live beforehand — proving something, instead
-        // of an item already absent for an unrelated, scroll-driven
-        // reason.
+        // below could land on two different items. Id 52 is checked live
+        // right here, right after the move and before its own removal, so
+        // the checks below run on an item that was actually live
+        // beforehand — proving something, instead of an item already
+        // absent for an unrelated, scroll-driven reason.
         const removeId = 52;
         expect(_liveLabel(tester, 'item $removeId'), isTrue);
 
@@ -411,15 +418,26 @@ void main() {
         // exit starts (s03 invariant 27, FR-04 E05), even while its own
         // widget is still built and mid-fade (the `FadeTransition` caller
         // wraps it until opacity reaches 0).
-        // The one `FadeTransition` mid-fade (every other built item sits
-        // at rest, opacity 1): its own look (the removed id's `Text`) is
-        // still built, proving the item leaves the semantics tree below
-        // while its widget has not finished leaving the render tree.
-        final fade = tester
-            .widgetList<FadeTransition>(find.byType(FadeTransition))
-            .singleWhere((f) => f.opacity.value < 1.0);
-        expect(fade.opacity.value, inExclusiveRange(0, 1));
+        // Found by the removed item's own label, offstage included, never
+        // by an opacity value: its exit starts in this turn, outside a
+        // frame, so the first tick reads elapsed 0 and its opacity is
+        // exactly 1.0 on every device (ticker.dart:277-278) — the exit is
+        // running (status reverse), not a value this one frame can show.
+        final fade = tester.widget<FadeTransition>(
+          find
+              .ancestor(
+                of: find.text('item $removeId', skipOffstage: false),
+                matching: find.byType(FadeTransition, skipOffstage: false),
+              )
+              .first,
+        );
+        expect(fade.opacity.status, AnimationStatus.reverse);
         expect(_liveLabel(tester, 'item $removeId'), isFalse);
+        // Control: a built, offstage neighbour in the same cache region
+        // keeps its own node, so the removed item's absence above is
+        // invariant 27, not an unrelated scroll effect.
+        expect(find.text('item 53', skipOffstage: false), findsOne);
+        expect(_liveLabel(tester, 'item 53'), isTrue);
 
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
