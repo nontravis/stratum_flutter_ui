@@ -73,7 +73,7 @@ Future<void> _cornerPinch(WidgetTester tester, double factor) async {
 }
 
 void main() {
-  testWidgets('co01-04/us01/fr01: the web branch is one pinch zoom with the '
+  testWidgets('co01_04/us01/fr01: the web branch is one pinch zoom with the '
       'limits, clipped to its bounds (fo06/us01/s7)', (tester) async {
     await tester.pumpWidget(
       _host(const StratumWebZoom(child: SizedBox.expand())),
@@ -383,7 +383,7 @@ void main() {
     );
 
     testWidgets(
-      'co01-04/us01/fr03, fo06/us01/fr03/e01, fo06/us01/s5: the wheel '
+      'co01_04/us01/fr03, fo06/us01/fr03/e01, fo06/us01/s5: the wheel '
       'scrolls a list and the scale stays',
       (tester) async {
         final controller = ScrollController(initialScrollOffset: 100);

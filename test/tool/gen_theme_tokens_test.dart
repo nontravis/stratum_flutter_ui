@@ -346,24 +346,28 @@ void main() {
     });
   });
 
-  test('StratumTransparentTokens.builtIn equals transparentColors', () {
-    const builtIn = StratumTransparentTokens.builtIn;
-    final generated = File(tokensPath).readAsStringSync();
+  test(
+    'fo03/us10/fr02: StratumTransparentTokens.builtIn equals transparentColors',
+    () {
+      const builtIn = StratumTransparentTokens.builtIn;
+      final generated = File(tokensPath).readAsStringSync();
 
-    for (final MapEntry(key: ramp, value: steps) in transparentColors.entries) {
-      for (final MapEntry(key: step, value: hex) in steps.entries) {
-        final argb = _color(hex).toARGB32().toRadixString(16).toUpperCase();
-        expect(
-          generated,
-          contains('p$step: Color(0x${argb.padLeft(8, '0')}),'),
-          reason: 'transparent.$ramp.$step',
-        );
+      for (final MapEntry(key: ramp, value: steps)
+          in transparentColors.entries) {
+        for (final MapEntry(key: step, value: hex) in steps.entries) {
+          final argb = _color(hex).toARGB32().toRadixString(16).toUpperCase();
+          expect(
+            generated,
+            contains('p$step: Color(0x${argb.padLeft(8, '0')}),'),
+            reason: 'transparent.$ramp.$step',
+          );
+        }
       }
-    }
-    expect(builtIn.black.p3, _color('#00000008'));
-    expect(builtIn.white.p100, _color('#FFFFFFFF'));
-    expect(builtIn.black.p0, const Color(0x00000000));
-  });
+      expect(builtIn.black.p3, _color('#00000008'));
+      expect(builtIn.white.p100, _color('#FFFFFFFF'));
+      expect(builtIn.black.p0, const Color(0x00000000));
+    },
+  );
 
   test('fo01/us01/fr01: StratumOpacityTokens reads opacity.disabled and '
       'scrim', () {

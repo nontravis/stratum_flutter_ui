@@ -26,7 +26,7 @@ Object? _at(Map<String, Object?> tree, String path) {
 
 void main() {
   group('mergeThemes layers', () {
-    test('maps merge by key and values replace', () {
+    test('fo01/us04/s1: maps merge by key and values replace', () {
       final (merged, errors) = _merge([
         layer('color:\n  light:\n    brand:\n      normal: "#000000"'),
       ]);
@@ -127,7 +127,7 @@ color:
       expect(merged.inherited, contains('color.highContrastLight.brand.hover'));
     });
 
-    test('an inherited alias into the base set points into the overlay', () {
+    test('fo01/us04/fr01/e06: an inherited alias into the base set points into the overlay', () {
       final (merged, _) = _merge([]);
 
       expect(

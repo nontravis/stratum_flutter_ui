@@ -32,10 +32,14 @@ void main() {
     ];
 
     for (final (size, expected) in cases) {
-      test('maps $size to $expected', () {
+      test('fo07/us01/fr01: maps $size to $expected', () {
         expect(WindowSize.fromSize(size), expected);
       });
     }
+
+    test('fo07/us01/s1: a 1280 px wide window is desktop', () {
+      expect(WindowSize.fromSize(const Size(1280, 500)), WindowSize.desktop);
+    });
   });
   group('WindowSize comparison operators', () {
     test('>= is true for the same or a larger size only', () {

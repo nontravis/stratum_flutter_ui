@@ -55,17 +55,18 @@ void main() {
       (1700, 32),
     ];
     for (final (width, expected) in cases) {
-      testWidgets('a varying token on a $width px window reads $expected', (
-        tester,
-      ) async {
-        _setWidth(tester, width);
-        addTearDown(tester.view.reset);
-        double? md;
+      testWidgets(
+        'fo03/us09/s1, fo03/us09/s2: a varying token on a $width px window reads $expected',
+        (tester) async {
+          _setWidth(tester, width);
+          addTearDown(tester.view.reset);
+          double? md;
 
-        await tester.pumpWidget(_host((theme) => md = theme.space.md));
+          await tester.pumpWidget(_host((theme) => md = theme.space.md));
 
-        expect(md, expected);
-      });
+          expect(md, expected);
+        },
+      );
     }
 
     testWidgets('a uniform token reads no WindowSizeScope', (tester) async {
@@ -234,47 +235,48 @@ void main() {
     });
   });
 
-  testWidgets('the view forwards the data, and context.theme is the view', (
-    tester,
-  ) async {
-    late StratumTheme theme;
-    late StratumTheme fromContext;
-    final data = fakeTheme.copyWith(
-      appColors: const {'mango': Color(0xFFFFAA00)},
-    );
-    await tester.pumpWidget(
-      StratumThemeApplication(
-        themes: StratumThemeSet(light: data),
-        themeMode: ThemeMode.light,
-        child: Builder(
-          builder: (context) {
-            theme = StratumTheme.of(context);
-            fromContext = context.theme;
-            return const SizedBox();
-          },
+  testWidgets(
+    'fo03/us07/s1, fo03/us07/fr01: the view forwards the data, and context.theme is the view',
+    (tester) async {
+      late StratumTheme theme;
+      late StratumTheme fromContext;
+      final data = fakeTheme.copyWith(
+        appColors: const {'mango': Color(0xFFFFAA00)},
+      );
+      await tester.pumpWidget(
+        StratumThemeApplication(
+          themes: StratumThemeSet(light: data),
+          themeMode: ThemeMode.light,
+          child: Builder(
+            builder: (context) {
+              theme = StratumTheme.of(context);
+              fromContext = context.theme;
+              return const SizedBox();
+            },
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(theme.data, same(data));
-    expect(fromContext.data, same(data));
-    expect(theme.color, same(data.color));
-    expect(theme.palette, same(data.palette));
-    expect(theme.transparent, same(data.transparent));
-    expect(theme.animation, same(data.animation));
-    expect(theme.assets, same(data.assets));
-    expect(theme.extensions, same(data.extensions));
-    expect(theme.typography, same(data.typography));
-    expect(theme.appColor('mango'), const Color(0xFFFFAA00));
-    expect(theme.maybeAppColor('kiwi'), isNull);
-    expect(theme.themeMode, ThemeMode.light);
-    expect(theme.physics, same(data.physics));
-    expect(theme.defaultWidgetSize, data.defaultWidgetSize);
-    expect(theme.border, same(data.border));
-    expect(theme.shadow, same(data.shadow));
-    expect(theme.blur, same(data.blur));
-    expect(theme.systemStyle, same(data.systemStyle));
-  });
+      expect(theme.data, same(data));
+      expect(fromContext.data, same(data));
+      expect(theme.color, same(data.color));
+      expect(theme.palette, same(data.palette));
+      expect(theme.transparent, same(data.transparent));
+      expect(theme.animation, same(data.animation));
+      expect(theme.assets, same(data.assets));
+      expect(theme.extensions, same(data.extensions));
+      expect(theme.typography, same(data.typography));
+      expect(theme.appColor('mango'), const Color(0xFFFFAA00));
+      expect(theme.maybeAppColor('kiwi'), isNull);
+      expect(theme.themeMode, ThemeMode.light);
+      expect(theme.physics, same(data.physics));
+      expect(theme.defaultWidgetSize, data.defaultWidgetSize);
+      expect(theme.border, same(data.border));
+      expect(theme.shadow, same(data.shadow));
+      expect(theme.blur, same(data.blur));
+      expect(theme.systemStyle, same(data.systemStyle));
+    },
+  );
 
   testWidgets('maybeOf is null with no application', (tester) async {
     var built = false;

@@ -82,7 +82,8 @@ void main() {
       },
     );
 
-    test('writes one file per source and a barrel that exports them', () {
+    test('f02/us01/s1, f02/us01/fr01: writes one file per source and a '
+        'barrel that exports them', () {
       expect(files.keys, [
         'row_layout.dart',
         'animated_styled_box.dart',

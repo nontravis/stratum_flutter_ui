@@ -76,7 +76,7 @@ void main() {
       expect(set.light.transparent.black.p3, const Color(0x08000000));
     });
 
-    test('the high-contrast overlays keep the light and dark colors '
+    test('fo03/us10/fr03: the high-contrast overlays keep the light and dark colors '
         'beyond the focus ring', () {
       final set = defaultThemeSet;
       final pairs = [

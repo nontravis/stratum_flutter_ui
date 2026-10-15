@@ -3,17 +3,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui_example/typography_demo.dart';
 
 void main() {
-  testWidgets('loads the default theme and lists its types and sizes', (
-    tester,
-  ) async {
-    final theme = await tester.runAsync(loadDemoTheme);
+  testWidgets(
+    'f01/us03/s1, f01/us03/fr01: loads the default theme and lists its '
+    'types and sizes',
+    (tester) async {
+      final theme = await tester.runAsync(loadDemoTheme);
 
-    await tester.pumpWidget(TypographyDemoApp(themes: theme!));
+      await tester.pumpWidget(TypographyDemoApp(themes: theme!));
 
-    expect(find.text('header s56'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('table s10'), 300);
-    expect(find.text('table s10'), findsOneWidget);
-  });
+      expect(find.text('header s56'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('table s10'), 300);
+      expect(find.text('table s10'), findsOneWidget);
+    },
+  );
 
   testWidgets('switches the window size and the text scale', (tester) async {
     final theme = await tester.runAsync(loadDemoTheme);

@@ -307,7 +307,7 @@ void main() {
     );
 
     testWidgets(
-      'fo06/us07/fr03/e01: an outside ring reaches its gap plus its width, the '
+      'fo06/us04/fr03: an outside ring reaches its gap plus its width, the '
       "app-wide default's after a restyle",
       (tester) async {
         double? reach;

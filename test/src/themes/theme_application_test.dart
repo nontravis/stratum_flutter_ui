@@ -62,19 +62,22 @@ void main() {
       (ThemeMode.system, StratumHighContrastMode.system, _contrastDark),
     ];
     for (final (themeMode, highContrast, expected) in cases) {
-      testWidgets('fr01: ${themeMode.name} with high contrast '
-          '${highContrast.name} picks its data', (tester) async {
-        StratumThemeData? found;
-        await tester.pumpWidget(
-          _host(
-            (data) => found = data,
-            themeMode: themeMode,
-            highContrast: highContrast,
-          ),
-        );
+      testWidgets(
+        'fo03/us04/s1, fo03/us04/fr01: ${themeMode.name} with high contrast '
+        '${highContrast.name} picks its data',
+        (tester) async {
+          StratumThemeData? found;
+          await tester.pumpWidget(
+            _host(
+              (data) => found = data,
+              themeMode: themeMode,
+              highContrast: highContrast,
+            ),
+          );
 
-        expect(found, same(expected));
-      });
+          expect(found, same(expected));
+        },
+      );
     }
 
     testWidgets('fr01/e01: system and system on a default media query give '
@@ -281,7 +284,9 @@ void main() {
       );
     });
 
-    testWidgets('fr02/e01: a new theme mode rebuilds', (tester) async {
+    testWidgets('fo03/us04/fr02/e01: a new theme mode rebuilds', (
+      tester,
+    ) async {
       expect(
         await rebuilds(
           tester,

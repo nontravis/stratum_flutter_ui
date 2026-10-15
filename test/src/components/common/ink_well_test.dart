@@ -245,7 +245,9 @@ void main() {
       expect((box.decoration as BoxDecoration).color, isNull);
     });
 
-    testWidgets('a hovered state paints overlayHover', (tester) async {
+    testWidgets('fo06/us04/fr01: a hovered state paints overlayHover', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         themedHost(
           StratumInkWell(
@@ -2096,9 +2098,8 @@ void main() {
   });
 
   group('StratumInkWell context-menu key', () {
-    testWidgets('fo06/us05/s1: the context-menu key calls onSecondaryTap', (
-      tester,
-    ) async {
+    testWidgets('fo06/us05/fr01, fo06/us05/s1: the context-menu key calls '
+        'onSecondaryTap', (tester) async {
       var calls = 0;
       final node = _node();
       await tester.pumpWidget(
@@ -2376,7 +2377,8 @@ void main() {
 
   group('StratumInkWell shortcuts', () {
     testWidgets(
-      'fo06/us05/s4: a binding fires only while the surface has focus',
+      'fo06/us05/fr02, fo06/us05/s4: a binding fires only while the surface '
+      'has focus',
       (tester) async {
         var calls = 0;
         final node = _node();
@@ -2697,37 +2699,40 @@ void main() {
       ),
     };
     for (final MapEntry(key: name, value: surface) in surfaces.entries) {
-      testWidgets('$name survives scrolling past the cache extent in touch '
-          'mode', (tester) async {
-        _useHighlightStrategy(FocusHighlightStrategy.alwaysTouch);
-        final node = _node();
-        final controller = ScrollController();
-        addTearDown(controller.dispose);
-        await tester.pumpWidget(
-          themedHost(
-            SizedBox(
-              height: 300,
-              child: ListView.builder(
-                controller: controller,
-                itemCount: 100,
-                itemBuilder: (context, index) =>
-                    index == 0 ? surface(node) : const SizedBox(height: 100),
+      testWidgets(
+        'fo06/us04/fr05: $name survives scrolling past the cache extent in '
+        'touch mode',
+        (tester) async {
+          _useHighlightStrategy(FocusHighlightStrategy.alwaysTouch);
+          final node = _node();
+          final controller = ScrollController();
+          addTearDown(controller.dispose);
+          await tester.pumpWidget(
+            themedHost(
+              SizedBox(
+                height: 300,
+                child: ListView.builder(
+                  controller: controller,
+                  itemCount: 100,
+                  itemBuilder: (context, index) =>
+                      index == 0 ? surface(node) : const SizedBox(height: 100),
+                ),
               ),
             ),
-          ),
-        );
-        node.requestFocus();
-        await tester.pump();
+          );
+          node.requestFocus();
+          await tester.pump();
 
-        controller.jumpTo(5000);
-        await tester.pump();
+          controller.jumpTo(5000);
+          await tester.pump();
 
-        expect(node.hasFocus, isTrue);
-        expect(
-          find.byType(StratumInkWell, skipOffstage: false),
-          findsOneWidget,
-        );
-      });
+          expect(node.hasFocus, isTrue);
+          expect(
+            find.byType(StratumInkWell, skipOffstage: false),
+            findsOneWidget,
+          );
+        },
+      );
     }
   });
 
@@ -2865,7 +2870,8 @@ void main() {
   });
 
   group('StratumInkWell tap target', () {
-    testWidgets('NFR-U05: pads a 20x20 child to 44x44 on iOS', (tester) async {
+    testWidgets('fo06/us04/fr06: NFR-U05: pads a 20x20 child to 44x44 on '
+        'iOS', (tester) async {
       await _withTargetPlatform(TargetPlatform.iOS, () async {
         await tester.pumpWidget(
           themedHost(const StratumInkWell(onTap: _noop, child: _small)),

@@ -138,7 +138,7 @@ color:
       );
     });
 
-    test('reports a failed target once, at the target', () {
+    test('fo01/us02/fr01/e07: reports a failed target once, at the target', () {
       expect(_problems('palette:\n  brand:\n    500: "#XYZ"'), [
         'layer1 palette.brand.500: $_hex "#XYZ" [expected_color]',
       ]);
@@ -209,7 +209,7 @@ color:
   });
 
   group('readThemeValues dimensions', () {
-    test('reads a scalar for every window size and a map per window size', () {
+    test('fo01/us05/s1, fo01/us05/fr01: reads a scalar for every window size and a map per window size', () {
       final (config, _) = _read([]);
 
       expect(
@@ -585,31 +585,29 @@ color:
   });
 
   group('readThemeValues extensions and typography', () {
-    test(
-      'extensions read as plain values, brace strings kept, unmodifiable',
-      () {
-        final (config, errors) = _read([
-          layer('''
+    test('fo01/us01/fr02: extensions read as plain values, brace strings kept, '
+        'unmodifiable', () {
+      final (config, errors) = _read([
+        layer('''
 extensions:
   1: one
   link: "{palette.brand.500}"
   list: [a, { b: 2 }]
   flag: true'''),
-        ]);
+      ]);
 
-        expect(problems(errors), isEmpty);
-        expect(config.extensions, {
-          '1': 'one',
-          'link': '{palette.brand.500}',
-          'list': [
-            'a',
-            {'b': 2},
-          ],
-          'flag': true,
-        });
-        expect(() => config.extensions['x'] = 1, throwsUnsupportedError);
-      },
-    );
+      expect(problems(errors), isEmpty);
+      expect(config.extensions, {
+        '1': 'one',
+        'link': '{palette.brand.500}',
+        'list': [
+          'a',
+          {'b': 2},
+        ],
+        'flag': true,
+      });
+      expect(() => config.extensions['x'] = 1, throwsUnsupportedError);
+    });
 
     test("typography errors join the list, each at its layer's position", () {
       final (_, errors) = _read([

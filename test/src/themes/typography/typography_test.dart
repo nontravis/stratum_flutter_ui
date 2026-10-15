@@ -939,22 +939,20 @@ void main() {
   });
 
   group('StratumTypography.fromYaml Google Fonts', () {
-    test(
-      'a "Google/<Name>" family parses with source google and the bare name',
-      () {
-        final typography = StratumTypography.fromYaml(
-          _typography(fonts: '{ inter: { family: "Google/Kanit" } }'),
-        );
+    test('fo02/us08/fr01: a "Google/<Name>" family parses with source google '
+        'and the bare name', () {
+      final typography = StratumTypography.fromYaml(
+        _typography(fonts: '{ inter: { family: "Google/Kanit" } }'),
+      );
 
-        expect(
-          typography.fonts['inter'],
-          const StratumFontData(
-            family: 'Kanit',
-            source: StratumFontSource.google,
-          ),
-        );
-      },
-    );
+      expect(
+        typography.fonts['inter'],
+        const StratumFontData(
+          family: 'Kanit',
+          source: StratumFontSource.google,
+        ),
+      );
+    });
   });
 
   group('us07: StratumTypography.fromYaml font files', () {

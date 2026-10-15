@@ -49,7 +49,7 @@ void main() {
     });
   }
 
-  test('rejects fuchsia', () {
+  test('co01_02/us01/fr04: rejects fuchsia', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
     expect(
       () => createPlatformStratumWebView(RecordingListener()),

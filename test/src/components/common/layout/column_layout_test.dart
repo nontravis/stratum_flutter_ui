@@ -185,9 +185,8 @@ void main() {
       expect(tester.state(find.byType(_Probe)), same(before));
     });
 
-    testWidgets('fillViewport stretches short content to the viewport', (
-      tester,
-    ) async {
+    testWidgets('fo06/us02/fr02: fillViewport stretches short content to the '
+        'viewport', (tester) async {
       await tester.pumpWidget(
         _sized(
           const Size(100, 300),

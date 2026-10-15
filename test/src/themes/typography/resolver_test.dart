@@ -180,10 +180,25 @@ void main() {
     textScaler: textScaler,
   );
 
+  group('StratumTextStyle recipe immutability', () {
+    test('fo02/us01/fr02: a recipe method returns a new instance, leaves the '
+        'original unchanged, and two recipes built apart with the same '
+        'fields are equal with equal hash codes', () {
+      final base = StratumTextStyle.body;
+      final medium = base.medium;
+
+      expect(identical(medium, base), isFalse);
+      expect(base.fontWeight, isNull);
+      expect(medium.fontWeight, FontWeight.w500);
+      expect(StratumTextStyle.body.medium, medium);
+      expect(StratumTextStyle.body.medium.hashCode, medium.hashCode);
+    });
+  });
+
   group('TypographyResolver, the spec section 7 example', () {
     final recipe = StratumTextStyle.body.s16.medium;
 
-    test('at a text scale of 2.0', () {
+    test('fo02/us03/s1: at a text scale of 2.0', () {
       final style = resolve(
         recipe,
         locale: _thTH,
@@ -334,8 +349,8 @@ void main() {
       );
     });
 
-    test("a type's own window scale wins over the theme-wide one, and table "
-        "takes body's own override", () {
+    test("fo02/us04/fr01: a type's own window scale wins over the theme-wide "
+        "one, and table takes body's own override", () {
       theme = _theme('''
 typography:
   fonts: { inter: { family: Inter } }
@@ -808,7 +823,8 @@ typography:
       );
     });
 
-    test('mono takes the type mono, then the tag mono, then warns', () {
+    test('fo02/us06/fr01, fo02/us06/s1: mono takes the type mono, then the tag '
+        'mono, then warns', () {
       expect(resolve(StratumTextStyle.number.mono).fontFamily, 'Geist Mono');
       expect(
         resolve(StratumTextStyle.number.mono, locale: _thTH).fontFamily,
@@ -926,7 +942,8 @@ typography:
       expect(resolve(StratumTextStyle.body.bold).fontWeight, FontWeight.w700);
     });
 
-    test("table resolves body's sizes and weight, with tabular figures", () {
+    test("fo02/us06/fr02: table resolves body's sizes and weight, with "
+        'tabular figures', () {
       final body = resolve(StratumTextStyle.body.s20);
       final table = resolve(StratumTextStyle.table.s20);
 
@@ -1623,11 +1640,14 @@ typography:
   });
 
   group('TypographyResolver cache', () {
-    test('fo02/us01/s3: a hit returns the identical instance', () {
-      final recipe = StratumTextStyle.body.s20;
+    test(
+      'fo02/us01/fr03, fo02/us01/s3: a hit returns the identical instance',
+      () {
+        final recipe = StratumTextStyle.body.s20;
 
-      expect(identical(resolve(recipe), resolve(recipe)), isTrue);
-    });
+        expect(identical(resolve(recipe), resolve(recipe)), isTrue);
+      },
+    );
 
     test('a different window size gives a different instance', () {
       final recipe = StratumTextStyle.body.s20;
