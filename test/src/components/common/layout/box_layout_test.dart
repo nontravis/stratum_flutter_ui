@@ -233,7 +233,12 @@ void main() {
       void longPress() {}
       void secondaryTap() {}
       const label = SemanticsProperties(label: 'box');
-      const shortcuts = {SingleActivator(LogicalKeyboardKey.keyA): _noop};
+      // Wrapped so freezed's generated getter (`_shortcuts is
+      // EqualUnmodifiableMapView`) hands this exact view back unchanged,
+      // keeping the `same()` pin below true.
+      final shortcuts = EqualUnmodifiableMapView({
+        const SingleActivator(LogicalKeyboardKey.keyA): _noop,
+      });
       await tester.pumpWidget(
         themedHost(
           _Layout(
