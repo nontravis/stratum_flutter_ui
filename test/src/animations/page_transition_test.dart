@@ -50,7 +50,7 @@ Future<PageTransition<void>> _push(
   Curve? curve,
   Widget child = const SizedBox(),
   Widget? childCurrent,
-  Alignment? alignment,
+  Alignment alignment = Alignment.center,
   bool opaque = false,
   bool reducedMotion = false,
 }) async {
@@ -83,6 +83,42 @@ Future<void> _settleHeroOffstage(WidgetTester tester) => tester.pump();
 
 /// The page keyed `page`.
 final Finder _page = find.byKey(const ValueKey('page'));
+
+/// The alignment the drawn transition widget grows [type] from, after a
+/// push whose page is [_page] (US-05 FR-01 E03: `scale`, `rotate`, and
+/// `size` each draw the alignment through a different ancestor widget).
+AlignmentGeometry _drawnAlignmentOf(
+  WidgetTester tester,
+  ScreenTransitionType type,
+) => switch (type) {
+  ScreenTransitionType.scale =>
+    tester
+        .widget<ScaleTransition>(
+          find
+              .ancestor(of: _page, matching: find.byType(ScaleTransition))
+              .first,
+        )
+        .alignment,
+  ScreenTransitionType.rotate =>
+    tester
+        .widget<RotationTransition>(
+          find
+              .ancestor(of: _page, matching: find.byType(RotationTransition))
+              .first,
+        )
+        .alignment,
+  _ =>
+    tester
+        .widget<Align>(
+          find
+              .ancestor(
+                of: find.byType(SizeTransition),
+                matching: find.byType(Align),
+              )
+              .first,
+        )
+        .alignment,
+};
 
 /// The motion widgets between [_page] and its route.
 List<Widget> _transitionsAbove(WidgetTester tester) => tester
@@ -478,12 +514,41 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr01/e03: scale with no alignment fails with a '
-      'null-check error', (tester) async {
-    await _push(tester, type: ScreenTransitionType.scale);
+  for (final type in const [
+    ScreenTransitionType.scale,
+    ScreenTransitionType.rotate,
+    ScreenTransitionType.size,
+  ]) {
+    testWidgets('fo05/us05/fr01/e03: ${type.name} with no alignment grows '
+        'from the center', (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(_app(navigator));
+      const page = SizedBox(key: ValueKey('page'));
+      final route = PageTransition<void>(type: type, child: page);
+      navigator.currentState!.push(route).ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    expect(tester.takeException(), isA<TypeError>());
-  });
+      expect(tester.takeException(), isNull);
+      expect(route.alignment, Alignment.center);
+      expect(_drawnAlignmentOf(tester, type), Alignment.center);
+    });
+
+    testWidgets('fo05/us05/fr01: ${type.name} with a caller alignment grows '
+        'from it', (tester) async {
+      const page = SizedBox(key: ValueKey('page'));
+      final route = await _push(
+        tester,
+        type: type,
+        child: page,
+        alignment: Alignment.topLeft,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(route.alignment, Alignment.topLeft);
+      expect(_drawnAlignmentOf(tester, type), Alignment.topLeft);
+    });
+  }
 
   testWidgets('us05/fr01/e04: the page under a pushed route stays '
       'mounted', (tester) async {

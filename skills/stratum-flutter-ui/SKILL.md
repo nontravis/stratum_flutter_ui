@@ -721,9 +721,10 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 - **One page's own type** — `PageTransition(type:, child:)` for `Navigator.push`, and
   `StratumTransitionPage(key: state.pageKey, type:, child:)` for go_router's `pageBuilder` or a Navigator 2.0 page
   list; either shows its own type, never the theme's. `PageTransition` also takes `curve`, `duration`,
-  `reverseDuration`, `alignment` (required by `scale`, `rotate`, `size`), `childCurrent` (the current page, required
-  by the joined types), and `inheritTheme` with `ctx`. In the theme and in `StratumTransitionPage`, which have neither,
-  `scale`, `rotate`, and `size` grow from the center and a joined type slides the page below out in its own route.
+  `reverseDuration`, `alignment` (the point `scale`, `rotate`, and `size` grow from; the center by default),
+  `childCurrent` (the current page, required by the joined types), and `inheritTheme` with `ctx`. In the theme and in
+  `StratumTransitionPage`, which have neither, `scale`, `rotate`, and `size` grow from the center and a joined type
+  slides the page below out in its own route.
   `NoPageTransition(builder:)` shows its page with no animation and zero push and pop durations, whatever the theme
   names. The page below moves only under an opaque route, or under a route that hands its own delegated
   transition, such as `showCupertinoSheet`: `PageTransition` is translucent by default, so pass `opaque: true`

@@ -113,7 +113,7 @@ Widget buildScreenTransition<T>(
   required Widget child,
   required Curve standard,
   Curve? curve,
-  Alignment? alignment,
+  Alignment alignment = Alignment.center,
   Widget? childCurrent,
   bool joinOnSecondary = false,
 }) {
@@ -150,7 +150,7 @@ Widget buildScreenTransition<T>(
     case ScreenTransitionType.scale:
       if (reduced) return _atOnce(route, animation, child);
       return ScaleTransition(
-        alignment: alignment!,
+        alignment: alignment,
         scale: animation.drive(
           CurveTween(curve: Interval(0.00, 0.50, curve: resolved)),
         ),
@@ -160,7 +160,7 @@ Widget buildScreenTransition<T>(
     case ScreenTransitionType.rotate:
       if (reduced) return _atOnce(route, animation, child);
       return RotationTransition(
-        alignment: alignment!,
+        alignment: alignment,
         turns: curved,
         child: ScaleTransition(
           alignment: alignment,
@@ -172,7 +172,7 @@ Widget buildScreenTransition<T>(
     case ScreenTransitionType.size:
       if (reduced) return _atOnce(route, animation, child);
       return Align(
-        alignment: alignment!,
+        alignment: alignment,
         child: SizeTransition(sizeFactor: curved, child: child),
       );
 
