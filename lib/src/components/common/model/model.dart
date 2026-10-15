@@ -14,4 +14,8 @@ export 'split_layout/split_pane.dart';
 export 'toast/stratum_toast_action.dart';
 export 'toast/stratum_toast_notice.dart';
 export 'toast/stratum_toast_placement.dart';
+export 'web_view/web_view_error.dart';
+export 'web_view/web_view_message.dart';
+export 'web_view/web_view_navigation_decision.dart';
+export 'web_view/web_view_source.dart';
 export 'widget_style.dart';

@@ -7,11 +7,13 @@ import 'dart:js_interop_unsafe';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_web.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 import 'package:web/web.dart' as web;
 
 import '../fakes/recording_listener.dart';

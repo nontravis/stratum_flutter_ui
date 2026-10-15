@@ -48,6 +48,10 @@ const _valueModelFiles = [
   'lib/src/components/common/model/page_layout/page_side.dart',
   'lib/src/components/common/model/split_layout/split_divider_state.dart',
   'lib/src/components/common/model/split_layout/split_pane.dart',
+  // M4-T17: the shipped models of CO-01-02 (design 5.2).
+  'lib/src/components/common/model/web_view/web_view_error.dart',
+  'lib/src/components/common/model/web_view/web_view_message.dart',
+  'lib/src/components/common/model/web_view/web_view_source.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside

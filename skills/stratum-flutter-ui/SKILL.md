@@ -20,7 +20,8 @@ as deprecated aliases; write the new names.
 Values: these compare by value, field by field, and derive a variant with `copyWith`: `StratumMotionLevels`,
 `StratumAnimation`, `StratumThemeData`, `StratumAppPalette`, `StratumThemeSet`, `StratumRemoteTheme` (its `bytes` by
 content), `StratumFontData`, `StratumTextStyle` (`copyWith` beside its fluent getters),
-`StratumThemeTransitions`, `Interaction`, `InteractionState`, `Scroll`, `FocusGroup`. Callbacks, focus nodes, states controllers, and scroll controllers inside a value compare by
+`StratumThemeTransitions`, `Interaction`, `InteractionState`, `Scroll`, `FocusGroup`, `StratumWebViewSource` (each
+case), `StratumWebViewMessage`, `StratumWebViewError`. Callbacks, focus nodes, states controllers, and scroll controllers inside a value compare by
 identity. These carry no `map` or
 `when`; read a sealed one with a Dart `switch`: `StratumAppConfig`, `WidgetStyle`, `ImageBlurFilter`,
 `PageLayoutStyle`, `PageSafeArea`, `PageSide`, `SplitPane`, `SplitDividerState`, `ModalLayoutStyle`.

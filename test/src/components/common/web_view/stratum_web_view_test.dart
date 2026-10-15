@@ -1,8 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_controller.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 import 'fakes/fake_platform_stratum_web_view.dart';
 

@@ -4,12 +4,13 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/adapters/native_sender_channel.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/adapters/webview_flutter_adapter.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 // The internal pigeon-generated file, not the public barrel: its
 // `PigeonOverrides` is the package's own seam for standing in for the
 // native WebView, WebChromeClient, and WebSettings in a host-side test
