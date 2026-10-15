@@ -13154,33 +13154,61 @@ void main() {
       },
     );
 
-    final directions = ValueVariant<TextDirection>({
-      TextDirection.ltr,
-      TextDirection.rtl,
+    // (text direction, reverse).
+    final directions = ValueVariant<(TextDirection, bool)>({
+      (TextDirection.ltr, false),
+      (TextDirection.rtl, false),
+      (TextDirection.ltr, true),
+      (TextDirection.rtl, true),
     });
     testWidgets(
       'matrix I08.M5 and us11/fr03/e03: in a horizontal list "Move left" and '
       '"Move right" move the item by screen direction',
       (tester) async {
         final handle = tester.ensureSemantics();
-        final rtl = directions.currentValue == TextDirection.rtl;
+        final (direction, reverse) = directions.currentValue!;
         await tester.pumpWidget(
           _app(
-            const _Harness(count: 5, axis: Axis.horizontal),
-            textDirection: directions.currentValue!,
+            _Harness(count: 5, axis: Axis.horizontal, reverse: reverse),
+            textDirection: direction,
           ),
         );
+        double left() => tester.getTopLeft(find.byKey(const ValueKey(2))).dx;
+        final start = left();
 
         await _moveAction(tester, 2, 'Move left');
+        expect(left(), start - 40);
         await _moveAction(tester, 2, 'Move right');
+        expect(left(), start);
 
+        // Index 0 sits at the left when the axis runs to the right.
+        final runsRight = (direction == TextDirection.ltr) != reverse;
         expect(
           _harness(tester).moves,
-          rtl ? [(2, 3), (3, 2)] : [(2, 1), (1, 2)],
+          runsRight ? [(2, 1), (1, 2)] : [(2, 3), (3, 2)],
         );
         handle.dispose();
       },
       variant: directions,
+    );
+
+    testWidgets(
+      'matrix I08.M5 and us11/fr03/e03: in a reversed list "Move up" and '
+      '"Move down" move the item by screen direction',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(_app(const _Harness(count: 5, reverse: true)));
+        double top() => tester.getTopLeft(find.byKey(const ValueKey(2))).dy;
+        final start = top();
+
+        await _moveAction(tester, 2, 'Move up');
+        expect(top(), start - 40);
+        await _moveAction(tester, 2, 'Move down');
+        expect(top(), start);
+
+        expect(_harness(tester).moves, [(2, 3), (3, 2)]);
+        handle.dispose();
+      },
     );
 
     testWidgets(

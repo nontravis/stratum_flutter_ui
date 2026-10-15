@@ -747,28 +747,42 @@ class _ReorderSliverState extends SliverReorderableListState {
     void moveAfter() => _handleReorderItem(index, index + 2);
 
     final localizations = WidgetsLocalizations.of(context);
-    final isHorizontal = _scrollDirection == Axis.horizontal;
+    // The labels name the screen direction, as the reorder keys read it:
+    // the slot before an item lies toward the start of the list's axis
+    // direction, which `reverse` flips and the text direction sets on a
+    // horizontal axis (FR-03 E03). The Scrollable's scope does not notify
+    // on its axis direction, so the text direction is read for a rebuild.
+    Directionality.maybeOf(context);
+    final (
+      reorderItemBefore,
+      reorderItemAfter,
+    ) = switch (_scrollable.axisDirection) {
+      AxisDirection.down => (
+        localizations.reorderItemUp,
+        localizations.reorderItemDown,
+      ),
+      AxisDirection.up => (
+        localizations.reorderItemDown,
+        localizations.reorderItemUp,
+      ),
+      AxisDirection.right => (
+        localizations.reorderItemLeft,
+        localizations.reorderItemRight,
+      ),
+      AxisDirection.left => (
+        localizations.reorderItemRight,
+        localizations.reorderItemLeft,
+      ),
+    };
     if (index > 0) {
       semanticsActions[CustomSemanticsAction(
             label: localizations.reorderItemToStart,
           )] =
           moveToStart;
-      var reorderItemBefore = localizations.reorderItemUp;
-      if (isHorizontal) {
-        reorderItemBefore = Directionality.of(context) == TextDirection.ltr
-            ? localizations.reorderItemLeft
-            : localizations.reorderItemRight;
-      }
       semanticsActions[CustomSemanticsAction(label: reorderItemBefore)] =
           moveBefore;
     }
     if (index < widget.itemCount - 1) {
-      var reorderItemAfter = localizations.reorderItemDown;
-      if (isHorizontal) {
-        reorderItemAfter = Directionality.of(context) == TextDirection.ltr
-            ? localizations.reorderItemRight
-            : localizations.reorderItemLeft;
-      }
       semanticsActions[CustomSemanticsAction(label: reorderItemAfter)] =
           moveAfter;
       semanticsActions[CustomSemanticsAction(
