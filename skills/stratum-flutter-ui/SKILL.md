@@ -130,6 +130,9 @@ reading order on every platform: an app's `FocusTraversalOrder` on the items doe
 `OrderedTraversalPolicy` around the view; only a `FocusTraversalGroup` inside an item keeps its own order.
 Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible name for a screen reader to read
 (WCAG 4.1.2).
+`ScrollFocus` is the scrolling area's focus host: `componentPartDefaults: (theme) => {ScrollFocus:
+ScrollFocusStyle(focus: StratumFocusBorderStyle(...))}` restyles every scrolling area's ring, and each scroll
+view's `scrollFocusStyle` one area's; the window check counts a second ring's width.
 
 - **`ListViewLayout`**, **`GridViewLayout`**, **`CustomScrollViewLayout`** — lazy list, grid, and sliver view inside
   a `WidgetStyle` box; `style.padding` becomes the scroll padding, so it scrolls with the content.

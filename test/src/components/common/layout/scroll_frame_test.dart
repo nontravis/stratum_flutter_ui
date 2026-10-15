@@ -1,3 +1,8 @@
+// NFR-U04 n/a: the area paints no text of its own; its content scrolls
+// inside it (US-07 gate block).
+// NFR-U05 n/a: the area takes no tap of its own; the tap surfaces inside it
+// meet US-04 FR-06 (US-07 gate block).
+
 import 'package:flutter/rendering.dart' show ViewportOffset;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
@@ -320,6 +325,36 @@ BorderSide? _visibleRing(WidgetTester tester) {
 /// inner edge.
 bool _ringInside(WidgetTester tester) =>
     _visibleRing(tester)!.strokeAlign == BorderSide.strokeAlignInside;
+
+/// A 200 x 200 focusable scrolling area over 2000 px of content, styled at
+/// level 3 by [customStyle], under [parts], in the middle of the window.
+Widget _area({
+  ScrollFocusStyle? customStyle,
+  Map<Type, Object> parts = const {},
+  StratumThemeData? theme,
+}) => themedHost(
+  StratumComponentDefaults(
+    styles: const {},
+    parts: parts,
+    child: SizedBox(
+      width: 200,
+      height: 200,
+      child: ScrollFocus(
+        focusable: true,
+        axis: Axis.vertical,
+        semanticsLabel: 'Items',
+        customStyle: customStyle,
+        child: Builder(
+          builder: (context) => ListView(
+            controller: ScrollFocus.controllerOf(context),
+            children: const [SizedBox(height: 2000)],
+          ),
+        ),
+      ),
+    ),
+  ),
+  theme: theme,
+);
 
 void main() {
   group('ScrollFrame', () {
@@ -2497,6 +2532,250 @@ void main() {
       expect(side.width, 3);
       expect(side.strokeInset, moreOrLessEquals(-2));
     }, variant: TargetPlatformVariant.desktop());
+  });
+
+  group('ScrollFocus focus style levels', () {
+    const red = Color(0xFFFF0000);
+    const green = Color(0xFF00FF00);
+
+    testWidgets("fo06/us07/fr03/e05: one area's style wins field by field "
+        'over the app-wide area style and the every-ring style', (
+      tester,
+    ) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(
+        _area(
+          parts: const {
+            StratumFocusBorder: StratumFocusBorderStyle(
+              width: WidgetStatePropertyAll(4),
+            ),
+            ScrollFocus: ScrollFocusStyle(
+              focus: StratumFocusBorderStyle(
+                color: WidgetStatePropertyAll(green),
+              ),
+            ),
+          },
+          customStyle: const ScrollFocusStyle(
+            focus: StratumFocusBorderStyle(color: WidgetStatePropertyAll(red)),
+          ),
+        ),
+      );
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+
+      final ring = _visibleRing(tester)!;
+      expect(ring.color, isSameColorAs(red));
+      expect(ring.width, 4);
+    });
+
+    testWidgets('fo06/us07/fr03/e01, Review Focus: a second ring grows the '
+        'window check by its width', (tester) async {
+      _useTraditionalHighlight();
+      // Gap 2 + width 3 + second ring 3 = reach 8: a box 8 px from the
+      // window edge keeps the ring outside, one 7 px from it moves inside.
+      for (final (margin, inside) in [(8.0, false), (7.0, true)]) {
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              key: ValueKey(margin),
+              width: 800 - 2 * margin,
+              height: 600 - 2 * margin,
+              child: ScrollFocus(
+                focusable: true,
+                axis: Axis.vertical,
+                customStyle: const ScrollFocusStyle(
+                  focus: StratumFocusBorderStyle(
+                    secondRing: WidgetStatePropertyAll((
+                      color: green,
+                      width: null,
+                    )),
+                  ),
+                ),
+                child: Builder(
+                  builder: (context) => ListView(
+                    controller: ScrollFocus.controllerOf(context),
+                    children: const [SizedBox(height: 2000)],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        _scrollFocusNode(tester).requestFocus();
+        await tester.pumpAndSettle();
+
+        expect(_ringInside(tester), inside, reason: 'margin $margin');
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('fo06/us07/fr03/e01: the window check re-runs when the '
+        "area's own style changes while focused", (tester) async {
+      _useTraditionalHighlight();
+      Widget host(double? width) => themedHost(
+        SizedBox(
+          width: 800 - 12,
+          height: 600 - 12,
+          child: ScrollFocus(
+            focusable: true,
+            axis: Axis.vertical,
+            customStyle: width == null
+                ? null
+                : ScrollFocusStyle(
+                    focus: StratumFocusBorderStyle(
+                      width: WidgetStatePropertyAll(width),
+                    ),
+                  ),
+            child: Builder(
+              builder: (context) => ListView(
+                controller: ScrollFocus.controllerOf(context),
+                children: const [SizedBox(height: 2000)],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(host(null));
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isFalse);
+
+      await tester.pumpWidget(host(8));
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isTrue);
+    }, variant: TargetPlatformVariant.desktop());
+  });
+
+  group('ScrollFocus accessibility gate', () {
+    testWidgets('NFR-U06: the area is its own focusable node with its '
+        'label, focused while it is the Tab stop', (tester) async {
+      _useTraditionalHighlight();
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(_area());
+      final node = find.bySemanticsLabel('Items');
+      expect(tester.getSemantics(node), isSemantics(isFocusable: true));
+
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(node),
+        isSemantics(isFocusable: true, isFocused: true),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('NFR-U02: focus reaches the area and its focused look '
+        'differs from idle', (tester) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(_area());
+      expect(_visibleRing(tester), isNull);
+
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_visibleRing(tester), isNotNull);
+    });
+
+    testWidgets('NFR-U09: End scrolls the area to its end with no drag', (
+      tester,
+    ) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(_area());
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+
+      await _key(tester, LogicalKeyboardKey.end);
+      await tester.pumpAndSettle();
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position;
+      expect(position.pixels, position.maxScrollExtent);
+    });
+
+    testWidgets('NFR-U03: under disableAnimations the ring takes its look at '
+        'once', (tester) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: _area(),
+        ),
+      );
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pump();
+      expect(_visibleRing(tester)!.color.a, 1);
+    });
+
+    testWidgets('NFR-U01 exception, us07/nf01: the app-wide area style '
+        'replaces the ring token that fails 3:1', (tester) async {
+      _useTraditionalHighlight();
+      const strong = Color(0xFF1D4ED8);
+      await tester.pumpWidget(
+        _area(
+          theme: defaultThemeSet.light,
+          parts: const {
+            ScrollFocus: ScrollFocusStyle(
+              focus: StratumFocusBorderStyle(
+                color: WidgetStatePropertyAll(strong),
+              ),
+            ),
+          },
+        ),
+      );
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_visibleRing(tester)!.color, isSameColorAs(strong));
+    });
+
+    testWidgets('NFR-U07, NFR-U08, us07/nf01: under high contrast the '
+        'focused area shows the ring shape in the high-contrast token', (
+      tester,
+    ) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(_area(theme: defaultThemeSet.highContrastLight));
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      final ring = _visibleRing(tester)!;
+      expect(ring.width, 3);
+      expect(
+        ring.color,
+        isSameColorAs(defaultThemeSet.highContrastLight!.focus.outsideColor),
+      );
+    });
+
+    testWidgets("NFR-E01: the area's ring follows the theme's focus group", (
+      tester,
+    ) async {
+      _useTraditionalHighlight();
+      const teal = Color(0xFF0D9488);
+      await tester.pumpWidget(
+        _area(
+          theme: fakeTheme.copyWith(
+            focus: fakeTheme.focus.copyWith(outsideColor: teal),
+          ),
+        ),
+      );
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_visibleRing(tester)!.color, isSameColorAs(teal));
+    });
+
+    testWidgets("NFR-E02: focus, the area style's one field, shows on its "
+        'ring, and the ring width keeps the theme default', (tester) async {
+      _useTraditionalHighlight();
+      const red = Color(0xFFFF0000);
+      await tester.pumpWidget(
+        _area(
+          customStyle: const ScrollFocusStyle(
+            focus: StratumFocusBorderStyle(color: WidgetStatePropertyAll(red)),
+          ),
+        ),
+      );
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+
+      final ring = _visibleRing(tester)!;
+      expect(ring.color, isSameColorAs(red));
+      expect(ring.width, fakeTheme.focus.outsideWidth);
+    });
   });
 }
 

@@ -18,6 +18,7 @@ export 'page_layout.dart';
 export 'page_view_layout.dart';
 export 'reorderable_list_view_layout.dart';
 export 'row_layout.dart';
+export 'scroll_frame.dart' show ScrollFocus, ScrollFocusMode;
 export 'show_modal_layout.dart';
 export 'split_layout.dart' hide splitStep;
 export 'stack_layout.dart';

@@ -95,4 +95,11 @@ void main() {
       StratumSplashPhase.postload,
     ]);
   });
+
+  test('R7, (g): layout.dart exports ScrollFocus and ScrollFocusMode, so an '
+      'app names the scrolling area level 2 key', () {
+    const key = ScrollFocus;
+    expect(key, ScrollFocus);
+    expect(ScrollFocusMode.values, hasLength(2));
+  });
 }
