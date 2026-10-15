@@ -2181,6 +2181,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
           ? _MoveIntent.next
           : _MoveIntent.previous;
     }
+    // A settling drop completes before the key reads the data (R52), so i
+    // and n are the app's data after the drop's move (FR-02 E08).
+    _completeSettlingDrop();
     final from = _dataIndexOf(index);
     // An item the app removed in this turn does not move (R2), even when
     // fewer than two items are left (R8), nor does a move past either end;
@@ -2195,9 +2198,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       return KeyEventResult.handled;
     }
     // A drag ends first, as a call ends it (invariant 28): the move changes
-    // the data under it. A settling drop completes at once instead, its move
-    // reported, then this move runs (R52).
-    _endDragForInput();
+    // the data under it.
+    _cancelDrag();
     _takeScroll();
     final moved = _reportMove(
       index,
@@ -2298,7 +2300,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// 28); a screen-reader move is decoded into its intent and takes the
   /// reorder keys' target (R4), so it acts at once, also between a call
   /// and its frame (FR-03 E07), and ends a drag first, as a call does
-  /// (FR-03 E08); a settling drop it completes at once instead (R52).
+  /// (FR-03 E08); a settling drop it completes at once instead, before it
+  /// reads the data (R52).
   /// Every screen-reader action, once reported, books a focused move's jump
   /// for the next frame's start when its slot is not laid out
   /// ([_bookMoveJump], R46), which [_jumpForMove] makes exact at the data's
@@ -2309,6 +2312,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final index = _FrameIndex(fromIndex);
     final state = _listKey.currentState;
     final drop = state is _ReorderSliverState && state.isReportingDrop;
+    // A screen-reader move completes a settling drop before it reads the
+    // data (R52), so it moves from the app's data after the drop's move
+    // (FR-03 E08).
+    if (!drop) _completeSettlingDrop();
     final from = _dataIndexOf(index);
     // An item the app removed in this turn does not move (R2).
     if (from == null) return;
@@ -2318,9 +2325,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (target == null) return;
     // A drop took the scroll at pointer-up ([_handleReorderEnd]), so its
     // report takes nothing: a scroll the app made while it settled wins
-    // over its reveal (R61).
+    // over its reveal (R61). A screen-reader move ends a drag first, as a
+    // call ends it.
     if (!drop) {
-      _endDragForInput();
+      _cancelDrag();
       _takeScroll();
     }
     // A screen-reader move takes a focused move's jump (R46); only a drop
@@ -2601,16 +2609,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _endDrag(now: true, at: index);
   }
 
-  /// Ends the drag or settling drop an EndUser input this body is about to
-  /// run would land in: a settling drop completes at once, its move
-  /// reported (R52); a live drag ends as a call ends it (E06).
-  void _endDragForInput() {
+  /// Completes at once the settling drop an EndUser input this body is
+  /// about to run would land in, its move reported (R52), before the input
+  /// reads the app's data: the input then takes its indices from the data
+  /// after the drop's move (FR-02 E08, FR-03 E08).
+  void _completeSettlingDrop() {
     final state = _listKey.currentState;
-    if (state is _ReorderSliverState && state.isSettlingDrop) {
-      state.completeSettlingDrop();
-      return;
-    }
-    _cancelDrag();
+    if (state is _ReorderSliverState) state.completeSettlingDrop();
   }
 
   /// Cancels a drag in progress before an insert, remove, or move, or one
@@ -2618,8 +2623,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// slot, `onReorderEnd` fires at once with the index the drag started at,
   /// and `onReorderItem` does not fire. A dropped item still settling ends
   /// the same way, with no second `onReorderEnd`. A key move or a
-  /// screen-reader move takes [_endDragForInput] instead, which completes
-  /// a settling drop (R52).
+  /// screen-reader move completes a settling drop first instead
+  /// ([_completeSettlingDrop], R52).
   void _cancelDrag() {
     if (_inReorderStart) {
       // The drag `onReorderStart` reports is set up after it returns.
@@ -3264,7 +3269,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// or the app's, the list takes the scroll back in a new turn, unless a
   /// lift or a scroll of theirs still lasts: the newest input wins (R45).
   /// An input that ends a lift ends it first ([_endDragForCall],
-  /// [_endDragForInput], [_handleReorderEnd]); a continuation never takes.
+  /// [_cancelDrag], [_handleReorderEnd]); a continuation never takes.
   void _takeScroll() {
     if (_lifting || _otherScrolling || !_scrollTaken) return;
     _scrollTaken = false;

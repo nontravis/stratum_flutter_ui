@@ -6066,6 +6066,65 @@ void main() {
       variant: dragPhase,
     );
 
+    // The input that moves the focused item 4 up while the drop that
+    // carried item 3 past it still settles.
+    final crossedInput = ValueVariant<String>({'Alt+Up', 'Move up'});
+    testWidgets(
+      'us11/fr02/e08 and us11/fr03/e08 (R52): a key or screen-reader move of '
+      'the focused item a settling drop carried an item past reads the data '
+      "after the drop's move, so the item moves up from its new slot",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _app(
+            _Harness(count: 5, itemsController: ReorderableItemsController()),
+          ),
+        );
+        await _focusItem(tester, 4);
+        final state = _itemState(tester, 4);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('3')),
+        );
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+        // Left alone, the drop reports the move (3, 4) once it settles.
+        await gesture.moveBy(const Offset(0, 100));
+        await tester.pump(const Duration(milliseconds: 300));
+        await gesture.up();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 150));
+        final harness = _harness(tester);
+        expect(harness.moves, isEmpty);
+        expect(harness.ends, hasLength(1));
+
+        if (crossedInput.currentValue == 'Alt+Up') {
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+          expect(await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp), isTrue);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+        } else {
+          final node = tester.getSemantics(find.byKey(const ValueKey(4)));
+          node.owner!.performAction(
+            node.id,
+            SemanticsAction.customAction,
+            CustomSemanticsAction.getIdentifier(
+              const CustomSemanticsAction(label: 'Move up'),
+            ),
+          );
+        }
+        await tester.pumpAndSettle();
+
+        // The drop completes first, item 4 then sits at 3, and the input
+        // moves it from there.
+        expect(tester.takeException(), isNull);
+        expect(harness.moves, [(3, 4), (3, 2)]);
+        expect(harness.ids, [0, 1, 4, 2, 3]);
+        expect(harness.ends, hasLength(1));
+        expect(_itemState(tester, 4), same(state));
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 4');
+        handle.dispose();
+      },
+      variant: crossedInput,
+    );
+
     // The input that moves item 5 to the end right after the app inserts
     // an item at the end of its data.
     final endInput = ValueVariant<String>({'Alt+End', 'Move to the end'});
