@@ -450,23 +450,28 @@ void main() {
       expect(tester.hasRunningAnimations, isFalse);
     });
 
-    testWidgets('a set duration interpolates half-way', (tester) async {
-      const linear = AnimationStyle(
-        duration: Duration(milliseconds: 100),
-        curve: Curves.linear,
-      );
-      await tester.pumpWidget(
-        _host(const WidgetStyle(backgroundColor: _red, animationStyle: linear)),
-      );
-      await tester.pumpWidget(
-        _host(
-          const WidgetStyle(backgroundColor: _blue, animationStyle: linear),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 50));
+    testWidgets(
+      'fo05/us03/s1, fo05/us03/fr02: a set duration interpolates half-way',
+      (tester) async {
+        const linear = AnimationStyle(
+          duration: Duration(milliseconds: 100),
+          curve: Curves.linear,
+        );
+        await tester.pumpWidget(
+          _host(
+            const WidgetStyle(backgroundColor: _red, animationStyle: linear),
+          ),
+        );
+        await tester.pumpWidget(
+          _host(
+            const WidgetStyle(backgroundColor: _blue, animationStyle: linear),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
 
-      expect(_fillColor(tester), Color.lerp(_red, _blue, 0.5));
-    });
+        expect(_fillColor(tester), Color.lerp(_red, _blue, 0.5));
+      },
+    );
 
     testWidgets('a missing curve defaults to easeInOutSine', (tester) async {
       await tester.pumpWidget(
@@ -708,9 +713,8 @@ void main() {
       expect(tester.getSize(_decorated()), const Size(40, 20));
     });
 
-    testWidgets("the app's MediaQuery disableAnimations makes geometry jump", (
-      tester,
-    ) async {
+    testWidgets("fo05/us03/fr03: the app's MediaQuery disableAnimations makes "
+        'geometry jump', (tester) async {
       Widget build(WidgetStyle style) => MediaQuery(
         data: const MediaQueryData(disableAnimations: true),
         child: _host(style, child: null),
