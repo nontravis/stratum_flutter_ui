@@ -42,6 +42,34 @@ void main() {
     });
   });
 
+  group('StratumByWindowSize.names', () {
+    test('fo02/us04/fr02: a map names only the window sizes it declares', () {
+      final value = StratumByWindowSize(const {
+        WindowSize.mobile: 16,
+        WindowSize.desktop: 32,
+      });
+
+      expect(
+        {for (final size in WindowSize.values) size: value.names(size)},
+        {
+          WindowSize.watch: false,
+          WindowSize.mobile: true,
+          WindowSize.tablet: false,
+          WindowSize.desktop: true,
+          WindowSize.bigDesktop: false,
+        },
+      );
+    });
+
+    test('fo02/us04/fr02: .all names every window size', () {
+      const value = StratumByWindowSize.all(8);
+
+      for (final size in WindowSize.values) {
+        expect(value.names(size), isTrue, reason: '$size');
+      }
+    });
+  });
+
   group('StratumByWindowSize equality', () {
     test('equal when every size gives the same value', () {
       final full = StratumByWindowSize({

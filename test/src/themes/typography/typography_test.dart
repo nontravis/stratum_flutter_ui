@@ -591,6 +591,25 @@ void main() {
       );
     });
 
+    test('fo02/us04/fr02: a refused own entry at a smaller window size '
+        'shadows a larger window that falls back to it too', () {
+      const expected =
+          'typography.types.header.scaleByWindowSize.mobile: expected a '
+          'number or "N%" from -10000 to 10000, got 20000';
+      expect(
+        _errors(
+          _typography(
+            types: {
+              'header':
+                  '{ weight: 600, sizes: { s16: { spaceHeight: 8 } }, '
+                  'scaleByWindowSize: { mobile: 20000 } }',
+            },
+          ),
+        ),
+        [expected],
+      );
+    });
+
     test('us07/fr02/e19: an own scaleByWindowSize refused as a whole '
         'blames no theme-wide entry it would fall through to', () {
       const expected =
@@ -867,6 +886,36 @@ void main() {
       ) as YamlMap;
 
       expect(_errors(node['typography'] as YamlMap), isEmpty);
+    });
+
+    test('fo02/us04/fr02: the draw-size check reads the either-map fill, so '
+        'a theme-wide entry no text reads draws no error', () {
+      const ownMobile = 'scaleByWindowSize: { mobile: 0 }';
+      expect(
+        _errors(
+          _typography(
+            types: {
+              'header':
+                  '{ weight: 600, sizes: { s16: { spaceHeight: 8 } }, '
+                  '$ownMobile }',
+              'paragraph':
+                  '{ weight: 400, sizes: { s16: { spaceHeight: 10 } }, '
+                  '$ownMobile }',
+              'number':
+                  '{ weight: 600, sizes: { s16: { spaceHeight: 8 } }, '
+                  '$ownMobile }',
+              'code':
+                  '{ weight: 400, sizes: { s16: { spaceHeight: 8 } }, '
+                  '$ownMobile }',
+              'body':
+                  '{ weight: 400, sizes: { s16: { spaceHeight: 8 } }, '
+                  '$ownMobile }',
+            },
+            extra: '  scaleByWindowSize: { mobile: -14 }',
+          ),
+        ),
+        isEmpty,
+      );
     });
   });
 

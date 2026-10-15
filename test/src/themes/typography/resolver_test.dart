@@ -376,8 +376,9 @@ typography:
       );
     });
 
-    test('a window size the scale omits takes the nearest smaller one, else '
-        "the smallest one; a type's own map overrides it per window size", () {
+    test('fo02/us04/fr02/e04: a window size the scale omits takes the '
+        "nearest smaller one either map sets, the type's own winning "
+        'there', () {
       theme = _theme('''
 typography:
   fonts: { inter: { family: Inter } }
@@ -418,7 +419,75 @@ typography:
           StratumTextStyle.body,
           windowSize: WindowSize.bigDesktop,
         ).fontSize,
+        19,
+      );
+    });
+
+    test('fo02/us04/s4, fo02/us04/fr02/e01: a tablet window the theme '
+        'omits takes the growth of mobile', () {
+      theme = _theme('''
+typography:
+  fonts: { inter: { family: Inter } }
+  families:
+    default:
+      header: inter
+      paragraph: inter
+      number: inter
+      code: inter
+      body: inter
+      table: inter
+  scaleByWindowSize: { mobile: 0, desktop: 1 }
+  types:
+    header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+''');
+
+      expect(
+        resolve(StratumTextStyle.body, windowSize: WindowSize.tablet).fontSize,
+        16,
+      );
+      expect(
+        resolve(StratumTextStyle.body, windowSize: WindowSize.desktop).fontSize,
         17,
+      );
+    });
+
+    test('fo02/us04/fr02: a theme-wide scalar scale names every window '
+        'size, so no window reads the type map alone', () {
+      final theme = fakeStratumTheme(
+        typography: const StratumTypography(
+          fonts: {'inter': StratumFontData(family: 'Inter')},
+          families: {
+            'default': StratumFamilySet(
+              types: {FontType.body: StratumFontRef(font: 'inter')},
+            ),
+          },
+          types: {
+            FontType.body: StratumTypeStyle(
+              weight: FontWeight.w400,
+              sizes: {
+                FontSize.s16: StratumSizeMetrics(
+                  spaceHeight: StratumDimension.fixed(8),
+                ),
+              },
+            ),
+          },
+          scaleByWindowSize: StratumByWindowSize.all(StratumDimension.fixed(2)),
+        ),
+      );
+
+      expect(
+        TypographyResolver.resolve(
+          StratumTextStyle.body,
+          theme: theme,
+          locale: _en,
+          windowSize: WindowSize.watch,
+          textScaler: TextScaler.noScaling,
+        ).fontSize,
+        18,
       );
     });
   });

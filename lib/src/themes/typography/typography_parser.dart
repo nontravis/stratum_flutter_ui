@@ -639,9 +639,12 @@ final class _DrawSizeCheck {
     // (E19).
     final shadowed =
         window != null &&
-        (ownDeclaredWindows.contains(window)
-            ? !(style.scaleByWindowSize?.containsKey(window) ?? false)
-            : _themeFallbackRefused(window, themeDeclaredWindows));
+        _scaleSourceRefused(
+          window,
+          style,
+          ownDeclaredWindows,
+          themeDeclaredWindows,
+        );
     for (final key in fontKeys) {
       final adjustSize = _typography.fonts[key]?.adjustSize;
       if (adjustSize == null) continue;
@@ -670,18 +673,26 @@ final class _DrawSizeCheck {
     }
   }
 
-  /// Whether the theme-wide entry [window] would read, by `windowSizeNames`
-  /// order over [declared] (every key the raw node names, parsed or
-  /// refused), failed to parse: present in [declared] but missing from the
-  /// parsed `scaleByWindowSize.sizes` map.
-  bool _themeFallbackRefused(String window, Set<String> declared) {
-    final index = windowSizeEntryIndex(
-      windowSizeNames.indexOf(window),
-      (index) => declared.contains(windowSizeNames[index]),
+  /// Whether the window scale entry `windowScaleSource` picks for [window],
+  /// over the keys each raw map declares, parsed or refused ([ownDeclared]
+  /// for [style]'s own map, [themeDeclared] for the theme-wide one), failed
+  /// to parse: declared there, but missing from the parsed map (E19).
+  bool _scaleSourceRefused(
+    String window,
+    PlainTypeStyle style,
+    Set<String> ownDeclared,
+    Set<String> themeDeclared,
+  ) {
+    final source = windowScaleSource(
+      window,
+      ownSets: ownDeclared.contains,
+      themeSets: themeDeclared.contains,
     );
-    if (index == null) return false;
-    final name = windowSizeNames[index];
-    return !(_typography.scaleByWindowSize.sizes?.containsKey(name) ?? false);
+    if (source == null) return false;
+    final parsed = source.own
+        ? style.scaleByWindowSize
+        : _typography.scaleByWindowSize.sizes;
+    return !(parsed?.containsKey(source.name) ?? false);
   }
 
   TextSize _sizeOf(

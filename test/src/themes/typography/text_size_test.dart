@@ -50,18 +50,105 @@ void main() {
       expect(sizes.size, 19);
     });
 
-    test("a type's own map is read at its exact window size only", () {
-      final sizes = _sizeOf(
+    test("fo02/us04/fr02/e04: a type's own entry at a smaller window size "
+        'fills an omitted one; a nearer theme-wide entry fills where it is '
+        'nearer', () {
+      const own = {'desktop': StratumDimension.fixed(3)};
+      const themeScale = {
+        'mobile': StratumDimension.fixed(0),
+        'desktop': StratumDimension.fixed(1),
+      };
+      final big = _sizeOf(
         window: 'bigDesktop',
+        ownScale: own,
+        themeScale: themeScale,
+      );
+      final tablet = _sizeOf(
+        window: 'tablet',
+        ownScale: own,
+        themeScale: themeScale,
+      );
+
+      expect(big.windowScale, (
+        name: 'desktop',
+        own: true,
+        value: const StratumDimension.fixed(3),
+      ));
+      expect(big.size, 19);
+      expect(tablet.windowScale, (
+        name: 'mobile',
+        own: false,
+        value: const StratumDimension.fixed(0),
+      ));
+      expect(tablet.size, 16);
+    });
+
+    test('fo02/us04/fr02: a nearer own entry wins over a farther theme-wide '
+        'one, at a window size neither names exactly', () {
+      final sizes = _sizeOf(
+        window: 'tablet',
+        ownScale: const {'mobile': StratumDimension.fixed(3)},
+        themeScale: const {'watch': StratumDimension.fixed(1)},
+      );
+
+      expect(sizes.windowScale, (
+        name: 'mobile',
+        own: true,
+        value: const StratumDimension.fixed(3),
+      ));
+      expect(sizes.size, 19);
+    });
+
+    test("fo02/us04/fr02: a type's own map alone fills a window size it "
+        'omits, from the smallest window size it sets', () {
+      final sizes = _sizeOf(
+        window: 'mobile',
         ownScale: const {'desktop': StratumDimension.fixed(3)},
+        themeScale: null,
       );
 
       expect(sizes.windowScale, (
         name: 'desktop',
-        own: false,
-        value: const StratumDimension.fixed(1),
+        own: true,
+        value: const StratumDimension.fixed(3),
       ));
-      expect(sizes.size, 17);
+      expect(sizes.size, 19);
+    });
+
+    test('fo02/us04/fr02/e01, fo02/us04/fr02/e02, fo02/us04/fr02/e03: the '
+        'theme-wide map fills from the nearest smaller window size, else the '
+        'smallest', () {
+      const themeScale = {
+        'mobile': StratumDimension.fixed(0),
+        'desktop': StratumDimension.fixed(1),
+      };
+      for (final (window, name, size) in [
+        ('tablet', 'mobile', 16.0),
+        ('bigDesktop', 'desktop', 17.0),
+      ]) {
+        final sizes = _sizeOf(window: window, themeScale: themeScale);
+
+        expect(sizes.windowScale?.name, name, reason: window);
+        expect(sizes.size, size, reason: window);
+      }
+      final watch = _sizeOf(
+        window: 'watch',
+        themeScale: const {
+          'mobile': StratumDimension.fixed(2),
+          'desktop': StratumDimension.fixed(4),
+        },
+      );
+      expect(watch.windowScale?.name, 'mobile');
+      expect(watch.size, 18);
+    });
+
+    test('fo02/us04/fr02/e05: no window size runs no fill', () {
+      final sizes = _sizeOf(
+        ownScale: const {'desktop': StratumDimension.fixed(3)},
+      );
+
+      expect(sizes.windowScale, isNull);
+      expect(sizes.size, 16);
     });
 
     test('the theme-wide map gives its own entry, else the nearest smaller '
