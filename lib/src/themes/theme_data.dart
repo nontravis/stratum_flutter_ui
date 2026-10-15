@@ -1,94 +1,74 @@
 import 'package:stratum_ui/src/animations/stratum_page_transitions_builder.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
+
+part 'generated/theme_data.freezed.dart';
 
 /// The theme data of one color set (spec section 7.2). Build it through
 /// [StratumThemeSet.fromConfig]; change a field through [copyWith].
-@immutable
-class StratumThemeData {
-  const new({
-    required this.themeMode,
-    required this.color,
-    required this.palette,
-    required this.space,
-    required this.radius,
-    required this.layouts,
-    required this.appColors,
-    required this.appPalettes,
-    required this.assets,
-    required this.extensions,
-    required this.typography,
-    required this.animation,
-    required this.opacity,
-    required this.border,
-    required this.shadow,
-    required this.blur,
-    required this.systemStyle,
-    this.transparent = StratumTransparentTokens.builtIn,
-    this.defaultWidgetSize = WidgetSize.medium,
-    this.splashFactory = NoSplash.splashFactory,
-    this.scrollBehavior = const StratumScrollBehavior(),
-    this.physics = const ClampingScrollPhysics(),
-  });
+@valueModel
+abstract class StratumThemeData with _$StratumThemeData {
+  const factory({
+    /// `ThemeMode.light` for the light and high-contrast light data,
+    /// `ThemeMode.dark` for the other two.
+    required ThemeMode themeMode,
 
-  /// `ThemeMode.light` for the light and high-contrast light data,
-  /// `ThemeMode.dark` for the other two.
-  final ThemeMode themeMode;
+    /// `color.<set>` without `app`.
+    required StratumColorTokens color,
 
-  /// `color.<set>` without `app`.
-  final StratumColorTokens color;
+    /// `palette` without `app`.
+    required StratumPaletteTokens palette,
+    required Map<String, StratumByWindowSize<StratumDimension>> space,
+    required Map<String, StratumByWindowSize<StratumDimension>> radius,
+    required Map<String, StratumByWindowSize<StratumDimension>> layouts,
 
-  /// `palette` without `app`.
-  final StratumPaletteTokens palette;
+    /// `color.<set>.app`, by name.
+    required Map<String, Color> appColors,
 
-  /// The 64 built-in transparent steps.
-  final StratumTransparentTokens transparent;
+    /// `palette.app`, by ramp, then shade.
+    required Map<String, Map<String, Color>> appPalettes,
+    required StratumAssetTokens assets,
+    required Map<String, Object?> extensions,
+    required StratumTypography typography,
 
-  final Map<String, StratumByWindowSize<StratumDimension>> space;
-  final Map<String, StratumByWindowSize<StratumDimension>> radius;
-  final Map<String, StratumByWindowSize<StratumDimension>> layouts;
+    /// The yaml values; `StratumTheme.animation` returns them unchanged,
+    /// reduced motion included (spec C1).
+    required StratumAnimation animation,
 
-  /// `color.<set>.app`, by name.
-  final Map<String, Color> appColors;
+    /// `opacity`: `disabled`, the opacity of a disabled component, which the
+    /// component base's disabled wrapper paints (FO-08 US-07).
+    required StratumOpacityTokens opacity,
 
-  /// `palette.app`, by ramp, then shade.
-  final Map<String, Map<String, Color>> appPalettes;
+    /// `border`: `sm`, `md`, `lg`, each a width in logical pixels from the
+    /// theme file; a widget that needs the usual width reads `md`.
+    required StratumBorderTokens border,
 
-  final StratumAssetTokens assets;
-  final Map<String, Object?> extensions;
-  final StratumTypography typography;
+    /// `shadow`: `level1` to `level6`, each a list of `BoxShadow` in Figma
+    /// order, colored from this data's own color set.
+    required StratumShadowTokens shadow,
 
-  /// The yaml values; `StratumTheme.animation` returns them unchanged,
-  /// reduced motion included (spec C1).
-  final StratumAnimation animation;
+    /// `blur`: `level1` to `level6`, each a background blur at sigma half
+    /// the Figma radius.
+    required StratumBlurTokens blur,
 
-  /// `opacity`: `disabled`, the opacity of a disabled component, which the
-  /// component base's disabled wrapper paints (FO-08 US-07).
-  final StratumOpacityTokens opacity;
+    /// `system`: the look of the system bars from the theme file's `system`
+    /// set for this data's mode, a high-contrast set laid over its base; the
+    /// one system bar style the theme exposes and the lowest layer of the
+    /// system style merge (FO-03 US-10 FR-01 E05, US-14 FR-01). Its bar mode,
+    /// rotation lock, and app switcher label stay null: an app sets those in
+    /// code.
+    required SystemStyle systemStyle,
 
-  /// `border`: `sm`, `md`, `lg`, each a width in logical pixels from the
-  /// theme file; a widget that needs the usual width reads `md`.
-  final StratumBorderTokens border;
+    /// The 64 built-in transparent steps.
+    @Default(StratumTransparentTokens.builtIn)
+    StratumTransparentTokens transparent,
+    @Default(WidgetSize.medium) WidgetSize defaultWidgetSize,
+    @Default(NoSplash.splashFactory) InteractiveInkFeatureFactory splashFactory,
+    @Default(StratumScrollBehavior()) ScrollBehavior scrollBehavior,
+    @Default(ClampingScrollPhysics()) ScrollPhysics physics,
+  }) = _StratumThemeData;
 
-  /// `shadow`: `level1` to `level6`, each a list of `BoxShadow` in Figma
-  /// order, colored from this data's own color set.
-  final StratumShadowTokens shadow;
-
-  /// `blur`: `level1` to `level6`, each a background blur at sigma half
-  /// the Figma radius.
-  final StratumBlurTokens blur;
-
-  /// `system`: the look of the system bars from the theme file's `system`
-  /// set for this data's mode, a high-contrast set laid over its base; the
-  /// one system bar style the theme exposes and the lowest layer of the
-  /// system style merge (FO-03 US-10 FR-01 E05, US-14 FR-01). Its bar mode,
-  /// rotation lock, and app switcher label stay null: an app sets those in
-  /// code.
-  final SystemStyle systemStyle;
-
-  final WidgetSize defaultWidgetSize;
-  final InteractiveInkFeatureFactory splashFactory;
-  final ScrollBehavior scrollBehavior;
-  final ScrollPhysics physics;
+  const new _();
 
   /// The app color [name]. Throws an [ArgumentError] that lists the names
   /// in [appColors] (spec G13).
@@ -211,68 +191,19 @@ class StratumThemeData {
       ),
     );
   }
-
-  /// Covers every field, `physics` included (FO-03 s03 invariant 8).
-  StratumThemeData copyWith({
-    ThemeMode? themeMode,
-    StratumColorTokens? color,
-    StratumPaletteTokens? palette,
-    StratumTransparentTokens? transparent,
-    Map<String, StratumByWindowSize<StratumDimension>>? space,
-    Map<String, StratumByWindowSize<StratumDimension>>? radius,
-    Map<String, StratumByWindowSize<StratumDimension>>? layouts,
-    Map<String, Color>? appColors,
-    Map<String, Map<String, Color>>? appPalettes,
-    StratumAssetTokens? assets,
-    Map<String, Object?>? extensions,
-    StratumTypography? typography,
-    StratumAnimation? animation,
-    StratumOpacityTokens? opacity,
-    StratumBorderTokens? border,
-    StratumShadowTokens? shadow,
-    StratumBlurTokens? blur,
-    SystemStyle? systemStyle,
-    WidgetSize? defaultWidgetSize,
-    InteractiveInkFeatureFactory? splashFactory,
-    ScrollBehavior? scrollBehavior,
-    ScrollPhysics? physics,
-  }) {
-    return StratumThemeData(
-      themeMode: themeMode ?? this.themeMode,
-      color: color ?? this.color,
-      palette: palette ?? this.palette,
-      transparent: transparent ?? this.transparent,
-      space: space ?? this.space,
-      radius: radius ?? this.radius,
-      layouts: layouts ?? this.layouts,
-      appColors: appColors ?? this.appColors,
-      appPalettes: appPalettes ?? this.appPalettes,
-      assets: assets ?? this.assets,
-      extensions: extensions ?? this.extensions,
-      typography: typography ?? this.typography,
-      animation: animation ?? this.animation,
-      opacity: opacity ?? this.opacity,
-      border: border ?? this.border,
-      shadow: shadow ?? this.shadow,
-      blur: blur ?? this.blur,
-      systemStyle: systemStyle ?? this.systemStyle,
-      defaultWidgetSize: defaultWidgetSize ?? this.defaultWidgetSize,
-      splashFactory: splashFactory ?? this.splashFactory,
-      scrollBehavior: scrollBehavior ?? this.scrollBehavior,
-      physics: physics ?? this.physics,
-    );
-  }
 }
 
 /// One app ramp of `palette.app`.
-@immutable
-class StratumAppPalette {
-  const new(this.name, this.shades);
+@valueModel
+abstract class StratumAppPalette with _$StratumAppPalette {
+  const factory(
+    String name,
 
-  final String name;
+    /// Shade name to color, as `palette.app.<name>` writes them.
+    Map<String, Color> shades,
+  ) = _StratumAppPalette;
 
-  /// Shade name to color, as `palette.app.<name>` writes them.
-  final Map<String, Color> shades;
+  const new _();
 
   /// Throws an [ArgumentError] that lists the shade names.
   Color shade(String shade) =>

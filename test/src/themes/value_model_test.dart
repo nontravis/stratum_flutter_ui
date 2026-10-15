@@ -20,6 +20,7 @@ const _valueModelFiles = [
   'lib/src/themes/config/theme_config.dart',
   'lib/src/themes/config/theme_source.dart',
   'lib/src/themes/system/system_style.dart',
+  'lib/src/themes/theme_data.dart',
   'lib/src/themes/typography/dimension.dart',
   'lib/src/themes/typography/typography.dart',
   'lib/src/themes/typography/typography_models.dart',

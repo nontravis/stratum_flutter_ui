@@ -159,13 +159,15 @@ void main() {
       expect(copy.color, same(other.color));
       expect(copy.palette, same(other.palette));
       expect(copy.transparent, same(transparent));
-      expect(copy.space, same(space));
-      expect(copy.radius, same(radius));
-      expect(copy.layouts, same(layouts));
-      expect(copy.appColors, same(appColors));
-      expect(copy.appPalettes, same(appPalettes));
+      // freezed wraps a Map field in a fresh `EqualUnmodifiableMapView` per
+      // getter read, so these six compare by content, not identity.
+      expect(copy.space, space);
+      expect(copy.radius, radius);
+      expect(copy.layouts, layouts);
+      expect(copy.appColors, appColors);
+      expect(copy.appPalettes, appPalettes);
       expect(copy.assets, same(other.assets));
-      expect(copy.extensions, same(extensions));
+      expect(copy.extensions, extensions);
       expect(copy.typography, same(typography));
       expect(copy.animation, same(animation));
       expect(copy.opacity, same(opacity));
@@ -177,6 +179,40 @@ void main() {
       expect(copy.splashFactory, same(InkRipple.splashFactory));
       expect(copy.scrollBehavior, same(scrollBehavior));
       expect(copy.physics, same(physics));
+    });
+  });
+
+  group('D4: value equality', () {
+    test('D4: a copy with no change equals its source, with the same hash '
+        'code', () {
+      final data = fakeTheme;
+
+      expect(data.copyWith(), data);
+      expect(data.copyWith().hashCode, data.hashCode);
+    });
+
+    test('D4: a copy that changes one field differs', () {
+      final data = fakeTheme;
+
+      expect(
+        data.copyWith(physics: const BouncingScrollPhysics()),
+        isNot(data),
+      );
+      expect(data.copyWith(defaultWidgetSize: WidgetSize.small), isNot(data));
+    });
+
+    test('D4: StratumAppPalette compares by name and shade content', () {
+      StratumAppPalette make(String name) =>
+          StratumAppPalette(name, {'500': const Color(0xFF00FF88)});
+
+      expect(make('mint'), make('mint'));
+      expect(make('mint').hashCode, make('mint').hashCode);
+      expect(make('mint'), isNot(make('sea')));
+      expect(make('mint').copyWith(name: 'sea'), make('sea'));
+    });
+
+    test("R4 Q2: StratumThemeData takes freezed's toString", () {
+      expect(fakeTheme.toString(), startsWith('StratumThemeData('));
     });
   });
 }
