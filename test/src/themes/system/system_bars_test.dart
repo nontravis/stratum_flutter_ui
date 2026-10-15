@@ -414,4 +414,31 @@ void main() {
       isNot(const SystemUiOverlayStyle()),
     );
   });
+
+  group('5.1: SystemBars as a freezed value', () {
+    // Built at run time from a parameter, so the checks read `==`.
+    SystemBars bars(Color status) => SystemBars(
+      overlay: const SystemUiOverlayStyle(),
+      barMode: null,
+      orientations: [DeviceOrientation.portraitUp],
+      appSwitcherLabel: null,
+      appSwitcherColor: null,
+      statusBarColor: status,
+      navigationBarColor: null,
+      navigationBarDividerColor: null,
+    );
+
+    test('5.1: compares by value, orientations by content', () {
+      expect(bars(_white), bars(_white));
+      expect(bars(_white).hashCode, bars(_white).hashCode);
+      expect(bars(_white), isNot(bars(_black)));
+    });
+
+    test('5.1: copyWith changes one field and keeps the rest', () {
+      final copy = bars(_white).copyWith(statusBarColor: _black);
+
+      expect(copy.statusBarColor, _black);
+      expect(copy.orientations, [DeviceOrientation.portraitUp]);
+    });
+  });
 }

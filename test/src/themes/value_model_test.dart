@@ -19,6 +19,7 @@ const _valueModelFiles = [
   'lib/src/themes/config/theme_asset.dart',
   'lib/src/themes/config/theme_config.dart',
   'lib/src/themes/config/theme_source.dart',
+  'lib/src/themes/system/system_bars.dart',
   'lib/src/themes/system/system_style.dart',
   'lib/src/themes/theme_data.dart',
   'lib/src/themes/theme_set.dart',
