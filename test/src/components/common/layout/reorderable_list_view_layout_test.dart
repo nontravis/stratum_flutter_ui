@@ -16429,6 +16429,61 @@ void main() {
     );
 
     testWidgets(
+      'L20 (limit, tripwire): an app animateTo that starts during an EndUser '
+      'fling sends no scroll start, so the list reads it as the fling and a '
+      'move input stops it',
+      (tester) async {
+        var starts = 0;
+        await tester.pumpWidget(
+          _app(
+            NotificationListener<ScrollStartNotification>(
+              onNotification: (_) {
+                starts += 1;
+                return false;
+              },
+              child: const _Harness(count: 200),
+            ),
+          ),
+        );
+        final position = positionOf(tester)..jumpTo(4000);
+        await tester.pump();
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+
+        await tester.fling(
+          find.byType(Scrollable).first,
+          const Offset(0, -100),
+          1000,
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 16));
+        final before = starts;
+        final animation = position.animateTo(
+          5000,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutSine,
+        );
+        // An activity that takes over the running fling starts no scroll
+        // (L20, R63): the list never sees the app's.
+        expect(starts, before);
+        await tester.pump(const Duration(milliseconds: 16));
+
+        // Nothing tells the app's scroll from the fling, so the key stops
+        // it and reveals the moved item at slot 101, 4040 px. Had the list
+        // told the two apart, the app's scroll would run on to 5000 and the
+        // item would stay off screen (R45).
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        await animation;
+
+        expect(position.pixels, 4040);
+        expect(shown(tester, 100), isTrue);
+        expectKept(tester, 100, state, node: node);
+        expect(_harness(tester).moves, [(100, 101)]);
+      },
+    );
+
+    testWidgets(
       'R45: an app jumpTo in the turn the app removes the focused item holds '
       'every frame, and focus moves on from the gap with no scroll',
       (tester) async {
@@ -16842,6 +16897,49 @@ void main() {
         expect(shown(tester, 188), isTrue);
         expectKept(tester, 188, state, node: node);
         expect(_harness(tester).moves, [(188, 189)]);
+      },
+    );
+
+    testWidgets(
+      'R66: a Tab from the focused item a fling carried out of view, during '
+      "the fling's momentum, stops the fling, brings the item back, then "
+      'moves focus on as a Tab from the item in view does',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 200),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        await _focusItem(tester, 100);
+
+        await tester.fling(
+          find.byType(Scrollable).first,
+          const Offset(0, -400),
+          3000,
+        );
+        await tester.pump();
+        final flung = position.pixels;
+        await tester.pump(const Duration(milliseconds: 16));
+        // The momentum still runs once the EndUser let go, item 100 held
+        // with its focus past the cache band, where its rect reads NaN, so
+        // the Tab brings it back first (R40, invariant 21).
+        expect(position.pixels, greaterThan(flung));
+        expect(state.node.rect.isFinite, isFalse);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+
+        // The bring-back shows item 100 by the least scroll from above, at
+        // 4000 px, where item 101 already shows: focus moves on with no
+        // further scroll.
+        expect(position.pixels, 4000);
+        expect(shown(tester, 100), isTrue);
+        expect(shown(tester, 101), isTrue);
+        expect(
+          FocusManager.instance.primaryFocus,
+          same(_itemState(tester, 101).node),
+        );
+        expectKept(tester, 100, state);
       },
     );
   });

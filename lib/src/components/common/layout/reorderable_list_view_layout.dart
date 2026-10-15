@@ -1884,7 +1884,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       final offScreen = frame != null && !shown;
       if (offScreen && !rebooked && !_focusOwned(key)) continue;
       // A raw move asks the list to show the item (R45).
-      _takeScroll();
+      _takeScroll(byEndUser: false);
       _bookRawMove(key, node, from: at, to: to);
     }
   }
@@ -2002,7 +2002,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     if (gap == null) return;
     // A removal no call explains asks the list to show the focus it hands
     // on (R45); a removeItem took the scroll at its own call.
-    if (key != _handoffKey) _takeScroll();
+    if (key != _handoffKey) _takeScroll(byEndUser: false);
     _requestHandOff(gap);
   }
 
@@ -2248,10 +2248,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       return KeyEventResult.handled;
     }
     // A drag ends first, as a call ends it (invariant 28): the move changes
-    // the data under it. The key stops the fling of a drag the EndUser let
-    // go of (R66).
+    // the data under it.
     _cancelDrag();
-    _takeScroll(stopsFling: true);
+    _takeScroll(byEndUser: true);
     final moved = _reportMove(
       index,
       from,
@@ -2377,11 +2376,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // A drop took the scroll at pointer-up ([_handleReorderEnd]), so its
     // report takes nothing: a scroll the app made while it settled wins
     // over its reveal (R61). A screen-reader move ends a drag first, as a
-    // call ends it, and stops the fling of a drag the EndUser let go of
-    // (R66).
+    // call ends it.
     if (!drop) {
       _cancelDrag();
-      _takeScroll(stopsFling: true);
+      _takeScroll(byEndUser: true);
     }
     // A screen-reader move takes a focused move's jump (R46); only a drop
     // keeps its own edge jump.
@@ -2657,7 +2655,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// the drop's reveal (R61).
   void _handleReorderEnd(int index) {
     _endLift();
-    _takeScroll();
+    _takeScroll(byEndUser: true);
     _endDrag(now: true, at: index);
   }
 
@@ -2704,7 +2702,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _liftEndedByCall = true;
       scheduleMicrotask(() => _liftEndedByCall = false);
     }
-    _takeScroll();
+    _takeScroll(byEndUser: false);
   }
 
   /// The list's sliver reset its drag outside [_cancelDrag]: a second
@@ -2794,7 +2792,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // A raw move of the lifted item follows it only now (invariant 28).
     final follow = _liftedFollow;
     if (follow == null || follow.target.key != key) return;
-    _takeScroll();
+    _takeScroll(byEndUser: false);
     // The drag can end inside a build, so the follow runs after that
     // frame and keeps the frame the drag's end took: a count change in the
     // next turn still re-aims it (R25). The watch reads the item from its
@@ -3325,22 +3323,25 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// or the app's, the list takes the scroll back in a new turn, unless a
   /// lift or a scroll of theirs still lasts: the newest input wins (R45).
   /// An input that ends a lift ends it first ([_endDragForCall],
-  /// [_cancelDrag], [_handleReorderEnd]); a key or screen-reader move first
-  /// stops the fling of a drag the EndUser let go of ([stopsFling],
-  /// [_stopFling], R66); a continuation never takes.
-  void _takeScroll({bool stopsFling = false}) {
-    if (stopsFling) _stopFling();
+  /// [_cancelDrag], [_handleReorderEnd]); a continuation never takes.
+  /// [byEndUser] tells whose input it is, so no show input leaves it
+  /// unsaid: one of the EndUser's, a key or screen-reader move, a drop, or
+  /// a Tab from a parked or held item, is newer than the fling of a drag
+  /// they let go of and first stops it ([_stopFling], R66); one of the
+  /// app's, a call or a data change, never stops their scroll.
+  void _takeScroll({required bool byEndUser}) {
+    if (byEndUser) _stopFling();
     if (_lifting || _otherScrolling || !_scrollTaken) return;
     _scrollTaken = false;
     _inputTurn += 1;
   }
 
   /// Stops the fling of a drag the EndUser let go of ([_flinging]) where it
-  /// stands: a move input newer than the fling wins over its momentum (R45,
-  /// R66). The fling's end ends their hold ([_endsReachOn]), as a touch
-  /// that stops it would, and a settle the stop starts, as back from past
-  /// either end, is the list's own ([_committingOwn]). The offset stays,
-  /// so the stop leaves no jump for a frame to lay out (R56).
+  /// stands: a show input of theirs newer than the fling wins over its
+  /// momentum (R45, R66). The fling's end ends their hold ([_endsReachOn]),
+  /// as a touch that stops it would, and a settle the stop starts, as back
+  /// from past either end, is the list's own ([_committingOwn]). The offset
+  /// stays, so the stop leaves no jump for a frame to lay out (R56).
   void _stopFling() {
     if (!_flinging) return;
     final position = _scrollPosition;
@@ -4164,7 +4165,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// way [then] runs after the next frame, whose layout holds the last
   /// jump, so the move reveals its target from the new offset.
   void _bringBackNode(FocusNode node, VoidCallback then) {
-    _takeScroll();
+    _takeScroll(byEndUser: true);
     void afterFrame() {
       WidgetsBinding.instance
         ..addPostFrameCallback((_) => then())
