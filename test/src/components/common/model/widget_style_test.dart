@@ -40,6 +40,149 @@ void main() {
     });
   });
 
+  group('copyWith(field: null)', () {
+    const full = WidgetStyle(
+      opacity: 0.5,
+      width: 100,
+      height: 200,
+      minWidth: 10,
+      maxWidth: 300,
+      minHeight: 20,
+      maxHeight: 400,
+    );
+
+    test('5.3: copyWith(opacity: null) clears opacity and keeps the rest', () {
+      final cleared = full.copyWith(opacity: null);
+
+      expect(cleared.opacity, isNull);
+      expect(
+        cleared,
+        const WidgetStyle(
+          width: 100,
+          height: 200,
+          minWidth: 10,
+          maxWidth: 300,
+          minHeight: 20,
+          maxHeight: 400,
+        ),
+      );
+    });
+
+    test('5.3: copyWith(width: null) clears width and keeps the rest', () {
+      final cleared = full.copyWith(width: null);
+
+      expect(cleared.width, isNull);
+      expect(
+        cleared,
+        const WidgetStyle(
+          opacity: 0.5,
+          height: 200,
+          minWidth: 10,
+          maxWidth: 300,
+          minHeight: 20,
+          maxHeight: 400,
+        ),
+      );
+    });
+
+    test('5.3: copyWith(height: null) clears height and keeps the rest', () {
+      final cleared = full.copyWith(height: null);
+
+      expect(cleared.height, isNull);
+      expect(
+        cleared,
+        const WidgetStyle(
+          opacity: 0.5,
+          width: 100,
+          minWidth: 10,
+          maxWidth: 300,
+          minHeight: 20,
+          maxHeight: 400,
+        ),
+      );
+    });
+
+    test(
+      '5.3: copyWith(minWidth: null) clears minWidth and keeps the rest',
+      () {
+        final cleared = full.copyWith(minWidth: null);
+
+        expect(cleared.minWidth, isNull);
+        expect(
+          cleared,
+          const WidgetStyle(
+            opacity: 0.5,
+            width: 100,
+            height: 200,
+            maxWidth: 300,
+            minHeight: 20,
+            maxHeight: 400,
+          ),
+        );
+      },
+    );
+
+    test(
+      '5.3: copyWith(maxWidth: null) clears maxWidth and keeps the rest',
+      () {
+        final cleared = full.copyWith(maxWidth: null);
+
+        expect(cleared.maxWidth, isNull);
+        expect(
+          cleared,
+          const WidgetStyle(
+            opacity: 0.5,
+            width: 100,
+            height: 200,
+            minWidth: 10,
+            minHeight: 20,
+            maxHeight: 400,
+          ),
+        );
+      },
+    );
+
+    test(
+      '5.3: copyWith(minHeight: null) clears minHeight and keeps the rest',
+      () {
+        final cleared = full.copyWith(minHeight: null);
+
+        expect(cleared.minHeight, isNull);
+        expect(
+          cleared,
+          const WidgetStyle(
+            opacity: 0.5,
+            width: 100,
+            height: 200,
+            minWidth: 10,
+            maxWidth: 300,
+            maxHeight: 400,
+          ),
+        );
+      },
+    );
+
+    test(
+      '5.3: copyWith(maxHeight: null) clears maxHeight and keeps the rest',
+      () {
+        final cleared = full.copyWith(maxHeight: null);
+
+        expect(cleared.maxHeight, isNull);
+        expect(
+          cleared,
+          const WidgetStyle(
+            opacity: 0.5,
+            width: 100,
+            height: 200,
+            minWidth: 10,
+            maxWidth: 300,
+            minHeight: 20,
+          ),
+        );
+      },
+    );
+  });
+
   group('merge', () {
     test('returns the same instance when other is null', () {
       expect(identical(base.merge(null), base), isTrue);

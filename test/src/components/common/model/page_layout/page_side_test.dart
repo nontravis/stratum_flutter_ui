@@ -21,4 +21,12 @@ void main() {
     const side = PageSide(pageScale: 0.5);
     expect(() => side.copyWith(pageScale: 2), throwsA(isA<AssertionError>()));
   });
+
+  test('5.3: copyWith(type: null) clears type and keeps the rest', () {
+    const side = PageSide(type: PageDrawerType.front, minWidth: 200);
+    final cleared = side.copyWith(type: null);
+
+    expect(cleared.type, isNull);
+    expect(cleared.minWidth, 200);
+  });
 }

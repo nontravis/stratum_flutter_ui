@@ -72,6 +72,26 @@ void main() {
     expect(copy, isNot(error));
   });
 
+  test('5.3: copyWith(url: null) clears url and keeps the rest', () {
+    final error = StratumWebViewError(
+      type: StratumWebViewErrorType.network,
+      description: 'DNS lookup failed',
+      code: -2,
+      url: Uri.parse('https://a.example'),
+    );
+    final copy = error.copyWith(url: null);
+
+    expect(copy.url, isNull);
+    expect(
+      copy,
+      StratumWebViewError(
+        type: StratumWebViewErrorType.network,
+        description: 'DNS lookup failed',
+        code: -2,
+      ),
+    );
+  });
+
   test('R4 Q2: its own toString stays', () {
     expect(
       StratumWebViewError(

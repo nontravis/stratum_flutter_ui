@@ -20,5 +20,14 @@ void main() {
       expect(c.footerTop, 9);
       expect(c.body, a.body);
     });
+
+    test('5.3: copyWith(footerTop: null) clears footerTop and keeps the '
+        'rest', () {
+      const areas = PageAreas(body: Rect.fromLTWH(0, 0, 10, 10), footerTop: 5);
+      final cleared = areas.copyWith(footerTop: null);
+
+      expect(cleared.footerTop, isNull);
+      expect(cleared.body, areas.body);
+    });
   });
 }

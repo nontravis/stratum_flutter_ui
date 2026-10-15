@@ -310,6 +310,14 @@ void main() {
       expect(copy.tapTargetSize, TapTargetSize.platform);
     });
 
+    test('5.3: copyWith(onTap: null) clears onTap and keeps the rest', () {
+      final set = Interaction(onTap: tap, autofocus: true);
+      final copy = set.copyWith(onTap: null);
+
+      expect(copy.onTap, isNull);
+      expect(copy.autofocus, isTrue);
+    });
+
     test("R4 Q2: takes freezed's toString", () {
       expect(const Interaction().toString(), startsWith('Interaction('));
     });

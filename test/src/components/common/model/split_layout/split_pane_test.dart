@@ -21,4 +21,12 @@ void main() {
     const pane = SplitPane(child: SizedBox(), min: 50);
     expect(() => pane.copyWith(max: 10), throwsA(isA<AssertionError>()));
   });
+
+  test('5.3: copyWith(min: null) clears min and keeps the rest', () {
+    const pane = SplitPane(child: SizedBox(), size: 100, min: 50);
+    final cleared = pane.copyWith(min: null);
+
+    expect(cleared.min, isNull);
+    expect(cleared.size, 100);
+  });
 }

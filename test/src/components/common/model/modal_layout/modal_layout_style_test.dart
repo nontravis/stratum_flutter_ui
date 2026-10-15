@@ -48,5 +48,16 @@ void main() {
         expect(a, isNot(const ModalLayoutStyle(handle: WidgetStyle(width: 1))));
       },
     );
+
+    test('5.3: copyWith(surface: null) clears surface and keeps the rest', () {
+      const base = ModalLayoutStyle(
+        surface: WidgetStyle(width: 1),
+        top: WidgetStyle(width: 2),
+      );
+      final cleared = base.copyWith(surface: null);
+
+      expect(cleared.surface, isNull);
+      expect(cleared.top, base.top);
+    });
   });
 }

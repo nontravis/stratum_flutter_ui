@@ -58,6 +58,17 @@ void main() {
       },
     );
 
+    test('5.3: copyWith(controller: null) clears controller and keeps the '
+        'rest', () {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      final scroll = Scroll(controller: controller, reverse: true);
+      final copy = scroll.copyWith(controller: null);
+
+      expect(copy.controller, isNull);
+      expect(copy.reverse, isTrue);
+    });
+
     test("R4 Q2: takes freezed's toString", () {
       expect(const Scroll().toString(), startsWith('Scroll('));
     });

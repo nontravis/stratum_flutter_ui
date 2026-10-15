@@ -35,5 +35,17 @@ void main() {
       expect(copy.javaScriptEnabled, isFalse);
       expect(copy.allowedOrigins, isEmpty);
     });
+
+    test('5.3: copyWith(onMessage: null) clears onMessage and keeps the '
+        'rest', () {
+      final configured = StratumWebViewConfiguration(
+        onMessage: onMessage,
+        javaScriptEnabled: false,
+      );
+      final copy = configured.copyWith(onMessage: null);
+
+      expect(copy.onMessage, isNull);
+      expect(copy.javaScriptEnabled, isFalse);
+    });
   });
 }
