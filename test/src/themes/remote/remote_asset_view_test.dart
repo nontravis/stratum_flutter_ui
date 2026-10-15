@@ -111,7 +111,7 @@ void main() {
     expect(loader.assetBundle, same(controller.remoteBundle));
   });
 
-  testWidgets('r10/oq3, fo03 us07/fr02/e04: a bundled slot keeps the default '
+  testWidgets('r10/oq3, fo03/us07/fr02/e04: a bundled slot keeps the default '
       'asset bundle', (tester) async {
     final controller = await controllerOn(tester, 'bundled');
     await tester.pumpWidget(
