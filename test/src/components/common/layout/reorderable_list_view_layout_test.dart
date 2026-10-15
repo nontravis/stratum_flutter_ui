@@ -792,17 +792,13 @@ List<int> _compositeOrder(WidgetTester tester, List<int> ids) {
 }
 
 /// Long-presses item [id] past the long-press delay and moves it [by] px
-/// down: a drag of the item in progress, on [pointer] when given.
+/// down: a drag of the item in progress.
 Future<TestGesture> _liftItem(
   WidgetTester tester,
   int id, {
   double by = 10,
-  int? pointer,
 }) async {
-  final gesture = await tester.startGesture(
-    tester.getCenter(find.text('$id')),
-    pointer: pointer,
-  );
+  final gesture = await tester.startGesture(tester.getCenter(find.text('$id')));
   await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
   await gesture.moveBy(Offset(0, by));
   await tester.pump();
@@ -846,6 +842,16 @@ Future<TestGesture> _grabHandle(
   await gesture.moveBy(const Offset(0, 10));
   await tester.pump();
   return gesture;
+}
+
+/// A pointer id for a raw [TestPointer] that no other gesture of the run
+/// takes: every gesture takes its id from one counter that runs across the
+/// tests, so a fixed id meets a test's own gesture once a run brings the
+/// counter to it. Creating a gesture that never goes down takes this id.
+Future<int> _nextPointerId(WidgetTester tester) async {
+  final pointer = tester.nextPointer;
+  await tester.createGesture();
+  return pointer;
 }
 
 /// Dispatches [event] as the test's own pointer source, with no frame.
@@ -7684,7 +7690,7 @@ void main() {
         );
         final gesture = await _liftItem(tester, 2);
         final harness = _harness(tester);
-        final second = TestPointer(9);
+        final second = TestPointer(await _nextPointerId(tester));
 
         _sendPointer(tester, second.down(tester.getCenter(find.text('5'))));
         expect(harness.ends, isEmpty);
@@ -7713,7 +7719,7 @@ void main() {
         final gesture = await _liftItem(tester, 2);
         final harness = _harness(tester);
 
-        final second = await _liftItem(tester, 5, by: 50, pointer: 9);
+        final second = await _liftItem(tester, 5, by: 50);
         await tester.pump();
         await second.up();
         await tester.pumpAndSettle();
@@ -7833,7 +7839,7 @@ void main() {
         final gesture = await _grabHandle(tester, 2);
         final harness = _harness(tester);
         expect(harness.starts, [2]);
-        final second = TestPointer(9);
+        final second = TestPointer(await _nextPointerId(tester));
 
         _sendPointer(
           tester,
@@ -7865,7 +7871,7 @@ void main() {
         final gesture = await _grabHandle(tester, 2);
         final harness = _harness(tester);
         expect(harness.starts, [2]);
-        final second = TestPointer(9);
+        final second = TestPointer(await _nextPointerId(tester));
 
         _sendPointer(
           tester,
@@ -7899,7 +7905,7 @@ void main() {
         final gesture = await _grabHandle(tester, 2);
         final harness = _harness(tester);
 
-        final second = await _grabHandle(tester, 5, pointer: 9);
+        final second = await _grabHandle(tester, 5);
         await second.up();
         await tester.pumpAndSettle();
         await gesture.up();
@@ -7940,7 +7946,7 @@ void main() {
         final gesture = await _liftItem(tester, 2);
         final harness = _harness(tester);
         harness.onEnd = (_) => harness.remove(0);
-        final second = TestPointer(9);
+        final second = TestPointer(await _nextPointerId(tester));
 
         _sendPointer(tester, second.down(tester.getCenter(find.text('5'))));
         await tester.idle();
@@ -8065,7 +8071,6 @@ void main() {
         // the move past the mouse's 1 px slop.
         final second = await tester.startGesture(
           tester.getCenter(find.byKey(const ValueKey('handle 3'))),
-          pointer: 2,
           kind: PointerDeviceKind.mouse,
         );
         await second.moveBy(const Offset(0, 20));
