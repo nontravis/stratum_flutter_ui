@@ -587,10 +587,9 @@ void main() {
       );
     });
 
-    testWidgets('a directional customStyle margin resolves against the '
-        'ambient text direction, an RTL start landing on the right', (
-      tester,
-    ) async {
+    testWidgets('co01_03/us01/fr04: a directional customStyle margin '
+        'resolves against the ambient text direction, an RTL start '
+        'landing on the right', (tester) async {
       await tester.pumpWidget(
         themedHost(
           const StratumCaret(

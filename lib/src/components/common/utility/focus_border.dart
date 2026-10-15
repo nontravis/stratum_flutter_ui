@@ -112,7 +112,9 @@ bool _showsRing(StratumFocusBorderStyle? style, {required bool inside}) {
 /// when a second ring color is set, the second ring's width, the first
 /// ring's unless the style sets its own (FO-06 US-07 FR-03 E01). A glow
 /// counts nothing and may clip at the window edge. Zero with no Stratum
-/// theme above [context], where no ring is built.
+/// theme above [context], where no ring is built, and zero for an inside
+/// placement, whose ring paints at `strokeAlignInside` and never protrudes
+/// past the child.
 ///
 /// Not exported: `utility/utility.dart` hides it, and `scroll_frame.dart`
 /// imports this file by path for the window check of its ring.
@@ -133,6 +135,7 @@ double focusBorderOutsideReach(
   // s03 invariant 80): an inside-placed host style floors on the theme's
   // inside look, never the outside one.
   final placement = upper?.placement ?? StratumFocusBorderPlacement.outside;
+  if (placement == StratumFocusBorderPlacement.inside) return 0;
   final style = focusStyleOver(
     _themeLevel(theme, placement, BorderRadius.zero),
     upper,

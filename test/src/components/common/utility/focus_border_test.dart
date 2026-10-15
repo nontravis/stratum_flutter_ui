@@ -740,10 +740,8 @@ void main() {
       expect(reach, 7);
     });
 
-    testWidgets('layout s03 invariant 80, R7(6): an inside-placed host '
-        'style reaches the inside focused width, not the outside floor', (
-      tester,
-    ) async {
+    testWidgets('fo06/us04/fr03: an inside-placed host style reaches '
+        'nothing past its child, not the outside floor', (tester) async {
       double? reach;
       await tester.pumpWidget(
         themedHost(
@@ -761,10 +759,10 @@ void main() {
         ),
       );
 
-      // The theme's inside look (focused: 2 px, no gap), not the outside
-      // floor (gap 2 + width 3 = 5) that ignoring the merged placement
-      // would read.
-      expect(reach, 2);
+      // An inside ring paints at `strokeAlignInside` and never protrudes
+      // past the child, not the outside floor (gap 2 + width 3 = 5) that
+      // ignoring the merged placement would read.
+      expect(reach, 0);
     });
 
     testWidgets('fo06/us07/fr03/e03: no Stratum theme above, no reach', (

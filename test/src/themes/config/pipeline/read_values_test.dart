@@ -1759,13 +1759,18 @@ shadow:
       expect(plain.focus['highContrastLight']!['outside.color'], isNull);
     });
 
-    test('config s03 invariant 18: a transparent base color fails once, not '
+    test('fo01/us01/fr01: a transparent base color fails once, not '
         'again at its high-contrast inherited copy', () {
       final (plain, errors) = _plain([
         layer('color:\n  light:\n    brand:\n      normal: "#00000000"'),
       ]);
 
-      expect(problems(errors).length, 1);
+      const clearedBase =
+          'base focus.light.outside.color: expected a color with an alpha '
+          'above 0, since a fully transparent color hides the focus ring, '
+          'got "#00000000" (from "{color.light.brand.normal}") '
+          '[expected_color]';
+      expect(problems(errors), [clearedBase]);
       expect(plain.focus['light']!['outside.color'], isNull);
       expect(plain.focus['highContrastLight']!['outside.color'], isNull);
     });
