@@ -138,7 +138,7 @@ color:
       );
     });
 
-    test('reports a failed target once, at the target', () {
+    test('fo01/us02/fr01/e07: reports a failed target once, at the target', () {
       expect(_problems('palette:\n  brand:\n    500: "#XYZ"'), [
         'layer1 palette.brand.500: $_hex "#XYZ" [expected_color]',
       ]);

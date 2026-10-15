@@ -127,7 +127,7 @@ color:
       expect(merged.inherited, contains('color.highContrastLight.brand.hover'));
     });
 
-    test('an inherited alias into the base set points into the overlay', () {
+    test('fo01/us04/fr01/e06: an inherited alias into the base set points into the overlay', () {
       final (merged, _) = _merge([]);
 
       expect(

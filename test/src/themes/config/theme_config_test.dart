@@ -93,7 +93,7 @@ void main() {
       );
     });
 
-    test('errors in file order, then by position, the unpositioned last', () {
+    test('fo01/us02/fr01/e06: errors in file order, then by position, the unpositioned last', () {
       final base = baseYaml
           .replaceFirst('name: base', 'name: 12')
           .replaceFirst('      code: inter\n', '');
