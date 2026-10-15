@@ -8,6 +8,8 @@ import 'package:multi_split_view/multi_split_view.dart'
         MultiSplitViewTheme,
         MultiSplitViewThemeData;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
+import 'package:stratum_ui/src/components/common/utility/focus_border.dart'
+    show focusStyleOver;
 import 'package:stratum_ui/src/src.dart';
 
 /// Two sizes closer than this, in logical pixels, count as equal.
@@ -142,6 +144,7 @@ class SplitLayout extends StatefulWidget {
     this.controller,
     this.dividerLabel,
     this.dividerBuilder,
+    this.customStyle,
     @internal this.endPrimary = false,
   });
 
@@ -163,6 +166,12 @@ class SplitLayout extends StatefulWidget {
 
   /// Paints each divider over its seam; null paints nothing.
   final SplitDividerBuilder? dividerBuilder;
+
+  /// This split's own style: its `focus` field restyles the focus ring of
+  /// every divider of this split, level 3, over the app-wide
+  /// `SplitLayoutStyle` under `SplitLayout` in `componentPartDefaults`,
+  /// level 2 (FO-06 US-21 FR-05); every field of it takes effect (NFR-E02).
+  final SplitLayoutStyle? customStyle;
 
   /// Whether each divider speaks for the pane after it, the WAI-ARIA window
   /// splitter's primary pane, as `PageLayout`'s `right` divider does for its
@@ -615,6 +624,13 @@ class _SplitLayoutState extends State<SplitLayout> {
       offset: offset,
       extent: extent,
       builder: widget.dividerBuilder,
+      ringStyle: focusStyleOver(
+        StratumComponentDefaults.partsOf<SplitLayoutStyle>(
+          context,
+          SplitLayout,
+        )?.focus,
+        widget.customStyle?.focus,
+      ),
       cursor: cursor,
       order: areas[divider].pane + 0.5,
       label: label,
@@ -824,6 +840,7 @@ class _Seam extends StatefulWidget {
     required this.offset,
     required this.extent,
     required this.builder,
+    required this.ringStyle,
     required this.cursor,
     required this.order,
     required this.label,
@@ -849,6 +866,9 @@ class _Seam extends StatefulWidget {
   final double extent;
 
   final SplitDividerBuilder? builder;
+
+  /// The divider ring's levels 2 and 3, laid together (PD4).
+  final StratumFocusBorderStyle? ringStyle;
 
   final MouseCursor cursor;
 
@@ -955,6 +975,7 @@ class _SeamState extends State<_Seam> {
                   final focused = node.hasFocus;
                   return StratumFocusBorder(
                     insideEdge: true,
+                    customStyle: widget.ringStyle,
                     state: focused
                         ? FullWidgetState.focused
                         : FullWidgetState.normal,

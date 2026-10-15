@@ -66,6 +66,8 @@ const _valueModelFiles = [
   'lib/src/components/common/model/ink_well/stratum_ink_well_style.dart',
   // M4-T10: the scrolling area's own style of FO-06.
   'lib/src/components/common/model/scroll_focus/scroll_focus_style.dart',
+  // M4-T12: the split layout's own style of FO-06.
+  'lib/src/components/common/model/split_layout/split_layout_style.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside

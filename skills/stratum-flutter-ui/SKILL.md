@@ -842,8 +842,10 @@ beside `style`, which draws the box.
   divider off. The split needs a bounded width (or height, vertical).
 - **Resize** — the EndUser drags a divider, steps it by the arrow keys along the axis (16 px, 64 with Shift), jumps
   by Home and End to the start pane's min and max, or uses a screen reader's increase and decrease actions; every
-  move stays within both panes' `min` and `max`. Each divider is a Tab stop with the focus ring and reads as a slider
-  valued by the start pane's percent; `dividerLabel:` replaces the built-in "Resize panes" label.
+  move stays within both panes' `min` and `max`. Each divider is a Tab stop with the focus ring; `customStyle:
+  SplitLayoutStyle(focus: StratumFocusBorderStyle(...))` restyles that ring for one split, over
+  `componentPartDefaults: (theme) => {SplitLayout: SplitLayoutStyle(focus: ...)}` for every split, and reads as a
+  slider valued by the start pane's percent; `dividerLabel:` replaces the built-in "Resize panes" label.
 - **Divider look** — nothing paints by default and the divider takes no space, so the panes stay flush; its hit area
   is the platform's minimum target size centered on the seam, with a resize cursor on hover; a tap, a scroll, or a
   drag across the axis that starts there still reaches the pane content under it. Paint one with

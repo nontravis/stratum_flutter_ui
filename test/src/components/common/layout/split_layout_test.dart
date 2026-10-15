@@ -13,10 +13,6 @@ import '../fakes/fake_stratum_theme.dart';
 // follows the pointer and a key step jumps. Only the ring's fade animates.
 // NFR-U04 n/a: the divider carries no text; each pane's content wraps or
 // scrolls inside its pane.
-// NFR-E02 n/a: SplitLayout takes no per-instance customStyle, since it
-// paints nothing of its own but the FO-06 ring (US-21 FR-05); the app
-// paints a divider through dividerBuilder (us21/fr05/e04), and the ring
-// takes the app-wide StratumFocusBorder style, proven below.
 
 /// A 1000 x 400 test view, so a 300 px list pane is 30% of the split;
 /// reset after the test.
@@ -53,6 +49,7 @@ Widget _split({
   StratumThemeData? theme,
   bool highContrast = false,
   Map<Type, Object> componentParts = const {},
+  SplitLayoutStyle? customStyle,
 }) => (highContrast ? _highContrastHost : themedHost)(
   StratumComponentDefaults(
     styles: const {},
@@ -70,6 +67,7 @@ Widget _split({
             dividerLabel: label,
             dividerBuilder: dividerBuilder,
             controller: controller,
+            customStyle: customStyle,
             panes: panes ?? [_list(), if (detail) _detail() else null],
           ),
         ),
@@ -1270,6 +1268,78 @@ void main() {
         expect(_ring(tester), isSameColorAs(red));
       },
     );
+
+    testWidgets("fo06/us21/fr05/e05: one split's customStyle restyles its "
+        'divider ring over the app-wide split style', (tester) async {
+      _view(tester);
+      const red = Color(0xFFFF0000);
+      const green = Color(0xFF00FF00);
+      await tester.pumpWidget(
+        _split(
+          componentParts: const {
+            SplitLayout: SplitLayoutStyle(
+              focus: StratumFocusBorderStyle(
+                color: WidgetStatePropertyAll(green),
+              ),
+            ),
+          },
+          customStyle: const SplitLayoutStyle(
+            focus: StratumFocusBorderStyle(color: WidgetStatePropertyAll(red)),
+          ),
+        ),
+      );
+      await _tab(tester);
+      await tester.pumpAndSettle();
+      expect(_ring(tester), isSameColorAs(red));
+
+      await tester.pumpWidget(
+        _split(
+          componentParts: const {
+            SplitLayout: SplitLayoutStyle(
+              focus: StratumFocusBorderStyle(
+                color: WidgetStatePropertyAll(green),
+              ),
+            ),
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(_ring(tester), isSameColorAs(green));
+    });
+
+    testWidgets("NFR-E02: focus, the split style's one field, shows on the "
+        'divider ring, and the ring width keeps the theme default', (
+      tester,
+    ) async {
+      _view(tester);
+      const red = Color(0xFFFF0000);
+      await tester.pumpWidget(
+        _split(
+          customStyle: const SplitLayoutStyle(
+            focus: StratumFocusBorderStyle(color: WidgetStatePropertyAll(red)),
+          ),
+        ),
+      );
+      await _tab(tester);
+      await tester.pumpAndSettle();
+      expect(_ring(tester), isSameColorAs(red));
+      final side =
+          ((tester
+                              .widget<DecoratedBox>(
+                                find
+                                    .descendant(
+                                      of: find.byType(StratumFocusBorder),
+                                      matching: find.byType(DecoratedBox),
+                                    )
+                                    .first,
+                              )
+                              .decoration
+                          as ShapeDecoration)
+                      .shape
+                  as RoundedRectangleBorder)
+              .side;
+      expect(side.width, fakeTheme.focus.outsideWidth);
+    });
   });
 
   group('SplitLayout presses near the seam', () {

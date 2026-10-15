@@ -13,6 +13,7 @@ export 'page_layout/page_side.dart';
 export 'scroll.dart';
 export 'scroll_focus/scroll_focus_style.dart';
 export 'split_layout/split_divider_state.dart';
+export 'split_layout/split_layout_style.dart';
 export 'split_layout/split_pane.dart';
 export 'toast/stratum_toast_action.dart';
 export 'toast/stratum_toast_notice.dart';
