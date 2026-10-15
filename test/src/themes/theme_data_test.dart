@@ -106,16 +106,26 @@ void main() {
         'scrim': 0.5,
       });
       const transparent = StratumTransparentTokens.builtIn;
-      const space = {'md': StratumByWindowSize.all(StratumDimension.fixed(1))};
-      const radius = {'md': StratumByWindowSize.all(StratumDimension.fixed(2))};
-      const layouts = {
-        'max': StratumByWindowSize.all(StratumDimension.fixed(3)),
-      };
-      const appColors = {'x': Color(0xFF000001)};
-      const appPalettes = {
-        'y': {'500': Color(0xFF000002)},
-      };
-      const extensions = <String, Object?>{'z': 1};
+      // Wrapped so the generated getter's `_space is EqualUnmodifiableMapView`
+      // check returns this exact view back unchanged, keeping the `same()`
+      // pins below true: freezed wraps an unwrapped Map in a fresh view on
+      // every read, which `same()` would never see as the one passed in.
+      final space = EqualUnmodifiableMapView({
+        'md': const StratumByWindowSize.all(StratumDimension.fixed(1)),
+      });
+      final radius = EqualUnmodifiableMapView({
+        'md': const StratumByWindowSize.all(StratumDimension.fixed(2)),
+      });
+      final layouts = EqualUnmodifiableMapView({
+        'max': const StratumByWindowSize.all(StratumDimension.fixed(3)),
+      });
+      final appColors = EqualUnmodifiableMapView({
+        'x': const Color(0xFF000001),
+      });
+      final appPalettes = EqualUnmodifiableMapView({
+        'y': {'500': const Color(0xFF000002)},
+      });
+      final extensions = EqualUnmodifiableMapView<String, Object?>({'z': 1});
       final border = StratumBorderTokens.fromMap(const {
         'sm': 2,
         'md': 3,
@@ -159,15 +169,13 @@ void main() {
       expect(copy.color, same(other.color));
       expect(copy.palette, same(other.palette));
       expect(copy.transparent, same(transparent));
-      // freezed wraps a Map field in a fresh `EqualUnmodifiableMapView` per
-      // getter read, so these six compare by content, not identity.
-      expect(copy.space, space);
-      expect(copy.radius, radius);
-      expect(copy.layouts, layouts);
-      expect(copy.appColors, appColors);
-      expect(copy.appPalettes, appPalettes);
+      expect(copy.space, same(space));
+      expect(copy.radius, same(radius));
+      expect(copy.layouts, same(layouts));
+      expect(copy.appColors, same(appColors));
+      expect(copy.appPalettes, same(appPalettes));
       expect(copy.assets, same(other.assets));
-      expect(copy.extensions, extensions);
+      expect(copy.extensions, same(extensions));
       expect(copy.typography, same(typography));
       expect(copy.animation, same(animation));
       expect(copy.opacity, same(opacity));

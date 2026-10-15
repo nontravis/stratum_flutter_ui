@@ -108,10 +108,19 @@ void main() {
 
       for (final data in all.skip(1)) {
         expect(data.palette, same(set.light.palette));
-        // freezed wraps a Map field in a fresh `EqualUnmodifiableMapView`
-        // per getter read, so these two compare by content, not identity.
-        expect(data.space, set.light.space);
-        expect(data.appPalettes, set.light.appPalettes);
+        // freezed wraps a Map field in a fresh `EqualUnmodifiableMapView` per
+        // getter read, so `same()` never holds; the view's `==` compares the
+        // wrapped map by identity, so this still proves the shared map.
+        expect(
+          data.space == set.light.space,
+          isTrue,
+          reason: 'space should wrap the one shared config map',
+        );
+        expect(
+          data.appPalettes == set.light.appPalettes,
+          isTrue,
+          reason: 'appPalettes should wrap the one shared config map',
+        );
         expect(data.animation, same(set.light.animation));
         expect(data.typography, same(set.light.typography));
         expect(data.opacity, same(set.light.opacity));
