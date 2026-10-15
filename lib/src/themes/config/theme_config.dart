@@ -7,18 +7,18 @@ import 'package:stratum_ui/src/themes/config/pipeline/parse_values.dart';
 import 'package:stratum_ui/src/themes/config/shadow_layer.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
 import 'package:stratum_ui/src/themes/system/system_style.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 import 'package:stratum_ui/src/themes/typography/typography.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/theme_config.freezed.dart';
 
 /// The typed data of a theme: the package default with every app layer
 /// merged over it, aliases resolved (spec section 8).
-@themeModel
+@valueModel
 abstract class StratumThemeConfig with _$StratumThemeConfig {
   const factory({
     required String name,
@@ -89,7 +89,7 @@ abstract class StratumThemeConfig with _$StratumThemeConfig {
 
 /// The four color sets of a theme; each maps a token path inside the set
 /// (`brand.normal`, `background.color.brand`, `app.<name>`) to its color.
-@themeModel
+@valueModel
 abstract class StratumColorSets with _$StratumColorSets {
   const factory({
     /// 192 entries for the package default.

@@ -81,7 +81,7 @@ Object? copyTree(Object? value) => switch (value) {
 
 /// An [EqualUnmodifiableMapView] over an unmodifiable copy of [map].
 ///
-/// A `@themeModel` factory's generated getter wraps its stored map in a
+/// A `@valueModel` factory's generated getter wraps its stored map in a
 /// fresh [EqualUnmodifiableMapView] on every read, unless the stored map is
 /// already one, in which case it returns that exact instance instead. Every
 /// producer that hands a map to such a factory calls this, so the model's

@@ -1,13 +1,13 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
 import 'package:stratum_ui/src/themes/constant/font_type.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/typography_models.freezed.dart';
 
 /// The fonts one type uses under one locale tag.
 @immutable
-@themeModel
+@valueModel
 class StratumFontRef with _$StratumFontRef {
   const new({required this.font, this.mono});
 
@@ -22,7 +22,7 @@ class StratumFontRef with _$StratumFontRef {
 }
 
 /// The fonts of one `typography.families` entry, that is one locale tag.
-@themeModel
+@valueModel
 abstract class StratumFamilySet with _$StratumFamilySet {
   const factory({
     /// The fonts of each type this tag names.
@@ -41,7 +41,7 @@ abstract class StratumFamilySet with _$StratumFamilySet {
 
 /// The line spacing and tracking of one type at one size.
 @immutable
-@themeModel
+@valueModel
 class StratumSizeMetrics with _$StratumSizeMetrics {
   const new({
     required this.spaceHeight,
