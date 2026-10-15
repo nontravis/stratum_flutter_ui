@@ -19,7 +19,8 @@ as deprecated aliases; write the new names.
 
 Values: these compare by value, field by field, and derive a variant with `copyWith`: `StratumMotionLevels`,
 `StratumAnimation`, `StratumThemeData`, `StratumAppPalette`, `StratumThemeSet`, `StratumRemoteTheme` (its `bytes` by
-content), `StratumFontData`. These carry no `map` or `when`; read a sealed one with a Dart `switch`: `StratumAppConfig`.
+content), `StratumFontData`, `StratumTextStyle` (`copyWith` beside its fluent getters). These carry no `map` or
+`when`; read a sealed one with a Dart `switch`: `StratumAppConfig`.
 
 ## Install
 

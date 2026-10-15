@@ -190,4 +190,47 @@ void main() {
       expect(a, isNot(base.shadows([const Shadow(blurRadius: 3)])));
     });
   });
+
+  group('5.3, P2: StratumTextStyle as a freezed value', () {
+    test('5.3: copyWith sets one field and keeps the rest', () {
+      final copy = StratumTextStyle.body.s12.copyWith(isMono: true);
+
+      expect(copy.isMono, isTrue);
+      expect(copy.fontSize, FontSize.s12);
+      expect(copy.fontType, FontType.body);
+    });
+
+    test('us01/fr02/e02: two recipes built apart with the same fields are '
+        'equal', () {
+      // Built at run time from a parameter, so the check reads `==`.
+      StratumTextStyle make(double size) =>
+          StratumTextStyle.body.size(size).colorSecondary;
+
+      expect(make(13), make(13));
+      expect(make(13).hashCode, make(13).hashCode);
+    });
+
+    test('Review Focus 3: the last size or color call wins', () {
+      final sized = StratumTextStyle.body.size(13).s12;
+      expect(sized.customSize, isNull);
+      expect(sized.fontSize, FontSize.s12);
+      expect(StratumTextStyle.body.s12.size(13).customSize, 13);
+
+      const custom = Color(0xFF123456);
+      final colored = StratumTextStyle.body.color(custom).colorPrimary;
+      expect(colored.customColor, isNull);
+      expect(colored.colorRole, FontColor.primary);
+      expect(
+        StratumTextStyle.body.colorPrimary.color(custom).customColor,
+        custom,
+      );
+    });
+
+    test("R4 Q2: StratumTextStyle takes freezed's toString", () {
+      expect(
+        StratumTextStyle.body.toString(),
+        startsWith('StratumTextStyle(fontType: FontType.body'),
+      );
+    });
+  });
 }

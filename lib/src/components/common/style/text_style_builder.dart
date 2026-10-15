@@ -1,4 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
+
+part 'generated/text_style_builder.freezed.dart';
 
 /// An immutable text recipe: a type, a size, a weight, a color, and
 /// optional overrides of the screen environment.
@@ -15,8 +18,8 @@ import 'package:stratum_ui/src/src.dart';
 /// [build] computes the line height and letter spacing for the text scaler
 /// of the nearest [MediaQuery]. A [Text] that sets its own `textScaler`
 /// must pass the same scaler through [textScaler].
-@immutable
-class StratumTextStyle {
+@valueModel
+class StratumTextStyle with _$StratumTextStyle {
   const new _({
     required this.fontType,
     this.fontSize = FontSize.s16,
@@ -237,44 +240,6 @@ class StratumTextStyle {
         TextScaler.noScaling,
   );
 
-  // Equality
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumTextStyle &&
-      other.fontType == fontType &&
-      other.fontSize == fontSize &&
-      other.customSize == customSize &&
-      other.fontWeight == fontWeight &&
-      other.isMono == isMono &&
-      other.fontStyle == fontStyle &&
-      other.textDecoration == textDecoration &&
-      listEquals(other.textShadows, textShadows) &&
-      other.colorRole == colorRole &&
-      other.customColor == customColor &&
-      other.themeModeOverride == themeModeOverride &&
-      other.localeOverride == localeOverride &&
-      other.windowSizeOverride == windowSizeOverride &&
-      other.textScalerOverride == textScalerOverride;
-
-  @override
-  int get hashCode => Object.hash(
-    fontType,
-    fontSize,
-    customSize,
-    fontWeight,
-    isMono,
-    fontStyle,
-    textDecoration,
-    Object.hashAll(textShadows ?? const <Shadow>[]),
-    colorRole,
-    customColor,
-    themeModeOverride,
-    localeOverride,
-    windowSizeOverride,
-    textScalerOverride,
-  );
-
   // Helpers
 
   /// A copy with the given fields. Setting [fontSize] also sets
@@ -294,8 +259,7 @@ class StratumTextStyle {
     Locale? localeOverride,
     WindowSize? windowSizeOverride,
     TextScaler? textScalerOverride,
-  }) => StratumTextStyle._(
-    fontType: fontType,
+  }) => copyWith(
     fontSize: fontSize ?? this.fontSize,
     customSize: fontSize == null ? this.customSize : customSize,
     fontWeight: fontWeight ?? this.fontWeight,
