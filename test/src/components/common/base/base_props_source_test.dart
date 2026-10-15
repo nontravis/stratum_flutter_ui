@@ -27,4 +27,18 @@ void main() {
       expect(source, contains('this.customStyle'), reason: path);
     }
   });
+
+  test('R1, R10(1), co01_03/us01/fr04: the caret forwards no state, '
+      'feedback tone, loading value, or window size', () {
+    final source = File('lib/src/components/common/utility/caret.dart')
+        .readAsStringSync();
+    for (final prop in const [
+      'super.state',
+      'super.feedbackState',
+      'super.loading',
+      'super.windowSize',
+    ]) {
+      expect(source, isNot(contains(prop)), reason: prop);
+    }
+  });
 }

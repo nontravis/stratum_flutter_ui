@@ -66,9 +66,11 @@ enum StratumCaretStyle {
 ///   direction** rather than expand/collapse
 ///
 /// The base `color` picks the theme's `icon.color.<name>` token through
-/// [resolveColor], else `icon.default.primary`. `state`, `feedbackState`,
-/// and `loading` leave the glyph's look unchanged, and `customStyle`
-/// styles the square box, never the glyph.
+/// [resolveColor], else `icon.default.primary`. The caret takes no
+/// `state`, `feedbackState`, `loading`, or `windowSize`, since none of
+/// them changes its look and no caret code reads a window size (FO-08
+/// US-01 FR-01 E03; R10(1)); its own `customStyle` styles the square box,
+/// never the glyph.
 class StratumCaret extends StratumStatefulWidget {
   const new({
     super.key,
@@ -79,11 +81,7 @@ class StratumCaret extends StratumStatefulWidget {
     super.color,
     this.customColor,
     super.themeMode,
-    super.windowSize,
-    super.state,
-    super.feedbackState,
     super.disabled,
-    super.loading,
     this.customStyle,
   }) : assert(
          // `customSize.isFinite` is not const-evaluable; comparisons are,

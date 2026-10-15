@@ -371,8 +371,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   stays the same at every size, and the glyph sits centered in its square box and never stretches. Change
   `direction` to turn it: it turns the short way over the theme's `fast` level, a half turn back the way the last
   half turn came, and shows the new direction at once under reduced motion or when the text direction flips. It
-  adds nothing to the semantics tree: announce expanded or collapsed on the component that holds it. `customStyle`
-  styles the box, never the glyph, and `state`, `feedbackState`, and `loading` leave its look as it is.
+  adds nothing to the semantics tree: announce expanded or collapsed on the component that holds it. It takes no
+  `state`, `feedbackState`, `loading`, or `windowSize`; `customStyle` styles the box, never the glyph.
 - **Named colors** — a component of your own on `StratumStatelessWidget` or `StratumStatefulWidget` maps its `color`
   prop with `resolveColor(context, (colors) => colors.icon.color, fallback)`: the token of that name in the group
   you pick (`background.color`, `border.color`, `icon.color`, or `text.color`), else `fallback` when `color` is null

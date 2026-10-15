@@ -475,45 +475,74 @@ void main() {
       expect(_box(tester), box);
     });
 
-    for (final state in [
-      FullWidgetState.hovered,
-      FullWidgetState.pressed,
-      FullWidgetState.focused,
-      FullWidgetState.dragged,
-    ]) {
-      testWidgets('co01_03/us01/fr04: ${state.name} keeps the look', (
-        tester,
-      ) async {
-        final (look, box) = await baseline(tester);
+    testWidgets('R1, R10(1), co01_03/us01/fr04: the caret takes no state, '
+        'feedback tone, loading value, or window size', (tester) async {
+      // The constructor takes none of the four; the base fields keep
+      // their defaults.
+      const caret = StratumCaret();
 
-        await tester.pumpWidget(themedHost(StratumCaret(state: state)));
+      expect(caret.state, FullWidgetState.normal);
+      expect(caret.feedbackState, isNull);
+      expect(caret.loading, isFalse);
+      expect(caret.windowSize, isNull);
+    });
 
-        expect(_look(tester), look);
-        expect(_box(tester), box);
-      });
-    }
+    testWidgets('R1, fo08/us01/fr01: size changes the caret box', (
+      tester,
+    ) async {
+      await tester.pumpWidget(themedHost(const StratumCaret()));
+      final medium = tester.getSize(find.byType(StratumCaret));
 
-    for (final feedback in FeedbackState.values) {
-      testWidgets('co01_03/us01/fr04: feedback ${feedback.name} keeps the look '
-          'and color', (tester) async {
-        final (look, box) = await baseline(tester);
+      await tester.pumpWidget(
+        themedHost(const StratumCaret(size: WidgetSize.huge)),
+      );
 
+      expect(medium, const Size(16, 16));
+      expect(tester.getSize(find.byType(StratumCaret)), const Size(32, 32));
+    });
+
+    testWidgets('R1, fo08/us01/fr01: color changes the glyph color', (
+      tester,
+    ) async {
+      await tester.pumpWidget(themedHost(const StratumCaret()));
+      final plain = _painter(tester).color;
+
+      await tester.pumpWidget(
+        themedHost(const StratumCaret(color: ColorEnum.blue)),
+      );
+
+      expect(_painter(tester).color, isNot(isSameColorAs(plain)));
+    });
+
+    testWidgets('R1, fo08/us01/fr01: themeMode changes the glyph color', (
+      tester,
+    ) async {
+      Future<Color> paintedIn(ThemeMode mode) async {
         await tester.pumpWidget(
-          themedHost(StratumCaret(feedbackState: feedback)),
+          _defaultThemeHost(StratumCaret(themeMode: mode)),
         );
+        return _painter(tester).color;
+      }
 
-        expect(_look(tester), look);
-        expect(_box(tester), box);
-      });
-    }
+      expect(
+        await paintedIn(ThemeMode.dark),
+        isNot(isSameColorAs(await paintedIn(ThemeMode.light))),
+      );
+    });
 
-    testWidgets('co01_03/us01/fr04: loading keeps the look', (tester) async {
-      final (look, box) = await baseline(tester);
+    testWidgets('R1, fo08/us01/fr01: disabled dims the caret through the '
+        "base's wrapper", (tester) async {
+      double opacity() => tester
+          .widget<Opacity>(
+            find.ancestor(of: _glyph, matching: find.byType(Opacity)).first,
+          )
+          .opacity;
 
-      await tester.pumpWidget(themedHost(const StratumCaret(loading: true)));
+      await tester.pumpWidget(themedHost(const StratumCaret()));
+      expect(opacity(), 1);
 
-      expect(_look(tester), look);
-      expect(_box(tester), box);
+      await tester.pumpWidget(themedHost(const StratumCaret(disabled: true)));
+      expect(opacity(), fakeTheme.opacity.disabled);
     });
 
     testWidgets('co01_03/us01/fr04/e05, co01_03/us01/s8: customStyle fills the box and the '
