@@ -17,22 +17,57 @@ void main() {
       expect(File(path).existsSync(), isFalse, reason: path);
     }
 
-    final common = File(
-      'lib/src/components/common/common.dart',
-    ).readAsStringSync();
-    final utility = File(
-      'lib/src/components/common/utility/utility.dart',
-    ).readAsStringSync();
+    final common = File('lib/src/components/common/common.dart')
+        .readAsStringSync();
+    final utility = File('lib/src/components/common/utility/utility.dart')
+        .readAsStringSync();
     expect(common, isNot(contains('in_app_update.dart')));
     expect(common, isNot(contains('page/page.dart')));
     expect(utility, isNot(contains('todo.dart')));
   });
 
-  test('the package exports Show and StratumWebZoom', () {
+  test('fo06/us01/fr01, fo08/us01/fr01: the debug prop and the performance '
+      'monitor are gone', () {
     expect(
-      const Show(visible: true, child: SizedBox()),
-      isA<StatefulWidget>(),
+      File('lib/src/components/common/widget_performance_monitor.dart')
+          .existsSync(),
+      isFalse,
     );
+    expect(
+      File('lib/src/components/common/common.dart').readAsStringSync(),
+      isNot(contains('widget_performance_monitor.dart')),
+    );
+    const sources = [
+      'lib/src/components/common/base/widget_props.dart',
+      'lib/src/components/common/base/stateless_widget.dart',
+      'lib/src/components/common/base/stateful_widget.dart',
+      'lib/src/components/common/layout/box_layout.dart',
+      'lib/src/components/common/layout/flex_layout.dart',
+      'lib/src/components/common/layout/wrap_layout.dart',
+      'lib/src/components/common/layout/column_layout.dart',
+      'lib/src/components/common/layout/indexed_stack_layout.dart',
+      'lib/src/components/common/layout/stack_layout.dart',
+      'lib/src/components/common/layout/container_layout.dart',
+      'lib/src/components/common/layout/row_layout.dart',
+      'lib/src/components/common/utility/caret.dart',
+    ];
+    for (final path in sources) {
+      final text = File(path).readAsStringSync();
+      for (final debugProp in const [
+        'bool get debug',
+        'final bool debug',
+        'this.debug',
+        'super.debug',
+        'widget.debug',
+        'WidgetPerformanceMonitor',
+      ]) {
+        expect(text, isNot(contains(debugProp)), reason: '$path: $debugProp');
+      }
+    }
+  });
+
+  test('the package exports Show and StratumWebZoom', () {
+    expect(const Show(visible: true, child: SizedBox()), isA<StatefulWidget>());
     expect(ShowTransition.values, hasLength(4));
     expect(ShowSlideDirection.values, hasLength(4));
     expect(const StratumWebZoom(child: SizedBox()), isA<StatelessWidget>());

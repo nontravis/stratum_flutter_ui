@@ -28,7 +28,6 @@ abstract class StratumStatelessWidget extends StatelessWidget
     this.feedbackState,
     this.disabled = false,
     this.loading = false,
-    this.debug = false,
     this.customStyle,
   });
 
@@ -48,8 +47,6 @@ abstract class StratumStatelessWidget extends StatelessWidget
   final bool disabled;
   @override
   final bool loading;
-  @override
-  final bool debug;
   @override
   final WidgetStyle? customStyle;
 

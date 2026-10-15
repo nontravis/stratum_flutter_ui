@@ -37,7 +37,6 @@ class _Layout extends BoxLayout {
     super.transformAlignment,
     super.keepAlive,
     super.repaintBoundary,
-    super.debug,
     super.semantics,
     super.onEndAnimate,
     super.interaction,
@@ -73,25 +72,24 @@ void main() {
       expect(tester.getSize(find.byType(_Layout)), const Size(40, 20));
     });
 
-    testWidgets('semantics, repaintBoundary, debug, and keepAlive stay bare', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const _Layout(
-            semantics: SemanticsProperties(label: 'box'),
-            repaintBoundary: true,
-            debug: true,
-            keepAlive: true,
+    testWidgets(
+      'fo06/us01/fr01: semantics, repaintBoundary, and keepAlive stay bare',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              semantics: SemanticsProperties(label: 'box'),
+              repaintBoundary: true,
+              keepAlive: true,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(find.byType(AnimatedStyledBox), findsNothing);
-      expect(_inLayout(find.byType(RepaintBoundary)), findsOneWidget);
-      expect(_inLayout(find.byType(WidgetPerformanceMonitor)), findsOneWidget);
-      expect(find.bySemanticsLabel('box'), findsOneWidget);
-    });
+        expect(find.byType(AnimatedStyledBox), findsNothing);
+        expect(_inLayout(find.byType(RepaintBoundary)), findsOneWidget);
+        expect(find.bySemanticsLabel('box'), findsOneWidget);
+      },
+    );
   });
 
   group('BoxLayout box tier', () {
@@ -145,30 +143,28 @@ void main() {
       );
     });
 
-    testWidgets('wraps from outside in: keepAlive, debug, repaint, rotate', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const _Layout(
-            style: WidgetStyle(),
-            rotate: 90,
-            repaintBoundary: true,
-            debug: true,
-            keepAlive: true,
+    testWidgets(
+      'fo06/us01/fr01: wraps from outside in: keepAlive, repaint, rotate',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              style: WidgetStyle(),
+              rotate: 90,
+              repaintBoundary: true,
+              keepAlive: true,
+            ),
           ),
-        ),
-      );
+        );
 
-      final box = find.byType(AnimatedStyledBox);
-      final rotate = find.ancestor(of: box, matching: find.byType(Transform));
-      final repaint = _inLayout(find.byType(RepaintBoundary));
-      final monitor = _inLayout(find.byType(WidgetPerformanceMonitor));
-      expect(rotate, findsOneWidget);
-      expect(repaint, findsOneWidget);
-      expect(find.ancestor(of: rotate, matching: repaint), findsOneWidget);
-      expect(find.ancestor(of: repaint, matching: monitor), findsOneWidget);
-    });
+        final box = find.byType(AnimatedStyledBox);
+        final rotate = find.ancestor(of: box, matching: find.byType(Transform));
+        final repaint = _inLayout(find.byType(RepaintBoundary));
+        expect(rotate, findsOneWidget);
+        expect(repaint, findsOneWidget);
+        expect(find.ancestor(of: rotate, matching: repaint), findsOneWidget);
+      },
+    );
 
     testWidgets('the semantic rect equals the box and excludes the margin', (
       tester,

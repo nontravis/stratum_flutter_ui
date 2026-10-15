@@ -22,8 +22,9 @@ Finder _inside(Type type) {
 
 void main() {
   group('ContainerLayout', () {
-    testWidgets('hands style and layout values to AnimatedStyledBox',
-        (tester) async {
+    testWidgets('hands style and layout values to AnimatedStyledBox', (
+      tester,
+    ) async {
       final transform = Matrix4.translationValues(4, 0, 0);
       await tester.pumpWidget(
         _host(
@@ -47,18 +48,14 @@ void main() {
     testWidgets('adds no outer wrappers by default', (tester) async {
       await tester.pumpWidget(_host(const ContainerLayout(style: _style)));
 
-      for (final type in const [
-        Semantics,
-        RepaintBoundary,
-        WidgetPerformanceMonitor,
-        Transform,
-      ]) {
+      for (final type in const [Semantics, RepaintBoundary, Transform]) {
         expect(_inside(type), findsNothing, reason: '$type');
       }
     });
 
-    testWidgets('rotate turns degrees into an exact quarter turn',
-        (tester) async {
+    testWidgets('rotate turns degrees into an exact quarter turn', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           const ContainerLayout(
@@ -85,8 +82,7 @@ void main() {
       expect(identical(tester.state(find.byType(_Probe)), before), isTrue);
     });
 
-    testWidgets('keepAlive outside a lazy list does not throw',
-        (tester) async {
+    testWidgets('keepAlive outside a lazy list does not throw', (tester) async {
       await tester.pumpWidget(
         _host(
           const ContainerLayout(
@@ -99,8 +95,9 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('keepAlive keeps a scrolled-away item alive in a ListView',
-        (tester) async {
+    testWidgets('keepAlive keeps a scrolled-away item alive in a ListView', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
@@ -122,8 +119,9 @@ void main() {
       expect(identical(tester.state(probe), before), isTrue);
     });
 
-    testWidgets('onEndAnimate fires once after a style animation',
-        (tester) async {
+    testWidgets('onEndAnimate fires once after a style animation', (
+      tester,
+    ) async {
       var ends = 0;
       Widget build(Color color) {
         return _host(
@@ -146,8 +144,9 @@ void main() {
       expect(ends, 1);
     });
 
-    testWidgets('onEndAnimate stays silent on a change without animation',
-        (tester) async {
+    testWidgets('onEndAnimate stays silent on a change without animation', (
+      tester,
+    ) async {
       var ends = 0;
       Widget build(Color color) {
         return _host(
@@ -165,8 +164,7 @@ void main() {
       expect(ends, 0);
     });
 
-    testWidgets('a ratio of 0 is ignored instead of asserting',
-        (tester) async {
+    testWidgets('a ratio of 0 is ignored instead of asserting', (tester) async {
       await tester.pumpWidget(
         _host(
           const ContainerLayout(
@@ -300,28 +298,29 @@ void main() {
       );
     });
 
-    testWidgets('semantics, repaintBoundary, and debug add their wrappers',
-        (tester) async {
-      await tester.pumpWidget(
-        _host(
-          const ContainerLayout(
-            semantics: SemanticsProperties(label: 'card'),
-            repaintBoundary: true,
-            debug: true,
-            child: SizedBox(width: 40, height: 20),
+    testWidgets(
+      'fo06/us01/fr01: semantics and repaintBoundary add their wrappers',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            const ContainerLayout(
+              semantics: SemanticsProperties(label: 'card'),
+              repaintBoundary: true,
+              child: SizedBox(width: 40, height: 20),
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        find.byWidgetPredicate(
-          (widget) => widget is Semantics && widget.properties.label == 'card',
-        ),
-        findsOneWidget,
-      );
-      expect(_inside(RepaintBoundary), findsOneWidget);
-      expect(_inside(WidgetPerformanceMonitor), findsOneWidget);
-    });
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics && widget.properties.label == 'card',
+          ),
+          findsOneWidget,
+        );
+        expect(_inside(RepaintBoundary), findsOneWidget);
+      },
+    );
   });
 }
 
