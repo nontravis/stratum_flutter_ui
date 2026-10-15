@@ -259,29 +259,6 @@ void main() {
     }
   });
 
-  group('renames', () {
-    testWidgets('renames: a StratumInteraction still builds the tap '
-        'surface', (tester) async {
-      var taps = 0;
-      await tester.pumpWidget(
-        themedHost(
-          ContainerLayout(
-            // Testing the deprecated alias itself, so ignore the
-            // deprecation warning.
-            // ignore: deprecated_member_use_from_same_package
-            interaction: StratumInteraction(onTap: () => taps++),
-            child: _child,
-          ),
-        ),
-      );
-
-      await tester.tap(find.byType(StratumInkWell));
-      await tester.pump(kDoubleTapTimeout);
-
-      expect(taps, 1);
-    });
-  });
-
   group('R1: Interaction as a freezed value', () {
     void tap() {}
 

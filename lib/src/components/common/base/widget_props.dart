@@ -64,10 +64,6 @@ mixin StratumWidgetProps {
   WidgetSize resolveDefaultSize(BuildContext context) =>
       size ?? resolveTheme(context).defaultWidgetSize;
 
-  /// Renamed to [resolveDefaultSize]; kept one minor version.
-  @Deprecated('Use resolveDefaultSize. Removed after one minor version.')
-  WidgetSize resolveSize(BuildContext context) => resolveDefaultSize(context);
-
   /// Throws a [FlutterError] when [windowSize] is null and no
   /// `WindowSizeScope` is above [context].
   WindowSize resolveWindowSize(BuildContext context) =>

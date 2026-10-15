@@ -64,10 +64,3 @@ abstract class Interaction with _$Interaction {
     Map<ShortcutActivator, VoidCallback> shortcuts,
   }) = _Interaction;
 }
-
-/// [Interaction]'s name before naming rule R2, kept one minor version.
-@Deprecated(
-  'Use Interaction instead. StratumInteraction will be removed after one '
-  'minor version.',
-)
-typedef StratumInteraction = Interaction;

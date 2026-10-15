@@ -1484,16 +1484,4 @@ void main() {
       expect(position.pixels, 4120);
     });
   });
-
-  group('renames', () {
-    test('renames: a StratumFocusGroup is a FocusGroup', () {
-      // Testing the deprecated alias itself, so ignore the deprecation
-      // warning.
-      // ignore: deprecated_member_use_from_same_package
-      const focusGroup = StratumFocusGroup(loop: true);
-
-      expect(focusGroup, isA<FocusGroup>());
-      expect(focusGroup.loop, isTrue);
-    });
-  });
 }

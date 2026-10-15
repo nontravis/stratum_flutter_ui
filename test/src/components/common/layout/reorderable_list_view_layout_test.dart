@@ -12056,15 +12056,4 @@ void main() {
       },
     );
   });
-
-  group('renames', () {
-    test('renames: a StratumReorderableItemsController is a '
-        'ReorderableItemsController', () {
-      // Testing the deprecated alias itself, so ignore the deprecation warning.
-      // ignore: deprecated_member_use_from_same_package
-      final controller = StratumReorderableItemsController();
-
-      expect(controller, isA<ReorderableItemsController>());
-    });
-  });
 }

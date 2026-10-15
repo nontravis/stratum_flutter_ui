@@ -73,16 +73,4 @@ void main() {
       expect(const Scroll().toString(), startsWith('Scroll('));
     });
   });
-
-  group('renames', () {
-    test('renames: a StratumScroll is a Scroll', () {
-      // Testing the deprecated alias itself, so ignore the deprecation
-      // warning.
-      // ignore: deprecated_member_use_from_same_package
-      const scroll = StratumScroll(reverse: true);
-
-      expect(scroll, isA<Scroll>());
-      expect(scroll.reverse, isTrue);
-    });
-  });
 }

@@ -47,10 +47,3 @@ abstract class FocusGroup with _$FocusGroup {
     @Default(false) bool loop,
   }) = _FocusGroup;
 }
-
-/// [FocusGroup]'s name before naming rule R2, kept one minor version.
-@Deprecated(
-  'Use FocusGroup instead. StratumFocusGroup will be removed after one '
-  'minor version.',
-)
-typedef StratumFocusGroup = FocusGroup;

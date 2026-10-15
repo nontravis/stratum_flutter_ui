@@ -42,7 +42,7 @@ class _StatefulProbeState extends State<_StatefulProbe> {
 }
 
 /// Overrides [StratumWidgetProps.resolveTheme] to prove [resolveDefaultSize]
-/// and the deprecated `resolveSize` read through it (FO-08 US-01 FR-02).
+/// reads through it (FO-08 US-01 FR-02).
 class _StatelessThemeOverrideProbe extends StratumStatelessWidget {
   const new({required this.overrideTheme});
 
@@ -175,19 +175,6 @@ void main() {
       expect(size, WidgetSize.small);
     });
 
-    testWidgets('fo08/us01/fr02: the deprecated resolveSize returns what '
-        'resolveDefaultSize returns', (tester) async {
-      final size = await _readInBuild(
-        tester,
-        // Pins the deprecated alias (FO-08 US-01 FR-02).
-        // ignore: deprecated_member_use_from_same_package
-        const _StatelessProbe().resolveSize,
-        wrap: _themed,
-      );
-
-      expect(size, WidgetSize.small);
-    });
-
     testWidgets(
       'fo08/us01/fr02/e04: a dark themeMode reads the dark default size',
       (tester) async {
@@ -209,22 +196,6 @@ void main() {
       final size = await _readInBuild(
         tester,
         probe.resolveDefaultSize,
-        wrap: _themed,
-      );
-
-      expect(size, WidgetSize.huge);
-    });
-
-    testWidgets('fo08/us01/fr02: the deprecated resolveSize follows an '
-        'overridden resolveTheme too', (tester) async {
-      final override = fakeTheme.copyWith(defaultWidgetSize: WidgetSize.huge);
-      final probe = _StatelessThemeOverrideProbe(overrideTheme: override);
-
-      final size = await _readInBuild(
-        tester,
-        // Pins the deprecated alias (FO-08 US-01 FR-02).
-        // ignore: deprecated_member_use_from_same_package
-        probe.resolveSize,
         wrap: _themed,
       );
 

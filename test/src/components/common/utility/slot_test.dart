@@ -14,21 +14,4 @@ void main() {
       },
     );
   });
-
-  group('renames', () {
-    testWidgets('renames: the deprecated Slot still draws the placeholder', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          // Deliberate: this test proves the deprecated alias still works.
-          // ignore: deprecated_member_use_from_same_package
-          const Slot(name: 'Header'),
-        ),
-      );
-
-      expect(find.byType(StratumSlot), findsOneWidget);
-      expect(find.text('❖ Header'), findsOneWidget);
-    });
-  });
 }

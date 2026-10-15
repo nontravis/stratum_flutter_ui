@@ -48,10 +48,3 @@ abstract class Scroll with _$Scroll {
     String? restorationId,
   }) = _Scroll;
 }
-
-/// [Scroll]'s name before naming rule R2, kept one minor version.
-@Deprecated(
-  'Use Scroll instead. StratumScroll will be removed after one minor '
-  'version.',
-)
-typedef StratumScroll = Scroll;

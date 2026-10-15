@@ -14,8 +14,7 @@ Names: screen-building blocks carry no `Stratum` prefix (`Interaction`, `Scroll`
 `ReorderableItemsController`, `Show`, `ShowTransition`, `ShowSlideDirection`), while design-drawn components and theme
 or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old names `StratumInteraction`,
 `StratumScroll`, `StratumTapTargetSize`, `StratumFocusGroup`, `StratumReorderableItemsController`, `StratumShow`,
-`StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` still compile for one minor version
-as deprecated aliases; write the new names.
+`StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` are gone: write the new names.
 
 Values: every Stratum value model compares by value, field by field, and derives a variant with `copyWith`:
 `StratumThemeData`, `StratumThemeSet`, `StratumAppPalette`, `StratumMotionLevels`, `StratumAnimation`,
@@ -338,13 +337,6 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `onHover` reports a pointer over the surface while it is enabled: turning disabled under a still pointer, by its own
   `disabled` or a disabled component around it, calls `onHover(false)` once, and turning enabled again under it calls
   `onHover(true)` once.
-- **`FocusSpread`** — deprecated in 1.1.0, and removed after one minor version: it builds `StratumFocusBorder`, so
-  it already draws the new look. Its `color` now colors only the ring, as `customColor`, and no longer fills the
-  box; a box that needs a fill takes it from its own style. Replace `FocusSpread(focus: f, color: c, inside: i,
-  borderRadius: r, child: x)` with `StratumFocusBorder(state: f ? FullWidgetState.focused : FullWidgetState.normal,
-  customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
-  took effect.
-
 ## Disabled components
 
 - **`disabled: true`** — on any component built on `StratumStatelessWidget` or `StratumStatefulWidget`, the
@@ -390,7 +382,6 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   restyle the names the package already has.
 - A component's size hook is `resolveDefaultSize(context)`: the widget's `size` when set, else
   `resolveTheme(context).defaultWidgetSize`, so a subclass that overrides `resolveTheme` sets its own default size.
-  `resolveSize` is its deprecated old name, kept one minor version.
 
 ## Built-in labels
 

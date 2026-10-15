@@ -17,14 +17,6 @@ enum StratumHighContrastMode {
   off,
 }
 
-/// [StratumHighContrastMode]'s name before naming rule R2, kept one minor
-/// version.
-@Deprecated(
-  'Use StratumHighContrastMode instead. HighContrastMode will be removed '
-  'after one minor version.',
-)
-typedef HighContrastMode = StratumHighContrastMode;
-
 /// The four theme data of one theme, one per color set (spec section 7.1).
 @valueModel
 abstract class StratumThemeSet with _$StratumThemeSet {

@@ -961,22 +961,4 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
   });
-
-  group('renames', () {
-    testWidgets('renames: HighContrastMode.on still picks the high-contrast '
-        'data', (tester) async {
-      StratumThemeData? found;
-      await tester.pumpWidget(
-        _host(
-          (data) => found = data,
-          themeMode: ThemeMode.light,
-          // Tests the deprecated alias and its replacement.
-          // ignore: deprecated_member_use_from_same_package
-          highContrast: HighContrastMode.on,
-        ),
-      );
-
-      expect(found, same(_contrastLight));
-    });
-  });
 }

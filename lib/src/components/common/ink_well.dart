@@ -134,13 +134,6 @@ enum TapTargetSize {
   }
 }
 
-/// [TapTargetSize]'s name before naming rule R2, kept one minor version.
-@Deprecated(
-  'Use TapTargetSize instead. StratumTapTargetSize will be removed after '
-  'one minor version.',
-)
-typedef StratumTapTargetSize = TapTargetSize;
-
 /// The tap surface of the design system.
 ///
 /// Builds on [InkWell] for gestures, keyboard activation, focus, and hover,

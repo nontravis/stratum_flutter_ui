@@ -293,15 +293,6 @@ class ReorderableItemsController {
   }
 }
 
-/// [ReorderableItemsController]'s name before naming rule R2, kept one
-/// minor version.
-@Deprecated(
-  'Use ReorderableItemsController instead. '
-  'StratumReorderableItemsController will be removed after one minor '
-  'version.',
-)
-typedef StratumReorderableItemsController = ReorderableItemsController;
-
 /// The reorderable list, a [SliverReorderableList] in its own scroll view,
 /// with the per-item wrappers and the reorder keys.
 class _ReorderableBody extends StatefulWidget {

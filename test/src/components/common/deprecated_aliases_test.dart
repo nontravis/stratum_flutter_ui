@@ -5,78 +5,69 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Each old name, its new name, and the file that declares both (design
-/// section 6, "Renames now — 2026-10-10", with D10 Q5).
-const _renames = [
-  (
-    'StratumInteraction',
-    'Interaction',
-    'lib/src/components/common/model/interaction.dart',
-  ),
-  ('StratumScroll', 'Scroll', 'lib/src/components/common/model/scroll.dart'),
-  (
-    'StratumTapTargetSize',
-    'TapTargetSize',
-    'lib/src/components/common/ink_well.dart',
-  ),
-  (
-    'StratumFocusGroup',
-    'FocusGroup',
-    'lib/src/components/common/model/focus_group.dart',
-  ),
-  (
-    'StratumReorderableItemsController',
-    'ReorderableItemsController',
-    'lib/src/components/common/layout/reorderable_list_view_layout.dart',
-  ),
-  ('StratumShow', 'Show', 'lib/src/components/common/utility/show.dart'),
-  (
-    'StratumShowTransition',
-    'ShowTransition',
-    'lib/src/components/common/utility/show.dart',
-  ),
-  (
-    'StratumShowSlideDirection',
-    'ShowSlideDirection',
-    'lib/src/components/common/utility/show.dart',
-  ),
-  ('Slot', 'StratumSlot', 'lib/src/components/common/utility/slot.dart'),
-  (
-    'HighContrastMode',
-    'StratumHighContrastMode',
-    'lib/src/themes/theme_set.dart',
-  ),
-];
+/// The 12 names of ruling R4 (focus-style-cleanup design, 2026-10-15),
+/// each removed outright before the first release tag, with the name that
+/// replaces it.
+const _removed = <String, String>{
+  'FocusSpread': 'StratumFocusBorder',
+  'StratumTapTargetSize': 'TapTargetSize',
+  'StratumFocusGroup': 'FocusGroup',
+  'StratumInteraction': 'Interaction',
+  'StratumScroll': 'Scroll',
+  'StratumShow': 'Show',
+  'StratumShowTransition': 'ShowTransition',
+  'StratumShowSlideDirection': 'ShowSlideDirection',
+  'StratumReorderableItemsController': 'ReorderableItemsController',
+  'Slot': 'StratumSlot',
+  'HighContrastMode': 'StratumHighContrastMode',
+  'resolveSize': 'resolveDefaultSize',
+};
 
-/// [source] with adjacent string literals joined, so a message the
-/// formatter splits across lines reads as one literal.
-String _joinStrings(String source) => source.replaceAll(RegExp(r"'\s*'"), '');
+/// Every hand-written Dart file under `lib/src`, generated files left out.
+List<File> _sources() =>
+    Directory('lib/src')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .where((file) => !file.path.contains('/generated/'))
+        .where((file) => !file.path.endsWith('.g.dart'))
+        .toList();
+
+/// [source] with every `//` comment line dropped, so the commented-out
+/// code of `extensions/svg_extension.dart` counts for nothing.
+String _code(String source) => source
+    .split('\n')
+    .where((line) => !line.trimLeft().startsWith('//'))
+    .join('\n');
 
 void main() {
-  for (final (old, renamed, path) in _renames) {
-    test('renames: $old is a @Deprecated alias of $renamed', () {
-      final source = _joinStrings(File(path).readAsStringSync());
+  test('R4: no @Deprecated declaration is left in lib/src', () {
+    for (final file in _sources()) {
+      expect(
+        _code(file.readAsStringSync()),
+        isNot(contains('@Deprecated')),
+        reason: file.path,
+      );
+    }
+  });
 
-      expect(
-        source,
-        contains(RegExp('\\b(class|enum) $renamed\\b')),
-        reason: '$path declares $renamed',
+  for (final MapEntry(key: old, value: renamed) in _removed.entries) {
+    test('R4: $old is gone, $renamed stays', () {
+      final declares = RegExp(
+        '(typedef $old\\b|class $old\\b|\\b$old\\(BuildContext)',
       );
+      final named = RegExp('\\b$renamed\\b');
+      var found = false;
+      for (final file in _sources()) {
+        final code = _code(file.readAsStringSync());
+        expect(code, isNot(contains(declares)), reason: file.path);
+        found = found || code.contains(named);
+      }
+      expect(found, isTrue, reason: '$renamed is still declared');
       expect(
-        source,
-        isNot(contains(RegExp('\\b(class|enum) $old\\b'))),
-        reason: '$path no longer declares $old',
-      );
-      expect(
-        source,
-        contains(
-          RegExp(
-            "@Deprecated\\(\\s*'Use $renamed instead\\. $old will be "
-            r"removed after one minor version\.',?\s*\)\s*"
-            'typedef $old = $renamed;',
-          ),
-        ),
-        reason: '$path keeps $old as a deprecated alias of $renamed',
+        File('lib/src/components/common/utility/focus_spread.dart')
+            .existsSync(),
+        isFalse,
       );
     });
   }

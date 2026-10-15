@@ -40,9 +40,3 @@ class StratumSlot extends StatelessWidget {
     ),
   );
 }
-
-/// [StratumSlot]'s name before naming rule R2, kept one minor version.
-@Deprecated(
-  'Use StratumSlot instead. Slot will be removed after one minor version.',
-)
-typedef Slot = StratumSlot;

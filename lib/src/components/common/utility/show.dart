@@ -23,24 +23,9 @@ enum ShowTransition {
   slide,
 }
 
-/// [ShowTransition]'s name before naming rule R2, kept one minor version.
-@Deprecated(
-  'Use ShowTransition instead. StratumShowTransition will be removed after '
-  'one minor version.',
-)
-typedef StratumShowTransition = ShowTransition;
-
 /// The edge a [ShowTransition.slide] comes from and leaves toward;
 /// [start] and [end] follow the text direction (US-15 FR-02).
 enum ShowSlideDirection { top, bottom, start, end }
-
-/// [ShowSlideDirection]'s name before naming rule R2, kept one minor
-/// version.
-@Deprecated(
-  'Use ShowSlideDirection instead. StratumShowSlideDirection will be '
-  'removed after one minor version.',
-)
-typedef StratumShowSlideDirection = ShowSlideDirection;
 
 /// Shows [child] while [visible] is true and hides it while false, by
 /// [transition], over the theme's default motion level on its `standard`
@@ -104,12 +89,6 @@ class Show extends StatefulWidget {
   @override
   State<Show> createState() => _ShowState();
 }
-
-/// [Show]'s name before naming rule R2, kept one minor version.
-@Deprecated(
-  'Use Show instead. StratumShow will be removed after one minor version.',
-)
-typedef StratumShow = Show;
 
 class _ShowState extends State<Show> with SingleTickerProviderStateMixin {
   /// 0 hidden, 1 shown; forward over the show duration, reverse over the
