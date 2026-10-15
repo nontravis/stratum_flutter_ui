@@ -14818,6 +14818,74 @@ void main() {
       variant: earlyRemoves,
     );
 
+    testWidgets(
+      'us11/fr05 and s03/inv58 (D9): after moveItem calls that drop slots '
+      'before the laid-out range, moving the kept-alive item at slot 0 away '
+      'moves no laid-out item on screen',
+      (tester) async {
+        await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            keepAliveIds: const {0},
+            itemsController: ReorderableItemsController(),
+          ),
+        );
+        final harness = _harness(tester);
+        final top = _top(tester, 100);
+
+        // Each move drops a slot before the laid-out range, so the frame
+        // keeps the laid-out items where they stand (D9 item 4).
+        for (var i = 0; i < 5; i++) {
+          harness.move(50, 150);
+          await tester.pumpAndSettle();
+          expect(_top(tester, 100), top);
+        }
+        // Item 0 leaves slot 0, which the frame builds afresh.
+        harness.move(0, 150);
+        await tester.pump();
+        expect(_top(tester, 100), top);
+        await tester.pumpAndSettle();
+        expect(_top(tester, 100), top);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'us11/fr04/e01 and s03/inv58 (D9): under reduced motion, removing the '
+      'last kept-alive item before the laid-out range moves no laid-out item '
+      'on screen',
+      (tester) async {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        // Items 0 to 9 keep themselves alive once the list scrolls away.
+        await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            keepAliveIds: {for (var id = 0; id < 10; id++) id},
+            itemsController: ReorderableItemsController(),
+          ),
+        );
+        final harness = _harness(tester);
+        final top = _top(tester, 100);
+
+        // The last removal leaves its slot to item 10, which the frame
+        // builds afresh at slot 0.
+        for (var i = 0; i < 10; i++) {
+          harness.remove(0);
+          await tester.pump();
+          expect(_top(tester, 100), top);
+          await tester.pumpAndSettle();
+          expect(_top(tester, 100), top);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     // A no-room exit whose host the trailing edge cuts, and one that hangs
     // past the last item: the item count, the removed id, and the item it
     // paints over or past.

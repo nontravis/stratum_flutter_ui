@@ -516,6 +516,14 @@ class _SlotList extends SliverList {
 /// so nothing on screen moves. The sliver lays the slots before it out
 /// back from it, as after any change before its first child, and corrects
 /// its scroll offset at the list's start.
+///
+/// Slot 0 takes the offset the last frame laid it out at in every rebuild,
+/// a zero shift included, and none when that frame did not lay it out: the
+/// SDK's own rebuild puts a slot it builds there at offset 0, and the
+/// sliver then lays its slots out again from the list's start by number,
+/// which moves every laid-out item by the slots the shifts kept still (D9
+/// item 4). With no offset, the sliver lays slot 0 out back from the first
+/// slot that has one.
 class _SlotListElement extends SliverMultiBoxAdaptorElement {
   new(_SlotList super.widget) : super(replaceMovedChildren: true);
 
@@ -528,10 +536,6 @@ class _SlotListElement extends SliverMultiBoxAdaptorElement {
     final widget = this.widget as _SlotList;
     final shift = identical(widget, _shifted) ? 0 : widget.slotsBefore;
     _shifted = widget;
-    if (shift == 0) {
-      super.performRebuild();
-      return;
-    }
     final sliver = renderObject;
     final offsets = <int, double>{
       for (
@@ -547,8 +551,11 @@ class _SlotListElement extends SliverMultiBoxAdaptorElement {
       child != null;
       child = sliver.childAfter(child)
     ) {
+      final index = sliver.indexOf(child);
+      // With no shift, the SDK's offsets stand past slot 0.
+      if (shift == 0 && index != 0) break;
       if (child.parentData case final SliverMultiBoxAdaptorParentData data) {
-        data.layoutOffset = offsets[sliver.indexOf(child) - shift];
+        data.layoutOffset = offsets[index - shift];
       }
     }
   }
