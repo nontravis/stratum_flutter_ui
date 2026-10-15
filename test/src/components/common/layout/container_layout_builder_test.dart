@@ -753,7 +753,7 @@ void main() {
         'color-only state (WCAG 1.4.1)', () {
       for (final path in [
         'lib/src/components/common/layout/container_layout.dart',
-        'lib/src/components/common/model/interaction.dart',
+        'lib/src/components/common/model/interaction_state.dart',
       ]) {
         expect(
           File(path).readAsStringSync(),

@@ -37,6 +37,7 @@ const _valueModelFiles = [
   'lib/src/components/common/model/widget_style.dart',
   // M3-T12: the shipped model of FO-06 (design 5.2).
   'lib/src/components/common/model/interaction.dart',
+  'lib/src/components/common/model/interaction_state.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside
