@@ -22,6 +22,42 @@ void main() {
         throwsAssertionError,
       );
     });
+
+    test('R1: equal fields and the same controller are equal', () {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      // Built at run time from a parameter, so the checks read `==`.
+      Scroll make({required bool reverse}) =>
+          Scroll(controller: controller, reverse: reverse);
+
+      expect(make(reverse: false), make(reverse: false));
+      expect(make(reverse: false).hashCode, make(reverse: false).hashCode);
+      expect(make(reverse: false), isNot(make(reverse: true)));
+    });
+
+    test('R1: controllers compare by identity', () {
+      final a = ScrollController();
+      final b = ScrollController();
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+
+      expect(Scroll(controller: a), isNot(Scroll(controller: b)));
+    });
+
+    test('R1, us02/fr01/e01: copyWith keeps the controller and the primary '
+        'assertion', () {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      final copy = Scroll(controller: controller).copyWith(reverse: true);
+
+      expect(copy.controller, same(controller));
+      expect(copy.reverse, isTrue);
+      expect(() => copy.copyWith(primary: true), throwsAssertionError);
+    });
+
+    test("R4 Q2: takes freezed's toString", () {
+      expect(const Scroll().toString(), startsWith('Scroll('));
+    });
   });
 
   group('renames', () {
