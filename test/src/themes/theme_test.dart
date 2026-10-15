@@ -275,6 +275,7 @@ void main() {
       expect(theme.shadow, same(data.shadow));
       expect(theme.blur, same(data.blur));
       expect(theme.systemStyle, same(data.systemStyle));
+      expect(theme.focus, same(data.focus));
     },
   );
 

@@ -48,7 +48,7 @@ void main() {
     });
   });
 
-  test('the current version is stratum-theme/v1.5.0', () {
+  test('fo01/us01/fr01: the current version is stratum-theme/v1.5.0', () {
     expect('${StratumSchemaVersion.current}', 'stratum-theme/v1.5.0');
   });
 }

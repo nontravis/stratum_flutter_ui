@@ -11,8 +11,8 @@ void main() {
     ]);
   });
 
-  test('R3, layout s03: every field is optional, and every field but '
-      'placement resolves per shown state', () {
+  test('fo06/us04/fr03: R3, layout s03, every field is optional, and every '
+      'field but placement resolves per shown state', () {
     const style = StratumFocusBorderStyle(
       color: WidgetStatePropertyAll(red),
       width: WidgetStateProperty.fromMap({
@@ -33,7 +33,8 @@ void main() {
     expect(style.secondRing!.resolve({WidgetState.focused})!.width, isNull);
   });
 
-  test('freezed-models convention: value ==, copyWith, and toString', () {
+  test('fo06/us04/fr03: freezed-models convention, value ==, copyWith, and '
+      'toString', () {
     // Built at run time from a parameter, so the checks read `==`.
     StratumFocusBorderStyle make(Color color) =>
         StratumFocusBorderStyle(color: WidgetStatePropertyAll(color));

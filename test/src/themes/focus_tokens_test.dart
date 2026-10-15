@@ -12,8 +12,8 @@ void main() {
     insideFocusedWidth: 2,
   );
 
-  test('themes s03 StratumFocusTokens: value == and hashCode over the six '
-      'fields, and copyWith', () {
+  test('fo01/us01/fr01: StratumFocusTokens value == and hashCode over the '
+      'six fields, and copyWith', () {
     expect(make(gap: 2), make(gap: 2));
     expect(make(gap: 2).hashCode, make(gap: 2).hashCode);
     expect(make(gap: 2), isNot(make(gap: 1)));
