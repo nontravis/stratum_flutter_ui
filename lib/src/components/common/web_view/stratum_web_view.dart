@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_configuration.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_configuration.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';
@@ -13,29 +14,6 @@ import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin
 /// Replaces the platform implementation for new controllers in tests.
 @visibleForTesting
 PlatformStratumWebViewFactory? debugStratumWebViewPlatformFactory;
-
-/// Settings and callbacks that `StratumWebView` hands to its controller.
-@internal
-@immutable
-final class StratumWebViewConfiguration {
-  const new({
-    this.allowedOrigins = const <Uri>{},
-    this.javaScriptEnabled = true,
-    this.onMessage,
-    this.onNavigationRequest,
-    this.onPageStarted,
-    this.onPageFinished,
-    this.onError,
-  });
-
-  final Set<Uri> allowedOrigins;
-  final bool javaScriptEnabled;
-  final ValueChanged<StratumWebViewMessage>? onMessage;
-  final StratumNavigationDecision Function(Uri url)? onNavigationRequest;
-  final ValueChanged<Uri?>? onPageStarted;
-  final ValueChanged<Uri?>? onPageFinished;
-  final ValueChanged<StratumWebViewError>? onError;
-}
 
 /// Loads content into a `StratumWebView`, controls its navigation, and sends
 /// messages to the page.
