@@ -461,10 +461,11 @@ class _ReorderSliverState extends SliverReorderableListState {
   /// settle runs, so the drag's reset has not (R52).
   bool get isSettlingDrop => _lift != null && _finalDropPosition != null;
 
-  /// How many calls the body held when the drag start this State is arming
-  /// completed its own settling drop, null when none did: that start skips
-  /// the "between a move reported and its frame" cancel for the drop's own
-  /// booking and nothing later added (R52, FR-04 E06).
+  /// How many calls the body held once the drag start this State is arming
+  /// completed its own settling drop, the drop's move among them, null when
+  /// none did: that start skips the "between a move reported and its frame"
+  /// cancel for the drop's own booking and nothing later added (R52, FR-04
+  /// E06).
   int? _completedDropForStart;
 
   /// Completes the settling drop at once (R52): the same path its settle's
@@ -476,10 +477,11 @@ class _ReorderSliverState extends SliverReorderableListState {
   }
 
   /// [completeSettlingDrop] for the drag this State is arming, marking the
-  /// booking it leaves for that drag's own start (R52).
+  /// booking it leaves for that drag's own start (R52): the mark counts the
+  /// drop's own move, so it reads after the drop booked it.
   void _completeDropForStart() {
-    _completedDropForStart = _body._pending.length;
     _dropCompleted();
+    _completedDropForStart = _body._pending.length;
   }
 
   /// Whether the drag being started completes the settling drop its own
@@ -968,17 +970,20 @@ class _ReorderItemState extends State<_ReorderItem> {
     if (animate) {
       final animation = _offsetAnimation;
       if (animation == null) {
-        _offsetAnimation =
+        late final AnimationController controller;
+        controller =
             AnimationController(vsync: _list, duration: _list._settleDuration)
               ..addListener(rebuild)
               ..addStatusListener((status) {
-                if (status.isCompleted) {
-                  _startOffset = _targetOffset;
-                  _offsetAnimation!.dispose();
-                  _offsetAnimation = null;
-                }
-              })
-              ..forward();
+                if (!status.isCompleted) return;
+                _startOffset = _targetOffset;
+                controller.dispose();
+                _offsetAnimation = null;
+              });
+        // Held before it runs: under a zero settle duration it completes,
+        // and its listener lets it go, inside forward.
+        _offsetAnimation = controller;
+        controller.forward();
       } else {
         final value = _list._standardCurve.transform(animation.value);
         _startOffset = Offset.lerp(_startOffset, previousTarget, value)!;
@@ -1127,6 +1132,7 @@ class _Lift extends Drag {
 
   void dispose() {
     _proxyAnimation?.dispose();
+    _proxyAnimation = null;
     image?.dispose();
     image = null;
   }
@@ -1151,10 +1157,14 @@ class _Lift extends Drag {
     onUpdate?.call(this, dragPosition, details.delta);
   }
 
+  // The drop ends the drag before its settle starts: the reverse completes
+  // the drop inside this call when no settle is left to run (a zero settle
+  // duration, or a release before the proxy left 0), and an end that reset
+  // the drag (a call in `onReorderEnd`) leaves nothing to settle.
   @override
   void end(DragEndDetails details) {
-    _proxyAnimation!.reverse();
     onEnd?.call(this);
+    _proxyAnimation?.reverse();
   }
 
   @override

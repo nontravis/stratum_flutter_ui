@@ -7934,6 +7934,112 @@ void main() {
         expect(harness.ids.take(3), [1, 2, 3]);
       },
     );
+
+    // How a drop's settle ends inside its own pointer-up: a theme whose
+    // normal level takes no time, or a release before the lift's proxy
+    // ticked past 0, which leaves no settle to run.
+    final quickDrops = ValueVariant<String>({
+      'zero settle duration',
+      'release before the second tick',
+    });
+    testWidgets(
+      'us11/fr04/e06 (R52): a drop whose settle ends inside its pointer-up '
+      'reports onReorderEnd before onReorderItem, and the next drag still '
+      'ends with its own onReorderEnd',
+      (tester) async {
+        final zero = quickDrops.currentValue == 'zero settle duration';
+        await tester.pumpWidget(
+          _app(
+            const _Harness(count: 5, handles: true, longPressDrag: false),
+            theme: zero ? _normalTheme(Duration.zero) : null,
+          ),
+        );
+        final harness = _harness(tester);
+        harness.onMove = (from, to) => harness.events.add('move $from $to');
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byKey(const ValueKey('handle 0'))),
+        );
+        if (zero) await tester.pump();
+        await gesture.moveBy(const Offset(0, 230));
+        if (zero) await tester.pump();
+        await gesture.up();
+
+        expect(harness.events, ['start 0', 'end 5', 'move 0 4']);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(harness.ids, [1, 2, 3, 4, 0]);
+
+        // A key during the next drag ends it as a call ends it: the drop
+        // left nothing that reads as a settle.
+        await _focusItem(tester, 2);
+        final next = await _grabHandle(tester, 3);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+        await tester.pump();
+        await next.up();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(harness.events.skip(3), ['start 2', 'end 2', 'move 1 2']);
+      },
+      variant: quickDrops,
+    );
+
+    testWidgets(
+      'us11/fr01 (D7): under a zero settle duration a drag reflows its '
+      'neighbors at once and reports no error',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(const _Harness(count: 5), theme: _normalTheme(Duration.zero)),
+        );
+        final gesture = await _liftItem(tester, 0);
+        await _dragPastNeighbor(tester, gesture);
+
+        expect(tester.takeException(), isNull);
+        expect(_top(tester, 1), 0);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(_harness(tester).moves, [(0, 1)]);
+      },
+    );
+
+    testWidgets(
+      'matrix I01xT03 (R52): a mouse drag whose down and slop land before '
+      'the next frame, while a drop settles, completes the drop and lifts '
+      'the new item',
+      (tester) async {
+        await tester.pumpWidget(_app(const _Harness(count: 5, handles: true)));
+        final harness = _harness(tester);
+        final first = await _grabHandle(tester, 0);
+        await _dragPastNeighbor(tester, first);
+        await tester.pumpAndSettle();
+        await first.up();
+        await tester.pump();
+        expect(harness.moves, isEmpty);
+        expect(harness.ends, hasLength(1));
+
+        // No frame runs between the down, which completes the drop, and
+        // the move past the mouse's 1 px slop.
+        final second = await tester.startGesture(
+          tester.getCenter(find.byKey(const ValueKey('handle 3'))),
+          pointer: 2,
+          kind: PointerDeviceKind.mouse,
+        );
+        await second.moveBy(const Offset(0, 20));
+
+        expect(harness.moves, [(0, 1)]);
+        expect(harness.starts, [0, 3]);
+        expect(harness.ends, hasLength(1));
+        await tester.pump();
+        expect(harness.ends, hasLength(1));
+        await second.up();
+        await tester.pumpAndSettle();
+        expect(harness.ends, hasLength(2));
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
   group('ReorderableListViewLayout drag ends', dragEndsTests);
