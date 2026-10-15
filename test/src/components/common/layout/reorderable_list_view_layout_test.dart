@@ -13995,6 +13995,83 @@ void main() {
       variant: unfocusedReach,
     );
 
+    // How the app moves the parked item again: a moveItem call, or a raw
+    // reorder its findChildIndexCallback answers.
+    final parkedMoves = ValueVariant<String>({
+      'moveItem',
+      'raw move with the callback',
+    });
+    testWidgets(
+      'matrix I13xT11 and I14cxT11 (R46): an item a screen reader moved, '
+      'parked off screen once the EndUser stopped its reach, keeps its State '
+      "through the app's next move, which reaches and shows it, and primary "
+      'focus stays where it was',
+      (tester) async {
+        final call = parkedMoves.currentValue == 'moveItem';
+        final handle = tester.ensureSemantics();
+        final outside = FocusNode(debugLabel: 'outside');
+        addTearDown(outside.dispose);
+        // Item 108 is 400 px and the list has no cache extent: the move's
+        // jump misses and the reach runs, as in I08.M1.
+        await tester.pumpWidget(
+          _app(
+            Column(
+              children: [
+                Expanded(
+                  child: _Harness(
+                    count: 200,
+                    heights: const {108: 400},
+                    scrollCacheExtent: const ScrollCacheExtent.pixels(0),
+                    appIndex: !call,
+                    itemsController: ReorderableItemsController(),
+                  ),
+                ),
+                SizedBox(height: 40, child: TextField(focusNode: outside)),
+              ],
+            ),
+          ),
+        );
+        positionOf(tester).jumpTo(4060);
+        await tester.pump();
+        expect(lastLaidOut(tester), 107);
+        final state = _itemState(tester, 107)..expanded = true;
+        outside.requestFocus();
+        await tester.pump();
+
+        moveActionNow(tester, 107, 'Move down');
+        await tester.pump();
+        // The EndUser drags the list while the reach runs: the reach stops,
+        // and the item stays parked (R29, R45).
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byType(Scrollable).first),
+        );
+        await gesture.moveBy(const Offset(0, 30));
+        await tester.pump();
+        await gesture.moveBy(const Offset(0, 30));
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expectKept(tester, 107, state);
+        expect(shown(tester, 107), isFalse);
+
+        final harness = _harness(tester);
+        final at = harness.ids.indexOf(107);
+        if (call) {
+          harness.move(at, 150);
+        } else {
+          harness.moveData(at, 150);
+        }
+        await tester.pumpAndSettle();
+
+        expect(harness.ids[150], 107);
+        expectKept(tester, 107, state);
+        expect(shown(tester, 107), isTrue);
+        expect(outside.hasPrimaryFocus, isTrue);
+        handle.dispose();
+      },
+      variant: parkedMoves,
+    );
+
     testWidgets(
       'us11/fr04/e05 and s03/inv58 (R47): a removed item exits in a sliver '
       'child of its own, its render object under the same sliver child',

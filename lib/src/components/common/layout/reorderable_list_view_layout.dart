@@ -599,8 +599,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// The key of the focused moved item kept alive off screen until it is
   /// laid out and revealed (invariant 35); null with none. Only the item
-  /// that holds focus parks, so at most one item is parked.
+  /// that counts as focused parks ([_countsFocused]), so at most one item
+  /// is parked.
   Key? _parkedKey;
+
+  /// The screen reader's move that parked the item while its key node held
+  /// no focus, kept until the park ends (R46): every later path that books
+  /// the item again reads its standing here ([_countsFocused]); null for a
+  /// park of an item whose own node holds focus.
+  _ReaderMove? _parkedReader;
 
   /// The parked item's index in the current data, which every later
   /// `insertItem`, `removeItem`, and `moveItem` shifts until its release,
@@ -917,7 +924,8 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final built = _builtIndexOf(from, inPlace: true);
     final node = built == null ? null : _nodeAt(built);
     final key = built == null ? null : _lookAt(built)?.key;
-    final focused = node?.hasFocus ?? false;
+    // An item a screen reader's move parked counts as focused (R46).
+    final focused = node != null && key != null && _countsFocused(key, node);
     // A move of the item a reach looks for re-aims it: the move's own
     // follow takes over, and the item stays parked (invariant 32).
     if (key != null && key == _reachKey) _stopReach();
@@ -959,7 +967,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     unawaited(
       motion.controller.forward().then<void>((_) => _finishInsert(motion)),
     );
-    if (focused && node != null && key != null) {
+    if (focused) {
       // The slot the item left, by the index of the item now after it; both
       // this gap and the item's slot live in fields each call in this turn
       // shifts, and the build that settles the move re-reads the slot by
@@ -1417,12 +1425,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       if (at == null || key == null) continue;
       known.add(key);
       // A screen reader's move parks as a focused one does (R46).
-      final node = _registeredNodeOf(key);
-      _bookMovedKey(
-        key,
-        at,
-        park: node != null && target.key == key && target.countsFocused(node),
-      );
+      _bookMovedKey(key, at, reader: target.key == key ? target.reader : null);
     }
     _bookInsertedKeys(keyAt, known);
     _bookRawMoves(watched, known, dropped);
@@ -1634,13 +1637,16 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Maps the item [key], which a move put at [at] of the data, when the
   /// last frame did not lay out the slot it enters (invariant 35), and
-  /// parks it when it holds focus or [park] asks; every other item takes
-  /// the app's answer or the calls' shift ([_findIndex]).
-  void _bookMovedKey(Key key, _DataIndex at, {bool park = false}) {
+  /// parks it when it counts as focused ([_countsFocused]), by its node, by
+  /// [reader], the screen reader's move that put it there, or by the one
+  /// that parked it; every other item takes the app's answer or the calls'
+  /// shift ([_findIndex]).
+  void _bookMovedKey(Key key, _DataIndex at, {_ReaderMove? reader}) {
     if (_builtSlot(_enteredSlot(at))) return;
     _movedTo[key] = at.value;
     final node = _registeredNodeOf(key);
-    if (node != null && (park || node.hasFocus)) _park(key, at, node);
+    if (node == null || !_countsFocused(key, node, reader)) return;
+    _park(key, at, node, reader: reader);
   }
 
   /// Maps the parked item to its index after this turn's calls, so its
@@ -1923,11 +1929,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     } else if (key == _parkedKey) {
       _parkedAt = to;
     }
+    // The screen reader's move that parked the item rides on its raw move,
+    // so the reach still counts it focused and places no focus (R46).
     final target = _MoveTarget(
       to,
       key: key,
       gap: from < to ? from : from + 1,
       revealIn: revealIn,
+      reader: key == _parkedKey ? _parkedReader : null,
     );
     _moveTargets.add(target);
     if (key == _liftedKey) {
@@ -2061,12 +2070,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
 
   /// Keeps the existing element of item [key], at [at] of the data, whose
   /// key node is [node], alive until it is laid out and revealed, releasing
-  /// any other parked item.
-  void _park(Key key, _DataIndex at, FocusNode node) {
+  /// any other parked item. A screen reader's move, [reader], parks the
+  /// item with its standing (R46); a park of the same item again keeps the
+  /// standing it has, and a node that holds focus needs none.
+  void _park(Key key, _DataIndex at, FocusNode node, {_ReaderMove? reader}) {
     if (_parkedKey != key) _releasePark();
     _parkedKey = key;
     _parkedAt = at;
     _parkedNode = node;
+    _parkedReader = node.hasFocus ? null : reader ?? _parkedReader;
     _parkedFrame ??= _frames[key]?..setParked(parked: true);
   }
 
@@ -2078,7 +2090,18 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     _parkedAt = null;
     _parkedFrame = null;
     _parkedNode = null;
+    _parkedReader = null;
     if (frame != null && frame.mounted) frame.setParked(parked: false);
+  }
+
+  /// Whether the item [key], whose key node is [node], counts as the
+  /// focused moved item (R46): its node holds focus, or a screen reader's
+  /// move of it still stands, [reader] or the one that parked it
+  /// ([_parkedReader]). Every path that books a moved or parked item asks
+  /// this, never its node alone.
+  bool _countsFocused(Key key, FocusNode node, [_ReaderMove? reader]) {
+    if (node.hasFocus || (reader?.stands ?? false)) return true;
+    return key == _parkedKey && (_parkedReader?.stands ?? false);
   }
 
   /// The items [keys] are in the data while their old copies still leave,
@@ -2477,9 +2500,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// any item a screen-reader action moves, [asFocused] (R46), keeps the
   /// item's [key] and the gap it left, for its jump ([_readySlot]) and for
   /// the reach should the frame not lay its slot out ([_reachStep]). A
-  /// screen-reader move of an item whose node does not hold focus is marked
-  /// [_MoveTarget.screenReader]: the list never places or hands on input
-  /// focus for it.
+  /// screen-reader move of an item whose node does not hold focus carries
+  /// its [_ReaderMove]: the list never places or hands on input focus for
+  /// it.
   _MoveTarget _targetFor(
     _DataIndex from,
     _DataIndex to,
@@ -2495,7 +2518,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       to,
       key: key,
       gap: from < to ? from : from + 1,
-      screenReader: !node.hasFocus,
+      reader: node.hasFocus ? null : _ReaderMove(),
     );
   }
 
@@ -2828,19 +2851,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// The frame did not lay out the slot of a focused move, now [at]: the
   /// list reaches the slot as a move call's follow does, with the gap the
   /// item left (FR-03 E09, FR-05 E04). The item is parked, its key node
-  /// [node] still counting as focused ([_MoveTarget.countsFocused], R46),
-  /// or its State is gone and no node holds primary focus; a focus the app
-  /// moved elsewhere in the move's turn stays, and the park ends (R13). The
-  /// reach places and hands on input focus only for an item whose node held
-  /// focus at the action: an unfocused screen-reader move's item is reached
-  /// and revealed, and primary focus stays where it is (R46, R13).
+  /// [node] still counting as focused ([_countsFocused], R46), or its State
+  /// is gone and no node holds primary focus; a focus the app moved
+  /// elsewhere in the move's turn stays, and the park ends (R13). The reach
+  /// places and hands on input focus only for an item whose node held focus
+  /// at the action: an unfocused screen-reader move's item is reached and
+  /// revealed, and primary focus stays where it is (R46, R13).
   void _reachStep(_MoveTarget moved, _FrameIndex at, FocusNode? node) {
     final key = moved.key;
     final gap = moved.gap;
     if (key == null || gap == null) return;
     // A screen reader's move parks an unfocused item too (R46).
     final parked =
-        node != null && node.context != null && moved.countsFocused(node);
+        node != null &&
+        node.context != null &&
+        _countsFocused(key, node, moved.reader);
     if (!parked && FocusManager.instance.primaryFocus != null) {
       _releasePark(key);
       return;
@@ -2851,7 +2876,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       gap,
       origin: moved.origin,
       levels: moved.revealIn,
-      placesFocus: !moved.screenReader,
+      placesFocus: moved.reader == null,
     );
   }
 
@@ -3048,13 +3073,15 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// Reveals the item whose key node is [node] by [revealInViewports], from
   /// [origin] when a reach gave it, now and again in the frame its grow-in
   /// motion under [key] completes, by the plain edge rule: the item grows
-  /// past the viewport's edge as it enters (E16). With [levels], only in
-  /// those viewports.
+  /// past the viewport's edge as it enters (E16), while it still counts as
+  /// focused, by its node or by [reader], the screen reader's move that
+  /// parked it (R46). With [levels], only in those viewports.
   void _revealReturned(
     FocusNode node,
     Key key, {
     ({ScrollPosition position, double pixels})? origin,
     Set<ScrollableState>? levels,
+    _ReaderMove? reader,
   }) {
     _revealOwn(node, origin: origin, levels: levels);
     final motion = _incoming[key];
@@ -3065,7 +3092,7 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       // it there (invariant 26).
       if (mounted &&
           _itemNodes.containsValue(node) &&
-          node.hasFocus &&
+          _countsFocused(key, node, reader) &&
           !_scrollTookOffScreen(node, generation)) {
         _revealOwn(node, levels: levels);
       }
@@ -3365,13 +3392,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
         _giveUpReach(origin, placesFocus: placesFocus);
         return;
       }
+      // Read before the park ends (R46).
+      final reader = key == _parkedKey ? _parkedReader : null;
       _endReach();
       // A parked item kept its State and the node that holds focus; an
       // item whose node held no focus at the action never takes it (R46).
       if (placesFocus && !node.hasFocus) {
         _revealedStopIn(node)?.requestFocus();
       }
-      _revealReturned(node, key, origin: origin, levels: levels);
+      _revealReturned(
+        node,
+        key,
+        origin: origin,
+        levels: levels,
+        reader: reader,
+      );
       return;
     }
     final estimate = frames == 0 ? null : _estimateTowards(index.slot);
@@ -3730,8 +3765,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     return entered;
   }
 
-  /// After the frame that moved the focused item [key] (FR-05 E04): laid
-  /// out, it keeps focus and is revealed twice; parked off screen after a
+  /// After the frame that moved the focused item [key] (FR-05 E04), one a
+  /// screen reader's move parked included (R46): laid out, it keeps focus
+  /// and is revealed twice; parked off screen after a
   /// missed estimate, or with its State gone, the list reaches the item's
   /// slot, read by key from the settling build ([_followAt]), for another
   /// call in the move's own turn may have shifted the data under the move's
@@ -3761,17 +3797,29 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     final registered = _registeredIndexOf(node);
     if (node.context != null && registered != null) {
       final slot = at ?? registered;
+      // Read before the park ends: an item a screen reader's move parked
+      // counts as focused, and takes no focus from the list (R46, R13).
+      final focused = _countsFocused(key, node);
+      final reader = key == _parkedKey ? _parkedReader : null;
       // Parked off screen: registered, but not laid out (invariant 35).
       if (!_builtSlot(slot.slot)) {
-        if (node.hasFocus && gap != null) {
-          _startReach(slot, key, gap, origin: origin);
+        if (focused && gap != null) {
+          _startReach(
+            slot,
+            key,
+            gap,
+            origin: origin,
+            placesFocus: reader == null,
+          );
         } else {
           _releasePark(key);
         }
         return;
       }
       _releasePark(key);
-      if (node.hasFocus) _revealReturned(node, key, origin: origin);
+      if (focused) {
+        _revealReturned(node, key, origin: origin, reader: reader);
+      }
       return;
     }
     // Focus the app moved in the same turn stays where the app put it.
@@ -4869,17 +4917,27 @@ typedef _Call = ({_DataIndex? from, _DataIndex? to, bool reported});
 /// moves of FR-02 and FR-03 E03.
 enum _MoveIntent { start, previous, next, end }
 
+/// A screen reader's move action on an item whose key node held no focus
+/// at the action: the item counts as the focused moved item while primary
+/// focus stays on [focusAtCall], and the list never places or hands on
+/// input focus for it (R46, R13).
+class _ReaderMove {
+  new() : focusAtCall = FocusManager.instance.primaryFocus;
+
+  /// The node that held primary focus at the action.
+  final FocusNode? focusAtCall;
+
+  /// Whether primary focus has not moved since the action; a focus the app
+  /// moves ends it (R13).
+  bool get stands => FocusManager.instance.primaryFocus == focusAtCall;
+}
+
 /// The index of the app's data a key move, a screen-reader move, or a drop
 /// put its item at, moved by each later call until the frame after the
 /// move reads it; null once a call takes the item out.
 class _MoveTarget {
-  new(
-    this.index, {
-    this.key,
-    this.gap,
-    this.revealIn,
-    this.screenReader = false,
-  }) : focusAtCall = FocusManager.instance.primaryFocus;
+  new(this.index, {this.key, this.gap, this.revealIn, this.reader})
+    : focusAtCall = FocusManager.instance.primaryFocus;
 
   _DataIndex? index;
 
@@ -4903,22 +4961,13 @@ class _MoveTarget {
   /// reveals in every viewport.
   final Set<ScrollableState>? revealIn;
 
-  /// Whether a screen reader's move action booked this target for an item
-  /// whose key node did not hold focus at the action: the item counts as
-  /// the focused moved item while primary focus has not moved from the node
-  /// that held it at the action ([focusAtCall], R46), and the list never
-  /// places or hands on input focus for it (R13).
-  final bool screenReader;
+  /// The screen reader's move that booked this target, or that parked the
+  /// item a raw move books it for, while the item's key node held no focus
+  /// (R46); null for any other move.
+  final _ReaderMove? reader;
 
   /// The node that held primary focus at the move's call.
   final FocusNode? focusAtCall;
-
-  /// Whether the moved item counts as focused now: its key node [node]
-  /// holds focus, or a screen reader moved it and primary focus stayed on
-  /// [focusAtCall] (R46); a focus the app moves in the turn wins (R13).
-  bool countsFocused(FocusNode node) =>
-      node.hasFocus ||
-      (screenReader && FocusManager.instance.primaryFocus == focusAtCall);
 }
 
 /// The list's own scroll view: the body builds the widgets
