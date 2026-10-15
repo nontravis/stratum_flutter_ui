@@ -40,6 +40,14 @@ const _valueModelFiles = [
   'lib/src/components/common/model/interaction_state.dart',
   'lib/src/components/common/model/scroll.dart',
   'lib/src/components/common/model/focus_group.dart',
+  // M3-T16: the shipped models of FO-06 (design 5.2).
+  'lib/src/components/common/model/modal_layout/modal_layout_style.dart',
+  'lib/src/components/common/model/page_layout/page_areas.dart',
+  'lib/src/components/common/model/page_layout/page_layout_style.dart',
+  'lib/src/components/common/model/page_layout/page_safe_area.dart',
+  'lib/src/components/common/model/page_layout/page_side.dart',
+  'lib/src/components/common/model/split_layout/split_divider_state.dart',
+  'lib/src/components/common/model/split_layout/split_pane.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside

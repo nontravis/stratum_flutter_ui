@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/page_safe_area.freezed.dart';
 
@@ -12,7 +13,7 @@ part 'generated/page_safe_area.freezed.dart';
 /// so the app's content there may pad for it (R20). [left] and [right] name
 /// the sides the `left` and `right` slots sit on, the start and end sides,
 /// so under `TextDirection.rtl` [left] is the right edge.
-@freezed
+@valueModel
 class PageSafeArea with _$PageSafeArea {
   const new({
     this.top = true,

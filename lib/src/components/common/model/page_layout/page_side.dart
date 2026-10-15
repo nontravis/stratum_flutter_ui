@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/page_side.freezed.dart';
 
@@ -24,7 +25,7 @@ enum PageDrawerType {
 
 /// How one side of a `PageLayout` behaves as a drawer (US-19 FR-02, FR-04,
 /// FR-05); its width bounds also bound the side's inline pane (FR-06).
-@freezed
+@valueModel
 class PageSide with _$PageSide {
   const new({
     this.type,
