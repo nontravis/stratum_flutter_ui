@@ -93,6 +93,7 @@ class ReorderableListViewLayout extends StatelessWidget {
     this.autoScrollerVelocityScalar,
     this.focusable,
     this.semanticsLabel,
+    this.scrollFocusStyle,
     this.findChildIndexCallback,
     this.moveAnnouncement,
     this.atStartAnnouncement,
@@ -169,6 +170,10 @@ class ReorderableListViewLayout extends StatelessWidget {
   /// Names the focusable list for a screen reader.
   final String? semanticsLabel;
 
+  /// The view's focus ring style, level 3 (FO-06 US-07 FR-03), beside
+  /// `style`, which draws the box.
+  final ScrollFocusStyle? scrollFocusStyle;
+
   /// Returns the index in the app's current data of the item whose key is
   /// [key], the key [itemBuilder] gave it; null when the app does not know
   /// it. An answer outside `0` to `itemCount - 1` counts as null.
@@ -211,6 +216,7 @@ class ReorderableListViewLayout extends StatelessWidget {
       primary: primary,
       semanticsLabel: semanticsLabel,
       showScrollbar: showScrollbar,
+      scrollFocusStyle: scrollFocusStyle,
       builder: (context, controller, padding) => _ReorderableBody(
         layout: this,
         controller: controller,

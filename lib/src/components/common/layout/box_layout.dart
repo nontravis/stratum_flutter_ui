@@ -206,6 +206,7 @@ abstract class BoxLayout extends StatelessWidget {
       primary: scroll.primary,
       borderRadius: style.borderRadius,
       ownsFocus: !surfaceFocus,
+      customStyle: scroll.scrollFocusStyle,
       child: inner == null ? box : inner(style, box),
     );
   }

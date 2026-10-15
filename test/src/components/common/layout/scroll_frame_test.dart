@@ -2777,6 +2777,137 @@ void main() {
       expect(ring.width, fakeTheme.focus.outsideWidth);
     });
   });
+
+  group('scrollFocusStyle on every scroll view', () {
+    const style = ScrollFocusStyle(
+      focus: StratumFocusBorderStyle(width: WidgetStatePropertyAll(4)),
+    );
+    Widget item(BuildContext context, int index) => const SizedBox(height: 40);
+
+    for (final (tag, view) in <(String, Widget)>[
+      (
+        'fo06/us03/fr01',
+        ListViewLayout.builder(
+          itemCount: 3,
+          itemBuilder: item,
+          focusable: true,
+          scrollFocusStyle: style,
+        ),
+      ),
+      (
+        'fo06/us03/fr01',
+        GridViewLayout.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+          ),
+          itemCount: 3,
+          itemBuilder: item,
+          focusable: true,
+          scrollFocusStyle: style,
+        ),
+      ),
+      (
+        'fo06/us03/fr01',
+        const CustomScrollViewLayout(
+          focusable: true,
+          scrollFocusStyle: style,
+          slivers: [SliverToBoxAdapter(child: SizedBox(height: 40))],
+        ),
+      ),
+      (
+        'fo06/us10/fr03',
+        const PageViewLayout(
+          focusable: true,
+          scrollFocusStyle: style,
+          children: [SizedBox(height: 40)],
+        ),
+      ),
+      (
+        'fo06/us10/fr03',
+        PageViewLayout.builder(
+          itemBuilder: item,
+          itemCount: 1,
+          focusable: true,
+          scrollFocusStyle: style,
+        ),
+      ),
+      (
+        'fo06/us11/fr01',
+        ReorderableListViewLayout.builder(
+          itemCount: 2,
+          itemBuilder: (context, index) =>
+              SizedBox(key: ValueKey(index), height: 40),
+          onReorderItem: (from, to) {},
+          focusable: true,
+          scrollFocusStyle: style,
+        ),
+      ),
+      (
+        'fo06/us02/fr01',
+        const ColumnLayout(
+          scroll: Scroll(scrollFocusStyle: style),
+          children: [SizedBox(height: 2000)],
+        ),
+      ),
+    ]) {
+      testWidgets('$tag, fo06/us07/fr03/e05: ${view.runtimeType} hands '
+          'scrollFocusStyle to its ScrollFocus', (tester) async {
+        await tester.pumpWidget(
+          // MaterialApp supplies the Overlay and WidgetsLocalizations that
+          // ReorderableListViewLayout needs; harmless for the other six
+          // views.
+          MaterialApp(
+            home: Material(
+              child: themedHost(SizedBox(width: 300, height: 300, child: view)),
+            ),
+          ),
+        );
+
+        expect(
+          tester.widget<ScrollFocus>(find.byType(ScrollFocus)).customStyle,
+          style,
+        );
+      }, variant: TargetPlatformVariant.desktop());
+    }
+
+    testWidgets("fo06/us07/fr03/e05: one view's scrollFocusStyle restyles its "
+        'ring and no other view', (tester) async {
+      _useTraditionalHighlight();
+      const red = Color(0xFFFF0000);
+      Widget list(Key key, ScrollFocusStyle? style) => SizedBox(
+        key: key,
+        width: 200,
+        height: 100,
+        child: ListViewLayout.builder(
+          itemCount: 20,
+          itemBuilder: item,
+          focusable: true,
+          scrollFocusStyle: style,
+        ),
+      );
+      await tester.pumpWidget(
+        themedHost(
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              list(
+                const ValueKey('mine'),
+                const ScrollFocusStyle(
+                  focus: StratumFocusBorderStyle(
+                    color: WidgetStatePropertyAll(red),
+                  ),
+                ),
+              ),
+              list(const ValueKey('other'), null),
+            ],
+          ),
+        ),
+      );
+      final areas = tester.widgetList<ScrollFocus>(find.byType(ScrollFocus));
+      expect(areas.first.customStyle?.focus?.color, isNotNull);
+      expect(areas.last.customStyle, isNull);
+    }, variant: TargetPlatformVariant.desktop());
+  });
 }
 
 /// A stateful leaf, so a test can tell a kept State from a new one.

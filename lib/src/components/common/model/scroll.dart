@@ -46,5 +46,10 @@ abstract class Scroll with _$Scroll {
     bool? showScrollbar,
     ScrollViewKeyboardDismissBehavior? keyboardDismissBehavior,
     String? restorationId,
+
+    /// A scrolling box's focus ring style, level 3, beside the box layout's
+    /// `style`, which draws the box; the box hands it to its `ScrollFocus`
+    /// as `customStyle` (FO-06 US-07 FR-03).
+    ScrollFocusStyle? scrollFocusStyle,
   }) = _Scroll;
 }

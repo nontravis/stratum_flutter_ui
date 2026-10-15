@@ -49,4 +49,13 @@ void main() {
     expect(source, isNot(contains('resolveStyle(')));
     expect(source, contains('debugCheckNoComponentStyle('));
   });
+
+  test('R1, (g): NestedScrollViewLayout takes no scrollFocusStyle, since its '
+      'box is never focusable and shows no ring', () {
+    expect(
+      File('lib/src/components/common/layout/nested_scroll_view_layout.dart')
+          .readAsStringSync(),
+      isNot(contains('scrollFocusStyle')),
+    );
+  });
 }

@@ -133,6 +133,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 `ScrollFocus` is the scrolling area's focus host: `componentPartDefaults: (theme) => {ScrollFocus:
 ScrollFocusStyle(focus: StratumFocusBorderStyle(...))}` restyles every scrolling area's ring, and each scroll
 view's `scrollFocusStyle` one area's; the window check counts a second ring's width.
+Every scroll view but `NestedScrollViewLayout`, and `Scroll`, take `scrollFocusStyle: ScrollFocusStyle(focus: ...)`
+beside `style`, which draws the box.
 
 - **`ListViewLayout`**, **`GridViewLayout`**, **`CustomScrollViewLayout`** — lazy list, grid, and sliver view inside
   a `WidgetStyle` box; `style.padding` becomes the scroll padding, so it scrolls with the content.
