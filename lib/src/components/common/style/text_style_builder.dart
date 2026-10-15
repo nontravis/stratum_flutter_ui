@@ -18,6 +18,12 @@ part 'generated/text_style_builder.freezed.dart';
 /// [build] computes the line height and letter spacing for the text scaler
 /// of the nearest [MediaQuery]. A [Text] that sets its own `textScaler`
 /// must pass the same scaler through [textScaler].
+///
+/// `copyWith` sets fields verbatim: `copyWith(fontSize: ...)` leaves
+/// [customSize] in place, and `copyWith(colorRole: ...)` leaves
+/// [customColor] in place, so the override still wins when [build] resolves
+/// the recipe. Change a size or color with [size] or a `color*` getter
+/// instead, which clear the matching override.
 @valueModel
 class StratumTextStyle with _$StratumTextStyle {
   const new _({

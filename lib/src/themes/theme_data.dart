@@ -5,7 +5,9 @@ import 'package:stratum_ui/src/themes/value_model.dart';
 part 'generated/theme_data.freezed.dart';
 
 /// The theme data of one color set (spec section 7.2). Build it through
-/// [StratumThemeSet.fromConfig]; change a field through [copyWith].
+/// [StratumThemeSet.fromConfig]; change a field through [copyWith]. Every
+/// `copyWith` parameter takes that field's own non-nullable type, so pass a
+/// field only when changing it: there is no "pass null to keep it" form.
 @valueModel
 abstract class StratumThemeData with _$StratumThemeData {
   const factory({

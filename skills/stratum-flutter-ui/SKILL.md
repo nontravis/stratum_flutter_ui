@@ -17,14 +17,19 @@ or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old n
 `StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` still compile for one minor version
 as deprecated aliases; write the new names.
 
-Values: every Stratum value model compares by value, field by field, and derives a variant with `copyWith`: the
-theme data and its parts (`StratumThemeData`, `StratumThemeSet`, `StratumAnimation`, `StratumTextStyle`,
-`StratumRemoteTheme`, and the rest), `WidgetStyle`, `Interaction`, `InteractionState`, `Scroll`, `FocusGroup`, the
-page, split, modal, and toast values, and the web view values. `StratumByWindowSize` alone has no `copyWith`; its
-`==` compares the value of each window size. Callbacks, focus nodes, states controllers, and scroll controllers
-inside a value compare by identity, and a remote theme's `bytes` and a recipe's shadows compare by content. No value
-carries `map` or `when`: read a sealed one, such as `StratumToastPlacement` or `StratumWebViewSource`, with a Dart
-`switch`.
+Values: every Stratum value model compares by value, field by field, and derives a variant with `copyWith`:
+`StratumThemeData`, `StratumThemeSet`, `StratumAppPalette`, `StratumMotionLevels`, `StratumAnimation`,
+`StratumRemoteTheme`, `StratumFontData`, `StratumThemeTransitions`, `StratumTextStyle`, `WidgetStyle`, `Interaction`,
+`InteractionState`, `Scroll`, `FocusGroup`, the page, split, modal, and toast values, and the web view values. A
+theme data's `*Tokens` groups (`StratumColorTokens` and the rest) compare by identity and carry no `copyWith`, so two
+parses of one theme compare unequal. `StratumByWindowSize` has no `copyWith`; its `==` compares the value of each
+window size. A sealed family's `copyWith` lives on each case, not on the base type: `StratumWebViewSource` itself has
+none, only `StratumWebViewUrlSource` and `StratumWebViewHtmlSource` do. Callbacks, focus nodes, states controllers,
+and scroll controllers inside a value compare by identity, and a remote theme's `bytes` and a recipe's shadows
+compare by content. `StratumThemeData.copyWith` takes each field's own non-nullable type: pass a field only to
+change it. `StratumTextStyle.copyWith(fontSize:` or `colorRole:)` keeps `customSize`/`customColor`, which win when
+the recipe resolves; use the fluent getters (`size`, `color*`) instead to change one. No value carries `map` or
+`when`: read a sealed one, such as `StratumToastPlacement` or `StratumWebViewSource`, with a Dart `switch`.
 
 ## Install
 
