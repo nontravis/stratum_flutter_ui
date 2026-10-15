@@ -366,9 +366,8 @@ void main() {
     expect(isRTL, isFalse);
   });
 
-  testWidgets('a height reader does not rebuild when only the width changes', (
-    tester,
-  ) async {
+  testWidgets('fo07/us04/fr01: a height reader does not rebuild when only the '
+      'width changes', (tester) async {
     setWindowSize(tester, const Size(400, 800));
     addTearDown(tester.view.reset);
     var heightReaderBuilds = 0;

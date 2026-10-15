@@ -76,28 +76,32 @@ void main() {
     },
   );
 
-  testWidgets('rebuilds dependents only when the keyboard opens or closes', (
-    tester,
-  ) async {
-    setKeyboardHeight(tester, 0);
-    addTearDown(tester.view.reset);
-    var dependentBuilds = 0;
+  testWidgets(
+    'fo07/us04/fr02: rebuilds dependents only when the keyboard opens or '
+    'closes',
+    (tester) async {
+      setKeyboardHeight(tester, 0);
+      addTearDown(tester.view.reset);
+      var dependentBuilds = 0;
 
-    await tester.pumpWidget(
-      KeyboardVisibilityScope(child: readVisibility((_) => dependentBuilds++)),
-    );
-    dependentBuilds = 0;
+      await tester.pumpWidget(
+        KeyboardVisibilityScope(
+          child: readVisibility((_) => dependentBuilds++),
+        ),
+      );
+      dependentBuilds = 0;
 
-    for (var height = 10.0; height <= 300; height += 10) {
-      setKeyboardHeight(tester, height);
-      await tester.pump();
-    }
-    for (var height = 290.0; height >= 0; height -= 10) {
-      setKeyboardHeight(tester, height);
-      await tester.pump();
-    }
+      for (var height = 10.0; height <= 300; height += 10) {
+        setKeyboardHeight(tester, height);
+        await tester.pump();
+      }
+      for (var height = 290.0; height >= 0; height -= 10) {
+        setKeyboardHeight(tester, height);
+        await tester.pump();
+      }
 
-    // Opens once and closes once across 60 animation frames.
-    expect(dependentBuilds, 2);
-  });
+      // Opens once and closes once across 60 animation frames.
+      expect(dependentBuilds, 2);
+    },
+  );
 }
