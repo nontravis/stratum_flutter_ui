@@ -20,29 +20,26 @@ void main() {
       expect(StratumDimension.parse('50%'), const PercentDimension(0.5));
     });
 
-    test(
-      'fo02/us01/fr02: StratumFontRef and StratumSizeMetrics gain copyWith',
-      () {
-        const ref = StratumFontRef(font: 'body');
-        const metrics = StratumSizeMetrics(
-          spaceHeight: StratumDimension.fixed(8),
-        );
+    test('StratumFontRef and StratumSizeMetrics gain copyWith', () {
+      const ref = StratumFontRef(font: 'body');
+      const metrics = StratumSizeMetrics(
+        spaceHeight: StratumDimension.fixed(8),
+      );
 
-        expect(
-          ref.copyWith(mono: 'code'),
-          const StratumFontRef(font: 'body', mono: 'code'),
-        );
-        expect(ref.toString(), 'StratumFontRef(font: body, mono: null)');
-        expect(metrics.letterSpacing, const StratumDimension.fixed(0));
-        expect(
-          metrics.copyWith(letterSpacing: const StratumDimension.fixed(1)),
-          const StratumSizeMetrics(
-            spaceHeight: StratumDimension.fixed(8),
-            letterSpacing: StratumDimension.fixed(1),
-          ),
-        );
-      },
-    );
+      expect(
+        ref.copyWith(mono: 'code'),
+        const StratumFontRef(font: 'body', mono: 'code'),
+      );
+      expect(ref.toString(), 'StratumFontRef(font: body, mono: null)');
+      expect(metrics.letterSpacing, const StratumDimension.fixed(0));
+      expect(
+        metrics.copyWith(letterSpacing: const StratumDimension.fixed(1)),
+        const StratumSizeMetrics(
+          spaceHeight: StratumDimension.fixed(8),
+          letterSpacing: StratumDimension.fixed(1),
+        ),
+      );
+    });
 
     test('the map holders refuse changes and gain copyWith', () {
       const families = StratumFamilySet(

@@ -180,6 +180,21 @@ void main() {
     textScaler: textScaler,
   );
 
+  group('StratumTextStyle recipe immutability', () {
+    test('fo02/us01/fr02: a recipe method returns a new instance, leaves the '
+        'original unchanged, and two recipes built apart with the same '
+        'fields are equal with equal hash codes', () {
+      final base = StratumTextStyle.body;
+      final medium = base.medium;
+
+      expect(identical(medium, base), isFalse);
+      expect(base.fontWeight, isNull);
+      expect(medium.fontWeight, FontWeight.w500);
+      expect(StratumTextStyle.body.medium, medium);
+      expect(StratumTextStyle.body.medium.hashCode, medium.hashCode);
+    });
+  });
+
   group('TypographyResolver, the spec section 7 example', () {
     final recipe = StratumTextStyle.body.s16.medium;
 
