@@ -95,7 +95,8 @@ class CurrentKit implements PerfKit {
 /// each frozen file's header names: a tappable row is a
 /// `BaselineRowLayout` on `BaselineFlexLayout` with its
 /// `BaselineStratumInkWell` tap surface and the shared `Interaction`, and
-/// the reorder list is a `BaselineReorderableListViewLayout`.
+/// the reorder list throws until a freeze adds
+/// `BaselineReorderableListViewLayout` (R59, R64).
 class BaselineKit implements PerfKit {
   const new();
 
