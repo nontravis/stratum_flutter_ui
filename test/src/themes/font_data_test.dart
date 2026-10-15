@@ -75,4 +75,37 @@ void main() {
       'brand/DB Heavent',
     );
   });
+
+  group('5.2: StratumFontData as a freezed value', () {
+    // Built at run time from a parameter, so the checks read `==`.
+    StratumFontData font(String family) => StratumFontData(
+      family: family,
+      source: StratumFontSource.theme,
+      files: ['fonts/$family.ttf'],
+    );
+
+    test('5.2: files compare by content', () {
+      expect(font('Geist'), font('Geist'));
+      expect(font('Geist').hashCode, font('Geist').hashCode);
+      expect(font('Geist'), isNot(font('Inter')));
+    });
+
+    test('5.2: copyWith changes one field and keeps the rest', () {
+      final copy = font('Geist').copyWith(source: StratumFontSource.app);
+
+      expect(copy.source, StratumFontSource.app);
+      expect(copy.family, 'Geist');
+      expect(copy.files, ['fonts/Geist.ttf']);
+      expect(copy, isNot(font('Geist')));
+    });
+
+    test('R4 Q2: its own toString stays', () {
+      expect(
+        const StratumFontData(family: 'Geist').toString(),
+        'StratumFontData(family: Geist, package: null, adjustSize: '
+        '${const StratumDimension.fixed(0)}, source: StratumFontSource.app, '
+        'files: [])',
+      );
+    });
+  });
 }

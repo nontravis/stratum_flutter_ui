@@ -1,5 +1,8 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
+
+part 'generated/font_data.freezed.dart';
 
 /// Where a [StratumFontData]'s physical family comes from.
 enum StratumFontSource {
@@ -17,39 +20,35 @@ enum StratumFontSource {
 
 /// A physical font family plus its own size correction, as one entry of
 /// `typography.fonts` in `theme.yaml`.
-@immutable
-class StratumFontData {
-  const new({
-    required this.family,
-    this.package,
-    this.adjustSize = const StratumDimension.fixed(0),
-    this.source = StratumFontSource.app,
-    this.files = const [],
-  });
+@valueModel
+abstract class StratumFontData with _$StratumFontData {
+  const factory({
+    /// The family name the font is registered under: as written for
+    /// [StratumFontSource.app]; `<source theme id>/<family>` for
+    /// [StratumFontSource.theme], the source theme being the one whose file
+    /// set [files]; the bare Google Fonts family name (the `Google/` prefix
+    /// already stripped) for [StratumFontSource.google].
+    required String family,
 
-  /// The family name the font is registered under: as written for
-  /// [StratumFontSource.app]; `<source theme id>/<family>` for
-  /// [StratumFontSource.theme], the source theme being the one whose file
-  /// set [files]; the bare Google Fonts family name (the `Google/` prefix
-  /// already stripped) for [StratumFontSource.google].
-  final String family;
+    /// The package that bundles the font, or null for a font of the app.
+    /// Always null when [source] is [StratumFontSource.google] or
+    /// [StratumFontSource.theme].
+    String? package,
 
-  /// The package that bundles the font, or null for a font of the app.
-  /// Always null when [source] is [StratumFontSource.google] or
-  /// [StratumFontSource.theme].
-  final String? package;
+    /// Added to the font size so this font looks as large as the others; a
+    /// percent resolves against the requested size.
+    @Default(StratumDimension.fixed(0)) StratumDimension adjustSize,
 
-  /// Added to the font size so this font looks as large as the others; a
-  /// percent resolves against the requested size.
-  final StratumDimension adjustSize;
+    /// Where [family] comes from.
+    @Default(StratumFontSource.app) StratumFontSource source,
 
-  /// Where [family] comes from.
-  final StratumFontSource source;
+    /// The asset path of each font file the theme lists, already joined to
+    /// the folder of the theme file that set them; empty unless [source] is
+    /// [StratumFontSource.theme].
+    @Default(<String>[]) List<String> files,
+  }) = _StratumFontData;
 
-  /// The asset path of each font file the theme lists, already joined to
-  /// the folder of the theme file that set them; empty unless [source] is
-  /// [StratumFontSource.theme].
-  final List<String> files;
+  const new _();
 
   /// `packages/<package>/<family>` when [package] is set, else [family].
   ///
@@ -59,19 +58,6 @@ class StratumFontData {
   /// getter, since that family depends on the requested weight and style.
   String get qualifiedFamily =>
       package == null ? family : 'packages/$package/$family';
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumFontData &&
-      other.family == family &&
-      other.package == package &&
-      other.adjustSize == adjustSize &&
-      other.source == source &&
-      const DeepCollectionEquality().equals(other.files, files);
-
-  @override
-  int get hashCode =>
-      Object.hash(family, package, adjustSize, source, Object.hashAll(files));
 
   @override
   String toString() =>
