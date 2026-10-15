@@ -84,7 +84,7 @@ void main() {
     expect(copy.url, isNull);
     expect(
       copy,
-      StratumWebViewError(
+      const StratumWebViewError(
         type: StratumWebViewErrorType.network,
         description: 'DNS lookup failed',
         code: -2,

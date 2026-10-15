@@ -777,7 +777,7 @@ void main() {
 /// read of [url] and [_second] on every later read, to prove loadUrl trusts
 /// no source's url getter past a single read (F2, F3).
 class _HostileUrlSource extends StratumWebViewUrlSource {
-  _HostileUrlSource(this._first, this._second) : super(_first);
+  new(this._first, this._second) : super(_first);
 
   final Uri _first;
   final Uri _second;
