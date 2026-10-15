@@ -29,13 +29,14 @@ const _valueModelFiles = [
   'lib/src/themes/typography/typography_models.dart',
   // M1-T7: the shipped model of FO-03 (design 5.2).
   'lib/src/application/app_config.dart',
+  // M2-T8 to T10: the 5.1 conversions of FO-02 and FO-05.
   'lib/src/themes/font_data.dart',
   'lib/src/components/common/style/text_style_builder.dart',
   'lib/src/animations/theme_transitions.dart',
   // M2-T11: the shipped models of FO-05 (design 5.2).
   'lib/src/components/common/model/image_blur_filter.dart',
   'lib/src/components/common/model/widget_style.dart',
-  // M3-T12: the shipped model of FO-06 (design 5.2).
+  // M3-T12: the 5.1 conversions of FO-06.
   'lib/src/components/common/model/interaction.dart',
   'lib/src/components/common/model/interaction_state.dart',
   'lib/src/components/common/model/scroll.dart',
@@ -48,7 +49,7 @@ const _valueModelFiles = [
   'lib/src/components/common/model/page_layout/page_side.dart',
   'lib/src/components/common/model/split_layout/split_divider_state.dart',
   'lib/src/components/common/model/split_layout/split_pane.dart',
-  // M4-T17: the shipped models of CO-01-02 (design 5.2).
+  // M4-T17: the 5.1 conversions of CO-01-02.
   'lib/src/components/common/model/web_view/web_view_error.dart',
   'lib/src/components/common/model/web_view/web_view_message.dart',
   'lib/src/components/common/model/web_view/web_view_source.dart',
