@@ -16367,6 +16367,8 @@ void main() {
     // NFR-U05 n/a: the list's own stop takes no pointer tap, the drag
     // handle is the app's (FR-01 E01), and the long-press target is the
     // app's item.
+    // NFR-E01, NFR-E02 n/a: a FO-06 layout primitive, not a component (the
+    // reason container_layout_builder_test.dart gives, D12).
 
     void useTraditionalHighlight() {
       FocusManager.instance.highlightStrategy =
