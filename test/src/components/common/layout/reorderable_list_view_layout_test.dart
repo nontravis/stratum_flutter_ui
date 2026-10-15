@@ -15954,6 +15954,45 @@ void main() {
     );
 
     testWidgets(
+      "L18 (limit, tripwire): an app scroll that starts while the lift's "
+      "own edge auto-scroll still steps counts as the lift's own",
+      (tester) async {
+        await tester.pumpWidget(
+          _app(const _Harness(count: 1000, handles: true)),
+        );
+        final position = positionOf(tester);
+        final view = tester.getRect(find.byType(Scrollable));
+        final gesture = await _grabHandle(tester, 3);
+
+        await gesture.moveTo(Offset(view.center.dx, view.bottom - 5));
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        final stepped = position.pixels;
+        expect(stepped, greaterThan(0));
+
+        // The app starts its own scroll while the lift's own edge
+        // auto-scroll still steps (L18, design:664): nothing tells the
+        // two apart, so the app's jump counts as the lift's own.
+        position.jumpTo(stepped + 5000);
+        final afterJump = position.pixels;
+
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+
+        // Had the lift told the app's scroll apart from its own step, it
+        // would have read the jump as a foreign scroll and given way
+        // (stopped stepping): the pixels would hold at afterJump instead
+        // of climbing past it.
+        expect(position.pixels, greaterThan(afterJump));
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
       'R45: an app jumpTo in the turn the app removes the focused item holds '
       'every frame, and focus moves on from the gap with no scroll',
       (tester) async {
