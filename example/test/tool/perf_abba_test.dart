@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/perf/perf_scenes.dart' show perfScenes;
 import '../../integration_test/perf/perf_trace.dart' show runLine, summaryLine;
 import '../../tool/perf_abba.dart' hide main;
+import '../../tool/perf_abba.dart' as abba;
 
 TraceMetrics _metrics({
   double average = 0.25,
@@ -90,6 +92,68 @@ const _rcaS4 = [
   -21.6,
   -9.0,
 ];
+
+/// A `Stdout` that buffers every write instead of reaching the real
+/// console, so `report f02/us02/fr06` can assert what `_writeReport`
+/// prints without a real terminal. Only `write` carries the report text;
+/// the rest of the interface is present because `implements Stdout`
+/// demands it, not because the code under test calls it.
+class _CapturingStdout implements Stdout {
+  final buffer = StringBuffer();
+
+  @override
+  void write(Object? object) => buffer.write(object);
+
+  @override
+  void writeln([Object? object = '']) => buffer.writeln(object);
+
+  @override
+  void writeAll(Iterable objects, [String separator = '']) =>
+      buffer.writeAll(objects, separator);
+
+  @override
+  void writeCharCode(int charCode) => buffer.writeCharCode(charCode);
+
+  @override
+  void add(List<int> data) => buffer.write(utf8.decode(data));
+
+  @override
+  void addError(Object error, [StackTrace? stackTrace]) {}
+
+  @override
+  Future<void> addStream(Stream<List<int>> stream) => stream.forEach(add);
+
+  @override
+  Future<void> flush() async {}
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<void> get done => Future.value();
+
+  @override
+  Encoding encoding = utf8;
+
+  @override
+  String lineTerminator = '\n';
+
+  @override
+  bool get hasTerminal => false;
+
+  @override
+  int get terminalColumns =>
+      throw const StdoutException('no terminal in a test');
+
+  @override
+  int get terminalLines => throw const StdoutException('no terminal in a test');
+
+  @override
+  bool get supportsAnsiEscapes => false;
+
+  @override
+  IOSink get nonBlocking => this;
+}
 
 void main() {
   group('ciRank', () {
@@ -483,7 +547,8 @@ void main() {
       expect(result.text, contains('overall: INVALID'));
     });
 
-    test('leaves an invalid run out and lists it with its reason', () {
+    test('f02/us02/s3, f02/us02/fr02: leaves an invalid run out and lists '
+        'it with its reason', () {
       final result = judge(
         [
           ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
@@ -535,7 +600,8 @@ void main() {
       );
     });
 
-    test('gives each judged scene its verdict, S2-plain left out', () {
+    test('f02/us02/fr03: gives each judged scene its verdict, S2-plain left '
+        'out', () {
       final result = judge(
         [
           ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
@@ -559,7 +625,7 @@ void main() {
       expect(codeStateError(const {'r1': 'abc 111'}, 'abc 111'), isNull);
     });
 
-    test('refuses runs on another code state', () {
+    test('f02/us02/fr05: refuses runs on another code state', () {
       expect(
         codeStateError(const {'r1': 'abc 111', 'r2': 'abc 222'}, 'abc 111'),
         contains('r2'),
@@ -594,7 +660,8 @@ void main() {
   });
 
   group('one app', () {
-    test('builds one profile app for the runs and scenes of a call', () {
+    test('f02/us02/fr01: builds one profile app for the runs and scenes '
+        'of a call', () {
       expect(buildArgs(from: 13, runs: 12, scenes: const ['S2-plain', 'S4']), [
         'build',
         'macos',
@@ -777,6 +844,69 @@ void main() {
     });
   });
 
+  group('report', () {
+    /// Resolves [path] under [root] when it is relative, leaving an
+    /// absolute path unchanged; bypasses `IOOverrides` on the way in by
+    /// building the entity from a raw path (`fromRawPath` reads overrides
+    /// nowhere), so no override calls itself back into a loop.
+    String under(Directory root, String path) {
+      return path.startsWith(Platform.pathSeparator)
+          ? path
+          : '${root.path}/$path';
+    }
+
+    Uint8List raw(String path) => Uint8List.fromList(utf8.encode(path));
+
+    test(
+      'f02/us02/fr06: report() prints one row per scene under a header to '
+      'stdout and writes the identical table to build/perf/abba/report.md',
+      () async {
+        final sandbox = Directory.systemTemp.createTempSync('abba-report');
+        addTearDown(() => sandbox.deleteSync(recursive: true));
+        addTearDown(() => exitCode = 0);
+
+        final summary = {
+          'average_frame_build_time_millis': 0.2,
+          '99th_percentile_frame_build_time_millis': 1,
+          '99th_percentile_frame_rasterizer_time_millis': 3,
+          'frame_begin_times': [for (var i = 0; i < 288; i++) i * 6940],
+        };
+        final console = _CapturingStdout();
+
+        await IOOverrides.runZoned(
+          () async {
+            await recordDrive(
+              Stream.fromIterable([
+                'flutter: ${runLine(1)}',
+                'flutter: ${summaryLine('r1.S2-plain.base.1', summary)}',
+                'flutter: ${summaryLine('r1.S2-plain.cand.1', summary)}',
+                'flutter: ${summaryLine('r1.S2-plain.cand.2', summary)}',
+                'flutter: ${summaryLine('r1.S2-plain.base.2', summary)}',
+              ]),
+              root: Directory(abbaRoot),
+              code: 'abc 111',
+              load: () async => 'uptime fake',
+              echo: (_) {},
+            );
+
+            await abba.main(['report']);
+          },
+          createDirectory: (path) =>
+              Directory.fromRawPath(raw(under(sandbox, path))),
+          createFile: (path) => File.fromRawPath(raw(under(sandbox, path))),
+          stdout: () => console,
+        );
+
+        final written = File('${sandbox.path}/$abbaRoot/report.md')
+            .readAsStringSync();
+        final printed = console.buffer.toString();
+        expect(written, contains('| scene | blocks |'));
+        expect(written, contains('| S2-plain (null) | 1 |'));
+        expect(printed, written);
+      },
+    );
+  });
+
   group('escalationScenes', () {
     test('measures every scene when no run is stored', () {
       final verdicts = judge(const [], loads: const [], scenes: catalog).scenes;
@@ -833,8 +963,8 @@ void main() {
       ));
     });
 
-    test('above run 12, measures the INCONCLUSIVE scenes plus S2-plain, in '
-        'catalog order', () {
+    test('f02/us02/fr04: above run 12, measures the INCONCLUSIVE scenes plus '
+        'S2-plain, in catalog order', () {
       final stored = [
         ..._blocks('S2-plain', [-3, 2, -1, 4, 0.5, -2]),
         ..._blocks('S1', _rcaS4),
@@ -893,7 +1023,8 @@ void main() {
   });
 
   group('traceFullError', () {
-    test('accepts one catalog scene for 1 to 4 runs', () {
+    test('f02/us03/s1, f02/us03/fr01: accepts one catalog scene for 1 to 4 '
+        'runs', () {
       expect(traceFullError(scene: 'S4', runs: 1), isNull);
       expect(traceFullError(scene: 'S4', runs: 4), isNull);
     });

@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 // A widget test has no native web view, so the URL tab's controller needs a
 // fake platform, the same way the package's own web_view tests do; main.dart
@@ -52,6 +52,23 @@ void main() {
           contains(StratumWebViewSource.url(Uri.parse('https://flutter.dev'))),
         ),
       );
+    },
+  );
+
+  testWidgets(
+    'f01/us02/s1, f01/us02/fr01: tapping the app bar button with the speed '
+    'icon and tooltip "Performance overlay" flips showPerformanceOverlay '
+    'from false to true',
+    (tester) async {
+      await tester.pumpWidget(const StratumWebViewExampleApp());
+
+      MaterialApp app() => tester.widget(find.byType(MaterialApp));
+      expect(app().showPerformanceOverlay, isFalse);
+
+      await tester.tap(find.byTooltip('Performance overlay'));
+      await tester.pump();
+
+      expect(app().showPerformanceOverlay, isTrue);
     },
   );
 }
