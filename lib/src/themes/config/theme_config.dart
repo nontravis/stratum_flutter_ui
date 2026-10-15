@@ -8,6 +8,7 @@ import 'package:stratum_ui/src/themes/config/shadow_layer.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
+import 'package:stratum_ui/src/themes/focus_tokens.dart';
 import 'package:stratum_ui/src/themes/system/system_style.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
@@ -62,6 +63,12 @@ abstract class StratumThemeConfig with _$StratumThemeConfig {
     /// `dark`, `highContrastLight`, and `highContrastDark`, each the look
     /// of the system bars, a high-contrast set laid over its base set.
     required Map<String, SystemStyle> system,
+
+    /// The merged `focus` group (config s03 invariant 19): `light`, `dark`,
+    /// `highContrastLight`, and `highContrastDark`, each the focus ring's
+    /// level 0, a high-contrast set laid over its base set; a set the parse
+    /// could not read whole has no entry.
+    required Map<String, StratumFocusTokens> focus,
 
     /// The merged `extensions` group as plain Dart values: maps with string
     /// keys, lists, strings, numbers, booleans, and null. Never

@@ -242,6 +242,40 @@ void main() {
       );
     });
 
+    test('themes s03 invariant 46: each data takes the focus set of its own '
+        'name', () {
+      final set = defaultThemeSet;
+
+      for (final (name, data) in [
+        ('light', set.light),
+        ('dark', set.dark!),
+        ('highContrastLight', set.highContrastLight!),
+        ('highContrastDark', set.highContrastDark!),
+      ]) {
+        expect(data.focus, defaultThemeConfig.focus[name], reason: name);
+        expect(
+          data.focus.outsideColor,
+          isSameColorAs(data.color.border.subtle.blue),
+          reason: name,
+        );
+      }
+    });
+
+    test('a config with no focus set throws an ArgumentError naming it', () {
+      final config = defaultThemeConfig.copyWith(focus: const {});
+
+      expect(
+        () => StratumThemeSet.fromConfig(config),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.invalidValue,
+            'invalidValue',
+            'focus.light',
+          ),
+        ),
+      );
+    });
+
     test('a config over a small base throws an ArgumentError naming the '
         'first path the generated classes need', () {
       final config = StratumThemeConfig.parse(base: sources(const []).single);

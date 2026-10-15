@@ -614,7 +614,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   hex color or an alias to a color token; a color whose alpha is 0 is `expected_color`, and a width of 0 is
   `expected_dimension`, since either hides the ring; a gap of 0 loads. A file that leaves the group out keeps the
   Figma `FocusBorder` look. A package build that reads only up to `v1.4` refuses a `v1.5` theme as
-  `unsupported_schema`.
+  `unsupported_schema`. Read it in code as `StratumTheme.of(context).focus`, a `StratumFocusTokens` of the six
+  values for the active light, dark, or high-contrast data.
 - Read the theme data, its default widget size, and the window size where a widget sits:
   `context.themeData()` (or `context.themeData(ThemeMode.dark)`), `context.defaultWidgetSize()`, and
   `context.windowSize`. Each throws a `FlutterError`: `themeData` and `defaultWidgetSize` name the missing

@@ -37,11 +37,11 @@ abstract class StratumThemeSet with _$StratumThemeSet {
 
   /// One data per color set of [config]; every other group is shared by
   /// the four, but `shadow`, whose colors each data takes from its own
-  /// set, and `system`, whose set of the same name each data takes, and
-  /// fields no yaml group fills take section 7.10's defaults. Throws an
-  /// [ArgumentError] that names the first token path the generated classes
-  /// read and [config] lacks, a shadow layer's color path its set lacks,
-  /// or a `system` set [config] lacks.
+  /// set, and `system` and `focus`, whose set of the same name each data
+  /// takes, and fields no yaml group fills take section 7.10's defaults.
+  /// Throws an [ArgumentError] that names the first token path the
+  /// generated classes read and [config] lacks, a shadow layer's color
+  /// path its set lacks, or a `system` or `focus` set [config] lacks.
   factory fromConfig(StratumThemeConfig config) {
     final colors = config.color;
     final lightColor = StratumColorTokens.fromMap(colors.light);
@@ -69,10 +69,18 @@ abstract class StratumThemeSet with _$StratumThemeSet {
           'path',
           'no system set at this path in the theme config',
         ));
+    StratumFocusTokens focus(String set) =>
+        config.focus[set] ??
+        (throw ArgumentError.value(
+          'focus.$set',
+          'path',
+          'no focus set at this path in the theme config',
+        ));
     StratumThemeData data(
       StratumColorTokens color,
       Map<String, Color> setColors,
-      SystemStyle systemStyle, {
+      SystemStyle systemStyle,
+      StratumFocusTokens focusTokens, {
       required bool dark,
     }) => StratumThemeData(
       themeMode: dark ? ThemeMode.dark : ThemeMode.light,
@@ -97,20 +105,35 @@ abstract class StratumThemeSet with _$StratumThemeSet {
       }),
       blur: blur,
       systemStyle: systemStyle,
+      focus: focusTokens,
     );
     return StratumThemeSet(
-      light: data(lightColor, colors.light, system('light'), dark: false),
-      dark: data(darkColor, colors.dark, system('dark'), dark: true),
+      light: data(
+        lightColor,
+        colors.light,
+        system('light'),
+        focus('light'),
+        dark: false,
+      ),
+      dark: data(
+        darkColor,
+        colors.dark,
+        system('dark'),
+        focus('dark'),
+        dark: true,
+      ),
       highContrastLight: data(
         contrastLightColor,
         colors.highContrastLight,
         system('highContrastLight'),
+        focus('highContrastLight'),
         dark: false,
       ),
       highContrastDark: data(
         contrastDarkColor,
         colors.highContrastDark,
         system('highContrastDark'),
+        focus('highContrastDark'),
         dark: true,
       ),
     );

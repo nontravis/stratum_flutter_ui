@@ -61,6 +61,12 @@ abstract class StratumThemeData with _$StratumThemeData {
     /// code.
     required SystemStyle systemStyle,
 
+    /// `focus`: the focus ring's level 0 from the theme file's `focus` set
+    /// for this data's mode, a high-contrast set laid over its base, each
+    /// color from this data's own color set (FO-06 US-04 FR-03; themes s03
+    /// invariant 46).
+    required StratumFocusTokens focus,
+
     /// The 64 built-in transparent steps.
     @Default(StratumTransparentTokens.builtIn)
     StratumTransparentTokens transparent,

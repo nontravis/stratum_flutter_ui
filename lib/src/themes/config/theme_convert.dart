@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/focus_names.dart';
 import 'package:stratum_ui/src/themes/config/plain_by_window_size.dart';
 import 'package:stratum_ui/src/themes/config/plain_theme_config.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
@@ -72,6 +73,10 @@ StratumThemeConfig convertThemeConfig(PlainThemeConfig plain) =>
         for (final MapEntry(:key, :value) in plain.system.entries)
           key: convertSystemLook(value),
       }),
+      focus: frozenMap({
+        for (final MapEntry(:key, :value) in plain.focus.entries)
+          key: ?convertFocusLook(value),
+      }),
       extensions: plain.extensions,
     );
 
@@ -94,6 +99,21 @@ SystemStyle convertSystemLook(Map<String, Object> plain) => SystemStyle(
   navigationBarContrast: plain['navigationBarContrast'] as bool?,
   appSwitcherColor: _color(plain['appSwitcherColor']),
 );
+
+/// [plain], one `focus` set as stage 5 reads it, as the
+/// [StratumFocusTokens] of its six values (config s03 invariant 19); null
+/// when a value failed, so the set is not whole and the parse throws.
+StratumFocusTokens? convertFocusLook(Map<String, Object> plain) {
+  if (!focusKeys.every(plain.containsKey)) return null;
+  return StratumFocusTokens(
+    outsideColor: Color(plain['outside.color']! as int),
+    outsideWidth: plain['outside.width']! as double,
+    outsideGap: plain['outside.gap']! as double,
+    insideColor: Color(plain['inside.color']! as int),
+    insideHoveredWidth: plain['inside.width.hovered']! as double,
+    insideFocusedWidth: plain['inside.width.focused']! as double,
+  );
+}
 
 SystemBarIcons? _icons(Object? name) =>
     name == null ? null : SystemBarIcons.values.byName(name as String);

@@ -289,6 +289,26 @@ void main() {
     });
   });
 
+  test('fo01/us01/fr01, fo06/us04/fr03: the focus group reads the Figma '
+      'FocusBorder look in each set, from its own colors', () {
+    StratumFocusTokens look(Map<String, Color> colors) => StratumFocusTokens(
+      outsideColor: colors['border.subtle.blue']!,
+      outsideWidth: 3,
+      outsideGap: 2,
+      insideColor: colors['border.default.normal']!,
+      insideHoveredWidth: 3,
+      insideFocusedWidth: 2,
+    );
+
+    expect(config.color.light['border.subtle.blue'], const Color(0xFF93C5FD));
+    expect(config.focus, {
+      'light': look(config.color.light),
+      'dark': look(config.color.dark),
+      'highContrastLight': look(config.color.highContrastLight),
+      'highContrastDark': look(config.color.highContrastDark),
+    });
+  });
+
   final flutterRoot = Platform.environment['FLUTTER_ROOT'];
   test("the curve table equals the SDK's Curves constants", () {
     final source = File(
