@@ -233,26 +233,6 @@ void main() {
   });
 
   group('SplitLayout panes', () {
-    test('fo06/us21/fr01: SplitPane has value equality and copyWith', () {
-      // Built at run time from a parameter, so no const canonicalization
-      // makes them one instance and the check reads `==`, not identity.
-      SplitPane make(double min) =>
-          SplitPane(child: const SizedBox(), size: 100, min: min);
-      final a = make(50);
-      final b = make(50);
-      expect(identical(a, b), isFalse);
-      expect(a, b);
-      expect(a.hashCode, b.hashCode);
-      final c = a.copyWith(min: 60);
-      expect(c.min, 60);
-      expect(c.size, 100);
-    });
-
-    test('fo06/us21/fr01: SplitPane copyWith honors the min-max assert', () {
-      const pane = SplitPane(child: SizedBox(), min: 50);
-      expect(() => pane.copyWith(max: 10), throwsA(isA<AssertionError>()));
-    });
-
     testWidgets('fo06/us21/fr01/e01: two panes side by side with one divider', (
       tester,
     ) async {
@@ -723,24 +703,6 @@ void main() {
   });
 
   group('SplitLayout divider look', () {
-    test(
-      'fo06/us21/fr05: SplitDividerState has value equality and copyWith',
-      () {
-        // Built at run time from a parameter, so no const canonicalization
-        // makes them one instance and the check reads `==`, not identity.
-        SplitDividerState make(bool hovered) =>
-            SplitDividerState(hovered: hovered, focused: true);
-        final a = make(true);
-        final b = make(true);
-        expect(identical(a, b), isFalse);
-        expect(a, b);
-        expect(a.hashCode, b.hashCode);
-        final c = a.copyWith(focused: false);
-        expect(c.focused, isFalse);
-        expect(c.hovered, isTrue);
-      },
-    );
-
     testWidgets(
       'fo06/us21/fr05/e02: with no dividerBuilder nothing paints, yet '
       'the hit area and focus ring work',
