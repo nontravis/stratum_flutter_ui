@@ -1,3 +1,4 @@
+export 'focus_group.dart';
 export 'image_blur_filter.dart';
 export 'interaction.dart';
 export 'interaction_state.dart';

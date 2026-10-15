@@ -22,7 +22,7 @@ const _renames = [
   (
     'StratumFocusGroup',
     'FocusGroup',
-    'lib/src/components/common/layout/focus_group.dart',
+    'lib/src/components/common/model/focus_group.dart',
   ),
   (
     'StratumReorderableItemsController',

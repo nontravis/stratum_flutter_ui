@@ -39,6 +39,7 @@ const _valueModelFiles = [
   'lib/src/components/common/model/interaction.dart',
   'lib/src/components/common/model/interaction_state.dart',
   'lib/src/components/common/model/scroll.dart',
+  'lib/src/components/common/model/focus_group.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside
