@@ -279,7 +279,7 @@ class _ReorderSliverState extends SliverReorderableListState {
       item.updateForGap(
         lift.index,
         lift.index,
-        lift.itemExtent,
+        lift.slotExtent,
         false,
         _reverse,
       );
@@ -339,7 +339,7 @@ class _ReorderSliverState extends SliverReorderableListState {
       other.updateForGap(
         _insertIndex!,
         _insertIndex!,
-        lift.itemExtent,
+        lift.slotExtent,
         false,
         _reverse,
       );
@@ -393,40 +393,37 @@ class _ReorderSliverState extends SliverReorderableListState {
     _body._handleListReset();
   }
 
-  // The drop settles on the slot by the item built beside it. The insert
-  // index is an index of the data, so the past-the-end check reads the
-  // item count, never the count of registered items; an item not built
-  // there leaves no target, and the raster settles where it was let go.
+  // The drop settles on the slot by the item built beside it, the raster
+  // at its own place inside that slot. The insert index is an index of the
+  // data, so the past-the-end check reads the item count, never the count
+  // of registered items; an item not built there leaves no target, and the
+  // raster settles where it was let go.
   void _dragEnd(_Lift lift) {
     setState(() {
       final insert = _insertIndex!;
+      final Offset? slot;
       if (insert - lift.index == 1) {
-        _finalDropPosition = _itemOffsetAt(insert - 1);
+        slot = _itemOffsetAt(insert - 1);
       } else if (insert == lift.index) {
-        _finalDropPosition = _itemOffsetAt(insert);
+        slot = _itemOffsetAt(insert);
       } else if (_reverse) {
         if (insert >= widget.itemCount) {
-          _finalDropPosition = _shifted(
+          slot = _shifted(
             _itemOffsetAt(widget.itemCount - 1),
-            -lift.itemExtent,
+            -lift.slotExtent,
           );
         } else {
-          _finalDropPosition = _shifted(
-            _itemOffsetAt(insert),
-            _itemExtentAt(insert),
-          );
+          slot = _shifted(_itemOffsetAt(insert), _itemExtentAt(insert));
         }
       } else {
         if (insert == 0) {
-          _finalDropPosition = _shifted(_itemOffsetAt(0), -lift.itemExtent);
+          slot = _shifted(_itemOffsetAt(0), -lift.slotExtent);
         } else {
           final atIndex = insert - 1;
-          _finalDropPosition = _shifted(
-            _itemOffsetAt(atIndex),
-            _itemExtentAt(atIndex),
-          );
+          slot = _shifted(_itemOffsetAt(atIndex), _itemExtentAt(atIndex));
         }
       }
+      _finalDropPosition = slot == null ? null : slot + lift.slotInset;
     });
     widget.onReorderEnd?.call(_insertIndex!);
   }
@@ -554,9 +551,11 @@ class _ReorderSliverState extends SliverReorderableListState {
 
   void _dragUpdateItems() {
     final lift = _lift!;
-    final gapExtent = lift.itemExtent;
+    final gapExtent = lift.slotExtent;
+    // The lifted item's slot, around the raster, as each neighbor measures
+    // its own.
     final proxyItemStart = _offsetExtent(
-      lift.dragPosition - lift.dragOffset,
+      lift.dragPosition - lift.dragOffset - lift.slotInset,
       _scrollDirection,
     );
     final proxyItemEnd = proxyItemStart + gapExtent;
@@ -1112,17 +1111,20 @@ class _Lift extends Drag {
     this.proxyDecorator,
     required this.tickerProvider,
   }) {
-    final itemRenderBox =
-        item.snapshotBoundary ?? item.context.findRenderObject()! as RenderBox;
+    final slotBox = item.context.findRenderObject()! as RenderBox;
+    final itemRenderBox = item.snapshotBoundary ?? slotBox;
     listState = item._list;
     index = item.index;
     capturedThemes = item.widget.capturedThemes;
     dragOffset = itemRenderBox.globalToLocal(initialPosition);
     itemSize = itemRenderBox.size;
+    slotInset =
+        itemRenderBox.localToGlobal(Offset.zero) -
+        slotBox.localToGlobal(Offset.zero);
     _rawDragPosition = initialPosition;
     boundary = _dragBoundaryRect(listState.context);
     dragPosition = _adjustedDragOffset(initialPosition);
-    itemExtent = _sizeExtent(itemSize, scrollDirection);
+    slotExtent = _sizeExtent(slotBox.size, scrollDirection);
     itemLayoutConstraints = itemRenderBox.constraints;
     image = item.snapshot(View.maybeOf(item.context)?.devicePixelRatio ?? 1);
   }
@@ -1140,9 +1142,19 @@ class _Lift extends Drag {
   late int index;
   late Offset dragPosition;
   late Offset dragOffset;
+
+  /// The raster's size: the item below its caller transition (R48).
   late Size itemSize;
+
+  /// Where the raster sits inside the slot the item fills, which a caller
+  /// transition may pad (R48).
+  late Offset slotInset;
   late BoxConstraints itemLayoutConstraints;
-  late double itemExtent;
+
+  /// The extent along the scroll axis of the slot the item fills, its
+  /// caller transition included: the gap the drag opens, as each neighbor
+  /// measures its own slot.
+  late double slotExtent;
   late CapturedThemes capturedThemes;
 
   /// The raster the proxy shows; null when the item never painted.

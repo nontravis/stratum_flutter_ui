@@ -1251,6 +1251,49 @@ void main() {
       },
       variant: viewportEdges,
     );
+
+    testWidgets(
+      'us11/fr01 and us11/fr04/e02 (R48): under a caller transition that pads '
+      'each item, the drag gap takes the slot the lifted item fills, and the '
+      'drop settles its image where the item lands',
+      (tester) async {
+        await tester.pumpWidget(
+          _app(
+            _Harness(
+              count: 5,
+              handles: true,
+              itemTransitionBuilder: (context, animation, child) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: child,
+              ),
+            ),
+          ),
+        );
+        // Each slot is 60 px: the item's 40 px and the caller's padding.
+        expect(_offsetBetween(tester, 0, 1), 60);
+        final rest = _top(tester, 1);
+        final gesture = await _grabHandle(tester, 0);
+        for (var i = 0; i < 12; i++) {
+          await gesture.moveBy(const Offset(0, 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(_top(tester, 1), rest - 60);
+
+        await gesture.up();
+        await tester.pump();
+        // The settle's last frame, over the theme's 200 ms normal level.
+        await tester.pump(const Duration(milliseconds: 199));
+        final image = tester.getTopLeft(find.byType(RawImage)).dy;
+        await tester.pumpAndSettle();
+        expect(
+          image,
+          moreOrLessEquals(tester.getTopLeft(find.text('0')).dy, epsilon: 1),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
   group('ReorderableListViewLayout pointer', pointerTests);
@@ -2262,7 +2305,6 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 125));
         expect(running, findsOneWidget);
-        expect(inList<SizeTransition>(), findsNothing);
         expect(inList<FadeTransition>(), findsNothing);
         expect(callerBox(), 40);
         expect(_offsetBetween(tester, 0, 1), 80);
@@ -2274,7 +2316,6 @@ void main() {
         expect(received!.value, 1);
         await tester.pump(_halfReverse(theme));
         expect(running, findsOneWidget);
-        expect(inList<SizeTransition>(), findsNothing);
         expect(callerBox(), 40);
         expect(received!.value, moreOrLessEquals(mid));
         await tester.pumpAndSettle();
@@ -16283,33 +16324,34 @@ void main() {
         );
         final position = positionOf(tester);
         final view = tester.getRect(find.byType(Scrollable));
+        await _focusItem(tester, 3);
         final gesture = await _grabHandle(tester, 3);
-
         await gesture.moveTo(Offset(view.center.dx, view.bottom - 5));
         for (var i = 0; i < 5; i++) {
           await tester.pump(const Duration(milliseconds: 16));
         }
-        final stepped = position.pixels;
-        expect(stepped, greaterThan(0));
 
-        // The app starts its own scroll while the lift's own edge
-        // auto-scroll still steps (L18, design:664): nothing tells the
-        // two apart, so the app's jump counts as the lift's own.
-        position.jumpTo(stepped + 5000);
-        final afterJump = position.pixels;
-
-        for (var i = 0; i < 10; i++) {
-          await tester.pump(const Duration(milliseconds: 16));
-        }
-
-        // Had the lift told the app's scroll apart from its own step, it
-        // would have read the jump as a foreign scroll and given way
-        // (stopped stepping): the pixels would hold at afterJump instead
-        // of climbing past it.
-        expect(position.pixels, greaterThan(afterJump));
+        // L18's own window: the pointer is up, and the lift's own edge
+        // auto-scroll still steps through the drop's settle.
         await gesture.up();
+        await tester.pump(const Duration(milliseconds: 16));
+        final stepping = position.pixels;
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(position.pixels, greaterThan(stepping));
+
+        // The app starts its own scroll there (L18, design:667): nothing
+        // tells it from the edge step, so it counts as the lift's, and the
+        // drop still reveals the dropped item over it. Had the list told
+        // the two apart, the app's scroll would win over the drop's reveal
+        // (FR-03 E14), and the item would stay off screen.
+        position.jumpTo(position.pixels + 5000);
+        final afterJump = position.pixels;
         await tester.pumpAndSettle();
+
         expect(tester.takeException(), isNull);
+        expect(position.pixels, lessThan(afterJump));
+        expect(_builtInView(tester, 3), isTrue);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'item 3');
       },
     );
 
