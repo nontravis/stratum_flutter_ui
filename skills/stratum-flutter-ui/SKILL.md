@@ -15,13 +15,18 @@ Names: screen-building blocks carry no `Stratum` prefix (`Interaction`, `Scroll`
 or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old names `StratumInteraction`,
 `StratumScroll`, `StratumTapTargetSize`, `StratumFocusGroup`, `StratumReorderableItemsController`, `StratumShow`,
 `StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` are gone: write the new names.
+`FocusSpread` (use `StratumFocusBorder`, its color as `customStyle: StratumFocusBorderStyle(color: ...)`) and
+`resolveSize` (use `resolveDefaultSize`) are gone too.
 
 Values: every Stratum value model compares by value, field by field, and derives a variant with `copyWith`:
 `StratumThemeData`, `StratumThemeSet`, `StratumAppPalette`, `StratumMotionLevels`, `StratumAnimation`,
 `StratumRemoteTheme`, `StratumFontData`, `StratumThemeTransitions`, `StratumTextStyle`, `WidgetStyle`, `Interaction`,
-`InteractionState`, `Scroll`, `FocusGroup`, the page, split, modal, and toast values, and the web view values. A
-theme data's `*Tokens` groups (`StratumColorTokens` and the rest) compare by identity and carry no `copyWith`, so two
-parses of one theme compare unequal. `StratumByWindowSize` has no `copyWith`; its `==` compares the value of each
+`InteractionState`, `Scroll`, `FocusGroup`, `StratumFocusTokens`, `StratumFocusBorderStyle`, `StratumInkWellStyle`,
+`ScrollFocusStyle`, `StratumCaretStyle`, the page, split, modal, and toast values, and the web view values. A
+`StratumFocusBorderStyle` compares by value for its `.all` and `.fromMap` properties, by identity for a
+`resolveWith` one. A theme data's `*Tokens` groups compare by identity and carry no `copyWith` (`StratumColorTokens`
+and the rest), except `StratumFocusTokens`, which compares by value like the list above, so two parses of one theme
+compare unequal only outside `focus`. `StratumByWindowSize` has no `copyWith`; its `==` compares the value of each
 window size. A sealed family's `copyWith` lives on each case, not on the base type: `StratumWebViewSource` itself has
 none, only `StratumWebViewUrlSource` and `StratumWebViewHtmlSource` do. Callbacks, focus nodes, states controllers,
 and scroll controllers inside a value compare by identity, and a remote theme's `bytes` and a recipe's shadows
@@ -336,7 +341,10 @@ beside `style`, which draws the box.
   null)`, a two-tone ring touching the first on the side away from the child's edge, outward for an outside ring and
   inward for an inside or `insideEdge` one, at the first ring's width unless set), and `glow` (a
   `List<BoxShadow>`). Every field but `placement` takes `WidgetStateProperty.all(v)` or
-  `WidgetStateProperty.fromMap({WidgetState.hovered: a, WidgetState.focused: b})`. A width of 0 or a fully
+  `WidgetStateProperty.fromMap({WidgetState.hovered: a, WidgetState.focused: b})`; a `.fromMap` value must be
+  `WidgetStateProperty<T?>` (a nullable `T`) or carry a `WidgetState.any` entry, since an inside ring resolves
+  `hovered` and an outside ring resolves `focused` even in the normal look, and a non-nullable map with no `any`
+  entry throws Flutter's own `ArgumentError` for a state it was never given. A width of 0 or a fully
   transparent color fails a debug assert, and no field draws a dashed ring. The every-ring style lives only in
   `componentPartDefaults`: a `componentDefaults` entry under `StratumFocusBorder` fails a debug assert. Default look: outside, 3 px in
   `border.subtle.blue` after a 2 px gap, only when focused; inside, `border.default.normal` on the inner edge, 3 px
@@ -849,8 +857,8 @@ beside `style`, which draws the box.
   by Home and End to the start pane's min and max, or uses a screen reader's increase and decrease actions; every
   move stays within both panes' `min` and `max`. Each divider is a Tab stop with the focus ring; `customStyle:
   SplitLayoutStyle(focus: StratumFocusBorderStyle(...))` restyles that ring for one split, over
-  `componentPartDefaults: (theme) => {SplitLayout: SplitLayoutStyle(focus: ...)}` for every split, and reads as a
-  slider valued by the start pane's percent; `dividerLabel:` replaces the built-in "Resize panes" label.
+  `componentPartDefaults: (theme) => {SplitLayout: SplitLayoutStyle(focus: ...)}` for every split. Each divider reads
+  as a slider valued by the start pane's percent; `dividerLabel:` replaces the built-in "Resize panes" label.
 - **Divider look** — nothing paints by default and the divider takes no space, so the panes stay flush; its hit area
   is the platform's minimum target size centered on the seam, with a resize cursor on hover; a tap, a scroll, or a
   drag across the axis that starts there still reaches the pane content under it. Paint one with

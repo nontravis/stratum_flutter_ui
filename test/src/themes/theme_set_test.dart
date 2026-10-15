@@ -242,8 +242,8 @@ void main() {
       );
     });
 
-    test('themes s03 invariant 46: each data takes the focus set of its own '
-        'name', () {
+    test('fo06/us04/fr03: themes s03 invariant 46, each data takes the '
+        'focus set of its own name', () {
       final set = defaultThemeSet;
 
       for (final (name, data) in [
@@ -261,7 +261,8 @@ void main() {
       }
     });
 
-    test('a config with no focus set throws an ArgumentError naming it', () {
+    test('fo06/us04/fr03: a config with no focus set throws an '
+        'ArgumentError naming it', () {
       final config = defaultThemeConfig.copyWith(focus: const {});
 
       expect(

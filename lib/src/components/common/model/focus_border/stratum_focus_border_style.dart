@@ -27,9 +27,14 @@ enum StratumFocusBorderPlacement {
 /// field but [placement] holds one value for every shown state, through
 /// `WidgetStateProperty.all`, or one per shown state, hovered and focused,
 /// through `WidgetStateProperty.fromMap`, as `ButtonStyle` holds its
-/// per-state values. No field draws a dashed ring or hides the ring (WCAG
-/// 2.4.7): a width of 0 or a fully transparent color fails a debug assert
-/// where the ring resolves its style.
+/// per-state values. A `.fromMap` value must be `WidgetStateProperty<T?>`
+/// (nullable `T`) or carry a `WidgetState.any` entry: the ring resolves an
+/// inside ring's hovered state and an outside ring's focused state even in
+/// the normal look, and a non-nullable map with no `any` entry throws
+/// Flutter's own `ArgumentError` for a state it was never given. No field
+/// draws a dashed ring or hides the ring (WCAG 2.4.7): a width of 0 or a
+/// fully transparent color fails a debug assert where the ring resolves
+/// its style.
 @valueModel
 abstract class StratumFocusBorderStyle with _$StratumFocusBorderStyle {
   const factory({

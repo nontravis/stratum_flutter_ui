@@ -2,8 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
 void main() {
-  test('R5, R7(1), freezed-models convention: the scrolling area style holds '
-      'its focus look, with value == and copyWith', () {
+  test('fo06/us04/fr03: R5, R7(1), freezed-models convention, the scrolling '
+      'area style holds its focus look, with value == and copyWith', () {
     // Built at run time from a parameter, so the checks read `==`.
     ScrollFocusStyle make(Color color) => ScrollFocusStyle(
       focus: StratumFocusBorderStyle(color: WidgetStatePropertyAll(color)),

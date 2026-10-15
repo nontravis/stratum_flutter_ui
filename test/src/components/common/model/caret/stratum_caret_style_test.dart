@@ -9,8 +9,8 @@ import 'package:stratum_ui/src/src.dart';
 void main() {
   const fill = Color(0xFFEEEEEE);
 
-  test('R10(2), caret s03 invariant 14: the box style builds a WidgetStyle '
-      'of its 16 fields and no other', () {
+  test('co01_03/us01/fr04: R10(2), caret s03 invariant 14, the box style '
+      'builds a WidgetStyle of its 16 fields and no other', () {
     final style = StratumCaretStyle(
       opacity: 0.5,
       margin: const EdgeInsets.all(4),
@@ -70,7 +70,8 @@ void main() {
     }
   });
 
-  test('freezed-models convention: value ==, copyWith, and toString', () {
+  test('co01_03/us01/fr04: freezed-models convention, value ==, copyWith, '
+      'and toString', () {
     // Built at run time from a parameter, so the checks read `==`.
     StratumCaretStyle make(double width) => StratumCaretStyle(width: width);
 

@@ -304,16 +304,16 @@ shadow:
         'focus.highContrastLight.outside.dash',
       ),
     ]) {
-      test('config s03 invariant 19: $path, a key the default lacks, is '
-          'unknown_key', () {
+      test('fo01/us01/fr01: config s03 invariant 19, $path, a key the '
+          'default lacks, is unknown_key', () {
         expect(_problems(body), [
           'layer1 $path: unknown key "${path.split('.').last}" [unknown_key]',
         ]);
       });
     }
 
-    test('config s03 invariant 19: a high-contrast focus set takes the keys '
-        'of its base set', () {
+    test('fo01/us01/fr01: config s03 invariant 19, a high-contrast focus '
+        'set takes the keys of its base set', () {
       final (_, errors) = _check([
         layer('focus:\n  highContrastDark:\n    outside:\n      width: 4'),
       ]);

@@ -5,6 +5,11 @@ import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
 
+// NFR-U02, NFR-U05, and NFR-U09 n/a: a decorator whose state the caller
+// supplies; each host's gate proves its keys, target, and gesture
+// (focus-style-cleanup design, ## Accessibility and UX).
+// NFR-U04 n/a: the ring draws no text; it follows its child's size.
+
 const _radius = BorderRadius.all(Radius.circular(10));
 
 /// The owner's red-border example: 5 px of red.
@@ -964,10 +969,6 @@ void main() {
     );
   });
 
-  // NFR-U02, NFR-U05, and NFR-U09 n/a: a decorator whose state the caller
-  // supplies; each host's gate proves its keys, target, and gesture
-  // (focus-style-cleanup design, ## Accessibility and UX).
-  // NFR-U04 n/a: the ring draws no text; it follows its child's size.
   group('StratumFocusBorder accessibility gate', () {
     testWidgets('NFR-U06: the ring owns no node; its child reads unchanged', (
       tester,

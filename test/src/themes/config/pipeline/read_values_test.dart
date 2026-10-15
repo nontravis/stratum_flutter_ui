@@ -1705,8 +1705,8 @@ shadow:
       expect(plain.focus['dark'], dark);
     });
 
-    test('config s03 invariant 19: a high-contrast focus set reads its color '
-        'aliases in its own color set', () {
+    test('fo01/us01/fr01: config s03 invariant 19, a high-contrast focus '
+        'set reads its color aliases in its own color set', () {
       final (plain, errors) = _plain([
         layer(
           'color:\n  highContrastLight:\n    brand:\n'

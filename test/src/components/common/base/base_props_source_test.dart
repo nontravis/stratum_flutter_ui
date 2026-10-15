@@ -42,7 +42,8 @@ void main() {
     }
   });
 
-  test('(j), base s03 invariant 21: the ring reads no styles-map entry', () {
+  test('fo03/us06/fr01/e05: (j), base s03 invariant 21, the ring reads no '
+      'styles-map entry', () {
     final source = File('lib/src/components/common/utility/focus_border.dart')
         .readAsStringSync();
     expect(source, isNot(contains('styleOf(')));
@@ -50,7 +51,8 @@ void main() {
     expect(source, contains('debugCheckNoComponentStyle('));
   });
 
-  test('(j), caret s03 invariant 14: the caret reads no styles-map entry', () {
+  test('fo03/us06/fr01/e05: (j), caret s03 invariant 14, the caret reads no '
+      'styles-map entry', () {
     final source = File('lib/src/components/common/utility/caret.dart')
         .readAsStringSync();
     expect(source, isNot(contains('resolveStyle(')));
