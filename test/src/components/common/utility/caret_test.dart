@@ -107,7 +107,7 @@ void main() {
 
         expect(tester.getSize(find.byType(StratumCaret)), const Size(16, 16));
         expect(_painter(tester).angle, 0);
-        expect(_painter(tester).style, StratumCaretStyle.regular);
+        expect(_painter(tester).style, StratumCaretGlyph.regular);
         final (:path, :paint) = _drawn();
         expect(paint.style, PaintingStyle.stroke);
         expect(paint.strokeWidth, 1.5);
@@ -135,7 +135,7 @@ void main() {
       '1.0 px wide, 11 x 6 in the 16 px box',
       (tester) async {
         await tester.pumpWidget(
-          themedHost(const StratumCaret(style: StratumCaretStyle.light)),
+          themedHost(const StratumCaret(style: StratumCaretGlyph.light)),
         );
 
         final (:path, :paint) = _drawn();
@@ -153,7 +153,7 @@ void main() {
     testWidgets('co01_03/us01/fr01/e03, co01_03/us01/s2: fill draws a solid triangle 11 x 6 '
         'with no line', (tester) async {
       await tester.pumpWidget(
-        themedHost(const StratumCaret(style: StratumCaretStyle.fill)),
+        themedHost(const StratumCaret(style: StratumCaretGlyph.fill)),
       );
 
       final (:path, :paint) = _drawn();
@@ -164,7 +164,7 @@ void main() {
       );
     });
 
-    for (final style in StratumCaretStyle.values) {
+    for (final style in StratumCaretGlyph.values) {
       testWidgets(
         'co01_03/us01/fr01/e04: up points the ${style.name} glyph up',
         (tester) async {
@@ -352,7 +352,7 @@ void main() {
         await tester.pumpWidget(
           themedHost(
             const StratumCaret(
-              style: StratumCaretStyle.fill,
+              style: StratumCaretGlyph.fill,
               size: WidgetSize.large,
             ),
           ),

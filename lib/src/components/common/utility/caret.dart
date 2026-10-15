@@ -24,8 +24,9 @@ enum StratumCaretDirection {
   end,
 }
 
-/// The glyph of a [StratumCaret], the Figma `🕶️ style` property.
-enum StratumCaretStyle {
+/// The glyph of a [StratumCaret], the Figma `🕶️ style` property, which
+/// the caret's `style` parameter takes (choice (i)).
+enum StratumCaretGlyph {
   /// A round-capped chevron line, 1.0 px wide at every size.
   light,
 
@@ -74,7 +75,7 @@ enum StratumCaretStyle {
 class StratumCaret extends StratumStatefulWidget {
   const new({
     super.key,
-    this.style = StratumCaretStyle.regular,
+    this.style = StratumCaretGlyph.regular,
     this.direction = StratumCaretDirection.down,
     super.size,
     this.customSize,
@@ -92,9 +93,9 @@ class StratumCaret extends StratumStatefulWidget {
          'StratumCaret.customSize must be null or a finite number >= 0',
        );
 
-  /// A [StratumCaretStyle.light] or [StratumCaretStyle.regular] chevron
-  /// line, or a [StratumCaretStyle.fill] triangle.
-  final StratumCaretStyle style;
+  /// A [StratumCaretGlyph.light] or [StratumCaretGlyph.regular] chevron
+  /// line, or a [StratumCaretGlyph.fill] triangle.
+  final StratumCaretGlyph style;
 
   /// Which way the caret points; a change turns it the short way.
   final StratumCaretDirection direction;
@@ -315,7 +316,7 @@ class CaretPainter extends CustomPainter {
   });
 
   /// The glyph: a chevron line or a triangle.
-  final StratumCaretStyle style;
+  final StratumCaretGlyph style;
 
   /// The glyph color.
   final Color color;
@@ -340,13 +341,13 @@ class CaretPainter extends CustomPainter {
     final paint = Paint()..color = color;
     final path = Path();
     switch (style) {
-      case StratumCaretStyle.fill:
+      case StratumCaretGlyph.fill:
         path
           ..moveTo(-5.5 * unit, -3 * unit)
           ..lineTo(5.5 * unit, -3 * unit)
           ..lineTo(0, 3 * unit)
           ..close();
-      case StratumCaretStyle.light || StratumCaretStyle.regular:
+      case StratumCaretGlyph.light || StratumCaretGlyph.regular:
         path
           ..moveTo(-5 * unit, -2.5 * unit)
           ..lineTo(0, 2.5 * unit)
@@ -355,7 +356,7 @@ class CaretPainter extends CustomPainter {
         // 1.0 px and 11.5 x 6.5 at 1.5 px (R8).
         paint
           ..style = PaintingStyle.stroke
-          ..strokeWidth = style == StratumCaretStyle.light ? 1.0 : 1.5
+          ..strokeWidth = style == StratumCaretGlyph.light ? 1.0 : 1.5
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round;
     }

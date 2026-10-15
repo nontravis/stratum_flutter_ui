@@ -382,8 +382,8 @@ beside `style`, which draws the box.
 - **`StratumCaret`** — the Figma `Caret` glyph that marks a disclosure, select, or dropdown as open or closed; for
   navigation between pages or sections, use a dedicated arrow or chevron icon instead. Key parameters: `direction`
   (`StratumCaretDirection.down`, the default, `.up`, `.start`, `.end`: `start` and `end` follow the text direction,
-  so `end` points right in a left-to-right app and left in a right-to-left app), `style`
-  (`StratumCaretStyle.regular`, the default, a 1.5 px round chevron; `.light`, 1.0 px; `.fill`, a solid triangle),
+  so `end` points right in a left-to-right app and left in a right-to-left app), `style` (a `StratumCaretGlyph`:
+  `StratumCaretGlyph.regular`, the default, a 1.5 px round chevron; `.light`, 1.0 px; `.fill`, a solid triangle),
   `size` (a `WidgetSize`: `tiny` 10 px to `huge` 32 px, `medium` 16 px; null takes the theme's `defaultWidgetSize`)
   or `customSize` (any side in logical pixels, must be finite and >= 0), and `color` (a `ColorEnum`: the theme's
   `icon.color.<name>` token, else `icon.default.primary`) or `customColor` (any color, as given). The line width
