@@ -410,4 +410,65 @@ void main() {
     ]);
     expect(transition.values.toSet(), {'platform'});
   });
+
+  group('D2, P3: freezed value', () {
+    // Built at run time from a parameter, so no const canonicalization
+    // makes two values one instance and the checks read `==`.
+    AnimationStyle style(int ms) => AnimationStyle(
+      duration: Duration(milliseconds: ms),
+      curve: Curves.easeInOutSine,
+    );
+    StratumMotionLevels levels(int ms) => StratumMotionLevels(
+      micro: style(ms),
+      veryFast: style(ms),
+      fast: style(ms),
+      normal: style(ms),
+      slow: style(ms),
+      verySlow: style(ms),
+    );
+    StratumAnimation animation(int ms) => StratumAnimation(
+      micro: style(ms),
+      veryFast: style(ms),
+      fast: style(ms),
+      normal: style(ms),
+      slow: style(ms),
+      verySlow: style(ms),
+      appear: levels(ms),
+      defaultLevel: StratumMotionLevel.fast,
+    );
+
+    test('D2: == and hashCode cover the six levels StratumAnimation '
+        'inherits', () {
+      final base = animation(100);
+
+      expect(animation(100), base);
+      expect(animation(100).hashCode, base.hashCode);
+      expect(base.copyWith(micro: style(1)), isNot(base));
+      expect(base.copyWith(verySlow: style(400)), isNot(base));
+    });
+
+    test('D2: copyWith replaces one level and keeps every other field', () {
+      final copy = animation(100)
+          .copyWith(fast: style(250), defaultLevel: StratumMotionLevel.slow);
+
+      expect(copy.fast, style(250));
+      expect(copy.normal, style(100));
+      expect(copy.appear, levels(100));
+      expect(copy.defaultLevel, StratumMotionLevel.slow);
+      expect(copy.transition, StratumThemeTransitions.platform);
+      expect(copy, isA<StratumMotionLevels>());
+    });
+
+    test('D2: StratumMotionLevels compares by value and copies', () {
+      expect(levels(100), levels(100));
+      expect(levels(100).hashCode, levels(100).hashCode);
+      expect(levels(100).copyWith(slow: style(9)).slow, style(9));
+      expect(levels(100).copyWith(slow: style(9)), isNot(levels(100)));
+    });
+
+    test("R4 Q2: both take freezed's toString", () {
+      expect(animation(100).toString(), startsWith('StratumAnimation('));
+      expect(levels(100).toString(), startsWith('StratumMotionLevels('));
+    });
+  });
 }

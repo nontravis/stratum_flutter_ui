@@ -17,6 +17,9 @@ or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old n
 `StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` still compile for one minor version
 as deprecated aliases; write the new names.
 
+Values: these compare by value, field by field, and derive a variant with `copyWith`: `StratumMotionLevels`,
+`StratumAnimation`.
+
 ## Install
 
 - Stratum's notices wrap `toastification`, which pins `equatable ^2.0.5`, while Stratum's own `flutter_falconx`

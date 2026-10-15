@@ -11,6 +11,7 @@ import 'package:stratum_ui/src/themes/value_model.dart';
 /// 5.2, R4 Q1, plan P4). A task that moves a model onto `@valueModel` adds
 /// its file here before the switch, so the pins below fail until it lands.
 const _valueModelFiles = [
+  'lib/src/themes/animation.dart',
   'lib/src/themes/config/animation_config.dart',
   'lib/src/themes/config/format_error.dart',
   'lib/src/themes/config/schema_version.dart',
