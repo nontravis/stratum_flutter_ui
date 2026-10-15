@@ -65,6 +65,10 @@ StratumThemeConfig convertThemeConfig(PlainThemeConfig plain) =>
       border: plain.border,
       shadow: plain.shadow,
       blur: plain.blur,
+      system: frozenMap({
+        for (final MapEntry(:key, :value) in plain.system.entries)
+          key: convertSystemLook(value),
+      }),
       extensions: plain.extensions,
     );
 
@@ -74,6 +78,24 @@ Map<String, StratumByWindowSize<StratumDimension>> _tokens(
   for (final MapEntry(:key, :value) in tokens.entries)
     key: convertByWindowSize(value),
 });
+
+/// [plain], one `system` set as stage 5 reads it, as the [SystemStyle] of
+/// its eight look fields (config s03 invariant 16).
+SystemStyle convertSystemLook(Map<String, Object> plain) => SystemStyle(
+  statusBarIcons: _icons(plain['statusBarIcons']),
+  statusBarColor: _color(plain['statusBarColor']),
+  statusBarContrast: plain['statusBarContrast'] as bool?,
+  navigationBarIcons: _icons(plain['navigationBarIcons']),
+  navigationBarColor: _color(plain['navigationBarColor']),
+  navigationBarDividerColor: _color(plain['navigationBarDividerColor']),
+  navigationBarContrast: plain['navigationBarContrast'] as bool?,
+  appSwitcherColor: _color(plain['appSwitcherColor']),
+);
+
+SystemBarIcons? _icons(Object? name) =>
+    name == null ? null : SystemBarIcons.values.byName(name as String);
+
+Color? _color(Object? argb) => argb == null ? null : Color(argb as int);
 
 Map<String, Color> _colors(Map<String, int> argb) => frozenMap({
   for (final MapEntry(:key, :value) in argb.entries) key: Color(value),

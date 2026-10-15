@@ -273,6 +273,7 @@ void main() {
     expect(theme.border, same(data.border));
     expect(theme.shadow, same(data.shadow));
     expect(theme.blur, same(data.blur));
+    expect(theme.systemStyle, same(data.systemStyle));
   });
 
   testWidgets('maybeOf is null with no application', (tester) async {

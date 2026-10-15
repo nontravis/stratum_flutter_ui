@@ -32,7 +32,13 @@ class StratumTextStyle {
     this.localeOverride,
     this.windowSizeOverride,
     this.textScalerOverride,
-  });
+  }) : assert(
+         // `customSize.isFinite` is not const-evaluable; comparisons are,
+         // and a NaN comparison is false either way (IEEE 754), which
+         // rejects it along with 0, a negative, or an infinite value.
+         customSize == null || (customSize > 0 && customSize < double.infinity),
+         'StratumTextStyle.size must be a finite number above 0',
+       );
 
   // Type
 
@@ -122,7 +128,8 @@ class StratumTextStyle {
   StratumTextStyle get s56 => _copy(fontSize: FontSize.s56);
 
   /// A size of [size] logical pixels with the metrics of the nearest named
-  /// size.
+  /// size; [size] is a finite number above 0. A release build, which skips
+  /// the assert, draws any other [size] at `s16`.
   StratumTextStyle size(double size) =>
       _copy(fontSize: FontSize.s16, customSize: size);
 

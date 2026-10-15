@@ -57,6 +57,13 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+dependency_overrides:
+  # WORKAROUND: toastification 3.2.0 pins equatable ^2.0.5 while dart_faltool
+  # (through flutter_falconx) needs ^3.0.0; toastification's source compiles
+  # unchanged on 3.0.0. remove when a toastification release accepts
+  # equatable 3 (upstream PR #249).
+  equatable: ^3.0.0
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

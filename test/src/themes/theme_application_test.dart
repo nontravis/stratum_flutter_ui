@@ -20,6 +20,8 @@ final StratumThemeSet _set = StratumThemeSet(
 Map<Type, WidgetStyle> _defaults(StratumTheme theme) => const {};
 Map<Type, Object> _parts(StratumTheme theme) => const {};
 
+const _appWide = SystemStyle(appSwitcherLabel: 'App');
+
 /// A dark platform with high contrast on, then the application, then a
 /// reader that stores what [StratumThemeApplication.maybeOf] gives.
 Widget _host(
@@ -334,6 +336,23 @@ void main() {
         highContrastDark: data,
       ),
     };
+    testWidgets('us14/fr01: a new app-wide system style rebuilds', (
+      tester,
+    ) async {
+      expect(
+        await rebuilds(
+          tester,
+          (child) => StratumThemeApplication(
+            themes: _set,
+            themeMode: ThemeMode.light,
+            systemStyle: _appWide,
+            child: child,
+          ),
+        ),
+        1,
+      );
+    });
+
     for (final MapEntry(key: name, value: build) in members.entries) {
       testWidgets('a new $name data rebuilds', (tester) async {
         expect(
@@ -352,8 +371,8 @@ void main() {
   });
 
   group('us10/fr05: StratumThemeApplication.wrap', () {
-    testWidgets('copies the theme set, both modes, and the component '
-        'defaults', (tester) async {
+    testWidgets('copies the theme set, both modes, the component defaults, '
+        'and the app-wide system style', (tester) async {
       late Widget wrapped;
       const child = SizedBox();
       await tester.pumpWidget(
@@ -363,6 +382,7 @@ void main() {
           highContrast: StratumHighContrastMode.on,
           componentDefaults: _defaults,
           componentPartDefaults: _parts,
+          systemStyle: _appWide,
           child: Builder(
             builder: (context) {
               wrapped = StratumThemeApplication.wrap(context, child: child);
@@ -391,7 +411,8 @@ void main() {
               (app) => app.componentPartDefaults,
               'componentPartDefaults',
               same(_parts),
-            ),
+            )
+            .having((app) => app.systemStyle, 'systemStyle', _appWide),
       );
     });
 
@@ -657,6 +678,7 @@ void main() {
           highContrast: StratumHighContrastMode.on,
           componentDefaults: _defaults,
           componentPartDefaults: _parts,
+          systemStyle: _appWide,
           child: Builder(
             builder: (context) {
               wrapped = StratumThemeApplication.wrap(
@@ -689,7 +711,8 @@ void main() {
               (app) => app.componentPartDefaults,
               'componentPartDefaults',
               same(_parts),
-            ),
+            )
+            .having((app) => app.systemStyle, 'systemStyle', _appWide),
       );
     });
   });

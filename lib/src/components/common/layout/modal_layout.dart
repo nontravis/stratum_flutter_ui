@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
+import 'package:stratum_ui/src/components/common/model/solid_fill.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// How a [ModalLayout] sits on the screen (US-20 FR-03), the Figma `type`
@@ -34,74 +35,6 @@ enum ModalLayoutSize {
 
   /// The window width less the theme's `lg` space token on each side.
   fillWidth,
-}
-
-/// One [WidgetStyle] per part of a [ModalLayout], each merged field by
-/// field over the theme defaults (NFR-E02).
-///
-/// Register one app-wide through `StratumThemeApplication(
-/// componentPartDefaults: (theme) => {ModalLayout: ModalLayoutStyle(...)})`;
-/// it has value equality, so an equal map from a new builder call rebuilds
-/// no modal layout (FO-03 US-06 FR-01).
-@immutable
-class ModalLayoutStyle {
-  const new({
-    this.surface,
-    this.top,
-    this.tab,
-    this.body,
-    this.handle,
-    this.close,
-  });
-
-  /// The card or sheet that holds the slots: fill, shadow, corners, width,
-  /// and padding.
-  final WidgetStyle? surface;
-
-  /// The box around [ModalLayout.top].
-  final WidgetStyle? top;
-
-  /// The box around [ModalLayout.tab].
-  final WidgetStyle? tab;
-
-  /// The box around [ModalLayout.body], which scrolls inside it.
-  final WidgetStyle? body;
-
-  /// The drag handle pill of a bottom sheet.
-  final WidgetStyle? handle;
-
-  /// The box around the close icon.
-  final WidgetStyle? close;
-
-  /// Returns a copy where each part merges [other]'s part over this one
-  /// through [WidgetStyle.merge].
-  ModalLayoutStyle merge(ModalLayoutStyle? other) {
-    if (other == null) return this;
-    return ModalLayoutStyle(
-      surface: _mergePart(surface, other.surface),
-      top: _mergePart(top, other.top),
-      tab: _mergePart(tab, other.tab),
-      body: _mergePart(body, other.body),
-      handle: _mergePart(handle, other.handle),
-      close: _mergePart(close, other.close),
-    );
-  }
-
-  static WidgetStyle? _mergePart(WidgetStyle? base, WidgetStyle? other) =>
-      base?.merge(other) ?? other;
-
-  @override
-  bool operator ==(Object other) =>
-      other is ModalLayoutStyle &&
-      other.surface == surface &&
-      other.top == top &&
-      other.tab == tab &&
-      other.body == body &&
-      other.handle == handle &&
-      other.close == close;
-
-  @override
-  int get hashCode => Object.hash(surface, top, tab, body, handle, close);
 }
 
 /// The [ModalLayoutType] shown for [type] in a [window]: [type] when set,
@@ -256,6 +189,9 @@ class ModalLayoutScope extends InheritedWidget {
 ///
 /// Tab visits [top], [tab], and [body], then the handle and the close
 /// button, whatever their place on screen (NFR-U02).
+///
+/// The surface declares the solid color it paints wherever it covers a
+/// system bar's point (US-20 FR-06 E08).
 class ModalLayout extends StatelessWidget {
   const new({
     super.key,
@@ -385,34 +321,40 @@ class ModalLayout extends StatelessWidget {
           )
         : null;
 
-    return FocusTraversalGroup(
-      policy: OrderedTraversalPolicy(),
-      child: ContainerLayout(
-        style: surface.copyWith(
-          padding: (surface.padding ?? EdgeInsets.zero).add(insets),
-        ),
-        child: DefaultTextStyle.merge(
-          style: TextStyle(color: theme.color.text.defaults.primary),
-          child: IconTheme.merge(
-            data: IconThemeData(color: theme.color.icon.defaults.primary),
-            child: StackLayout(
-              alignment: AlignmentDirectional.topEnd,
-              clipBehavior: Clip.none,
-              children: [
-                LayoutBuilder(
-                  builder: (context, constraints) => _slots(
-                    style,
-                    handle: handle,
-                    bounded: constraints.hasBoundedHeight,
-                    inRoute: scope != null,
-                  ),
+    Widget surfaceBox() => ContainerLayout(
+      style: surface.copyWith(
+        padding: (surface.padding ?? EdgeInsets.zero).add(insets),
+      ),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: theme.color.text.defaults.primary),
+        child: IconTheme.merge(
+          data: IconThemeData(color: theme.color.icon.defaults.primary),
+          child: StackLayout(
+            alignment: AlignmentDirectional.topEnd,
+            clipBehavior: Clip.none,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) => _slots(
+                  style,
+                  handle: handle,
+                  bounded: constraints.hasBoundedHeight,
+                  inRoute: scope != null,
                 ),
-                ?close,
-              ],
-            ),
+              ),
+              ?close,
+            ],
           ),
         ),
       ),
+    );
+    return FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      // Always wraps, so a style animation crossing the solid/non-solid
+      // line resets no State (performance review Minor); the surface
+      // declares the solid color it paints wherever it covers a bar's
+      // point, else fully transparent, which blends as nothing
+      // (system_bars.dart:269; US-20 FR-06 E08).
+      child: SystemBarFill(color: solidFillColor(surface), child: surfaceBox()),
     );
   }
 

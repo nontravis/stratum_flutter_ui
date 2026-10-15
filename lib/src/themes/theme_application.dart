@@ -1,5 +1,6 @@
 import 'package:stratum_ui/src/components/common/responsive/screen_radius_scope.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/system/system_style_resolver.dart';
 
 /// Publishes a theme set, or a [StratumThemeController]'s active theme
 /// set, and picks the active data by theme mode and high-contrast mode
@@ -9,10 +10,11 @@ class StratumThemeApplication
   /// Wraps [child] in a private body that inserts, top to bottom, a
   /// `ScreenRadiusScope` that publishes the native screen radius on iOS
   /// and macOS and a [WindowSizeScope], each when none is above the
-  /// application, a Material [Theme] of the active data, and
+  /// application, a Material [Theme] of the active data, the system bar
+  /// style of the active data with [systemStyle] merged over it, and
   /// [StratumComponentDefaults] built by [componentDefaults] and
   /// [componentPartDefaults] from the active theme (spec sections 7.3,
-  /// 7.9, and 10.1; FO-07 US-04 FR-03).
+  /// 7.9, and 10.1; FO-07 US-04 FR-03; FO-03 US-14 FR-01).
   new({
     super.key,
     required StratumThemeSet themes,
@@ -20,6 +22,7 @@ class StratumThemeApplication
     this.highContrast = StratumHighContrastMode.system,
     this.componentDefaults,
     this.componentPartDefaults,
+    this.systemStyle,
     required Widget child,
   }) : _themes = themes,
        super(child: _StratumThemeBody(child: child));
@@ -34,6 +37,7 @@ class StratumThemeApplication
     this.highContrast = StratumHighContrastMode.system,
     this.componentDefaults,
     this.componentPartDefaults,
+    this.systemStyle,
     required Widget child,
   }) : _themes = null,
        super(
@@ -59,6 +63,14 @@ class StratumThemeApplication
   /// [updateShouldNotify], for the same reason as [componentDefaults]
   /// (spec G10; FO-03 US-06 FR-01).
   final StratumComponentPartDefaultsBuilder? componentPartDefaults;
+
+  /// The app-wide system bar style, the layer over the theme's `system` set
+  /// and under every `SystemStyleScope` (FO-03 US-14 FR-01): any look field,
+  /// and the bar mode, the rotation lock, and the app switcher label, which
+  /// only code sets. The application owns the one resolver that applies the
+  /// merged style to the platform after each frame (FR-02 to FR-04), and
+  /// paints the merged bar colors under the bars itself (FR-01 E06).
+  final SystemStyle? systemStyle;
 
   /// The theme set: the one the unnamed constructor took, else the
   /// [controller]'s active set.
@@ -122,6 +134,7 @@ class StratumThemeApplication
         highContrast: application.highContrast,
         componentDefaults: application.componentDefaults,
         componentPartDefaults: application.componentPartDefaults,
+        systemStyle: application.systemStyle,
         child: child,
       );
     }
@@ -131,17 +144,20 @@ class StratumThemeApplication
       highContrast: application.highContrast,
       componentDefaults: application.componentDefaults,
       componentPartDefaults: application.componentPartDefaults,
+      systemStyle: application.systemStyle,
       child: child,
     );
   }
 
-  /// True when [themeMode], [highContrast], the controller, or any of the
-  /// four data of the passed theme set differs (FO-03 US-04 FR-02); a
-  /// switch of the same controller notifies through [InheritedNotifier].
+  /// True when [themeMode], [highContrast], [systemStyle], the controller,
+  /// or any of the four data of the passed theme set differs (FO-03 US-04
+  /// FR-02); a switch of the same controller notifies through
+  /// [InheritedNotifier].
   @override
   bool updateShouldNotify(StratumThemeApplication oldWidget) =>
       themeMode != oldWidget.themeMode ||
       highContrast != oldWidget.highContrast ||
+      systemStyle != oldWidget.systemStyle ||
       notifier != oldWidget.notifier ||
       _themes != oldWidget._themes;
 }
@@ -176,7 +192,8 @@ class _StratumThemeBody extends StatelessWidget {
 
 /// A Material [Theme] of the active data (spec section 10.1), rebuilt when
 /// the data, the locale, the window size, or the text scaler changes
-/// (spec G24). The application belongs in `MaterialApp.builder`, below
+/// (spec G24), and the base layer of the system bar style (FO-03 US-14
+/// FR-01). The application belongs in `MaterialApp.builder`, below
 /// `MaterialApp`'s own theme, so this theme reaches every route (G25).
 class _StratumMaterialTheme extends StatelessWidget {
   const new({required this.child});
@@ -186,6 +203,8 @@ class _StratumMaterialTheme extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final data = StratumThemeApplication.of(context);
+    final application = context
+        .getInheritedWidgetOfExactType<StratumThemeApplication>()!;
     return Theme(
       data: data.toThemeData(
         locale:
@@ -195,7 +214,11 @@ class _StratumMaterialTheme extends StatelessWidget {
         textScaler:
             MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling,
       ),
-      child: _StratumComponentDefaultsLayer(child: child),
+      child: SystemStyleRoot(
+        style: data.systemStyle.merge(application.systemStyle),
+        background: data.color.background.defaults.normal,
+        child: _StratumComponentDefaultsLayer(child: child),
+      ),
     );
   }
 }

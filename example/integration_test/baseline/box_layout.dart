@@ -1,8 +1,8 @@
-// Frozen by tool/perf_freeze.dart from f64627d:lib/src/components/common/layout/box_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from e71c090:lib/src/components/common/layout/box_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // The live names StratumInteraction and StratumScroll are patched to
-// Interaction and Scroll; everything else stays verbatim from f64627d.
+// Interaction and Scroll; everything else stays verbatim from e71c090.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
 import 'baseline.dart';
 

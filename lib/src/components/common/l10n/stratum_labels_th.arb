@@ -20,5 +20,6 @@
   "noticePositiveLabel": "สำเร็จ",
   "noticeInfoLabel": "ข้อมูล",
   "noticeWarningLabel": "คำเตือน",
-  "noticeNegativeLabel": "ข้อผิดพลาด"
+  "noticeNegativeLabel": "ข้อผิดพลาด",
+  "noticeShortcutHint": "กด {key} เพื่อไปที่การแจ้งเตือนนี้"
 }

@@ -57,3 +57,12 @@ migrate_working_dir/
 *.log
 *.pyc
 *.class
+.DS_Store?
+.serena
+Thumbs.db
+tmp/
+temp/
+.unlighthouse/
+logs/
+benchmarks/
+

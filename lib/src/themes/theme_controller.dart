@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/escape_text.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_bundle.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_installer.dart';
@@ -11,8 +12,7 @@ import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 typedef _Registered = ({String sourceId, String folder});
 
 /// Thrown by `StratumThemeController.switchTo` for an id that names no
-/// registered theme: the error `theme_not_found` of
-/// `docs/specs/stratum_ui/themes/s05_errors.md`.
+/// registered theme: the error `theme_not_found`.
 @immutable
 class StratumThemeNotFoundException implements Exception {
   const new(this.id, this.registeredIds);
@@ -354,8 +354,10 @@ class StratumThemeController extends ChangeNotifier {
   /// Each zip of [remoteThemes] installs in list order after the bundled
   /// themes register and before the start theme is picked (FO-04 US-01
   /// FR-04); of two with one id the later wins. A zip that fails is
-  /// skipped with a debug log and [onRemoteThemeError], registers nothing,
-  /// and never throws; a start id that names it starts on `default`
+  /// skipped with a debug log, registers nothing, and never throws. With
+  /// [onRemoteThemeError], only it gets the id and the error; with none,
+  /// the failure instead goes to [FlutterError.reportError], the id
+  /// escaped. A start id that names a failed zip starts on `default`
   /// unless a bundled theme carries that id.
   static Future<StratumThemeController> preload({
     String? initialThemeId,
@@ -402,12 +404,26 @@ class StratumThemeController extends ChangeNotifier {
             appDefault: controller._appDefault,
           ),
         );
-      } on StratumRemoteThemeException catch (error) {
+      } on StratumRemoteThemeException catch (error, stack) {
         _warn(
-          'kept zip "${theme.id}" failed to install (${error.code.key}); '
-          'skipped',
+          'kept zip "${escapeZipText(theme.id)}" failed to install '
+          '(${error.code.key}); skipped',
         );
-        onRemoteThemeError?.call(theme.id, error);
+        if (onRemoteThemeError != null) {
+          onRemoteThemeError(theme.id, error);
+        } else {
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: error,
+              stack: stack,
+              library: 'stratum_ui',
+              context: ErrorDescription(
+                'while installing the kept zip '
+                '"${escapeZipText(theme.id)}" at preload (${error.code.key})',
+              ),
+            ),
+          );
+        }
       }
     }
     final requested = initialThemeId ?? 'default';

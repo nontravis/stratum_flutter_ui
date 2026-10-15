@@ -6,6 +6,7 @@ import 'package:stratum_ui/src/themes/config/pipeline/merge.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/read_values.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
+import 'package:stratum_ui/src/themes/config/system_names.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
 import 'package:stratum_ui/src/themes/config/transition_names.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
@@ -474,6 +475,17 @@ color:
         [expected],
       );
     });
+
+    test('fo02/us07/fr02/e16: a layer typography length past the bound is '
+        'expected_dimension at its path', () {
+      const expected =
+          'layer1 typography.scaleByWindowSize.tablet: expected a number or '
+          '"N%" from -10000 to 10000, got 10001 [expected_dimension]';
+
+      expect(_problems('typography:\n  scaleByWindowSize: { tablet: 10001 }'), [
+        expected,
+      ]);
+    });
   });
 
   group('readThemeValues assets', () {
@@ -625,6 +637,38 @@ typography:
       ]);
       expect(errors.sorted[1].line, 7);
       expect(errors.sorted[1].column, 24);
+    });
+  });
+
+  group('readThemeValues typography draw size', () {
+    test('fo02/us07/fr02/e17: an adjustSize a layer sets is checked on the '
+        'font the base defines, at its layer position', () {
+      const expected =
+          'layer1 typography.fonts.inter.adjustSize: expected an adjustSize '
+          'that keeps s10 above 0 px, got -12 (s10 draws at -2 px) '
+          '[expected_dimension]';
+      final (_, errors) = _read([
+        layer('typography:\n  fonts:\n    inter: { adjustSize: -12 }'),
+      ]);
+
+      expect(problems(errors), [expected]);
+      expect(errors.sorted.single.line, 4);
+    });
+
+    test("fo02/us07/fr02/e18: a layer's spaceHeight joins the base's sizes "
+        'before the check', () {
+      const expected =
+          'layer1 typography.types.body.sizes.s10.spaceHeight: expected a '
+          'spaceHeight that keeps s10 above 0 px, got -11 (line box -1 px) '
+          '[expected_dimension]';
+
+      expect(
+        _problems(
+          'typography:\n  types:\n    body:\n      sizes:\n'
+          '        s10: { spaceHeight: -11 }',
+        ),
+        [expected],
+      );
     });
   });
 
@@ -1460,6 +1504,153 @@ shadow:
         ),
         [expected],
       );
+    });
+  });
+
+  group('readThemeValues system', () {
+    const lightLook = SystemStyle(
+      statusBarIcons: SystemBarIcons.auto,
+      statusBarColor: Color(0x00000000),
+      statusBarContrast: false,
+      navigationBarIcons: SystemBarIcons.auto,
+      navigationBarColor: Color(0x00000000),
+      navigationBarDividerColor: Color(0x00000000),
+      navigationBarContrast: true,
+      appSwitcherColor: Color(0xFF3B82F6),
+    );
+
+    test('fo01/us01/fr01: reads the four sets of the base, each alias '
+        'resolved', () {
+      final (config, errors) = _read([]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.system, {
+        'light': lightLook,
+        'dark': lightLook.copyWith(appSwitcherColor: const Color(0xFF2563EB)),
+        'highContrastLight': lightLook,
+        'highContrastDark': lightLook.copyWith(
+          appSwitcherColor: const Color(0xFF2563EB),
+        ),
+      });
+    });
+
+    test('us14/fr01/e03: a high-contrast set lays its keys over its base '
+        'set and leaves the base alone', () {
+      final (config, errors) = _read([
+        layer('system:\n  highContrastDark:\n    statusBarIcons: light'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(
+        config.system['highContrastDark']!.statusBarIcons,
+        SystemBarIcons.light,
+      );
+      expect(config.system['dark']!.statusBarIcons, SystemBarIcons.auto);
+      expect(
+        config.system['highContrastDark']!.appSwitcherColor,
+        const Color(0xFF2563EB),
+      );
+    });
+
+    test('us14/fr01/e03: a high-contrast set reads its color aliases in '
+        'its own color set', () {
+      final (config, errors) = _read([
+        layer(
+          'color:\n  highContrastLight:\n    brand:\n'
+          '      normal: "#000001"',
+        ),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(
+        config.system['highContrastLight']!.appSwitcherColor,
+        const Color(0xFF000001),
+      );
+      expect(config.system['light']!.appSwitcherColor, const Color(0xFF3B82F6));
+    });
+
+    test('fo01/us01/fr01: a layer sets a color by hex or by a palette '
+        'alias', () {
+      final (config, errors) = _read([
+        layer(
+          'system:\n  light:\n    statusBarColor: "{palette.gray.950}"\n'
+          '    navigationBarColor: "#11223344"',
+        ),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(config.system['light']!.statusBarColor, const Color(0xFF030712));
+      expect(
+        config.system['light']!.navigationBarColor,
+        const Color(0x44112233),
+      );
+    });
+
+    final cases = <(String, String, String)>[
+      (
+        'fo01/us01/fr01/e17: a number for a color',
+        'system:\n  light:\n    statusBarColor: 12',
+        'layer1 system.light.statusBarColor: $_hex 12 [expected_color]',
+      ),
+      (
+        'fo01/us01/fr01/e17: an alias to a space token',
+        'system:\n  dark:\n    appSwitcherColor: "{space.md}"',
+        'layer1 system.dark.appSwitcherColor: $_hex 16 (from "{space.md}") '
+            '[expected_color]',
+      ),
+      (
+        'fo01/us01/fr01/e17: an alias into the system group',
+        'system:\n  light:\n    statusBarColor: '
+            '"{system.dark.statusBarColor}"',
+        'layer1 system.light.statusBarColor: "{system.dark.statusBarColor}" '
+            'is outside the token groups [alias_not_token]',
+      ),
+      (
+        'config s03 invariant 16: an alias elsewhere names the system group',
+        'space:\n  md: "{system.light.statusBarColor}"',
+        'layer1 space.md: "{system.light.statusBarColor}" is outside the '
+            'token groups [alias_not_token]',
+      ),
+      (
+        'fo01/us01/fr01/e18: an icons value outside auto, light, dark',
+        'system:\n  light:\n    statusBarIcons: bright',
+        'layer1 system.light.statusBarIcons: expected one of auto, light, '
+            'dark, got "bright" [expected_bar_icons]',
+      ),
+      (
+        'fo01/us01/fr01/e18: an icons value in another case',
+        'system:\n  dark:\n    navigationBarIcons: Auto',
+        'layer1 system.dark.navigationBarIcons: expected one of auto, light, '
+            'dark, got "Auto" [expected_bar_icons]',
+      ),
+      (
+        'fo01/us01/fr01/e19: a quoted boolean',
+        'system:\n  light:\n    navigationBarContrast: "true"',
+        'layer1 system.light.navigationBarContrast: expected true or false, '
+            'got "true" [expected_boolean]',
+      ),
+      (
+        'fo01/us01/fr01/e19: a number for a contrast flag',
+        'system:\n  dark:\n    statusBarContrast: 1',
+        'layer1 system.dark.statusBarContrast: expected true or false, got 1 '
+            '[expected_boolean]',
+      ),
+      (
+        'fo01/us01/fr01/e05: an empty icons value',
+        'system:\n  light:\n    statusBarIcons:',
+        'layer1 system.light.statusBarIcons: required [required]',
+      ),
+    ];
+    for (final (name, body, expected) in cases) {
+      test('$name reports once, in its base set only', () {
+        expect(_problems(body), [expected]);
+      });
+    }
+
+    test('systemBarIconNames follows SystemBarIcons', () {
+      expect(systemBarIconNames, [
+        for (final icons in SystemBarIcons.values) icons.name,
+      ]);
     });
   });
 }

@@ -3,7 +3,7 @@ export 'package:stratum_ui/src/themes/config/escape_text.dart'
 
 /// Why an install from a theme zip failed: the `code` of
 /// `StratumRemoteThemeException`, one value per row of the FO-04 error
-/// catalog (`docs/specs/stratum_ui/themes/remote/s05_errors.md`).
+/// catalog.
 enum StratumRemoteThemeErrorCode {
   /// The id breaks the remote id rule: only `a-z`, `0-9`, `-`, `_`, and
   /// never `default`.

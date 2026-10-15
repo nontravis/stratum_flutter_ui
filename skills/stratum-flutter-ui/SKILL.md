@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building or changing a Flutter app on Stratum UI (a screen, layout, taps, hover, keyboard and focus, a theme, app start, or any Stratum* widget). Layout triggers are *Layout primitives (ColumnLayout, ContainerLayout.builder, ...), showModalLayout, reorderable lists, and Space spacing. Interaction triggers are Interaction, HoverBuilder, FocusBuilder, and focus rings (StratumFocusBorder). Theme triggers are StratumThemeController install and switching, StratumThemeApplication, remote and preloaded themes, StratumSplashScreen, theme.yaml tokens (border, shadow, blur), and context.* reads (context.themeData). Widget triggers are StratumWebView, StratumWebZoom, page transitions (StratumTransitionPage), StratumCaret, named colors (ColorEnum), Thai labels and supportedLocales, Show and disabled dimming, StratumPlaceholderPage, and update prompts (StratumUpdateGate, UpdateChecker).
+description: Use when building or changing a Flutter app on Stratum UI (screen, layout, taps, hover, keyboard and focus, theme, app start, or any Stratum* widget). Layout triggers are *Layout primitives (ColumnLayout, ContainerLayout.builder), showModalLayout, reorderable lists, and Space spacing. Interaction triggers are Interaction, HoverBuilder, FocusBuilder, and focus rings (StratumFocusBorder). Theme triggers are StratumThemeController install and switching, StratumThemeApplication, remote and preloaded themes, StratumSplashScreen, theme.yaml tokens (border, shadow, blur), and context.* reads (context.themeData). Widget triggers are StratumWebView, StratumWebZoom, page transitions (StratumTransitionPage), StratumCaret, named colors (ColorEnum), Thai labels and supportedLocales, Show and disabled dimming, StratumPlaceholderPage, and update prompts (StratumUpdateGate, UpdateChecker).
 ---
 
 # Stratum Flutter UI
@@ -16,6 +16,24 @@ or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old n
 `StratumScroll`, `StratumTapTargetSize`, `StratumFocusGroup`, `StratumReorderableItemsController`, `StratumShow`,
 `StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` still compile for one minor version
 as deprecated aliases; write the new names.
+
+## Install
+
+- Stratum's notices wrap `toastification`, which pins `equatable ^2.0.5`, while Stratum's own `flutter_falconx`
+  needs `equatable ^3.0.0`. pub reads overrides only in the app, so add these two lines to the app's `pubspec.yaml`
+  when you add stratum_ui, and run `flutter pub get`:
+
+  ```yaml
+  dependency_overrides:
+    equatable: ^3.0.0
+  ```
+
+  Remove them once stratum_ui's own `pubspec.yaml` no longer carries the override.
+
+- Before adding the override, check what else in the app graph reads `equatable`: run `flutter pub deps --style=list` and
+  look for other `equatable` dependents. The override silences every package's `equatable` constraint, and `equatable`
+  3.0.0 is breaking (removed `EquatableMixin`, changed `toString`, dropped the `runtimeType` comparison of props), so a
+  dependency still on `^2.x` runs on 3.0.0 untested. Run the app's tests after adding it.
 
 ## Box layouts
 
@@ -399,6 +417,9 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   recipes for the active theme, locale, and window size: display and headline slots read `header`; title, body, and
   label slots read `body`. No slot sets a weight, so each draws its type's yaml weight: title and label slots draw the
   body weight (400 in the package default), not Material's medium.
+- **Custom text size** — `StratumTextStyle.body.size(15)` sets a custom size of 15 logical pixels, with the metrics
+  of the nearest named size. The size must be a finite number above 0: a debug build asserts it, and a release build
+  skips the assert and reads any other size as unset, so the text takes `s16` for its size and its metrics.
 - **Theme models** — the parsed theme types (`StratumThemeConfig`, `StratumColorSets`, `StratumTypography`,
   `StratumTypeStyle`, `StratumAnimationConfig`, and the models inside them) are immutable values with `copyWith`;
   their maps refuse changes, so derive a variant with `config.copyWith(name: ...)` instead of editing a map. A
@@ -542,8 +563,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   default sets 0.5 for both, and an app theme may leave the group out. Read them as
   `StratumThemeApplication.of(context).opacity.disabled` and `.opacity.scrim`. A value outside 0 to 1 throws
   `StratumThemeFormatException` with `expected_opacity` at its path, and a third key under `opacity` is
-  `unknown_key`. The package default reads `$schema: stratum-theme/v1.3.0`; this package reads every `v1.0`, `v1.1`,
-  `v1.2`, and `v1.3` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.4.0`; this package reads every `v1.0` to
+  `v1.4` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
   `unsupported_schema`, so a theme that must load on every build writes `v1.0.0` and leaves `opacity` out; one that
   must load on every build from `v1.1` on writes `v1.1.0` and keeps `disabled` but leaves `scrim` out.
 - **Border, shadow, and blur tokens** — `border`, `shadow`, and `blur` in `theme.yaml` (format
@@ -558,14 +579,30 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `{x: 0, y: 4, blur: 8, spread: 0, color: "{color.shadow.secondary}"}`, where `blur` is the Figma blur radius and
   `color` is a quoted hex, a `{palette...}` or `{transparent...}` alias, or `"{color.<group>.<name>}"`, a token of
   each color set; a list of at most 8 layers replaces the default's whole, and `[]` is no shadow. Every length a
-  theme sets, in `space`, `radius`, `layouts` (the `N` of a `"N%"` too), `border`, `blur`, and a layer's `x`, `y`,
-  `blur`, and `spread`, is a finite number from -10000 to 10000, and from 0 for `border`, `blur`, and a layer's
-  `blur`. A bad value throws `StratumThemeFormatException` with `expected_dimension`, `expected_shadow`, or
-  `expected_color` at its path, and a key the default lacks, such as `shadow.7`, is `unknown_key`. A package build
+  theme sets, in `space`, `radius`, `layouts` (the `N` of a `"N%"` too), `border`, `blur`, a layer's `x`, `y`, `blur`,
+  and `spread`, and `typography` (`adjustSize`, each `scaleByWindowSize` entry, `spaceHeight`, and `letterSpacing`,
+  the `N` of a `"N%"` too, negatives included), is a finite number from -10000 to 10000, and from 0 for `border`,
+  `blur`, and a layer's `blur`. A bad value throws `StratumThemeFormatException` with `expected_dimension`,
+  `expected_shadow`, or `expected_color` at its path, and a key the default lacks, such as `shadow.7`, is
+  `unknown_key`. A `typography` that draws some text at a font size or a line box of 0 px or less is
+  `expected_dimension` too: at text scale 1 the package tries every size `s10` to `s56`, with no window size and at
+  each one, in every font a tag gives the type, and blames the `adjustSize`, the `scaleByWindowSize` entry, or the
+  `spaceHeight` that does it, once per path, in the app and in the `stratum_theme` CLI alike. A package build
   that reads only up to `v1.1` refuses a
   `v1.2` theme as `unsupported_schema`, so a theme that must load there writes `v1.1.0` and leaves the three groups
   out. `AppBorder`, `AppShadow`, `AppFilter`, `StratumThemeData.filter`, and `screenBorderRadius` no longer exist;
   read the screen's corner radius from `context.deviceWindow.radius` (see Screen corner radius).
+- **System bar look** — `system` in `theme.yaml` (format `stratum-theme/v1.4.0`) sets how the status bar and the
+  navigation bar look, in `light` and `dark` and the optional partial overlays `highContrastLight` and
+  `highContrastDark`, as `color` does: `statusBarIcons` and `navigationBarIcons` (`auto`, `light`, or `dark`; `auto`
+  picks the icon color of higher contrast against what the page paints under the bar), `statusBarColor`,
+  `navigationBarColor`, `navigationBarDividerColor`, and `appSwitcherColor` (a quoted hex or a color alias such as
+  `"{color.light.background.default.normal}"`), and `statusBarContrast` and `navigationBarContrast` (`true` or
+  `false`, Android's own contrast scrim). The package default sets `auto` icons, transparent bars, `false` and
+  `true`, and the page background. The bar mode, the rotation lock, and the app switcher label are set in Dart only
+  (see System bars): a `system` set holding `barMode`, `orientations`, or `appSwitcherLabel` throws
+  `StratumThemeFormatException` with `unknown_key`, a bad icons value `expected_bar_icons`, and a bad flag
+  `expected_boolean`. A package build that reads only up to `v1.3` refuses a `v1.4` theme as `unsupported_schema`.
 - Read the theme data, its default widget size, and the window size where a widget sits:
   `context.themeData()` (or `context.themeData(ThemeMode.dark)`), `context.defaultWidgetSize()`, and
   `context.windowSize`. Each throws a `FlutterError`: `themeData` and `defaultWidgetSize` name the missing
@@ -578,6 +615,91 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `StratumComponentDefaults.partsOf<ModalLayoutStyle>(context, ModalLayout)`, null when none is registered, and a
   thrown `FlutterError` naming both types when the registered value is not a `ModalLayoutStyle`. Both builders run
   again whenever the active theme changes, and `StratumThemeApplication.wrap` copies both to a nested application.
+  Under `StratumApplication`, pass both to it instead (see App assembly).
+
+## App assembly
+
+- Wrap the app once:
+
+  ```dart
+  StratumApplication(
+    initialThemeId: savedId,
+    onThemeChanged: save,
+    themeMode: savedMode,
+    webZoom: (child) => StratumWebZoom(child: child),
+    appBuilder: (context, stratum) => MaterialApp.router(
+      theme: stratum.theme,
+      darkTheme: stratum.darkTheme,
+      themeMode: stratum.themeMode,
+      builder: stratum.builder,
+      routerConfig: router,
+    ),
+  )
+  ```
+
+  `stratum.builder` inserts the theme application, the update gate, the notice host (`notices: false` leaves it
+  out), and web zoom, outer to inner; your router, locales, and providers stay yours. With a builder of your own,
+  chain it: `builder: (context, child) => stratum.builder(context, MyWrapper(child: child!))`. `CupertinoApp` and
+  `WidgetsApp` take the same `builder`. Add the `## Install` override lines first.
+- `appBuilder` runs again on a theme switch, a `StratumApplication` rebuild, and a change of window size class, text
+  scale, or platform locale: build the router and providers outside it.
+- `themeMode:`, `highContrast:`, and `componentDefaults:` go on `StratumApplication`, which forwards them to the theme
+  application; pass `stratum.themeMode` to the app widget. Never set the mode on `MaterialApp(themeMode:)` alone: the
+  theme application inside its builder keeps the wrapper's `themeMode` (default `ThemeMode.system`) on every route.
+- `controller:` hands in a `StratumThemeController` you hold, which the wrapper never disposes. With one, the preload
+  inputs (`initialThemeId`, `onThemeChanged`, `googleFontsTimeout`, `remoteThemes`, `onRemoteThemeError`, `error`,
+  `loadingBuilder`) are ignored; with none, the wrapper reads the first five once, at its first build.
+- `loadingBuilder:` replaces the theme's background color shown until the start theme is active. `error:` is the
+  frame for a start theme that fails to load, and the failure reaches only it, so log it there; with none, the failure
+  goes to `FlutterError.reportError` and the background stays. Both build above the app widget, with no
+  `Directionality` or theme: give a `Text` its `textDirection`.
+- `onRemoteThemeError:` gets each kept zip that fails to install, so you delete it and download it again; with none,
+  the failure goes to `FlutterError.reportError` instead.
+- `updateGate:` wraps the inner layers in your own update gate; see Update gate.
+- `noticeHost:` replaces the plain notice host `notices: true` builds; see Notices. Mount one `StratumApplication`
+  with `notices: true` per process: the notice host is process-wide, so every other view's wrapper passes
+  `notices: false`.
+- `systemStyle:` forwards the app-wide system bar style to the theme application; see System bars.
+- `componentPartDefaults:` forwards the app-wide parts style per component type to the theme application; see
+  Themes, App-wide component defaults.
+
+## System bars
+
+- **The theme's look** — `StratumTheme.of(context).systemStyle` is the theme's `SystemStyle` for the active mode: the
+  look of the status bar and the navigation bar from the theme file's `system` set (see System bar look), with no bar
+  mode, rotation lock, or app switcher label. `AppSystemUI` and `systemOverlayStyle` no longer exist, and the Material
+  theme sets no app bar overlay style.
+- **App-wide** — `StratumThemeApplication(systemStyle: SystemStyle(...))`, on both constructors, sets the app-wide
+  layer over the theme's look: any look field, plus `barMode` (`SystemBarMode.edgeToEdge`, `immersive`,
+  `immersiveSticky`, `leanBack`, `topOnly`, or `bottomOnly`), `orientations` (such as
+  `[DeviceOrientation.portraitUp]`), and `appSwitcherLabel`, passed in the user's language. A null field takes the
+  layer below. The application leaves the platform's own bar mode and rotation lock untouched until some layer sets
+  `barMode` or `orientations`; once one has, an unset field falls back to `edgeToEdge` and no lock. An app that locks
+  rotation in `AndroidManifest.xml` or hides the status bar in `Info.plist` keeps that native setting on its own, but
+  once any page sets `orientations` or `barMode`, declare the app-wide lock or mode here instead, since Flutter
+  cannot read the native value back. The application applies the merged style after each frame and is the
+  one writer of the system chrome: never call `SystemChrome.setSystemUIOverlayStyle`, `setEnabledSystemUIMode`, or
+  `setPreferredOrientations` yourself, and never set `AppBar.systemOverlayStyle` to force the icons; set
+  `statusBarIcons` instead. The application paints `statusBarColor`, and on Android `navigationBarColor` with its
+  `navigationBarDividerColor` line, under the bars itself, above every page, and sends the platform transparent bar
+  colors, so a bar color shows on every Android version and on iOS; leave a bar color transparent for an edge-to-edge
+  page. `auto` icons pick light or dark against what paints under each bar, the bar color the topmost, else the
+  theme's page background; with no label set, the app widget's `title` shows, except a web router app with no
+  `title:` of its own, which builds no `Title` widget to read — pass `title:` or an app-wide `appSwitcherLabel`.
+  On the web only the label and
+  `appSwitcherColor`, the browser theme color, apply; the bar mode and the rotation lock apply on Android and iOS
+  only, and a platform that ignores a setting shows no error.
+- **Per page** — wrap any screen, or a part of it, in `SystemStyleScope(style: SystemStyle(...), child: ...)`, with
+  or without a page layout and on any router: its look fields apply at a bar its child covers, and its `barMode`,
+  `orientations`, and `appSwitcherLabel` apply while its child paints. A dialog or sheet over the page keeps them, a
+  pushed page with no scope returns to the app-wide style, and pop restores the page's own, with no
+  `NavigatorObserver` and no restore code; only the shown tab of an `IndexedStack` counts. An inner scope wins field
+  by field over an outer one. Pass the label in the user's language (FO-09).
+- **Fill under a bar** — wrap every surface that paints under the status bar or the navigation bar, such as a
+  header, a full-screen video, or a translucent scrim, in `SystemBarFill(color: <the color it paints>, child: ...)`,
+  so `auto` icons pick the color of higher contrast against it. A translucent color blends over the fills beneath it.
+  Neither `SystemStyleScope` nor `SystemBarFill` paints, adds a semantics node, takes focus, or handles a gesture; a
+  bar color a scope sets, the application paints under the bar.
 
 ## Page transitions
 
@@ -677,6 +799,79 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `blur.level3`), then over the app-wide `componentPartDefaults` entry for `ModalLayout`.
 - Placed inline in a page it draws its surface and slots with no scrim and no route.
 
+## Split layout
+
+- **`SplitLayout`** — `SplitLayout(panes: [SplitPane(size: 320, min: 240, max: 480, child: list), SplitPane(flex: 1,
+  min: 320, child: detail)])` splits a body into panes along `axis` (default horizontal; under right-to-left text the
+  first pane sits on the right). A null pane hides and the others fill the split; `resizable: false` turns every
+  divider off. The split needs a bounded width (or height, vertical).
+- **Resize** — the EndUser drags a divider, steps it by the arrow keys along the axis (16 px, 64 with Shift), jumps
+  by Home and End to the start pane's min and max, or uses a screen reader's increase and decrease actions; every
+  move stays within both panes' `min` and `max`. Each divider is a Tab stop with the focus ring and reads as a slider
+  valued by the start pane's percent; `dividerLabel:` replaces the built-in "Resize panes" label.
+- **Divider look** — nothing paints by default and the divider takes no space, so the panes stay flush; its hit area
+  is the platform's minimum target size centered on the seam, with a resize cursor on hover; a tap, a scroll, or a
+  drag across the axis that starts there still reaches the pane content under it. Paint one with
+  `dividerBuilder: (context, state) => ...`, where `state.hovered`, `state.dragging`, and `state.focused` pick the
+  look; the widget fills the hit area, so center a thin line in it and read its color from a theme token.
+- **Keep widths** — Stratum stores nothing. Pass a `SplitLayoutController(fractions: saved)` to restore kept
+  fractions (one per pane in `panes`, a null pane included; a null entry is a pane with no choice yet, which opens
+  at its own `size` or `flex`), listen to it to save `controller.fractions`, and set
+  `controller.fractions = [...]` from code. It notifies once per settled move (a drag's end, one key step, a slider
+  action, or a code set), never per drag frame and never when a narrow window only squeezes the panes. A saved entry
+  that is NaN, infinite, or negative reads as null, so a corrupt value opens the pane at its own size. With no
+  controller the split makes and disposes its own; it never disposes one you pass.
+
+## Page layout
+
+- **`PageLayout`** — `PageLayout(header: ..., left: ..., top: ..., tab: ..., body: ..., bottom: ..., right: ...,
+  footer: ..., snack: ...)` lays out a page in Figma's slot geometry: `header` on top, `left` full height beside a
+  main column of `top` over the center column (`tab`, `body`, `bottom`) and `right`, `footer` at the end, and
+  `snack` floating at the bottom center. A null slot takes no space; under right-to-left text `left` sits on the
+  right. Each slot hosts any widget, a `ListTile` included, with no `Scaffold`. The page needs bounded constraints.
+  `systemStyle: SystemStyle(...)` sets this page's system bar style as an inner scope over the app-wide one.
+- **Rebuild scope** — slots take plain widgets, so you pick what rebuilds: put a `BlocBuilder`, `BlocSelector`,
+  `Consumer` (Riverpod), or `context.select` (Provider) inside one slot to rebuild only that slot, or around the
+  whole `PageLayout` to rebuild every slot.
+- **Insets** — every slot that touches a screen edge runs its fill under the status bar, home indicator, or side
+  inset while its content pads by it; `body` instead hands its top and bottom insets to its children, so a body
+  `ListView` scrolls under the home indicator with its last row clear. `safeArea: PageSafeArea(top: false)` turns a
+  side's padding off (`left` and `right` name the start and end sides); the slot on that edge still hands the inset
+  to its children, so a `SafeArea` or an `AppBar` inside pads itself. A nested `PageLayout` pads nothing twice.
+- **Keyboard** — the page above `footer` ends at the keyboard's top, so `bottom` rides above it and `footer` stays
+  docked under it; `resizeToAvoidKeyboard: false` lets the keyboard cover the page.
+- **Loading** — `loading: true` fades in a layer that refuses taps and keyboard focus and reads as "Loading"; focus
+  returns to where it sat once `loading` turns false. Pass `loadingBuilder:` to draw your own spinner.
+- **Style** — `customStyle: PageLayoutStyle(outer:, header:, top:, tab:, left:, body:, right:, bottom:, footer:,
+  snack:)`, merged over the theme (edge slots `background.default.surface`, page and body
+  `background.default.normal`), then over the app-wide `componentPartDefaults` entry for `PageLayout`.
+- **Drawers** — below `drawerCut` (default `WindowSize.tablet`), `left` and `right` are drawers that take no space; at
+  the cut and up they sit inline. Open one from a menu button with `PageLayout.of(context).openLeft()` (or
+  `openRight()`), close it with `close()`, and listen with `onDrawerChanged:` (the side that opened, then null once it
+  closed); `openLeft()` on a side shown inline does nothing. The EndUser also opens one by a swipe from its screen edge
+  (never from the iOS start edge of a page that can go back, and never with `edgeSwipe: false`) and closes it by the
+  scrim, Esc, back, or a drag. `leftSide: PageSide(type: PageDrawerType.back, pageScale: 0.9, maxWidth: 320)` picks the
+  type (`front`, `back`, `slide`, `permanent`, or `page`; default `slide` on iOS, `front` elsewhere), the width bounds
+  (80% of the screen, up to 360 by default), an optional page scale, and `semanticsLabel:`. A `page` drawer opens as a
+  new page that sits outside the `PageLayout`, so close it with `Navigator.pop`, never `PageLayout.of`. A drawer open
+  when the window grows past the cut closes (`onDrawerChanged` hears null after that frame) and the side shows inline.
+- **Side panes** — at the cut and up, `left` and `right` sit beside the center column as `SplitLayout` panes the
+  EndUser resizes by drag, arrow keys, Home, and End, within the side's `minWidth` and `maxWidth`; on either divider
+  End widens the side pane to its maximum, Home narrows it to its minimum, and the slider reads its share, while
+  the arrows move by screen direction. Nothing paints
+  between a pane and the center column; paint a line with `leftDividerBuilder:` or `rightDividerBuilder:`, the same
+  `(context, state)` shape as `SplitLayout.dividerBuilder`. A pane opens at the controller's chosen width, else at
+  Figma's (`left` 280 and `right` 380 at `bigDesktop`; 260 and 320 below). The center column keeps at least
+  `minCenterWidth` (default 320): a divider stops there, and a narrow window narrows the panes first.
+  `rightAsOverlay: true` instead opens `right` at the cut and up as a front drawer over a scrim, 450 wide at
+  `bigDesktop` and 400 below (never wider than the screen), with a close button; open it with `openRight()`.
+- **Controller** — `PageLayout.of(context)` returns the page's `PageLayoutController`, which opens and closes its
+  drawers; pass your own `PageLayoutController(leftWidth:, rightWidth:)` to restore kept side pane widths, listen to
+  it to save `leftWidth` and `rightWidth`, and set them from code. It notifies once per settled resize (a drag's end,
+  a key step, or a code set), never per drag frame and never when a narrow window only squeezes a pane. A saved
+  width that is NaN, infinite, or negative reads as null, so a corrupt value opens Figma's width. The page disposes
+  only the one it makes.
+
 ## Hover and focus observers
 
 - **`HoverBuilder`** — `HoverBuilder(builder: (context, hovered, child) => ..., child: c, onHover: (hovered) {})`
@@ -751,6 +946,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 
 ## Update gate
 
+- Under `StratumApplication`, pass `updateGate: (child) => StratumUpdateGate(..., child: child)` instead of placing
+  the gate yourself (see App assembly).
 - **`StratumUpdateGate`** — wrap the app's navigator in `MaterialApp.builder`, below `StratumThemeApplication`, so the
   gate covers every route. It asks your `UpdateChecker` and draws nothing itself: `builder` returns your own screen
   for each `UpdateGateState`.
@@ -796,3 +993,74 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   button, and from a scrim tap if you want one. A later ask that answers anything but `available` — up to date,
   required, maintenance, or a failure — closes it first. The gate needs a navigator below it, as `MaterialApp.builder`
   gives.
+
+## Notices
+
+- Under `StratumApplication`, pass `noticeHost:` to customize the host, or keep `notices: true`, instead of placing
+  one yourself (see App assembly).
+- **`StratumToastHost`** — place it once in `MaterialApp.builder`, below `StratumThemeApplication` and above the app's
+  navigator, so every notice shows above every route, modal routes included. It wraps `toastification` itself: call
+  `context.showToast(...)`, never `toastification.show`, since a raw call can freeze the wrong per-alignment config.
+  An app that already wraps its root in its own `ToastificationWrapper` keeps it; the host adds none. One solid notice
+  shows at a time (further ones queue in call order), and float notices stack up to 3 per corner, the newest nearest
+  the screen edge; a fourth closes that corner's oldest.
+
+  ```dart
+  MaterialApp(
+    builder: (context, child) => StratumThemeApplication(
+      themes: themes,
+      themeMode: ThemeMode.system,
+      child: StratumToastHost(child: child!),
+    ),
+    home: HomePage(),
+  );
+  ```
+
+- **`context.showToast`** — shows one notice from any context under the host: `message` (required), `kind`
+  (`FeedbackState.info`, the default, `.positive`, `.warning`, `.negative`), `action` (a `StratumToastAction` of label
+  and callback), and `placement`. A call with no host above throws a `FlutterError` naming `StratumToastHost`.
+- **`StratumToastPlacement`** — `const StratumToastPlacement.float(StratumToastCorner.bottomEnd)` for a corner
+  (`topStart` … `bottomEnd`, start and end following the text direction), or
+  `const StratumToastPlacement.solid(StratumToastEdge.top)` for a full-width bar at an edge. Omitted placement defaults
+  by window size: bottom center on mobile and tablet, bottom start on desktop.
+- A notice closes after 4 s, or 8 s with `action: StratumToastAction(label: 'Undo', onPressed: undo)`; hover, focus,
+  and touch pause it, and a notice with an action never closes by itself while a screen reader runs. A swipe, the
+  close button, or Esc while focus is inside it closes a notice; a tap on the action runs its callback, then closes
+  it. Each notice announces once on show, the kind's name then the message, taking no focus.
+- The plain look draws every value from theme tokens, each kind with its own icon as well as color; a float notice's
+  corner next to a rounded screen corner follows the screen's curve. Pass
+  `StratumToastHost(builder: (context, notice) => ...)` for your own look instead; placement, timing, and the
+  announcement stay the host's. A solid notice's plain-look fill declares itself under the status bar or home
+  indicator, as a page layout's fills do, so the bar icons stay readable over it; your own look declares its own
+  fill. `customStyle` on the call wins over the theme and the app-wide notice style, field by field.
+- **Your `builder` look** — the host gives it the notice's full slot: the theme's notice width, capped by the window,
+  in its corner, so draw at that width and never place or size the notice yourself. From the `StratumToastNotice`,
+  pad your content by `notice.insets` (a solid notice's status bar or home indicator; zero on a float), close through
+  `notice.close()` from your close button and after your action's callback, so the queue, the focus return, and the
+  timers stay right, and label the close button with `notice.closeLabel` and the kind's icon with
+  `notice.kindLabel`, the same names the announcement speaks. Merge `notice.pageSnack` then `notice.customStyle` over
+  your own style to keep the style order.
+- **`StratumToastHost(closeButtonLabel:, kindLabels:)`** — replace the built-in close-button label and, per
+  `FeedbackState`, the kind's name; each reaches the announcement and the accessible names alike, and a kind missing
+  from `kindLabels` keeps its built-in name.
+- **`context.dismissAllToasts()`** — closes every notice at once, float and solid, and empties the solid queue, so no
+  waiting notice shows later; it does nothing while none shows or waits, runs no exit animation under reduced motion,
+  and returns focus from a notice that held it. Call it on logout and on account switch, as
+  `ScaffoldMessenger.clearSnackBars()` serves snack bars, so a notice from the ended session never reaches the next
+  one.
+
+  ```dart
+  Future<void> logOut(BuildContext context) async {
+    context.dismissAllToasts();
+    await auth.signOut();
+  }
+  ```
+- **`StratumToastHost(focusShortcuts:, focusShortcutHint:)`** — a host shortcut moves focus into the newest notice on
+  screen from any page or dialog, to its action, else its close button; it does nothing while no notice shows.
+  Platform-ordered by default: Option+T then F8 on macOS and iOS, since F8 is a media key there, and F8 then Alt+T
+  elsewhere. Pass your own `focusShortcuts` to replace the keys, `const []` to turn the shortcut off, and
+  `focusShortcutHint` to replace the announcement's hint, which otherwise names the first key; the hint speaks on
+  desktop and web only.
+- A notice's action is never the only way to do that action: offer it in your own page too, as Gmail offers undo on
+  its `z` key beside the notice's Undo, since a notice can close, or sit under a pushed route, before the end user
+  reaches it.

@@ -4,7 +4,7 @@
 
 /// The package default theme yaml, for tests that run on the web,
 /// where neither dart:io nor an asset bundle exists.
-const defaultThemeYaml = r"""$schema: stratum-theme/v1.3.0
+const defaultThemeYaml = r"""$schema: stratum-theme/v1.4.0
 name: stratum-default
 
 assets:
@@ -754,6 +754,28 @@ blur:                        # Figma blur/<n>: a background blur radius; sigma i
   "4": 24
   "5": 40
   "6": 80
+
+system:                      # the look of the status bar and the navigation bar (FO-03 US-14)
+  light:
+    statusBarIcons: auto     # auto, light, or dark; auto picks against the fill under the bar
+    statusBarColor: "#00000000"            # transparent: the page paints edge to edge
+    statusBarContrast: false               # Android 10+: no scrim behind a transparent status bar
+    navigationBarIcons: auto
+    navigationBarColor: "#00000000"
+    navigationBarDividerColor: "#00000000"
+    navigationBarContrast: true            # Android 10+: the scrim behind the three-button bar
+    appSwitcherColor: "{color.light.background.default.normal}"   # the page background
+  dark:
+    statusBarIcons: auto
+    statusBarColor: "#00000000"
+    statusBarContrast: false
+    navigationBarIcons: auto
+    navigationBarColor: "#00000000"
+    navigationBarDividerColor: "#00000000"
+    navigationBarContrast: true
+    appSwitcherColor: "{color.dark.background.default.normal}"
+  highContrastLight: {}      # partial overlays on light and dark, as in color
+  highContrastDark: {}
 
 extensions: {}
 """;

@@ -87,5 +87,12 @@
   "noticeNegativeLabel": "Error",
   "@noticeNegativeLabel": {
     "description": "Notice kind name: the notice host's announcement and the icon's accessible name for the negative kind."
+  },
+  "noticeShortcutHint": "Press {key} to reach it",
+  "@noticeShortcutHint": {
+    "description": "Notice shortcut hint: the end of the notice host's announcement, naming the first key of the host's shortcut into the newest notice.",
+    "placeholders": {
+      "key": {"type": "String"}
+    }
   }
 }

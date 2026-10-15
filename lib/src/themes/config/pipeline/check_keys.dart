@@ -35,6 +35,10 @@ final class ThemeSchema {
     'blur',
   };
 
+  /// The groups that hold one map per color set: `color`, and `system`,
+  /// whose sets mirror it (config s03 invariant 16).
+  static const setGroups = {'color', 'system'};
+
   /// Each color set, and the set whose keys it takes.
   static const colorSets = {
     'light': 'light',
@@ -69,8 +73,8 @@ final class ThemeSchema {
   };
 
   /// The map of the package default that lists the keys a layer may write
-  /// at [path]; a high-contrast set reads its base set. Null when the
-  /// package default holds no map there.
+  /// at [path]; a high-contrast set of a [setGroups] group reads its base
+  /// set. Null when the package default holds no map there.
   Map<String, Object?>? keysAt(List<String> path) {
     final node = _baseAt(path);
     return node is Map<String, Object?> ? node : null;
@@ -84,7 +88,7 @@ final class ThemeSchema {
   Object? _baseAt(List<String> path) {
     Object? node = base;
     for (final (index, key) in path.indexed) {
-      final name = index == 1 && path.first == 'color'
+      final name = index == 1 && setGroups.contains(path.first)
           ? colorSets[key] ?? key
           : key;
       if (node is! Map<String, Object?> || !node.containsKey(name)) {

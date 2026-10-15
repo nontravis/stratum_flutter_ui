@@ -19,11 +19,13 @@ void main() {
   late List<String> logs;
   late List<String> changes;
   late List<(String, StratumRemoteThemeErrorCode)> errors;
+  late List<FlutterErrorDetails> errorReports;
   setUp(() {
     useSyncParse();
     recordRemoteFontLoads();
     recordRemoteGoogleFonts();
     logs = captureRemoteLogs();
+    errorReports = captureRemoteErrorReports();
     changes = [];
     errors = [];
   });
@@ -161,6 +163,46 @@ void main() {
         '(checksum_mismatch); skipped',
       ),
     );
+  });
+
+  test('us01/fr04/e08, s05: with no callback, a failed kept zip reports '
+      'once through FlutterError.reportError, the code key named and the '
+      'id escaped', () async {
+    await start([remoteTheme('bra\u0007nd')], withCallback: false);
+
+    expect(errorReports, hasLength(1));
+    final report = errorReports.single;
+    expect(report.library, 'stratum_ui');
+    expect(report.exception, isA<StratumRemoteThemeException>());
+    expect(
+      (report.exception as StratumRemoteThemeException).code,
+      StratumRemoteThemeErrorCode.invalidId,
+    );
+    expect(report.context.toString(), contains('invalid_id'));
+    expect(report.context.toString(), contains(r'bra\u0007nd'));
+    expect(report.context.toString(), isNot(contains('\u0007')));
+    expect(report.exceptionAsString(), contains(r'bra\u0007nd'));
+    expect(report.exceptionAsString(), isNot(contains('\u0007')));
+    expect(report.stack, isNotNull);
+    expect(
+      logs,
+      contains(
+        r'Stratum theme: kept zip "bra\u0007nd" failed to install '
+        '(invalid_id); skipped',
+      ),
+    );
+    expect(logs.join(), isNot(contains('\u0007')));
+  });
+
+  test('us01/fr04/e09, s05: with a callback, only it gets a failed kept '
+      'zip; preload calls FlutterError.reportError for none of them', () async {
+    final controller = await start([_damaged(remoteTheme('songkran'))]);
+
+    expect(controller.activeId, 'default');
+    expect(errors, [
+      ('songkran', StratumRemoteThemeErrorCode.checksumMismatch),
+    ]);
+    expect(errorReports, isEmpty);
   });
 
   test('us01/fr04, r12: a kept zip whose theme file is not UTF-8 is skipped '
