@@ -56,9 +56,8 @@ void main() {
         );
 
     test('5.2: copyWith changes one window size and keeps the rest', () {
-      final copy = all(
-        ScreenTransitionType.fade,
-      ).copyWith(desktop: ScreenTransitionType.none);
+      final copy = all(ScreenTransitionType.fade)
+          .copyWith(desktop: ScreenTransitionType.none);
 
       expect(copy[WindowSize.desktop], ScreenTransitionType.none);
       expect(copy[WindowSize.mobile], ScreenTransitionType.fade);
