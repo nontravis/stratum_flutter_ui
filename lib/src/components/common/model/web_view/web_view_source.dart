@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/redacted_url.dart';
 import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/web_view_source.freezed.dart';
@@ -24,12 +25,13 @@ sealed class StratumWebViewSource with _$StratumWebViewSource {
 
   const new _();
 
-  /// `StratumWebViewSource.url(...)` with the address, or
+  /// `StratumWebViewSource.url(...)` with the redacted address, or
   /// `StratumWebViewSource.html(n chars)` with the length, never the
-  /// document itself (R4 Q2).
+  /// document itself (NFR-Sec06).
   @override
   String toString() => switch (this) {
-    StratumWebViewUrlSource(:final url) => 'StratumWebViewSource.url($url)',
+    StratumWebViewUrlSource(:final url) =>
+      'StratumWebViewSource.url(${redactedUrl(url)})',
     StratumWebViewHtmlSource(:final html) =>
       'StratumWebViewSource.html(${html.length} chars)',
   };

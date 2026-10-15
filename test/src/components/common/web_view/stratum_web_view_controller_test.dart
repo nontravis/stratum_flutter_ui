@@ -50,6 +50,39 @@ void main() {
     expect(platform().loads, isEmpty);
   });
 
+  test('co01_02/us01/fr01/e01: the refusal names the redacted address, never '
+      'the script', () async {
+    await expectLater(
+      controller.loadUrl(Uri.parse('javascript:alert(1)')),
+      throwsA(
+        isA<ArgumentError>()
+            .having((e) => e.toString(), 'toString', contains('"javascript:…"'))
+            .having((e) => e.toString(), 'toString', isNot(contains('alert'))),
+      ),
+    );
+  });
+
+  test('co01_02/us01/fr01/e01: the refusal names a host-bearing refused '
+      'scheme, never the path or query', () async {
+    await expectLater(
+      controller.loadUrl(Uri.parse('ftp://attacker.example/secret?token=abc')),
+      throwsA(
+        isA<ArgumentError>()
+            .having(
+              (e) => e.toString(),
+              'toString',
+              contains('"ftp://attacker.example/…"'),
+            )
+            .having((e) => e.toString(), 'toString', isNot(contains('secret')))
+            .having(
+              (e) => e.toString(),
+              'toString',
+              isNot(contains('token=abc')),
+            ),
+      ),
+    );
+  });
+
   test('navigation methods forward to the platform', () async {
     platform()
       ..canGoBackValue = true
@@ -569,6 +602,52 @@ void main() {
           ),
         ),
         returnsNormally,
+      );
+    });
+
+    test('co01_02/us03/nf01: NFR-Sec06: names each hostile entry by '
+        'position and redacted origin, never its user info, path, query, '
+        'or fragment', () {
+      final userInfoEntry = Uri.parse(
+        'ftp://user:pw@partner.example/x?token=abc#f',
+      );
+      final pathlessEntry = Uri.parse('partner.example/embed?key=sk_live_123');
+
+      expect(
+        () => controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {userInfoEntry, pathlessEntry},
+          ),
+        ),
+        throwsA(
+          isA<AssertionError>()
+              .having(
+                (e) => e.toString(),
+                'toString',
+                contains(
+                  'entry 1 (ftp://partner.example/…) needs an http or '
+                  'https scheme',
+                ),
+              )
+              .having(
+                (e) => e.toString(),
+                'toString',
+                contains('entry 2 (…) needs an http or https scheme'),
+              )
+              .having(
+                (e) => e.toString(),
+                'toString',
+                allOf(
+                  isNot(contains('user')),
+                  isNot(contains('pw')),
+                  isNot(contains('/x')),
+                  isNot(contains('token=abc')),
+                  isNot(contains('#f')),
+                  isNot(contains('embed')),
+                  isNot(contains('key=sk_live_123')),
+                ),
+              ),
+        ),
       );
     });
   });

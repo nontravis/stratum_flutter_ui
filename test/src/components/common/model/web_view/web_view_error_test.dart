@@ -92,7 +92,7 @@ void main() {
     );
   });
 
-  test('R4 Q2: its own toString stays', () {
+  test('co01_02/us03/nf01: NFR-Sec06: its own toString stays', () {
     expect(
       StratumWebViewError(
         type: StratumWebViewErrorType.http,
@@ -102,5 +102,24 @@ void main() {
       ).toString(),
       'StratumWebViewError(http, 404, Not Found, https://a.example)',
     );
+  });
+
+  test('co01_02/us03/nf01: NFR-Sec06: a hostile url prints only its redacted '
+      'origin', () {
+    final text = StratumWebViewError(
+      type: StratumWebViewErrorType.network,
+      description: 'DNS lookup failed',
+      code: -2,
+      url: Uri.parse('https://user:pw@idp.example/reset/9f3a2c?code=X#t=Y'),
+    ).toString();
+
+    expect(
+      text,
+      'StratumWebViewError(network, -2, DNS lookup failed, '
+      'https://idp.example/…)',
+    );
+    for (final leak in ['user', 'pw', 'reset', '9f3a2c', 'code=X', 't=Y']) {
+      expect(text, isNot(contains(leak)));
+    }
   });
 }

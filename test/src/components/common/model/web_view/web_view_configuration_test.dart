@@ -47,5 +47,59 @@ void main() {
       expect(copy.onMessage, isNull);
       expect(copy.javaScriptEnabled, isFalse);
     });
+
+    test('co01_02/us03/nf01: NFR-Sec06: toString prints allowedOrigins and '
+        'javaScriptEnabled, never a callback', () {
+      expect(
+        StratumWebViewConfiguration(
+          allowedOrigins: {Uri.parse('https://a.example')},
+          javaScriptEnabled: false,
+          onMessage: onMessage,
+        ).toString(),
+        'StratumWebViewConfiguration(allowedOrigins: '
+        '{https://a.example}, javaScriptEnabled: false)',
+      );
+    });
+
+    test('co01_02/us03/nf01: NFR-Sec06: a hostile allowed origin prints only '
+        'its redacted origin', () {
+      final text = StratumWebViewConfiguration(
+        allowedOrigins: {
+          Uri.parse('https://user:pw@idp.example/reset/9f3a2c?code=X#t=Y'),
+        },
+      ).toString();
+
+      expect(
+        text,
+        'StratumWebViewConfiguration(allowedOrigins: '
+        '{https://idp.example/…}, javaScriptEnabled: true)',
+      );
+      for (final leak in ['user', 'pw', 'reset', '9f3a2c', 'code=X', 't=Y']) {
+        expect(text, isNot(contains(leak)));
+      }
+    });
+
+    test('co01_02/us03/nf01: NFR-Sec06: an empty allowlist prints empty '
+        'braces', () {
+      expect(
+        const StratumWebViewConfiguration().toString(),
+        'StratumWebViewConfiguration(allowedOrigins: '
+        '{}, javaScriptEnabled: true)',
+      );
+    });
+
+    test('co01_02/us03/nf01: NFR-Sec06: a two-entry allowlist prints both '
+        'redacted origins', () {
+      expect(
+        StratumWebViewConfiguration(
+          allowedOrigins: {
+            Uri.parse('https://a.example'),
+            Uri.parse('https://b.example'),
+          },
+        ).toString(),
+        'StratumWebViewConfiguration(allowedOrigins: '
+        '{https://a.example, https://b.example}, javaScriptEnabled: true)',
+      );
+    });
   });
 }

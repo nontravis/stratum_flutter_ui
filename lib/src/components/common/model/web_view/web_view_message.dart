@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/redacted_url.dart';
 import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/web_view_message.freezed.dart';
@@ -21,6 +22,10 @@ abstract class StratumWebViewMessage with _$StratumWebViewMessage {
 
   const new _();
 
+  /// Prints the data length and the redacted [origin], never the data
+  /// itself (NFR-Sec06).
   @override
-  String toString() => 'StratumWebViewMessage(data: $data, origin: $origin)';
+  String toString() =>
+      'StratumWebViewMessage(${data.length} chars, origin: '
+      '${redactedUrl(origin)})';
 }

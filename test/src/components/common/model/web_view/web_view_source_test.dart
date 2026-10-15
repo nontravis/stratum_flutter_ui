@@ -65,7 +65,8 @@ void main() {
       );
     });
 
-    test('R4 Q2: its own toString stays, never printing the document', () {
+    test('co01_02/us03/nf01: NFR-Sec06: its own toString stays, never '
+        'printing the document', () {
       expect(
         StratumWebViewSource.url(Uri.parse('https://a.example')).toString(),
         'StratumWebViewSource.url(https://a.example)',
@@ -74,6 +75,18 @@ void main() {
         const StratumWebViewSource.html('<p>secret</p>').toString(),
         'StratumWebViewSource.html(13 chars)',
       );
+    });
+
+    test('co01_02/us03/nf01: NFR-Sec06: a hostile url prints only its '
+        'redacted origin', () {
+      final text = StratumWebViewSource.url(
+        Uri.parse('https://user:pw@idp.example/reset/9f3a2c?code=X#t=Y'),
+      ).toString();
+
+      expect(text, 'StratumWebViewSource.url(https://idp.example/…)');
+      for (final leak in ['user', 'pw', 'reset', '9f3a2c', 'code=X', 't=Y']) {
+        expect(text, isNot(contains(leak)));
+      }
     });
   });
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/redacted_url.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_configuration.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
@@ -48,7 +49,7 @@ final class StratumWebViewController {
     _ensureActive();
     if (!url.isScheme('http') && !url.isScheme('https')) {
       throw ArgumentError.value(
-        url,
+        redactedUrl(url),
         'url',
         'must use the http or https scheme',
       );
@@ -226,17 +227,20 @@ final class StratumWebViewController {
     );
   }
 
+  // Each entry that can never match, named by its 1-based position.
+  static Iterable<String> _allowlistProblems(Set<Uri> allowed) => allowed
+      .indexed
+      .map((entry) => allowedOriginProblem(entry.$1 + 1, entry.$2))
+      .nonNulls;
+
   /// Applies the settings of the `StratumWebView` that shows this controller.
   @internal
   void configure(StratumWebViewConfiguration configuration) {
     _ensureActive();
     // An entry that can never match would silently disable the bridge.
     assert(
-      configuration.allowedOrigins.every(
-        (origin) => allowedOriginProblem(origin) == null,
-      ),
-      'allowedOrigins: '
-      '${configuration.allowedOrigins.map(allowedOriginProblem).nonNulls}',
+      _allowlistProblems(configuration.allowedOrigins).isEmpty,
+      'allowedOrigins: ${_allowlistProblems(configuration.allowedOrigins)}',
     );
     final javaScriptChanged =
         configuration.javaScriptEnabled != _configuration.javaScriptEnabled;

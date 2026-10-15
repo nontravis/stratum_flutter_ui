@@ -37,11 +37,6 @@ int get hashCode {
   return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.allowedOrigins),_this.javaScriptEnabled,_this.onMessage,_this.onNavigationRequest,_this.onPageStarted,_this.onPageFinished,_this.onError);
 }
 
-@override
-String toString() {
-  final _this = this as StratumWebViewConfiguration;
-  return 'StratumWebViewConfiguration(allowedOrigins: ${_this.allowedOrigins}, javaScriptEnabled: ${_this.javaScriptEnabled}, onMessage: ${_this.onMessage}, onNavigationRequest: ${_this.onNavigationRequest}, onPageStarted: ${_this.onPageStarted}, onPageFinished: ${_this.onPageFinished}, onError: ${_this.onError})';
-}
 
 
 }
@@ -88,8 +83,8 @@ as ValueChanged<StratumWebViewError>?,
 /// @nodoc
 
 
-class _StratumWebViewConfiguration implements StratumWebViewConfiguration {
-  const _StratumWebViewConfiguration({ Set<Uri> allowedOrigins = const <Uri>{}, this.javaScriptEnabled = true, this.onMessage, this.onNavigationRequest, this.onPageStarted, this.onPageFinished, this.onError}): _allowedOrigins = allowedOrigins;
+class _StratumWebViewConfiguration extends StratumWebViewConfiguration {
+  const _StratumWebViewConfiguration({ Set<Uri> allowedOrigins = const <Uri>{}, this.javaScriptEnabled = true, this.onMessage, this.onNavigationRequest, this.onPageStarted, this.onPageFinished, this.onError}): _allowedOrigins = allowedOrigins,super._();
   
 
  final  Set<Uri> _allowedOrigins;
@@ -125,10 +120,6 @@ int get hashCode {
     return Object.hash(runtimeType,const DeepCollectionEquality().hash(_allowedOrigins),javaScriptEnabled,onMessage,onNavigationRequest,onPageStarted,onPageFinished,onError);
 }
 
-@override
-String toString() {
-    return 'StratumWebViewConfiguration(allowedOrigins: $allowedOrigins, javaScriptEnabled: $javaScriptEnabled, onMessage: $onMessage, onNavigationRequest: $onNavigationRequest, onPageStarted: $onPageStarted, onPageFinished: $onPageFinished, onError: $onError)';
-}
 
 
 }

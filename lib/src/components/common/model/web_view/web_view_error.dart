@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/redacted_url.dart';
 import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/web_view_error.freezed.dart';
@@ -32,7 +33,9 @@ abstract class StratumWebViewError with _$StratumWebViewError {
 
   const new _();
 
+  /// Prints the redacted [url], never the full address (NFR-Sec06).
   @override
   String toString() =>
-      'StratumWebViewError(${type.name}, $code, $description, $url)';
+      'StratumWebViewError(${type.name}, $code, $description, '
+      '${redactedUrl(url)})';
 }

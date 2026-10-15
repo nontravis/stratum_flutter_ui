@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show ValueChanged;
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/redacted_url.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';
@@ -23,4 +24,14 @@ abstract class StratumWebViewConfiguration with _$StratumWebViewConfiguration {
     ValueChanged<Uri?>? onPageFinished,
     ValueChanged<StratumWebViewError>? onError,
   }) = _StratumWebViewConfiguration;
+
+  const new _();
+
+  /// Prints [allowedOrigins] redacted and [javaScriptEnabled], never a
+  /// callback (NFR-Sec06).
+  @override
+  String toString() =>
+      'StratumWebViewConfiguration(allowedOrigins: '
+      '{${allowedOrigins.map(redactedUrl).join(', ')}}, '
+      'javaScriptEnabled: $javaScriptEnabled)';
 }
