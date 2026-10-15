@@ -203,7 +203,7 @@ void main() {
       expect(copy.fontType, FontType.body);
     });
 
-    test('us01/fr02/e02: two recipes built apart with the same fields are '
+    test('fo02/us01/fr02/e02: two recipes built apart with the same fields are '
         'equal', () {
       // Built at run time from a parameter, so the check reads `==`.
       StratumTextStyle make(double size) =>
