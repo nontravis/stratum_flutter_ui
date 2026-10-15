@@ -136,7 +136,8 @@ void main() {
     await expectLater(controller.postMessage('x'), throwsStateError);
   });
 
-  test('postMessage throws while javaScriptEnabled is false', () async {
+  test('co01_02/us02/s2, co01_02/us02/fr02: postMessage throws while '
+      'javaScriptEnabled is false', () async {
     controller.configure(
       StratumWebViewConfiguration(
         allowedOrigins: {appOrigin},
@@ -627,25 +628,29 @@ void main() {
       expect(messages, isEmpty);
     });
 
-    test('reports a throwing callback without rethrowing', () {
-      final reported = <FlutterErrorDetails>[];
-      final previous = FlutterError.onError;
-      FlutterError.onError = reported.add;
-      addTearDown(() => FlutterError.onError = previous);
-      controller.configure(
-        StratumWebViewConfiguration(
-          allowedOrigins: {appOrigin},
-          onMessage: (_) => throw StateError('boom'),
-        ),
-      );
-      platform().listener.onMessage(
-        const StratumWebViewMessage(data: 'x'),
-        const FakeHtmlDocumentSender(),
-      );
-      expect(reported.single.exception, isStateError);
-    });
+    test(
+      'co01_02/us04/fr03: reports a throwing callback without rethrowing',
+      () {
+        final reported = <FlutterErrorDetails>[];
+        final previous = FlutterError.onError;
+        FlutterError.onError = reported.add;
+        addTearDown(() => FlutterError.onError = previous);
+        controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {appOrigin},
+            onMessage: (_) => throw StateError('boom'),
+          ),
+        );
+        platform().listener.onMessage(
+          const StratumWebViewMessage(data: 'x'),
+          const FakeHtmlDocumentSender(),
+        );
+        expect(reported.single.exception, isStateError);
+      },
+    );
 
-    test('navigation defaults to navigate and fails closed on errors', () {
+    test('co01_02/us04/s4, co01_02/us04/fr02: navigation defaults to navigate '
+        'and fails closed on errors', () {
       final reported = <FlutterErrorDetails>[];
       final previous = FlutterError.onError;
       FlutterError.onError = reported.add;

@@ -14,15 +14,18 @@ void main() {
 
   setUp(() => platforms = installFakePlatform());
 
-  testWidgets('creates a controller, loads the source, shows the view', (
+  testWidgets(
+    'co01_02/us01/s1: creates a controller, loads the source, shows the view',
+    (tester) async {
+      await tester.pumpWidget(StratumWebView(source: urlA));
+      expect(platforms.single.loads, [urlA]);
+      expect(find.byKey(fakePlatformViewKey), findsOneWidget);
+    },
+  );
+
+  testWidgets('co01_02/us01/fr03: disposes the controller it created', (
     tester,
   ) async {
-    await tester.pumpWidget(StratumWebView(source: urlA));
-    expect(platforms.single.loads, [urlA]);
-    expect(find.byKey(fakePlatformViewKey), findsOneWidget);
-  });
-
-  testWidgets('disposes the controller it created', (tester) async {
     await tester.pumpWidget(StratumWebView(source: urlA));
     await tester.pumpWidget(const SizedBox());
     expect(platforms.single.disposed, isTrue);
