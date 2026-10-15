@@ -16672,6 +16672,178 @@ void main() {
         handle.dispose();
       },
     );
+
+    // A move input during the momentum of a fling the EndUser let go of,
+    // with the focused item in view or flung out above it (R66).
+    final flingMoves = ValueVariant<(String, String)>({
+      for (final input in ['Alt+Down', 'Move down'])
+        for (final place in ['in view', 'above the view']) (input, place),
+    });
+    testWidgets(
+      'R66: an <Alt+Down, "Move down"> during the momentum of an EndUser '
+      'fling, the focused item <in view, above the view>, stops the fling '
+      'and reveals the moved item with its State and focus',
+      (tester) async {
+        final (input, place) = flingMoves.currentValue!;
+        final handle = tester.ensureSemantics();
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 200),
+        );
+        // At 4000 px, item 100 sits at the top of the 300 px view and item
+        // 106 at 240 to 280 px; the fling carries item 100 out above it.
+        final id = place == 'in view' ? 106 : 100;
+        final state = _itemState(tester, id)..expanded = true;
+        final node = await _focusItem(tester, id);
+
+        await tester.fling(
+          find.byType(Scrollable).first,
+          const Offset(0, -100),
+          1000,
+        );
+        await tester.pump();
+        final flung = position.pixels;
+        await tester.pump(const Duration(milliseconds: 16));
+        // The momentum still runs once the EndUser let go.
+        expect(position.pixels, greaterThan(flung));
+        expect(shown(tester, id), place == 'in view');
+
+        final atInput = position.pixels;
+        if (input == 'Alt+Down') {
+          await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        } else {
+          moveActionNow(tester, id, 'Move down');
+        }
+        await tester.pump();
+        await tester.pump();
+        // The input stopped the fling: in view, where it stood; above the
+        // view, at the least scroll that shows slot 101, 4040 px.
+        final stopped = place == 'in view' ? atInput : 4040.0;
+        expect(laidOffset(tester), stopped);
+        expect(await laidFrames(tester, 10), everyElement(stopped));
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, stopped);
+        expect(shown(tester, id), isTrue);
+        expectKept(tester, id, state, node: node);
+        expect(_harness(tester).moves, [(id, id + 1)]);
+        handle.dispose();
+      },
+      variant: flingMoves,
+    );
+
+    testWidgets(
+      'R66: an app animateTo still running at an Alt+Down runs on to its end '
+      'on its own path, and the moved item keeps its State and focus',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 200),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+
+        final done = position.animateTo(
+          4600,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutSine,
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 16));
+        final atKey = position.pixels;
+        expect(atKey, greaterThan(4000));
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        final laid = await laidFrames(tester, 30);
+        await tester.pumpAndSettle();
+        await done;
+
+        // Every frame lies on the animation's own path, from where the key
+        // found it on toward its target: the key stopped nothing, and no
+        // reveal jump lands between them.
+        expect(laid, everyElement(inInclusiveRange(atKey, 4600)));
+        expect([...laid]..sort(), laid);
+        expect(laid.last, 4600);
+        expect(position.pixels, 4600);
+        expectKept(tester, 100, state, node: node);
+        expect(_harness(tester).moves, [(100, 101)]);
+      },
+    );
+
+    testWidgets(
+      'R66: an Alt+Down during a scroll drag the EndUser still holds stops '
+      'nothing: the drag still follows the finger',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 200),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+
+        // The first move crosses the touch slop and starts the drag; the
+        // second scrolls the list under the finger.
+        final view = tester.getRect(find.byType(Scrollable).first);
+        final gesture = await tester.startGesture(view.center);
+        await gesture.moveBy(const Offset(0, -20));
+        await gesture.moveBy(const Offset(0, -40));
+        await tester.pump();
+        final held = position.pixels;
+        expect(held, greaterThan(4000));
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        expect(await laidFrames(tester, 5), everyElement(held));
+        await gesture.moveBy(const Offset(0, -40));
+        await tester.pump();
+        expect(position.pixels - held, 40.0);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expectKept(tester, 100, state, node: node);
+        expect(_harness(tester).moves, [(100, 101)]);
+      },
+    );
+
+    testWidgets(
+      'R66: an Alt+Down while an EndUser fling bounces back from past the '
+      'end stops the bounce and reveals the moved item with its State and '
+      'focus',
+      (tester) async {
+        // Under bouncing physics a fling runs past the end and springs back
+        // as part of its own momentum.
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 200, physics: BouncingScrollPhysics()),
+          offset: 7500,
+        );
+        final state = _itemState(tester, 188)..expanded = true;
+        final node = await _focusItem(tester, 188);
+
+        await tester.fling(
+          find.byType(Scrollable).first,
+          const Offset(0, -100),
+          3000,
+        );
+        for (var i = 0; i < 60 && !position.outOfRange; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(position.pixels, greaterThan(position.maxScrollExtent));
+
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        await tester.pump();
+        // Slot 189 lies at 7560 to 7600 px, above the view: the least
+        // scroll that shows it puts it at the top.
+        expect(laidOffset(tester), 7560);
+        expect(await laidFrames(tester, 10), everyElement(7560.0));
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, 7560);
+        expect(shown(tester, 188), isTrue);
+        expectKept(tester, 188, state, node: node);
+        expect(_harness(tester).moves, [(188, 189)]);
+      },
+    );
   });
 
   group('ReorderableListViewLayout reduced motion', () {

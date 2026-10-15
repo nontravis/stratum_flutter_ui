@@ -475,14 +475,31 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// one, where work books in the latest turn.
   int? _workTurn;
 
-  /// Whether [_runFrameStart] is committing the work the list booked: a
-  /// scroll that starts meanwhile is the list's own ([_startedByOther]).
+  /// Whether the list is committing a scroll of its own, the work
+  /// [_runFrameStart] runs or the stop of a fling ([_stopFling]): a scroll
+  /// that starts meanwhile is the list's own ([_startedByOther]).
   var _committingOwn = false;
 
   /// Whether a scroll the EndUser or the app started on this list's own
   /// Scrollable still runs, from its [ScrollStartNotification] to its
   /// [ScrollEndNotification] ([_endsReachOn]).
   var _otherScrolling = false;
+
+  /// Whether the scroll [_otherScrolling] tracks began as the EndUser's
+  /// drag: its [ScrollStartNotification] carried drag details.
+  var _otherScrollDragged = false;
+
+  /// The pointers down on this list's Scrollable now, a trackpad's pan
+  /// included ([_scrollView]): while one is down, the EndUser still holds
+  /// what they touch.
+  final _pointersDown = <int>{};
+
+  /// Whether what still runs of the scroll [_otherScrolling] tracks is the
+  /// fling of a drag the EndUser let go of: their drag started it, and no
+  /// pointer of theirs is down on the list now. A drag they still hold and
+  /// a scroll the app started are not one (R66).
+  bool get _flinging =>
+      _otherScrolling && _otherScrollDragged && _pointersDown.isEmpty;
 
   /// Whether the EndUser holds a lifted item: from the lift
   /// ([_liftedTook]) until pointer-up drops it ([_handleReorderEnd]) or the
@@ -2231,9 +2248,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       return KeyEventResult.handled;
     }
     // A drag ends first, as a call ends it (invariant 28): the move changes
-    // the data under it.
+    // the data under it. The key stops the fling of a drag the EndUser let
+    // go of (R66).
     _cancelDrag();
-    _takeScroll();
+    _takeScroll(stopsFling: true);
     final moved = _reportMove(
       index,
       from,
@@ -2359,10 +2377,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     // A drop took the scroll at pointer-up ([_handleReorderEnd]), so its
     // report takes nothing: a scroll the app made while it settled wins
     // over its reveal (R61). A screen-reader move ends a drag first, as a
-    // call ends it.
+    // call ends it, and stops the fling of a drag the EndUser let go of
+    // (R66).
     if (!drop) {
       _cancelDrag();
-      _takeScroll();
+      _takeScroll(stopsFling: true);
     }
     // A screen-reader move takes a focused move's jump (R46); only a drop
     // keeps its own edge jump.
@@ -3306,11 +3325,33 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// or the app's, the list takes the scroll back in a new turn, unless a
   /// lift or a scroll of theirs still lasts: the newest input wins (R45).
   /// An input that ends a lift ends it first ([_endDragForCall],
-  /// [_cancelDrag], [_handleReorderEnd]); a continuation never takes.
-  void _takeScroll() {
+  /// [_cancelDrag], [_handleReorderEnd]); a key or screen-reader move first
+  /// stops the fling of a drag the EndUser let go of ([stopsFling],
+  /// [_stopFling], R66); a continuation never takes.
+  void _takeScroll({bool stopsFling = false}) {
+    if (stopsFling) _stopFling();
     if (_lifting || _otherScrolling || !_scrollTaken) return;
     _scrollTaken = false;
     _inputTurn += 1;
+  }
+
+  /// Stops the fling of a drag the EndUser let go of ([_flinging]) where it
+  /// stands: a move input newer than the fling wins over its momentum (R45,
+  /// R66). The fling's end ends their hold ([_endsReachOn]), as a touch
+  /// that stops it would, and a settle the stop starts, as back from past
+  /// either end, is the list's own ([_committingOwn]). The offset stays,
+  /// so the stop leaves no jump for a frame to lay out (R56).
+  void _stopFling() {
+    if (!_flinging) return;
+    final position = _scrollPosition;
+    if (position == null) return;
+    final outer = _committingOwn;
+    _committingOwn = true;
+    try {
+      position.jumpTo(position.pixels);
+    } finally {
+      _committingOwn = outer;
+    }
   }
 
   /// Starts [_reach] in a microtask after this frame's post-frame
@@ -4183,7 +4224,10 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       _ => false,
     };
     final other = _startedByOther(notification);
-    if (other) _otherScrolling = true;
+    if (other) {
+      _otherScrolling = true;
+      _otherScrollDragged = userDriven;
+    }
     if (userDriven || other) _yieldToInput();
     return false;
   }
@@ -4192,12 +4236,11 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// Each scroll is one activity of the position, and its
   /// [ScrollStartNotification] fires inside the call that starts it; the
   /// updates and the end that follow belong to that start. The list
-  /// starts its own scrolls only while [_runFrameStart] commits them
-  /// ([_committingOwn]), a start the lift owns is the lift's
-  /// ([_liftScrolls]), and the physics starts a settle only in layout,
-  /// when a new extent leaves the offset out of range
-  /// (`IdleScrollActivity.applyNewDimensions`). Every other start is the
-  /// EndUser's or the app's.
+  /// starts its own scrolls only while it commits them ([_committingOwn]),
+  /// a start the lift owns is the lift's ([_liftScrolls]), and the physics
+  /// starts a settle only in layout, when a new extent leaves the offset
+  /// out of range (`IdleScrollActivity.applyNewDimensions`). Every other
+  /// start is the EndUser's or the app's.
   bool _startedByOther(ScrollNotification notification) =>
       notification is ScrollStartNotification &&
       !_committingOwn &&
@@ -4206,44 +4249,60 @@ class _ReorderableBodyState extends State<_ReorderableBody>
               SchedulerPhase.persistentCallbacks &&
           notification.metrics.outOfRange);
 
+  /// Counts [event]'s pointer down on the list ([_pointersDown]).
+  void _pointerDown(PointerEvent event) => _pointersDown.add(event.pointer);
+
+  /// Drops [event]'s pointer, lifted or canceled, from [_pointersDown].
+  void _pointerLifted(PointerEvent event) =>
+      _pointersDown.remove(event.pointer);
+
   Widget _scrollView(ReorderableListViewLayout layout, int listCount) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: _endsReachOn,
-      child: _ReorderScrollView(
-        scrollDirection: layout.scrollDirection,
-        reverse: layout.reverse,
-        controller: widget.controller,
-        primary: layout.primary,
-        physics: layout.physics,
-        shrinkWrap: layout.shrinkWrap,
-        scrollCacheExtent: layout.scrollCacheExtent,
-        dragStartBehavior: layout.dragStartBehavior,
-        keyboardDismissBehavior: layout.keyboardDismissBehavior,
-        restorationId: layout.restorationId,
-        clipBehavior: layout.clipBehavior,
-        // A leaving item or closing gap has no semantic index, so the count
-        // and every semantic index stay indices of the app's data
-        // (invariant 58).
-        semanticChildCount: layout.itemCount,
-        slivers: [
-          SliverPadding(
-            padding: widget.padding ?? EdgeInsets.zero,
-            sliver: _ReorderSliver(
-              key: _listKey,
-              body: this,
-              itemBuilder: _buildItem,
-              itemCount: listCount,
-              onReorderItem: _handleReorderItem,
-              onReorderStart: _handleReorderStart,
-              onReorderEnd: _handleReorderEnd,
-              itemExtent: layout.itemExtent,
-              itemExtentBuilder: layout.itemExtentBuilder,
-              prototypeItem: layout.prototypeItem,
-              proxyDecorator: layout.dragStyle == null ? null : _proxy,
-              autoScrollerVelocityScalar: layout.autoScrollerVelocityScalar,
+    // The pointers down on the list tell a drag the EndUser still holds
+    // from the fling of one they let go of ([_flinging]).
+    return Listener(
+      onPointerDown: _pointerDown,
+      onPointerPanZoomStart: _pointerDown,
+      onPointerUp: _pointerLifted,
+      onPointerCancel: _pointerLifted,
+      onPointerPanZoomEnd: _pointerLifted,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _endsReachOn,
+        child: _ReorderScrollView(
+          scrollDirection: layout.scrollDirection,
+          reverse: layout.reverse,
+          controller: widget.controller,
+          primary: layout.primary,
+          physics: layout.physics,
+          shrinkWrap: layout.shrinkWrap,
+          scrollCacheExtent: layout.scrollCacheExtent,
+          dragStartBehavior: layout.dragStartBehavior,
+          keyboardDismissBehavior: layout.keyboardDismissBehavior,
+          restorationId: layout.restorationId,
+          clipBehavior: layout.clipBehavior,
+          // A leaving item or closing gap has no semantic index, so the count
+          // and every semantic index stay indices of the app's data
+          // (invariant 58).
+          semanticChildCount: layout.itemCount,
+          slivers: [
+            SliverPadding(
+              padding: widget.padding ?? EdgeInsets.zero,
+              sliver: _ReorderSliver(
+                key: _listKey,
+                body: this,
+                itemBuilder: _buildItem,
+                itemCount: listCount,
+                onReorderItem: _handleReorderItem,
+                onReorderStart: _handleReorderStart,
+                onReorderEnd: _handleReorderEnd,
+                itemExtent: layout.itemExtent,
+                itemExtentBuilder: layout.itemExtentBuilder,
+                prototypeItem: layout.prototypeItem,
+                proxyDecorator: layout.dragStyle == null ? null : _proxy,
+                autoScrollerVelocityScalar: layout.autoScrollerVelocityScalar,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
