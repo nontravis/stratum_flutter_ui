@@ -27,6 +27,8 @@ const _valueModelFiles = [
   'lib/src/themes/typography/dimension.dart',
   'lib/src/themes/typography/typography.dart',
   'lib/src/themes/typography/typography_models.dart',
+  // M1-T7: the shipped model of FO-03 (design 5.2).
+  'lib/src/application/app_config.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside
