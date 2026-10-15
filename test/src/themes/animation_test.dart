@@ -444,7 +444,11 @@ void main() {
       expect(animation(100), base);
       expect(animation(100).hashCode, base.hashCode);
       expect(base.copyWith(micro: style(1)), isNot(base));
-      expect(base.copyWith(verySlow: style(400)), isNot(base));
+      expect(base.copyWith(veryFast: style(1)), isNot(base));
+      expect(base.copyWith(fast: style(1)), isNot(base));
+      expect(base.copyWith(normal: style(1)), isNot(base));
+      expect(base.copyWith(slow: style(1)), isNot(base));
+      expect(base.copyWith(verySlow: style(1)), isNot(base));
     });
 
     test('D2: copyWith replaces one level and keeps every other field', () {
