@@ -36,7 +36,7 @@ void main() {
       );
     });
 
-    test('us01/fr01/e03, Review Focus 5: two url sources built apart are '
+    test('fo05/us01/fr01/e03, Review Focus 5: two url sources built apart are '
         'equal, and a url source never equals an html one', () {
       // Built at run time from a parameter, so the checks read `==`.
       StratumWebViewSource make(String path) =>
