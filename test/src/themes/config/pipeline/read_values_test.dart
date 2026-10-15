@@ -209,7 +209,7 @@ color:
   });
 
   group('readThemeValues dimensions', () {
-    test('reads a scalar for every window size and a map per window size', () {
+    test('fo01/us05/s1, fo01/us05/fr01: reads a scalar for every window size and a map per window size', () {
       final (config, _) = _read([]);
 
       expect(

@@ -26,7 +26,7 @@ Object? _at(Map<String, Object?> tree, String path) {
 
 void main() {
   group('mergeThemes layers', () {
-    test('maps merge by key and values replace', () {
+    test('fo01/us04/s1: maps merge by key and values replace', () {
       final (merged, errors) = _merge([
         layer('color:\n  light:\n    brand:\n      normal: "#000000"'),
       ]);

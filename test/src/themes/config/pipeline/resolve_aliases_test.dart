@@ -41,19 +41,22 @@ const _figmaAlphas = {
 
 void main() {
   group('resolveThemeAliases values', () {
-    test('a palette alias takes the shade and records its chain', () {
-      final (resolved, errors) = _resolve([]);
+    test(
+      'fo01/us03/s1: a palette alias takes the shade and records its chain',
+      () {
+        final (resolved, errors) = _resolve([]);
 
-      expect(problems(errors), isEmpty);
-      expect(_at(resolved.tree, 'color.light.brand.normal'), '#3B82F6');
-      expect(resolved.chains['color.light.brand.normal'], [
-        'palette.brand.500',
-      ]);
-      expect(
-        resolved.aliases['color.light.brand.normal'],
-        '{palette.brand.500}',
-      );
-    });
+        expect(problems(errors), isEmpty);
+        expect(_at(resolved.tree, 'color.light.brand.normal'), '#3B82F6');
+        expect(resolved.chains['color.light.brand.normal'], [
+          'palette.brand.500',
+        ]);
+        expect(
+          resolved.aliases['color.light.brand.normal'],
+          '{palette.brand.500}',
+        );
+      },
+    );
 
     test('a two-hop chain reaches the palette through the color set', () {
       final (resolved, _) = _resolve([]);
