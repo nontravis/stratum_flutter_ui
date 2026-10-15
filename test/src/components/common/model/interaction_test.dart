@@ -303,4 +303,37 @@ void main() {
       expect(state(hovered: true), isNot(state(hovered: false)));
     });
   });
+
+  group('R1: Interaction as a freezed value', () {
+    void tap() {}
+
+    test('R1: equal fields and the same callbacks are equal', () {
+      // Built at run time from a parameter, so the checks read `==`.
+      Interaction make({required bool disabled}) => Interaction(
+        onTap: tap,
+        disabled: disabled,
+        shortcuts: {const SingleActivator(LogicalKeyboardKey.enter): tap},
+      );
+
+      expect(make(disabled: false), make(disabled: false));
+      expect(make(disabled: false).hashCode, make(disabled: false).hashCode);
+      expect(make(disabled: false), isNot(make(disabled: true)));
+    });
+
+    test('R1: callbacks compare by identity', () {
+      expect(Interaction(onTap: () {}), isNot(Interaction(onTap: () {})));
+    });
+
+    test('R1: copyWith changes one field and keeps the callbacks', () {
+      final copy = Interaction(onTap: tap).copyWith(autofocus: true);
+
+      expect(copy.autofocus, isTrue);
+      expect(copy.onTap, tap);
+      expect(copy.tapTargetSize, TapTargetSize.platform);
+    });
+
+    test("R4 Q2: takes freezed's toString", () {
+      expect(const Interaction().toString(), startsWith('Interaction('));
+    });
+  });
 }

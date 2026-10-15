@@ -35,6 +35,8 @@ const _valueModelFiles = [
   // M2-T11: the shipped models of FO-05 (design 5.2).
   'lib/src/components/common/model/image_blur_filter.dart',
   'lib/src/components/common/model/widget_style.dart',
+  // M3-T12: the shipped model of FO-06 (design 5.2).
+  'lib/src/components/common/model/interaction.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside
