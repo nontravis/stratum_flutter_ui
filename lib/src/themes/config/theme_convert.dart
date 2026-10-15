@@ -23,7 +23,10 @@ StratumByWindowSize<StratumDimension> convertByWindowSize(
 StratumTypography convertTypography(PlainTypography plain) => StratumTypography(
   fonts: plain.fonts,
   families: plain.families,
-  scaleByWindowSize: convertByWindowSize(plain.scaleByWindowSize),
+  scaleByWindowSize: switch (plain.scaleByWindowSize) {
+    final scale? => convertByWindowSize(scale),
+    null => null,
+  },
   types: frozenMap({
     for (final MapEntry(key: type, value: style) in plain.types.entries)
       type: StratumTypeStyle(

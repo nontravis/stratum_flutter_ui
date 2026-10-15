@@ -84,7 +84,6 @@ class StratumCaret extends StratumStatefulWidget {
     super.feedbackState,
     super.disabled,
     super.loading,
-    super.debug,
     super.customStyle,
   }) : assert(
          // `customSize.isFinite` is not const-evaluable; comparisons are,
@@ -242,7 +241,7 @@ class _StratumCaretState extends State<StratumCaret> {
             // with a child), so the caret lays out inside an
             // `IntrinsicWidth` or `IntrinsicHeight` ancestor (US-01
             // FR-02).
-            child: ContainerLayout(style: style, debug: widget.debug),
+            child: ContainerLayout(style: style),
             builder: (context, angle, child) => CustomPaint(
               // Foreground: painted after the box's own decoration, so a
               // `customStyle` background never hides the glyph. The

@@ -109,7 +109,6 @@ List<Object?> _props(StratumWidgetProps props) => [
   props.feedbackState,
   props.disabled,
   props.loading,
-  props.debug,
   props.customStyle,
 ];
 
@@ -139,7 +138,8 @@ Future<T> _readInBuild<T>(
 }
 
 void main() {
-  test('StratumStatelessWidget defaults to normal with no overrides', () {
+  test('fo08/us01/fr01: StratumStatelessWidget holds the nine props at their '
+      'defaults', () {
     expect(_props(const _StatelessProbe()), [
       null,
       null,
@@ -147,7 +147,6 @@ void main() {
       null,
       FullWidgetState.normal,
       null,
-      false,
       false,
       false,
       null,

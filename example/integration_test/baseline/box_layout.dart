@@ -2,7 +2,9 @@
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // The live names StratumInteraction and StratumScroll are patched to
-// Interaction and Scroll; everything else stays verbatim from e71c090.
+// Interaction and Scroll, and the debug line that wrapped the removed
+// WidgetPerformanceMonitor is dropped; everything else stays verbatim
+// from e71c090.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
 import 'baseline.dart';
 
@@ -97,7 +99,6 @@ abstract class BaselineBoxLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     var current = _isBare ? _buildBare(context) : _buildBox(context);
     if (repaintBoundary) current = RepaintBoundary(child: current);
-    if (debug) current = WidgetPerformanceMonitor(child: current);
     if (keepAlive) current = _KeepAlive(child: current);
     return current;
   }

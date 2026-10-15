@@ -49,6 +49,11 @@ class StratumByWindowSize<T> with _$StratumByWindowSize<T> {
     return values[WindowSize.values[index!]] as T;
   }
 
+  /// Whether [size] is one `theme.yaml` names: always true for `.all`, a
+  /// scalar that sets every window size; for a map, whether it declares
+  /// [size] (FO-02 US-04 FR-02, the shared window-size fill).
+  bool names(WindowSize size) => _values?.containsKey(size) ?? true;
+
   /// True when every window size gives the same value: such a token reads
   /// no `WindowSizeScope` (spec G11).
   bool get isUniform {

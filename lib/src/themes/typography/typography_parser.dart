@@ -35,9 +35,7 @@ final class PlainTypography {
     required this.fonts,
     required this.families,
     required this.types,
-    this.scaleByWindowSize = const PlainByWindowSize.all(
-      StratumDimension.fixed(0),
-    ),
+    this.scaleByWindowSize,
   });
 
   /// Each font by its key.
@@ -49,8 +47,8 @@ final class PlainTypography {
   /// The style of every type except `table`.
   final Map<FontType, PlainTypeStyle> types;
 
-  /// The size each window size adds.
-  final PlainByWindowSize scaleByWindowSize;
+  /// The size each window size adds, or null when the node names none.
+  final PlainByWindowSize? scaleByWindowSize;
 }
 
 /// Reads the `typography` subtree [node], which sits at the path
@@ -110,7 +108,7 @@ class _TypographyParser {
       fonts: fonts,
       families: families,
       scaleByWindowSize: scale == null || scale.isEmpty
-          ? const PlainByWindowSize.all(StratumDimension.fixed(0))
+          ? null
           : PlainByWindowSize(scale),
       types: types,
     );
@@ -639,9 +637,12 @@ final class _DrawSizeCheck {
     // (E19).
     final shadowed =
         window != null &&
-        (ownDeclaredWindows.contains(window)
-            ? !(style.scaleByWindowSize?.containsKey(window) ?? false)
-            : _themeFallbackRefused(window, themeDeclaredWindows));
+        _scaleSourceRefused(
+          window,
+          style,
+          ownDeclaredWindows,
+          themeDeclaredWindows,
+        );
     for (final key in fontKeys) {
       final adjustSize = _typography.fonts[key]?.adjustSize;
       if (adjustSize == null) continue;
@@ -670,18 +671,26 @@ final class _DrawSizeCheck {
     }
   }
 
-  /// Whether the theme-wide entry [window] would read, by `windowSizeNames`
-  /// order over [declared] (every key the raw node names, parsed or
-  /// refused), failed to parse: present in [declared] but missing from the
-  /// parsed `scaleByWindowSize.sizes` map.
-  bool _themeFallbackRefused(String window, Set<String> declared) {
-    final index = windowSizeEntryIndex(
-      windowSizeNames.indexOf(window),
-      (index) => declared.contains(windowSizeNames[index]),
+  /// Whether the window scale entry `windowScaleSource` picks for [window],
+  /// over the keys each raw map declares, parsed or refused ([ownDeclared]
+  /// for [style]'s own map, [themeDeclared] for the theme-wide one), failed
+  /// to parse: declared there, but missing from the parsed map (E19).
+  bool _scaleSourceRefused(
+    String window,
+    PlainTypeStyle style,
+    Set<String> ownDeclared,
+    Set<String> themeDeclared,
+  ) {
+    final source = windowScaleSource(
+      window,
+      ownSets: ownDeclared.contains,
+      themeSets: themeDeclared.contains,
     );
-    if (index == null) return false;
-    final name = windowSizeNames[index];
-    return !(_typography.scaleByWindowSize.sizes?.containsKey(name) ?? false);
+    if (source == null) return false;
+    final parsed = source.own
+        ? style.scaleByWindowSize
+        : _typography.scaleByWindowSize?.sizes;
+    return !(parsed?.containsKey(source.name) ?? false);
   }
 
   TextSize _sizeOf(
@@ -694,7 +703,7 @@ final class _DrawSizeCheck {
     base: size.value,
     window: window,
     ownScale: style.scaleByWindowSize,
-    themeScale: _typography.scaleByWindowSize.sizes,
+    themeScale: _typography.scaleByWindowSize?.sizes,
     adjustSize: adjustSize,
     spaceHeight: spaceHeight,
   );

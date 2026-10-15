@@ -75,7 +75,7 @@ class PageTransition<T> extends PageRouteBuilder<T> {
     this.ctx,
     this.inheritTheme = false,
     this.curve,
-    this.alignment,
+    this.alignment = Alignment.center,
     this.duration,
     this.reverseDuration,
     super.fullscreenDialog = false,
@@ -105,8 +105,9 @@ class PageTransition<T> extends PageRouteBuilder<T> {
   /// the fade a reduced-motion `platform` draws runs on the theme's.
   final Curve? curve;
 
-  /// Alignment for transitions
-  final Alignment? alignment;
+  /// The point `scale`, `rotate`, and `size` grow from; the center when
+  /// the caller sets none (US-05 FR-01 E03).
+  final Alignment alignment;
 
   /// The push duration; null takes zero for `none` (ruling R12), else the
   /// theme's `slow` level, 300 ms in the package default.

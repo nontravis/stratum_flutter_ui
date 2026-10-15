@@ -49,9 +49,6 @@ mixin StratumWidgetProps {
   /// Shows the loading state, such as an indeterminate spinner.
   bool get loading;
 
-  /// Forwarded to `ContainerLayout.debug`.
-  bool get debug;
-
   /// The highest layer of [resolveStyle].
   WidgetStyle? get customStyle;
 
