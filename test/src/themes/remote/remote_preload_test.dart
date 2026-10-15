@@ -64,8 +64,8 @@ void main() {
     expect(changes, isEmpty);
   });
 
-  test('fo04/us01/s14, fo04/us01/fr04/e01, fo04/us01/fr04/e02, fo03 us03/fr01/e03, fo03 '
-      'fo04/us01/fr03/e04: a damaged kept zip of an unbundled id is skipped, '
+  test('fo04/us01/s14, fo04/us01/fr04/e01, fo04/us01/fr04/e02, fo03/us03/fr01/e03, '
+      'fo03/us01/fr03/e04: a damaged kept zip of an unbundled id is skipped, '
       'reported, and the start falls back to default', () async {
     final controller = await start([
       _damaged(remoteTheme('songkran')),

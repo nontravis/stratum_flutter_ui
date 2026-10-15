@@ -326,7 +326,7 @@ void main() {
   });
 
   group('StratumAnimation.fromConfig transition', () {
-    test('us05/fr04: maps each window size name to its type', () {
+    test('fo05/us05/fr04: maps each window size name to its type', () {
       final animation = StratumAnimation.fromConfig(
         _config().copyWith(
           transitions: transitionsOf(

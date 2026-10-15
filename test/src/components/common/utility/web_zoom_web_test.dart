@@ -74,7 +74,7 @@ Future<void> _cornerPinch(WidgetTester tester, double factor) async {
 
 void main() {
   testWidgets('co01_04/us01/fr01: the web branch is one pinch zoom with the '
-      'limits, clipped to its bounds (fo06/us01/s7)', (tester) async {
+      'limits, clipped to its bounds (co01_04/us01/s7)', (tester) async {
     await tester.pumpWidget(
       _host(const StratumWebZoom(child: SizedBox.expand())),
     );
@@ -86,7 +86,7 @@ void main() {
   });
 
   testWidgets(
-    'fo06/us01/s1, fo06/us01/fr01/e02: a pinch out zooms in up to 2.5',
+    'co01_04/us01/s1, co01_04/us01/fr01/e02: a pinch out zooms in up to 2.5',
     (tester) async {
       await tester.pumpWidget(
         _host(const StratumWebZoom(child: SizedBox.expand())),
@@ -100,7 +100,9 @@ void main() {
     },
   );
 
-  testWidgets('fo06/us01/s6: a maximum of 4 zooms in up to 4', (tester) async {
+  testWidgets('co01_04/us01/s6: a maximum of 4 zooms in up to 4', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _host(const StratumWebZoom(maxScale: 4, child: SizedBox.expand())),
     );
@@ -111,7 +113,7 @@ void main() {
   });
 
   testWidgets(
-    'fo06/us01/fr01/e01, fo06/us01/s3: a pinch in at the default minimum '
+    'co01_04/us01/fr01/e01, co01_04/us01/s3: a pinch in at the default minimum '
     'keeps the app at its own size',
     (tester) async {
       await tester.pumpWidget(
@@ -124,7 +126,7 @@ void main() {
     },
   );
 
-  testWidgets('fo06/us01/s2: a pan moves the view across the zoomed app', (
+  testWidgets('co01_04/us01/s2: a pan moves the view across the zoomed app', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -140,7 +142,7 @@ void main() {
   });
 
   testWidgets(
-    'fo06/us01/fr01/e03, fo06/us01/s4: a browser trackpad pinch zooms in',
+    'co01_04/us01/fr01/e03, co01_04/us01/s4: a browser trackpad pinch zooms in',
     (tester) async {
       await tester.pumpWidget(
         _host(const StratumWebZoom(child: SizedBox.expand())),
@@ -160,7 +162,7 @@ void main() {
   );
 
   test(
-    'R8, fo06/us01/s9: a maximum below the minimum asserts on the web too',
+    'R8, co01_04/us01/s9: a maximum below the minimum asserts on the web too',
     () {
       for (final (min, max) in [(2.0, 1.0)]) {
         expect(
@@ -182,29 +184,26 @@ void main() {
       child: const SizedBox.expand(),
     );
 
-    testWidgets(
-      'fo06/us01/fr01/e05, fo06/us01/s10: a maximum lowered below the zoom '
-      'eases it back to the maximum, its center fixed',
-      (tester) async {
-        await tester.pumpWidget(_host(zoom()));
-        await _pinch(tester, 2);
-        final zoomed = _scale(tester);
-        final center = _sceneCenter(tester);
-        expect(zoomed, greaterThan(1.8));
+    testWidgets('co01_04/us01/fr01/e05, co01_04/us01/s10: a maximum lowered below the zoom '
+        'eases it back to the maximum, its center fixed', (tester) async {
+      await tester.pumpWidget(_host(zoom()));
+      await _pinch(tester, 2);
+      final zoomed = _scale(tester);
+      final center = _sceneCenter(tester);
+      expect(zoomed, greaterThan(1.8));
 
-        await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
-        await tester.pump(const Duration(milliseconds: 60));
-        expect(_scale(tester), inExclusiveRange(1.5, zoomed));
-        expect(_sceneCenter(tester), offsetMoreOrLessEquals(center));
+      await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(_scale(tester), inExclusiveRange(1.5, zoomed));
+      expect(_sceneCenter(tester), offsetMoreOrLessEquals(center));
 
-        await tester.pumpAndSettle();
-        expect(_scale(tester), 1.5);
-        expect(_sceneCenter(tester), offsetMoreOrLessEquals(center));
-      },
-    );
+      await tester.pumpAndSettle();
+      expect(_scale(tester), 1.5);
+      expect(_sceneCenter(tester), offsetMoreOrLessEquals(center));
+    });
 
     testWidgets(
-      'fo06/us01/fr01/e05: a minimum raised above the zoom eases it up '
+      'co01_04/us01/fr01/e05: a minimum raised above the zoom eases it up '
       'to the minimum, its center fixed',
       (tester) async {
         await tester.pumpWidget(_host(zoom()));
@@ -221,7 +220,7 @@ void main() {
     );
 
     testWidgets(
-      'fo06/us01/fr01/e05: under reduced motion the zoom jumps to the '
+      'co01_04/us01/fr01/e05: under reduced motion the zoom jumps to the '
       'new limit',
       (tester) async {
         await tester.pumpWidget(_host(zoom(), reduced: true));
@@ -236,17 +235,20 @@ void main() {
       },
     );
 
-    testWidgets('fo06/us01/fr01/e05: limits widened around the zoom leave it '
-        'alone', (tester) async {
-      await tester.pumpWidget(_host(zoom()));
-      await _pinch(tester, 2);
-      final zoomed = _scale(tester);
+    testWidgets(
+      'co01_04/us01/fr01/e05: limits widened around the zoom leave it '
+      'alone',
+      (tester) async {
+        await tester.pumpWidget(_host(zoom()));
+        await _pinch(tester, 2);
+        final zoomed = _scale(tester);
 
-      await tester.pumpWidget(_host(zoom(minScale: 0.5, maxScale: 4)));
+        await tester.pumpWidget(_host(zoom(minScale: 0.5, maxScale: 4)));
 
-      expect(tester.hasRunningAnimations, isFalse);
-      expect(_scale(tester), zoomed);
-    });
+        expect(tester.hasRunningAnimations, isFalse);
+        expect(_scale(tester), zoomed);
+      },
+    );
 
     testWidgets('R16: a maximum lowered past a corner zoom leaves no blank '
         'strip', (tester) async {
@@ -262,7 +264,7 @@ void main() {
       expect(translation.y, inInclusiveRange(300 * (1 - 1.5), 0.0));
     });
 
-    testWidgets('fo06/us01/fr01/e05: a pinch mid-ease shows its own scale, '
+    testWidgets('co01_04/us01/fr01/e05: a pinch mid-ease shows its own scale, '
         'not the stale eased one', (tester) async {
       await tester.pumpWidget(_host(zoom()));
       await _pinch(tester, 2);
@@ -296,26 +298,29 @@ void main() {
       expect(_scale(tester), 1.5);
     });
 
-    testWidgets('fo06/us01/fr01/e05: a rebuild with unchanged limits does not '
-        'restart the ease', (tester) async {
-      await tester.pumpWidget(_host(zoom()));
-      await _pinch(tester, 2);
+    testWidgets(
+      'co01_04/us01/fr01/e05: a rebuild with unchanged limits does not '
+      'restart the ease',
+      (tester) async {
+        await tester.pumpWidget(_host(zoom()));
+        await _pinch(tester, 2);
 
-      await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
-      await tester.pump(const Duration(milliseconds: 30));
-      final mid = _scale(tester);
+        await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
+        await tester.pump(const Duration(milliseconds: 30));
+        final mid = _scale(tester);
 
-      await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
-      await tester.pump(const Duration(milliseconds: 30));
+        await tester.pumpWidget(_host(zoom(maxScale: 1.5)));
+        await tester.pump(const Duration(milliseconds: 30));
 
-      expect(_scale(tester), lessThan(mid));
+        expect(_scale(tester), lessThan(mid));
 
-      await tester.pumpAndSettle();
-      expect(_scale(tester), 1.5);
-    });
+        await tester.pumpAndSettle();
+        expect(_scale(tester), 1.5);
+      },
+    );
 
     testWidgets(
-      'fo06/us01/fr01/e05: a dispose mid-ease leaves no ticker and no '
+      'co01_04/us01/fr01/e05: a dispose mid-ease leaves no ticker and no '
       'exception',
       (tester) async {
         await tester.pumpWidget(_host(zoom()));
@@ -330,7 +335,7 @@ void main() {
       },
     );
 
-    testWidgets('fo06/us01/fr01/e05: a wheel notch mid-ease leaves the ease '
+    testWidgets('co01_04/us01/fr01/e05: a wheel notch mid-ease leaves the ease '
         'running on schedule', (tester) async {
       await tester.pumpWidget(_host(zoom()));
       await _pinch(tester, 2);
@@ -383,7 +388,7 @@ void main() {
     );
 
     testWidgets(
-      'co01_04/us01/fr03, fo06/us01/fr03/e01, fo06/us01/s5: the wheel '
+      'co01_04/us01/fr03, co01_04/us01/fr03/e01, co01_04/us01/s5: the wheel '
       'scrolls a list and the scale stays',
       (tester) async {
         final controller = ScrollController(initialScrollOffset: 100);
@@ -398,7 +403,7 @@ void main() {
     );
 
     testWidgets(
-      'fo06/us01/fr03/e02: the wheel over content that does not scroll '
+      'co01_04/us01/fr03/e02: the wheel over content that does not scroll '
       'leaves the scale',
       (tester) async {
         await tester.pumpWidget(
@@ -411,21 +416,24 @@ void main() {
       },
     );
 
-    testWidgets('fo06/us01/fr03/e03: zoomed in, the wheel scrolls the list and '
-        'the scale stays', (tester) async {
-      final controller = ScrollController(initialScrollOffset: 100);
-      addTearDown(controller.dispose);
-      await tester.pumpWidget(list(controller));
-      await _pinch(tester, 2);
-      final zoomed = _scale(tester);
-      final offset = controller.offset;
-      expect(zoomed, greaterThan(1.2));
+    testWidgets(
+      'co01_04/us01/fr03/e03: zoomed in, the wheel scrolls the list and '
+      'the scale stays',
+      (tester) async {
+        final controller = ScrollController(initialScrollOffset: 100);
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(list(controller));
+        await _pinch(tester, 2);
+        final zoomed = _scale(tester);
+        final offset = controller.offset;
+        expect(zoomed, greaterThan(1.2));
 
-      await wheel(tester, const Offset(0, 20));
+        await wheel(tester, const Offset(0, 20));
 
-      expect(_scale(tester), zoomed);
-      expect(controller.offset, greaterThan(offset));
-    });
+        expect(_scale(tester), zoomed);
+        expect(controller.offset, greaterThan(offset));
+      },
+    );
 
     testWidgets('a wheel over a list already at its end leaves the scale', (
       tester,

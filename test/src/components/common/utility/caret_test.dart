@@ -481,7 +481,7 @@ void main() {
       FullWidgetState.focused,
       FullWidgetState.dragged,
     ]) {
-      testWidgets('co01_03/us01/fr04/e02: ${state.name} keeps the look', (
+      testWidgets('co01_03/us01/fr04: ${state.name} keeps the look', (
         tester,
       ) async {
         final (look, box) = await baseline(tester);
@@ -494,25 +494,20 @@ void main() {
     }
 
     for (final feedback in FeedbackState.values) {
-      testWidgets(
-        'co01_03/us01/fr04/e03: feedback ${feedback.name} keeps the look '
-        'and color',
-        (tester) async {
-          final (look, box) = await baseline(tester);
+      testWidgets('co01_03/us01/fr04: feedback ${feedback.name} keeps the look '
+          'and color', (tester) async {
+        final (look, box) = await baseline(tester);
 
-          await tester.pumpWidget(
-            themedHost(StratumCaret(feedbackState: feedback)),
-          );
+        await tester.pumpWidget(
+          themedHost(StratumCaret(feedbackState: feedback)),
+        );
 
-          expect(_look(tester), look);
-          expect(_box(tester), box);
-        },
-      );
+        expect(_look(tester), look);
+        expect(_box(tester), box);
+      });
     }
 
-    testWidgets('co01_03/us01/fr04/e04: loading keeps the look', (
-      tester,
-    ) async {
+    testWidgets('co01_03/us01/fr04: loading keeps the look', (tester) async {
       final (look, box) = await baseline(tester);
 
       await tester.pumpWidget(themedHost(const StratumCaret(loading: true)));

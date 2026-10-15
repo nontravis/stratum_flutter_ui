@@ -158,7 +158,7 @@ bool _apply(WidgetTester tester, _Reduce signal) {
 }
 
 void main() {
-  testWidgets("us11/fr01: a null duration takes the theme's slow level, "
+  testWidgets("fo03/us11/fr01: a null duration takes the theme's slow level, "
       'the pop at 64%', (tester) async {
     final route = await _push(tester, theme: motionTheme());
 
@@ -169,7 +169,7 @@ void main() {
     );
   });
 
-  testWidgets("us11/fr01: with no theme it takes the package default's "
+  testWidgets("fo03/us11/fr01: with no theme it takes the package default's "
       'slow level: 300 ms push, 192 ms pop', (tester) async {
     final route = await _push(tester);
 
@@ -224,67 +224,76 @@ void main() {
     expect(route.transitionDuration, const Duration(milliseconds: 333));
   });
 
-  testWidgets('us11/fr01: a slow level with no fields pushes and pops at zero '
-      'duration', (tester) async {
-    final theme = fakeTheme.copyWith(
-      animation: StratumAnimation(
-        micro: StratumAnimation.packageDefault.micro,
-        veryFast: StratumAnimation.packageDefault.veryFast,
-        fast: StratumAnimation.packageDefault.fast,
-        normal: StratumAnimation.packageDefault.normal,
-        slow: const AnimationStyle(),
-        verySlow: StratumAnimation.packageDefault.verySlow,
-        appear: StratumAnimation.packageDefault.appear,
-        defaultLevel: StratumMotionLevel.fast,
-      ),
-    );
+  testWidgets(
+    'fo03/us11/fr01: a slow level with no fields pushes and pops at zero '
+    'duration',
+    (tester) async {
+      final theme = fakeTheme.copyWith(
+        animation: StratumAnimation(
+          micro: StratumAnimation.packageDefault.micro,
+          veryFast: StratumAnimation.packageDefault.veryFast,
+          fast: StratumAnimation.packageDefault.fast,
+          normal: StratumAnimation.packageDefault.normal,
+          slow: const AnimationStyle(),
+          verySlow: StratumAnimation.packageDefault.verySlow,
+          appear: StratumAnimation.packageDefault.appear,
+          defaultLevel: StratumMotionLevel.fast,
+        ),
+      );
 
-    final route = await _push(tester, theme: theme);
+      final route = await _push(tester, theme: theme);
 
-    expect(route.transitionDuration, Duration.zero);
-    expect(route.reverseTransitionDuration, Duration.zero);
-  });
+      expect(route.transitionDuration, Duration.zero);
+      expect(route.reverseTransitionDuration, Duration.zero);
+    },
+  );
 
-  testWidgets('us11/fr01: a slow level with a duration and no reverse duration '
-      'or curve keeps that duration for the pop and falls back to '
-      'easeInOutSine', (tester) async {
-    final theme = fakeTheme.copyWith(
-      animation: StratumAnimation(
-        micro: StratumAnimation.packageDefault.micro,
-        veryFast: StratumAnimation.packageDefault.veryFast,
-        fast: StratumAnimation.packageDefault.fast,
-        normal: StratumAnimation.packageDefault.normal,
-        slow: const AnimationStyle(duration: Duration(milliseconds: 400)),
-        verySlow: StratumAnimation.packageDefault.verySlow,
-        appear: StratumAnimation.packageDefault.appear,
-        defaultLevel: StratumMotionLevel.fast,
-      ),
-    );
-    const page = SizedBox(key: ValueKey('page'));
+  testWidgets(
+    'fo03/us11/fr01: a slow level with a duration and no reverse duration '
+    'or curve keeps that duration for the pop and falls back to '
+    'easeInOutSine',
+    (tester) async {
+      final theme = fakeTheme.copyWith(
+        animation: StratumAnimation(
+          micro: StratumAnimation.packageDefault.micro,
+          veryFast: StratumAnimation.packageDefault.veryFast,
+          fast: StratumAnimation.packageDefault.fast,
+          normal: StratumAnimation.packageDefault.normal,
+          slow: const AnimationStyle(duration: Duration(milliseconds: 400)),
+          verySlow: StratumAnimation.packageDefault.verySlow,
+          appear: StratumAnimation.packageDefault.appear,
+          defaultLevel: StratumMotionLevel.fast,
+        ),
+      );
+      const page = SizedBox(key: ValueKey('page'));
 
-    final route = await _push(
-      tester,
-      theme: theme,
-      type: ScreenTransitionType.rightToLeft,
-      child: page,
-    );
-    expect(route.transitionDuration, const Duration(milliseconds: 400));
-    expect(route.reverseTransitionDuration, const Duration(milliseconds: 400));
-    await tester.pump(const Duration(milliseconds: 200));
+      final route = await _push(
+        tester,
+        theme: theme,
+        type: ScreenTransitionType.rightToLeft,
+        child: page,
+      );
+      expect(route.transitionDuration, const Duration(milliseconds: 400));
+      expect(
+        route.reverseTransitionDuration,
+        const Duration(milliseconds: 400),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
 
-    final slide = tester.widget<SlideTransition>(
-      find
-          .ancestor(
-            of: find.byKey(const ValueKey('page')),
-            matching: find.byType(SlideTransition),
-          )
-          .first,
-    );
-    expect(
-      slide.position.value.dx,
-      closeTo(1 - Curves.easeInOutSine.transform(0.5), 1e-9),
-    );
-  });
+      final slide = tester.widget<SlideTransition>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('page')),
+              matching: find.byType(SlideTransition),
+            )
+            .first,
+      );
+      expect(
+        slide.position.value.dx,
+        closeTo(1 - Curves.easeInOutSine.transform(0.5), 1e-9),
+      );
+    },
+  );
 
   testWidgets(
     'fo05/us05/fr03: a fade plays over the full duration under reduced '

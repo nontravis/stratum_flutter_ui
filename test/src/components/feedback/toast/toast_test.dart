@@ -588,7 +588,7 @@ void main() {
   );
 
   testWidgets(
-    'NFR-U06: co05_07/us01/fr01/e08: the kind icon, the action, and the close '
+    'NFR-U06: co05_07/us01/fr01: the kind icon, the action, and the close '
     'button each carry their own accessible name',
     (tester) async {
       _view(tester);

@@ -1038,7 +1038,7 @@ void main() {
       },
     );
 
-    test('fo04/us02/fr03/e02, fo01 fo04/us02/fr01/e05: a problem holding theme text '
+    test('fo04/us02/fr03/e02, fo01/us02/fr01/e05: a problem holding theme text '
         'prints escaped, with no raw control or non-ASCII byte', () async {
       _zip('brand.zip', {
         ..._theme(),

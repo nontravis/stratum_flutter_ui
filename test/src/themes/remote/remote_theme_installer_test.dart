@@ -55,7 +55,7 @@ void main() {
   );
 
   test(
-    'fo04/us01/fr03/e03, fo03 us05/fr01/e03: each install of an id takes the '
+    'fo04/us01/fr03/e03, fo03/us05/fr01/e03: each install of an id takes the '
     'next generation, and its font family carries it',
     () async {
       await _prepare(remoteTheme('brand'));
