@@ -14726,6 +14726,57 @@ void main() {
       },
     );
 
+    // Whether reduced motion is on: a leaving item then takes no room and
+    // sits after the item that takes its place.
+    final earlyRemoves = ValueVariant<bool>({false, true});
+    testWidgets(
+      'us11/fr04 and s03/inv58 (D9): many removeItem calls on kept-alive '
+      'items before the laid-out range leave no ended exit behind, and move '
+      'no laid-out item on screen',
+      (tester) async {
+        if (earlyRemoves.currentValue!) {
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(reduceMotion: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+        }
+        // Items 0 to 13, all the frame at offset 0 builds, keep themselves
+        // alive once the list scrolls away, so each one a call takes out
+        // leaves, and a kept-alive item still follows the last one taken.
+        await _pumpScrolled(
+          tester,
+          _Harness(
+            count: 200,
+            keepAliveIds: {for (var id = 0; id < 14; id++) id},
+            itemsController: ReorderableItemsController(),
+          ),
+        );
+        final harness = _harness(tester);
+        final top = _top(tester, 100);
+        // The slots the sliver holds past the data's items: its exits.
+        int exitSlots() {
+          final sliver = tester.widget<SliverMultiBoxAdaptorWidget>(
+            find.byWidgetPredicate(
+              (widget) => widget is SliverMultiBoxAdaptorWidget,
+              skipOffstage: false,
+            ),
+          );
+          final delegate = sliver.delegate as SliverChildBuilderDelegate;
+          return delegate.childCount! - harness.ids.length;
+        }
+
+        for (var i = 0; i < 10; i++) {
+          harness.remove(0);
+          await tester.pumpAndSettle();
+          expect(exitSlots(), 0);
+          expect(_top(tester, 100), top);
+        }
+        expect(tester.takeException(), isNull);
+      },
+      variant: earlyRemoves,
+    );
+
     // A no-room exit whose host the trailing edge cuts, and one that hangs
     // past the last item: the item count, the removed id, and the item it
     // paints over or past.

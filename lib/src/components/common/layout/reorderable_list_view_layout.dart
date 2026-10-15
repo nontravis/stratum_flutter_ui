@@ -1113,10 +1113,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
       ..motion.dispose();
   }
 
-  /// Drops each ended exit the last frame laid out or that sits past the
-  /// first laid-out item, by its index after [calls]: its slot then moves
-  /// no item on screen. With that item taken out by a call, an exit not
-  /// laid out waits for a later build.
+  /// Drops every ended exit, by its index after [calls], so none outlives
+  /// its slot (D9 item 4): one the last frame laid out, or that sits past
+  /// the first laid-out item, moves no item on screen; one before that item
+  /// counts out of the slots before it ([_slotsBefore]), so that item keeps
+  /// its place. With that item taken out by a call, an exit not laid out
+  /// waits for a later build.
   void _dropEndedExits(List<_Call> calls) {
     if (!_exits.any((exit) => exit.ended)) return;
     final laid = _laidOut();
@@ -1132,13 +1134,21 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     ) {
       if (child case _RenderSlotSemantics(:final exit?)) laidOut.add(exit);
     }
-    _exits.removeWhere(
-      (exit) =>
-          exit.ended &&
-          (laid == null ||
-              laidOut.contains(exit) ||
-              (first != null && exit.gap > first)),
-    );
+    // A leaving item that takes no room sits after the item that takes its
+    // place ([_FramePlan.of]).
+    final noRoom = _layout.itemCount > 0 && _exitsTakeNoExtent(context);
+    _exits.removeWhere((exit) {
+      if (!exit.ended) return false;
+      if (laid == null || laidOut.contains(exit)) return true;
+      if (first == null) return false;
+      if (exit.gap > first) return true;
+      final after = noRoom ? exit.gap + 1 : exit.gap;
+      if (after > first) return false;
+      // Under a fixed extent the sliver places each slot by the extents
+      // before it, and an ended exit takes none, so nothing counts.
+      if (!_fixedExtent) _slotsBefore -= 1;
+      return true;
+    });
   }
 
   /// The index the item at [index] of the current data had at the last

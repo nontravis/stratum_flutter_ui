@@ -62,6 +62,10 @@ class _FramePlan {
 
   int get childCount => dataCount + exits.length;
 
+  /// Whether a leaving item hangs back over the item before it, the only
+  /// slot the sliver's paint must reach past its edge ([_PaintsHangs]).
+  bool get hangs => exits.any((entry) => entry.back);
+
   /// The data index, or the leaving item, at [slot].
   ({int? data, _PlannedExit? exit}) at(int slot) {
     var before = 0;
@@ -436,9 +440,20 @@ class _RenderHang extends RenderProxyBox {
 /// paints a child only when the child's leading edge lies inside the paint
 /// extent. Its hit test and semantics stay off ([_RenderHang]).
 mixin _PaintsHangs on RenderSliverMultiBoxAdaptor {
+  /// Whether the frame plan holds a leaving item that hangs back
+  /// ([_FramePlan.hangs]); with none, as at rest, paint walks no child.
+  bool get hangs => _hangs;
+  var _hangs = false;
+  set hangs(bool value) {
+    if (value == _hangs) return;
+    _hangs = value;
+    markNeedsPaint();
+  }
+
   @override
   void paint(PaintingContext context, Offset offset) {
     super.paint(context, offset);
+    if (!_hangs) return;
     final end = constraints.remainingPaintExtent;
     var hosted = false;
     for (var child = firstChild; child != null; child = childAfter(child)) {
@@ -465,18 +480,34 @@ mixin _PaintsHangs on RenderSliverMultiBoxAdaptor {
 /// keeps the item the last frame laid out first where it stands when a
 /// build adds or drops [slotsBefore] slots before it (D9 item 4).
 class _SlotList extends SliverList {
-  const new({required super.delegate, required this.slotsBefore});
+  const new({
+    required super.delegate,
+    required this.slotsBefore,
+    required this.hangs,
+  });
 
   /// The slots this build added, less those it dropped, before the item
   /// the last frame laid out first.
   final int slotsBefore;
+
+  /// Whether a leaving item hangs back ([_FramePlan.hangs]).
+  final bool hangs;
 
   @override
   SliverMultiBoxAdaptorElement createElement() => _SlotListElement(this);
 
   @override
   RenderSliverList createRenderObject(BuildContext context) =>
-      _RenderSlotList(childManager: context as SliverMultiBoxAdaptorElement);
+      _RenderSlotList(childManager: context as SliverMultiBoxAdaptorElement)
+        ..hangs = hangs;
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderSlotList renderObject,
+  ) {
+    renderObject.hangs = hangs;
+  }
 }
 
 /// The SDK's [SliverList] element, which keeps each slot's layout offset by
@@ -541,6 +572,7 @@ class _PrototypeExtent extends SliverVariedExtentList {
     required this.uniformPlan,
     required this.prototypeItem,
     required this.onExtent,
+    required this.hangs,
   });
 
   /// The plan the slots lay out by when every data item takes one extent,
@@ -549,6 +581,9 @@ class _PrototypeExtent extends SliverVariedExtentList {
 
   final Widget? prototypeItem;
   final ValueSetter<double> onExtent;
+
+  /// Whether a leaving item hangs back ([_FramePlan.hangs]).
+  final bool hangs;
 
   @override
   SliverMultiBoxAdaptorElement createElement() => _PrototypeExtentElement(this);
@@ -560,7 +595,7 @@ class _PrototypeExtent extends SliverVariedExtentList {
         itemExtentBuilder: itemExtentBuilder,
         uniformPlan: uniformPlan,
         onExtent: onExtent,
-      );
+      )..hangs = hangs;
 
   @override
   void updateRenderObject(
@@ -570,7 +605,8 @@ class _PrototypeExtent extends SliverVariedExtentList {
     super.updateRenderObject(context, renderObject);
     renderObject
       ..uniformPlan = uniformPlan
-      ..onExtent = onExtent;
+      ..onExtent = onExtent
+      ..hangs = hangs;
   }
 }
 

@@ -819,6 +819,7 @@ class _ReorderSliverState extends SliverReorderableListState {
     // Under a fixed extent a leaving item takes a slot of no extent, so
     // every fixed kind lays out through the plan's extents. The prototype
     // takes no Tab stop and no screen-reader node (invariant 58).
+    final hangs = _body._plan.hangs;
     if (_body._fixedExtent) {
       final prototype = widget.prototypeItem;
       return _PrototypeExtent(
@@ -829,9 +830,14 @@ class _ReorderSliverState extends SliverReorderableListState {
             ? null
             : ExcludeFocus(child: ExcludeSemantics(child: prototype)),
         onExtent: (extent) => _body._prototypeExtent = extent,
+        hangs: hangs,
       );
     }
-    return _SlotList(delegate: delegate, slotsBefore: slotsBefore);
+    return _SlotList(
+      delegate: delegate,
+      slotsBefore: slotsBefore,
+      hangs: hangs,
+    );
   }
 }
 
