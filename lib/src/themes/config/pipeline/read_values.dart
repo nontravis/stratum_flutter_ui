@@ -777,11 +777,15 @@ final class _Read {
       // A copied literal alias (one `_retarget` left unchanged) names the
       // same token the base set's own leaf does, which already reported at
       // the base set (invariant 18); only a retargeted alias, which names a
-      // token inside the overlay set's own color set, can fail here.
+      // token inside the overlay set's own color set, can fail here. A
+      // retargeted token the overlay set itself never set is inherited too,
+      // so it holds the base set's own value, whose leaf already reported
+      // (invariant 18): skip it rather than report it a second time.
       final overlay = path.split('.')[1];
       final token = _theme.chains[path]?.first;
       if (token != null &&
           token.startsWith('color.$overlay.') &&
+          !_theme.inherited.contains(token) &&
           _reportedClear.add(token)) {
         _reader.report(
           StratumThemeErrorCode.expectedColor,
