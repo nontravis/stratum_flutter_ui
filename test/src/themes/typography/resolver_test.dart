@@ -490,6 +490,73 @@ typography:
         18,
       );
     });
+
+    test('fo02/us04/fr02: a theme without a theme-wide scaleByWindowSize '
+        "fills an omitted window size from the type's own map, built in "
+        'code', () {
+      final theme = fakeStratumTheme(
+        typography: const StratumTypography(
+          fonts: {'inter': StratumFontData(family: 'Inter')},
+          families: {
+            'default': StratumFamilySet(
+              types: {FontType.body: StratumFontRef(font: 'inter')},
+            ),
+          },
+          types: {
+            FontType.body: StratumTypeStyle(
+              weight: FontWeight.w400,
+              scaleByWindowSize: {WindowSize.mobile: StratumDimension.fixed(3)},
+              sizes: {
+                FontSize.s16: StratumSizeMetrics(
+                  spaceHeight: StratumDimension.fixed(8),
+                ),
+              },
+            ),
+          },
+        ),
+      );
+
+      expect(
+        TypographyResolver.resolve(
+          StratumTextStyle.body,
+          theme: theme,
+          locale: _en,
+          windowSize: WindowSize.tablet,
+          textScaler: TextScaler.noScaling,
+        ).fontSize,
+        19,
+      );
+    });
+
+    test('fo02/us04/fr02: the same, parsed from yaml with no '
+        'scaleByWindowSize key at all', () {
+      theme = _theme('''
+typography:
+  fonts: { inter: { family: Inter } }
+  families:
+    default:
+      header: inter
+      paragraph: inter
+      number: inter
+      code: inter
+      body: inter
+      table: inter
+  types:
+    header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body:
+      weight: 400
+      scaleByWindowSize: { mobile: 3 }
+      sizes: { s16: { spaceHeight: 8 } }
+''');
+
+      expect(
+        resolve(StratumTextStyle.body, windowSize: WindowSize.tablet).fontSize,
+        19,
+      );
+    });
   });
 
   group('TypographyResolver draw-time fallback', () {

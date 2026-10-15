@@ -35,9 +35,7 @@ final class PlainTypography {
     required this.fonts,
     required this.families,
     required this.types,
-    this.scaleByWindowSize = const PlainByWindowSize.all(
-      StratumDimension.fixed(0),
-    ),
+    this.scaleByWindowSize,
   });
 
   /// Each font by its key.
@@ -49,8 +47,8 @@ final class PlainTypography {
   /// The style of every type except `table`.
   final Map<FontType, PlainTypeStyle> types;
 
-  /// The size each window size adds.
-  final PlainByWindowSize scaleByWindowSize;
+  /// The size each window size adds, or null when the node names none.
+  final PlainByWindowSize? scaleByWindowSize;
 }
 
 /// Reads the `typography` subtree [node], which sits at the path
@@ -110,7 +108,7 @@ class _TypographyParser {
       fonts: fonts,
       families: families,
       scaleByWindowSize: scale == null || scale.isEmpty
-          ? const PlainByWindowSize.all(StratumDimension.fixed(0))
+          ? null
           : PlainByWindowSize(scale),
       types: types,
     );
@@ -691,7 +689,7 @@ final class _DrawSizeCheck {
     if (source == null) return false;
     final parsed = source.own
         ? style.scaleByWindowSize
-        : _typography.scaleByWindowSize.sizes;
+        : _typography.scaleByWindowSize?.sizes;
     return !(parsed?.containsKey(source.name) ?? false);
   }
 
@@ -705,7 +703,7 @@ final class _DrawSizeCheck {
     base: size.value,
     window: window,
     ownScale: style.scaleByWindowSize,
-    themeScale: _typography.scaleByWindowSize.sizes,
+    themeScale: _typography.scaleByWindowSize?.sizes,
     adjustSize: adjustSize,
     spaceHeight: spaceHeight,
   );

@@ -496,7 +496,7 @@ void main() {
         WindowSize.mobile: const StratumDimension.fixed(10000),
       });
       expect(
-        typography.scaleByWindowSize.valueFor(WindowSize.desktop),
+        typography.scaleByWindowSize!.valueFor(WindowSize.desktop),
         const StratumDimension.percent(-0.5),
       );
     });

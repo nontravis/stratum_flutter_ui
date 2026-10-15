@@ -47,14 +47,12 @@ abstract class StratumTypography with _$StratumTypography {
     /// its style is `body`'s, read in code.
     required Map<FontType, StratumTypeStyle> types,
 
-    /// The size each window size adds. A window size the yaml map omits
-    /// takes the value of the nearest smaller window size it names, else
-    /// of the smallest one it names; a theme without the map adds 0
-    /// everywhere.
-    @Default(
-      StratumByWindowSize<StratumDimension>.all(StratumDimension.fixed(0)),
-    )
-    StratumByWindowSize<StratumDimension> scaleByWindowSize,
+    /// The size each window size adds, or null when the theme names no
+    /// window size. A window size the yaml map omits takes the value of
+    /// the nearest smaller window size it names, else of the smallest one
+    /// it names; with neither this map nor a type's own map set, the
+    /// scale adds 0.
+    StratumByWindowSize<StratumDimension>? scaleByWindowSize,
   }) = _StratumTypography;
 
   /// Parses the `typography:` node of one `theme.yaml` file.

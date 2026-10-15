@@ -72,8 +72,8 @@ abstract final class TypographyResolver {
           ? null
           : {
               for (final size in WindowSize.values)
-                if (typography.scaleByWindowSize.names(size))
-                  size.name: typography.scaleByWindowSize.valueFor(size),
+                if (typography.scaleByWindowSize?.names(size) ?? false)
+                  size.name: typography.scaleByWindowSize!.valueFor(size),
             },
       adjustSize: font.adjustSize,
       spaceHeight: metrics.spaceHeight,
