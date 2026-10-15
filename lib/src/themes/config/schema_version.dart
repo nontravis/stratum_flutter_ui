@@ -10,12 +10,13 @@ part 'generated/schema_version.freezed.dart';
 class StratumSchemaVersion with _$StratumSchemaVersion {
   const new(this.major, this.minor, this.patch);
 
-  /// The newest version this package reads: `stratum-theme/v1.4.0`, the
-  /// version that adds the `system` group (config s03 invariant 16), after
-  /// `v1.1.0` added `opacity` with `disabled`, `v1.2.0` added the
-  /// `border`, `shadow`, and `blur` groups (invariants 12 to 14), and
-  /// `v1.3.0` added `opacity.scrim` (invariant 11).
-  static const current = StratumSchemaVersion(1, 4, 0);
+  /// The newest version this package reads: `stratum-theme/v1.5.0`, the
+  /// version that adds the `focus` group (config s03 invariant 19), after
+  /// `v1.1.0` added `opacity` with `disabled`, `v1.2.0` added the `border`,
+  /// `shadow`, and `blur` groups (invariants 12 to 14), `v1.3.0` added
+  /// `opacity.scrim` (invariant 11), and `v1.4.0` added the `system` group
+  /// (invariant 16).
+  static const current = StratumSchemaVersion(1, 5, 0);
 
   static final _pattern = RegExp(r'^stratum-theme/v(\d+)\.(\d+)\.(\d+)$');
 

@@ -4,7 +4,7 @@
 
 /// The package default theme yaml, for tests that run on the web,
 /// where neither dart:io nor an asset bundle exists.
-const defaultThemeYaml = r"""$schema: stratum-theme/v1.4.0
+const defaultThemeYaml = r"""$schema: stratum-theme/v1.5.0
 name: stratum-default
 
 assets:
@@ -774,6 +774,30 @@ system:                      # the look of the status bar and the navigation bar
     navigationBarDividerColor: "#00000000"
     navigationBarContrast: true
     appSwitcherColor: "{color.dark.background.default.normal}"
+  highContrastLight: {}      # partial overlays on light and dark, as in color
+  highContrastDark: {}
+
+focus:                       # the focus ring's level 0 (FO-06 US-04 FR-03), the Figma FocusBorder look
+  light:
+    outside:                 # every interaction the user does not type into
+      color: "{color.light.border.subtle.blue}"
+      width: 3
+      gap: 2
+    inside:                  # form components the user types into; no gap, it never applies inward
+      color: "{color.light.border.default.normal}"
+      width:
+        hovered: 3
+        focused: 2
+  dark:
+    outside:
+      color: "{color.dark.border.subtle.blue}"
+      width: 3
+      gap: 2
+    inside:
+      color: "{color.dark.border.default.normal}"
+      width:
+        hovered: 3
+        focused: 2
   highContrastLight: {}      # partial overlays on light and dark, as in color
   highContrastDark: {}
 

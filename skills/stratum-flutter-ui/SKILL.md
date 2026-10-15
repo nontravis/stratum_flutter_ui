@@ -568,8 +568,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   default sets 0.5 for both, and an app theme may leave the group out. Read them as
   `StratumThemeApplication.of(context).opacity.disabled` and `.opacity.scrim`. A value outside 0 to 1 throws
   `StratumThemeFormatException` with `expected_opacity` at its path, and a third key under `opacity` is
-  `unknown_key`. The package default reads `$schema: stratum-theme/v1.4.0`; this package reads every `v1.0` to
-  `v1.4` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.5.0`; this package reads every `v1.0` to
+  `v1.5` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
   `unsupported_schema`, so a theme that must load on every build writes `v1.0.0` and leaves `opacity` out; one that
   must load on every build from `v1.1` on writes `v1.1.0` and keeps `disabled` but leaves `scrim` out.
 - **Border, shadow, and blur tokens** — `border`, `shadow`, and `blur` in `theme.yaml` (format
@@ -608,6 +608,13 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   (see System bars): a `system` set holding `barMode`, `orientations`, or `appSwitcherLabel` throws
   `StratumThemeFormatException` with `unknown_key`, a bad icons value `expected_bar_icons`, and a bad flag
   `expected_boolean`. A package build that reads only up to `v1.3` refuses a `v1.4` theme as `unsupported_schema`.
+- **Focus ring look** — `focus` in `theme.yaml` (format `stratum-theme/v1.5.0`) sets the focus ring's theme look:
+  `light`, `dark`, and the optional partial overlays `highContrastLight` and `highContrastDark`, each with `outside`
+  (`color`, `width`, `gap`) and `inside` (`color`, and a `width` of `hovered` and `focused`). Each color is a quoted
+  hex color or an alias to a color token; a color whose alpha is 0 is `expected_color`, and a width of 0 is
+  `expected_dimension`, since either hides the ring; a gap of 0 loads. A file that leaves the group out keeps the
+  Figma `FocusBorder` look. A package build that reads only up to `v1.4` refuses a `v1.5` theme as
+  `unsupported_schema`.
 - Read the theme data, its default widget size, and the window size where a widget sits:
   `context.themeData()` (or `context.themeData(ThemeMode.dark)`), `context.defaultWidgetSize()`, and
   `context.windowSize`. Each throws a `FlutterError`: `themeData` and `defaultWidgetSize` name the missing

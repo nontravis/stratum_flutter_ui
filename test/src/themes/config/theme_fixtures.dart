@@ -143,6 +143,15 @@ system:
     appSwitcherColor: "{color.dark.brand.normal}"
   highContrastLight: {}
   highContrastDark: {}
+focus:
+  light:
+    outside: { color: "{color.light.brand.normal}", width: 3, gap: 2 }
+    inside: { color: "{color.light.brand.hover}", width: { hovered: 3, focused: 2 } }
+  dark:
+    outside: { color: "{color.dark.brand.normal}", width: 3, gap: 2 }
+    inside: { color: "{color.dark.brand.hover}", width: { hovered: 3, focused: 2 } }
+  highContrastLight: {}
+  highContrastDark: {}
 ''';
 
 /// The folder of the package default in [sources].
