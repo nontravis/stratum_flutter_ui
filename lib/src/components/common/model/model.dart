@@ -1,6 +1,7 @@
 export 'focus_border/stratum_focus_border_style.dart';
 export 'focus_group.dart';
 export 'image_blur_filter.dart';
+export 'ink_well/stratum_ink_well_style.dart';
 export 'interaction.dart';
 export 'interaction_state.dart';
 export 'modal_layout/modal_layout_style.dart';

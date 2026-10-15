@@ -362,6 +362,26 @@ void main() {
       },
     );
 
+    testWidgets('fo06/us04/fr03/e16: interaction.customStyle forwards to the '
+        'tap surface', (tester) async {
+      const style = StratumInkWellStyle(
+        focus: StratumFocusBorderStyle(width: WidgetStatePropertyAll(4)),
+      );
+      await tester.pumpWidget(
+        themedHost(
+          const ContainerLayout(
+            interaction: Interaction(onTap: _noop, customStyle: style),
+            child: SizedBox(width: 40, height: 20),
+          ),
+        ),
+      );
+
+      expect(
+        tester.widget<StratumInkWell>(find.byType(StratumInkWell)).customStyle,
+        style,
+      );
+    });
+
     testWidgets(
       "fo06/us11/fr01: an interaction animates a style over the theme's "
       'fast level by default',

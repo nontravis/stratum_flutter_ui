@@ -1,3 +1,8 @@
+// NFR-U04 n/a: the surface paints no text of its own; the child owns any
+// text and scales on its own (US-04 gate block).
+// NFR-U09 n/a: every gesture the surface offers is a single tap, and Enter
+// runs the same action (US-04 gate block).
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/ink_well.dart'
     show semanticsWithoutHeading, tapSurfaceHeadingLevel;
@@ -3107,5 +3112,289 @@ void main() {
         });
       },
     );
+  });
+
+  group('StratumInkWell focus style levels', () {
+    const red = Color(0xFFFF0000);
+    const green = Color(0xFF00FF00);
+
+    Widget host({
+      StratumInkWellStyle? customStyle,
+      FocusNode? node,
+      Key? key,
+    }) => StratumInkWell(
+      key: key,
+      onTap: _noop,
+      focusNode: node,
+      customStyle: customStyle,
+      child: _box,
+    );
+
+    Widget app(Widget child, {Map<Type, Object> parts = const {}}) =>
+        themedHost(
+          StratumComponentDefaults(
+            styles: const {},
+            parts: parts,
+            child: child,
+          ),
+        );
+
+    testWidgets('fo06/us04/fr03/e15, fo03/us06/fr01/e04: the tap surface '
+        "style's focus wins field by field over the every-ring style", (
+      tester,
+    ) async {
+      _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+      final node = _node();
+      await tester.pumpWidget(
+        app(
+          host(node: node),
+          parts: const {
+            StratumFocusBorder: StratumFocusBorderStyle(
+              color: WidgetStatePropertyAll(red),
+              width: WidgetStatePropertyAll(5),
+            ),
+            StratumInkWell: StratumInkWellStyle(
+              focus: StratumFocusBorderStyle(
+                color: WidgetStatePropertyAll(green),
+              ),
+            ),
+          },
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      final side = _ringSide(tester);
+      expect(side.color, isSameColorAs(green));
+      expect(side.width, 5);
+    });
+
+    testWidgets("fo06/us04/fr03/e16: one surface's customStyle restyles its "
+        'own ring and no other', (tester) async {
+      _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+      final mine = _node();
+      final other = _node();
+      await tester.pumpWidget(
+        app(
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              host(
+                key: const ValueKey('mine'),
+                node: mine,
+                customStyle: const StratumInkWellStyle(
+                  focus: StratumFocusBorderStyle(
+                    color: WidgetStatePropertyAll(red),
+                  ),
+                ),
+              ),
+              host(key: const ValueKey('other'), node: other),
+            ],
+          ),
+        ),
+      );
+      BorderSide ringOf(String key) {
+        final box = tester.widget<DecoratedBox>(
+          find
+              .descendant(
+                of: find.descendant(
+                  of: find.byKey(ValueKey(key)),
+                  matching: find.byType(StratumFocusBorder),
+                ),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        );
+        final shape = (box.decoration as ShapeDecoration).shape;
+        return (shape as RoundedRectangleBorder).side;
+      }
+
+      mine.requestFocus();
+      await tester.pumpAndSettle();
+      expect(ringOf('mine').color, isSameColorAs(red));
+
+      other.requestFocus();
+      await tester.pumpAndSettle();
+      expect(
+        ringOf('other').color,
+        isSameColorAs(fakeTheme.color.border.subtle.blue),
+      );
+    });
+  });
+
+  group('StratumInkWell accessibility gate', () {
+    testWidgets('NFR-U06: a surface with an activation callback reads as an '
+        'enabled button with its label', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(label: 'Save'),
+            child: _box,
+          ),
+        ),
+      );
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(
+          label: 'Save',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+        ),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('NFR-U02: Tab reaches the surface and its focused look '
+        'differs from idle', (tester) async {
+      await tester.pumpWidget(
+        _appHost(const StratumInkWell(onTap: _noop, child: _box)),
+      );
+      expect(_ring(tester), isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      expect(_ring(tester), isTrue);
+      expect(_ringSide(tester).color.a, greaterThan(0));
+    });
+
+    testWidgets('NFR-U01: a labeled surface passes the labeled tap target '
+        'guideline', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(label: 'Save'),
+            child: _box,
+          ),
+        ),
+      );
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      semantics.dispose();
+    });
+
+    testWidgets('NFR-U01 exception, us04/nf01: the app-wide tap surface style '
+        'replaces the ring token that fails 3:1', (tester) async {
+      _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+      const strong = Color(0xFF1D4ED8);
+      final node = _node();
+      await tester.pumpWidget(
+        themedHost(
+          StratumComponentDefaults(
+            styles: const {},
+            parts: const {
+              StratumInkWell: StratumInkWellStyle(
+                focus: StratumFocusBorderStyle(
+                  color: WidgetStatePropertyAll(strong),
+                ),
+              ),
+            },
+            child: StratumInkWell(onTap: _noop, focusNode: node, child: _box),
+          ),
+          theme: defaultThemeSet.light,
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      expect(_ringSide(tester).color, isSameColorAs(strong));
+    });
+
+    Widget highContrast(Widget child) => StratumThemeApplication(
+      themes: defaultThemeSet,
+      themeMode: ThemeMode.light,
+      highContrast: StratumHighContrastMode.on,
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(child: child),
+      ),
+    );
+
+    testWidgets('NFR-U07, NFR-U08: under high contrast the focused surface '
+        'shows the ring shape in the high-contrast token', (tester) async {
+      _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+      final node = _node();
+      await tester.pumpWidget(
+        highContrast(
+          StratumInkWell(onTap: _noop, focusNode: node, child: _box),
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      final side = _ringSide(tester);
+      expect(side.width, 3);
+      expect(
+        side.color,
+        isSameColorAs(defaultThemeSet.highContrastLight!.focus.outsideColor),
+      );
+    });
+
+    testWidgets('NFR-U08: a disabled surface announces disabled, not a '
+        'color change alone', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(onTap: _noop, disabled: true, child: _box),
+        ),
+      );
+      expect(
+        tester.getSemantics(find.byType(StratumInkWell)),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets("NFR-E01: the hover overlay follows the theme's state.hover", (
+      tester,
+    ) async {
+      Future<Color?> hovered(StratumThemeData theme) async {
+        final states = _states({});
+        await tester.pumpWidget(
+          themedHost(
+            StratumInkWell(onTap: _noop, statesController: states, child: _box),
+            theme: theme,
+          ),
+        );
+        states.update(WidgetState.hovered, true);
+        await tester.pumpAndSettle();
+        return _overlayColor(tester);
+      }
+
+      expect(await hovered(fakeTheme), fakeHover);
+      expect(
+        await hovered(fakeStratumTheme(hover: const Color(0x33000000))),
+        const Color(0x33000000),
+      );
+    });
+
+    testWidgets("NFR-E02: focus, the tap surface style's one field, shows on "
+        'its ring, and the ring width keeps the theme default', (tester) async {
+      _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+      const red = Color(0xFFFF0000);
+      final node = _node();
+      await tester.pumpWidget(
+        themedHost(
+          StratumInkWell(
+            onTap: _noop,
+            focusNode: node,
+            customStyle: const StratumInkWellStyle(
+              focus: StratumFocusBorderStyle(
+                color: WidgetStatePropertyAll(red),
+              ),
+            ),
+            child: _box,
+          ),
+        ),
+      );
+      node.requestFocus();
+      await tester.pumpAndSettle();
+
+      final side = _ringSide(tester);
+      expect(side.color, isSameColorAs(red));
+      expect(side.width, fakeTheme.focus.outsideWidth);
+    });
   });
 }

@@ -347,7 +347,10 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `RowLayout`, `StackLayout`, `WrapLayout`) with a tap surface, so a dense `BoxLayout` opts out the same way.
   `onHover` reports a pointer over the surface while it is enabled: turning disabled under a still pointer, by its own
   `disabled` or a disabled component around it, calls `onHover(false)` once, and turning enabled again under it calls
-  `onHover(true)` once.
+  `onHover(true)` once. `customStyle: StratumInkWellStyle(focus: StratumFocusBorderStyle(...))` restyles this
+  surface's focus ring, over `componentPartDefaults: (theme) => {StratumInkWell: StratumInkWellStyle(focus: ...)}`
+  for every tap surface, which sits over the every-ring `StratumFocusBorder` style; `Interaction.customStyle`
+  carries it to every `BoxLayout` with a tap surface.
 ## Disabled components
 
 - **`disabled: true`** — on any component built on `StratumStatelessWidget` or `StratumStatefulWidget`, the

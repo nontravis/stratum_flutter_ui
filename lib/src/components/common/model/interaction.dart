@@ -62,5 +62,10 @@ abstract class Interaction with _$Interaction {
     /// focus; see `StratumInkWell.shortcuts`.
     @Default(<ShortcutActivator, VoidCallback>{})
     Map<ShortcutActivator, VoidCallback> shortcuts,
+
+    /// The tap surface's own style, which `BoxLayout` hands to
+    /// `StratumInkWell.customStyle`: its `focus` field is level 3 of the
+    /// surface's focus ring (FO-06 US-04 FR-03).
+    StratumInkWellStyle? customStyle,
   }) = _Interaction;
 }

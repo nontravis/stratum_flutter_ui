@@ -10,6 +10,8 @@ import 'package:flutter/rendering.dart'
 import 'package:stratum_ui/src/components/common/base/disabled.dart'
     show StratumDisabledScope;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
+import 'package:stratum_ui/src/components/common/utility/focus_border.dart'
+    show focusStyleOver;
 import 'package:stratum_ui/src/src.dart';
 
 /// Whether a [StratumInkWell] with these settings takes focus: not
@@ -141,8 +143,8 @@ enum TapTargetSize {
 ///
 /// * a flat overlay over [child]: the theme's `state.hover` color while
 ///   hovered and `state.press` while pressed;
-/// * a [StratumFocusBorder] ring in its outside style, shown per
-///   [focusType];
+/// * a [StratumFocusBorder] ring in its outside placement, shown per
+///   [focusType] and styled by [customStyle]'s `focus`;
 /// * a semantics node with a button role and a disabled flag;
 /// * the context-menu key and Shift+F10 for [onSecondaryTap], and a custom
 ///   semantics action for it, so keyboard and screen-reader users reach
@@ -181,6 +183,7 @@ class StratumInkWell extends StatefulWidget {
     this.enableFeedback = true,
     this.secondaryTapSemanticsLabel,
     this.shortcuts = const {},
+    this.customStyle,
   });
 
   final Widget child;
@@ -277,6 +280,12 @@ class StratumInkWell extends StatefulWidget {
   /// only to an enabled surface; the node then reports focusable and no
   /// button role. An empty map builds nothing.
   final Map<ShortcutActivator, VoidCallback> shortcuts;
+
+  /// This surface's own style: its `focus` field restyles this surface's
+  /// focus ring, level 3, over the app-wide `StratumInkWellStyle` under
+  /// `StratumInkWell` in `componentPartDefaults`, level 2 (FO-06 US-04
+  /// FR-03); every field of it takes effect (NFR-E02).
+  final StratumInkWellStyle? customStyle;
 
   @override
   State<StratumInkWell> createState() => _StratumInkWellState();
@@ -604,6 +613,13 @@ class _StratumInkWellState extends State<StratumInkWell>
       result = StratumFocusBorder(
         state: ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
         borderRadius: widget.borderRadius,
+        customStyle: focusStyleOver(
+          StratumComponentDefaults.partsOf<StratumInkWellStyle>(
+            context,
+            StratumInkWell,
+          )?.focus,
+          widget.customStyle?.focus,
+        ),
         child: result,
       );
     }

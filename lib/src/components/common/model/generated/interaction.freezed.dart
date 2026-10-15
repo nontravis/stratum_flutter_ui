@@ -28,7 +28,10 @@ mixin _$Interaction {
 /// locale's language. See `StratumInkWell.secondaryTapSemanticsLabel`.
  String? get secondaryTapSemanticsLabel;/// Key bindings that fire while the tap surface or a descendant has
 /// focus; see `StratumInkWell.shortcuts`.
- Map<ShortcutActivator, VoidCallback> get shortcuts;
+ Map<ShortcutActivator, VoidCallback> get shortcuts;/// The tap surface's own style, which `BoxLayout` hands to
+/// `StratumInkWell.customStyle`: its `focus` field is level 3 of the
+/// surface's focus ring (FO-06 US-04 FR-03).
+ StratumInkWellStyle? get customStyle;
 /// Create a copy of Interaction
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -40,20 +43,20 @@ $InteractionCopyWith<Interaction> get copyWith => _$InteractionCopyWithImpl<Inte
 @override
 bool operator ==(Object other) {
   final _this = this as Interaction;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Interaction&&(identical(other.onTap, _this.onTap) || other.onTap == _this.onTap)&&(identical(other.onDoubleTap, _this.onDoubleTap) || other.onDoubleTap == _this.onDoubleTap)&&(identical(other.onLongPress, _this.onLongPress) || other.onLongPress == _this.onLongPress)&&(identical(other.onSecondaryTap, _this.onSecondaryTap) || other.onSecondaryTap == _this.onSecondaryTap)&&(identical(other.onHover, _this.onHover) || other.onHover == _this.onHover)&&(identical(other.onHighlightChanged, _this.onHighlightChanged) || other.onHighlightChanged == _this.onHighlightChanged)&&(identical(other.mouseCursor, _this.mouseCursor) || other.mouseCursor == _this.mouseCursor)&&(identical(other.enableFeedback, _this.enableFeedback) || other.enableFeedback == _this.enableFeedback)&&(identical(other.tapTargetSize, _this.tapTargetSize) || other.tapTargetSize == _this.tapTargetSize)&&(identical(other.disabledPressAnimation, _this.disabledPressAnimation) || other.disabledPressAnimation == _this.disabledPressAnimation)&&(identical(other.focusNode, _this.focusNode) || other.focusNode == _this.focusNode)&&(identical(other.focusType, _this.focusType) || other.focusType == _this.focusType)&&(identical(other.showFocusOnPrimary, _this.showFocusOnPrimary) || other.showFocusOnPrimary == _this.showFocusOnPrimary)&&(identical(other.canRequestFocus, _this.canRequestFocus) || other.canRequestFocus == _this.canRequestFocus)&&(identical(other.autofocus, _this.autofocus) || other.autofocus == _this.autofocus)&&(identical(other.onFocusChange, _this.onFocusChange) || other.onFocusChange == _this.onFocusChange)&&(identical(other.disabled, _this.disabled) || other.disabled == _this.disabled)&&(identical(other.statesController, _this.statesController) || other.statesController == _this.statesController)&&(identical(other.excludeFromSemantics, _this.excludeFromSemantics) || other.excludeFromSemantics == _this.excludeFromSemantics)&&(identical(other.secondaryTapSemanticsLabel, _this.secondaryTapSemanticsLabel) || other.secondaryTapSemanticsLabel == _this.secondaryTapSemanticsLabel)&&const DeepCollectionEquality().equals(other.shortcuts, _this.shortcuts));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Interaction&&(identical(other.onTap, _this.onTap) || other.onTap == _this.onTap)&&(identical(other.onDoubleTap, _this.onDoubleTap) || other.onDoubleTap == _this.onDoubleTap)&&(identical(other.onLongPress, _this.onLongPress) || other.onLongPress == _this.onLongPress)&&(identical(other.onSecondaryTap, _this.onSecondaryTap) || other.onSecondaryTap == _this.onSecondaryTap)&&(identical(other.onHover, _this.onHover) || other.onHover == _this.onHover)&&(identical(other.onHighlightChanged, _this.onHighlightChanged) || other.onHighlightChanged == _this.onHighlightChanged)&&(identical(other.mouseCursor, _this.mouseCursor) || other.mouseCursor == _this.mouseCursor)&&(identical(other.enableFeedback, _this.enableFeedback) || other.enableFeedback == _this.enableFeedback)&&(identical(other.tapTargetSize, _this.tapTargetSize) || other.tapTargetSize == _this.tapTargetSize)&&(identical(other.disabledPressAnimation, _this.disabledPressAnimation) || other.disabledPressAnimation == _this.disabledPressAnimation)&&(identical(other.focusNode, _this.focusNode) || other.focusNode == _this.focusNode)&&(identical(other.focusType, _this.focusType) || other.focusType == _this.focusType)&&(identical(other.showFocusOnPrimary, _this.showFocusOnPrimary) || other.showFocusOnPrimary == _this.showFocusOnPrimary)&&(identical(other.canRequestFocus, _this.canRequestFocus) || other.canRequestFocus == _this.canRequestFocus)&&(identical(other.autofocus, _this.autofocus) || other.autofocus == _this.autofocus)&&(identical(other.onFocusChange, _this.onFocusChange) || other.onFocusChange == _this.onFocusChange)&&(identical(other.disabled, _this.disabled) || other.disabled == _this.disabled)&&(identical(other.statesController, _this.statesController) || other.statesController == _this.statesController)&&(identical(other.excludeFromSemantics, _this.excludeFromSemantics) || other.excludeFromSemantics == _this.excludeFromSemantics)&&(identical(other.secondaryTapSemanticsLabel, _this.secondaryTapSemanticsLabel) || other.secondaryTapSemanticsLabel == _this.secondaryTapSemanticsLabel)&&const DeepCollectionEquality().equals(other.shortcuts, _this.shortcuts)&&(identical(other.customStyle, _this.customStyle) || other.customStyle == _this.customStyle));
 }
 
 
 @override
 int get hashCode {
   final _this = this as Interaction;
-  return Object.hashAll([runtimeType,_this.onTap,_this.onDoubleTap,_this.onLongPress,_this.onSecondaryTap,_this.onHover,_this.onHighlightChanged,_this.mouseCursor,_this.enableFeedback,_this.tapTargetSize,_this.disabledPressAnimation,_this.focusNode,_this.focusType,_this.showFocusOnPrimary,_this.canRequestFocus,_this.autofocus,_this.onFocusChange,_this.disabled,_this.statesController,_this.excludeFromSemantics,_this.secondaryTapSemanticsLabel,const DeepCollectionEquality().hash(_this.shortcuts)]);
+  return Object.hashAll([runtimeType,_this.onTap,_this.onDoubleTap,_this.onLongPress,_this.onSecondaryTap,_this.onHover,_this.onHighlightChanged,_this.mouseCursor,_this.enableFeedback,_this.tapTargetSize,_this.disabledPressAnimation,_this.focusNode,_this.focusType,_this.showFocusOnPrimary,_this.canRequestFocus,_this.autofocus,_this.onFocusChange,_this.disabled,_this.statesController,_this.excludeFromSemantics,_this.secondaryTapSemanticsLabel,const DeepCollectionEquality().hash(_this.shortcuts),_this.customStyle]);
 }
 
 @override
 String toString() {
   final _this = this as Interaction;
-  return 'Interaction(onTap: ${_this.onTap}, onDoubleTap: ${_this.onDoubleTap}, onLongPress: ${_this.onLongPress}, onSecondaryTap: ${_this.onSecondaryTap}, onHover: ${_this.onHover}, onHighlightChanged: ${_this.onHighlightChanged}, mouseCursor: ${_this.mouseCursor}, enableFeedback: ${_this.enableFeedback}, tapTargetSize: ${_this.tapTargetSize}, disabledPressAnimation: ${_this.disabledPressAnimation}, focusNode: ${_this.focusNode}, focusType: ${_this.focusType}, showFocusOnPrimary: ${_this.showFocusOnPrimary}, canRequestFocus: ${_this.canRequestFocus}, autofocus: ${_this.autofocus}, onFocusChange: ${_this.onFocusChange}, disabled: ${_this.disabled}, statesController: ${_this.statesController}, excludeFromSemantics: ${_this.excludeFromSemantics}, secondaryTapSemanticsLabel: ${_this.secondaryTapSemanticsLabel}, shortcuts: ${_this.shortcuts})';
+  return 'Interaction(onTap: ${_this.onTap}, onDoubleTap: ${_this.onDoubleTap}, onLongPress: ${_this.onLongPress}, onSecondaryTap: ${_this.onSecondaryTap}, onHover: ${_this.onHover}, onHighlightChanged: ${_this.onHighlightChanged}, mouseCursor: ${_this.mouseCursor}, enableFeedback: ${_this.enableFeedback}, tapTargetSize: ${_this.tapTargetSize}, disabledPressAnimation: ${_this.disabledPressAnimation}, focusNode: ${_this.focusNode}, focusType: ${_this.focusType}, showFocusOnPrimary: ${_this.showFocusOnPrimary}, canRequestFocus: ${_this.canRequestFocus}, autofocus: ${_this.autofocus}, onFocusChange: ${_this.onFocusChange}, disabled: ${_this.disabled}, statesController: ${_this.statesController}, excludeFromSemantics: ${_this.excludeFromSemantics}, secondaryTapSemanticsLabel: ${_this.secondaryTapSemanticsLabel}, shortcuts: ${_this.shortcuts}, customStyle: ${_this.customStyle})';
 }
 
 
@@ -64,11 +67,11 @@ abstract mixin class $InteractionCopyWith<$Res>  {
   factory $InteractionCopyWith(Interaction value, $Res Function(Interaction) _then) = _$InteractionCopyWithImpl;
 @useResult
 $Res call({
- GestureTapCallback? onTap, GestureTapCallback? onDoubleTap, GestureLongPressCallback? onLongPress, GestureTapCallback? onSecondaryTap, ValueChanged<bool>? onHover, ValueChanged<bool>? onHighlightChanged, MouseCursor? mouseCursor, bool enableFeedback, TapTargetSize tapTargetSize, bool disabledPressAnimation, FocusNode? focusNode, FocusType focusType, bool showFocusOnPrimary, bool canRequestFocus, bool autofocus, ValueChanged<bool>? onFocusChange, bool disabled, WidgetStatesController? statesController, bool excludeFromSemantics, String? secondaryTapSemanticsLabel, Map<ShortcutActivator, VoidCallback> shortcuts
+ GestureTapCallback? onTap, GestureTapCallback? onDoubleTap, GestureLongPressCallback? onLongPress, GestureTapCallback? onSecondaryTap, ValueChanged<bool>? onHover, ValueChanged<bool>? onHighlightChanged, MouseCursor? mouseCursor, bool enableFeedback, TapTargetSize tapTargetSize, bool disabledPressAnimation, FocusNode? focusNode, FocusType focusType, bool showFocusOnPrimary, bool canRequestFocus, bool autofocus, ValueChanged<bool>? onFocusChange, bool disabled, WidgetStatesController? statesController, bool excludeFromSemantics, String? secondaryTapSemanticsLabel, Map<ShortcutActivator, VoidCallback> shortcuts, StratumInkWellStyle? customStyle
 });
 
 
-
+$StratumInkWellStyleCopyWith<$Res>? get customStyle;
 
 }
 /// @nodoc
@@ -81,7 +84,7 @@ class _$InteractionCopyWithImpl<$Res>
 
 /// Create a copy of Interaction
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? onTap = freezed,Object? onDoubleTap = freezed,Object? onLongPress = freezed,Object? onSecondaryTap = freezed,Object? onHover = freezed,Object? onHighlightChanged = freezed,Object? mouseCursor = freezed,Object? enableFeedback = null,Object? tapTargetSize = null,Object? disabledPressAnimation = null,Object? focusNode = freezed,Object? focusType = null,Object? showFocusOnPrimary = null,Object? canRequestFocus = null,Object? autofocus = null,Object? onFocusChange = freezed,Object? disabled = null,Object? statesController = freezed,Object? excludeFromSemantics = null,Object? secondaryTapSemanticsLabel = freezed,Object? shortcuts = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? onTap = freezed,Object? onDoubleTap = freezed,Object? onLongPress = freezed,Object? onSecondaryTap = freezed,Object? onHover = freezed,Object? onHighlightChanged = freezed,Object? mouseCursor = freezed,Object? enableFeedback = null,Object? tapTargetSize = null,Object? disabledPressAnimation = null,Object? focusNode = freezed,Object? focusType = null,Object? showFocusOnPrimary = null,Object? canRequestFocus = null,Object? autofocus = null,Object? onFocusChange = freezed,Object? disabled = null,Object? statesController = freezed,Object? excludeFromSemantics = null,Object? secondaryTapSemanticsLabel = freezed,Object? shortcuts = null,Object? customStyle = freezed,}) {
   return _then(Interaction(
 onTap: freezed == onTap ? _self.onTap : onTap // ignore: cast_nullable_to_non_nullable
 as GestureTapCallback?,onDoubleTap: freezed == onDoubleTap ? _self.onDoubleTap : onDoubleTap // ignore: cast_nullable_to_non_nullable
@@ -104,10 +107,23 @@ as bool,statesController: freezed == statesController ? _self.statesController :
 as WidgetStatesController?,excludeFromSemantics: null == excludeFromSemantics ? _self.excludeFromSemantics : excludeFromSemantics // ignore: cast_nullable_to_non_nullable
 as bool,secondaryTapSemanticsLabel: freezed == secondaryTapSemanticsLabel ? _self.secondaryTapSemanticsLabel : secondaryTapSemanticsLabel // ignore: cast_nullable_to_non_nullable
 as String?,shortcuts: null == shortcuts ? _self.shortcuts : shortcuts // ignore: cast_nullable_to_non_nullable
-as Map<ShortcutActivator, VoidCallback>,
+as Map<ShortcutActivator, VoidCallback>,customStyle: freezed == customStyle ? _self.customStyle : customStyle // ignore: cast_nullable_to_non_nullable
+as StratumInkWellStyle?,
   ));
 }
+/// Create a copy of Interaction
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$StratumInkWellStyleCopyWith<$Res>? get customStyle {
+    if (_self.customStyle == null) {
+    return null;
+  }
 
+  return $StratumInkWellStyleCopyWith<$Res>(_self.customStyle!, (value) {
+    return _then(_self.copyWith(customStyle: value));
+  });
+}
 }
 
 
@@ -116,7 +132,7 @@ as Map<ShortcutActivator, VoidCallback>,
 
 
 class _Interaction implements Interaction {
-  const _Interaction({this.onTap, this.onDoubleTap, this.onLongPress, this.onSecondaryTap, this.onHover, this.onHighlightChanged, this.mouseCursor, this.enableFeedback = true, this.tapTargetSize = TapTargetSize.platform, this.disabledPressAnimation = false, this.focusNode, this.focusType = FocusType.focusedVisible, this.showFocusOnPrimary = true, this.canRequestFocus = true, this.autofocus = false, this.onFocusChange, this.disabled = false, this.statesController, this.excludeFromSemantics = false, this.secondaryTapSemanticsLabel,  Map<ShortcutActivator, VoidCallback> shortcuts = const <ShortcutActivator, VoidCallback>{}}): _shortcuts = shortcuts;
+  const _Interaction({this.onTap, this.onDoubleTap, this.onLongPress, this.onSecondaryTap, this.onHover, this.onHighlightChanged, this.mouseCursor, this.enableFeedback = true, this.tapTargetSize = TapTargetSize.platform, this.disabledPressAnimation = false, this.focusNode, this.focusType = FocusType.focusedVisible, this.showFocusOnPrimary = true, this.canRequestFocus = true, this.autofocus = false, this.onFocusChange, this.disabled = false, this.statesController, this.excludeFromSemantics = false, this.secondaryTapSemanticsLabel,  Map<ShortcutActivator, VoidCallback> shortcuts = const <ShortcutActivator, VoidCallback>{}, this.customStyle}): _shortcuts = shortcuts;
   
 
 @override final  GestureTapCallback? onTap;
@@ -161,6 +177,10 @@ class _Interaction implements Interaction {
   return EqualUnmodifiableMapView(_shortcuts);
 }
 
+/// The tap surface's own style, which `BoxLayout` hands to
+/// `StratumInkWell.customStyle`: its `focus` field is level 3 of the
+/// surface's focus ring (FO-06 US-04 FR-03).
+@override final  StratumInkWellStyle? customStyle;
 
 /// Create a copy of Interaction
 /// with the given fields replaced by the non-null parameter values.
@@ -172,18 +192,18 @@ _$InteractionCopyWith<_Interaction> get copyWith => __$InteractionCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Interaction&&(identical(other.onTap, onTap) || other.onTap == onTap)&&(identical(other.onDoubleTap, onDoubleTap) || other.onDoubleTap == onDoubleTap)&&(identical(other.onLongPress, onLongPress) || other.onLongPress == onLongPress)&&(identical(other.onSecondaryTap, onSecondaryTap) || other.onSecondaryTap == onSecondaryTap)&&(identical(other.onHover, onHover) || other.onHover == onHover)&&(identical(other.onHighlightChanged, onHighlightChanged) || other.onHighlightChanged == onHighlightChanged)&&(identical(other.mouseCursor, mouseCursor) || other.mouseCursor == mouseCursor)&&(identical(other.enableFeedback, enableFeedback) || other.enableFeedback == enableFeedback)&&(identical(other.tapTargetSize, tapTargetSize) || other.tapTargetSize == tapTargetSize)&&(identical(other.disabledPressAnimation, disabledPressAnimation) || other.disabledPressAnimation == disabledPressAnimation)&&(identical(other.focusNode, focusNode) || other.focusNode == focusNode)&&(identical(other.focusType, focusType) || other.focusType == focusType)&&(identical(other.showFocusOnPrimary, showFocusOnPrimary) || other.showFocusOnPrimary == showFocusOnPrimary)&&(identical(other.canRequestFocus, canRequestFocus) || other.canRequestFocus == canRequestFocus)&&(identical(other.autofocus, autofocus) || other.autofocus == autofocus)&&(identical(other.onFocusChange, onFocusChange) || other.onFocusChange == onFocusChange)&&(identical(other.disabled, disabled) || other.disabled == disabled)&&(identical(other.statesController, statesController) || other.statesController == statesController)&&(identical(other.excludeFromSemantics, excludeFromSemantics) || other.excludeFromSemantics == excludeFromSemantics)&&(identical(other.secondaryTapSemanticsLabel, secondaryTapSemanticsLabel) || other.secondaryTapSemanticsLabel == secondaryTapSemanticsLabel)&&const DeepCollectionEquality().equals(other.shortcuts, _shortcuts));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Interaction&&(identical(other.onTap, onTap) || other.onTap == onTap)&&(identical(other.onDoubleTap, onDoubleTap) || other.onDoubleTap == onDoubleTap)&&(identical(other.onLongPress, onLongPress) || other.onLongPress == onLongPress)&&(identical(other.onSecondaryTap, onSecondaryTap) || other.onSecondaryTap == onSecondaryTap)&&(identical(other.onHover, onHover) || other.onHover == onHover)&&(identical(other.onHighlightChanged, onHighlightChanged) || other.onHighlightChanged == onHighlightChanged)&&(identical(other.mouseCursor, mouseCursor) || other.mouseCursor == mouseCursor)&&(identical(other.enableFeedback, enableFeedback) || other.enableFeedback == enableFeedback)&&(identical(other.tapTargetSize, tapTargetSize) || other.tapTargetSize == tapTargetSize)&&(identical(other.disabledPressAnimation, disabledPressAnimation) || other.disabledPressAnimation == disabledPressAnimation)&&(identical(other.focusNode, focusNode) || other.focusNode == focusNode)&&(identical(other.focusType, focusType) || other.focusType == focusType)&&(identical(other.showFocusOnPrimary, showFocusOnPrimary) || other.showFocusOnPrimary == showFocusOnPrimary)&&(identical(other.canRequestFocus, canRequestFocus) || other.canRequestFocus == canRequestFocus)&&(identical(other.autofocus, autofocus) || other.autofocus == autofocus)&&(identical(other.onFocusChange, onFocusChange) || other.onFocusChange == onFocusChange)&&(identical(other.disabled, disabled) || other.disabled == disabled)&&(identical(other.statesController, statesController) || other.statesController == statesController)&&(identical(other.excludeFromSemantics, excludeFromSemantics) || other.excludeFromSemantics == excludeFromSemantics)&&(identical(other.secondaryTapSemanticsLabel, secondaryTapSemanticsLabel) || other.secondaryTapSemanticsLabel == secondaryTapSemanticsLabel)&&const DeepCollectionEquality().equals(other.shortcuts, _shortcuts)&&(identical(other.customStyle, customStyle) || other.customStyle == customStyle));
 }
 
 
 @override
 int get hashCode {
-    return Object.hashAll([runtimeType,onTap,onDoubleTap,onLongPress,onSecondaryTap,onHover,onHighlightChanged,mouseCursor,enableFeedback,tapTargetSize,disabledPressAnimation,focusNode,focusType,showFocusOnPrimary,canRequestFocus,autofocus,onFocusChange,disabled,statesController,excludeFromSemantics,secondaryTapSemanticsLabel,const DeepCollectionEquality().hash(_shortcuts)]);
+    return Object.hashAll([runtimeType,onTap,onDoubleTap,onLongPress,onSecondaryTap,onHover,onHighlightChanged,mouseCursor,enableFeedback,tapTargetSize,disabledPressAnimation,focusNode,focusType,showFocusOnPrimary,canRequestFocus,autofocus,onFocusChange,disabled,statesController,excludeFromSemantics,secondaryTapSemanticsLabel,const DeepCollectionEquality().hash(_shortcuts),customStyle]);
 }
 
 @override
 String toString() {
-    return 'Interaction(onTap: $onTap, onDoubleTap: $onDoubleTap, onLongPress: $onLongPress, onSecondaryTap: $onSecondaryTap, onHover: $onHover, onHighlightChanged: $onHighlightChanged, mouseCursor: $mouseCursor, enableFeedback: $enableFeedback, tapTargetSize: $tapTargetSize, disabledPressAnimation: $disabledPressAnimation, focusNode: $focusNode, focusType: $focusType, showFocusOnPrimary: $showFocusOnPrimary, canRequestFocus: $canRequestFocus, autofocus: $autofocus, onFocusChange: $onFocusChange, disabled: $disabled, statesController: $statesController, excludeFromSemantics: $excludeFromSemantics, secondaryTapSemanticsLabel: $secondaryTapSemanticsLabel, shortcuts: $shortcuts)';
+    return 'Interaction(onTap: $onTap, onDoubleTap: $onDoubleTap, onLongPress: $onLongPress, onSecondaryTap: $onSecondaryTap, onHover: $onHover, onHighlightChanged: $onHighlightChanged, mouseCursor: $mouseCursor, enableFeedback: $enableFeedback, tapTargetSize: $tapTargetSize, disabledPressAnimation: $disabledPressAnimation, focusNode: $focusNode, focusType: $focusType, showFocusOnPrimary: $showFocusOnPrimary, canRequestFocus: $canRequestFocus, autofocus: $autofocus, onFocusChange: $onFocusChange, disabled: $disabled, statesController: $statesController, excludeFromSemantics: $excludeFromSemantics, secondaryTapSemanticsLabel: $secondaryTapSemanticsLabel, shortcuts: $shortcuts, customStyle: $customStyle)';
 }
 
 
@@ -194,11 +214,11 @@ abstract mixin class _$InteractionCopyWith<$Res> implements $InteractionCopyWith
   factory _$InteractionCopyWith(_Interaction value, $Res Function(_Interaction) _then) = __$InteractionCopyWithImpl;
 @override @useResult
 $Res call({
- GestureTapCallback? onTap, GestureTapCallback? onDoubleTap, GestureLongPressCallback? onLongPress, GestureTapCallback? onSecondaryTap, ValueChanged<bool>? onHover, ValueChanged<bool>? onHighlightChanged, MouseCursor? mouseCursor, bool enableFeedback, TapTargetSize tapTargetSize, bool disabledPressAnimation, FocusNode? focusNode, FocusType focusType, bool showFocusOnPrimary, bool canRequestFocus, bool autofocus, ValueChanged<bool>? onFocusChange, bool disabled, WidgetStatesController? statesController, bool excludeFromSemantics, String? secondaryTapSemanticsLabel, Map<ShortcutActivator, VoidCallback> shortcuts
+ GestureTapCallback? onTap, GestureTapCallback? onDoubleTap, GestureLongPressCallback? onLongPress, GestureTapCallback? onSecondaryTap, ValueChanged<bool>? onHover, ValueChanged<bool>? onHighlightChanged, MouseCursor? mouseCursor, bool enableFeedback, TapTargetSize tapTargetSize, bool disabledPressAnimation, FocusNode? focusNode, FocusType focusType, bool showFocusOnPrimary, bool canRequestFocus, bool autofocus, ValueChanged<bool>? onFocusChange, bool disabled, WidgetStatesController? statesController, bool excludeFromSemantics, String? secondaryTapSemanticsLabel, Map<ShortcutActivator, VoidCallback> shortcuts, StratumInkWellStyle? customStyle
 });
 
 
-
+@override $StratumInkWellStyleCopyWith<$Res>? get customStyle;
 
 }
 /// @nodoc
@@ -211,7 +231,7 @@ class __$InteractionCopyWithImpl<$Res>
 
 /// Create a copy of Interaction
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? onTap = freezed,Object? onDoubleTap = freezed,Object? onLongPress = freezed,Object? onSecondaryTap = freezed,Object? onHover = freezed,Object? onHighlightChanged = freezed,Object? mouseCursor = freezed,Object? enableFeedback = null,Object? tapTargetSize = null,Object? disabledPressAnimation = null,Object? focusNode = freezed,Object? focusType = null,Object? showFocusOnPrimary = null,Object? canRequestFocus = null,Object? autofocus = null,Object? onFocusChange = freezed,Object? disabled = null,Object? statesController = freezed,Object? excludeFromSemantics = null,Object? secondaryTapSemanticsLabel = freezed,Object? shortcuts = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? onTap = freezed,Object? onDoubleTap = freezed,Object? onLongPress = freezed,Object? onSecondaryTap = freezed,Object? onHover = freezed,Object? onHighlightChanged = freezed,Object? mouseCursor = freezed,Object? enableFeedback = null,Object? tapTargetSize = null,Object? disabledPressAnimation = null,Object? focusNode = freezed,Object? focusType = null,Object? showFocusOnPrimary = null,Object? canRequestFocus = null,Object? autofocus = null,Object? onFocusChange = freezed,Object? disabled = null,Object? statesController = freezed,Object? excludeFromSemantics = null,Object? secondaryTapSemanticsLabel = freezed,Object? shortcuts = null,Object? customStyle = freezed,}) {
   return _then(_Interaction(
 onTap: freezed == onTap ? _self.onTap : onTap // ignore: cast_nullable_to_non_nullable
 as GestureTapCallback?,onDoubleTap: freezed == onDoubleTap ? _self.onDoubleTap : onDoubleTap // ignore: cast_nullable_to_non_nullable
@@ -234,11 +254,24 @@ as bool,statesController: freezed == statesController ? _self.statesController :
 as WidgetStatesController?,excludeFromSemantics: null == excludeFromSemantics ? _self.excludeFromSemantics : excludeFromSemantics // ignore: cast_nullable_to_non_nullable
 as bool,secondaryTapSemanticsLabel: freezed == secondaryTapSemanticsLabel ? _self.secondaryTapSemanticsLabel : secondaryTapSemanticsLabel // ignore: cast_nullable_to_non_nullable
 as String?,shortcuts: null == shortcuts ? _self._shortcuts : shortcuts // ignore: cast_nullable_to_non_nullable
-as Map<ShortcutActivator, VoidCallback>,
+as Map<ShortcutActivator, VoidCallback>,customStyle: freezed == customStyle ? _self.customStyle : customStyle // ignore: cast_nullable_to_non_nullable
+as StratumInkWellStyle?,
   ));
 }
 
+/// Create a copy of Interaction
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$StratumInkWellStyleCopyWith<$Res>? get customStyle {
+    if (_self.customStyle == null) {
+    return null;
+  }
 
+  return $StratumInkWellStyleCopyWith<$Res>(_self.customStyle!, (value) {
+    return _then(_self.copyWith(customStyle: value));
+  });
+}
 }
 
 // dart format on
