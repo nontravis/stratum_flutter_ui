@@ -127,7 +127,7 @@ $Res call({
 });
 
 
-$StratumMotionLevelsCopyWith<$Res> get appear;
+$StratumMotionLevelsCopyWith<$Res> get appear;$StratumThemeTransitionsCopyWith<$Res> get transition;
 
 }
 /// @nodoc
@@ -162,6 +162,15 @@ $StratumMotionLevelsCopyWith<$Res> get appear {
   
   return $StratumMotionLevelsCopyWith<$Res>(_self.appear, (value) {
     return _then(_self.copyWith(appear: value));
+  });
+}/// Create a copy of StratumAnimation
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$StratumThemeTransitionsCopyWith<$Res> get transition {
+  
+  return $StratumThemeTransitionsCopyWith<$Res>(_self.transition, (value) {
+    return _then(_self.copyWith(transition: value));
   });
 }
 }

@@ -31,6 +31,7 @@ const _valueModelFiles = [
   'lib/src/application/app_config.dart',
   'lib/src/themes/font_data.dart',
   'lib/src/components/common/style/text_style_builder.dart',
+  'lib/src/animations/theme_transitions.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside

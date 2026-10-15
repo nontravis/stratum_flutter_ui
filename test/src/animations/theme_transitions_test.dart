@@ -43,4 +43,37 @@ void main() {
     expect(transitions.hashCode, same.hashCode);
     expect(transitions, isNot(StratumThemeTransitions.platform));
   });
+
+  group('5.2: StratumThemeTransitions as a freezed value', () {
+    // Built at run time from a parameter, so the checks read `==`.
+    StratumThemeTransitions all(ScreenTransitionType type) =>
+        StratumThemeTransitions(
+          watch: type,
+          mobile: type,
+          tablet: type,
+          desktop: type,
+          bigDesktop: type,
+        );
+
+    test('5.2: copyWith changes one window size and keeps the rest', () {
+      final copy = all(
+        ScreenTransitionType.fade,
+      ).copyWith(desktop: ScreenTransitionType.none);
+
+      expect(copy[WindowSize.desktop], ScreenTransitionType.none);
+      expect(copy[WindowSize.mobile], ScreenTransitionType.fade);
+      expect(copy, isNot(all(ScreenTransitionType.fade)));
+      expect(
+        all(ScreenTransitionType.fade).hashCode,
+        all(ScreenTransitionType.fade).hashCode,
+      );
+    });
+
+    test("R4 Q2: takes freezed's toString", () {
+      expect(
+        StratumThemeTransitions.platform.toString(),
+        startsWith('StratumThemeTransitions('),
+      );
+    });
+  });
 }
