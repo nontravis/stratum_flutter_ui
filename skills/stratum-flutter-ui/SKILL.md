@@ -18,7 +18,8 @@ or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old n
 as deprecated aliases; write the new names.
 
 Values: these compare by value, field by field, and derive a variant with `copyWith`: `StratumMotionLevels`,
-`StratumAnimation`, `StratumThemeData`, `StratumAppPalette`, `StratumThemeSet`.
+`StratumAnimation`, `StratumThemeData`, `StratumAppPalette`, `StratumThemeSet`, `StratumRemoteTheme` (its `bytes` by
+content).
 
 ## Install
 
