@@ -7,16 +7,20 @@ import '../fakes/fake_stratum_theme.dart';
 /// blocks only: the stateless component base, a [ContainerLayout], and the
 /// tap surface the layout's [Interaction] builds (FO-08 US-04).
 class _Card extends StratumStatelessWidget {
-  const new({super.size, super.customStyle, required this.onTap});
+  const new({super.size, this.customStyle, required this.onTap});
 
   final VoidCallback onTap;
+
+  /// The card's own instance style, declared on the component as every
+  /// component that takes one declares it (FO-08 US-01 FR-01 E04).
+  final WidgetStyle? customStyle;
 
   static const _defaults = WidgetStyle(padding: EdgeInsets.all(8));
 
   @override
   Widget build(BuildContext context) {
     return ContainerLayout(
-      style: resolveStyle(context, _defaults),
+      style: resolveStyle(context, _defaults, customStyle),
       interaction: Interaction(onTap: onTap),
       child: const SizedBox(width: 40, height: 40),
     );
@@ -74,7 +78,11 @@ void main() {
         onTap: () {},
       );
       final context = tester.element(find.byType(_Card));
-      final style = custom.resolveStyle(context, _Card._defaults);
+      final style = custom.resolveStyle(
+        context,
+        _Card._defaults,
+        custom.customStyle,
+      );
       expect(style.opacity, 1);
       expect(style.padding, _Card._defaults.padding);
       expect(custom.resolveDefaultSize(context), WidgetSize.huge);

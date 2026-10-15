@@ -11,7 +11,8 @@ import 'package:stratum_ui/src/themes/theme_application.dart';
 import 'package:stratum_ui/src/themes/theme_data.dart';
 import 'package:stratum_ui/src/themes/tokens/theme_tokens.g.dart';
 
-/// The props every Stratum component takes, and how they resolve.
+/// The shared props every Stratum component takes, and how they resolve. A
+/// component that takes an instance style declares its own `customStyle`.
 ///
 /// Call the `resolve*` methods inside `build` only: they register
 /// dependencies on the nearest [StratumThemeApplication] and
@@ -49,9 +50,6 @@ mixin StratumWidgetProps {
   /// Shows the loading state, such as an indeterminate spinner.
   bool get loading;
 
-  /// The highest layer of [resolveStyle].
-  WidgetStyle? get customStyle;
-
   /// Throws a [FlutterError] when no [StratumThemeApplication] is above
   /// [context].
   StratumThemeData resolveTheme(BuildContext context) =>
@@ -71,13 +69,20 @@ mixin StratumWidgetProps {
 
   /// [defaults] (the component's own style from theme tokens), then the
   /// app-wide default for this component's exact `runtimeType`, then
-  /// [customStyle], in the order FO-08 US-06 FR-01 owns; each layer
-  /// replaces only the fields it sets. The FO-08 L4 subclass default
-  /// style is not a layer yet.
-  WidgetStyle resolveStyle(BuildContext context, WidgetStyle defaults) =>
-      defaults
-          .merge(StratumComponentDefaults.styleOf(context, runtimeType))
-          .merge(customStyle);
+  /// [customStyle], the instance style the component declares itself and
+  /// passes in, in the order FO-08 US-06 FR-01 owns; each layer replaces
+  /// only the fields it sets. A component whose `customStyle` is a type of
+  /// its own reads no entry of this styles map: it lays its own type's
+  /// app-wide default and its `customStyle` over its defaults itself (base
+  /// s03 invariants 5 and 21). The FO-08 L4 subclass default style is not
+  /// a layer yet.
+  WidgetStyle resolveStyle(
+    BuildContext context,
+    WidgetStyle defaults,
+    WidgetStyle? customStyle,
+  ) => defaults
+      .merge(StratumComponentDefaults.styleOf(context, runtimeType))
+      .merge(customStyle);
 
   /// The token named [color] in the `<group>.color` group that [group]
   /// picks from the resolved theme's colors, such as

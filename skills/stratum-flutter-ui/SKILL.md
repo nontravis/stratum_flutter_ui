@@ -614,9 +614,11 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `StratumThemeApplication`; the window-size error says how to wrap the app.
 - **App-wide component defaults** — `StratumThemeApplication(componentDefaults: (theme) => {MyWidget:
   WidgetStyle(...)}, ...)` restyles every instance of a component type from one place; read it in a component's
-  `build` through `StratumWidgetProps.resolveStyle`, never directly. A component drawn in several parts, such as a
-  page layout, a modal layout, or a notice, instead takes `componentPartDefaults: (theme) => {ModalLayout:
-  ModalLayoutStyle(...)}`, one parts style per component type; read it through
+  `build` through `StratumWidgetProps.resolveStyle(context, defaults, customStyle)`, never directly; the component
+  base declares no `customStyle`, so a component of your own that takes one declares its own field, of its own type,
+  and passes it as the third argument. A component drawn in several parts, such as a page layout, a modal layout, or
+  a notice, instead takes `componentPartDefaults: (theme) => {ModalLayout: ModalLayoutStyle(...)}`, one parts style
+  per component type; read it through
   `StratumComponentDefaults.partsOf<ModalLayoutStyle>(context, ModalLayout)`, null when none is registered, and a
   thrown `FlutterError` naming both types when the registered value is not a `ModalLayoutStyle`. Both builders run
   again whenever the active theme changes, and `StratumThemeApplication.wrap` copies both to a nested application.

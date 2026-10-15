@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_falmodel/flutter_falmodel.dart' show FullWidgetState;
 import 'package:stratum_ui/src/components/common/base/disabled.dart';
 import 'package:stratum_ui/src/components/common/base/widget_props.dart';
-import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/themes/constant/color.dart';
 import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
 import 'package:stratum_ui/src/themes/constant/widget_size.dart';
@@ -30,7 +29,6 @@ abstract class StratumStatefulWidget extends StatefulWidget
     this.feedbackState,
     this.disabled = false,
     this.loading = false,
-    this.customStyle,
   });
 
   @override
@@ -49,8 +47,6 @@ abstract class StratumStatefulWidget extends StatefulWidget
   final bool disabled;
   @override
   final bool loading;
-  @override
-  final WidgetStyle? customStyle;
 
   /// Whether the base dims this component while [disabled] is true;
   /// override with `false` when the component draws its own disabled

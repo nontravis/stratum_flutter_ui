@@ -84,7 +84,7 @@ class StratumCaret extends StratumStatefulWidget {
     super.feedbackState,
     super.disabled,
     super.loading,
-    super.customStyle,
+    this.customStyle,
   }) : assert(
          // `customSize.isFinite` is not const-evaluable; comparisons are,
          // and a NaN comparison is false either way (IEEE 754), which
@@ -107,6 +107,10 @@ class StratumCaret extends StratumStatefulWidget {
 
   /// The glyph color, used as given; wins over `color`.
   final Color? customColor;
+
+  /// Styles the caret's square box, never the glyph; the caret's own field,
+  /// since the component base declares none (FO-08 US-01 FR-01).
+  final WidgetStyle? customStyle;
 
   /// False: the caret is decorative and stays out of the semantics tree,
   /// so a disabled caret gets no disabled node (R11, D8).
@@ -190,6 +194,7 @@ class _StratumCaretState extends State<StratumCaret> {
     final style = widget.resolveStyle(
       context,
       WidgetStyle(width: side, height: side),
+      widget.customStyle,
     );
     // `customStyle`'s margin grows the box past `side`; resolved with the
     // ambient text direction so a directional margin (start/end) deflates

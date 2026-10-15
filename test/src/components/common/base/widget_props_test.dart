@@ -22,8 +22,12 @@ class _StatelessProbe extends StratumStatelessWidget {
     super.color,
     super.themeMode,
     super.windowSize,
-    super.customStyle,
+    this.customStyle,
   });
+
+  /// The probe's own instance style, declared on the component as every
+  /// component that takes one declares it (FO-08 US-01 FR-01 E04).
+  final WidgetStyle? customStyle;
 
   @override
   Widget build(BuildContext context) => const SizedBox();
@@ -99,7 +103,7 @@ final class _RedOnly implements StratumColorEnumTokens {
   Color? operator [](ColorEnum color) => color == ColorEnum.red ? red : null;
 }
 
-/// Every prop of [props], in constructor order.
+/// Every shared prop of [props], in constructor order.
 List<Object?> _props(StratumWidgetProps props) => [
   props.size,
   props.color,
@@ -109,7 +113,6 @@ List<Object?> _props(StratumWidgetProps props) => [
   props.feedbackState,
   props.disabled,
   props.loading,
-  props.customStyle,
 ];
 
 Widget _themed(Widget child, {ThemeMode themeMode = ThemeMode.light}) =>
@@ -138,8 +141,8 @@ Future<T> _readInBuild<T>(
 }
 
 void main() {
-  test('fo08/us01/fr01: StratumStatelessWidget holds the nine props at their '
-      'defaults', () {
+  test('fo08/us01/fr01: StratumStatelessWidget holds the eight shared props '
+      'at their defaults', () {
     expect(_props(const _StatelessProbe()), [
       null,
       null,
@@ -149,7 +152,6 @@ void main() {
       null,
       false,
       false,
-      null,
     ]);
   });
 
@@ -261,25 +263,23 @@ void main() {
       dropShadow: [BoxShadow(blurRadius: 4)],
     );
 
-    testWidgets('returns the defaults when customStyle is null', (
-      tester,
-    ) async {
+    testWidgets('fo08/us02/fr01/e01: returns the defaults when the instance '
+        'style is null', (tester) async {
+      const probe = _StatelessProbe();
       final style = await _readInBuild(
         tester,
-        (context) => const _StatelessProbe().resolveStyle(context, defaults),
+        (context) => probe.resolveStyle(context, defaults, probe.customStyle),
       );
 
       expect(style, same(defaults));
     });
 
-    testWidgets('applies each non-null customStyle field over the defaults', (
-      tester,
-    ) async {
+    testWidgets('fo08/us02/fr01: applies each non-null field of the instance '
+        'style the component passes in over the defaults', (tester) async {
+      const probe = _StatelessProbe(customStyle: WidgetStyle(opacity: 1));
       final style = await _readInBuild(
         tester,
-        (context) =>
-            const _StatelessProbe(customStyle: WidgetStyle(opacity: 1))
-                .resolveStyle(context, defaults),
+        (context) => probe.resolveStyle(context, defaults, probe.customStyle),
       );
 
       expect(style.opacity, 1);
@@ -287,13 +287,12 @@ void main() {
       expect(style.dropShadow, defaults.dropShadow);
     });
 
-    testWidgets('clears default shadows when customStyle passes an empty '
-        'list', (tester) async {
+    testWidgets('fo08/us02/fr01: an empty shadow list in the instance style '
+        'clears the default shadows', (tester) async {
+      const probe = _StatelessProbe(customStyle: WidgetStyle(dropShadow: []));
       final style = await _readInBuild(
         tester,
-        (context) =>
-            const _StatelessProbe(customStyle: WidgetStyle(dropShadow: []))
-                .resolveStyle(context, defaults),
+        (context) => probe.resolveStyle(context, defaults, probe.customStyle),
       );
 
       expect(style.dropShadow, isEmpty);

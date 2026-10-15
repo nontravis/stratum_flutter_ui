@@ -93,7 +93,7 @@ class StratumFocusBorder extends StratumStatefulWidget {
     this.width,
     this.gap,
     super.state,
-    super.customStyle,
+    this.customStyle,
   });
 
   /// The look, picked by component kind: [StratumFocusBorderStyle.inside]
@@ -124,6 +124,10 @@ class StratumFocusBorder extends StratumStatefulWidget {
   /// Replaces the 2 px gap before an outside ring; unused with
   /// [insideEdge], since the gap never applies inward.
   final double? gap;
+
+  /// Restyles the shown looks, as the app-wide style for this type does
+  /// (R8 of the 2026-10-07 focus-border design); the ring's own field.
+  final WidgetStyle? customStyle;
 
   @override
   State<StratumFocusBorder> createState() => _StratumFocusBorderState();
@@ -161,6 +165,7 @@ class _StratumFocusBorderState extends State<StratumFocusBorder> {
         borderRadius: widget.borderRadius ?? BorderRadius.zero,
         animationStyle: theme.animation.fast,
       ),
+      widget.customStyle,
     );
     final layerSide = resolved.border?.top ?? BorderSide.none;
     // A layer border with no top side (BorderStyle.none) restyles nothing,
