@@ -169,7 +169,7 @@ double _opacityOf(WidgetTester tester, Finder component) => tester
 
 void main() {
   group('the bases wrap every component', () {
-    testWidgets('us07/fr01, us07/fr01/e04, us07/s10: an app component on the '
+    testWidgets('fo08/us07/fr01, fo08/us07/fr01/e04, fo08/us07/s10: an app component on the '
         'stateless base dims at 0.5', (tester) async {
       await tester.pumpWidget(themedHost(const _Button(disabled: true)));
 
@@ -177,50 +177,55 @@ void main() {
       expect(_opacityOf(tester, find.byType(_Button)), 0.5);
     });
 
-    testWidgets('us07/fr01: a component on the stateful base dims at 0.5', (
-      tester,
-    ) async {
-      await tester.pumpWidget(themedHost(const _Section(disabled: true)));
+    testWidgets(
+      'fo08/us07/fr01: a component on the stateful base dims at 0.5',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Section(disabled: true)));
 
-      expect(_wrapOf(tester, find.byType(_Section)).disabled, isTrue);
-      expect(_opacityOf(tester, find.byType(_Section)), 0.5);
-    });
+        expect(_wrapOf(tester, find.byType(_Section)).disabled, isTrue);
+        expect(_opacityOf(tester, find.byType(_Section)), 0.5);
+      },
+    );
 
-    testWidgets('us07/s7, us07/fr01/e01: enabled again, a section keeps its '
-        'state at full opacity', (tester) async {
-      await tester.pumpWidget(themedHost(const _Section()));
-      await tester.tap(find.byType(_Section));
-      await tester.pump();
-      final state = tester.state(find.byType(_Section));
+    testWidgets(
+      'fo08/us07/s7, fo08/us07/fr01/e01: enabled again, a section keeps its '
+      'state at full opacity',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const _Section()));
+        await tester.tap(find.byType(_Section));
+        await tester.pump();
+        final state = tester.state(find.byType(_Section));
 
-      await tester.pumpWidget(themedHost(const _Section(disabled: true)));
-      await tester.pumpWidget(themedHost(const _Section()));
+        await tester.pumpWidget(themedHost(const _Section(disabled: true)));
+        await tester.pumpWidget(themedHost(const _Section()));
 
-      expect(tester.state(find.byType(_Section)), same(state));
-      expect(find.text('open'), findsOneWidget);
-      expect(_opacityOf(tester, find.byType(_Section)), 1.0);
-    });
+        expect(tester.state(find.byType(_Section)), same(state));
+        expect(find.text('open'), findsOneWidget);
+        expect(_opacityOf(tester, find.byType(_Section)), 1.0);
+      },
+    );
 
-    testWidgets('us07/fr01/e05: disabled with pressed and loading: the wrap '
-        'reads disabled alone, and the component keeps its own look', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const _Button(
-            disabled: true,
-            state: FullWidgetState.pressed,
-            loading: true,
+    testWidgets(
+      'fo08/us07/fr01/e05: disabled with pressed and loading: the wrap '
+      'reads disabled alone, and the component keeps its own look',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const _Button(
+              disabled: true,
+              state: FullWidgetState.pressed,
+              loading: true,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('pressed'), findsOneWidget);
-      expect(_wrapOf(tester, find.byType(_Button)).disabled, isTrue);
-      expect(_opacityOf(tester, find.byType(_Button)), 0.5);
-    });
+        expect(find.text('pressed'), findsOneWidget);
+        expect(_wrapOf(tester, find.byType(_Button)).disabled, isTrue);
+        expect(_opacityOf(tester, find.byType(_Button)), 0.5);
+      },
+    );
 
-    testWidgets('us07/fr01/e06: a widget on neither base, the wrapper '
+    testWidgets('fo08/us07/fr01/e06: a widget on neither base, the wrapper '
         'included, gets no wrapper', (tester) async {
       await tester.pumpWidget(
         themedHost(
@@ -247,24 +252,27 @@ void main() {
       );
     });
 
-    testWidgets('us07/s11, us07/s5: a disabled button refuses a tap and reads '
-        'as disabled', (tester) async {
-      final handle = tester.ensureSemantics();
-      var saved = 0;
-      await tester.pumpWidget(
-        themedHost(_Button(disabled: true, onTap: () => saved++)),
-      );
+    testWidgets(
+      'fo08/us07/s11, fo08/us07/s5: a disabled button refuses a tap and reads '
+      'as disabled',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        var saved = 0;
+        await tester.pumpWidget(
+          themedHost(_Button(disabled: true, onTap: () => saved++)),
+        );
 
-      await tester.tap(find.byType(_Button), warnIfMissed: false);
-      await tester.pump(kDoubleTapTimeout);
+        await tester.tap(find.byType(_Button), warnIfMissed: false);
+        await tester.pump(kDoubleTapTimeout);
 
-      expect(saved, 0);
-      expect(
-        tester.getSemantics(find.byType(StratumDisabled)),
-        isSemantics(label: 'Save', hasEnabledState: true, isEnabled: false),
-      );
-      handle.dispose();
-    });
+        expect(saved, 0);
+        expect(
+          tester.getSemantics(find.byType(StratumDisabled)),
+          isSemantics(label: 'Save', hasEnabledState: true, isEnabled: false),
+        );
+        handle.dispose();
+      },
+    );
 
     testWidgets('a component with no theme above builds while enabled, on '
         'either base', (tester) async {
@@ -283,7 +291,7 @@ void main() {
   });
 
   group('an app gesture detector around a component', () {
-    testWidgets('us07/fr01: it gets a tap on an enabled component', (
+    testWidgets('fo08/us07/fr01: it gets a tap on an enabled component', (
       tester,
     ) async {
       var taps = 0;
@@ -297,25 +305,28 @@ void main() {
       expect(taps, 1);
     });
 
-    testWidgets('us07/fr02/e08: it gets a tap on a disabled component, while the '
-        "component's own tap surface gets none", (tester) async {
-      var outer = 0;
-      var inner = 0;
-      await tester.pumpWidget(
-        themedHost(
-          GestureDetector(
-            onTap: () => outer++,
-            child: _Pressable(disabled: true, onTap: () => inner++),
+    testWidgets(
+      'fo08/us07/fr02/e08: it gets a tap on a disabled component, while the '
+      "component's own tap surface gets none",
+      (tester) async {
+        var outer = 0;
+        var inner = 0;
+        await tester.pumpWidget(
+          themedHost(
+            GestureDetector(
+              onTap: () => outer++,
+              child: _Pressable(disabled: true, onTap: () => inner++),
+            ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.byType(_Pressable));
-      await tester.pump(kDoubleTapTimeout);
+        await tester.tap(find.byType(_Pressable));
+        await tester.pump(kDoubleTapTimeout);
 
-      expect(outer, 1);
-      expect(inner, 0);
-    });
+        expect(outer, 1);
+        expect(inner, 0);
+      },
+    );
   });
 
   group('box root', () {
@@ -324,56 +335,60 @@ void main() {
       ('the stateful base', const _ExpandedStateful(), _ExpandedStateful),
     ];
     for (final (name, component, type) in cases) {
-      testWidgets('us07/fr01/e07: a component on $name whose build returns '
-          'Expanded fails the debug assertion that names the fix', (
-        tester,
-      ) async {
-        await tester.pumpWidget(themedHost(component));
+      testWidgets(
+        'fo08/us07/fr01/e07: a component on $name whose build returns '
+        'Expanded fails the debug assertion that names the fix',
+        (tester) async {
+          await tester.pumpWidget(themedHost(component));
 
-        expect(
-          tester.takeException(),
-          isA<AssertionError>().having(
-            (error) => error.message.toString(),
-            'message',
-            allOf(
-              contains('Incorrect use of ParentDataWidget'),
-              contains(type.toString()),
-              contains('Expanded'),
-              contains('call site'),
+          expect(
+            tester.takeException(),
+            isA<AssertionError>().having(
+              (error) => error.message.toString(),
+              'message',
+              allOf(
+                contains('Incorrect use of ParentDataWidget'),
+                contains(type.toString()),
+                contains('Expanded'),
+                contains('call site'),
+              ),
             ),
-          ),
-        );
-      });
+          );
+        },
+      );
     }
   });
 
   group('dimsWhenDisabled', () {
     final cases = <(String, Widget Function(VoidCallback), Type)>[
       (
-        'us07/fr04/e01: a component with its own disabled look',
+        'fo08/us07/fr04/e01: a component with its own disabled look',
         (onTap) => _OwnLook(disabled: true, onTap: onTap),
         _OwnLook,
       ),
       (
-        'us07/fr04/e02, us03/fr01: an app subclass of a component',
+        'fo08/us07/fr04/e02, fo08/us03/fr01: an app subclass of a component',
         (onTap) => _BrandButton(disabled: true, onTap: onTap),
         _BrandButton,
       ),
     ];
     for (final (name, build, type) in cases) {
-      testWidgets('us07/fr04, us07/s9: $name keeps full opacity and every '
-          'other disabled rule', (tester) async {
-        var taps = 0;
-        await tester.pumpWidget(themedHost(build(() => taps++)));
+      testWidgets(
+        'fo08/us07/fr04, fo08/us07/s9: $name keeps full opacity and every '
+        'other disabled rule',
+        (tester) async {
+          var taps = 0;
+          await tester.pumpWidget(themedHost(build(() => taps++)));
 
-        expect(_opacityOf(tester, find.byType(type)), 1.0);
-        expect(_wrapOf(tester, find.byType(type)).dims, isFalse);
-        expect(_wrapOf(tester, find.byType(type)).disabled, isTrue);
+          expect(_opacityOf(tester, find.byType(type)), 1.0);
+          expect(_wrapOf(tester, find.byType(type)).dims, isFalse);
+          expect(_wrapOf(tester, find.byType(type)).disabled, isTrue);
 
-        await tester.tap(find.byType(type), warnIfMissed: false);
-        await tester.pump(kDoubleTapTimeout);
-        expect(taps, 0);
-      });
+          await tester.tap(find.byType(type), warnIfMissed: false);
+          await tester.pump(kDoubleTapTimeout);
+          expect(taps, 0);
+        },
+      );
     }
   });
 
@@ -387,30 +402,33 @@ void main() {
       ),
     ];
     for (final (name, component, type) in cases) {
-      testWidgets('us07/fr03/e01, us07/s6, us03/fr01: a component on $name '
-          'that declares no semantics gets no disabled node and still '
-          'dims', (tester) async {
-        final handle = tester.ensureSemantics();
-        await tester.pumpWidget(
-          themedHost(
-            Semantics(container: true, label: 'host', child: component),
-          ),
-        );
+      testWidgets(
+        'fo08/us07/fr03/e01, fo08/us07/s6, fo08/us03/fr01: a component on $name '
+        'that declares no semantics gets no disabled node and still '
+        'dims',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          await tester.pumpWidget(
+            themedHost(
+              Semantics(container: true, label: 'host', child: component),
+            ),
+          );
 
-        expect(
-          _wrapOf(tester, find.byType(type)).contributesSemantics,
-          isFalse,
-        );
-        expect(
-          tester.getSemantics(find.byType(type)),
-          isSemantics(label: 'host', hasEnabledState: false),
-        );
-        expect(_opacityOf(tester, find.byType(type)), 0.5);
-        handle.dispose();
-      });
+          expect(
+            _wrapOf(tester, find.byType(type)).contributesSemantics,
+            isFalse,
+          );
+          expect(
+            tester.getSemantics(find.byType(type)),
+            isSemantics(label: 'host', hasEnabledState: false),
+          );
+          expect(_opacityOf(tester, find.byType(type)), 0.5);
+          handle.dispose();
+        },
+      );
     }
 
-    testWidgets('us03/fr01: both bases declare semantics by default', (
+    testWidgets('fo08/us03/fr01: both bases declare semantics by default', (
       tester,
     ) async {
       await tester.pumpWidget(

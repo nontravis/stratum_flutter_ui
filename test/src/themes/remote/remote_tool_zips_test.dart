@@ -7,7 +7,7 @@ import 'tool_zips/tool_zips.g.dart';
 
 void main() {
   for (final tool in toolZips.keys) {
-    test('us01/fr02/e02, us01/fr02/e13, rz3: a theme zipped by $tool '
+    test('fo04/us01/fr02/e02, fo04/us01/fr02/e13, rz3: a theme zipped by $tool '
         'installs', () {
       final read = readRemoteZip(
         base64.decode(toolZips[tool]!),

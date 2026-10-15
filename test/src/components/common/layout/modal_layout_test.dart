@@ -314,13 +314,13 @@ Future<void> _slowDrag(WidgetTester tester, double dy) async {
 
 void main() {
   group('rules', () {
-    test('us20/fr03/e01: no type below tablet is a bottom sheet', () {
+    test('fo06/us20/fr03/e01: no type below tablet is a bottom sheet', () {
       expect(
         resolveModalLayoutType(null, WindowSize.mobile),
         ModalLayoutType.bottomSheet,
       );
     });
-    test('us20/fr03/e02: no type at tablet and up is a modal', () {
+    test('fo06/us20/fr03/e02: no type at tablet and up is a modal', () {
       expect(
         resolveModalLayoutType(null, WindowSize.tablet),
         ModalLayoutType.modal,
@@ -330,13 +330,13 @@ void main() {
         ModalLayoutType.modal,
       );
     });
-    test('us20/fr03: a set type wins over the window size', () {
+    test('fo06/us20/fr03: a set type wins over the window size', () {
       expect(
         resolveModalLayoutType(ModalLayoutType.floating, WindowSize.desktop),
         ModalLayoutType.floating,
       );
     });
-    test('us20/fr03: content widths by size', () {
+    test('fo06/us20/fr03: content widths by size', () {
       double w(ModalLayoutSize s) => modalContentWidth(
         type: ModalLayoutType.modal,
         size: s,
@@ -349,7 +349,7 @@ void main() {
       expect(w(ModalLayoutSize.extraLarge), 1000);
       expect(w(ModalLayoutSize.fillWidth), 1360); // fr03/e04
     });
-    test('us20/fr03/e03: a sheet below tablet takes the full width', () {
+    test('fo06/us20/fr03/e03: a sheet below tablet takes the full width', () {
       expect(
         modalContentWidth(
           type: ModalLayoutType.bottomSheet,
@@ -361,7 +361,7 @@ void main() {
         390,
       );
     });
-    test('us20/fr04: a floating sheet below tablet sits 8 px in from each '
+    test('fo06/us20/fr04: a floating sheet below tablet sits 8 px in from each '
         'side', () {
       expect(
         modalContentWidth(
@@ -374,43 +374,49 @@ void main() {
         374,
       );
     });
-    test('us20/fr03/e05: a medium modal on a 390 px window clamps to 350', () {
-      expect(
-        modalContentWidth(
-          type: ModalLayoutType.modal,
-          size: ModalLayoutSize.medium,
-          window: WindowSize.mobile,
-          windowWidth: 390,
-          edgeMargin: 20,
-        ),
-        350,
-      );
-    });
-    test('us20/fr03: every width clamps to the window less both margins', () {
-      for (final size in ModalLayoutSize.values) {
+    test(
+      'fo06/us20/fr03/e05: a medium modal on a 390 px window clamps to 350',
+      () {
         expect(
           modalContentWidth(
-            type: ModalLayoutType.bottomSheet,
-            size: size,
-            window: WindowSize.tablet,
-            windowWidth: 768,
+            type: ModalLayoutType.modal,
+            size: ModalLayoutSize.medium,
+            window: WindowSize.mobile,
+            windowWidth: 390,
             edgeMargin: 20,
           ),
-          lessThanOrEqualTo(728),
-          reason: size.name,
+          350,
         );
-      }
-      expect(
-        modalContentWidth(
-          type: ModalLayoutType.modal,
-          size: ModalLayoutSize.medium,
-          window: WindowSize.watch,
-          windowWidth: 30,
-          edgeMargin: 20,
-        ),
-        0,
-      );
-    });
+      },
+    );
+    test(
+      'fo06/us20/fr03: every width clamps to the window less both margins',
+      () {
+        for (final size in ModalLayoutSize.values) {
+          expect(
+            modalContentWidth(
+              type: ModalLayoutType.bottomSheet,
+              size: size,
+              window: WindowSize.tablet,
+              windowWidth: 768,
+              edgeMargin: 20,
+            ),
+            lessThanOrEqualTo(728),
+            reason: size.name,
+          );
+        }
+        expect(
+          modalContentWidth(
+            type: ModalLayoutType.modal,
+            size: ModalLayoutSize.medium,
+            window: WindowSize.watch,
+            windowWidth: 30,
+            edgeMargin: 20,
+          ),
+          0,
+        );
+      },
+    );
 
     const r40 = BorderRadius.all(Radius.circular(40));
     const r46 = BorderRadius.all(Radius.circular(46));
@@ -425,16 +431,16 @@ void main() {
       cardLarge: 24,
       fullHeight: full,
     );
-    test('us20/fr04/e01: a sheet on a 40 px screen radius', () {
+    test('fo06/us20/fr04/e01: a sheet on a 40 px screen radius', () {
       expect(corners(ModalLayoutType.bottomSheet, r40), r40);
     });
-    test('us20/fr04/e02: a sheet with the radius unknown', () {
+    test('fo06/us20/fr04/e02: a sheet with the radius unknown', () {
       expect(
         corners(ModalLayoutType.bottomSheet, null),
         const BorderRadius.vertical(top: Radius.circular(40)),
       );
     });
-    test('us20/fr04/e03: a full-height sheet takes the screen radius on '
+    test('fo06/us20/fr04/e03: a full-height sheet takes the screen radius on '
         'top', () {
       expect(
         corners(ModalLayoutType.bottomSheet, r46, full: true).topLeft,
@@ -445,22 +451,28 @@ void main() {
         const Radius.circular(40),
       );
     });
-    test('us20/fr04/e04: floating is the screen radius less 8, else 38', () {
-      expect(
-        corners(ModalLayoutType.floating, r46),
-        const BorderRadius.all(Radius.circular(38)),
-      );
-      expect(
-        corners(ModalLayoutType.floating, null),
-        const BorderRadius.all(Radius.circular(38)),
-      );
-    });
-    test('us20/fr04/e05: a modal takes card-large whatever the screen', () {
-      expect(
-        corners(ModalLayoutType.modal, r46),
-        const BorderRadius.all(Radius.circular(24)),
-      );
-    });
+    test(
+      'fo06/us20/fr04/e04: floating is the screen radius less 8, else 38',
+      () {
+        expect(
+          corners(ModalLayoutType.floating, r46),
+          const BorderRadius.all(Radius.circular(38)),
+        );
+        expect(
+          corners(ModalLayoutType.floating, null),
+          const BorderRadius.all(Radius.circular(38)),
+        );
+      },
+    );
+    test(
+      'fo06/us20/fr04/e05: a modal takes card-large whatever the screen',
+      () {
+        expect(
+          corners(ModalLayoutType.modal, r46),
+          const BorderRadius.all(Radius.circular(24)),
+        );
+      },
+    );
   });
 
   group('ModalLayoutStyle', () {
@@ -483,7 +495,7 @@ void main() {
     });
 
     test(
-      'us20/fr01: ModalLayoutStyle copyWith changes only the given part',
+      'fo06/us20/fr01: ModalLayoutStyle copyWith changes only the given part',
       () {
         const base = ModalLayoutStyle(surface: WidgetStyle(width: 1));
         final copy = base.copyWith(top: const WidgetStyle(width: 2));
@@ -492,24 +504,29 @@ void main() {
       },
     );
 
-    test('us06/fr01: equal part styles are equal, so an equal app-wide map '
-        'rebuilds no modal layout', () {
-      // Built at run time, so no const canonicalization makes them one
-      // instance and the check reads `==`, not identity.
-      ModalLayoutStyle make(double width) =>
-          ModalLayoutStyle(surface: WidgetStyle(width: width));
-      final a = make(1);
-      final b = make(1);
-      expect(identical(a, b), isFalse);
-      expect(a == b, isTrue);
-      expect(a.hashCode, b.hashCode);
-      expect(a, isNot(make(2)));
-      expect(a, isNot(const ModalLayoutStyle(handle: WidgetStyle(width: 1))));
-    });
+    test(
+      'fo06/us06/fr01: equal part styles are equal, so an equal app-wide map '
+      'rebuilds no modal layout',
+      () {
+        // Built at run time, so no const canonicalization makes them one
+        // instance and the check reads `==`, not identity.
+        ModalLayoutStyle make(double width) =>
+            ModalLayoutStyle(surface: WidgetStyle(width: width));
+        final a = make(1);
+        final b = make(1);
+        expect(identical(a, b), isFalse);
+        expect(a == b, isTrue);
+        expect(a.hashCode, b.hashCode);
+        expect(a, isNot(make(2)));
+        expect(a, isNot(const ModalLayoutStyle(handle: WidgetStyle(width: 1))));
+      },
+    );
   });
 
   group('ModalLayout', () {
-    testWidgets('us20/fr01/e01: null top and tab do not show', (tester) async {
+    testWidgets('fo06/us20/fr01/e01: null top and tab do not show', (
+      tester,
+    ) async {
       await tester.pumpWidget(themedHost(_modal()));
       expect(find.text('Body'), findsOneWidget);
       expect(find.byType(ModalLayout), findsOneWidget);
@@ -523,7 +540,7 @@ void main() {
       );
     });
 
-    testWidgets('us20/fr01: top, tab, body in that order', (tester) async {
+    testWidgets('fo06/us20/fr01: top, tab, body in that order', (tester) async {
       await tester.pumpWidget(
         themedHost(_modal(top: const Text('Top'), tab: const Text('Tab'))),
       );
@@ -535,20 +552,21 @@ void main() {
       expect(y.toSet(), hasLength(3));
     });
 
-    testWidgets('us20/fr01/e02: showClose hides or shows the close button', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(_modal(showClose: false, onClose: _noop)),
-      );
-      expect(find.bySemanticsLabel('Close'), findsNothing);
-      await tester.pumpWidget(themedHost(_modal(onClose: _noop)));
-      expect(find.bySemanticsLabel('Close'), findsOneWidget);
-      handle.dispose();
-    });
+    testWidgets(
+      'fo06/us20/fr01/e02: showClose hides or shows the close button',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(_modal(showClose: false, onClose: _noop)),
+        );
+        expect(find.bySemanticsLabel('Close'), findsNothing);
+        await tester.pumpWidget(themedHost(_modal(onClose: _noop)));
+        expect(find.bySemanticsLabel('Close'), findsOneWidget);
+        handle.dispose();
+      },
+    );
 
-    testWidgets('NFR-U06: us20/fr01/e06: inline with no onClose, no close '
+    testWidgets('NFR-U06: fo06/us20/fr01/e06: inline with no onClose, no close '
         'button shows and the handle is decoration that a screen reader and '
         'Tab skip', (tester) async {
       final handle = tester.ensureSemantics();
@@ -569,7 +587,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us20/fr01/e03: inline with an onClose, the close button '
+    testWidgets('fo06/us20/fr01/e03: inline with an onClose, the close button '
         'and the handle call it', (tester) async {
       var closed = 0;
       await tester.pumpWidget(
@@ -590,23 +608,26 @@ void main() {
       );
     });
 
-    testWidgets('us20/fr01/e03: inline in a scrolling page, it sizes to its '
-        'content', (tester) async {
-      await tester.pumpWidget(
-        themedHost(
-          ListViewLayout.builder(
-            itemCount: 2,
-            itemBuilder: (_, index) => index == 0
-                ? _modal(top: const Text('Top'))
-                : const Text('After'),
+    testWidgets(
+      'fo06/us20/fr01/e03: inline in a scrolling page, it sizes to its '
+      'content',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            ListViewLayout.builder(
+              itemCount: 2,
+              itemBuilder: (_, index) => index == 0
+                  ? _modal(top: const Text('Top'))
+                  : const Text('After'),
+            ),
           ),
-        ),
-      );
-      expect(tester.takeException(), isNull);
-      expect(find.text('After'), findsOneWidget);
-    });
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('After'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us20/fr03/e01: no type on a phone is a full-width bottom '
+    testWidgets('fo06/us20/fr03/e01: no type on a phone is a full-width bottom '
         'sheet with a handle', (tester) async {
       _view(tester, _phone);
       await tester.pumpWidget(themedHost(_modal(type: null)));
@@ -614,40 +635,46 @@ void main() {
       expect(_pill, findsOneWidget);
     });
 
-    testWidgets('us20/fr03/e02: no type on a tablet is a 400 px modal with '
-        'no handle', (tester) async {
-      await tester.pumpWidget(themedHost(_modal(type: null)));
-      expect(tester.getSize(_surface).width, 400);
-      expect(_surfaceStyle(tester).borderRadius, BorderRadius.circular(24));
-      expect(_pill, findsNothing);
-    });
+    testWidgets(
+      'fo06/us20/fr03/e02: no type on a tablet is a 400 px modal with '
+      'no handle',
+      (tester) async {
+        await tester.pumpWidget(themedHost(_modal(type: null)));
+        expect(tester.getSize(_surface).width, 400);
+        expect(_surfaceStyle(tester).borderRadius, BorderRadius.circular(24));
+        expect(_pill, findsNothing);
+      },
+    );
 
-    testWidgets('us20/fr03/e05: a medium modal on a 390 px window draws '
+    testWidgets('fo06/us20/fr03/e05: a medium modal on a 390 px window draws '
         '350 px', (tester) async {
       _view(tester, _phone);
       await tester.pumpWidget(themedHost(_modal()));
       expect(tester.getSize(_surface).width, 350);
     });
 
-    testWidgets('us20/fr04: a floating sheet on a phone opens 8 px in from '
-        'the screen edges with concentric corners', (tester) async {
-      _view(tester, _phone);
-      const r46 = BorderRadius.all(Radius.circular(46));
-      await tester.pumpWidget(
-        themedHost(
-          _media(
-            _modal(type: ModalLayoutType.floating),
-            (data) => data.applyDisplayCornerRadii(r46),
+    testWidgets(
+      'fo06/us20/fr04: a floating sheet on a phone opens 8 px in from '
+      'the screen edges with concentric corners',
+      (tester) async {
+        _view(tester, _phone);
+        const r46 = BorderRadius.all(Radius.circular(46));
+        await tester.pumpWidget(
+          themedHost(
+            _media(
+              _modal(type: ModalLayoutType.floating),
+              (data) => data.applyDisplayCornerRadii(r46),
+            ),
           ),
-        ),
-      );
-      final style = _surfaceStyle(tester);
-      expect(style.width, 374);
-      expect(style.margin, const EdgeInsets.all(8));
-      expect(style.borderRadius, BorderRadius.circular(38));
-    });
+        );
+        final style = _surfaceStyle(tester);
+        expect(style.width, 374);
+        expect(style.margin, const EdgeInsets.all(8));
+        expect(style.borderRadius, BorderRadius.circular(38));
+      },
+    );
 
-    testWidgets('us20/fr04/e06: an app borderRadius wins', (tester) async {
+    testWidgets('fo06/us20/fr04/e06: an app borderRadius wins', (tester) async {
       const r12 = BorderRadius.all(Radius.circular(12));
       await tester.pumpWidget(
         themedHost(_modal(type: ModalLayoutType.bottomSheet, radius: r12)),
@@ -655,42 +682,45 @@ void main() {
       expect(_surfaceStyle(tester).borderRadius, r12);
     });
 
-    testWidgets('us20/fr04: the app-wide parts style beats the corner rule, '
-        'borderRadius beats it, and customStyle beats both', (tester) async {
-      const r8 = BorderRadius.all(Radius.circular(8));
-      const r12 = BorderRadius.all(Radius.circular(12));
-      const r16 = BorderRadius.all(Radius.circular(16));
-      Widget host(Widget child) => StratumThemeApplication(
-        themes: StratumThemeSet(light: fakeTheme),
-        themeMode: ThemeMode.light,
-        componentPartDefaults: (theme) => {
-          ModalLayout: const ModalLayoutStyle(
-            surface: WidgetStyle(borderRadius: r8),
+    testWidgets(
+      'fo06/us20/fr04: the app-wide parts style beats the corner rule, '
+      'borderRadius beats it, and customStyle beats both',
+      (tester) async {
+        const r8 = BorderRadius.all(Radius.circular(8));
+        const r12 = BorderRadius.all(Radius.circular(12));
+        const r16 = BorderRadius.all(Radius.circular(16));
+        Widget host(Widget child) => StratumThemeApplication(
+          themes: StratumThemeSet(light: fakeTheme),
+          themeMode: ThemeMode.light,
+          componentPartDefaults: (theme) => {
+            ModalLayout: const ModalLayoutStyle(
+              surface: WidgetStyle(borderRadius: r8),
+            ),
+          },
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(child: child),
           ),
-        },
-        child: Directionality(
-          textDirection: TextDirection.ltr,
-          child: Center(child: child),
-        ),
-      );
-      await tester.pumpWidget(host(_modal()));
-      expect(_surfaceStyle(tester).borderRadius, r8);
-      await tester.pumpWidget(host(_modal(radius: r12)));
-      expect(_surfaceStyle(tester).borderRadius, r12);
-      await tester.pumpWidget(
-        host(
-          _modal(
-            radius: r12,
-            style: const ModalLayoutStyle(
-              surface: WidgetStyle(borderRadius: r16),
+        );
+        await tester.pumpWidget(host(_modal()));
+        expect(_surfaceStyle(tester).borderRadius, r8);
+        await tester.pumpWidget(host(_modal(radius: r12)));
+        expect(_surfaceStyle(tester).borderRadius, r12);
+        await tester.pumpWidget(
+          host(
+            _modal(
+              radius: r12,
+              style: const ModalLayoutStyle(
+                surface: WidgetStyle(borderRadius: r16),
+              ),
             ),
           ),
-        ),
-      );
-      expect(_surfaceStyle(tester).borderRadius, r16);
-    });
+        );
+        expect(_surfaceStyle(tester).borderRadius, r16);
+      },
+    );
 
-    testWidgets('us20/fr01: the surface pads by type and size from the '
+    testWidgets('fo06/us20/fr01: the surface pads by type and size from the '
         'space 4xl and lg tokens', (tester) async {
       await tester.pumpWidget(themedHost(_modal()));
       expect(
@@ -705,25 +735,29 @@ void main() {
       expect(_surfaceStyle(tester).padding, EdgeInsets.zero);
     });
 
-    testWidgets('us20/fr05/e01: a bottom sheet keeps its content above the '
-        'home indicator; e02: at full height, below the status bar', (
-      tester,
-    ) async {
-      _view(tester, _phone);
-      const insets = EdgeInsets.only(top: 47, bottom: 34);
-      Widget sheet({bool? fullHeight}) => themedHost(
-        _media(
-          _modal(type: ModalLayoutType.bottomSheet, fullHeight: fullHeight),
-          (data) => data.copyWith(padding: insets),
-        ),
-      );
-      await tester.pumpWidget(sheet());
-      expect(_surfaceStyle(tester).padding, const EdgeInsets.only(bottom: 34));
-      await tester.pumpWidget(sheet(fullHeight: true));
-      expect(_surfaceStyle(tester).padding, insets);
-    });
+    testWidgets(
+      'fo06/us20/fr05/e01: a bottom sheet keeps its content above the '
+      'home indicator; e02: at full height, below the status bar',
+      (tester) async {
+        _view(tester, _phone);
+        const insets = EdgeInsets.only(top: 47, bottom: 34);
+        Widget sheet({bool? fullHeight}) => themedHost(
+          _media(
+            _modal(type: ModalLayoutType.bottomSheet, fullHeight: fullHeight),
+            (data) => data.copyWith(padding: insets),
+          ),
+        );
+        await tester.pumpWidget(sheet());
+        expect(
+          _surfaceStyle(tester).padding,
+          const EdgeInsets.only(bottom: 34),
+        );
+        await tester.pumpWidget(sheet(fullHeight: true));
+        expect(_surfaceStyle(tester).padding, insets);
+      },
+    );
 
-    testWidgets('us20/fr05: a modal adds no inset by default; e03: with '
+    testWidgets('fo06/us20/fr05: a modal adds no inset by default; e03: with '
         'safeArea it keeps clear of every inset', (tester) async {
       const insets = EdgeInsets.fromLTRB(10, 20, 30, 40);
       Widget modal({bool? safeArea}) => themedHost(
@@ -744,7 +778,7 @@ void main() {
       );
     });
 
-    testWidgets('us20/fr06/e03: the surface draws the theme shadow/4', (
+    testWidgets('fo06/us20/fr06/e03: the surface draws the theme shadow/4', (
       tester,
     ) async {
       final shadow = fakeTheme.shadow;
@@ -765,45 +799,48 @@ void main() {
       expect(_surfaceStyle(tester).dropShadow, level4);
     });
 
-    testWidgets('us20/fr06/e05: the close button blurs its own background '
+    testWidgets('fo06/us20/fr06/e05: the close button blurs its own background '
         'by the theme blur/3', (tester) async {
       await tester.pumpWidget(themedHost(_modal(onClose: _noop)));
       expect(_partStyle(tester, _close).backgroundBlur, fakeTheme.blur.level3);
     });
 
-    testWidgets('us20/fr01/e05: with scrollBody false a list body gets the '
-        'bounded height unwrapped and scrolls itself', (tester) async {
-      _view(tester, const Size(390, 600));
-      await tester.pumpWidget(
-        themedHost(
-          _modal(
-            type: null,
-            scrollBody: false,
-            top: const Text('Top'),
-            body: ListView.builder(
-              itemCount: 77,
-              itemBuilder: (_, index) =>
-                  SizedBox(height: 40, child: Text('Row $index')),
+    testWidgets(
+      'fo06/us20/fr01/e05: with scrollBody false a list body gets the '
+      'bounded height unwrapped and scrolls itself',
+      (tester) async {
+        _view(tester, const Size(390, 600));
+        await tester.pumpWidget(
+          themedHost(
+            _modal(
+              type: null,
+              scrollBody: false,
+              top: const Text('Top'),
+              body: ListView.builder(
+                itemCount: 77,
+                itemBuilder: (_, index) =>
+                    SizedBox(height: 40, child: Text('Row $index')),
+              ),
             ),
           ),
-        ),
-      );
-      expect(tester.takeException(), isNull);
-      expect(
-        find.descendant(
-          of: find.byType(ModalLayout),
-          matching: find.byType(SingleChildScrollView),
-        ),
-        findsNothing,
-      );
-      expect(tester.getBottomLeft(_surface).dy, lessThanOrEqualTo(600));
-      await tester.drag(find.byType(ListView), const Offset(0, -400));
-      await tester.pump();
-      expect(find.text('Row 0'), findsNothing);
-      expect(find.text('Row 12'), findsOneWidget);
-    });
+        );
+        expect(tester.takeException(), isNull);
+        expect(
+          find.descendant(
+            of: find.byType(ModalLayout),
+            matching: find.byType(SingleChildScrollView),
+          ),
+          findsNothing,
+        );
+        expect(tester.getBottomLeft(_surface).dy, lessThanOrEqualTo(600));
+        await tester.drag(find.byType(ListView), const Offset(0, -400));
+        await tester.pump();
+        expect(find.text('Row 0'), findsNothing);
+        expect(find.text('Row 12'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us20/fr01: the body scroll view takes the primary scroll '
+    testWidgets('fo06/us20/fr01: the body scroll view takes the primary scroll '
         'controller under a route scope, never inline', (tester) async {
       _view(tester, _phone);
       await tester.pumpWidget(themedHost(_modal(type: null)));
@@ -817,16 +854,19 @@ void main() {
     });
 
     group('route scope', () {
-      testWidgets('us20/fr03: a null type takes the scope type; an own type '
-          'wins', (tester) async {
-        await tester.pumpWidget(themedHost(_scoped(_modal(type: null))));
-        expect(_surfaceStyle(tester).borderRadius, BorderRadius.circular(38));
-        expect(_surfaceStyle(tester).margin, const EdgeInsets.all(8));
-        await tester.pumpWidget(themedHost(_scoped(_modal())));
-        expect(_surfaceStyle(tester).borderRadius, BorderRadius.circular(24));
-      });
+      testWidgets(
+        'fo06/us20/fr03: a null type takes the scope type; an own type '
+        'wins',
+        (tester) async {
+          await tester.pumpWidget(themedHost(_scoped(_modal(type: null))));
+          expect(_surfaceStyle(tester).borderRadius, BorderRadius.circular(38));
+          expect(_surfaceStyle(tester).margin, const EdgeInsets.all(8));
+          await tester.pumpWidget(themedHost(_scoped(_modal())));
+          expect(_surfaceStyle(tester).borderRadius, BorderRadius.circular(24));
+        },
+      );
 
-      testWidgets('us20/fr04/e03: the scope full height gives a sheet the '
+      testWidgets('fo06/us20/fr04/e03: the scope full height gives a sheet the '
           'screen radius on top; an own false wins', (tester) async {
         const r46 = BorderRadius.all(Radius.circular(46));
         Widget sheet({bool? fullHeight}) => themedHost(
@@ -848,27 +888,30 @@ void main() {
         );
       });
 
-      testWidgets('us20/fr02: the close button and the handle dismiss through '
-          'the scope; onClose wins', (tester) async {
-        var dismissed = 0;
-        var closed = 0;
-        Widget sheet({VoidCallback? onClose}) => themedHost(
-          _scoped(
-            _modal(type: null, onClose: onClose),
-            type: ModalLayoutType.bottomSheet,
-            onDismiss: () => dismissed++,
-          ),
-        );
-        await tester.pumpWidget(sheet());
-        await tester.tap(_close);
-        await tester.tap(_handle);
-        await tester.pump();
-        expect(dismissed, 2);
-        await tester.pumpWidget(sheet(onClose: () => closed++));
-        await tester.tap(_close);
-        await tester.pump();
-        expect((dismissed, closed), (2, 1));
-      });
+      testWidgets(
+        'fo06/us20/fr02: the close button and the handle dismiss through '
+        'the scope; onClose wins',
+        (tester) async {
+          var dismissed = 0;
+          var closed = 0;
+          Widget sheet({VoidCallback? onClose}) => themedHost(
+            _scoped(
+              _modal(type: null, onClose: onClose),
+              type: ModalLayoutType.bottomSheet,
+              onDismiss: () => dismissed++,
+            ),
+          );
+          await tester.pumpWidget(sheet());
+          await tester.tap(_close);
+          await tester.tap(_handle);
+          await tester.pump();
+          expect(dismissed, 2);
+          await tester.pumpWidget(sheet(onClose: () => closed++));
+          await tester.tap(_close);
+          await tester.pump();
+          expect((dismissed, closed), (2, 1));
+        },
+      );
 
       testWidgets('NFR-U08: with no scrim the surface also shows its outline '
           'with its shadow', (tester) async {
@@ -1081,20 +1124,21 @@ void main() {
         expect(closed, 3);
       });
 
-      testWidgets('NFR-E01: us20/fr01/e04: the surface follows the theme', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          themedHost(_modal(), theme: defaultThemeSet.light),
-        );
-        final light = _surfaceStyle(tester).backgroundColor;
-        await tester.pumpWidget(
-          themedHost(_modal(), theme: defaultThemeSet.dark),
-        );
-        final dark = _surfaceStyle(tester).backgroundColor;
-        expect(light, defaultThemeSet.light.color.background.defaults.normal);
-        expect(dark, isNot(light));
-      });
+      testWidgets(
+        'NFR-E01: fo06/us20/fr01/e04: the surface follows the theme',
+        (tester) async {
+          await tester.pumpWidget(
+            themedHost(_modal(), theme: defaultThemeSet.light),
+          );
+          final light = _surfaceStyle(tester).backgroundColor;
+          await tester.pumpWidget(
+            themedHost(_modal(), theme: defaultThemeSet.dark),
+          );
+          final dark = _surfaceStyle(tester).backgroundColor;
+          expect(light, defaultThemeSet.light.color.background.defaults.normal);
+          expect(dark, isNot(light));
+        },
+      );
 
       testWidgets('NFR-E02: a customStyle surface color shows and the shadow '
           'keeps the theme default', (tester) async {
@@ -1115,65 +1159,74 @@ void main() {
   });
 
   group('showModalLayout', () {
-    testWidgets('us20/s1: us20/fr02/e01: a choice completes the future with '
-        'its value', (tester) async {
-      await _pumpApp(tester, const _Opener());
-      await _open(tester);
-      await tester.tap(find.text('Choose A'));
-      await tester.pumpAndSettle();
-      expect(_opener(tester).result, 'เลือก A');
-      expect(find.byType(ModalLayout), findsNothing);
-    });
+    testWidgets(
+      'fo06/us20/s1: fo06/us20/fr02/e01: a choice completes the future with '
+      'its value',
+      (tester) async {
+        await _pumpApp(tester, const _Opener());
+        await _open(tester);
+        await tester.tap(find.text('Choose A'));
+        await tester.pumpAndSettle();
+        expect(_opener(tester).result, 'เลือก A');
+        expect(find.byType(ModalLayout), findsNothing);
+      },
+    );
 
-    testWidgets('us20/s6: us20/fr02/e02: Esc completes with null and focus '
-        'returns to the opener', (tester) async {
-      await _pumpApp(tester, const _Opener(), size: _desktop);
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
-      final opener = Focus.of(tester.element(find.text('Open')));
-      expect(FocusManager.instance.primaryFocus, opener);
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsOneWidget);
-      expect(FocusManager.instance.primaryFocus, isNot(opener));
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsNothing);
-      expect(_opener(tester).result, isNull);
-      expect(FocusManager.instance.primaryFocus, opener);
-    });
+    testWidgets(
+      'fo06/us20/s6: fo06/us20/fr02/e02: Esc completes with null and focus '
+      'returns to the opener',
+      (tester) async {
+        await _pumpApp(tester, const _Opener(), size: _desktop);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        final opener = Focus.of(tester.element(find.text('Open')));
+        expect(FocusManager.instance.primaryFocus, opener);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(find.byType(ModalLayout), findsOneWidget);
+        expect(FocusManager.instance.primaryFocus, isNot(opener));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.byType(ModalLayout), findsNothing);
+        expect(_opener(tester).result, isNull);
+        expect(FocusManager.instance.primaryFocus, opener);
+      },
+    );
 
     for (final type in [ModalLayoutType.modal, ModalLayoutType.bottomSheet]) {
-      testWidgets('NFR-U02: us20/fr02/e03: Tab and Shift+Tab stay inside a '
-          '${type.name}', (tester) async {
-        await _pumpApp(tester, _Opener(type: type), size: _desktop);
-        await _open(tester);
-        Future<void> expectInside() async {
-          await tester.pump();
-          final focused = FocusManager.instance.primaryFocus!.context!;
-          expect(
-            find.descendant(
-              of: find.byType(ModalLayout),
-              matching: find.byWidget(focused.widget),
-            ),
-            findsOneWidget,
-          );
-        }
+      testWidgets(
+        'NFR-U02: fo06/us20/fr02/e03: Tab and Shift+Tab stay inside a '
+        '${type.name}',
+        (tester) async {
+          await _pumpApp(tester, _Opener(type: type), size: _desktop);
+          await _open(tester);
+          Future<void> expectInside() async {
+            await tester.pump();
+            final focused = FocusManager.instance.primaryFocus!.context!;
+            expect(
+              find.descendant(
+                of: find.byType(ModalLayout),
+                matching: find.byWidget(focused.widget),
+              ),
+              findsOneWidget,
+            );
+          }
 
-        for (var i = 0; i < 5; i++) {
-          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-          await expectInside();
-        }
-        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-        for (var i = 0; i < 5; i++) {
-          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-          await expectInside();
-        }
-        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-      });
+          for (var i = 0; i < 5; i++) {
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await expectInside();
+          }
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+          for (var i = 0; i < 5; i++) {
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await expectInside();
+          }
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        },
+      );
     }
 
-    testWidgets('NFR-U06: us20/fr02/e04: a sheet route is a named scope '
+    testWidgets('NFR-U06: fo06/us20/fr02/e04: a sheet route is a named scope '
         'labeled Sheet, the page behind hidden', (tester) async {
       final handle = tester.ensureSemantics();
       await _pumpApp(tester, const _Opener());
@@ -1186,7 +1239,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('NFR-U06: us20/fr02/e04: a modal route is labeled Dialog, '
+    testWidgets('NFR-U06: fo06/us20/fr02/e04: a modal route is labeled Dialog, '
         'and a semantics label overrides it', (tester) async {
       final handle = tester.ensureSemantics();
       await _pumpApp(tester, const _Opener(), size: _desktop);
@@ -1210,7 +1263,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('NFR-U06: us20/fr06/e01: with no background the page '
+    testWidgets('NFR-U06: fo06/us20/fr06/e01: with no background the page '
         'behind stays hidden from a screen reader', (tester) async {
       final handle = tester.ensureSemantics();
       await _pumpApp(tester, const _Opener(showBackground: false));
@@ -1238,27 +1291,30 @@ void main() {
       },
     };
     for (final MapEntry(key: reason, value: pump) in reducers.entries) {
-      testWidgets('NFR-U03: us20/s7: us20/fr02/e05: under $reason a sheet '
-          'fades in with no slide', (tester) async {
-        await pump(tester);
-        await tester.tap(find.text('Open'));
-        await tester.pump();
-        await tester.pump();
-        final atOnce = tester.getRect(find.byType(ModalLayout));
-        final fades = tester
-            .widgetList<FadeTransition>(
-              find.ancestor(
-                of: find.byType(ModalLayout),
-                matching: find.byType(FadeTransition),
-              ),
-            )
-            .map((fade) => fade.opacity.value);
-        expect(fades.any((opacity) => opacity < 1), isTrue);
-        await tester.pumpAndSettle();
-        expect(tester.getRect(find.byType(ModalLayout)), atOnce);
-      });
+      testWidgets(
+        'NFR-U03: fo06/us20/s7: fo06/us20/fr02/e05: under $reason a sheet '
+        'fades in with no slide',
+        (tester) async {
+          await pump(tester);
+          await tester.tap(find.text('Open'));
+          await tester.pump();
+          await tester.pump();
+          final atOnce = tester.getRect(find.byType(ModalLayout));
+          final fades = tester
+              .widgetList<FadeTransition>(
+                find.ancestor(
+                  of: find.byType(ModalLayout),
+                  matching: find.byType(FadeTransition),
+                ),
+              )
+              .map((fade) => fade.opacity.value);
+          expect(fades.any((opacity) => opacity < 1), isTrue);
+          await tester.pumpAndSettle();
+          expect(tester.getRect(find.byType(ModalLayout)), atOnce);
+        },
+      );
 
-      testWidgets('NFR-U03: us20/fr07/e03: under $reason a drag that ends '
+      testWidgets('NFR-U03: fo06/us20/fr07/e03: under $reason a drag that ends '
           'short of dismissal jumps to the resting height', (tester) async {
         await pump(tester);
         await tester.tap(find.text('Open'));
@@ -1271,7 +1327,7 @@ void main() {
       });
     }
 
-    testWidgets('us20/fr02: a sheet slides in over the normal level and '
+    testWidgets('fo06/us20/fr02: a sheet slides in over the normal level and '
         'settles at its end', (tester) async {
       await _pumpApp(tester, const _Opener(type: ModalLayoutType.bottomSheet));
       await tester.tap(find.text('Open'));
@@ -1286,7 +1342,7 @@ void main() {
       expect(_top(tester), settled);
     });
 
-    testWidgets('us20/fr02/e06: back closes the modal with null and the '
+    testWidgets('fo06/us20/fr02/e06: back closes the modal with null and the '
         'page stays', (tester) async {
       await _pumpApp(tester, const _Opener());
       await _open(tester);
@@ -1297,50 +1353,59 @@ void main() {
       expect(_opener(tester).result, isNull);
     });
 
-    testWidgets('us20/s8: us20/fr06/e01: with no background a page tap does '
-        'not act, closes the modal, and no scrim draws', (tester) async {
-      await _pumpApp(
-        tester,
-        const _Opener(showBackground: false),
-        size: _desktop,
-      );
-      await _open(tester);
-      expect(_scrim, findsNothing);
-      await tester.tapAt(tester.getCenter(find.text('Page button')));
-      await tester.pumpAndSettle();
-      expect(_opener(tester).pageTaps, 0);
-      expect(find.byType(ModalLayout), findsNothing);
-      expect(_opener(tester).result, isNull);
-    });
+    testWidgets(
+      'fo06/us20/s8: fo06/us20/fr06/e01: with no background a page tap does '
+      'not act, closes the modal, and no scrim draws',
+      (tester) async {
+        await _pumpApp(
+          tester,
+          const _Opener(showBackground: false),
+          size: _desktop,
+        );
+        await _open(tester);
+        expect(_scrim, findsNothing);
+        await tester.tapAt(tester.getCenter(find.text('Page button')));
+        await tester.pumpAndSettle();
+        expect(_opener(tester).pageTaps, 0);
+        expect(find.byType(ModalLayout), findsNothing);
+        expect(_opener(tester).result, isNull);
+      },
+    );
 
-    testWidgets('NFR-U09: us20/fr06/e04: the scrim reads Dismiss and a tap '
-        'closes with no drag', (tester) async {
-      final handle = tester.ensureSemantics();
-      await _pumpApp(tester, const _Opener(), size: _desktop);
-      await _open(tester);
-      expect(find.bySemanticsLabel('Dismiss'), findsOneWidget);
-      await tester.tapAt(const Offset(5, 5));
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsNothing);
-      expect(_opener(tester).result, isNull);
-      handle.dispose();
-    });
+    testWidgets(
+      'NFR-U09: fo06/us20/fr06/e04: the scrim reads Dismiss and a tap '
+      'closes with no drag',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpApp(tester, const _Opener(), size: _desktop);
+        await _open(tester);
+        expect(find.bySemanticsLabel('Dismiss'), findsOneWidget);
+        await tester.tapAt(const Offset(5, 5));
+        await tester.pumpAndSettle();
+        expect(find.byType(ModalLayout), findsNothing);
+        expect(_opener(tester).result, isNull);
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us20/fr06: the scrim draws normal-inverse at opacity.scrim '
-        'with the blur/1 token', (tester) async {
-      await _pumpApp(tester, const _Opener());
-      await _open(tester);
-      final style = tester.widget<ContainerLayout>(_scrim).style!;
-      expect(
-        style.backgroundColor,
-        fakeTheme.color.background.defaults.normalInverse.withValues(
-          alpha: fakeTheme.opacity.scrim,
-        ),
-      );
-      expect(style.backgroundBlur, fakeTheme.blur.level1);
-    });
+    testWidgets(
+      'fo06/us20/fr06: the scrim draws normal-inverse at opacity.scrim '
+      'with the blur/1 token',
+      (tester) async {
+        await _pumpApp(tester, const _Opener());
+        await _open(tester);
+        final style = tester.widget<ContainerLayout>(_scrim).style!;
+        expect(
+          style.backgroundColor,
+          fakeTheme.color.background.defaults.normalInverse.withValues(
+            alpha: fakeTheme.opacity.scrim,
+          ),
+        );
+        expect(style.backgroundBlur, fakeTheme.blur.level1);
+      },
+    );
 
-    testWidgets('NFR-E01: us20/fr06/e02: e06: a theme with another blur/1 '
+    testWidgets('NFR-E01: fo06/us20/fr06/e02: e06: a theme with another blur/1 '
         'and opacity.scrim restyles the open scrim', (tester) async {
       final blur = fakeTheme.blur;
       final other = fakeTheme.copyWith(
@@ -1390,14 +1455,14 @@ void main() {
       );
     });
 
-    testWidgets('NFR-U08: us20/fr06/e01: with no background the surface '
+    testWidgets('NFR-U08: fo06/us20/fr06/e01: with no background the surface '
         'draws its outline', (tester) async {
       await _pumpApp(tester, const _Opener(showBackground: false));
       await _open(tester);
       expect(_surfaceStyle(tester).border, isNotNull);
     });
 
-    testWidgets('us20/fr07/e04: a tap on the handle dismisses the sheet', (
+    testWidgets('fo06/us20/fr07/e04: a tap on the handle dismisses the sheet', (
       tester,
     ) async {
       await _pumpApp(tester, const _Opener(type: ModalLayoutType.bottomSheet));
@@ -1408,73 +1473,90 @@ void main() {
       expect(_opener(tester).result, isNull);
     });
 
-    testWidgets('us20/fr02: the close button dismisses through the route', (
-      tester,
-    ) async {
-      await _pumpApp(tester, const _Opener(), size: _desktop);
-      await _open(tester);
-      await tester.tap(_close);
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsNothing);
-      expect(_opener(tester).result, isNull);
-    });
-
-    testWidgets('us20/fr07/e05: an SDK ListTile in a sheet builds and takes '
-        'taps', (tester) async {
-      var taps = 0;
-      await _pumpApp(
-        tester,
-        Builder(
-          builder: (context) => TextButton(
-            onPressed: () => showModalLayout<void>(
-              context,
-              type: ModalLayoutType.bottomSheet,
-              builder: (_) => ModalLayout(
-                body: ListTile(title: const Text('Tile'), onTap: () => taps++),
-              ),
-            ),
-            child: const Text('Open'),
-          ),
-        ),
-      );
-      await _open(tester);
-      expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Tile'));
-      expect(taps, 1);
-    });
-
-    testWidgets('us20/fr07/e01: a short drag up snaps to the nearer resting '
-        'height over the fast level', (tester) async {
-      await _pumpApp(tester, _Opener(body: _tall(400)));
-      await _open(tester);
-      final height = tester.getSize(find.byType(ModalLayout)).height;
-      final full = _top(tester);
-      await _slowDrag(tester, height * 0.4);
-      await tester.pumpAndSettle();
-      expect(_top(tester), closeTo(full + height / 2, 1));
-
-      await _slowDrag(tester, -height * 0.35);
-      await tester.pump();
-      final fast = fakeTheme.animation.fast.duration!;
-      await tester.pump(fast ~/ 2);
-      expect(_top(tester), lessThan(full + height / 2 - 1));
-      expect(_top(tester), greaterThan(full + 1));
-      await tester.pump(fast ~/ 2);
-      expect(_top(tester), closeTo(full, 0.5));
-    });
-
-    testWidgets('us20/s3: us20/fr07/e02: a drag down past the closing point '
-        'dismisses with null', (tester) async {
-      await _pumpApp(tester, _Opener(body: _tall(400)));
-      await _open(tester);
-      await tester.fling(find.byType(ModalLayout), const Offset(0, 400), 3000);
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsNothing);
-      expect(_opener(tester).result, isNull);
-    });
+    testWidgets(
+      'fo06/us20/fr02: the close button dismisses through the route',
+      (tester) async {
+        await _pumpApp(tester, const _Opener(), size: _desktop);
+        await _open(tester);
+        await tester.tap(_close);
+        await tester.pumpAndSettle();
+        expect(find.byType(ModalLayout), findsNothing);
+        expect(_opener(tester).result, isNull);
+      },
+    );
 
     testWidgets(
-      'us20/fr07/e06: a 77-row list body at its top hands a '
+      'fo06/us20/fr07/e05: an SDK ListTile in a sheet builds and takes '
+      'taps',
+      (tester) async {
+        var taps = 0;
+        await _pumpApp(
+          tester,
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showModalLayout<void>(
+                context,
+                type: ModalLayoutType.bottomSheet,
+                builder: (_) => ModalLayout(
+                  body: ListTile(
+                    title: const Text('Tile'),
+                    onTap: () => taps++,
+                  ),
+                ),
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        );
+        await _open(tester);
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Tile'));
+        expect(taps, 1);
+      },
+    );
+
+    testWidgets(
+      'fo06/us20/fr07/e01: a short drag up snaps to the nearer resting '
+      'height over the fast level',
+      (tester) async {
+        await _pumpApp(tester, _Opener(body: _tall(400)));
+        await _open(tester);
+        final height = tester.getSize(find.byType(ModalLayout)).height;
+        final full = _top(tester);
+        await _slowDrag(tester, height * 0.4);
+        await tester.pumpAndSettle();
+        expect(_top(tester), closeTo(full + height / 2, 1));
+
+        await _slowDrag(tester, -height * 0.35);
+        await tester.pump();
+        final fast = fakeTheme.animation.fast.duration!;
+        await tester.pump(fast ~/ 2);
+        expect(_top(tester), lessThan(full + height / 2 - 1));
+        expect(_top(tester), greaterThan(full + 1));
+        await tester.pump(fast ~/ 2);
+        expect(_top(tester), closeTo(full, 0.5));
+      },
+    );
+
+    testWidgets(
+      'fo06/us20/s3: fo06/us20/fr07/e02: a drag down past the closing point '
+      'dismisses with null',
+      (tester) async {
+        await _pumpApp(tester, _Opener(body: _tall(400)));
+        await _open(tester);
+        await tester.fling(
+          find.byType(ModalLayout),
+          const Offset(0, 400),
+          3000,
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(ModalLayout), findsNothing);
+        expect(_opener(tester).result, isNull);
+      },
+    );
+
+    testWidgets(
+      'fo06/us20/fr07/e06: a 77-row list body at its top hands a '
       'further drag down to the sheet, on desktop too',
       (tester) async {
         await _pumpApp(
@@ -1520,25 +1602,28 @@ void main() {
       }),
     );
 
-    testWidgets('us20/s4: us20/fr05/e04: the keyboard lifts a sheet by its '
-        'height', (tester) async {
-      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
-      tester.view.devicePixelRatio = 3;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        _app(const _Opener(type: ModalLayoutType.bottomSheet)),
-      );
-      await _open(tester);
-      final before = tester.getBottomLeft(find.byType(ModalLayout)).dy;
-      tester.view.viewInsets = const FakeViewPadding(bottom: 300 * 3);
-      await tester.pumpAndSettle();
-      expect(
-        tester.getBottomLeft(find.byType(ModalLayout)).dy,
-        closeTo(before - 300, 1),
-      );
-    });
+    testWidgets(
+      'fo06/us20/s4: fo06/us20/fr05/e04: the keyboard lifts a sheet by its '
+      'height',
+      (tester) async {
+        tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+        tester.view.devicePixelRatio = 3;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          _app(const _Opener(type: ModalLayoutType.bottomSheet)),
+        );
+        await _open(tester);
+        final before = tester.getBottomLeft(find.byType(ModalLayout)).dy;
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300 * 3);
+        await tester.pumpAndSettle();
+        expect(
+          tester.getBottomLeft(find.byType(ModalLayout)).dy,
+          closeTo(before - 300, 1),
+        );
+      },
+    );
 
-    testWidgets('us20/fr05/e05: a centered modal moves clear of the '
+    testWidgets('fo06/us20/fr05/e05: a centered modal moves clear of the '
         'keyboard', (tester) async {
       await _pumpApp(tester, const _Opener(), size: _desktop);
       await _open(tester);
@@ -1550,54 +1635,58 @@ void main() {
       expect(lifted.top, lessThan(centered.top));
     });
 
-    testWidgets('us20/fr05/e02: us20/fr04/e03: a sheet that reaches the '
-        'status bar pads below it and takes the screen radius on top', (
-      tester,
-    ) async {
-      const corners = BorderRadius.all(Radius.circular(46));
-      MediaQueryData media(MediaQueryData data) =>
-          data.applyDisplayCornerRadii(corners);
-      await _pumpApp(tester, _Opener(body: _tall(2000)), media: media);
-      tester.view
-        ..padding = const FakeViewPadding(top: 47)
-        ..viewPadding = const FakeViewPadding(top: 47);
-      await _open(tester);
-      expect(_top(tester), 0);
-      final radius = _surfaceStyle(tester).borderRadius! as BorderRadius;
-      expect(radius.topLeft, const Radius.circular(46));
-      expect(tester.getTopLeft(_handle).dy, greaterThanOrEqualTo(47));
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
+    testWidgets(
+      'fo06/us20/fr05/e02: fo06/us20/fr04/e03: a sheet that reaches the '
+      'status bar pads below it and takes the screen radius on top',
+      (tester) async {
+        const corners = BorderRadius.all(Radius.circular(46));
+        MediaQueryData media(MediaQueryData data) =>
+            data.applyDisplayCornerRadii(corners);
+        await _pumpApp(tester, _Opener(body: _tall(2000)), media: media);
+        tester.view
+          ..padding = const FakeViewPadding(top: 47)
+          ..viewPadding = const FakeViewPadding(top: 47);
+        await _open(tester);
+        expect(_top(tester), 0);
+        final radius = _surfaceStyle(tester).borderRadius! as BorderRadius;
+        expect(radius.topLeft, const Radius.circular(46));
+        expect(tester.getTopLeft(_handle).dy, greaterThanOrEqualTo(47));
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
 
-      await _pumpApp(tester, _Opener(body: _tall(200)), media: media);
-      await _open(tester);
-      final short = _surfaceStyle(tester).borderRadius! as BorderRadius;
-      expect(short.topLeft, const Radius.circular(40));
-    });
+        await _pumpApp(tester, _Opener(body: _tall(200)), media: media);
+        await _open(tester);
+        final short = _surfaceStyle(tester).borderRadius! as BorderRadius;
+        expect(short.topLeft, const Radius.circular(40));
+      },
+    );
 
-    testWidgets('us20/s5: us20/fr04: a floating sheet through the call draws '
-        'floating corners 8 px in from the edges', (tester) async {
-      await _pumpApp(
-        tester,
-        const _Opener(type: ModalLayoutType.floating),
-        media: (data) => data.applyDisplayCornerRadii(
-          const BorderRadius.all(Radius.circular(46)),
-        ),
-      );
-      await _open(tester);
-      final radius = _surfaceStyle(tester).borderRadius! as BorderRadius;
-      expect(radius.topLeft, const Radius.circular(38));
-      expect(radius.bottomRight, const Radius.circular(38));
-      final style = _surfaceStyle(tester);
-      expect(style.margin, const EdgeInsets.all(8));
-      expect(style.width, _phone.width - 16);
-      expect(
-        tester.getRect(_surface),
-        Rect.fromLTRB(0, _top(tester), _phone.width, _phone.height),
-      );
-    });
+    testWidgets(
+      'fo06/us20/s5: fo06/us20/fr04: a floating sheet through the call draws '
+      'floating corners 8 px in from the edges',
+      (tester) async {
+        await _pumpApp(
+          tester,
+          const _Opener(type: ModalLayoutType.floating),
+          media: (data) => data.applyDisplayCornerRadii(
+            const BorderRadius.all(Radius.circular(46)),
+          ),
+        );
+        await _open(tester);
+        final radius = _surfaceStyle(tester).borderRadius! as BorderRadius;
+        expect(radius.topLeft, const Radius.circular(38));
+        expect(radius.bottomRight, const Radius.circular(38));
+        final style = _surfaceStyle(tester);
+        expect(style.margin, const EdgeInsets.all(8));
+        expect(style.width, _phone.width - 16);
+        expect(
+          tester.getRect(_surface),
+          Rect.fromLTRB(0, _top(tester), _phone.width, _phone.height),
+        );
+      },
+    );
 
-    testWidgets('us20/fr03: a bottom sheet on a desktop keeps its 400 px '
+    testWidgets('fo06/us20/fr03: a bottom sheet on a desktop keeps its 400 px '
         'content width, centered', (tester) async {
       await _pumpApp(
         tester,
@@ -1612,33 +1701,36 @@ void main() {
       expect(_handle, findsOneWidget);
     });
 
-    testWidgets('us20/fr07/e08: a drag on the scrim beside a desktop bottom '
-        'sheet leaves it in place; a tap there dismisses it', (tester) async {
-      await _pumpApp(
-        tester,
-        _Opener(type: ModalLayoutType.bottomSheet, body: _tall(400)),
-        size: _desktop,
-      );
-      await _open(tester);
-      final rect = tester.getRect(_surface);
-      final beside = Offset(rect.left - 100, rect.center.dy);
-      final gesture = await tester.startGesture(beside);
-      for (var i = 0; i < 12; i++) {
-        await gesture.moveBy(Offset(0, rect.height / 10));
-        await tester.pump(const Duration(milliseconds: 16));
-      }
-      expect(find.byType(ModalLayout), findsOneWidget);
-      expect(_opener(tester).result, 'none');
-      await gesture.up();
-      await tester.pumpAndSettle();
-      expect(tester.getRect(_surface), rect);
-      expect(_opener(tester).result, 'none');
+    testWidgets(
+      'fo06/us20/fr07/e08: a drag on the scrim beside a desktop bottom '
+      'sheet leaves it in place; a tap there dismisses it',
+      (tester) async {
+        await _pumpApp(
+          tester,
+          _Opener(type: ModalLayoutType.bottomSheet, body: _tall(400)),
+          size: _desktop,
+        );
+        await _open(tester);
+        final rect = tester.getRect(_surface);
+        final beside = Offset(rect.left - 100, rect.center.dy);
+        final gesture = await tester.startGesture(beside);
+        for (var i = 0; i < 12; i++) {
+          await gesture.moveBy(Offset(0, rect.height / 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(find.byType(ModalLayout), findsOneWidget);
+        expect(_opener(tester).result, 'none');
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.getRect(_surface), rect);
+        expect(_opener(tester).result, 'none');
 
-      await tester.tapAt(beside);
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsNothing);
-      expect(_opener(tester).result, isNull);
-    });
+        await tester.tapAt(beside);
+        await tester.pumpAndSettle();
+        expect(find.byType(ModalLayout), findsNothing);
+        expect(_opener(tester).result, isNull);
+      },
+    );
 
     for (final type in [ModalLayoutType.modal, ModalLayoutType.bottomSheet]) {
       testWidgets('NFR-U01: NFR-U05: every target of a ${type.name} route is '
@@ -1676,23 +1768,24 @@ void main() {
           },
         };
     for (final MapEntry(key: reason, value: pump) in reducedPumps.entries) {
-      testWidgets('NFR-U03: us20/fr07/e03: under $reason a drag below half '
-          'that ends short of dismissal jumps to half with no slide', (
-        tester,
-      ) async {
-        await pump(tester, _Opener(body: _tall(400)));
-        await _open(tester);
-        final height = tester.getSize(find.byType(ModalLayout)).height;
-        final full = _top(tester);
-        await _slowDrag(tester, height * 0.7);
-        await tester.pump();
-        expect(_top(tester), closeTo(full + height / 2, 1));
-        await tester.pumpAndSettle();
-        expect(_top(tester), closeTo(full + height / 2, 1));
-      });
+      testWidgets(
+        'NFR-U03: fo06/us20/fr07/e03: under $reason a drag below half '
+        'that ends short of dismissal jumps to half with no slide',
+        (tester) async {
+          await pump(tester, _Opener(body: _tall(400)));
+          await _open(tester);
+          final height = tester.getSize(find.byType(ModalLayout)).height;
+          final full = _top(tester);
+          await _slowDrag(tester, height * 0.7);
+          await tester.pump();
+          expect(_top(tester), closeTo(full + height / 2, 1));
+          await tester.pumpAndSettle();
+          expect(_top(tester), closeTo(full + height / 2, 1));
+        },
+      );
     }
 
-    testWidgets('us20/fr07/e01: a drag below half that ends short of '
+    testWidgets('fo06/us20/fr07/e01: a drag below half that ends short of '
         'dismissal settles on half within the fast level', (tester) async {
       await _pumpApp(tester, _Opener(body: _tall(400)));
       await _open(tester);
@@ -1707,7 +1800,7 @@ void main() {
       expect(_top(tester), closeTo(full + height / 2, 0.5));
     });
 
-    testWidgets('us20/fr07/e02: a slow drag down past the closing point '
+    testWidgets('fo06/us20/fr07/e02: a slow drag down past the closing point '
         'settles hidden and pops once with null', (tester) async {
       await _pumpApp(tester, _Opener(body: _tall(400)));
       await _open(tester);
@@ -1719,60 +1812,64 @@ void main() {
       expect(find.text('Open'), findsOneWidget);
     });
 
-    testWidgets('us20/fr07/e02: a sheet held down at the bottom edge stays '
-        'until the finger lifts', (tester) async {
-      await _pumpApp(tester, _Opener(body: _tall(400)));
-      await _open(tester);
-      final height = tester.getSize(find.byType(ModalLayout)).height;
-      final gesture = await tester.startGesture(
-        tester.getTopLeft(find.byType(ModalLayout)) + const Offset(40, 24),
-      );
-      for (var i = 0; i < 12; i++) {
-        await gesture.moveBy(Offset(0, height / 10));
-        await tester.pump(const Duration(milliseconds: 16));
-      }
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsOneWidget);
-      expect(_opener(tester).result, 'none');
-      await gesture.up();
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsNothing);
-      expect(_opener(tester).result, isNull);
-    });
+    testWidgets(
+      'fo06/us20/fr07/e02: a sheet held down at the bottom edge stays '
+      'until the finger lifts',
+      (tester) async {
+        await _pumpApp(tester, _Opener(body: _tall(400)));
+        await _open(tester);
+        final height = tester.getSize(find.byType(ModalLayout)).height;
+        final gesture = await tester.startGesture(
+          tester.getTopLeft(find.byType(ModalLayout)) + const Offset(40, 24),
+        );
+        for (var i = 0; i < 12; i++) {
+          await gesture.moveBy(Offset(0, height / 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.pumpAndSettle();
+        expect(find.byType(ModalLayout), findsOneWidget);
+        expect(_opener(tester).result, 'none');
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(find.byType(ModalLayout), findsNothing);
+        expect(_opener(tester).result, isNull);
+      },
+    );
 
     final motions = <String, Future<void> Function(WidgetTester, Widget)>{
       'motion on': _pumpApp,
       ...reducedPumps,
     };
     for (final MapEntry(key: motion, value: pump) in motions.entries) {
-      testWidgets('us20/fr07/e02: with $motion a sheet a pop scope keeps open '
-          'returns to full height, and the scope hears one attempt', (
-        tester,
-      ) async {
-        var attempts = 0;
-        await pump(
-          tester,
-          _Opener(
-            body: PopScope<Object?>(
-              canPop: false,
-              onPopInvokedWithResult: (_, _) => attempts++,
-              child: _tall(400),
+      testWidgets(
+        'fo06/us20/fr07/e02: with $motion a sheet a pop scope keeps open '
+        'returns to full height, and the scope hears one attempt',
+        (tester) async {
+          var attempts = 0;
+          await pump(
+            tester,
+            _Opener(
+              body: PopScope<Object?>(
+                canPop: false,
+                onPopInvokedWithResult: (_, _) => attempts++,
+                child: _tall(400),
+              ),
             ),
-          ),
-        );
-        await _open(tester);
-        final height = tester.getSize(find.byType(ModalLayout)).height;
-        final full = _top(tester);
-        await _slowDrag(tester, height * 0.85);
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-        expect(find.byType(ModalLayout), findsOneWidget);
-        expect(_top(tester), closeTo(full, 0.5));
-        expect(attempts, 1);
-      });
+          );
+          await _open(tester);
+          final height = tester.getSize(find.byType(ModalLayout)).height;
+          final full = _top(tester);
+          await _slowDrag(tester, height * 0.85);
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          expect(find.byType(ModalLayout), findsOneWidget);
+          expect(_top(tester), closeTo(full, 0.5));
+          expect(attempts, 1);
+        },
+      );
     }
 
-    testWidgets('us20/fr07/e02: a sheet a deprecated will-pop scope keeps '
+    testWidgets('fo06/us20/fr07/e02: a sheet a deprecated will-pop scope keeps '
         'open returns to full height, and the scope hears one attempt', (
       tester,
     ) async {
@@ -1803,44 +1900,45 @@ void main() {
       expect(attempts, 1);
     });
 
-    testWidgets('us20/fr07/e02: a sheet whose pop scope answers the refusal '
-        'with a dialog is back at full height once the dialog closes', (
-      tester,
-    ) async {
-      await _pumpApp(
-        tester,
-        _Opener(
-          body: Builder(
-            builder: (context) => PopScope<Object?>(
-              canPop: false,
-              onPopInvokedWithResult: (didPop, _) {
-                if (didPop) return;
-                Navigator.of(context).push(
-                  RawDialogRoute<void>(
-                    pageBuilder: (_, _, _) => const Text('Discard?'),
-                  ),
-                );
-              },
-              child: _tall(400),
+    testWidgets(
+      'fo06/us20/fr07/e02: a sheet whose pop scope answers the refusal '
+      'with a dialog is back at full height once the dialog closes',
+      (tester) async {
+        await _pumpApp(
+          tester,
+          _Opener(
+            body: Builder(
+              builder: (context) => PopScope<Object?>(
+                canPop: false,
+                onPopInvokedWithResult: (didPop, _) {
+                  if (didPop) return;
+                  Navigator.of(context).push(
+                    RawDialogRoute<void>(
+                      pageBuilder: (_, _, _) => const Text('Discard?'),
+                    ),
+                  );
+                },
+                child: _tall(400),
+              ),
             ),
           ),
-        ),
-      );
-      await _open(tester);
-      final height = tester.getSize(find.byType(ModalLayout)).height;
-      final full = _top(tester);
-      await _slowDrag(tester, height * 0.85);
-      await tester.pumpAndSettle();
-      expect(find.text('Discard?'), findsOneWidget);
-      tester.state<NavigatorState>(find.byType(Navigator)).pop();
-      await tester.pumpAndSettle();
-      expect(find.text('Discard?'), findsNothing);
-      expect(find.byType(ModalLayout), findsOneWidget);
-      expect(_top(tester), closeTo(full, 0.5));
-      expect(_opener(tester).result, 'none');
-    });
+        );
+        await _open(tester);
+        final height = tester.getSize(find.byType(ModalLayout)).height;
+        final full = _top(tester);
+        await _slowDrag(tester, height * 0.85);
+        await tester.pumpAndSettle();
+        expect(find.text('Discard?'), findsOneWidget);
+        tester.state<NavigatorState>(find.byType(Navigator)).pop();
+        await tester.pumpAndSettle();
+        expect(find.text('Discard?'), findsNothing);
+        expect(find.byType(ModalLayout), findsOneWidget);
+        expect(_top(tester), closeTo(full, 0.5));
+        expect(_opener(tester).result, 'none');
+      },
+    );
 
-    testWidgets('us20/fr07/e07: a sheet whose settle to hidden ends under '
+    testWidgets('fo06/us20/fr07/e07: a sheet whose settle to hidden ends under '
         'another route is back at full height once that route closes', (
       tester,
     ) async {
@@ -1863,7 +1961,7 @@ void main() {
       expect(_opener(tester).result, 'none');
     });
 
-    testWidgets('us20/fr07/e02: a sheet popped while it settles hidden '
+    testWidgets('fo06/us20/fr07/e02: a sheet popped while it settles hidden '
         'leaves the page below it in place', (tester) async {
       await _pumpApp(
         tester,
@@ -1891,48 +1989,55 @@ void main() {
       expect(find.byType(_Opener), findsOneWidget);
     });
 
-    testWidgets('us20/fr07/e02: a trackpad drag past hidden that comes back '
-        'up keeps the sheet', (tester) async {
-      await _pumpApp(tester, _Opener(body: _tall(400)));
-      await _open(tester);
-      final height = tester.getSize(find.byType(ModalLayout)).height;
-      final point =
-          tester.getTopLeft(find.byType(ModalLayout)) + const Offset(40, 24);
-      final gesture = await tester.startGesture(
-        point,
-        kind: PointerDeviceKind.trackpad,
-      );
-      for (var i = 0; i < 12; i++) {
-        await gesture.panZoomUpdate(
+    testWidgets(
+      'fo06/us20/fr07/e02: a trackpad drag past hidden that comes back '
+      'up keeps the sheet',
+      (tester) async {
+        await _pumpApp(tester, _Opener(body: _tall(400)));
+        await _open(tester);
+        final height = tester.getSize(find.byType(ModalLayout)).height;
+        final point =
+            tester.getTopLeft(find.byType(ModalLayout)) + const Offset(40, 24);
+        final gesture = await tester.startGesture(
           point,
-          pan: Offset(0, height * (i + 1) / 10),
+          kind: PointerDeviceKind.trackpad,
         );
-        await tester.pump(const Duration(milliseconds: 16));
-      }
-      expect(find.byType(ModalLayout), findsOneWidget);
-      for (var i = 12; i >= 0; i--) {
-        await gesture.panZoomUpdate(point, pan: Offset(0, height * i / 10));
-        await tester.pump(const Duration(milliseconds: 16));
-      }
-      await tester.pump(const Duration(milliseconds: 100));
-      await gesture.panZoomEnd();
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsOneWidget);
-      expect(_opener(tester).result, 'none');
-    });
+        for (var i = 0; i < 12; i++) {
+          await gesture.panZoomUpdate(
+            point,
+            pan: Offset(0, height * (i + 1) / 10),
+          );
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(find.byType(ModalLayout), findsOneWidget);
+        for (var i = 12; i >= 0; i--) {
+          await gesture.panZoomUpdate(point, pan: Offset(0, height * i / 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.pump(const Duration(milliseconds: 100));
+        await gesture.panZoomEnd();
+        await tester.pumpAndSettle();
+        expect(find.byType(ModalLayout), findsOneWidget);
+        expect(_opener(tester).result, 'none');
+      },
+    );
 
-    testWidgets('us20/fr06: a tap outside a sheet dismisses it with null', (
-      tester,
-    ) async {
-      await _pumpApp(tester, const _Opener(type: ModalLayoutType.bottomSheet));
-      await _open(tester);
-      await tester.tapAt(const Offset(5, 5));
-      await tester.pumpAndSettle();
-      expect(find.byType(ModalLayout), findsNothing);
-      expect(_opener(tester).result, isNull);
-    });
+    testWidgets(
+      'fo06/us20/fr06: a tap outside a sheet dismisses it with null',
+      (tester) async {
+        await _pumpApp(
+          tester,
+          const _Opener(type: ModalLayoutType.bottomSheet),
+        );
+        await _open(tester);
+        await tester.tapAt(const Offset(5, 5));
+        await tester.pumpAndSettle();
+        expect(find.byType(ModalLayout), findsNothing);
+        expect(_opener(tester).result, isNull);
+      },
+    );
 
-    testWidgets('us20/fr02/e02: Esc dismisses a sheet with null', (
+    testWidgets('fo06/us20/fr02/e02: Esc dismisses a sheet with null', (
       tester,
     ) async {
       await _pumpApp(
@@ -1947,36 +2052,39 @@ void main() {
       expect(_opener(tester).result, isNull);
     });
 
-    testWidgets('us20/fr07: a scrollBody wrapper at its top hands a further '
-        'drag down to the sheet', (tester) async {
-      await _pumpApp(tester, _Opener(body: _tall(2000)));
-      await _open(tester);
-      final full = _top(tester);
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(ModalLayout)),
-      );
-      for (var i = 0; i < 10; i++) {
-        await gesture.moveBy(const Offset(0, 20));
-        await tester.pump(const Duration(milliseconds: 16));
-      }
-      expect(_top(tester) - full, greaterThan(100));
-      expect(
-        tester
-            .state<ScrollableState>(
-              find.descendant(
-                of: find.byType(ModalLayout),
-                matching: find.byType(Scrollable),
-              ),
-            )
-            .position
-            .pixels,
-        0,
-      );
-      await gesture.up();
-      await tester.pumpAndSettle();
-    });
+    testWidgets(
+      'fo06/us20/fr07: a scrollBody wrapper at its top hands a further '
+      'drag down to the sheet',
+      (tester) async {
+        await _pumpApp(tester, _Opener(body: _tall(2000)));
+        await _open(tester);
+        final full = _top(tester);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byType(ModalLayout)),
+        );
+        for (var i = 0; i < 10; i++) {
+          await gesture.moveBy(const Offset(0, 20));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(_top(tester) - full, greaterThan(100));
+        expect(
+          tester
+              .state<ScrollableState>(
+                find.descendant(
+                  of: find.byType(ModalLayout),
+                  matching: find.byType(Scrollable),
+                ),
+              )
+              .position
+              .pixels,
+          0,
+        );
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
 
-    testWidgets('us20/fr07: two body lists on a desktop each drag their '
+    testWidgets('fo06/us20/fr07: two body lists on a desktop each drag their '
         'scrollbar when the second takes its own controller', (tester) async {
       final own = ScrollController();
       addTearDown(own.dispose);
@@ -2021,7 +2129,7 @@ void main() {
       }
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets('us20/fr06: the scrim multiplies a translucent token by '
+    testWidgets('fo06/us20/fr06: the scrim multiplies a translucent token by '
         'opacity.scrim', (tester) async {
       final translucent = fakeTheme.copyWith(
         color: StratumColorTokens.fromMap({
@@ -2038,20 +2146,23 @@ void main() {
       );
     });
 
-    testWidgets('NFR-U06: us20/fr02: an open sheet reads its built-in label '
-        'in the language the app switches to', (tester) async {
-      final handle = tester.ensureSemantics();
-      await _pumpApp(tester, const _Opener());
-      await _open(tester);
-      expect(find.semantics.byLabel('Sheet'), findsOneWidget);
-      await tester.pumpWidget(
-        _app(const _Opener(), locale: const Locale('th')),
-      );
-      await tester.pumpAndSettle();
-      expect(find.semantics.byLabel('ชีต'), findsOneWidget);
-      expect(find.semantics.byLabel('Sheet'), findsNothing);
-      handle.dispose();
-    });
+    testWidgets(
+      'NFR-U06: fo06/us20/fr02: an open sheet reads its built-in label '
+      'in the language the app switches to',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _pumpApp(tester, const _Opener());
+        await _open(tester);
+        expect(find.semantics.byLabel('Sheet'), findsOneWidget);
+        await tester.pumpWidget(
+          _app(const _Opener(), locale: const Locale('th')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.semantics.byLabel('ชีต'), findsOneWidget);
+        expect(find.semantics.byLabel('Sheet'), findsNothing);
+        handle.dispose();
+      },
+    );
 
     group('useRootNavigator', () {
       var tabTaps = 0;
@@ -2072,7 +2183,7 @@ void main() {
         ],
       );
 
-      testWidgets('us20/fr02/e07: by default the route covers a tab bar '
+      testWidgets('fo06/us20/fr02/e07: by default the route covers a tab bar '
           'outside a nested navigator', (tester) async {
         final handle = tester.ensureSemantics();
         await _pumpApp(tester, nested(root: true), size: _desktop);
@@ -2085,7 +2196,7 @@ void main() {
         handle.dispose();
       });
 
-      testWidgets('us20/fr02/e07: useRootNavigator false keeps the route '
+      testWidgets('fo06/us20/fr02/e07: useRootNavigator false keeps the route '
           'inside the nearest navigator', (tester) async {
         final handle = tester.ensureSemantics();
         await _pumpApp(tester, nested(root: false), size: _desktop);

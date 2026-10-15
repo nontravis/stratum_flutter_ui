@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
 void main() {
-  test('us01/fr02: the caps default to 20 MB and 200 entries', () {
+  test('fo04/us01/fr02: the caps default to 20 MB and 200 entries', () {
     final theme = StratumRemoteTheme(
       id: 'brand',
       bytes: Uint8List(0),
@@ -13,7 +13,7 @@ void main() {
     expect(theme.maxEntries, 200);
   });
 
-  test('us01/fr02/e08: the app raises the caps for one theme', () {
+  test('fo04/us01/fr02/e08: the app raises the caps for one theme', () {
     final theme = StratumRemoteTheme(
       id: 'brand',
       bytes: Uint8List(0),

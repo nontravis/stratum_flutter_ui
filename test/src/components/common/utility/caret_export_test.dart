@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
 
 void main() {
-  test('us01/fr01: StratumCaret and its two enums are public through '
+  test('fo06/us01/fr01: StratumCaret and its two enums are public through '
       'package:stratum_ui', () {
     const caret = StratumCaret(
       style: StratumCaretStyle.fill,

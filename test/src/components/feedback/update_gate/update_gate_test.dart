@@ -170,16 +170,21 @@ Future<_Checker> _maintenance(WidgetTester tester) async {
 }
 
 void main() {
-  group("us01/fr01: ask the app's update check", () {
-    testWidgets('us01/fr01/e02: while the first answer is pending the app '
-        'shows', (tester) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      expect(find.text('Home'), findsOneWidget);
-      expect(checker.asks, hasLength(1));
-    });
+  group("co05_09/us01/fr01: ask the app's update check", () {
+    testWidgets(
+      'co05_09/us01/fr01/e02: while the first answer is pending the app '
+      'shows',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        expect(find.text('Home'), findsOneWidget);
+        expect(checker.asks, hasLength(1));
+      },
+    );
 
-    testWidgets('us01/s1: an up-to-date answer keeps the app', (tester) async {
+    testWidgets('co05_09/us01/s1: an up-to-date answer keeps the app', (
+      tester,
+    ) async {
       final checker = _Checker();
       await tester.pumpWidget(_app(checker));
       checker.answer(UpdateStatus.upToDate);
@@ -187,7 +192,9 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
     });
 
-    testWidgets('us01/fr01/e01: a failed check shows the app', (tester) async {
+    testWidgets('co05_09/us01/fr01/e01: a failed check shows the app', (
+      tester,
+    ) async {
       final checker = _Checker();
       await tester.pumpWidget(_app(checker));
       checker.fail();
@@ -196,27 +203,31 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('us01/fr01/e01: a checker that throws before returning a '
-        'future shows the app', (tester) async {
-      await tester.pumpWidget(_app(_SyncThrowChecker()));
-      await tester.pump();
-      expect(find.text('Home'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'co05_09/us01/fr01/e01: a checker that throws before returning a '
+      'future shows the app',
+      (tester) async {
+        await tester.pumpWidget(_app(_SyncThrowChecker()));
+        await tester.pump();
+        expect(find.text('Home'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
 
-    testWidgets('us01/fr01/e03: a return to the foreground asks again', (
-      tester,
-    ) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pump(Duration.zero);
-      await _returnToForeground(tester);
-      expect(checker.asks, hasLength(2));
-      checker.answer(UpdateStatus.required);
-      await tester.pump(Duration.zero);
-      expect(find.text('Required'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us01/fr01/e03: a return to the foreground asks again',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pump(Duration.zero);
+        await _returnToForeground(tester);
+        expect(checker.asks, hasLength(2));
+        checker.answer(UpdateStatus.required);
+        await tester.pump(Duration.zero);
+        expect(find.text('Required'), findsOneWidget);
+      },
+    );
 
     // R8: the gate re-asks only on a return from the background. A
     // foreground interruption (`inactive` alone, Face ID or Control
@@ -259,7 +270,7 @@ void main() {
         2,
       ),
     ]) {
-      testWidgets('us01/fr01/e03: $name', (tester) async {
+      testWidgets('co05_09/us01/fr01/e03: $name', (tester) async {
         final checker = _Checker();
         await tester.pumpWidget(_app(checker));
         checker.answer(UpdateStatus.upToDate);
@@ -272,7 +283,7 @@ void main() {
       });
     }
 
-    testWidgets('us01/fr01/e03: mounted while hidden, then inactive, '
+    testWidgets('co05_09/us01/fr01/e03: mounted while hidden, then inactive, '
         'resumed asks once more', (tester) async {
       tester.binding.resetInternalState();
       await _lifecycle(tester, AppLifecycleState.hidden);
@@ -290,19 +301,22 @@ void main() {
       expect(checker.asks, hasLength(2));
     });
 
-    testWidgets('us01/fr01/e04: retry asks again, with checking, and an '
-        'up-to-date answer shows the app', (tester) async {
-      final checker = await _maintenance(tester);
-      await tester.tap(find.text('Retry'));
-      await tester.pump();
-      expect(checker.asks, hasLength(2));
-      expect(find.text('Maintenance checking'), findsOneWidget);
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pump(Duration.zero);
-      expect(find.text('Home'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us01/fr01/e04: retry asks again, with checking, and an '
+      'up-to-date answer shows the app',
+      (tester) async {
+        final checker = await _maintenance(tester);
+        await tester.tap(find.text('Retry'));
+        await tester.pump();
+        expect(checker.asks, hasLength(2));
+        expect(find.text('Maintenance checking'), findsOneWidget);
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pump(Duration.zero);
+        expect(find.text('Home'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us01/fr01/e06: a re-ask keeps the full screen, with '
+    testWidgets('co05_09/us01/fr01/e06: a re-ask keeps the full screen, with '
         'checking, until it answers', (tester) async {
       final checker = await _maintenance(tester);
       await _returnToForeground(tester);
@@ -313,7 +327,7 @@ void main() {
       expect(find.text('Maintenance'), findsOneWidget);
     });
 
-    testWidgets('us01/fr01/e07: retry while an ask runs starts none', (
+    testWidgets('co05_09/us01/fr01/e07: retry while an ask runs starts none', (
       tester,
     ) async {
       final checker = await _maintenance(tester);
@@ -324,31 +338,37 @@ void main() {
       expect(checker.asks, hasLength(2));
     });
 
-    testWidgets('us01/fr01/e08: a return to the foreground while an ask runs '
-        'starts none, and checking stays', (tester) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      await _returnToForeground(tester);
-      expect(checker.asks, hasLength(1));
-      checker.answer(UpdateStatus.maintenance);
-      await tester.pump(Duration.zero);
-      await tester.tap(find.text('Retry'));
-      await tester.pump();
-      await _returnToForeground(tester);
-      expect(checker.asks, hasLength(2));
-      expect(find.text('Maintenance checking'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us01/fr01/e08: a return to the foreground while an ask runs '
+      'starts none, and checking stays',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        await _returnToForeground(tester);
+        expect(checker.asks, hasLength(1));
+        checker.answer(UpdateStatus.maintenance);
+        await tester.pump(Duration.zero);
+        await tester.tap(find.text('Retry'));
+        await tester.pump();
+        await _returnToForeground(tester);
+        expect(checker.asks, hasLength(2));
+        expect(find.text('Maintenance checking'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us01/s10: a check on return that fails shows the first '
-        'page', (tester) async {
-      final checker = await _maintenance(tester);
-      await _returnToForeground(tester);
-      checker.fail();
-      await tester.pump(Duration.zero);
-      expect(find.text('Home'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us01/s10: a check on return that fails shows the first '
+      'page',
+      (tester) async {
+        final checker = await _maintenance(tester);
+        await _returnToForeground(tester);
+        checker.fail();
+        await tester.pump(Duration.zero);
+        expect(find.text('Home'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us01/fr01/e05: every platform asks the same way', (
+    testWidgets('co05_09/us01/fr01/e05: every platform asks the same way', (
       tester,
     ) async {
       final checker = _Checker();
@@ -382,57 +402,69 @@ void main() {
     });
   });
 
-  group('us01/fr02: replace the app with a full screen', () {
-    testWidgets("us01/fr02: required replaces the navigator with the app's "
-        'force update screen', (tester) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.required);
-      await tester.pump(Duration.zero);
-      expect(find.text('Required'), findsOneWidget);
-      expect(find.text('Home'), findsNothing);
-      expect(find.byType(Navigator), findsNothing);
-    });
+  group('co05_09/us01/fr02: replace the app with a full screen', () {
+    testWidgets(
+      "co05_09/us01/fr02: required replaces the navigator with the app's "
+      'force update screen',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.required);
+        await tester.pump(Duration.zero);
+        expect(find.text('Required'), findsOneWidget);
+        expect(find.text('Home'), findsNothing);
+        expect(find.byType(Navigator), findsNothing);
+      },
+    );
 
-    testWidgets('us01/fr02/e01: required carries neither retry nor dismiss', (
+    testWidgets(
+      'co05_09/us01/fr02/e01: required carries neither retry nor dismiss',
+      (tester) async {
+        final states = <UpdateGateState>[];
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker, builder: _recording(states)));
+        checker.answer(UpdateStatus.required);
+        await tester.pump(Duration.zero);
+        expect(states, isNotEmpty);
+        expect(states, everyElement(isA<UpdateGateRequired>()));
+      },
+    );
+
+    testWidgets(
+      "co05_09/us01/fr02: maintenance shows the app's maintenance screen "
+      'with its retry',
+      (tester) async {
+        await _maintenance(tester);
+        expect(find.text('Maintenance'), findsOneWidget);
+        expect(find.text('Retry'), findsOneWidget);
+        expect(find.text('Home'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      "co05_09/us01/fr02/e03: after a full screen the app's pages start "
+      'over',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pumpAndSettle();
+        await _push(tester, 'Second');
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.maintenance);
+        await tester.pump(Duration.zero);
+        await tester.tap(find.text('Retry'));
+        await tester.pump();
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pumpAndSettle();
+        expect(find.text('Home'), findsOneWidget);
+        expect(find.text('Second'), findsNothing);
+      },
+    );
+
+    testWidgets('co05_09/us01/fr02/e04: maintenance turns to required', (
       tester,
     ) async {
-      final states = <UpdateGateState>[];
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker, builder: _recording(states)));
-      checker.answer(UpdateStatus.required);
-      await tester.pump(Duration.zero);
-      expect(states, isNotEmpty);
-      expect(states, everyElement(isA<UpdateGateRequired>()));
-    });
-
-    testWidgets("us01/fr02: maintenance shows the app's maintenance screen "
-        'with its retry', (tester) async {
-      await _maintenance(tester);
-      expect(find.text('Maintenance'), findsOneWidget);
-      expect(find.text('Retry'), findsOneWidget);
-      expect(find.text('Home'), findsNothing);
-    });
-
-    testWidgets("us01/fr02/e03: after a full screen the app's pages start "
-        'over', (tester) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pumpAndSettle();
-      await _push(tester, 'Second');
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.maintenance);
-      await tester.pump(Duration.zero);
-      await tester.tap(find.text('Retry'));
-      await tester.pump();
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pumpAndSettle();
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Second'), findsNothing);
-    });
-
-    testWidgets('us01/fr02/e04: maintenance turns to required', (tester) async {
       final checker = await _maintenance(tester);
       await tester.tap(find.text('Retry'));
       await tester.pump();
@@ -442,7 +474,9 @@ void main() {
       expect(find.text('Maintenance'), findsNothing);
     });
 
-    testWidgets('us01/fr02/e04: required turns to maintenance', (tester) async {
+    testWidgets('co05_09/us01/fr02/e04: required turns to maintenance', (
+      tester,
+    ) async {
       final checker = _Checker();
       await tester.pumpWidget(_app(checker));
       checker.answer(UpdateStatus.required);
@@ -454,27 +488,30 @@ void main() {
       expect(find.text('Required'), findsNothing);
     });
 
-    testWidgets('us01/fr02/e06: a full screen opens a route scope and takes '
-        'focus', (tester) async {
-      final handle = tester.ensureSemantics();
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.required);
-      await tester.pump(Duration.zero);
-      await tester.pump();
-      expect(_scopeOf('Required'), findsOneWidget);
-      expect(
-        tester.getSemantics(_scopeOf('Required')),
-        isSemantics(scopesRoute: true),
-      );
-      expect(
-        FocusScope.of(tester.element(find.text('Required'))).hasFocus,
-        isTrue,
-      );
-      handle.dispose();
-    });
+    testWidgets(
+      'co05_09/us01/fr02/e06: a full screen opens a route scope and takes '
+      'focus',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.required);
+        await tester.pump(Duration.zero);
+        await tester.pump();
+        expect(_scopeOf('Required'), findsOneWidget);
+        expect(
+          tester.getSemantics(_scopeOf('Required')),
+          isSemantics(scopesRoute: true),
+        );
+        expect(
+          FocusScope.of(tester.element(find.text('Required'))).hasFocus,
+          isTrue,
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us01/fr02/e07: a screen swaps in one frame with no '
+    testWidgets('co05_09/us01/fr02/e07: a screen swaps in one frame with no '
         'animation', (tester) async {
       final checker = _Checker();
       await tester.pumpWidget(_app(checker));
@@ -546,40 +583,46 @@ void main() {
       expect(find.text('Store'), findsOneWidget);
     });
 
-    testWidgets("us01/fr02/e02: the force update screen's own button runs "
-        "the app's code and the screen stays", (tester) async {
-      var updates = 0;
-      final checker = _Checker();
-      await tester.pumpWidget(
-        _app(
-          checker,
-          builder: (context, gate) => Material(
-            child: Center(
-              child: TextButton(
-                onPressed: () => updates++,
-                child: const Text('Update'),
+    testWidgets(
+      "co05_09/us01/fr02/e02: the force update screen's own button runs "
+      "the app's code and the screen stays",
+      (tester) async {
+        var updates = 0;
+        final checker = _Checker();
+        await tester.pumpWidget(
+          _app(
+            checker,
+            builder: (context, gate) => Material(
+              child: Center(
+                child: TextButton(
+                  onPressed: () => updates++,
+                  child: const Text('Update'),
+                ),
               ),
             ),
           ),
-        ),
-      );
-      checker.answer(UpdateStatus.required);
-      await tester.pump(Duration.zero);
-      await tester.tap(find.text('Update'));
-      await tester.pump();
-      expect(updates, 1);
-      expect(find.text('Update'), findsOneWidget);
-      expect(checker.asks, hasLength(1));
-    });
+        );
+        checker.answer(UpdateStatus.required);
+        await tester.pump(Duration.zero);
+        await tester.tap(find.text('Update'));
+        await tester.pump();
+        expect(updates, 1);
+        expect(find.text('Update'), findsOneWidget);
+        expect(checker.asks, hasLength(1));
+      },
+    );
 
-    testWidgets("us01/fr02/e05: the maintenance screen's retry asks the "
-        'checker again', (tester) async {
-      final checker = await _maintenance(tester);
-      expect(checker.asks, hasLength(1));
-      await tester.tap(find.text('Retry'));
-      await tester.pump();
-      expect(checker.asks, hasLength(2));
-    });
+    testWidgets(
+      "co05_09/us01/fr02/e05: the maintenance screen's retry asks the "
+      'checker again',
+      (tester) async {
+        final checker = await _maintenance(tester);
+        expect(checker.asks, hasLength(1));
+        await tester.tap(find.text('Retry'));
+        await tester.pump();
+        expect(checker.asks, hasLength(2));
+      },
+    );
 
     testWidgets('s03/inv10: no StratumDisabled wraps the gate', (tester) async {
       await _maintenance(tester);
@@ -588,27 +631,33 @@ void main() {
   });
 
   group('us01: stop the app for a required update or maintenance', () {
-    testWidgets('us01/s2: a required update replaces every page and offers '
-        'no way on', (tester) async {
-      final states = <UpdateGateState>[];
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker, builder: _recording(states)));
-      checker.answer(UpdateStatus.required);
-      await tester.pump(Duration.zero);
-      expect(find.text('Required'), findsOneWidget);
-      expect(find.byType(Navigator), findsNothing);
-      expect(states.last, isA<UpdateGateRequired>());
-    });
+    testWidgets(
+      'co05_09/us01/s2: a required update replaces every page and offers '
+      'no way on',
+      (tester) async {
+        final states = <UpdateGateState>[];
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker, builder: _recording(states)));
+        checker.answer(UpdateStatus.required);
+        await tester.pump(Duration.zero);
+        expect(find.text('Required'), findsOneWidget);
+        expect(find.byType(Navigator), findsNothing);
+        expect(states.last, isA<UpdateGateRequired>());
+      },
+    );
 
-    testWidgets('us01/s3: a check on return keeps the maintenance screen and '
-        'tells it a check runs', (tester) async {
-      await _maintenance(tester);
-      await _returnToForeground(tester);
-      expect(find.text('Maintenance checking'), findsOneWidget);
-      expect(find.text('Home'), findsNothing);
-    });
+    testWidgets(
+      'co05_09/us01/s3: a check on return keeps the maintenance screen and '
+      'tells it a check runs',
+      (tester) async {
+        await _maintenance(tester);
+        await _returnToForeground(tester);
+        expect(find.text('Maintenance checking'), findsOneWidget);
+        expect(find.text('Home'), findsNothing);
+      },
+    );
 
-    testWidgets('us01/s4: maintenance replaces every page and offers a '
+    testWidgets('co05_09/us01/s4: maintenance replaces every page and offers a '
         'retry', (tester) async {
       await _maintenance(tester);
       expect(find.text('Maintenance'), findsOneWidget);
@@ -616,84 +665,102 @@ void main() {
       expect(find.byType(Navigator), findsNothing);
     });
 
-    testWidgets('us01/s5: a retry that finds the app up to date shows the '
-        'first page', (tester) async {
-      final checker = await _maintenance(tester);
-      await tester.tap(find.text('Retry'));
-      await tester.pump();
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pump(Duration.zero);
-      expect(find.text('Home'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us01/s5: a retry that finds the app up to date shows the '
+      'first page',
+      (tester) async {
+        final checker = await _maintenance(tester);
+        await tester.tap(find.text('Retry'));
+        await tester.pump();
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pump(Duration.zero);
+        expect(find.text('Home'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us01/s6: back from the background, a required answer shows '
-        'the force update screen', (tester) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pump(Duration.zero);
-      expect(find.text('Home'), findsOneWidget);
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.required);
-      await tester.pump(Duration.zero);
-      expect(find.text('Required'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us01/s6: back from the background, a required answer shows '
+      'the force update screen',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pump(Duration.zero);
+        expect(find.text('Home'), findsOneWidget);
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.required);
+        await tester.pump(Duration.zero);
+        expect(find.text('Required'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us01/s7: while the check has not answered, the first page '
-        'shows', (tester) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      await tester.pump();
-      expect(find.text('Home'), findsOneWidget);
-      expect(checker.asks.single.isCompleted, isFalse);
-    });
+    testWidgets(
+      'co05_09/us01/s7: while the check has not answered, the first page '
+      'shows',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        await tester.pump();
+        expect(find.text('Home'), findsOneWidget);
+        expect(checker.asks.single.isCompleted, isFalse);
+      },
+    );
 
-    testWidgets('us01/s8: three pages deep, a retry that finds the app up to '
-        'date starts at the first page', (tester) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pumpAndSettle();
-      await _push(tester, 'Second');
-      Navigator.of(tester.element(find.text('Second'))).push(
-        MaterialPageRoute<void>(
-          builder: (_) => const Scaffold(body: Center(child: Text('Third'))),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.maintenance);
-      await tester.pump(Duration.zero);
-      await tester.tap(find.text('Retry'));
-      await tester.pump();
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pumpAndSettle();
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Third'), findsNothing);
-    });
+    testWidgets(
+      'co05_09/us01/s8: three pages deep, a retry that finds the app up to '
+      'date starts at the first page',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pumpAndSettle();
+        await _push(tester, 'Second');
+        Navigator.of(tester.element(find.text('Second'))).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Center(child: Text('Third'))),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.maintenance);
+        await tester.pump(Duration.zero);
+        await tester.tap(find.text('Retry'));
+        await tester.pump();
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pumpAndSettle();
+        expect(find.text('Home'), findsOneWidget);
+        expect(find.text('Third'), findsNothing);
+      },
+    );
 
-    testWidgets('us01/s9: a second retry while a check runs starts no second '
-        'check', (tester) async {
-      final checker = await _maintenance(tester);
-      await tester.tap(find.text('Retry'));
-      await tester.pump();
-      await tester.tap(find.text('Retry'));
-      await tester.pump();
-      expect(checker.asks, hasLength(2));
-    });
+    testWidgets(
+      'co05_09/us01/s9: a second retry while a check runs starts no second '
+      'check',
+      (tester) async {
+        final checker = await _maintenance(tester);
+        await tester.tap(find.text('Retry'));
+        await tester.pump();
+        await tester.tap(find.text('Retry'));
+        await tester.pump();
+        expect(checker.asks, hasLength(2));
+      },
+    );
 
-    testWidgets('us01/s11: a broken check shows the first page and never '
-        'locks the app', (tester) async {
-      var taps = 0;
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker, onBehind: () => taps++));
-      checker.fail();
-      await tester.pump(Duration.zero);
-      expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Behind'));
-      await tester.pump();
-      expect(taps, 1);
-    });
+    testWidgets(
+      'co05_09/us01/s11: a broken check shows the first page and never '
+      'locks the app',
+      (tester) async {
+        var taps = 0;
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker, onBehind: () => taps++));
+        checker.fail();
+        await tester.pump(Duration.zero);
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Behind'));
+        await tester.pump();
+        expect(taps, 1);
+      },
+    );
   });
 
   /// The Android back button, over `flutter/navigation`.
@@ -730,16 +797,17 @@ void main() {
     return checker;
   }
 
-  group('us02/fr01: offer the update once in a dialog', () {
-    testWidgets("us02/s1: available shows the app's dialog over the app", (
-      tester,
-    ) async {
-      await available(tester);
-      expect(find.text('Available'), findsOneWidget);
-      expect(find.text('Home'), findsOneWidget);
-    });
+  group('co05_09/us02/fr01: offer the update once in a dialog', () {
+    testWidgets(
+      "co05_09/us02/s1: available shows the app's dialog over the app",
+      (tester) async {
+        await available(tester);
+        expect(find.text('Available'), findsOneWidget);
+        expect(find.text('Home'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us02/fr01: the dialog is a route on the app navigator '
+    testWidgets('co05_09/us02/fr01: the dialog is a route on the app navigator '
         'that runs no transition', (tester) async {
       await available(tester);
       final route = ModalRoute.of(tester.element(find.text('Available')));
@@ -756,19 +824,22 @@ void main() {
       expect(tester.binding.transientCallbackCount, 0);
     });
 
-    testWidgets("us02/fr01/e01: available again in the same gate's lifetime "
-        'shows no dialog', (tester) async {
-      final checker = await available(tester);
-      await tester.tap(find.text('Later'));
-      await tester.pump();
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.available);
-      await dialogFrames(tester);
-      expect(find.text('Available'), findsNothing);
-      expect(find.text('Home'), findsOneWidget);
-    });
+    testWidgets(
+      "co05_09/us02/fr01/e01: available again in the same gate's lifetime "
+      'shows no dialog',
+      (tester) async {
+        final checker = await available(tester);
+        await tester.tap(find.text('Later'));
+        await tester.pump();
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.available);
+        await dialogFrames(tester);
+        expect(find.text('Available'), findsNothing);
+        expect(find.text('Home'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us02/fr01/e02: a new gate offers the update again', (
+    testWidgets('co05_09/us02/fr01/e02: a new gate offers the update again', (
       tester,
     ) async {
       await available(tester);
@@ -779,33 +850,36 @@ void main() {
       expect(find.text('Available'), findsOneWidget);
     });
 
-    testWidgets('us02/fr01/e03: three pages deep, Android back closes the '
-        'dialog alone and the page stays', (tester) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pumpAndSettle();
-      await _push(tester, 'Second');
-      Navigator.of(tester.element(find.text('Second'))).push(
-        MaterialPageRoute<void>(
-          builder: (_) => const Scaffold(body: Center(child: Text('Third'))),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.available);
-      await dialogFrames(tester);
-      expect(find.text('Available'), findsOneWidget);
-      expect(find.text('Third'), findsOneWidget);
-      await systemBack(tester);
-      expect(find.text('Available'), findsNothing);
-      expect(find.text('Third'), findsOneWidget);
-      await systemBack(tester);
-      await tester.pumpAndSettle();
-      expect(find.text('Second'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us02/fr01/e03: three pages deep, Android back closes the '
+      'dialog alone and the page stays',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pumpAndSettle();
+        await _push(tester, 'Second');
+        Navigator.of(tester.element(find.text('Second'))).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Center(child: Text('Third'))),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.available);
+        await dialogFrames(tester);
+        expect(find.text('Available'), findsOneWidget);
+        expect(find.text('Third'), findsOneWidget);
+        await systemBack(tester);
+        expect(find.text('Available'), findsNothing);
+        expect(find.text('Third'), findsOneWidget);
+        await systemBack(tester);
+        await tester.pumpAndSettle();
+        expect(find.text('Second'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us02/fr01/e03: under MaterialApp.router, Android back '
+    testWidgets('co05_09/us02/fr01/e03: under MaterialApp.router, Android back '
         'closes the dialog alone and the page stays', (tester) async {
       final checker = _Checker();
       await tester.pumpWidget(
@@ -830,26 +904,29 @@ void main() {
       expect(find.text('Second'), findsOneWidget);
     });
 
-    testWidgets('us02/fr01/e03: later leaves the shown page as it was', (
+    testWidgets(
+      'co05_09/us02/fr01/e03: later leaves the shown page as it was',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.upToDate);
+        await tester.pumpAndSettle();
+        await _push(tester, 'Second');
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.available);
+        await dialogFrames(tester);
+        expect(find.text('Available'), findsOneWidget);
+        expect(find.text('Second'), findsOneWidget);
+        await tester.tap(find.text('Later'));
+        await tester.pumpAndSettle();
+        expect(find.text('Second'), findsOneWidget);
+        expect(find.text('Home'), findsNothing);
+      },
+    );
+
+    testWidgets('co05_09/us02/fr01/e04: Esc dismisses the dialog', (
       tester,
     ) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.upToDate);
-      await tester.pumpAndSettle();
-      await _push(tester, 'Second');
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.available);
-      await dialogFrames(tester);
-      expect(find.text('Available'), findsOneWidget);
-      expect(find.text('Second'), findsOneWidget);
-      await tester.tap(find.text('Later'));
-      await tester.pumpAndSettle();
-      expect(find.text('Second'), findsOneWidget);
-      expect(find.text('Home'), findsNothing);
-    });
-
-    testWidgets('us02/fr01/e04: Esc dismisses the dialog', (tester) async {
       await available(tester);
       expect(find.text('Available'), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -858,7 +935,7 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
     });
 
-    testWidgets('us02/fr01/e04: the Android back button dismisses the '
+    testWidgets('co05_09/us02/fr01/e04: the Android back button dismisses the '
         'dialog', (tester) async {
       await available(tester);
       expect(find.text('Available'), findsOneWidget);
@@ -867,70 +944,81 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
     });
 
-    testWidgets('us02/fr01/e04: Android lets the app handle back while the '
-        'dialog shows', (tester) async {
-      final handlesBack = <Object?>[];
-      final messenger = tester.binding.defaultBinaryMessenger
-        ..setMockMethodCallHandler(SystemChannels.platform, (call) async {
-          if (call.method == 'SystemNavigator.setFrameworkHandlesBack') {
-            handlesBack.add(call.arguments);
-          }
-          return null;
-        });
-      addTearDown(
-        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
-      );
-      await _lifecycle(tester, AppLifecycleState.resumed);
-      await available(tester);
-      expect(handlesBack.last, isTrue);
-      await tester.tap(find.text('Later'));
-      await tester.pump();
-      await tester.pump();
-      expect(handlesBack.last, isFalse);
-    });
-
-    testWidgets('us02/fr01/e05: focus moves into the dialog, and Tab from '
-        'its last control moves to its first', (tester) async {
-      await available(tester);
-      bool focused(String label) =>
-          Focus.of(tester.element(find.text(label))).hasFocus;
-      expect(
-        FocusScope.of(tester.element(find.text('Later'))).hasFocus,
-        isTrue,
-      );
-      for (final label in ['Later', 'Update', 'Later', 'Update']) {
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    testWidgets(
+      'co05_09/us02/fr01/e04: Android lets the app handle back while the '
+      'dialog shows',
+      (tester) async {
+        final handlesBack = <Object?>[];
+        final messenger = tester.binding.defaultBinaryMessenger
+          ..setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'SystemNavigator.setFrameworkHandlesBack') {
+              handlesBack.add(call.arguments);
+            }
+            return null;
+          });
+        addTearDown(
+          () =>
+              messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+        );
+        await _lifecycle(tester, AppLifecycleState.resumed);
+        await available(tester);
+        expect(handlesBack.last, isTrue);
+        await tester.tap(find.text('Later'));
         await tester.pump();
-        expect(focused(label), isTrue);
-        expect(focused('Behind'), isFalse);
-      }
-    });
+        await tester.pump();
+        expect(handlesBack.last, isFalse);
+      },
+    );
 
-    testWidgets('us02/fr01/e06: a tap outside the dialog reaches nothing '
-        'behind it', (tester) async {
-      var behindTaps = 0;
-      await available(tester, onBehind: () => behindTaps++);
-      await tester.tap(find.text('Behind'), warnIfMissed: false);
-      await tester.pump();
-      expect(behindTaps, 0);
-      expect(find.text('Available'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us02/fr01/e05: focus moves into the dialog, and Tab from '
+      'its last control moves to its first',
+      (tester) async {
+        await available(tester);
+        bool focused(String label) =>
+            Focus.of(tester.element(find.text(label))).hasFocus;
+        expect(
+          FocusScope.of(tester.element(find.text('Later'))).hasFocus,
+          isTrue,
+        );
+        for (final label in ['Later', 'Update', 'Later', 'Update']) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          expect(focused(label), isTrue);
+          expect(focused('Behind'), isFalse);
+        }
+      },
+    );
 
-    testWidgets('us02/fr01/e07: a screen reader reads the dialog alone', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await available(tester);
-      expect(find.semantics.byLabel('Behind'), findsNothing);
-      expect(find.semantics.byLabel('Home'), findsNothing);
-      expect(find.semantics.byLabel('Later'), findsOne);
-      await tester.tap(find.text('Later'));
-      await tester.pump();
-      expect(find.semantics.byLabel('Behind'), findsOne);
-      handle.dispose();
-    });
+    testWidgets(
+      'co05_09/us02/fr01/e06: a tap outside the dialog reaches nothing '
+      'behind it',
+      (tester) async {
+        var behindTaps = 0;
+        await available(tester, onBehind: () => behindTaps++);
+        await tester.tap(find.text('Behind'), warnIfMissed: false);
+        await tester.pump();
+        expect(behindTaps, 0);
+        expect(find.text('Available'), findsOneWidget);
+      },
+    );
 
-    testWidgets("us02/fr01/e08: the app's update button runs the app's "
+    testWidgets(
+      'co05_09/us02/fr01/e07: a screen reader reads the dialog alone',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await available(tester);
+        expect(find.semantics.byLabel('Behind'), findsNothing);
+        expect(find.semantics.byLabel('Home'), findsNothing);
+        expect(find.semantics.byLabel('Later'), findsOne);
+        await tester.tap(find.text('Later'));
+        await tester.pump();
+        expect(find.semantics.byLabel('Behind'), findsOne);
+        handle.dispose();
+      },
+    );
+
+    testWidgets("co05_09/us02/fr01/e08: the app's update button runs the app's "
         'code, and the gate leaves the dialog open', (tester) async {
       var updates = 0;
       await available(
@@ -958,43 +1046,50 @@ void main() {
       ('up to date', (checker) => checker.answer(UpdateStatus.upToDate)),
       ('a failure', (checker) => checker.fail()),
     ]) {
-      testWidgets('us02/fr01/e09: a later ask that answers $label closes the '
-          'dialog', (tester) async {
-        final checker = await available(tester);
-        expect(find.text('Available'), findsOneWidget);
-        await _returnToForeground(tester);
-        settle(checker);
-        await tester.pump(Duration.zero);
-        expect(find.text('Available'), findsNothing);
-        expect(find.text('Home'), findsOneWidget);
-      });
+      testWidgets(
+        'co05_09/us02/fr01/e09: a later ask that answers $label closes the '
+        'dialog',
+        (tester) async {
+          final checker = await available(tester);
+          expect(find.text('Available'), findsOneWidget);
+          await _returnToForeground(tester);
+          settle(checker);
+          await tester.pump(Duration.zero);
+          expect(find.text('Available'), findsNothing);
+          expect(find.text('Home'), findsOneWidget);
+        },
+      );
     }
 
-    testWidgets('us01/fr01/e06: a re-ask keeps the dialog, with checking', (
-      tester,
-    ) async {
-      final checker = await available(tester);
-      await _returnToForeground(tester);
-      expect(find.text('Available checking'), findsOneWidget);
-      checker.answer(UpdateStatus.available);
-      await tester.pump(Duration.zero);
-      expect(find.text('Available'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us01/fr01/e06: a re-ask keeps the dialog, with checking',
+      (tester) async {
+        final checker = await available(tester);
+        await _returnToForeground(tester);
+        expect(find.text('Available checking'), findsOneWidget);
+        checker.answer(UpdateStatus.available);
+        await tester.pump(Duration.zero);
+        expect(find.text('Available'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us02/fr01: a full screen turns into the dialog on a first '
-        'available answer', (tester) async {
-      final checker = _Checker();
-      await tester.pumpWidget(_app(checker));
-      checker.answer(UpdateStatus.required);
-      await tester.pump(Duration.zero);
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.available);
-      await dialogFrames(tester);
-      expect(find.text('Available'), findsOneWidget);
-      expect(find.text('Home'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us02/fr01: a full screen turns into the dialog on a first '
+      'available answer',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(_app(checker));
+        checker.answer(UpdateStatus.required);
+        await tester.pump(Duration.zero);
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.available);
+        await dialogFrames(tester);
+        expect(find.text('Available'), findsOneWidget);
+        expect(find.text('Home'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us01/fr02: a required answer while the dialog shows '
+    testWidgets('co05_09/us01/fr02: a required answer while the dialog shows '
         'replaces the navigator, dialog and all', (tester) async {
       final checker = await available(tester);
       expect(find.text('Available'), findsOneWidget);
@@ -1012,32 +1107,38 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('us01/fr02: a maintenance answer while the dialog shows '
-        'replaces the navigator, dialog and all', (tester) async {
-      final checker = await available(tester);
-      expect(find.text('Available'), findsOneWidget);
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.maintenance);
-      await tester.pump(Duration.zero);
-      expect(find.text('Maintenance'), findsOneWidget);
-      expect(find.text('Available'), findsNothing);
-      expect(find.byType(Navigator), findsNothing);
-    });
+    testWidgets(
+      'co05_09/us01/fr02: a maintenance answer while the dialog shows '
+      'replaces the navigator, dialog and all',
+      (tester) async {
+        final checker = await available(tester);
+        expect(find.text('Available'), findsOneWidget);
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.maintenance);
+        await tester.pump(Duration.zero);
+        expect(find.text('Maintenance'), findsOneWidget);
+        expect(find.text('Available'), findsNothing);
+        expect(find.byType(Navigator), findsNothing);
+      },
+    );
 
-    testWidgets('us02/fr01/e01: after the dialog showed, available from a '
-        'full screen shows the app alone', (tester) async {
-      final checker = await available(tester);
-      await tester.tap(find.text('Later'));
-      await tester.pump();
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.required);
-      await tester.pump(Duration.zero);
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.available);
-      await dialogFrames(tester);
-      expect(find.text('Available'), findsNothing);
-      expect(find.text('Home'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_09/us02/fr01/e01: after the dialog showed, available from a '
+      'full screen shows the app alone',
+      (tester) async {
+        final checker = await available(tester);
+        await tester.tap(find.text('Later'));
+        await tester.pump();
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.required);
+        await tester.pump(Duration.zero);
+        await _returnToForeground(tester);
+        checker.answer(UpdateStatus.available);
+        await dialogFrames(tester);
+        expect(find.text('Available'), findsNothing);
+        expect(find.text('Home'), findsOneWidget);
+      },
+    );
 
     testWidgets('the dialog hosts overlay widgets such as a tooltip', (
       tester,
@@ -1055,24 +1156,27 @@ void main() {
       expect(find.byType(Tooltip), findsOneWidget);
     });
 
-    testWidgets('us02/fr01: with no navigator below the gate no dialog shows, '
-        'and a debug assert names the placement', (tester) async {
-      final checker = _Checker();
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: StratumUpdateGate(
-            checker: checker,
-            builder: _screens,
-            child: const SizedBox(),
+    testWidgets(
+      'co05_09/us02/fr01: with no navigator below the gate no dialog shows, '
+      'and a debug assert names the placement',
+      (tester) async {
+        final checker = _Checker();
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: StratumUpdateGate(
+              checker: checker,
+              builder: _screens,
+              child: const SizedBox(),
+            ),
           ),
-        ),
-      );
-      checker.answer(UpdateStatus.available);
-      await tester.pump(Duration.zero);
-      expect(tester.takeException(), isAssertionError);
-      expect(find.text('Available'), findsNothing);
-    });
+        );
+        checker.answer(UpdateStatus.available);
+        await tester.pump(Duration.zero);
+        expect(tester.takeException(), isAssertionError);
+        expect(find.text('Available'), findsNothing);
+      },
+    );
 
     testWidgets('the gate unmounts with the dialog up', (tester) async {
       await available(tester);
@@ -1239,53 +1343,62 @@ void main() {
       ),
       ('the Android back button', systemBack),
     ]) {
-      testWidgets('us02/s2: $way closes the dialog and the app stays on its '
-          'page', (tester) async {
-        final checker = _Checker();
-        await tester.pumpWidget(_app(checker));
-        checker.answer(UpdateStatus.upToDate);
-        await tester.pumpAndSettle();
-        await _push(tester, 'Second');
+      testWidgets(
+        'co05_09/us02/s2: $way closes the dialog and the app stays on its '
+        'page',
+        (tester) async {
+          final checker = _Checker();
+          await tester.pumpWidget(_app(checker));
+          checker.answer(UpdateStatus.upToDate);
+          await tester.pumpAndSettle();
+          await _push(tester, 'Second');
+          await _returnToForeground(tester);
+          checker.answer(UpdateStatus.available);
+          await dialogFrames(tester);
+          expect(find.text('Available'), findsOneWidget);
+          await close(tester);
+          expect(find.text('Available'), findsNothing);
+          expect(find.text('Second'), findsOneWidget);
+        },
+      );
+    }
+
+    testWidgets(
+      'co05_09/us02/s3: focus starts in the dialog and Tab moves only among '
+      'its controls',
+      (tester) async {
+        await available(tester);
+        bool focused(String label) =>
+            Focus.of(tester.element(find.text(label))).hasFocus;
+        expect(
+          FocusScope.of(tester.element(find.text('Later'))).hasFocus,
+          isTrue,
+        );
+        for (var press = 0; press < 5; press++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          expect(focused('Later') || focused('Update'), isTrue);
+          expect(focused('Behind'), isFalse);
+        }
+      },
+    );
+
+    testWidgets(
+      'co05_09/us02/s4: after the dialog closed, a return to the app shows '
+      'no dialog',
+      (tester) async {
+        final checker = await available(tester);
+        await tester.tap(find.text('Later'));
+        await tester.pump();
         await _returnToForeground(tester);
         checker.answer(UpdateStatus.available);
         await dialogFrames(tester);
-        expect(find.text('Available'), findsOneWidget);
-        await close(tester);
         expect(find.text('Available'), findsNothing);
-        expect(find.text('Second'), findsOneWidget);
-      });
-    }
+        expect(find.text('Home'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us02/s3: focus starts in the dialog and Tab moves only among '
-        'its controls', (tester) async {
-      await available(tester);
-      bool focused(String label) =>
-          Focus.of(tester.element(find.text(label))).hasFocus;
-      expect(
-        FocusScope.of(tester.element(find.text('Later'))).hasFocus,
-        isTrue,
-      );
-      for (var press = 0; press < 5; press++) {
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-        await tester.pump();
-        expect(focused('Later') || focused('Update'), isTrue);
-        expect(focused('Behind'), isFalse);
-      }
-    });
-
-    testWidgets('us02/s4: after the dialog closed, a return to the app shows '
-        'no dialog', (tester) async {
-      final checker = await available(tester);
-      await tester.tap(find.text('Later'));
-      await tester.pump();
-      await _returnToForeground(tester);
-      checker.answer(UpdateStatus.available);
-      await dialogFrames(tester);
-      expect(find.text('Available'), findsNothing);
-      expect(find.text('Home'), findsOneWidget);
-    });
-
-    testWidgets('us02/s5: a new launch offers the update again', (
+    testWidgets('co05_09/us02/s5: a new launch offers the update again', (
       tester,
     ) async {
       await available(tester);
@@ -1296,7 +1409,7 @@ void main() {
       expect(find.text('Available'), findsOneWidget);
     });
 
-    testWidgets('us02/s6: a screen reader reads the dialog alone', (
+    testWidgets('co05_09/us02/s6: a screen reader reads the dialog alone', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
@@ -1308,36 +1421,39 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us02/s7: a tap behind the dialog reaches no page, and only '
-        "the app's scrim closes the dialog", (tester) async {
-      var behindTaps = 0;
-      await available(
-        tester,
-        onBehind: () => behindTaps++,
-        builder: (context, gate) => switch (gate) {
-          UpdateGateAvailable(:final dismiss) => Stack(
-            children: [
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: dismiss,
+    testWidgets(
+      'co05_09/us02/s7: a tap behind the dialog reaches no page, and only '
+      "the app's scrim closes the dialog",
+      (tester) async {
+        var behindTaps = 0;
+        await available(
+          tester,
+          onBehind: () => behindTaps++,
+          builder: (context, gate) => switch (gate) {
+            UpdateGateAvailable(:final dismiss) => Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: dismiss,
+                  ),
                 ),
-              ),
-              const Align(
-                alignment: Alignment.topCenter,
-                child: Material(child: Text('Available')),
-              ),
-            ],
-          ),
-          _ => _screens(context, gate),
-        },
-      );
-      expect(find.text('Available'), findsOneWidget);
-      await tester.tap(find.text('Behind'), warnIfMissed: false);
-      await tester.pump();
-      expect(behindTaps, 0);
-      expect(find.text('Available'), findsNothing);
-    });
+                const Align(
+                  alignment: Alignment.topCenter,
+                  child: Material(child: Text('Available')),
+                ),
+              ],
+            ),
+            _ => _screens(context, gate),
+          },
+        );
+        expect(find.text('Available'), findsOneWidget);
+        await tester.tap(find.text('Behind'), warnIfMissed: false);
+        await tester.pump();
+        expect(behindTaps, 0);
+        expect(find.text('Available'), findsNothing);
+      },
+    );
   });
 }
 

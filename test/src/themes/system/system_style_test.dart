@@ -18,7 +18,7 @@ const _full = SystemStyle(
 
 void main() {
   group('SystemStyle', () {
-    test('us14/fr01: a field the upper layer leaves null keeps the lower '
+    test('fo03/us14/fr01: a field the upper layer leaves null keeps the lower '
         'value; a set field replaces it', () {
       const lower = SystemStyle(
         statusBarColor: Color(0xFF112233),
@@ -30,7 +30,7 @@ void main() {
       expect(merged.navigationBarColor, const Color(0xFF778899));
     });
 
-    test('us14/fr01/e01: the theme sets the status bar color and the app '
+    test('fo03/us14/fr01/e01: the theme sets the status bar color and the app '
         'sets only the navigation bar color', () {
       const theme = SystemStyle(
         statusBarColor: Color(0xFF000001),
@@ -42,7 +42,7 @@ void main() {
       expect(merged.navigationBarColor, const Color(0xFF000003));
     });
 
-    test('us14/fr01/e02: an inner style sets the icons, the outer the bar '
+    test('fo03/us14/fr01/e02: an inner style sets the icons, the outer the bar '
         'mode', () {
       const outer = SystemStyle(
         statusBarIcons: SystemBarIcons.light,
@@ -54,20 +54,20 @@ void main() {
       expect(merged.barMode, SystemBarMode.immersive);
     });
 
-    test('us14/fr01: every field merges, and merge(null) is the same '
+    test('fo03/us14/fr01: every field merges, and merge(null) is the same '
         'style', () {
       expect(const SystemStyle().merge(_full), _full);
       expect(_full.merge(const SystemStyle()), _full);
       expect(_full.merge(null), same(_full));
     });
 
-    test('us14/fr01: an empty orientation list replaces a lock whole', () {
+    test('fo03/us14/fr01: an empty orientation list replaces a lock whole', () {
       const locked = SystemStyle(orientations: [DeviceOrientation.portraitUp]);
       const unlocked = SystemStyle(orientations: []);
       expect(locked.merge(unlocked).orientations, isEmpty);
     });
 
-    test('us14/fr01: look keeps the eight theme-file fields, behavior the '
+    test('fo03/us14/fr01: look keeps the eight theme-file fields, behavior the '
         'three Dart-only fields', () {
       expect(
         _full.look,

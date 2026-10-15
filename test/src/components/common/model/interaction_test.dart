@@ -286,7 +286,7 @@ void main() {
     InteractionState state({required bool hovered}) =>
         InteractionState(hovered: hovered, focused: true);
 
-    test('us17/fr04: a default state has every value false', () {
+    test('fo06/us17/fr04: a default state has every value false', () {
       const value = InteractionState();
 
       expect(value.hovered, isFalse);
@@ -295,7 +295,7 @@ void main() {
       expect(value.disabled, isFalse);
     });
 
-    test('us17/fr01, PD11: states with the same values are equal and hash '
+    test('fo06/us17/fr01, PD11: states with the same values are equal and hash '
         'alike; one different value is not equal', () {
       expect(state(hovered: true), state(hovered: true));
       expect(state(hovered: true), isNot(same(state(hovered: true))));

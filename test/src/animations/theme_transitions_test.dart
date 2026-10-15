@@ -10,7 +10,7 @@ void main() {
     bigDesktop: ScreenTransitionType.none,
   );
 
-  test('us05/fr04: [] gives the type of each window size', () {
+  test('fo05/us05/fr04: [] gives the type of each window size', () {
     expect(
       [for (final size in WindowSize.values) transitions[size]],
       [

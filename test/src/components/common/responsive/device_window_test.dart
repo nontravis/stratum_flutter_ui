@@ -391,7 +391,7 @@ void main() {
 
   const corners = BorderRadius.all(Radius.circular(40));
 
-  testWidgets('us04/fr03/e01: reads the radii the media settings report', (
+  testWidgets('fo07/us04/fr03/e01: reads the radii the media settings report', (
     tester,
   ) async {
     BorderRadius? radius;
@@ -404,7 +404,7 @@ void main() {
     expect(radius, corners);
   });
 
-  testWidgets('us04/fr03/e02: reads null when no radius is reported', (
+  testWidgets('fo07/us04/fr03/e02: reads null when no radius is reported', (
     tester,
   ) async {
     BorderRadius? radius = corners;
@@ -417,60 +417,66 @@ void main() {
     expect(radius, isNull);
   });
 
-  testWidgets('us04/fr03/e08: a radius reader does not rebuild when only the '
-      'width changes', (tester) async {
-    setWindowSize(tester, const Size(400, 800));
-    addTearDown(tester.view.reset);
-    var radiusReaderBuilds = 0;
-    await tester.pumpWidget(
-      capture((window) {
+  testWidgets(
+    'fo07/us04/fr03/e08: a radius reader does not rebuild when only the '
+    'width changes',
+    (tester) async {
+      setWindowSize(tester, const Size(400, 800));
+      addTearDown(tester.view.reset);
+      var radiusReaderBuilds = 0;
+      await tester.pumpWidget(
+        capture((window) {
+          window.radius;
+          radiusReaderBuilds++;
+        }),
+      );
+      radiusReaderBuilds = 0;
+
+      for (var width = 401.0; width <= 420; width++) {
+        setWindowSize(tester, Size(width, 800));
+        await tester.pump();
+      }
+
+      expect(radiusReaderBuilds, 0);
+    },
+  );
+
+  testWidgets(
+    'fo07/us04/fr03/e06: a new radius rebuilds its reader once and no '
+    'height reader',
+    (tester) async {
+      var radiusBuilds = 0;
+      var heightBuilds = 0;
+      // F2: build each reader once and reuse the same instance across both
+      // pumps; a fresh capture() per pumpWidget forces StatelessElement.update
+      // to rebuild every child, so heightBuilds would read 1 either way.
+      final radiusReader = capture((window) {
         window.radius;
-        radiusReaderBuilds++;
-      }),
-    );
-    radiusReaderBuilds = 0;
+        radiusBuilds++;
+      });
+      final heightReader = capture((window) {
+        window.height;
+        heightBuilds++;
+      });
+      Widget page(BorderRadius r) => MediaQuery(
+        data: MediaQueryData(displayCornerRadii: r, size: const Size(400, 800)),
+        child: Column(children: [radiusReader, heightReader]),
+      );
+      await tester.pumpWidget(
+        Directionality(textDirection: TextDirection.ltr, child: page(corners)),
+      );
+      radiusBuilds = 0;
+      heightBuilds = 0;
 
-    for (var width = 401.0; width <= 420; width++) {
-      setWindowSize(tester, Size(width, 800));
-      await tester.pump();
-    }
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: page(const BorderRadius.all(Radius.circular(46))),
+        ),
+      );
 
-    expect(radiusReaderBuilds, 0);
-  });
-
-  testWidgets('us04/fr03/e06: a new radius rebuilds its reader once and no '
-      'height reader', (tester) async {
-    var radiusBuilds = 0;
-    var heightBuilds = 0;
-    // F2: build each reader once and reuse the same instance across both
-    // pumps; a fresh capture() per pumpWidget forces StatelessElement.update
-    // to rebuild every child, so heightBuilds would read 1 either way.
-    final radiusReader = capture((window) {
-      window.radius;
-      radiusBuilds++;
-    });
-    final heightReader = capture((window) {
-      window.height;
-      heightBuilds++;
-    });
-    Widget page(BorderRadius r) => MediaQuery(
-      data: MediaQueryData(displayCornerRadii: r, size: const Size(400, 800)),
-      child: Column(children: [radiusReader, heightReader]),
-    );
-    await tester.pumpWidget(
-      Directionality(textDirection: TextDirection.ltr, child: page(corners)),
-    );
-    radiusBuilds = 0;
-    heightBuilds = 0;
-
-    await tester.pumpWidget(
-      Directionality(
-        textDirection: TextDirection.ltr,
-        child: page(const BorderRadius.all(Radius.circular(46))),
-      ),
-    );
-
-    expect(radiusBuilds, 1);
-    expect(heightBuilds, 0);
-  });
+      expect(radiusBuilds, 1);
+      expect(heightBuilds, 0);
+    },
+  );
 }

@@ -30,7 +30,7 @@ void main() {
     'x~',
     '~.svg',
   ]) {
-    test('us01/fr02: "$path" is safe', () {
+    test('fo04/us01/fr02: "$path" is safe', () {
       expect(() => checkEntryPath(path), returnsNormally);
     });
   }
@@ -54,7 +54,7 @@ void main() {
     'a/..',
     r'a\b',
   ]) {
-    test('us01/fr02/e01: "$path" is unsafe_entry_path with the path', () {
+    test('fo04/us01/fr02/e01: "$path" is unsafe_entry_path with the path', () {
       expect(() => checkEntryPath(path), _unsafe(path));
     });
   }
@@ -68,7 +68,7 @@ void main() {
       ('the last segment', 'images/sub/fi${char}le.png'),
       ('a segment alone', 'images/$char/file.png'),
     ]) {
-      test('us01/s15, us01/fr02/e14, r15: U+$hex in $label is '
+      test('fo04/us01/s15, fo04/us01/fr02/e14, r15: U+$hex in $label is '
           'unsafe_entry_path with the path', () {
         expect(() => checkEntryPath(path), _unsafe(path));
       });
@@ -83,38 +83,47 @@ void main() {
     ('an emoji', 'images/😀.png'),
     ('a lone surrogate', 'images/a${String.fromCharCode(0xD800)}.png'),
   ]) {
-    test('us01/s15, us01/fr02/e14, rz2: $label is unsafe_entry_path with '
-        'the path', () {
-      expect(() => checkEntryPath(path), _unsafe(path));
-    });
+    test(
+      'fo04/us01/s15, fo04/us01/fr02/e14, rz2: $label is unsafe_entry_path with '
+      'the path',
+      () {
+        expect(() => checkEntryPath(path), _unsafe(path));
+      },
+    );
   }
 
-  test(r'us01/fr02/e14, rz2, rzf3: every printable ASCII character but "\", '
-      '"/", and the seven no Windows name holds passes in a segment', () {
-    final segment = String.fromCharCodes([
-      for (var unit = 0x20; unit <= 0x7E; unit++)
-        if (!r'\/:<>"|?*'.codeUnits.contains(unit)) unit,
-    ]);
+  test(
+    r'fo04/us01/fr02/e14, rz2, rzf3: every printable ASCII character but "\", '
+    '"/", and the seven no Windows name holds passes in a segment',
+    () {
+      final segment = String.fromCharCodes([
+        for (var unit = 0x20; unit <= 0x7E; unit++)
+          if (!r'\/:<>"|?*'.codeUnits.contains(unit)) unit,
+      ]);
 
-    expect(() => checkEntryPath('a/$segment'), returnsNormally);
-  });
+      expect(() => checkEntryPath('a/$segment'), returnsNormally);
+    },
+  );
 
   for (final char in ':<>"|?*'.split('')) {
     for (final path in ['images/a${char}b.svg', '${char}x', 'fonts/$char/']) {
-      test('us01/s15, us01/fr02/e01, rzf3: "$path" holds a character no '
-          'Windows name holds and is unsafe_entry_path', () {
-        expect(() => checkEntryPath(path), _unsafe(path));
-        expect(
-          () => checkEntryPath(path),
-          throwsA(
-            isA<RemoteThemeFailure>().having(
-              (f) => f.message,
-              'message',
-              contains('which no Windows name holds'),
+      test(
+        'fo04/us01/s15, fo04/us01/fr02/e01, rzf3: "$path" holds a character no '
+        'Windows name holds and is unsafe_entry_path',
+        () {
+          expect(() => checkEntryPath(path), _unsafe(path));
+          expect(
+            () => checkEntryPath(path),
+            throwsA(
+              isA<RemoteThemeFailure>().having(
+                (f) => f.message,
+                'message',
+                contains('which no Windows name holds'),
+              ),
             ),
-          ),
-        );
-      });
+          );
+        },
+      );
     }
   }
 
@@ -152,7 +161,7 @@ void main() {
     ),
   ]) {
     for (final path in paths) {
-      test('us01/s15, us01/fr02/e01, $tag: "$path", $rule, is '
+      test('fo04/us01/s15, fo04/us01/fr02/e01, $tag: "$path", $rule, is '
           'unsafe_entry_path', () {
         expect(
           () => checkEntryPath(path),
@@ -201,7 +210,7 @@ void main() {
     ('a/', 0),
     ('a/', 0x4000),
   ]) {
-    test('us01/fr02: file type 0x${type.toRadixString(16)} on "$path" is '
+    test('fo04/us01/fr02: file type 0x${type.toRadixString(16)} on "$path" is '
         'safe', () {
       expect(
         () => checkEntryFileType(
@@ -215,7 +224,7 @@ void main() {
   }
 
   for (final (path, type) in [('theme.yaml', 0x4000), ('a/', 0x8000)]) {
-    test('us01/fr02/e01, us01/fr02/e13, rz3, r18 (t27): file type '
+    test('fo04/us01/fr02/e01, fo04/us01/fr02/e13, rz3, r18 (t27): file type '
         '0x${type.toRadixString(16)} on "$path" is unsafe_entry_path', () {
       expect(
         () => checkEntryFileType(
@@ -234,7 +243,7 @@ void main() {
       ('theme.yaml', (0x81A4 << 16) | 0x10),
       ('a', 0x31),
     ]) {
-      test('us01/fr02/e01, rz9 (m3-t6 security): the MS-DOS folder '
+      test('fo04/us01/fr02/e01, rz9 (m3-t6 security): the MS-DOS folder '
           'attribute on "$path", attributes '
           '0x${attributes.toRadixString(16)}, is unsafe_entry_path on host '
           '$host', () {
@@ -256,7 +265,7 @@ void main() {
     ('a', 0x20),
     ('a', (0x81A4 << 16) | 0x01),
   ]) {
-    test('us01/fr02, rz9: attributes 0x${attributes.toRadixString(16)} on '
+    test('fo04/us01/fr02, rz9: attributes 0x${attributes.toRadixString(16)} on '
         '"$path" are safe', () {
       expect(
         () => checkEntryFileType(path, externalAttributes: attributes, host: 3),
@@ -276,7 +285,7 @@ void main() {
       ('7-Zip, archive', 'a', (0x81FF << 16) | 0x8020),
       ('Windows, archive', 'a', 0x20),
     ]) {
-      test('us01/fr02, rz12: $tool attributes '
+      test('fo04/us01/fr02, rz12: $tool attributes '
           '0x${attributes.toRadixString(16)} on "$path", made on host '
           '$host, are safe', () {
         expect(
@@ -292,17 +301,20 @@ void main() {
   }
 
   for (final host in [1, 2, 6, 7, 10, 11, 14, 19, 30, 255]) {
-    test('us01/fr02/e01, rz12 (m3-t7b review): an entry made on host $host '
-        'is unsafe_entry_path', () {
-      expect(
-        () => checkEntryFileType(
-          'a',
-          externalAttributes: 0x81A4 << 16,
-          host: host,
-        ),
-        _unsafe('a'),
-      );
-    });
+    test(
+      'fo04/us01/fr02/e01, rz12 (m3-t7b review): an entry made on host $host '
+      'is unsafe_entry_path',
+      () {
+        expect(
+          () => checkEntryFileType(
+            'a',
+            externalAttributes: 0x81A4 << 16,
+            host: host,
+          ),
+          _unsafe('a'),
+        );
+      },
+    );
   }
 
   for (final (label, path, attributes) in [
@@ -318,7 +330,7 @@ void main() {
     ('the sticky bit', 'a/', 0x43FF << 16),
   ]) {
     for (final host in [0, 3]) {
-      test('us01/fr02/e01, rz12 (m3-t7b review): $label on "$path", made '
+      test('fo04/us01/fr02/e01, rz12 (m3-t7b review): $label on "$path", made '
           'on host $host, is unsafe_entry_path', () {
         expect(
           () => checkEntryFileType(
@@ -337,7 +349,7 @@ void main() {
     ('mode', 3, 0x89ED << 16, 'entry "a" carries the setuid, setgid, or '),
     ('bits', 0, 0x0408, 'entry "a" carries the MS-DOS attribute bits 0x0408'),
   ]) {
-    test('us01/fr02/e01, rz12: the $label refusal names its rule', () {
+    test('fo04/us01/fr02/e01, rz12: the $label refusal names its rule', () {
       expect(
         () =>
             checkEntryFileType('a', externalAttributes: attributes, host: host),
@@ -354,7 +366,7 @@ void main() {
 
   for (final host in [0, 3]) {
     for (final type in [0xA000, 0x1000, 0x2000, 0x6000, 0xC000]) {
-      test('us01/fr02/e01: file type 0x${type.toRadixString(16)} is '
+      test('fo04/us01/fr02/e01: file type 0x${type.toRadixString(16)} is '
           'unsafe_entry_path on host $host', () {
         expect(
           () => checkEntryFileType(
@@ -368,17 +380,20 @@ void main() {
     }
   }
 
-  test('us01/fr02/e01, rz12: the low attribute half never counts as a file '
-      'type, and a bit off its allowlist is refused', () {
-    expect(
-      () => checkEntryFileType('a', externalAttributes: 0x4000, host: 0),
-      returnsNormally,
-    );
-    expect(
-      () => checkEntryFileType('a', externalAttributes: 0x400, host: 0),
-      _unsafe('a'),
-    );
-  });
+  test(
+    'fo04/us01/fr02/e01, rz12: the low attribute half never counts as a file '
+    'type, and a bit off its allowlist is refused',
+    () {
+      expect(
+        () => checkEntryFileType('a', externalAttributes: 0x4000, host: 0),
+        returnsNormally,
+      );
+      expect(
+        () => checkEntryFileType('a', externalAttributes: 0x400, host: 0),
+        _unsafe('a'),
+      );
+    },
+  );
 
   test('M6, rz4: an unsafe path reaches the message escaped and cut, its '
       'marker inside the quotes', () {

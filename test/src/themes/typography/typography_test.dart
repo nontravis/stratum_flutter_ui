@@ -65,7 +65,7 @@ void main() {
       );
     });
 
-    test('us07/fr01/e06: reads the five Google fonts, the default family '
+    test('fo02/us07/fr01/e06: reads the five Google fonts, the default family '
         'set, and Thai', () {
       expect(typography.fonts, {
         'inter': const StratumFontData(
@@ -111,7 +111,7 @@ void main() {
       });
     });
 
-    test('us07/fr01/e06: the package bundles no font file', () {
+    test('fo02/us07/fr01/e06: the package bundles no font file', () {
       final fontFile = RegExp(r'\.(ttf|otf)$', caseSensitive: false);
 
       expect(
@@ -136,27 +136,30 @@ void main() {
       );
     });
 
-    test('us07/s1: reads the header weight and the Figma metrics of header '
-        's56', () {
-      final header = typography.types[FontType.header]!;
-      expect(header.weight, FontWeight.w600);
-      expect(header.sizes.keys, [
-        FontSize.s12,
-        FontSize.s14,
-        FontSize.s18,
-        FontSize.s20,
-        FontSize.s24,
-        FontSize.s36,
-        FontSize.s56,
-      ]);
-      expect(
-        header.sizes[FontSize.s56],
-        StratumSizeMetrics(
-          spaceHeight: const StratumDimension.fixed(16),
-          letterSpacing: StratumDimension.parse('-2.4%'),
-        ),
-      );
-    });
+    test(
+      'fo02/us07/s1: reads the header weight and the Figma metrics of header '
+      's56',
+      () {
+        final header = typography.types[FontType.header]!;
+        expect(header.weight, FontWeight.w600);
+        expect(header.sizes.keys, [
+          FontSize.s12,
+          FontSize.s14,
+          FontSize.s18,
+          FontSize.s20,
+          FontSize.s24,
+          FontSize.s36,
+          FontSize.s56,
+        ]);
+        expect(
+          header.sizes[FontSize.s56],
+          StratumSizeMetrics(
+            spaceHeight: const StratumDimension.fixed(16),
+            letterSpacing: StratumDimension.parse('-2.4%'),
+          ),
+        );
+      },
+    );
 
     test('names table in families.default with no table entry in types', () {
       expect(
@@ -168,7 +171,7 @@ void main() {
   });
 
   group('StratumTypography.fromYaml errors', () {
-    test('us07/s3, us07/fr02: reports several problems together, each with '
+    test('fo02/us07/s3, fo02/us07/fr02: reports several problems together, each with '
         'its yaml path', () {
       final node = _typography(
         families:
@@ -206,69 +209,72 @@ void main() {
       ]);
     });
 
-    test('us07/fr02: an error carries its code, its source, and the position '
-        'of its value, or of its key for an unknown key', () {
-      expect(
-        () => StratumTypography.fromYaml(
-          _typography(fonts: '{ inter: { family: 12, weight: 400 } }'),
-          source: 'ocean',
-        ),
-        throwsA(
-          isA<StratumThemeFormatException>().having(
-            (exception) => exception.errors,
-            'errors',
-            const [
-              StratumThemeFormatError(
-                code: StratumThemeErrorCode.expectedString,
-                source: 'ocean',
-                path: 'typography.fonts.inter.family',
-                message: 'expected a string, got 12',
-                line: 2,
-                column: 29,
-              ),
-              StratumThemeFormatError(
-                code: StratumThemeErrorCode.unknownKey,
-                source: 'ocean',
-                path: 'typography.fonts.inter.weight',
-                message: 'unknown key "weight"',
-                line: 2,
-                column: 33,
-              ),
-            ],
+    test(
+      'fo02/us07/fr02: an error carries its code, its source, and the position '
+      'of its value, or of its key for an unknown key',
+      () {
+        expect(
+          () => StratumTypography.fromYaml(
+            _typography(fonts: '{ inter: { family: 12, weight: 400 } }'),
+            source: 'ocean',
           ),
-        ),
-      );
-    });
+          throwsA(
+            isA<StratumThemeFormatException>().having(
+              (exception) => exception.errors,
+              'errors',
+              const [
+                StratumThemeFormatError(
+                  code: StratumThemeErrorCode.expectedString,
+                  source: 'ocean',
+                  path: 'typography.fonts.inter.family',
+                  message: 'expected a string, got 12',
+                  line: 2,
+                  column: 29,
+                ),
+                StratumThemeFormatError(
+                  code: StratumThemeErrorCode.unknownKey,
+                  source: 'ocean',
+                  path: 'typography.fonts.inter.weight',
+                  message: 'unknown key "weight"',
+                  line: 2,
+                  column: 33,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
 
     final cases = <(String, YamlMap, String)>[
       (
-        'us07/fr02/e01: reports no fonts',
+        'fo02/us07/fr02/e01: reports no fonts',
         _typography(fonts: '{}'),
         'typography.fonts: expected at least one font',
       ),
       (
-        'us07/fr02/e02: reports a font without a family',
+        'fo02/us07/fr02/e02: reports a font without a family',
         _typography(fonts: '{ inter: { package: stratum_ui } }'),
         'typography.fonts.inter.family: required',
       ),
       (
-        'us07/fr02/e03: reports a font family that is not a string',
+        'fo02/us07/fr02/e03: reports a font family that is not a string',
         _typography(fonts: '{ inter: { family: 12 } }'),
         'typography.fonts.inter.family: expected a string, got 12',
       ),
       (
-        'us07/fr02/e03: reports an adjustSize that is not a dimension',
+        'fo02/us07/fr02/e03: reports an adjustSize that is not a dimension',
         _typography(fonts: '{ inter: { family: Inter, adjustSize: 2px } }'),
         'typography.fonts.inter.adjustSize: '
             'expected a number or "N%", got "2px"',
       ),
       (
-        'us07/fr02/e02: reports no default family set',
+        'fo02/us07/fr02/e02: reports no default family set',
         _typography(families: '{ th: { body: inter } }'),
         'typography.families.default: required',
       ),
       (
-        'us07/fr02/e05: reports a malformed locale tag',
+        'fo02/us07/fr02/e05: reports a malformed locale tag',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, number: inter, '
@@ -279,7 +285,7 @@ void main() {
             '"th", or a language and country such as "th_TH"',
       ),
       (
-        'us07/fr02/e04: reports a mono reference to an unknown font',
+        'fo02/us07/fr02/e04: reports a mono reference to an unknown font',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, '
@@ -290,7 +296,7 @@ void main() {
             'unknown font key "geist-mono"',
       ),
       (
-        'us07/fr02/e07: reports a weight off the 100 grid',
+        'fo02/us07/fr02/e07: reports a weight off the 100 grid',
         _typography(
           types: {
             'header': '{ weight: 650, sizes: { s16: { spaceHeight: 8 } } }',
@@ -300,19 +306,19 @@ void main() {
             'expected 100 to 900 in steps of 100, got 650',
       ),
       (
-        'us07/fr02/e02: reports a type without a weight',
+        'fo02/us07/fr02/e02: reports a type without a weight',
         _typography(
           types: {'header': '{ sizes: { s16: { spaceHeight: 8 } } }'},
         ),
         'typography.types.header.weight: required',
       ),
       (
-        'us07/fr02/e08: reports a type without sizes',
+        'fo02/us07/fr02/e08: reports a type without sizes',
         _typography(types: {'header': '{ weight: 600 }'}),
         'typography.types.header.sizes: expected at least one size',
       ),
       (
-        'us07/fr02/e02: reports a size without a spaceHeight',
+        'fo02/us07/fr02/e02: reports a size without a spaceHeight',
         _typography(
           types: {
             'header':
@@ -323,7 +329,7 @@ void main() {
         'typography.types.header.sizes.s14.spaceHeight: required',
       ),
       (
-        'us07/fr02/e02: reports a family entry with a mono but no font',
+        'fo02/us07/fr02/e02: reports a family entry with a mono but no font',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, '
@@ -333,12 +339,12 @@ void main() {
         'typography.families.default.number.font: required',
       ),
       (
-        'us07/fr02/e02: reports a missing type',
+        'fo02/us07/fr02/e02: reports a missing type',
         _typography(types: {'code': null}),
         'typography.types.code: required',
       ),
       (
-        'us07/s5, us07/fr02/e09: reports a types.table block',
+        'fo02/us07/s5, fo02/us07/fr02/e09: reports a types.table block',
         _typography(
           types: {
             'table': '{ weight: 400, sizes: { s16: { spaceHeight: 8 } } }',
@@ -348,7 +354,7 @@ void main() {
             'block',
       ),
       (
-        'us07/s6, us07/fr02/e10: reports a default family set without table',
+        'fo02/us07/s6, fo02/us07/fr02/e10: reports a default family set without table',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, number: inter, '
@@ -357,7 +363,7 @@ void main() {
         'typography.families.default.table: no font for type "table"',
       ),
       (
-        'us07/fr02/e06: reports two family tags that normalize to the same tag',
+        'fo02/us07/fr02/e06: reports two family tags that normalize to the same tag',
         _typography(
           families:
               '{ default: { header: inter, paragraph: inter, number: inter, '
@@ -367,17 +373,17 @@ void main() {
         'typography.families.th_TH: duplicate tag "th_TH"',
       ),
       (
-        'us07/fr02/e02: reports a default family set with an empty value',
+        'fo02/us07/fr02/e02: reports a default family set with an empty value',
         _typography(families: '{ default: null, th: { body: inter } }'),
         'typography.families.default: required',
       ),
       (
-        'us08/s4: a Google font with an empty name',
+        'fo02/us08/s4: a Google font with an empty name',
         _typography(fonts: '{ inter: { family: "Google/" } }'),
         'typography.fonts.inter.family: expected a font name after "Google/"',
       ),
       (
-        'us08/s5: a Google font with a package',
+        'fo02/us08/s5: a Google font with a package',
         _typography(
           fonts: '{ inter: { family: "Google/Kanit", package: stratum_ui } }',
         ),
@@ -385,7 +391,7 @@ void main() {
             'package is not allowed with a Google font',
       ),
       (
-        'us08/s3: a Google font GoogleFonts.asMap() lacks',
+        'fo02/us08/s3: a Google font GoogleFonts.asMap() lacks',
         _typography(
           fonts: '{ inter: { family: "Google/Not A Real Font 12345" } }',
         ),
@@ -460,12 +466,12 @@ void main() {
       ),
     ];
     for (final (name, node, error) in cases) {
-      test('us07/fr02/e16: reports $name', () {
+      test('fo02/us07/fr02/e16: reports $name', () {
         expect(_errors(node), [error]);
       });
     }
 
-    test('us07/fr01: the four lengths read a number or a percent at the '
+    test('fo02/us07/fr01: the four lengths read a number or a percent at the '
         'bound, negatives included', () {
       final typography = StratumTypography.fromYaml(
         _typography(
@@ -503,7 +509,7 @@ void main() {
   });
 
   group('StratumTypography.fromYaml draw size', () {
-    test('us07/fr02/e17, us07/fr02/e19: an adjustSize that draws s10 and s12 '
+    test('fo02/us07/fr02/e17, fo02/us07/fr02/e19: an adjustSize that draws s10 and s12 '
         'at 0 px or less is one error, named by s10', () {
       const expected =
           'typography.fonts.inter.adjustSize: expected an adjustSize that '
@@ -516,22 +522,25 @@ void main() {
       );
     });
 
-    test('us07/fr02/e17: a percent adjustSize of "-100%" draws every size at '
-        '0 px', () {
-      const expected =
-          'typography.fonts.inter.adjustSize: expected an adjustSize that '
-          'keeps s10 above 0 px, got "-100%" (s10 draws at 0 px)';
-      expect(
-        _errors(
-          _typography(
-            fonts: '{ inter: { family: Inter, adjustSize: "-100%" } }',
+    test(
+      'fo02/us07/fr02/e17: a percent adjustSize of "-100%" draws every size at '
+      '0 px',
+      () {
+        const expected =
+            'typography.fonts.inter.adjustSize: expected an adjustSize that '
+            'keeps s10 above 0 px, got "-100%" (s10 draws at 0 px)';
+        expect(
+          _errors(
+            _typography(
+              fonts: '{ inter: { family: Inter, adjustSize: "-100%" } }',
+            ),
           ),
-        ),
-        [expected],
-      );
-    });
+          [expected],
+        );
+      },
+    );
 
-    test('us07/fr02/e17, us07/fr02/e19: a theme-wide window scale entry is '
+    test('fo02/us07/fr02/e17, fo02/us07/fr02/e19: a theme-wide window scale entry is '
         'blamed once, at the entry every larger window size reads, named by '
         'its smallest window size', () {
       const expected =
@@ -543,7 +552,7 @@ void main() {
       );
     });
 
-    test("us07/fr02/e17: a type's own window scale entry is blamed at the "
+    test("fo02/us07/fr02/e17: a type's own window scale entry is blamed at the "
         "type's path", () {
       const expected =
           'typography.types.header.scaleByWindowSize.desktop: expected a '
@@ -563,7 +572,7 @@ void main() {
       );
     });
 
-    test('us07/fr02/e19: a refused own scaleByWindowSize entry blames no '
+    test('fo02/us07/fr02/e19: a refused own scaleByWindowSize entry blames no '
         'theme-wide entry it would fall through to', () {
       const expected =
           'typography.types.header.scaleByWindowSize.watch: expected a '
@@ -610,7 +619,7 @@ void main() {
       );
     });
 
-    test('us07/fr02/e19: an own scaleByWindowSize refused as a whole '
+    test('fo02/us07/fr02/e19: an own scaleByWindowSize refused as a whole '
         'blames no theme-wide entry it would fall through to', () {
       const expected =
           'typography.types.header.scaleByWindowSize: expected a map, '
@@ -636,27 +645,30 @@ void main() {
       );
     });
 
-    test('us07/fr02/e18, us07/fr02/e19: a spaceHeight is blamed at the '
-        'defined size whose metrics fail, once for body and table', () {
-      const expected =
-          'typography.types.body.sizes.s10.spaceHeight: expected a '
-          'spaceHeight that keeps s10 above 0 px, got -12 (line box -2 '
-          'px)';
-      expect(
-        _errors(
-          _typography(
-            types: {
-              'body':
-                  '{ weight: 400, sizes: { s16: { spaceHeight: 8 }, '
-                  's10: { spaceHeight: -12 } } }',
-            },
+    test(
+      'fo02/us07/fr02/e18, fo02/us07/fr02/e19: a spaceHeight is blamed at the '
+      'defined size whose metrics fail, once for body and table',
+      () {
+        const expected =
+            'typography.types.body.sizes.s10.spaceHeight: expected a '
+            'spaceHeight that keeps s10 above 0 px, got -12 (line box -2 '
+            'px)';
+        expect(
+          _errors(
+            _typography(
+              types: {
+                'body':
+                    '{ weight: 400, sizes: { s16: { spaceHeight: 8 }, '
+                    's10: { spaceHeight: -12 } } }',
+              },
+            ),
           ),
-        ),
-        [expected],
-      );
-    });
+          [expected],
+        );
+      },
+    );
 
-    test('us07/fr02/e18: a size the type lacks is checked against the '
+    test('fo02/us07/fr02/e18: a size the type lacks is checked against the '
         'nearest defined size', () {
       const expected =
           'typography.types.body.sizes.s14.spaceHeight: expected a '
@@ -674,7 +686,7 @@ void main() {
       );
     });
 
-    test('us07/fr02/e19: a spaceHeight the length bound refuses blames no '
+    test('fo02/us07/fr02/e19: a spaceHeight the length bound refuses blames no '
         'other declared size that falls back to it', () {
       const expected =
           'typography.types.body.sizes.s10.spaceHeight: expected a number '
@@ -693,7 +705,7 @@ void main() {
       );
     });
 
-    test('us07/fr02/e17, us07/fr02/e19: a refused nearest size blames no '
+    test('fo02/us07/fr02/e17, fo02/us07/fr02/e19: a refused nearest size blames no '
         'line box, but still checks the font size at that size', () {
       const e16 =
           'typography.types.body.sizes.s10.spaceHeight: expected a number '
@@ -721,7 +733,7 @@ void main() {
       );
     });
 
-    test('us07/fr02/e19: two scale entries failing independently report '
+    test('fo02/us07/fr02/e19: two scale entries failing independently report '
         'two errors in one load', () {
       const watch =
           'typography.scaleByWindowSize.watch: expected a scaleByWindowSize '
@@ -740,7 +752,7 @@ void main() {
       );
     });
 
-    test('us07/fr02/e17: a theme-wide mono font is checked for every type '
+    test('fo02/us07/fr02/e17: a theme-wide mono font is checked for every type '
         'but code, and a code mono is not checked', () {
       const expected =
           'typography.fonts.tiny.adjustSize: expected an adjustSize that '
@@ -775,7 +787,7 @@ void main() {
       );
     });
 
-    test('us07/fr02/e19: at one size and window size, the first type in '
+    test('fo02/us07/fr02/e19: at one size and window size, the first type in '
         'FontType order, then the first font in tag order, names the '
         'message', () {
       const firstType =
@@ -816,7 +828,7 @@ void main() {
       );
     });
 
-    test('us07/fr02/e19: a value the length bound refuses draws no second '
+    test('fo02/us07/fr02/e19: a value the length bound refuses draws no second '
         'error at its path', () {
       const expected =
           'typography.fonts.inter.adjustSize: expected a number or "N%" '
@@ -831,54 +843,61 @@ void main() {
       );
     });
 
-    test('us07/fr02/e19, review focus 2: a font, a type, or a size that did '
-        'not parse is left out of the check, with no crash and no second '
-        'error', () {
-      const weight =
-          'typography.types.header.weight: expected 100 to 900 in steps of '
-          '100, got 650';
-      const spaceHeight =
-          'typography.types.paragraph.sizes.s10.spaceHeight: expected a '
-          'number or "N%", got "x"';
+    test(
+      'fo02/us07/fr02/e19, review focus 2: a font, a type, or a size that did '
+      'not parse is left out of the check, with no crash and no second '
+      'error',
+      () {
+        const weight =
+            'typography.types.header.weight: expected 100 to 900 in steps of '
+            '100, got 650';
+        const spaceHeight =
+            'typography.types.paragraph.sizes.s10.spaceHeight: expected a '
+            'number or "N%", got "x"';
 
-      expect(
-        _errors(
-          _typography(
-            fonts: '{ inter: { family: Inter }, tiny: { adjustSize: -12 } }',
-            families:
-                '{ default: { header: inter, paragraph: inter, '
-                'number: inter, code: inter, body: tiny, table: inter } }',
-            types: {
-              'header': '{ weight: 650, sizes: { s16: { spaceHeight: -20 } } }',
-              'paragraph':
-                  '{ weight: 400, sizes: { s10: { spaceHeight: x } } }',
-            },
+        expect(
+          _errors(
+            _typography(
+              fonts: '{ inter: { family: Inter }, tiny: { adjustSize: -12 } }',
+              families:
+                  '{ default: { header: inter, paragraph: inter, '
+                  'number: inter, code: inter, body: tiny, table: inter } }',
+              types: {
+                'header':
+                    '{ weight: 650, sizes: { s16: { spaceHeight: -20 } } }',
+                'paragraph':
+                    '{ weight: 400, sizes: { s10: { spaceHeight: x } } }',
+              },
+            ),
           ),
-        ),
-        [
-          weight,
-          'typography.types.paragraph.sizes: expected at least one size',
-          spaceHeight,
-          'typography.fonts.tiny.family: required',
-        ],
-      );
-    });
+          [
+            weight,
+            'typography.types.paragraph.sizes: expected at least one size',
+            spaceHeight,
+            'typography.fonts.tiny.family: required',
+          ],
+        );
+      },
+    );
 
-    test('us07/fr02/e17, review focus 5: a fractional size shows rounded to '
-        'two decimals', () {
-      const expected =
-          'typography.fonts.inter.adjustSize: expected an adjustSize that '
-          'keeps s10 above 0 px, got "-104.5%" (s10 draws at -0.45 px)';
+    test(
+      'fo02/us07/fr02/e17, review focus 5: a fractional size shows rounded to '
+      'two decimals',
+      () {
+        const expected =
+            'typography.fonts.inter.adjustSize: expected an adjustSize that '
+            'keeps s10 above 0 px, got "-104.5%" (s10 draws at -0.45 px)';
 
-      expect(
-        _errors(
-          _typography(
-            fonts: '{ inter: { family: Inter, adjustSize: "-104.5%" } }',
+        expect(
+          _errors(
+            _typography(
+              fonts: '{ inter: { family: Inter, adjustSize: "-104.5%" } }',
+            ),
           ),
-        ),
-        [expected],
-      );
-    });
+          [expected],
+        );
+      },
+    );
 
     test('s03/inv14: the package default theme passes', () {
       final node = loadYaml(
@@ -939,36 +958,39 @@ void main() {
   });
 
   group('us07: StratumTypography.fromYaml font files', () {
-    test('us07/fr01/e05: files read into a theme font under the folder and '
-        'the id of the file', () {
-      final typography = StratumTypography.fromYaml(
-        _typography(
-          fonts:
-              '{ inter: { family: Inter }, brand: { family: Brand, '
-              'files: [fonts/Brand-Regular.ttf, fonts/Brand-Bold.OTF] } }',
-        ),
-        source: 'brand',
-        folder: 'assets/themes/brand/',
-      );
+    test(
+      'fo02/us07/fr01/e05: files read into a theme font under the folder and '
+      'the id of the file',
+      () {
+        final typography = StratumTypography.fromYaml(
+          _typography(
+            fonts:
+                '{ inter: { family: Inter }, brand: { family: Brand, '
+                'files: [fonts/Brand-Regular.ttf, fonts/Brand-Bold.OTF] } }',
+          ),
+          source: 'brand',
+          folder: 'assets/themes/brand/',
+        );
 
-      expect(
-        typography.fonts['brand'],
-        const StratumFontData(
-          family: 'brand/Brand',
-          source: StratumFontSource.theme,
-          files: [
-            'assets/themes/brand/fonts/Brand-Regular.ttf',
-            'assets/themes/brand/fonts/Brand-Bold.OTF',
-          ],
-        ),
-      );
-      expect(
-        () => typography.fonts['brand']!.files.add('fonts/More.ttf'),
-        throwsUnsupportedError,
-      );
-    });
+        expect(
+          typography.fonts['brand'],
+          const StratumFontData(
+            family: 'brand/Brand',
+            source: StratumFontSource.theme,
+            files: [
+              'assets/themes/brand/fonts/Brand-Regular.ttf',
+              'assets/themes/brand/fonts/Brand-Bold.OTF',
+            ],
+          ),
+        );
+        expect(
+          () => typography.fonts['brand']!.files.add('fonts/More.ttf'),
+          throwsUnsupportedError,
+        );
+      },
+    );
 
-    test('us07/fr01: ttf and otf pass in any case', () {
+    test('fo02/us07/fr01: ttf and otf pass in any case', () {
       expect(
         _errors(
           _typography(
@@ -985,49 +1007,49 @@ void main() {
         'expected a path inside the theme folder ending in .ttf or .otf, got';
     final cases = <(String, String, String)>[
       (
-        'us07/fr02/e12: a .. segment',
+        'fo02/us07/fr02/e12: a .. segment',
         '{ inter: { family: Inter, files: [../Brand.woff] } }',
         'typography.fonts.inter.files: $invalid "../Brand.woff"',
       ),
       (
-        'us07/fr02/e12: a .. segment with an accepted extension, apart '
+        'fo02/us07/fr02/e12: a .. segment with an accepted extension, apart '
             'from the extension rule',
         '{ inter: { family: Inter, files: [fonts/../../Brand.ttf] } }',
         'typography.fonts.inter.files: $invalid "fonts/../../Brand.ttf"',
       ),
       (
-        'us07/fr02/e12: a leading /',
+        'fo02/us07/fr02/e12: a leading /',
         '{ inter: { family: Inter, files: [/fonts/Brand.ttf] } }',
         'typography.fonts.inter.files: $invalid "/fonts/Brand.ttf"',
       ),
       (
-        'us07/fr02/e12: another extension',
+        'fo02/us07/fr02/e12: another extension',
         '{ inter: { family: Inter, files: [fonts/Brand.woff2] } }',
         'typography.fonts.inter.files: $invalid "fonts/Brand.woff2"',
       ),
       (
-        'us07/fr02/e12: an entry that is not a string',
+        'fo02/us07/fr02/e12: an entry that is not a string',
         '{ inter: { family: Inter, files: [5] } }',
         'typography.fonts.inter.files: $invalid 5',
       ),
       (
-        'us07/fr02/e12: a files value that is not a list',
+        'fo02/us07/fr02/e12: a files value that is not a list',
         '{ inter: { family: Inter, files: fonts/Brand.ttf } }',
         'typography.fonts.inter.files: $invalid "fonts/Brand.ttf"',
       ),
       (
-        'us07/fr02/e13: an empty files list',
+        'fo02/us07/fr02/e13: an empty files list',
         '{ inter: { family: Inter, files: [] } }',
         'typography.fonts.inter.files: expected at least one font file',
       ),
       (
-        'us07/fr02/e14: files on a Google font',
+        'fo02/us07/fr02/e14: files on a Google font',
         '{ inter: { family: "Google/Kanit", files: [fonts/Kanit.ttf] } }',
         'typography.fonts.inter.files: '
             'files are not allowed with a Google font',
       ),
       (
-        'us07/fr02/e15: files with a package',
+        'fo02/us07/fr02/e15: files with a package',
         '{ inter: { family: Inter, package: brand_fonts, '
             'files: [fonts/Inter.ttf] } }',
         'typography.fonts.inter.package: package is not allowed with files',
@@ -1039,7 +1061,7 @@ void main() {
       });
     }
 
-    test('us07/fr02/e14: files on a Google font with an empty or unknown '
+    test('fo02/us07/fr02/e14: files on a Google font with an empty or unknown '
         'name reports that error and google_font_files, not one alone', () {
       const filesError =
           'typography.fonts.inter.files: files are not allowed with a '
@@ -1103,7 +1125,7 @@ void main() {
   });
 
   group('StratumTypography.fromYaml tags and keys', () {
-    test('us07/s2: normalizes th-TH to th_TH and keeps yaml order', () {
+    test('fo02/us07/s2: normalizes th-TH to th_TH and keeps yaml order', () {
       final typography = StratumTypography.fromYaml(
         _typography(
           families:
@@ -1116,7 +1138,7 @@ void main() {
       expect(typography.families.keys, ['th_TH', 'default', 'th']);
     });
 
-    test('us07/s4, us07/fr02/e11: reports each unknown key as unknown_key, '
+    test('fo02/us07/s4, fo02/us07/fr02/e11: reports each unknown key as unknown_key, '
         'by position', () {
       final node = _typography(
         fonts: '{ inter: { family: Inter, weight: 400 } }',

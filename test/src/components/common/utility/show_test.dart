@@ -122,24 +122,27 @@ Set<String> _semanticsLabels(WidgetTester tester) {
 
 void main() {
   group('Show sizes and fades', () {
-    testWidgets('us15/fr01, us15/s1, us15/fr01/e02: hidden content grows '
-        'and fades in over 125 ms by default', (tester) async {
-      await _toggle(
-        tester,
-        _row(_show(visible: false)),
-        _row(_show(visible: true)),
-      );
-      await tester.pump(const Duration(milliseconds: 60));
-      expect(_size(tester).width, inExclusiveRange(0, 100));
-      expect(_size(tester).height, inExclusiveRange(0, 40));
-      expect(_opacity(tester), inExclusiveRange(0, 1));
+    testWidgets(
+      'fo06/us15/fr01, fo06/us15/s1, fo06/us15/fr01/e02: hidden content grows '
+      'and fades in over 125 ms by default',
+      (tester) async {
+        await _toggle(
+          tester,
+          _row(_show(visible: false)),
+          _row(_show(visible: true)),
+        );
+        await tester.pump(const Duration(milliseconds: 60));
+        expect(_size(tester).width, inExclusiveRange(0, 100));
+        expect(_size(tester).height, inExclusiveRange(0, 40));
+        expect(_opacity(tester), inExclusiveRange(0, 1));
 
-      await tester.pump(const Duration(milliseconds: 65));
-      expect(_size(tester), const Size(100, 40));
-      expect(_opacity(tester), 1.0);
-    });
+        await tester.pump(const Duration(milliseconds: 65));
+        expect(_size(tester), const Size(100, 40));
+        expect(_opacity(tester), 1.0);
+      },
+    );
 
-    testWidgets('us15/s2: shown content shrinks and fades out over 80 ms, '
+    testWidgets('fo06/us15/s2: shown content shrinks and fades out over 80 ms, '
         'then takes no space and is unmounted', (tester) async {
       await _toggle(
         tester,
@@ -158,7 +161,7 @@ void main() {
       expect(find.byKey(_content, skipOffstage: false), findsNothing);
     });
 
-    testWidgets('us15/fr01/e01: a rebuild with the same visible runs no '
+    testWidgets('fo06/us15/fr01/e01: a rebuild with the same visible runs no '
         'motion', (tester) async {
       await tester.pumpWidget(_row(_show(visible: true)));
       await tester.pumpAndSettle();
@@ -167,28 +170,29 @@ void main() {
       expect(tester.hasRunningAnimations, isFalse);
     });
 
-    testWidgets('us15/fr01/e03, us15/s9: a 400 ms show, then the theme hide', (
-      tester,
-    ) async {
-      const slow = Duration(milliseconds: 400);
-      await _toggle(
-        tester,
-        _row(_show(visible: false, duration: slow)),
-        _row(_show(visible: true, duration: slow)),
-      );
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(_size(tester).width, lessThan(100));
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(_size(tester).width, 100);
+    testWidgets(
+      'fo06/us15/fr01/e03, fo06/us15/s9: a 400 ms show, then the theme hide',
+      (tester) async {
+        const slow = Duration(milliseconds: 400);
+        await _toggle(
+          tester,
+          _row(_show(visible: false, duration: slow)),
+          _row(_show(visible: true, duration: slow)),
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(_size(tester).width, lessThan(100));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(_size(tester).width, 100);
 
-      await tester.pumpWidget(_row(_show(visible: false, duration: slow)));
-      await tester.pump(const Duration(milliseconds: 80));
-      // One more tick past the hide: see the us15/s2 comment above.
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(_size(tester), Size.zero);
-    });
+        await tester.pumpWidget(_row(_show(visible: false, duration: slow)));
+        await tester.pump(const Duration(milliseconds: 80));
+        // One more tick past the hide: see the us15/s2 comment above.
+        await tester.pump(const Duration(milliseconds: 1));
+        expect(_size(tester), Size.zero);
+      },
+    );
 
-    testWidgets('us15/fr01: a caller hide duration sets the hide alone', (
+    testWidgets('fo06/us15/fr01: a caller hide duration sets the hide alone', (
       tester,
     ) async {
       const slowHide = Duration(milliseconds: 300);
@@ -211,103 +215,112 @@ void main() {
       expect(_size(tester), Size.zero);
     });
 
-    testWidgets('us15/fr01/e04: a theme whose default level is normal takes '
-        '200 ms to show and 128 ms to hide', (tester) async {
-      final theme = fakeTheme.copyWith(
-        animation: StratumAnimation.fromConfig(
-          defaultThemeConfig.animation.copyWith(defaultLevel: 'normal'),
-        ),
-      );
-      await _toggle(
-        tester,
-        _row(_show(visible: false), theme: theme),
-        _row(_show(visible: true), theme: theme),
-      );
-      await tester.pump(const Duration(milliseconds: 150));
-      expect(_size(tester).width, lessThan(100));
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(_size(tester).width, 100);
+    testWidgets(
+      'fo06/us15/fr01/e04: a theme whose default level is normal takes '
+      '200 ms to show and 128 ms to hide',
+      (tester) async {
+        final theme = fakeTheme.copyWith(
+          animation: StratumAnimation.fromConfig(
+            defaultThemeConfig.animation.copyWith(defaultLevel: 'normal'),
+          ),
+        );
+        await _toggle(
+          tester,
+          _row(_show(visible: false), theme: theme),
+          _row(_show(visible: true), theme: theme),
+        );
+        await tester.pump(const Duration(milliseconds: 150));
+        expect(_size(tester).width, lessThan(100));
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(_size(tester).width, 100);
 
-      await tester.pumpWidget(_row(_show(visible: false), theme: theme));
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(_size(tester).width, greaterThan(0));
-      await tester.pump(const Duration(milliseconds: 28));
-      // One more tick past the hide: see the us15/s2 comment above.
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(_size(tester), Size.zero);
-    });
+        await tester.pumpWidget(_row(_show(visible: false), theme: theme));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(_size(tester).width, greaterThan(0));
+        await tester.pump(const Duration(milliseconds: 28));
+        // One more tick past the hide: see the us15/s2 comment above.
+        await tester.pump(const Duration(milliseconds: 1));
+        expect(_size(tester), Size.zero);
+      },
+    );
 
     for (final (name, level) in [
       ('AnimationStyle.noAnimation', AnimationStyle.noAnimation),
       ('an empty AnimationStyle', const AnimationStyle()),
     ]) {
-      testWidgets('us15/fr01/e06, themes s03 invariant 15: a default level of '
-          '$name shows '
-          'and hides at once', (tester) async {
-        final levels = StratumMotionLevels(
-          micro: level,
-          veryFast: level,
-          fast: level,
-          normal: level,
-          slow: level,
-          verySlow: level,
-        );
-        final theme = fakeTheme.copyWith(
-          animation: StratumAnimation(
+      testWidgets(
+        'fo06/us15/fr01/e06, themes s03 invariant 15: a default level of '
+        '$name shows '
+        'and hides at once',
+        (tester) async {
+          final levels = StratumMotionLevels(
             micro: level,
             veryFast: level,
             fast: level,
             normal: level,
             slow: level,
             verySlow: level,
-            appear: levels,
-            defaultLevel: StratumMotionLevel.fast,
-          ),
-        );
+          );
+          final theme = fakeTheme.copyWith(
+            animation: StratumAnimation(
+              micro: level,
+              veryFast: level,
+              fast: level,
+              normal: level,
+              slow: level,
+              verySlow: level,
+              appear: levels,
+              defaultLevel: StratumMotionLevel.fast,
+            ),
+          );
 
-        await _toggle(
-          tester,
-          _row(_show(visible: false), theme: theme),
-          _row(_show(visible: true), theme: theme),
-        );
-        await tester.pump();
-        expect(_size(tester), const Size(100, 40));
-        expect(_opacity(tester), 1.0);
+          await _toggle(
+            tester,
+            _row(_show(visible: false), theme: theme),
+            _row(_show(visible: true), theme: theme),
+          );
+          await tester.pump();
+          expect(_size(tester), const Size(100, 40));
+          expect(_opacity(tester), 1.0);
 
-        await tester.pumpWidget(_row(_show(visible: false), theme: theme));
-        await tester.pump();
-        expect(_size(tester), Size.zero);
-        expect(find.byKey(_content, skipOffstage: false), findsNothing);
-      });
+          await tester.pumpWidget(_row(_show(visible: false), theme: theme));
+          await tester.pump();
+          expect(_size(tester), Size.zero);
+          expect(find.byKey(_content, skipOffstage: false), findsNothing);
+        },
+      );
     }
 
-    testWidgets('us15/fr01/e05: a caller curve runs both ways, backward on '
-        'the hide', (tester) async {
-      Show show({required bool visible}) => Show(
-        visible: visible,
-        curve: Curves.easeIn,
-        child: const KeyedSubtree(key: _content, child: _Box()),
-      );
-      await _toggle(
-        tester,
-        _row(show(visible: false)),
-        _row(show(visible: true)),
-      );
-      await tester.pump(const Duration(milliseconds: 62));
-      expect(
-        _size(tester).width,
-        closeTo(100 * Curves.easeIn.transform(62 / 125), 2),
-      );
+    testWidgets(
+      'fo06/us15/fr01/e05: a caller curve runs both ways, backward on '
+      'the hide',
+      (tester) async {
+        Show show({required bool visible}) => Show(
+          visible: visible,
+          curve: Curves.easeIn,
+          child: const KeyedSubtree(key: _content, child: _Box()),
+        );
+        await _toggle(
+          tester,
+          _row(show(visible: false)),
+          _row(show(visible: true)),
+        );
+        await tester.pump(const Duration(milliseconds: 62));
+        expect(
+          _size(tester).width,
+          closeTo(100 * Curves.easeIn.transform(62 / 125), 2),
+        );
 
-      await tester.pumpAndSettle();
-      await tester.pumpWidget(_row(show(visible: false)));
-      await tester.pump(const Duration(milliseconds: 20));
-      // 20 ms into an 80 ms hide, the controller reads 0.75 (PD9).
-      expect(
-        _size(tester).width,
-        closeTo(100 * Curves.easeIn.transform(1 - 20 / 80), 2),
-      );
-    });
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(_row(show(visible: false)));
+        await tester.pump(const Duration(milliseconds: 20));
+        // 20 ms into an 80 ms hide, the controller reads 0.75 (PD9).
+        expect(
+          _size(tester).width,
+          closeTo(100 * Curves.easeIn.transform(1 - 20 / 80), 2),
+        );
+      },
+    );
 
     testWidgets('a hide during a show shrinks from where it is', (
       tester,
@@ -326,7 +339,7 @@ void main() {
       expect(_size(tester).width, closeTo(width, 3));
     });
 
-    testWidgets('us15/s3: fade takes the full size at once and fades in', (
+    testWidgets('fo06/us15/s3: fade takes the full size at once and fades in', (
       tester,
     ) async {
       await _toggle(
@@ -340,22 +353,25 @@ void main() {
       expect(_opacity(tester), inExclusiveRange(0, 1));
     });
 
-    testWidgets('us15/fr01: fade fades out at its full size, then takes no '
-        'space', (tester) async {
-      await _toggle(
-        tester,
-        _row(_show(visible: true, transition: ShowTransition.fade)),
-        _row(_show(visible: false, transition: ShowTransition.fade)),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-      expect(_size(tester), const Size(100, 40));
-      expect(_opacity(tester), inExclusiveRange(0, 1));
+    testWidgets(
+      'fo06/us15/fr01: fade fades out at its full size, then takes no '
+      'space',
+      (tester) async {
+        await _toggle(
+          tester,
+          _row(_show(visible: true, transition: ShowTransition.fade)),
+          _row(_show(visible: false, transition: ShowTransition.fade)),
+        );
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(_size(tester), const Size(100, 40));
+        expect(_opacity(tester), inExclusiveRange(0, 1));
 
-      await tester.pumpAndSettle();
-      expect(_size(tester), Size.zero);
-    });
+        await tester.pumpAndSettle();
+        expect(_size(tester), Size.zero);
+      },
+    );
 
-    testWidgets('us15/s4: size grows with no fade', (tester) async {
+    testWidgets('fo06/us15/s4: size grows with no fade', (tester) async {
       await _toggle(
         tester,
         _row(_show(visible: false, transition: ShowTransition.size)),
@@ -367,51 +383,59 @@ void main() {
       expect(_opacity(tester), 1.0);
     });
 
-    testWidgets('us15/fr01: size shrinks with no fade, then takes no space', (
-      tester,
-    ) async {
-      await _toggle(
-        tester,
-        _row(_show(visible: true, transition: ShowTransition.size)),
-        _row(_show(visible: false, transition: ShowTransition.size)),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-      expect(_size(tester).width, inExclusiveRange(0, 100));
-      expect(_opacity(tester), 1.0);
+    testWidgets(
+      'fo06/us15/fr01: size shrinks with no fade, then takes no space',
+      (tester) async {
+        await _toggle(
+          tester,
+          _row(_show(visible: true, transition: ShowTransition.size)),
+          _row(_show(visible: false, transition: ShowTransition.size)),
+        );
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(_size(tester).width, inExclusiveRange(0, 100));
+        expect(_opacity(tester), 1.0);
 
-      await tester.pumpAndSettle();
-      expect(_size(tester), Size.zero);
-    });
+        await tester.pumpAndSettle();
+        expect(_size(tester), Size.zero);
+      },
+    );
 
-    testWidgets('us15/fr03/e01, us15/s14: hidden content takes no width in a '
-        'row and no height in a column', (tester) async {
-      await tester.pumpWidget(_row(_show(visible: false)));
-      expect(_size(tester), Size.zero);
-      expect(
-        tester.getTopRight(find.text('A')).dx,
-        tester.getTopLeft(find.text('B')).dx,
-      );
+    testWidgets(
+      'fo06/us15/fr03/e01, fo06/us15/s14: hidden content takes no width in a '
+      'row and no height in a column',
+      (tester) async {
+        await tester.pumpWidget(_row(_show(visible: false)));
+        expect(_size(tester), Size.zero);
+        expect(
+          tester.getTopRight(find.text('A')).dx,
+          tester.getTopLeft(find.text('B')).dx,
+        );
 
-      await tester.pumpWidget(
-        themedHost(
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [const Text('A'), _show(visible: false), const Text('B')],
+        await tester.pumpWidget(
+          themedHost(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('A'),
+                _show(visible: false),
+                const Text('B'),
+              ],
+            ),
           ),
-        ),
-      );
-      expect(_size(tester), Size.zero);
-      expect(
-        tester.getBottomLeft(find.text('A')).dy,
-        tester.getTopLeft(find.text('B')).dy,
-      );
-    });
+        );
+        expect(_size(tester), Size.zero);
+        expect(
+          tester.getBottomLeft(find.text('A')).dy,
+          tester.getTopLeft(find.text('B')).dy,
+        );
+      },
+    );
 
     for (final (direction, corner) in [
       (TextDirection.ltr, 'top left'),
       (TextDirection.rtl, 'top right'),
     ]) {
-      testWidgets('us15/fr03/e02: a size change anchors at the $corner', (
+      testWidgets('fo06/us15/fr03/e02: a size change anchors at the $corner', (
         tester,
       ) async {
         await _toggle(
@@ -436,7 +460,7 @@ void main() {
       });
     }
 
-    testWidgets('us15/fr03/e06: shown again, the content builds fresh', (
+    testWidgets('fo06/us15/fr03/e06: shown again, the content builds fresh', (
       tester,
     ) async {
       await tester.pumpWidget(_row(_show(visible: true)));
@@ -471,7 +495,7 @@ void main() {
 
   group('Show at rest', () {
     for (final transition in ShowTransition.values) {
-      testWidgets('us15/fr03/e07, PD7: a shown child in a stretch column '
+      testWidgets('fo06/us15/fr03/e07, PD7: a shown child in a stretch column '
           'fills its width '
           '(${transition.name})', (tester) async {
         await tester.pumpWidget(
@@ -500,27 +524,30 @@ void main() {
         expect(tester.getSize(find.byKey(_content)).width, 300);
       });
 
-      testWidgets('us15/fr03/e07, PD6: a shown child paints outside its box, '
-          'unclipped '
-          '(${transition.name})', (tester) async {
-        await tester.pumpWidget(
-          _row(
-            _show(
-              visible: true,
-              transition: transition,
-              child: const CustomPaint(
-                key: _content,
-                painter: _Outside(),
-                child: SizedBox(width: 100, height: 40),
+      testWidgets(
+        'fo06/us15/fr03/e07, PD6: a shown child paints outside its box, '
+        'unclipped '
+        '(${transition.name})',
+        (tester) async {
+          await tester.pumpWidget(
+            _row(
+              _show(
+                visible: true,
+                transition: transition,
+                child: const CustomPaint(
+                  key: _content,
+                  painter: _Outside(),
+                  child: SizedBox(width: 100, height: 40),
+                ),
               ),
             ),
-          ),
-        );
+          );
 
-        final show = tester.renderObject(find.byType(Show));
-        expect(show, paints..rect(rect: _Outside.ring));
-        expect(show, paintsExactlyCountTimes(#clipRect, 0));
-      });
+          final show = tester.renderObject(find.byType(Show));
+          expect(show, paints..rect(rect: _Outside.ring));
+          expect(show, paintsExactlyCountTimes(#clipRect, 0));
+        },
+      );
     }
   });
 
@@ -558,59 +585,70 @@ void main() {
       ),
     );
 
-    testWidgets('us15/fr02/e01, us15/s5: no direction in a left-to-right app '
-        'slides in from the right by its own width while it fades in', (
-      tester,
-    ) async {
-      await _toggle(
-        tester,
-        _row(_show(visible: false, transition: ShowTransition.slide)),
-        _row(_show(visible: true, transition: ShowTransition.slide)),
-      );
-      await tester.pump();
-      expect(left(tester), showLeft(tester) + 100);
-      expect(_size(tester), const Size(100, 40));
+    testWidgets(
+      'fo06/us15/fr02/e01, fo06/us15/s5: no direction in a left-to-right app '
+      'slides in from the right by its own width while it fades in',
+      (tester) async {
+        await _toggle(
+          tester,
+          _row(_show(visible: false, transition: ShowTransition.slide)),
+          _row(_show(visible: true, transition: ShowTransition.slide)),
+        );
+        await tester.pump();
+        expect(left(tester), showLeft(tester) + 100);
+        expect(_size(tester), const Size(100, 40));
 
-      await tester.pump(const Duration(milliseconds: 60));
-      expect(
-        left(tester),
-        inExclusiveRange(showLeft(tester), showLeft(tester) + 100),
-      );
-      expect(_opacity(tester), inExclusiveRange(0, 1));
+        await tester.pump(const Duration(milliseconds: 60));
+        expect(
+          left(tester),
+          inExclusiveRange(showLeft(tester), showLeft(tester) + 100),
+        );
+        expect(_opacity(tester), inExclusiveRange(0, 1));
 
-      await tester.pump(const Duration(milliseconds: 65));
-      expect(left(tester), showLeft(tester));
-      expect(_opacity(tester), 1.0);
-    });
+        await tester.pump(const Duration(milliseconds: 65));
+        expect(left(tester), showLeft(tester));
+        expect(_opacity(tester), 1.0);
+      },
+    );
 
-    testWidgets('us15/fr02/e02, us15/s6: end under right to left comes from '
-        'the left; start comes from the right', (tester) async {
-      await slideIn(tester, ShowSlideDirection.end, text: TextDirection.rtl);
-      await tester.pump();
-      expect(left(tester), showLeft(tester) - 100);
+    testWidgets(
+      'fo06/us15/fr02/e02, fo06/us15/s6: end under right to left comes from '
+      'the left; start comes from the right',
+      (tester) async {
+        await slideIn(tester, ShowSlideDirection.end, text: TextDirection.rtl);
+        await tester.pump();
+        expect(left(tester), showLeft(tester) - 100);
 
-      await slideIn(tester, ShowSlideDirection.start, text: TextDirection.rtl);
-      await tester.pump();
-      expect(left(tester), showLeft(tester) + 100);
-    });
+        await slideIn(
+          tester,
+          ShowSlideDirection.start,
+          text: TextDirection.rtl,
+        );
+        await tester.pump();
+        expect(left(tester), showLeft(tester) + 100);
+      },
+    );
 
     for (final (direction, sign) in [
       (ShowSlideDirection.top, -1),
       (ShowSlideDirection.bottom, 1),
     ]) {
       for (final text in TextDirection.values) {
-        testWidgets('us15/fr02/e03: ${direction.name} moves by its own height '
-            'in ${text.name}', (tester) async {
-          await slideIn(tester, direction, text: text);
-          await tester.pump();
+        testWidgets(
+          'fo06/us15/fr02/e03: ${direction.name} moves by its own height '
+          'in ${text.name}',
+          (tester) async {
+            await slideIn(tester, direction, text: text);
+            await tester.pump();
 
-          expect(top(tester), showTop(tester) + sign * 40);
-          expect(left(tester), showLeft(tester));
-        });
+            expect(top(tester), showTop(tester) + sign * 40);
+            expect(left(tester), showLeft(tester));
+          },
+        );
       }
     }
 
-    testWidgets('us15/fr02: a hide slides out toward the same edge, then '
+    testWidgets('fo06/us15/fr02: a hide slides out toward the same edge, then '
         'takes no space', (tester) async {
       await _toggle(
         tester,
@@ -650,7 +688,7 @@ void main() {
       expect(_opacity(tester), closeTo(opacity, 0.03));
     });
 
-    testWidgets('us15/fr02/e04: a slide direction with another transition '
+    testWidgets('fo06/us15/fr02/e04: a slide direction with another transition '
         'has no effect', (tester) async {
       await _toggle(
         tester,
@@ -769,97 +807,106 @@ void main() {
     ]) {
       for (final visible in [true, false]) {
         final motion = visible ? 'show' : 'hide';
-        testWidgets('us15/fr01/e07, us15/s15: ${from.name} to ${to.name} '
-            'mid-$motion continues from where it is to the end of '
-            '${to.name}', (tester) async {
-          final atChange = visible ? 60 : 40;
-          await _toggle(
-            tester,
-            _row(_show(visible: !visible, transition: from)),
-            _row(_show(visible: visible, transition: from)),
-          );
-          // Midway: 60 ms of the 125 ms show, 40 ms of the 80 ms hide.
-          await tester.pump(Duration(milliseconds: atChange));
-          final before = look(tester);
+        testWidgets(
+          'fo06/us15/fr01/e07, fo06/us15/s15: ${from.name} to ${to.name} '
+          'mid-$motion continues from where it is to the end of '
+          '${to.name}',
+          (tester) async {
+            final atChange = visible ? 60 : 40;
+            await _toggle(
+              tester,
+              _row(_show(visible: !visible, transition: from)),
+              _row(_show(visible: visible, transition: from)),
+            );
+            // Midway: 60 ms of the 125 ms show, 40 ms of the 80 ms hide.
+            await tester.pump(Duration(milliseconds: atChange));
+            final before = look(tester);
 
-          // The frame of the change advances no time, so it shows what
-          // the frame before showed.
-          await tester.pumpWidget(
-            _row(_show(visible: visible, transition: to)),
-          );
-          expectLook(look(tester), before);
+            // The frame of the change advances no time, so it shows what
+            // the frame before showed.
+            await tester.pumpWidget(
+              _row(_show(visible: visible, transition: to)),
+            );
+            expectLook(look(tester), before);
 
-          // One motion step later: the blended line, not the held value
-          // and not the end (invariant 50).
-          await tester.pump(const Duration(milliseconds: 16));
-          expectLook(
-            look(tester),
-            blendAt(
-              visible,
-              atChange,
-              atChange + 16,
-              before,
-              endOf(to, shown: visible),
-            ),
-          );
+            // One motion step later: the blended line, not the held value
+            // and not the end (invariant 50).
+            await tester.pump(const Duration(milliseconds: 16));
+            expectLook(
+              look(tester),
+              blendAt(
+                visible,
+                atChange,
+                atChange + 16,
+                before,
+                endOf(to, shown: visible),
+              ),
+            );
 
-          // To the motion's last value, a tick before it settles.
-          await tester.pump(Duration(milliseconds: visible ? 49 : 24));
-          expectLook(look(tester), endOf(to, shown: visible));
-        });
+            // To the motion's last value, a tick before it settles.
+            await tester.pump(Duration(milliseconds: visible ? 49 : 24));
+            expectLook(look(tester), endOf(to, shown: visible));
+          },
+        );
       }
     }
 
-    testWidgets('us15/fr01/e07: a second change mid-blend continues to the '
-        'end of the last transition', (tester) async {
-      await _toggle(
-        tester,
-        _row(_show(visible: false, transition: ShowTransition.slide)),
-        _row(_show(visible: true, transition: ShowTransition.slide)),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-      await tester.pumpWidget(
-        _row(_show(visible: true, transition: ShowTransition.size)),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-      final before = look(tester);
+    testWidgets(
+      'fo06/us15/fr01/e07: a second change mid-blend continues to the '
+      'end of the last transition',
+      (tester) async {
+        await _toggle(
+          tester,
+          _row(_show(visible: false, transition: ShowTransition.slide)),
+          _row(_show(visible: true, transition: ShowTransition.slide)),
+        );
+        await tester.pump(const Duration(milliseconds: 40));
+        await tester.pumpWidget(
+          _row(_show(visible: true, transition: ShowTransition.size)),
+        );
+        await tester.pump(const Duration(milliseconds: 40));
+        final before = look(tester);
 
-      // The second change, mid-blend from the first, still shows no jump.
-      await tester.pumpWidget(
-        _row(_show(visible: true, transition: ShowTransition.fade)),
-      );
-      expectLook(look(tester), before);
+        // The second change, mid-blend from the first, still shows no jump.
+        await tester.pumpWidget(
+          _row(_show(visible: true, transition: ShowTransition.fade)),
+        );
+        expectLook(look(tester), before);
 
-      await tester.pumpAndSettle();
-      expectLook(look(tester), endOf(ShowTransition.fade, shown: true));
-    });
+        await tester.pumpAndSettle();
+        expectLook(look(tester), endOf(ShowTransition.fade, shown: true));
+      },
+    );
 
-    testWidgets('us15/fr01/e07: a hide after the change reverses from where '
-        'it is to the end of the new transition', (tester) async {
-      await _toggle(
-        tester,
-        _row(_show(visible: false, transition: ShowTransition.slide)),
-        _row(_show(visible: true, transition: ShowTransition.slide)),
-      );
-      await tester.pump(const Duration(milliseconds: 60));
-      await tester.pumpWidget(
-        _row(_show(visible: true, transition: ShowTransition.size)),
-      );
-      // 75 ms of the 125 ms show: the controller reads 0.6.
-      await tester.pump(const Duration(milliseconds: 15));
-      final before = look(tester);
+    testWidgets(
+      'fo06/us15/fr01/e07: a hide after the change reverses from where '
+      'it is to the end of the new transition',
+      (tester) async {
+        await _toggle(
+          tester,
+          _row(_show(visible: false, transition: ShowTransition.slide)),
+          _row(_show(visible: true, transition: ShowTransition.slide)),
+        );
+        await tester.pump(const Duration(milliseconds: 60));
+        await tester.pumpWidget(
+          _row(_show(visible: true, transition: ShowTransition.size)),
+        );
+        // 75 ms of the 125 ms show: the controller reads 0.6.
+        await tester.pump(const Duration(milliseconds: 15));
+        final before = look(tester);
 
-      await tester.pumpWidget(
-        _row(_show(visible: false, transition: ShowTransition.size)),
-      );
-      expectLook(look(tester), before);
+        await tester.pumpWidget(
+          _row(_show(visible: false, transition: ShowTransition.size)),
+        );
+        expectLook(look(tester), before);
 
-      // 0.6 of the 80 ms hide.
-      await tester.pump(const Duration(milliseconds: 48));
-      expectLook(look(tester), endOf(ShowTransition.size, shown: false));
-    });
+        // 0.6 of the 80 ms hide.
+        await tester.pump(const Duration(milliseconds: 48));
+        expectLook(look(tester), endOf(ShowTransition.size, shown: false));
+      },
+    );
 
-    testWidgets('us15/fr01/e07: at rest the change takes effect at once', (
+    testWidgets('fo06/us15/fr01/e07: at rest the change takes effect at once', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -880,32 +927,35 @@ void main() {
   });
 
   group('Show input, focus, and maintainState', () {
-    testWidgets('us15/fr03/e04, us15/s10: a tap during the hide reaches '
-        'nothing inside the leaving content', (tester) async {
-      var taps = 0;
-      Widget build({required bool visible}) => _row(
-        _show(
-          visible: visible,
-          child: KeyedSubtree(
-            key: _content,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => taps++,
-              child: const SizedBox(width: 100, height: 40),
+    testWidgets(
+      'fo06/us15/fr03/e04, fo06/us15/s10: a tap during the hide reaches '
+      'nothing inside the leaving content',
+      (tester) async {
+        var taps = 0;
+        Widget build({required bool visible}) => _row(
+          _show(
+            visible: visible,
+            child: KeyedSubtree(
+              key: _content,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => taps++,
+                child: const SizedBox(width: 100, height: 40),
+              ),
             ),
           ),
-        ),
-      );
-      await _toggle(tester, build(visible: true), build(visible: false));
-      await tester.pump(const Duration(milliseconds: 10));
+        );
+        await _toggle(tester, build(visible: true), build(visible: false));
+        await tester.pump(const Duration(milliseconds: 10));
 
-      await tester.tap(find.byKey(_content), warnIfMissed: false);
-      await tester.pump(kDoubleTapTimeout);
+        await tester.tap(find.byKey(_content), warnIfMissed: false);
+        await tester.pump(kDoubleTapTimeout);
 
-      expect(taps, 0);
-    });
+        expect(taps, 0);
+      },
+    );
 
-    testWidgets('us15/fr03: from the frame it turns hidden, the leaving '
+    testWidgets('fo06/us15/fr03: from the frame it turns hidden, the leaving '
         'content is out of the semantics tree', (tester) async {
       final handle = tester.ensureSemantics();
       Widget build({required bool visible}) => _row(
@@ -927,53 +977,56 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us15/fr03/e03, us15/s11: focus inside hiding content moves '
-        'to the show node, and Tab moves on from there', (tester) async {
-      final field = FocusNode(debugLabel: 'field');
-      final after = FocusNode(debugLabel: 'after');
-      addTearDown(field.dispose);
-      addTearDown(after.dispose);
-      Widget build({required bool visible}) => themedHost(
-        Shortcuts(
-          shortcuts: WidgetsApp.defaultShortcuts,
-          child: Actions(
-            actions: WidgetsApp.defaultActions,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _show(
-                  visible: visible,
-                  child: KeyedSubtree(
-                    key: _content,
-                    child: Focus(
-                      focusNode: field,
-                      child: const SizedBox(width: 100, height: 40),
+    testWidgets(
+      'fo06/us15/fr03/e03, fo06/us15/s11: focus inside hiding content moves '
+      'to the show node, and Tab moves on from there',
+      (tester) async {
+        final field = FocusNode(debugLabel: 'field');
+        final after = FocusNode(debugLabel: 'after');
+        addTearDown(field.dispose);
+        addTearDown(after.dispose);
+        Widget build({required bool visible}) => themedHost(
+          Shortcuts(
+            shortcuts: WidgetsApp.defaultShortcuts,
+            child: Actions(
+              actions: WidgetsApp.defaultActions,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _show(
+                    visible: visible,
+                    child: KeyedSubtree(
+                      key: _content,
+                      child: Focus(
+                        focusNode: field,
+                        child: const SizedBox(width: 100, height: 40),
+                      ),
                     ),
                   ),
-                ),
-                Focus(
-                  focusNode: after,
-                  child: const SizedBox(width: 10, height: 10),
-                ),
-              ],
+                  Focus(
+                    focusNode: after,
+                    child: const SizedBox(width: 10, height: 10),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpWidget(build(visible: true));
-      field.requestFocus();
-      await tester.pump();
+        );
+        await tester.pumpWidget(build(visible: true));
+        field.requestFocus();
+        await tester.pump();
 
-      await tester.pumpWidget(build(visible: false));
-      await tester.pump();
+        await tester.pumpWidget(build(visible: false));
+        await tester.pump();
 
-      expect(field.hasFocus, isFalse);
-      expect(FocusManager.instance.primaryFocus?.debugLabel, 'Show');
+        expect(field.hasFocus, isFalse);
+        expect(FocusManager.instance.primaryFocus?.debugLabel, 'Show');
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
-      expect(after.hasPrimaryFocus, isTrue);
-    });
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(after.hasPrimaryFocus, isTrue);
+      },
+    );
 
     testWidgets('focus outside the show stays where it is', (tester) async {
       final outside = FocusNode(debugLabel: 'outside');
@@ -1000,22 +1053,31 @@ void main() {
       expect(outside.hasPrimaryFocus, isTrue);
     });
 
-    testWidgets('us15/fr03/e05, us15/s12: content kept alive keeps its State '
-        'while hidden, with no size', (tester) async {
-      await tester.pumpWidget(_row(_show(visible: true, maintainState: true)));
-      final state = tester.state(find.byType(_Box));
+    testWidgets(
+      'fo06/us15/fr03/e05, fo06/us15/s12: content kept alive keeps its State '
+      'while hidden, with no size',
+      (tester) async {
+        await tester.pumpWidget(
+          _row(_show(visible: true, maintainState: true)),
+        );
+        final state = tester.state(find.byType(_Box));
 
-      await tester.pumpWidget(_row(_show(visible: false, maintainState: true)));
-      await tester.pumpAndSettle();
-      expect(_size(tester), Size.zero);
-      expect(find.byType(_Box), findsNothing);
-      expect(find.byType(_Box, skipOffstage: false), findsOneWidget);
+        await tester.pumpWidget(
+          _row(_show(visible: false, maintainState: true)),
+        );
+        await tester.pumpAndSettle();
+        expect(_size(tester), Size.zero);
+        expect(find.byType(_Box), findsNothing);
+        expect(find.byType(_Box, skipOffstage: false), findsOneWidget);
 
-      await tester.pumpWidget(_row(_show(visible: true, maintainState: true)));
-      expect(tester.state(find.byType(_Box)), same(state));
-    });
+        await tester.pumpWidget(
+          _row(_show(visible: true, maintainState: true)),
+        );
+        expect(tester.state(find.byType(_Box)), same(state));
+      },
+    );
 
-    testWidgets('us15/fr03/e05: maintainState turned off while hidden '
+    testWidgets('fo06/us15/fr03/e05: maintainState turned off while hidden '
         'unmounts the kept content', (tester) async {
       await tester.pumpWidget(_row(_show(visible: false, maintainState: true)));
       expect(find.byKey(_content, skipOffstage: false), findsOneWidget);
@@ -1026,7 +1088,7 @@ void main() {
       expect(_size(tester), Size.zero);
     });
 
-    testWidgets('us15/fr01/e07: a transition changed while hidden under '
+    testWidgets('fo06/us15/fr01/e07: a transition changed while hidden under '
         'maintainState does not paint the next show at the old size', (
       tester,
     ) async {
@@ -1065,102 +1127,117 @@ void main() {
       expect(_size(tester), Size.zero);
     });
 
-    testWidgets('us15/fr03/e05: content kept alive stops its tickers while '
-        'hidden', (tester) async {
-      bool ticking() => TickerMode.valuesOf(
-        tester.element(find.byType(_Box, skipOffstage: false)),
-      ).enabled;
-      await tester.pumpWidget(_row(_show(visible: true, maintainState: true)));
-      expect(ticking(), isTrue);
+    testWidgets(
+      'fo06/us15/fr03/e05: content kept alive stops its tickers while '
+      'hidden',
+      (tester) async {
+        bool ticking() => TickerMode.valuesOf(
+          tester.element(find.byType(_Box, skipOffstage: false)),
+        ).enabled;
+        await tester.pumpWidget(
+          _row(_show(visible: true, maintainState: true)),
+        );
+        expect(ticking(), isTrue);
 
-      await tester.pumpWidget(_row(_show(visible: false, maintainState: true)));
-      await tester.pumpAndSettle();
-      expect(ticking(), isFalse);
+        await tester.pumpWidget(
+          _row(_show(visible: false, maintainState: true)),
+        );
+        await tester.pumpAndSettle();
+        expect(ticking(), isFalse);
 
-      await tester.pumpWidget(_row(_show(visible: true, maintainState: true)));
-      expect(ticking(), isTrue);
-    });
+        await tester.pumpWidget(
+          _row(_show(visible: true, maintainState: true)),
+        );
+        expect(ticking(), isTrue);
+      },
+    );
 
-    testWidgets('us15/fr03/e05, us15/s13: content kept alive takes no focus '
-        'and leaves the semantics tree', (tester) async {
-      final handle = tester.ensureSemantics();
-      final before = FocusNode(debugLabel: 'before');
-      final field = FocusNode(debugLabel: 'field');
-      final after = FocusNode(debugLabel: 'after');
-      addTearDown(before.dispose);
-      addTearDown(field.dispose);
-      addTearDown(after.dispose);
-      await tester.pumpWidget(
-        themedHost(
-          Shortcuts(
-            shortcuts: WidgetsApp.defaultShortcuts,
-            child: Actions(
-              actions: WidgetsApp.defaultActions,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Focus(
-                    focusNode: before,
-                    child: const SizedBox(width: 10, height: 10),
-                  ),
-                  _show(
-                    visible: false,
-                    maintainState: true,
-                    child: KeyedSubtree(
-                      key: _content,
-                      child: Semantics(
-                        label: 'Inside',
-                        child: Focus(
-                          focusNode: field,
-                          child: const SizedBox(width: 100, height: 40),
+    testWidgets(
+      'fo06/us15/fr03/e05, fo06/us15/s13: content kept alive takes no focus '
+      'and leaves the semantics tree',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final before = FocusNode(debugLabel: 'before');
+        final field = FocusNode(debugLabel: 'field');
+        final after = FocusNode(debugLabel: 'after');
+        addTearDown(before.dispose);
+        addTearDown(field.dispose);
+        addTearDown(after.dispose);
+        await tester.pumpWidget(
+          themedHost(
+            Shortcuts(
+              shortcuts: WidgetsApp.defaultShortcuts,
+              child: Actions(
+                actions: WidgetsApp.defaultActions,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Focus(
+                      focusNode: before,
+                      child: const SizedBox(width: 10, height: 10),
+                    ),
+                    _show(
+                      visible: false,
+                      maintainState: true,
+                      child: KeyedSubtree(
+                        key: _content,
+                        child: Semantics(
+                          label: 'Inside',
+                          child: Focus(
+                            focusNode: field,
+                            child: const SizedBox(width: 100, height: 40),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Focus(
-                    focusNode: after,
-                    child: const SizedBox(width: 10, height: 10),
-                  ),
-                ],
+                    Focus(
+                      focusNode: after,
+                      child: const SizedBox(width: 10, height: 10),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
-      expect(find.byKey(_content, skipOffstage: false), findsOneWidget);
-      expect(_semanticsLabels(tester), isNot(contains('Inside')));
+        );
+        expect(find.byKey(_content, skipOffstage: false), findsOneWidget);
+        expect(_semanticsLabels(tester), isNot(contains('Inside')));
 
-      field.requestFocus();
-      await tester.pump();
-      expect(field.hasFocus, isFalse);
+        field.requestFocus();
+        await tester.pump();
+        expect(field.hasFocus, isFalse);
 
-      before.requestFocus();
-      await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
-      expect(after.hasPrimaryFocus, isTrue);
-      handle.dispose();
-    });
+        before.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(after.hasPrimaryFocus, isTrue);
+        handle.dispose();
+      },
+    );
   });
 
   group('Show under reduced motion', () {
-    testWidgets('us15/fr04/e01, us15/s7: sizeAndFade takes its full size at '
-        'once and fades in', (tester) async {
-      await _toggle(
-        tester,
-        _row(_show(visible: false), reduced: true),
-        _row(_show(visible: true), reduced: true),
-      );
-      await tester.pump();
-      expect(_size(tester), const Size(100, 40));
+    testWidgets(
+      'fo06/us15/fr04/e01, fo06/us15/s7: sizeAndFade takes its full size at '
+      'once and fades in',
+      (tester) async {
+        await _toggle(
+          tester,
+          _row(_show(visible: false), reduced: true),
+          _row(_show(visible: true), reduced: true),
+        );
+        await tester.pump();
+        expect(_size(tester), const Size(100, 40));
 
-      await tester.pump(const Duration(milliseconds: 60));
-      expect(_opacity(tester), inExclusiveRange(0, 1));
-      await tester.pump(const Duration(milliseconds: 65));
-      expect(_opacity(tester), 1.0);
-    });
+        await tester.pump(const Duration(milliseconds: 60));
+        expect(_opacity(tester), inExclusiveRange(0, 1));
+        await tester.pump(const Duration(milliseconds: 65));
+        expect(_opacity(tester), 1.0);
+      },
+    );
 
-    testWidgets('us15/fr04: fade runs unchanged', (tester) async {
+    testWidgets('fo06/us15/fr04: fade runs unchanged', (tester) async {
       await _toggle(
         tester,
         _row(
@@ -1178,61 +1255,65 @@ void main() {
       expect(_opacity(tester), inExclusiveRange(0, 1));
     });
 
-    testWidgets('us15/fr04/e02: slide hides in place, fades out, then takes '
-        'no space', (tester) async {
-      await _toggle(
-        tester,
-        _row(
-          _show(visible: true, transition: ShowTransition.slide),
-          reduced: true,
-        ),
-        _row(
-          _show(visible: false, transition: ShowTransition.slide),
-          reduced: true,
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-      expect(
-        tester.getTopLeft(find.byKey(_content)),
-        tester.getTopLeft(find.byType(Show)),
-      );
-      expect(_opacity(tester), inExclusiveRange(0, 1));
+    testWidgets(
+      'fo06/us15/fr04/e02: slide hides in place, fades out, then takes '
+      'no space',
+      (tester) async {
+        await _toggle(
+          tester,
+          _row(
+            _show(visible: true, transition: ShowTransition.slide),
+            reduced: true,
+          ),
+          _row(
+            _show(visible: false, transition: ShowTransition.slide),
+            reduced: true,
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(
+          tester.getTopLeft(find.byKey(_content)),
+          tester.getTopLeft(find.byType(Show)),
+        );
+        expect(_opacity(tester), inExclusiveRange(0, 1));
 
-      await tester.pump(const Duration(milliseconds: 40));
-      // One more tick past the 80 ms hide: AnimationController reports
-      // dismissed a tick after its value reaches 0 (isDone is strict `>`).
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(_size(tester), Size.zero);
-    });
+        await tester.pump(const Duration(milliseconds: 40));
+        // One more tick past the 80 ms hide: AnimationController reports
+        // dismissed a tick after its value reaches 0 (isDone is strict `>`).
+        await tester.pump(const Duration(milliseconds: 1));
+        expect(_size(tester), Size.zero);
+      },
+    );
 
-    testWidgets('us15/fr04/e03, us15/s8: size shows and hides at once', (
-      tester,
-    ) async {
-      await _toggle(
-        tester,
-        _row(
-          _show(visible: false, transition: ShowTransition.size),
-          reduced: true,
-        ),
-        _row(
-          _show(visible: true, transition: ShowTransition.size),
-          reduced: true,
-        ),
-      );
-      expect(_size(tester), const Size(100, 40));
-      expect(_opacity(tester), 1.0);
+    testWidgets(
+      'fo06/us15/fr04/e03, fo06/us15/s8: size shows and hides at once',
+      (tester) async {
+        await _toggle(
+          tester,
+          _row(
+            _show(visible: false, transition: ShowTransition.size),
+            reduced: true,
+          ),
+          _row(
+            _show(visible: true, transition: ShowTransition.size),
+            reduced: true,
+          ),
+        );
+        expect(_size(tester), const Size(100, 40));
+        expect(_opacity(tester), 1.0);
 
-      await tester.pumpWidget(
-        _row(
-          _show(visible: false, transition: ShowTransition.size),
-          reduced: true,
-        ),
-      );
-      expect(_size(tester), Size.zero);
-      expect(find.byKey(_content, skipOffstage: false), findsNothing);
-    });
+        await tester.pumpWidget(
+          _row(
+            _show(visible: false, transition: ShowTransition.size),
+            reduced: true,
+          ),
+        );
+        expect(_size(tester), Size.zero);
+        expect(find.byKey(_content, skipOffstage: false), findsNothing);
+      },
+    );
 
-    testWidgets('us15/fr04/e04: a caller duration sets the fade', (
+    testWidgets('fo06/us15/fr04/e04: a caller duration sets the fade', (
       tester,
     ) async {
       const slow = Duration(milliseconds: 400);
@@ -1265,7 +1346,7 @@ void main() {
       expect(_size(tester), const Size(100, 40));
     });
 
-    testWidgets('us15/fr04: reduce motion turned on mid-slide snaps the '
+    testWidgets('fo06/us15/fr04: reduce motion turned on mid-slide snaps the '
         'size and the slide at once; only the opacity keeps refitting', (
       tester,
     ) async {
@@ -1302,40 +1383,45 @@ void main() {
       expect(_opacity(tester), 1.0);
     });
 
-    testWidgets('us15/fr01/e07: a curve plateau at the end value holds the '
-        'line until the motion settles', (tester) async {
-      const plateau = Interval(0.5, 1.0);
-      Show show({required bool visible, required ShowTransition transition}) =>
-          Show(
-            visible: visible,
-            transition: transition,
-            curve: plateau,
-            child: const KeyedSubtree(key: _content, child: _Box()),
-          );
+    testWidgets(
+      'fo06/us15/fr01/e07: a curve plateau at the end value holds the '
+      'line until the motion settles',
+      (tester) async {
+        const plateau = Interval(0.5, 1.0);
+        Show show({
+          required bool visible,
+          required ShowTransition transition,
+        }) => Show(
+          visible: visible,
+          transition: transition,
+          curve: plateau,
+          child: const KeyedSubtree(key: _content, child: _Box()),
+        );
 
-      await tester.pumpWidget(
-        _row(show(visible: true, transition: ShowTransition.size)),
-      );
-      await tester.pumpWidget(
-        _row(show(visible: false, transition: ShowTransition.size)),
-      );
-      // 60 ms into the 80 ms hide: the curve has read 0 since 40 ms.
-      // `size` keeps the opacity at 1 regardless of t.
-      await tester.pump(const Duration(milliseconds: 60));
-      expect(_opacity(tester), 1.0);
+        await tester.pumpWidget(
+          _row(show(visible: true, transition: ShowTransition.size)),
+        );
+        await tester.pumpWidget(
+          _row(show(visible: false, transition: ShowTransition.size)),
+        );
+        // 60 ms into the 80 ms hide: the curve has read 0 since 40 ms.
+        // `size` keeps the opacity at 1 regardless of t.
+        await tester.pump(const Duration(milliseconds: 60));
+        expect(_opacity(tester), 1.0);
 
-      // The change advances no time: still the held opacity, not a jump
-      // to fade's hidden value of 0 (US-15 FR-01 E07).
-      await tester.pumpWidget(
-        _row(show(visible: false, transition: ShowTransition.fade)),
-      );
-      expect(_opacity(tester), 1.0);
+        // The change advances no time: still the held opacity, not a jump
+        // to fade's hidden value of 0 (US-15 FR-01 E07).
+        await tester.pumpWidget(
+          _row(show(visible: false, transition: ShowTransition.fade)),
+        );
+        expect(_opacity(tester), 1.0);
 
-      await tester.pumpAndSettle();
-      expect(_size(tester), Size.zero);
-    });
+        await tester.pumpAndSettle();
+        expect(_size(tester), Size.zero);
+      },
+    );
 
-    testWidgets('us15/fr04: reduced motion turned on while mounted holds '
+    testWidgets('fo06/us15/fr04: reduced motion turned on while mounted holds '
         'from the next show', (tester) async {
       Widget host({required bool visible, required bool reduced}) => MediaQuery(
         data: MediaQueryData(disableAnimations: reduced),

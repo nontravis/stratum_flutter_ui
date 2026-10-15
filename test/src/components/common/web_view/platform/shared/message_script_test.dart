@@ -29,7 +29,7 @@ String _literal(String script) {
 }
 
 void main() {
-  test('us03/fr02/e03: a strict-mode IIFE that returns a boolean', () {
+  test('co01_02/us03/fr02/e03: a strict-mode IIFE that returns a boolean', () {
     final script = _script('hello', token: 'tok');
     expect(script, startsWith("(function(){'use strict';"));
     expect(script, contains('return false;'));
@@ -37,7 +37,7 @@ void main() {
     expect(_literal(script), '"hello"');
   });
 
-  test('us03/fr02/e03: checks the token and the allowed origins before '
+  test('co01_02/us03/fr02/e03: checks the token and the allowed origins before '
       'any data appears', () {
     final script = _script('secret-data', token: 'tok');
     final guard = script.indexOf('if(!(');
@@ -52,7 +52,7 @@ void main() {
     );
   });
 
-  test('us03/fr04: reads the token from the property the native '
+  test('co01_02/us03/fr04: reads the token from the property the native '
       'bootstrap writes', () {
     expect(
       _script('x', token: 'tok'),
@@ -60,7 +60,7 @@ void main() {
     );
   });
 
-  test('us03/fr02/e10: compares each allowed origin as a literal: host '
+  test('co01_02/us03/fr02/e10: compares each allowed origin as a literal: host '
       'lowercased, default port and path dropped, no page method', () {
     final script = _script(
       'x',
@@ -76,29 +76,35 @@ void main() {
     expect(script, isNot(contains('includes')));
   });
 
-  test('us03/fr02/e10: without a token only the origin branch runs', () {
-    expect(_script('x'), isNot(contains('t===')));
-  });
+  test(
+    'co01_02/us03/fr02/e10: without a token only the origin branch runs',
+    () {
+      expect(_script('x'), isNot(contains('t===')));
+    },
+  );
 
-  test('us03/fr05/e08: a reply script admits only the document with the '
-      'sending id, by token and id together', () {
-    final script = buildMessageDispatchScript(
-      'secret-data',
-      token: 'tok',
-      documentId: documentA,
-      allowedOrigins: const <Uri>[],
-    );
-    final guard = script.indexOf('if(!(');
-    final returnFalse = script.indexOf('return false;');
-    expect(
-      script.substring(guard, returnFalse),
-      contains("t==='tok'&&d==='$documentA'"),
-    );
-    expect(script, contains('d=window.$nativeBridgeDocumentProperty;'));
-    expect(script.indexOf('secret-data'), greaterThan(returnFalse));
-  });
+  test(
+    'co01_02/us03/fr05/e08: a reply script admits only the document with the '
+    'sending id, by token and id together',
+    () {
+      final script = buildMessageDispatchScript(
+        'secret-data',
+        token: 'tok',
+        documentId: documentA,
+        allowedOrigins: const <Uri>[],
+      );
+      final guard = script.indexOf('if(!(');
+      final returnFalse = script.indexOf('return false;');
+      expect(
+        script.substring(guard, returnFalse),
+        contains("t==='tok'&&d==='$documentA'"),
+      );
+      expect(script, contains('d=window.$nativeBridgeDocumentProperty;'));
+      expect(script.indexOf('secret-data'), greaterThan(returnFalse));
+    },
+  );
 
-  test('us03/fr02/e03: a send without a document id reads no document '
+  test('co01_02/us03/fr02/e03: a send without a document id reads no document '
       'property', () {
     final script = _script('x', token: 'tok');
     expect(script, isNot(contains('nativeBridgeDocumentProperty')));
@@ -106,11 +112,14 @@ void main() {
     expect(script, startsWith("(function(){'use strict';var t,o;"));
   });
 
-  test('us03/fr02/e03: an entry with no host is left out, and no branch '
-      'left means nothing is dispatched', () {
-    final script = _script('x', origins: {Uri.parse('about:blank')});
-    expect(script, contains('if(!(false))return false;'));
-  });
+  test(
+    'co01_02/us03/fr02/e03: an entry with no host is left out, and no branch '
+    'left means nothing is dispatched',
+    () {
+      final script = _script('x', origins: {Uri.parse('about:blank')});
+      expect(script, contains('if(!(false))return false;'));
+    },
+  );
 
   test('nf01/NFR-Sec05: round-trips data that needs escaping', () {
     const samples = [

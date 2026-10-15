@@ -101,7 +101,7 @@ void main() {
     expect(named.map((sender) => sender.origin), [null, null]);
   });
 
-  test('us03/fr04/e15: a message carries the reply proxy Android names for '
+  test('co01_02/us03/fr04/e15: a message carries the reply proxy Android names for '
       'its sender, and iOS and macOS name none', () async {
     final named = <BridgeMessageSender>[];
     await senders.attach(controller, (_, sender) => named.add(sender));
@@ -124,7 +124,7 @@ void main() {
     ]);
   });
 
-  test('us03/fr02/e13: runThroughReplyProxy sends the web view id, the '
+  test('co01_02/us03/fr02/e13: runThroughReplyProxy sends the web view id, the '
       'reply proxy, and the script, and returns whether the script returned '
       'true', () async {
     expect(
@@ -155,25 +155,28 @@ void main() {
     }
   });
 
-  test('us03/fr02/e13: a FRAME_DESTROYED or other platform error of the '
-      'reply proxy reaches the caller as a PlatformException', () async {
-    proxyAnswer = () =>
-        Future.error(PlatformException(code: 'frame-destroyed', message: ''));
-    await expectLater(
-      senders.runThroughReplyProxy(
-        controller,
-        const BridgeReplyProxy(4),
-        'script',
-      ),
-      throwsA(
-        isA<PlatformException>().having(
-          (error) => error.code,
-          'code',
-          'frame-destroyed',
+  test(
+    'co01_02/us03/fr02/e13: a FRAME_DESTROYED or other platform error of the '
+    'reply proxy reaches the caller as a PlatformException',
+    () async {
+      proxyAnswer = () =>
+          Future.error(PlatformException(code: 'frame-destroyed', message: ''));
+      await expectLater(
+        senders.runThroughReplyProxy(
+          controller,
+          const BridgeReplyProxy(4),
+          'script',
         ),
-      ),
-    );
-  });
+        throwsA(
+          isA<PlatformException>().having(
+            (error) => error.code,
+            'code',
+            'frame-destroyed',
+          ),
+        ),
+      );
+    },
+  );
 
   test('Q6: a message call with a missing or mistyped argument is '
       'dropped', () async {

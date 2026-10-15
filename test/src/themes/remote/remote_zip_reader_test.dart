@@ -42,7 +42,7 @@ Matcher _fails(
 void main() {
   final yaml = utf8.encode('$remoteSchemaLine\nname: brand\n');
 
-  test('us01/fr02: entries inflate into memory, relative to the root', () {
+  test('fo04/us01/fr02: entries inflate into memory, relative to the root', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml),
       ZipEntryFixture('fonts/a.ttf', [1, 2, 3], deflate: false),
@@ -55,25 +55,28 @@ void main() {
     expect(entries['fonts/a.ttf'], [1, 2, 3]);
   });
 
-  test('us01/fr02/e05: a one-folder zip keys entries below that folder', () {
-    final zip = buildZip([
-      ZipEntryFixture('brand/', const [], deflate: false),
-      ZipEntryFixture('brand/theme.yaml', yaml),
-      ZipEntryFixture('__MACOSX/brand/._theme.yaml', [9]),
-      ZipEntryFixture('brand/.DS_Store', [9]),
-    ]);
+  test(
+    'fo04/us01/fr02/e05: a one-folder zip keys entries below that folder',
+    () {
+      final zip = buildZip([
+        ZipEntryFixture('brand/', const [], deflate: false),
+        ZipEntryFixture('brand/theme.yaml', yaml),
+        ZipEntryFixture('__MACOSX/brand/._theme.yaml', [9]),
+        ZipEntryFixture('brand/.DS_Store', [9]),
+      ]);
 
-    expect(_read(zip).keys, ['theme.yaml']);
-  });
+      expect(_read(zip).keys, ['theme.yaml']);
+    },
+  );
 
-  test('us01/fr02/e02: bytes that are no zip are invalid_archive', () {
+  test('fo04/us01/fr02/e02: bytes that are no zip are invalid_archive', () {
     expect(
       () => _read(Uint8List.fromList(utf8.encode('not a zip'))),
       _fails(StratumRemoteThemeErrorCode.invalidArchive),
     );
   });
 
-  test('us01/fr02/e02: a zip cut in half is invalid_archive', () {
+  test('fo04/us01/fr02/e02: a zip cut in half is invalid_archive', () {
     final zip = buildZip([ZipEntryFixture('theme.yaml', yaml)]);
     expect(
       () => _read(zip.sublist(0, zip.length ~/ 2)),
@@ -81,7 +84,7 @@ void main() {
     );
   });
 
-  test('us01/fr02/e10: corrupt deflate data fails its CRC-32 check, '
+  test('fo04/us01/fr02/e10: corrupt deflate data fails its CRC-32 check, '
       'invalid_archive', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', utf8.encode('a: 1\n' * 50)),
@@ -93,7 +96,7 @@ void main() {
     );
   });
 
-  test('us01/fr02/e10: an encrypted entry, or a method other than store '
+  test('fo04/us01/fr02/e10: an encrypted entry, or a method other than store '
       'and deflate, is invalid_archive', () {
     expect(
       () => _read(buildZip([ZipEntryFixture('theme.yaml', yaml, flags: 1)])),
@@ -111,7 +114,7 @@ void main() {
     }
   });
 
-  test('us01/fr02/e06: more entries than maxEntries is archive_too_large with '
+  test('fo04/us01/fr02/e06: more entries than maxEntries is archive_too_large with '
       'the count', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml),
@@ -123,7 +126,7 @@ void main() {
     );
   });
 
-  test('us01/s12, us01/fr02/e06: declared sizes past maxBytes are '
+  test('fo04/us01/s12, fo04/us01/fr02/e06: declared sizes past maxBytes are '
       'archive_too_large with the sum, before any entry inflates', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml, declaredSize: 600),
@@ -136,7 +139,7 @@ void main() {
   });
 
   test(
-    'us01/fr02/e07: a header that understates its size stops at the cap',
+    'fo04/us01/fr02/e07: a header that understates its size stops at the cap',
     () {
       final zip = buildZip([
         ZipEntryFixture('theme.yaml', yaml),
@@ -161,23 +164,26 @@ void main() {
     },
   );
 
-  test('us01/fr02/e07: a stored entry past its header stops at the cap', () {
-    final zip = buildZip([
-      ZipEntryFixture('theme.yaml', yaml),
-      ZipEntryFixture(
-        'a.bin',
-        Uint8List(5000),
-        deflate: false,
-        declaredSize: 10,
-      ),
-    ]);
-    expect(
-      () => _read(zip, maxBytes: 4096),
-      _fails(StratumRemoteThemeErrorCode.archiveTooLarge),
-    );
-  });
+  test(
+    'fo04/us01/fr02/e07: a stored entry past its header stops at the cap',
+    () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture(
+          'a.bin',
+          Uint8List(5000),
+          deflate: false,
+          declaredSize: 10,
+        ),
+      ]);
+      expect(
+        () => _read(zip, maxBytes: 4096),
+        _fails(StratumRemoteThemeErrorCode.archiveTooLarge),
+      );
+    },
+  );
 
-  test('us01/fr02/e08: a raised maxBytes lets the same zip through', () {
+  test('fo04/us01/fr02/e08: a raised maxBytes lets the same zip through', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml),
       ZipEntryFixture('a.bin', Uint8List(5000)),
@@ -189,18 +195,24 @@ void main() {
     expect(_read(zip, maxBytes: 8192).keys, ['theme.yaml', 'a.bin']);
   });
 
-  test('us01/s5, us01/fr02/e01: an escaping path refuses the whole zip', () {
-    final zip = buildZip([
-      ZipEntryFixture('theme.yaml', yaml),
-      ZipEntryFixture('../evil.txt', [1]),
-    ]);
-    expect(
-      () => _read(zip),
-      _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: '../evil.txt'),
-    );
-  });
+  test(
+    'fo04/us01/s5, fo04/us01/fr02/e01: an escaping path refuses the whole zip',
+    () {
+      final zip = buildZip([
+        ZipEntryFixture('theme.yaml', yaml),
+        ZipEntryFixture('../evil.txt', [1]),
+      ]);
+      expect(
+        () => _read(zip),
+        _fails(
+          StratumRemoteThemeErrorCode.unsafeEntryPath,
+          path: '../evil.txt',
+        ),
+      );
+    },
+  );
 
-  test('us01/fr02/e14: a central-header name holding a raw control byte '
+  test('fo04/us01/fr02/e14: a central-header name holding a raw control byte '
       'is unsafe_entry_path before the theme root search', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml),
@@ -212,7 +224,7 @@ void main() {
     );
   });
 
-  test('us01/fr02/e01: a symbolic link entry is unsafe_entry_path', () {
+  test('fo04/us01/fr02/e01: a symbolic link entry is unsafe_entry_path', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml),
       ZipEntryFixture(
@@ -229,14 +241,17 @@ void main() {
     );
   });
 
-  test('us01/fr02/e03: a zip with no theme root is missing_theme_file', () {
-    expect(
-      () => _read(buildZip([ZipEntryFixture('a/b/theme.yaml', yaml)])),
-      _fails(StratumRemoteThemeErrorCode.missingThemeFile),
-    );
-  });
+  test(
+    'fo04/us01/fr02/e03: a zip with no theme root is missing_theme_file',
+    () {
+      expect(
+        () => _read(buildZip([ZipEntryFixture('a/b/theme.yaml', yaml)])),
+        _fails(StratumRemoteThemeErrorCode.missingThemeFile),
+      );
+    },
+  );
 
-  test('us01/fr02/e11, review focus 2: a path held twice is '
+  test('fo04/us01/fr02/e11, review focus 2: a path held twice is '
       'invalid_archive naming it', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml),
@@ -249,14 +264,14 @@ void main() {
     );
   });
 
-  test('us01/fr02/e09: an empty zip is invalid_archive', () {
+  test('fo04/us01/fr02/e09: an empty zip is invalid_archive', () {
     expect(
       () => _read(buildZip([])),
       _fails(StratumRemoteThemeErrorCode.invalidArchive),
     );
   });
 
-  test('us01/fr02: a loose top file beside one folder stays out', () {
+  test('fo04/us01/fr02: a loose top file beside one folder stays out', () {
     final zip = buildZip([
       ZipEntryFixture('README.md', [1]),
       ZipEntryFixture('brand/theme.yaml', yaml),
@@ -264,7 +279,7 @@ void main() {
     expect(_read(zip).keys, ['theme.yaml']);
   });
 
-  test('us02/fr03/e13, r15: the reader names every entry under a root '
+  test('fo04/us02/fr03/e13, r15: the reader names every entry under a root '
       'folder that it never reads', () {
     final zip = buildZip([
       ZipEntryFixture('brand/', const [], deflate: false),
@@ -285,7 +300,7 @@ void main() {
     ]);
   });
 
-  test('us02/fr03/e13, r15: a zip-root theme leaves only the ignored '
+  test('fo04/us02/fr03/e13, r15: a zip-root theme leaves only the ignored '
       'entries unread', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml),
@@ -298,19 +313,22 @@ void main() {
     expect(_unread(zip), ['.DS_Store', 'images/.DS_Store']);
   });
 
-  test('minor6 edge, us02/fr03/e13, r15: a .DS_Store three folders deep is '
-      'unread', () {
-    final zip = buildZip([
-      ZipEntryFixture('brand/', const [], deflate: false),
-      ZipEntryFixture('brand/theme.yaml', yaml),
-      ZipEntryFixture('brand/sub/sub2/.DS_Store', [9]),
-    ]);
+  test(
+    'minor6 edge, fo04/us02/fr03/e13, r15: a .DS_Store three folders deep is '
+    'unread',
+    () {
+      final zip = buildZip([
+        ZipEntryFixture('brand/', const [], deflate: false),
+        ZipEntryFixture('brand/theme.yaml', yaml),
+        ZipEntryFixture('brand/sub/sub2/.DS_Store', [9]),
+      ]);
 
-    expect(_read(zip).keys, ['theme.yaml']);
-    expect(_unread(zip), ['brand/sub/sub2/.DS_Store']);
-  });
+      expect(_read(zip).keys, ['theme.yaml']);
+      expect(_unread(zip), ['brand/sub/sub2/.DS_Store']);
+    },
+  );
 
-  test('minor6 edge, us02/fr03/e13, r15: a folder entry inside the theme '
+  test('minor6 edge, fo04/us02/fr03/e13, r15: a folder entry inside the theme '
       'root is neither unread nor a file', () {
     final zip = buildZip([
       ZipEntryFixture('brand/', const [], deflate: false),
@@ -322,7 +340,7 @@ void main() {
     expect(_unread(zip), isEmpty);
   });
 
-  test('us01/fr02: an unreadable zip and a cap fault give invalid_archive '
+  test('fo04/us01/fr02: an unreadable zip and a cap fault give invalid_archive '
       'first', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml, flags: 1),
@@ -334,7 +352,7 @@ void main() {
     );
   });
 
-  test('us01/fr02: a cap fault and an unsafe path give archive_too_large '
+  test('fo04/us01/fr02: a cap fault and an unsafe path give archive_too_large '
       'first', () {
     final zip = buildZip([
       ZipEntryFixture('theme.yaml', yaml),
@@ -346,7 +364,7 @@ void main() {
     );
   });
 
-  test('us01/fr02: an unsafe path and no theme root give '
+  test('fo04/us01/fr02: an unsafe path and no theme root give '
       'unsafe_entry_path first', () {
     final zip = buildZip([
       ZipEntryFixture('/etc/x', [1]),
@@ -357,7 +375,7 @@ void main() {
     );
   });
 
-  test('us01/fr02/e10: a CRC fault and an unsafe path give '
+  test('fo04/us01/fr02/e10: a CRC fault and an unsafe path give '
       'unsafe_entry_path first, since CRC-32 is checked as each entry '
       'inflates', () {
     final zip = buildZip([
@@ -534,7 +552,7 @@ void main() {
       });
     }
 
-    test('rz2, us01/fr02/e14 (c-2): a path holding U+202E, a format '
+    test('rz2, fo04/us01/fr02/e14 (c-2): a path holding U+202E, a format '
         'character, refuses as unsafe_entry_path with the printable-ASCII '
         'message, each byte of its UTF-8 printed as its own escape', () {
       const evil = 'images/a\u202Eb.png';
@@ -673,7 +691,7 @@ void main() {
     });
   });
 
-  test('us01/fr02: no theme root and a lying header give '
+  test('fo04/us01/fr02: no theme root and a lying header give '
       'missing_theme_file first', () {
     final zip = buildZip([
       ZipEntryFixture('a/b/theme.yaml', yaml),
@@ -686,7 +704,7 @@ void main() {
   });
 
   group('r15 folder entries', () {
-    test('us01/fr02/e13: a folder entry with no bytes, typed none or '
+    test('fo04/us01/fr02/e13: a folder entry with no bytes, typed none or '
         'directory, is read past', () {
       for (final attributes in [0, 0x41ED << 16]) {
         final zip = buildZip([
@@ -702,7 +720,7 @@ void main() {
       }
     });
 
-    test('us01/fr02/e13, r15: a folder entry deflated to the 2-byte empty '
+    test('fo04/us01/fr02/e13, r15: a folder entry deflated to the 2-byte empty '
         'stream, "03 00", is read past', () {
       final zip = buildZip([
         ZipEntryFixture('brand/', const []),
@@ -721,7 +739,7 @@ void main() {
         [0x00, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00],
       ),
     ]) {
-      test('us01/fr02/e13, rz3: a folder entry deflated to nothing as '
+      test('fo04/us01/fr02/e13, rz3: a folder entry deflated to nothing as '
           '$label is read past', () {
         final zip = buildZip([
           ZipEntryFixture('brand/', const [], method: 8, body: body),
@@ -762,15 +780,21 @@ void main() {
         ZipEntryFixture('hidden/', const [], deflate: false, body: [9]),
       ),
     ]) {
-      test('us01/s15, us01/fr02/e13, rz3: a "/"-ending entry with $label is '
-          'unsafe_entry_path', () {
-        final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
+      test(
+        'fo04/us01/s15, fo04/us01/fr02/e13, rz3: a "/"-ending entry with $label is '
+        'unsafe_entry_path',
+        () {
+          final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
 
-        expect(
-          () => _read(zip),
-          _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'hidden/'),
-        );
-      });
+          expect(
+            () => _read(zip),
+            _fails(
+              StratumRemoteThemeErrorCode.unsafeEntryPath,
+              path: 'hidden/',
+            ),
+          );
+        },
+      );
     }
 
     for (final (label, entry) in [
@@ -798,17 +822,23 @@ void main() {
         ),
       ),
     ]) {
-      test('us01/s15, us01/fr02/e13, r15: a "/"-ending entry with $label is '
-          'unsafe_entry_path', () {
-        final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
-        expect(
-          () => _read(zip),
-          _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'hidden/'),
-        );
-      });
+      test(
+        'fo04/us01/s15, fo04/us01/fr02/e13, r15: a "/"-ending entry with $label is '
+        'unsafe_entry_path',
+        () {
+          final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
+          expect(
+            () => _read(zip),
+            _fails(
+              StratumRemoteThemeErrorCode.unsafeEntryPath,
+              path: 'hidden/',
+            ),
+          );
+        },
+      );
     }
 
-    test('edge i1, us01/fr02/e13: a folder entry declaring bytes is '
+    test('edge i1, fo04/us01/fr02/e13: a folder entry declaring bytes is '
         'refused', () {
       final zip = buildZip([
         ZipEntryFixture('theme.yaml', yaml),
@@ -844,31 +874,34 @@ void main() {
         r'fonts/\u009b.ttf',
       ),
     ]) {
-      test('us01/s15, us01/fr02/e14, rz2, r17 (t26): a name holding $label '
-          'is unsafe_entry_path, each byte one character', () {
-        final bytes = nameWith(high);
-        final zip = buildZip([
-          ZipEntryFixture('theme.yaml', yaml),
-          ZipEntryFixture('x', [1], rawName: bytes, flags: flags),
-        ]);
+      test(
+        'fo04/us01/s15, fo04/us01/fr02/e14, rz2, r17 (t26): a name holding $label '
+        'is unsafe_entry_path, each byte one character',
+        () {
+          final bytes = nameWith(high);
+          final zip = buildZip([
+            ZipEntryFixture('theme.yaml', yaml),
+            ZipEntryFixture('x', [1], rawName: bytes, flags: flags),
+          ]);
 
-        expect(
-          () => _read(zip),
-          throwsA(
-            isA<RemoteThemeFailure>()
-                .having(
-                  (f) => f.code,
-                  'code',
-                  StratumRemoteThemeErrorCode.unsafeEntryPath,
-                )
-                .having((f) => f.path, 'path', String.fromCharCodes(bytes))
-                .having((f) => f.message, 'message', contains(escaped)),
-          ),
-        );
-      });
+          expect(
+            () => _read(zip),
+            throwsA(
+              isA<RemoteThemeFailure>()
+                  .having(
+                    (f) => f.code,
+                    'code',
+                    StratumRemoteThemeErrorCode.unsafeEntryPath,
+                  )
+                  .having((f) => f.path, 'path', String.fromCharCodes(bytes))
+                  .having((f) => f.message, 'message', contains(escaped)),
+            ),
+          );
+        },
+      );
     }
 
-    test('us01/fr02/e14, rz2, r17 (t28): two names that differ only in a '
+    test('fo04/us01/fr02/e14, rz2, r17 (t28): two names that differ only in a '
         'high byte refuse on the first in directory order, never as one '
         'name held twice', () {
       final first = [...'__MACOSX/Q'.codeUnits, 0xFF];
@@ -887,22 +920,25 @@ void main() {
       );
     });
 
-    test('us01/fr02/e14, rz2: an ASCII name with flags bit 11 set installs '
-        'and reads the same name', () {
-      final zip = buildZip([
-        ZipEntryFixture('theme.yaml', yaml),
-        ZipEntryFixture(
-          'fonts/a.ttf',
-          [1, 2, 3],
-          deflate: false,
-          flags: 0x0800,
-        ),
-      ]);
+    test(
+      'fo04/us01/fr02/e14, rz2: an ASCII name with flags bit 11 set installs '
+      'and reads the same name',
+      () {
+        final zip = buildZip([
+          ZipEntryFixture('theme.yaml', yaml),
+          ZipEntryFixture(
+            'fonts/a.ttf',
+            [1, 2, 3],
+            deflate: false,
+            flags: 0x0800,
+          ),
+        ]);
 
-      expect(_read(zip)['fonts/a.ttf'], [1, 2, 3]);
-    });
+        expect(_read(zip)['fonts/a.ttf'], [1, 2, 3]);
+      },
+    );
 
-    test('us01/fr02/e14, rz2: a name whose local bytes differ from the '
+    test('fo04/us01/fr02/e14, rz2: a name whose local bytes differ from the '
         'central bytes only in one high byte is invalid_archive, naming '
         'the mismatch in its local header message', () {
       final central = [...'fonts/'.codeUnits, 0xFF, ...'.ttf'.codeUnits];
@@ -930,7 +966,7 @@ void main() {
       );
     });
 
-    test('us01/s15, us01/fr02/e14, rz2, r17 (t26): a high byte at the first '
+    test('fo04/us01/s15, fo04/us01/fr02/e14, rz2, r17 (t26): a high byte at the first '
         r'position is unsafe_entry_path, escaped as its own \u00XX', () {
       final bytes = [0x9B, ...'fonts.ttf'.codeUnits];
       final zip = buildZip([
@@ -966,7 +1002,7 @@ void main() {
 
     final payload = ZipEntryFixture('payload.txt', utf8.encode('evil'));
 
-    test('us01/fr02/e02, rz3: a Finder-style entry, flags bit 3 with a '
+    test('fo04/us01/fr02/e02, rz3: a Finder-style entry, flags bit 3 with a '
         'signed 16-byte descriptor and a local CRC-32 and sizes of 0, '
         'installs', () {
       final zip = buildZip([
@@ -984,7 +1020,7 @@ void main() {
       expect(_read(zip).keys, ['theme.yaml']);
     });
 
-    test('us01/fr02/e02, rz3: a 12-byte descriptor with the local CRC-32 '
+    test('fo04/us01/fr02/e02, rz3: a 12-byte descriptor with the local CRC-32 '
         'and sizes repeated installs', () {
       final zip = buildZip([
         ZipEntryFixture(
@@ -1050,20 +1086,23 @@ void main() {
         List.filled(12, 7),
       ),
     ]) {
-      test('us01/fr02/e02, rz9, rzf4: an extra record of id ${hex4(id)} in '
-          'the layout $tool writes, and an end record comment, '
-          'install', () {
-        final zip = buildZip([
-          ZipEntryFixture(
-            'theme.yaml',
-            yaml,
-            localExtra: local == null ? const [] : record(id, local),
-            centralExtra: record(id, central),
-          ),
-        ], comment: utf8.encode('note'));
+      test(
+        'fo04/us01/fr02/e02, rz9, rzf4: an extra record of id ${hex4(id)} in '
+        'the layout $tool writes, and an end record comment, '
+        'install',
+        () {
+          final zip = buildZip([
+            ZipEntryFixture(
+              'theme.yaml',
+              yaml,
+              localExtra: local == null ? const [] : record(id, local),
+              centralExtra: record(id, central),
+            ),
+          ], comment: utf8.encode('note'));
 
-        expect(_read(zip).keys, ['theme.yaml']);
-      });
+          expect(_read(zip).keys, ['theme.yaml']);
+        },
+      );
     }
 
     for (final (label, id, local, central) in [
@@ -1101,7 +1140,7 @@ void main() {
         [1, 2, 1, 0, 8, ...List.filled(8, 0)],
       ),
     ]) {
-      test('us01/fr02/e02, rzf4: $label, a layout the source defines and '
+      test('fo04/us01/fr02/e02, rzf4: $label, a layout the source defines and '
           'no tool here writes, installs', () {
         final zip = buildZip([
           ZipEntryFixture(
@@ -1116,18 +1155,21 @@ void main() {
       });
     }
 
-    test('us01/fr02/e02, rzf4 (rq-a): a 9-byte 0x5455 of flags 0x03 in the '
-        'central extra field, which fits the local layout, installs', () {
-      final zip = buildZip([
-        ZipEntryFixture(
-          'theme.yaml',
-          yaml,
-          centralExtra: record(0x5455, [0x03, ...List.filled(8, 7)]),
-        ),
-      ]);
+    test(
+      'fo04/us01/fr02/e02, rzf4 (rq-a): a 9-byte 0x5455 of flags 0x03 in the '
+      'central extra field, which fits the local layout, installs',
+      () {
+        final zip = buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            centralExtra: record(0x5455, [0x03, ...List.filled(8, 7)]),
+          ),
+        ]);
 
-      expect(_read(zip).keys, ['theme.yaml']);
-    });
+        expect(_read(zip).keys, ['theme.yaml']);
+      },
+    );
 
     for (final (label, where, id, body) in [
       ('an empty 0x000a', 'central', 0x000a, <int>[]),
@@ -1203,29 +1245,32 @@ void main() {
       ('a 3-byte 0xcafe', 'local', 0xcafe, [1, 2, 3]),
       ('a 1-byte 0xcafe', 'central', 0xcafe, [0]),
     ]) {
-      test('us01/fr02/e02, rzf4 (t7b): $label in the $where extra field is '
-          'invalid_archive', () {
-        final zip = buildZip([
-          ZipEntryFixture(
-            'theme.yaml',
-            yaml,
-            localExtra: where == 'local' ? record(id, body) : const [],
-            centralExtra: where == 'central' ? record(id, body) : const [],
-          ),
-        ]);
-
-        expect(
-          () => _read(zip),
-          _fails(
-            StratumRemoteThemeErrorCode.invalidArchive,
-            message: contains(
-              'the $where extra field of entry "theme.yaml" holds a '
-              'record of id ${hex4(id)} whose ${body.length}-byte body '
-              'fits no layout of that id',
+      test(
+        'fo04/us01/fr02/e02, rzf4 (t7b): $label in the $where extra field is '
+        'invalid_archive',
+        () {
+          final zip = buildZip([
+            ZipEntryFixture(
+              'theme.yaml',
+              yaml,
+              localExtra: where == 'local' ? record(id, body) : const [],
+              centralExtra: where == 'central' ? record(id, body) : const [],
             ),
-          ),
-        );
-      });
+          ]);
+
+          expect(
+            () => _read(zip),
+            _fails(
+              StratumRemoteThemeErrorCode.invalidArchive,
+              message: contains(
+                'the $where extra field of entry "theme.yaml" holds a '
+                'record of id ${hex4(id)} whose ${body.length}-byte body '
+                'fits no layout of that id',
+              ),
+            ),
+          );
+        },
+      );
     }
 
     for (final (label, where, id) in [
@@ -1234,7 +1279,7 @@ void main() {
       ('a record of id 0', 'local', 0x0000),
       ('a WinZip AES record', 'central', 0x9901),
     ]) {
-      test('us01/fr02/e02, rz9 (m3-t6 security): $label, ${hex4(id)}, in '
+      test('fo04/us01/fr02/e02, rz9 (m3-t6 security): $label, ${hex4(id)}, in '
           'the $where extra field is invalid_archive', () {
         final record = [id & 0xFF, id >> 8, 0x01, 0x00, 0x00];
         final zip = buildZip([
@@ -1256,7 +1301,7 @@ void main() {
       });
     }
 
-    test('us01/fr02/e01, rz9 (m3-t6 security): an entry named theme.yaml '
+    test('fo04/us01/fr02/e01, rz9 (m3-t6 security): an entry named theme.yaml '
         'with the MS-DOS folder attribute, made on FAT, is '
         'unsafe_entry_path', () {
       final zip = buildZip([
@@ -1269,7 +1314,7 @@ void main() {
       );
     });
 
-    test('us01/fr02/e13, rz9: a folder entry with the MS-DOS folder '
+    test('fo04/us01/fr02/e13, rz9: a folder entry with the MS-DOS folder '
         'attribute, as Info-ZIP writes it, installs', () {
       final zip = buildZip([
         ZipEntryFixture(
@@ -1302,7 +1347,7 @@ void main() {
       ('7-Zip', 0x0314, (0x41ED << 16) | 0x8010, (0x81A4 << 16) | 0x8020),
       ('Windows, archive bit', 0x0014, 0x10, 0x20),
     ]) {
-      test('us01/fr02/e01, rz12: a zip with the host byte and attributes '
+      test('fo04/us01/fr02/e01, rz12: a zip with the host byte and attributes '
           '$tool writes installs', () {
         final zip = buildZip([
           ZipEntryFixture(
@@ -1356,7 +1401,7 @@ void main() {
         'MS-DOS attribute bits 0x0400',
       ),
     ]) {
-      test('us01/fr02/e01, rz12 (m3-t7b review): a root theme.yaml with '
+      test('fo04/us01/fr02/e01, rz12 (m3-t7b review): a root theme.yaml with '
           '$label, beside a benign brand/theme.yaml, is unsafe_entry_path', () {
         final zip = buildZip([
           ZipEntryFixture(
@@ -1609,7 +1654,7 @@ void main() {
         () => buildZip([ZipEntryFixture('theme.yaml', yaml)], beforeEnd: [0]),
       ),
     ]) {
-      test('us01/fr02/e02, rz3, r18: $label is invalid_archive', () {
+      test('fo04/us01/fr02/e02, rz3, r18: $label is invalid_archive', () {
         expect(
           () => _read(zip()),
           _fails(StratumRemoteThemeErrorCode.invalidArchive),
@@ -1617,7 +1662,7 @@ void main() {
       });
     }
 
-    test('us01/fr02/e02, rzf7 (t6): a central directory that lists two '
+    test('fo04/us01/fr02/e02, rzf7 (t6): a central directory that lists two '
         'valid entries out of their local-header order installs', () {
       final first = ZipEntryFixture('theme.yaml', yaml).localBytes;
       final zip = buildZip(
@@ -1634,7 +1679,7 @@ void main() {
       expect(_read(zip).keys, ['a.txt', 'theme.yaml']);
     });
 
-    test('us01/fr02/e02, rzf7 (d4): a central directory that lists two '
+    test('fo04/us01/fr02/e02, rzf7 (d4): a central directory that lists two '
         'entries out of their local-header order, with a 1-byte gap '
         'between their local headers, is invalid_archive', () {
       final first = ZipEntryFixture('theme.yaml', yaml).localBytes;
@@ -1715,7 +1760,7 @@ void main() {
         'has no 12-byte or signed 16-byte data descriptor',
       ),
     ]) {
-      test('us01/fr02/e02, rzf7 (t6): $label is invalid_archive', () {
+      test('fo04/us01/fr02/e02, rzf7 (t6): $label is invalid_archive', () {
         expect(
           () => _read(zip()),
           _fails(
@@ -1763,28 +1808,31 @@ void main() {
       ...data,
     ];
 
-    test('us01/fr02/e10, rz3, r18 (t27 p11): a whole local entry after the '
-        'final deflate block, inside the span, is invalid_archive', () {
-      final hidden = ZipEntryFixture('payload.txt', utf8.encode('evil'));
-      final zip = buildZip([
-        ZipEntryFixture(
-          'theme.yaml',
-          yaml,
-          method: 8,
-          body: [...Deflate(yaml).getBytes(), ...hidden.localBytes],
-        ),
-      ]);
+    test(
+      'fo04/us01/fr02/e10, rz3, r18 (t27 p11): a whole local entry after the '
+      'final deflate block, inside the span, is invalid_archive',
+      () {
+        final hidden = ZipEntryFixture('payload.txt', utf8.encode('evil'));
+        final zip = buildZip([
+          ZipEntryFixture(
+            'theme.yaml',
+            yaml,
+            method: 8,
+            body: [...Deflate(yaml).getBytes(), ...hidden.localBytes],
+          ),
+        ]);
 
-      expect(
-        () => _read(zip),
-        _fails(
-          StratumRemoteThemeErrorCode.invalidArchive,
-          message: contains('holds bytes after its final deflate block'),
-        ),
-      );
-    });
+        expect(
+          () => _read(zip),
+          _fails(
+            StratumRemoteThemeErrorCode.invalidArchive,
+            message: contains('holds bytes after its final deflate block'),
+          ),
+        );
+      },
+    );
 
-    test('us01/fr02/e10, us01/fr02/e13, rz3, r18 (t27 p11): the same hidden '
+    test('fo04/us01/fr02/e10, fo04/us01/fr02/e13, rz3, r18 (t27 p11): the same hidden '
         "local entry after an empty folder's final deflate block is "
         'unsafe_entry_path, not invalid_archive', () {
       final hidden = ZipEntryFixture('payload.txt', utf8.encode('evil'));
@@ -1808,7 +1856,7 @@ void main() {
       );
     });
 
-    test('us01/fr02/e10, rz3: a deflate stream with no final block is '
+    test('fo04/us01/fr02/e10, rz3: a deflate stream with no final block is '
         'invalid_archive', () {
       final zip = buildZip([
         ZipEntryFixture('theme.yaml', yaml, method: 8, body: storedBlock(yaml)),
@@ -1823,7 +1871,7 @@ void main() {
       );
     });
 
-    test('us01/fr02/e06, us01/fr02/e07, rz3: maxBytes exactly equal to a read '
+    test('fo04/us01/fr02/e06, fo04/us01/fr02/e07, rz3: maxBytes exactly equal to a read '
         'entry plus an unread one installs; one byte more in the unread '
         'entry is archive_too_large, measured there', () {
       final macBytes = List<int>.filled(100, 7);
@@ -1849,49 +1897,52 @@ void main() {
       );
     });
 
-    test('us01/fr02/e10, rz3: a deflate stream whose output exceeds 65,535 '
-        'bytes through chained stored blocks installs; the same stream with '
-        'one trailing byte is invalid_archive', () {
-      List<int> stored(List<int> chunk, {required bool last}) => [
-        if (last) 1 else 0,
-        chunk.length & 0xFF,
-        chunk.length >> 8,
-        (chunk.length & 0xFF) ^ 0xFF,
-        (chunk.length >> 8) ^ 0xFF,
-        ...chunk,
-      ];
+    test(
+      'fo04/us01/fr02/e10, rz3: a deflate stream whose output exceeds 65,535 '
+      'bytes through chained stored blocks installs; the same stream with '
+      'one trailing byte is invalid_archive',
+      () {
+        List<int> stored(List<int> chunk, {required bool last}) => [
+          if (last) 1 else 0,
+          chunk.length & 0xFF,
+          chunk.length >> 8,
+          (chunk.length & 0xFF) ^ 0xFF,
+          (chunk.length >> 8) ^ 0xFF,
+          ...chunk,
+        ];
 
-      final chunk1 = List<int>.generate(65535, (i) => i % 256);
-      final chunk2 = List<int>.generate(5000, (i) => (i * 3) % 256);
-      final data = [...chunk1, ...chunk2];
-      final body = [
-        ...stored(chunk1, last: false),
-        ...stored(chunk2, last: true),
-      ];
+        final chunk1 = List<int>.generate(65535, (i) => i % 256);
+        final chunk2 = List<int>.generate(5000, (i) => (i * 3) % 256);
+        final data = [...chunk1, ...chunk2];
+        final body = [
+          ...stored(chunk1, last: false),
+          ...stored(chunk2, last: true),
+        ];
 
-      expect(
-        _read(
-          buildZip([
-            ZipEntryFixture('theme.yaml', data, method: 8, body: body),
-          ]),
-        ).keys,
-        ['theme.yaml'],
-      );
+        expect(
+          _read(
+            buildZip([
+              ZipEntryFixture('theme.yaml', data, method: 8, body: body),
+            ]),
+          ).keys,
+          ['theme.yaml'],
+        );
 
-      expect(
-        () => _read(
-          buildZip([
-            ZipEntryFixture(
-              'theme.yaml',
-              data,
-              method: 8,
-              body: [...body, 0x99],
-            ),
-          ]),
-        ),
-        _fails(StratumRemoteThemeErrorCode.invalidArchive),
-      );
-    });
+        expect(
+          () => _read(
+            buildZip([
+              ZipEntryFixture(
+                'theme.yaml',
+                data,
+                method: 8,
+                body: [...body, 0x99],
+              ),
+            ]),
+          ),
+          _fails(StratumRemoteThemeErrorCode.invalidArchive),
+        );
+      },
+    );
 
     for (final (label, entry) in [
       (
@@ -1903,18 +1954,21 @@ void main() {
         ZipEntryFixture('empty.txt', const []),
       ),
     ]) {
-      test('us01/fr02/e13, rz3: a genuinely empty, non-folder file, $label, '
-          'installs as an empty file, not a folder', () {
-        final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
+      test(
+        'fo04/us01/fr02/e13, rz3: a genuinely empty, non-folder file, $label, '
+        'installs as an empty file, not a folder',
+        () {
+          final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
 
-        final files = _read(zip);
+          final files = _read(zip);
 
-        expect(files.keys, unorderedEquals(['theme.yaml', 'empty.txt']));
-        expect(files['empty.txt'], isEmpty);
-      });
+          expect(files.keys, unorderedEquals(['theme.yaml', 'empty.txt']));
+          expect(files['empty.txt'], isEmpty);
+        },
+      );
     }
 
-    test('us01/fr02/e01, rz3, r18 (t27): an entry named theme.yaml typed '
+    test('fo04/us01/fr02/e01, rz3, r18 (t27): an entry named theme.yaml typed '
         'S_IFDIR is unsafe_entry_path', () {
       final zip = buildZip([
         ZipEntryFixture(
@@ -1931,7 +1985,7 @@ void main() {
       );
     });
 
-    test('us01/fr02/e10, rz3, review focus: a __MACOSX/ entry the install '
+    test('fo04/us01/fr02/e10, rz3, review focus: a __MACOSX/ entry the install '
         'never reads, whose CRC-32 fails, is invalid_archive', () {
       final zip = buildZip([
         ZipEntryFixture('theme.yaml', yaml),
@@ -1944,18 +1998,21 @@ void main() {
       );
     });
 
-    test('us01/fr02/e07, rz3: entries the install never reads count toward '
-        'maxBytes', () {
-      final zip = buildZip([
-        ZipEntryFixture('theme.yaml', yaml),
-        ZipEntryFixture('__MACOSX/big', Uint8List(_mb), declaredSize: 1),
-      ]);
+    test(
+      'fo04/us01/fr02/e07, rz3: entries the install never reads count toward '
+      'maxBytes',
+      () {
+        final zip = buildZip([
+          ZipEntryFixture('theme.yaml', yaml),
+          ZipEntryFixture('__MACOSX/big', Uint8List(_mb), declaredSize: 1),
+        ]);
 
-      expect(
-        () => _read(zip, maxBytes: 64 * 1024),
-        _fails(StratumRemoteThemeErrorCode.archiveTooLarge),
-      );
-    });
+        expect(
+          () => _read(zip, maxBytes: 64 * 1024),
+          _fails(StratumRemoteThemeErrorCode.archiveTooLarge),
+        );
+      },
+    );
 
     for (final (label, entry) in [
       (
@@ -1971,7 +2028,7 @@ void main() {
         ZipEntryFixture('a.bin', Uint8List(100), declaredSize: 150),
       ),
     ]) {
-      test('us01/fr02/e10, rz3: $label is invalid_archive', () {
+      test('fo04/us01/fr02/e10, rz3: $label is invalid_archive', () {
         final zip = buildZip([ZipEntryFixture('theme.yaml', yaml), entry]);
 
         expect(
@@ -2010,7 +2067,7 @@ void main() {
         'NLEN is not the complement of its LEN',
       ),
     ]) {
-      test('us01/fr02/e10, rz11 (m1-t2, m3-t7 security): $label is '
+      test('fo04/us01/fr02/e10, rz11 (m1-t2, m3-t7 security): $label is '
           'invalid_archive', () {
         final zip = buildZip([
           ZipEntryFixture('theme.yaml', data, method: 8, body: vector),
@@ -2032,21 +2089,24 @@ void main() {
       0x00,
     ];
 
-    test('us01/fr02/e13, rz11 (m3-t7 security W2): a folder entry of 1,000 '
-        'empty stored blocks carrying 2,000 chosen bytes is '
-        'unsafe_entry_path', () {
-      final zip = buildZip([
-        ZipEntryFixture('brand/', const [], method: 8, body: carrier),
-        ZipEntryFixture('brand/theme.yaml', yaml),
-      ]);
+    test(
+      'fo04/us01/fr02/e13, rz11 (m3-t7 security W2): a folder entry of 1,000 '
+      'empty stored blocks carrying 2,000 chosen bytes is '
+      'unsafe_entry_path',
+      () {
+        final zip = buildZip([
+          ZipEntryFixture('brand/', const [], method: 8, body: carrier),
+          ZipEntryFixture('brand/theme.yaml', yaml),
+        ]);
 
-      expect(
-        () => _read(zip),
-        _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'brand/'),
-      );
-    });
+        expect(
+          () => _read(zip),
+          _fails(StratumRemoteThemeErrorCode.unsafeEntryPath, path: 'brand/'),
+        );
+      },
+    );
 
-    test('us01/fr02/e10, rz11 (m3-t7 security W2): the same carrier in an '
+    test('fo04/us01/fr02/e10, rz11 (m3-t7 security W2): the same carrier in an '
         '__MACOSX/ entry the install never reads is invalid_archive', () {
       final zip = buildZip([
         ZipEntryFixture('theme.yaml', yaml),
@@ -2060,7 +2120,7 @@ void main() {
     });
   });
 
-  group('us01/fr02/e10, rz13: one Huffman-block budget per zip', () {
+  group('fo04/us01/fr02/e10, rz13: one Huffman-block budget per zip', () {
     // Two of remote_inflate_test's 92-bit max-fill dynamic blocks, 23 bytes
     // whole, each building three full tables and writing nothing.
     const twoMaxFillBlocks = [

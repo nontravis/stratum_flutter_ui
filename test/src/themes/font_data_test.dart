@@ -37,7 +37,7 @@ void main() {
     expect(a, isNot(const StratumFontData(family: 'Font A')));
   });
 
-  test('us07/fr01: files take part in equality and default to none', () {
+  test('fo02/us07/fr01: files take part in equality and default to none', () {
     const a = StratumFontData(
       family: 'brand/Brand',
       source: StratumFontSource.theme,
@@ -64,7 +64,7 @@ void main() {
     expect(const StratumFontData(family: 'Inter').files, isEmpty);
   });
 
-  test('us07/fr01: qualifiedFamily of a theme font is its registered '
+  test('fo02/us07/fr01: qualifiedFamily of a theme font is its registered '
       'family', () {
     expect(
       const StratumFontData(

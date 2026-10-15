@@ -24,31 +24,34 @@ const _style = SystemStyle(
 );
 
 void main() {
-  testWidgets('NFR-U06, us14/fr05/e04: the scope owns no semantics node and '
-      'the child reads unchanged', (tester) async {
-    systemBarsView(tester);
-    final handle = tester.ensureSemantics();
-    await tester.pumpWidget(
-      playButtonPage(Alignment.topLeft, (child) => child),
-    );
-    final plain = semanticsTree(tester);
+  testWidgets(
+    'NFR-U06, fo03/us14/fr05/e04: the scope owns no semantics node and '
+    'the child reads unchanged',
+    (tester) async {
+      systemBarsView(tester);
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        playButtonPage(Alignment.topLeft, (child) => child),
+      );
+      final plain = semanticsTree(tester);
 
-    await tester.pumpWidget(
-      playButtonPage(
-        Alignment.topLeft,
-        (child) => SystemStyleScope(style: _style, child: child),
-      ),
-    );
+      await tester.pumpWidget(
+        playButtonPage(
+          Alignment.topLeft,
+          (child) => SystemStyleScope(style: _style, child: child),
+        ),
+      );
 
-    expect(semanticsTree(tester), plain);
-    expect(
-      tester.getSemantics(find.bySemanticsLabel('Play')),
-      matchesSemantics(label: 'Play', isButton: true, hasTapAction: true),
-    );
-    handle.dispose();
-  });
+      expect(semanticsTree(tester), plain);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Play')),
+        matchesSemantics(label: 'Play', isButton: true, hasTapAction: true),
+      );
+      handle.dispose();
+    },
+  );
 
-  testWidgets('us14/fr05: the scope paints nothing, takes no focus, and '
+  testWidgets('fo03/us14/fr05: the scope paints nothing, takes no focus, and '
       'leaves a tap to its child', (tester) async {
     systemBarsView(tester);
     var taps = 0;
@@ -98,7 +101,7 @@ void main() {
     ('high-contrast light', ThemeMode.light, StratumHighContrastMode.on),
     ('high-contrast dark', ThemeMode.dark, StratumHighContrastMode.on),
   ]) {
-    testWidgets('NFR-U01, NFR-U07, us14/fr02: automatic icons hold 3:1 '
+    testWidgets('NFR-U01, NFR-U07, fo03/us14/fr02: automatic icons hold 3:1 '
         'against the $name page background', (tester) async {
       systemBarsView(tester);
       await tester.pumpWidget(
@@ -143,27 +146,33 @@ void main() {
     expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.light);
   });
 
-  testWidgets('NFR-E02, us14/fr01: one set field shows, and the other fields '
-      'keep the theme default', (tester) async {
-    systemBarsView(tester);
-    await tester.pumpWidget(
-      systemStyleApp(
-        home: const SystemStyleScope(
-          style: SystemStyle(statusBarColor: Color(0xFF0000AA)),
-          child: SizedBox(),
+  testWidgets(
+    'NFR-E02, fo03/us14/fr01: one set field shows, and the other fields '
+    'keep the theme default',
+    (tester) async {
+      systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(
+          home: const SystemStyleScope(
+            style: SystemStyle(statusBarColor: Color(0xFF0000AA)),
+            child: SizedBox(),
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(
-      barStrips(tester),
-      paints..rect(rect: statusStrip, color: const Color(0xFF0000AA)),
-    );
-    expect(barStrips(tester), paintsExactlyCountTimes(#drawRect, 1));
-    expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.light);
-    expect(
-      SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
-      Brightness.dark,
-    );
-  });
+      expect(
+        barStrips(tester),
+        paints..rect(rect: statusStrip, color: const Color(0xFF0000AA)),
+      );
+      expect(barStrips(tester), paintsExactlyCountTimes(#drawRect, 1));
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.light,
+      );
+      expect(
+        SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
+        Brightness.dark,
+      );
+    },
+  );
 }

@@ -73,18 +73,19 @@ void main() {
   late StratumThemeSet themes;
   setUpAll(() async => themes = await loadTransitionDemoTheme());
 
-  testWidgets("us11/s2, us11/fr01: the theme's transition opens and closes "
-      'a page inside the shell while the tab bar stays where it is', (
-    tester,
-  ) async {
-    await tester.pumpWidget(TransitionDemoApp(themes: themes));
-    await tester.pumpAndSettle();
+  testWidgets(
+    "f01/us11/s2, f01/us11/fr01: the theme's transition opens and closes "
+    'a page inside the shell while the tab bar stays where it is',
+    (tester) async {
+      await tester.pumpWidget(TransitionDemoApp(themes: themes));
+      await tester.pumpAndSettle();
 
-    await _openAndClose(tester, "the theme's transition");
-  });
+      await _openAndClose(tester, "the theme's transition");
+    },
+  );
 
   for (final type in ScreenTransitionType.values) {
-    testWidgets('us11/s1, us11/s3, us11/fr01, us11/fr01/e01, us11/fr01/e03: '
+    testWidgets('f01/us11/s1, f01/us11/s3, f01/us11/fr01, f01/us11/fr01/e01, f01/us11/fr01/e03: '
         '${type.name} opens and closes a page inside the shell while the tab '
         'bar stays where it is', (tester) async {
       await tester.pumpWidget(TransitionDemoApp(themes: themes));

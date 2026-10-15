@@ -175,7 +175,7 @@ void main() {
       expect(size, WidgetSize.small);
     });
 
-    testWidgets('us01/fr02/e05: the deprecated resolveSize returns what '
+    testWidgets('fo08/us01/fr02/e05: the deprecated resolveSize returns what '
         'resolveDefaultSize returns', (tester) async {
       final size = await _readInBuild(
         tester,
@@ -188,19 +188,20 @@ void main() {
       expect(size, WidgetSize.small);
     });
 
-    testWidgets('us01/fr02/e04: a dark themeMode reads the dark default size', (
-      tester,
-    ) async {
-      final size = await _readInBuild(
-        tester,
-        const _StatelessProbe(themeMode: ThemeMode.dark).resolveDefaultSize,
-        wrap: _themed,
-      );
+    testWidgets(
+      'fo08/us01/fr02/e04: a dark themeMode reads the dark default size',
+      (tester) async {
+        final size = await _readInBuild(
+          tester,
+          const _StatelessProbe(themeMode: ThemeMode.dark).resolveDefaultSize,
+          wrap: _themed,
+        );
 
-      expect(size, WidgetSize.large);
-    });
+        expect(size, WidgetSize.large);
+      },
+    );
 
-    testWidgets('us01/fr02: a subclass that overrides resolveTheme sets '
+    testWidgets('fo08/us01/fr02: a subclass that overrides resolveTheme sets '
         'the default size', (tester) async {
       final override = fakeTheme.copyWith(defaultWidgetSize: WidgetSize.huge);
       final probe = _StatelessThemeOverrideProbe(overrideTheme: override);
@@ -214,7 +215,7 @@ void main() {
       expect(size, WidgetSize.huge);
     });
 
-    testWidgets('us01/fr02: the deprecated resolveSize follows an '
+    testWidgets('fo08/us01/fr02: the deprecated resolveSize follows an '
         'overridden resolveTheme too', (tester) async {
       final override = fakeTheme.copyWith(defaultWidgetSize: WidgetSize.huge);
       final probe = _StatelessThemeOverrideProbe(overrideTheme: override);
@@ -415,7 +416,7 @@ void main() {
   });
 
   group('resolveColor', () {
-    testWidgets('us01/fr03/e01: a null color gives the fallback and reads '
+    testWidgets('fo08/us01/fr03/e01: a null color gives the fallback and reads '
         'no theme', (tester) async {
       final color = await _readInBuild(
         tester,
@@ -426,7 +427,7 @@ void main() {
       expect(color, _fallback);
     });
 
-    testWidgets('us01/fr03/e01: StratumStatefulWidget with a null color '
+    testWidgets('fo08/us01/fr03/e01: StratumStatefulWidget with a null color '
         'gives the fallback and reads no theme', (tester) async {
       final color = await _readInBuild(
         tester,
@@ -437,76 +438,88 @@ void main() {
       expect(color, _fallback);
     });
 
-    testWidgets('us01/fr03/e02, us01/s5: blue in the icon group gives the '
-        "theme's icon.color.blue", (tester) async {
-      final color = await _readInBuild(
-        tester,
-        (context) =>
-            const _StatelessProbe(color: ColorEnum.blue)
-                .resolveColor(context, _icon, _fallback),
-        wrap: _themed,
-      );
-
-      expect(color, _light.color.icon.color.blue);
-    });
-
-    testWidgets('us01/fr03/e03, us01/s6: red, which the icon group lacks, '
-        'gives the fallback', (tester) async {
-      final color = await _readInBuild(
-        tester,
-        (context) =>
-            const _StatelessProbe(color: ColorEnum.red)
-                .resolveColor(context, _icon, _fallback),
-        wrap: _themed,
-      );
-
-      expect(color, _fallback);
-    });
-
-    testWidgets('us01/fr03/e04: a group that gains a name resolves it with '
-        'no change to the resolver', (tester) async {
-      final color = await _readInBuild(
-        tester,
-        (context) =>
-            const _StatelessProbe(color: ColorEnum.red)
-                .resolveColor(context, (_) => const _RedOnly(), _fallback),
-        wrap: _themed,
-      );
-
-      expect(color, _RedOnly.red);
-    });
-
-    testWidgets('us01/fr03: each group answers from its own tokens: gray in '
-        'background and border, the fallback in icon and text', (tester) async {
-      final groups =
-          <
-            String,
-            (StratumColorEnumTokens Function(StratumColorTokens), Color)
-          >{
-            'background': (
-              (c) => c.background.color,
-              _light.color.background.color.gray,
-            ),
-            'border': ((c) => c.border.color, _light.color.border.color.gray),
-            'icon': (_icon, _fallback),
-            'text': ((c) => c.text.color, _fallback),
-          };
-
-      for (final MapEntry(key: name, value: (group, expected))
-          in groups.entries) {
+    testWidgets(
+      'fo08/us01/fr03/e02, fo08/us01/s5: blue in the icon group gives the '
+      "theme's icon.color.blue",
+      (tester) async {
         final color = await _readInBuild(
           tester,
           (context) =>
-              const _StatelessProbe(color: ColorEnum.gray)
-                  .resolveColor(context, group, _fallback),
+              const _StatelessProbe(color: ColorEnum.blue)
+                  .resolveColor(context, _icon, _fallback),
           wrap: _themed,
         );
 
-        expect(color, expected, reason: name);
-      }
-    });
+        expect(color, _light.color.icon.color.blue);
+      },
+    );
 
-    testWidgets("us01/fr03: the component's themeMode picks the dark "
+    testWidgets(
+      'fo08/us01/fr03/e03, fo08/us01/s6: red, which the icon group lacks, '
+      'gives the fallback',
+      (tester) async {
+        final color = await _readInBuild(
+          tester,
+          (context) =>
+              const _StatelessProbe(color: ColorEnum.red)
+                  .resolveColor(context, _icon, _fallback),
+          wrap: _themed,
+        );
+
+        expect(color, _fallback);
+      },
+    );
+
+    testWidgets(
+      'fo08/us01/fr03/e04: a group that gains a name resolves it with '
+      'no change to the resolver',
+      (tester) async {
+        final color = await _readInBuild(
+          tester,
+          (context) =>
+              const _StatelessProbe(color: ColorEnum.red)
+                  .resolveColor(context, (_) => const _RedOnly(), _fallback),
+          wrap: _themed,
+        );
+
+        expect(color, _RedOnly.red);
+      },
+    );
+
+    testWidgets(
+      'fo08/us01/fr03: each group answers from its own tokens: gray in '
+      'background and border, the fallback in icon and text',
+      (tester) async {
+        final groups =
+            <
+              String,
+              (StratumColorEnumTokens Function(StratumColorTokens), Color)
+            >{
+              'background': (
+                (c) => c.background.color,
+                _light.color.background.color.gray,
+              ),
+              'border': ((c) => c.border.color, _light.color.border.color.gray),
+              'icon': (_icon, _fallback),
+              'text': ((c) => c.text.color, _fallback),
+            };
+
+        for (final MapEntry(key: name, value: (group, expected))
+            in groups.entries) {
+          final color = await _readInBuild(
+            tester,
+            (context) =>
+                const _StatelessProbe(color: ColorEnum.gray)
+                    .resolveColor(context, group, _fallback),
+            wrap: _themed,
+          );
+
+          expect(color, expected, reason: name);
+        }
+      },
+    );
+
+    testWidgets("fo08/us01/fr03: the component's themeMode picks the dark "
         'token', (tester) async {
       final color = await _readInBuild(
         tester,
@@ -526,19 +539,20 @@ void main() {
       expect(color, dark);
     });
 
-    testWidgets('us01/fr03: StratumStatefulWidget resolves the same token', (
-      tester,
-    ) async {
-      final color = await _readInBuild(
-        tester,
-        (context) =>
-            const _StatefulProbe(color: ColorEnum.blue)
-                .resolveColor(context, _icon, _fallback),
-        wrap: _themed,
-      );
+    testWidgets(
+      'fo08/us01/fr03: StratumStatefulWidget resolves the same token',
+      (tester) async {
+        final color = await _readInBuild(
+          tester,
+          (context) =>
+              const _StatefulProbe(color: ColorEnum.blue)
+                  .resolveColor(context, _icon, _fallback),
+          wrap: _themed,
+        );
 
-      expect(color, _light.color.icon.color.blue);
-    });
+        expect(color, _light.color.icon.color.blue);
+      },
+    );
   });
 
   group('StratumStatefulWidget', () {
@@ -568,7 +582,7 @@ void main() {
       },
     );
 
-    testWidgets('us01/fr02: a subclass that overrides resolveTheme sets '
+    testWidgets('fo08/us01/fr02: a subclass that overrides resolveTheme sets '
         'the default size', (tester) async {
       final override = fakeTheme.copyWith(defaultWidgetSize: WidgetSize.huge);
       final probe = _StatefulThemeOverrideProbe(overrideTheme: override);

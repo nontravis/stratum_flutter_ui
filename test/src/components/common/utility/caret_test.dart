@@ -99,49 +99,58 @@ StratumThemeData _fastLevel(AnimationStyle fast) {
 
 void main() {
   group('StratumCaret glyph', () {
-    testWidgets('us01/fr01/e01, us01/s1: with no values set it draws a '
-        '16 px caret pointing down as a 1.5 px round chevron', (tester) async {
-      await tester.pumpWidget(themedHost(const StratumCaret()));
+    testWidgets(
+      'co01_03/us01/fr01/e01, co01_03/us01/s1: with no values set it draws a '
+      '16 px caret pointing down as a 1.5 px round chevron',
+      (tester) async {
+        await tester.pumpWidget(themedHost(const StratumCaret()));
 
-      expect(tester.getSize(find.byType(StratumCaret)), const Size(16, 16));
-      expect(_painter(tester).angle, 0);
-      expect(_painter(tester).style, StratumCaretStyle.regular);
-      final (:path, :paint) = _drawn();
-      expect(paint.style, PaintingStyle.stroke);
-      expect(paint.strokeWidth, 1.5);
-      expect(paint.strokeCap, StrokeCap.round);
-      expect(paint.strokeJoin, StrokeJoin.round);
-      expect(paint.color, isSameColorAs(fakeTheme.color.icon.defaults.primary));
-      expect(
-        path.getBounds(),
-        rectMoreOrLessEquals(const Rect.fromLTRB(-5, -2.5, 5, 2.5)),
-      );
-      // Round caps and joins reach half the line past the centerline:
-      // the Figma REGULAR outline box (R8).
-      expect(
-        path.getBounds().inflate(paint.strokeWidth / 2).size,
-        const Size(11.5, 6.5),
-      );
-    });
+        expect(tester.getSize(find.byType(StratumCaret)), const Size(16, 16));
+        expect(_painter(tester).angle, 0);
+        expect(_painter(tester).style, StratumCaretStyle.regular);
+        final (:path, :paint) = _drawn();
+        expect(paint.style, PaintingStyle.stroke);
+        expect(paint.strokeWidth, 1.5);
+        expect(paint.strokeCap, StrokeCap.round);
+        expect(paint.strokeJoin, StrokeJoin.round);
+        expect(
+          paint.color,
+          isSameColorAs(fakeTheme.color.icon.defaults.primary),
+        );
+        expect(
+          path.getBounds(),
+          rectMoreOrLessEquals(const Rect.fromLTRB(-5, -2.5, 5, 2.5)),
+        );
+        // Round caps and joins reach half the line past the centerline:
+        // the Figma REGULAR outline box (R8).
+        expect(
+          path.getBounds().inflate(paint.strokeWidth / 2).size,
+          const Size(11.5, 6.5),
+        );
+      },
+    );
 
-    testWidgets('us01/fr01/e02, us01/s2: light draws the round chevron '
-        '1.0 px wide, 11 x 6 in the 16 px box', (tester) async {
-      await tester.pumpWidget(
-        themedHost(const StratumCaret(style: StratumCaretStyle.light)),
-      );
+    testWidgets(
+      'co01_03/us01/fr01/e02, co01_03/us01/s2: light draws the round chevron '
+      '1.0 px wide, 11 x 6 in the 16 px box',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(const StratumCaret(style: StratumCaretStyle.light)),
+        );
 
-      final (:path, :paint) = _drawn();
-      expect(paint.style, PaintingStyle.stroke);
-      expect(paint.strokeWidth, 1.0);
-      expect(paint.strokeCap, StrokeCap.round);
-      expect(paint.strokeJoin, StrokeJoin.round);
-      expect(
-        path.getBounds().inflate(paint.strokeWidth / 2).size,
-        const Size(11, 6),
-      );
-    });
+        final (:path, :paint) = _drawn();
+        expect(paint.style, PaintingStyle.stroke);
+        expect(paint.strokeWidth, 1.0);
+        expect(paint.strokeCap, StrokeCap.round);
+        expect(paint.strokeJoin, StrokeJoin.round);
+        expect(
+          path.getBounds().inflate(paint.strokeWidth / 2).size,
+          const Size(11, 6),
+        );
+      },
+    );
 
-    testWidgets('us01/fr01/e03, us01/s2: fill draws a solid triangle 11 x 6 '
+    testWidgets('co01_03/us01/fr01/e03, co01_03/us01/s2: fill draws a solid triangle 11 x 6 '
         'with no line', (tester) async {
       await tester.pumpWidget(
         themedHost(const StratumCaret(style: StratumCaretStyle.fill)),
@@ -156,23 +165,24 @@ void main() {
     });
 
     for (final style in StratumCaretStyle.values) {
-      testWidgets('us01/fr01/e04: up points the ${style.name} glyph up', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          themedHost(
-            StratumCaret(style: style, direction: StratumCaretDirection.up),
-          ),
-        );
+      testWidgets(
+        'co01_03/us01/fr01/e04: up points the ${style.name} glyph up',
+        (tester) async {
+          await tester.pumpWidget(
+            themedHost(
+              StratumCaret(style: style, direction: StratumCaretDirection.up),
+            ),
+          );
 
-        expect(_painter(tester).angle, math.pi);
-        expect(
-          _glyph,
-          paints
-            ..translate(x: 8, y: 8)
-            ..rotate(angle: math.pi),
-        );
-      });
+          expect(_painter(tester).angle, math.pi);
+          expect(
+            _glyph,
+            paints
+              ..translate(x: 8, y: 8)
+              ..rotate(angle: math.pi),
+          );
+        },
+      );
     }
   });
 
@@ -187,7 +197,7 @@ void main() {
       WidgetSize.huge: 32.0,
     };
     for (final MapEntry(key: size, value: side) in sides.entries) {
-      testWidgets('us01/fr02: ${size.name} gives a $side px box', (
+      testWidgets('co01_03/us01/fr02: ${size.name} gives a $side px box', (
         tester,
       ) async {
         await tester.pumpWidget(themedHost(StratumCaret(size: size)));
@@ -204,32 +214,38 @@ void main() {
       });
     }
 
-    testWidgets("us01/fr02/e01: no size takes the theme's default widget "
-        'size', (tester) async {
-      await tester.pumpWidget(
-        themedHost(
-          const StratumCaret(),
-          theme: fakeTheme.copyWith(defaultWidgetSize: WidgetSize.large),
-        ),
-      );
+    testWidgets(
+      "co01_03/us01/fr02/e01: no size takes the theme's default widget "
+      'size',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const StratumCaret(),
+            theme: fakeTheme.copyWith(defaultWidgetSize: WidgetSize.large),
+          ),
+        );
 
-      expect(tester.getSize(find.byType(StratumCaret)), const Size(20, 20));
-    });
+        expect(tester.getSize(find.byType(StratumCaret)), const Size(20, 20));
+      },
+    );
 
-    testWidgets('us01/fr02/e02, us01/s4: customSize wins over size', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(const StratumCaret(size: WidgetSize.small, customSize: 40)),
-      );
+    testWidgets(
+      'co01_03/us01/fr02/e02, co01_03/us01/s4: customSize wins over size',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const StratumCaret(size: WidgetSize.small, customSize: 40),
+          ),
+        );
 
-      expect(tester.getSize(find.byType(StratumCaret)), const Size(40, 40));
-      final (:path, paint: _) = _drawn();
-      expect(
-        path.getBounds(),
-        rectMoreOrLessEquals(const Rect.fromLTRB(-12.5, -6.25, 12.5, 6.25)),
-      );
-    });
+        expect(tester.getSize(find.byType(StratumCaret)), const Size(40, 40));
+        final (:path, paint: _) = _drawn();
+        expect(
+          path.getBounds(),
+          rectMoreOrLessEquals(const Rect.fromLTRB(-12.5, -6.25, 12.5, 6.25)),
+        );
+      },
+    );
 
     testWidgets('customSize of -1 fails the assertion', (tester) async {
       expect(() => StratumCaret(customSize: -1), throwsAssertionError);
@@ -252,37 +268,43 @@ void main() {
       expect(tester.getSize(find.byType(StratumCaret)), Size.zero);
     });
 
-    testWidgets('us01/s3, R1: a regular caret at the large size measures '
-        '20 px and keeps its 1.5 px line', (tester) async {
-      await tester.pumpWidget(
-        themedHost(const StratumCaret(size: WidgetSize.large)),
-      );
+    testWidgets(
+      'co01_03/us01/s3, R1: a regular caret at the large size measures '
+      '20 px and keeps its 1.5 px line',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(const StratumCaret(size: WidgetSize.large)),
+        );
 
-      final (:path, :paint) = _drawn();
-      expect(tester.getSize(find.byType(StratumCaret)), const Size(20, 20));
-      expect(paint.strokeWidth, 1.5);
-      expect(
-        path.getBounds(),
-        rectMoreOrLessEquals(const Rect.fromLTRB(-6.25, -3.125, 6.25, 3.125)),
-      );
-    });
+        final (:path, :paint) = _drawn();
+        expect(tester.getSize(find.byType(StratumCaret)), const Size(20, 20));
+        expect(paint.strokeWidth, 1.5);
+        expect(
+          path.getBounds(),
+          rectMoreOrLessEquals(const Rect.fromLTRB(-6.25, -3.125, 6.25, 3.125)),
+        );
+      },
+    );
 
-    testWidgets('us01/fr02/e03, us01/s5: in a 100 x 100 space the glyph '
-        'keeps its 16 px and sits centered', (tester) async {
-      await tester.pumpWidget(
-        themedHost(
-          const SizedBox(width: 100, height: 100, child: StratumCaret()),
-        ),
-      );
+    testWidgets(
+      'co01_03/us01/fr02/e03, co01_03/us01/s5: in a 100 x 100 space the glyph '
+      'keeps its 16 px and sits centered',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const SizedBox(width: 100, height: 100, child: StratumCaret()),
+          ),
+        );
 
-      expect(tester.getSize(_glyph), const Size(16, 16));
-      expect(_glyph, paints..translate(x: 8, y: 8));
-      final (:path, paint: _) = _drawn();
-      expect(
-        path.getBounds(),
-        rectMoreOrLessEquals(const Rect.fromLTRB(-5, -2.5, 5, 2.5)),
-      );
-    });
+        expect(tester.getSize(_glyph), const Size(16, 16));
+        expect(_glyph, paints..translate(x: 8, y: 8));
+        final (:path, paint: _) = _drawn();
+        expect(
+          path.getBounds(),
+          rectMoreOrLessEquals(const Rect.fromLTRB(-5, -2.5, 5, 2.5)),
+        );
+      },
+    );
 
     testWidgets('a 5 x 5 parent tighter than the 16 px box scales the glyph '
         'to fit it', (tester) async {
@@ -323,26 +345,29 @@ void main() {
       expect(tester.getSize(find.byType(StratumCaret)), const Size(16, 16));
     });
 
-    testWidgets('us01/fr02/e04: a fill caret at the large size scales its '
-        'triangle to the 20 px box', (tester) async {
-      await tester.pumpWidget(
-        themedHost(
-          const StratumCaret(
-            style: StratumCaretStyle.fill,
-            size: WidgetSize.large,
+    testWidgets(
+      'co01_03/us01/fr02/e04: a fill caret at the large size scales its '
+      'triangle to the 20 px box',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const StratumCaret(
+              style: StratumCaretStyle.fill,
+              size: WidgetSize.large,
+            ),
           ),
-        ),
-      );
+        );
 
-      final (:path, :paint) = _drawn();
-      expect(paint.style, PaintingStyle.fill);
-      expect(
-        path.getBounds(),
-        rectMoreOrLessEquals(const Rect.fromLTRB(-6.875, -3.75, 6.875, 3.75)),
-      );
-    });
+        final (:path, :paint) = _drawn();
+        expect(paint.style, PaintingStyle.fill);
+        expect(
+          path.getBounds(),
+          rectMoreOrLessEquals(const Rect.fromLTRB(-6.875, -3.75, 6.875, 3.75)),
+        );
+      },
+    );
 
-    testWidgets('us01/fr02: in a row the caret keeps its square box', (
+    testWidgets('co01_03/us01/fr02: in a row the caret keeps its square box', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -356,21 +381,24 @@ void main() {
   });
 
   group('StratumCaret color', () {
-    testWidgets('us01/fr03/e01: no color draws icon.default.primary, 80% '
-        'black on the light default theme', (tester) async {
-      await tester.pumpWidget(_defaultThemeHost(const StratumCaret()));
+    testWidgets(
+      'co01_03/us01/fr03/e01: no color draws icon.default.primary, 80% '
+      'black on the light default theme',
+      (tester) async {
+        await tester.pumpWidget(_defaultThemeHost(const StratumCaret()));
 
-      expect(
-        _painter(tester).color,
-        isSameColorAs(defaultThemeSet.light.color.icon.defaults.primary),
-      );
-      expect(
-        _painter(tester).color,
-        isSameColorAs(StratumTransparentTokens.builtIn.black.p80),
-      );
-    });
+        expect(
+          _painter(tester).color,
+          isSameColorAs(defaultThemeSet.light.color.icon.defaults.primary),
+        );
+        expect(
+          _painter(tester).color,
+          isSameColorAs(StratumTransparentTokens.builtIn.black.p80),
+        );
+      },
+    );
 
-    testWidgets('us01/fr03/e01: no color draws 100% white on the dark '
+    testWidgets('co01_03/us01/fr03/e01: no color draws 100% white on the dark '
         'default theme', (tester) async {
       await tester.pumpWidget(
         _defaultThemeHost(const StratumCaret(), mode: ThemeMode.dark),
@@ -382,41 +410,46 @@ void main() {
       );
     });
 
-    testWidgets("us01/fr03/e01: the caret's own themeMode picks the dark "
-        'token under a light app', (tester) async {
-      await tester.pumpWidget(
-        _defaultThemeHost(const StratumCaret(themeMode: ThemeMode.dark)),
-      );
+    testWidgets(
+      "co01_03/us01/fr03/e01: the caret's own themeMode picks the dark "
+      'token under a light app',
+      (tester) async {
+        await tester.pumpWidget(
+          _defaultThemeHost(const StratumCaret(themeMode: ThemeMode.dark)),
+        );
 
-      expect(
-        _painter(tester).color,
-        isSameColorAs(defaultThemeSet.dark!.color.icon.defaults.primary),
-      );
-    });
+        expect(
+          _painter(tester).color,
+          isSameColorAs(defaultThemeSet.dark!.color.icon.defaults.primary),
+        );
+      },
+    );
 
-    testWidgets('us01/fr03/e02, us01/s6: customColor wins over color', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const StratumCaret(color: ColorEnum.blue, customColor: _custom),
-        ),
-      );
+    testWidgets(
+      'co01_03/us01/fr03/e02, co01_03/us01/s6: customColor wins over color',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const StratumCaret(color: ColorEnum.blue, customColor: _custom),
+          ),
+        );
 
-      expect(_painter(tester).color, _custom);
-    });
+        expect(_painter(tester).color, _custom);
+      },
+    );
 
-    testWidgets("us01/fr03/e03: blue draws the theme's icon.color.blue", (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(const StratumCaret(color: ColorEnum.blue)),
-      );
+    testWidgets(
+      "co01_03/us01/fr03/e03: blue draws the theme's icon.color.blue",
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(const StratumCaret(color: ColorEnum.blue)),
+        );
 
-      expect(_painter(tester).color, fakeTheme.color.icon.color.blue);
-    });
+        expect(_painter(tester).color, fakeTheme.color.icon.color.blue);
+      },
+    );
 
-    testWidgets('us01/fr03/e04, us01/s9: red, which icon.color lacks, draws '
+    testWidgets('co01_03/us01/fr03/e04, co01_03/us01/s9: red, which icon.color lacks, draws '
         'icon.default.primary', (tester) async {
       await tester.pumpWidget(
         themedHost(const StratumCaret(color: ColorEnum.red)),
@@ -432,7 +465,7 @@ void main() {
       return (_look(tester), _box(tester));
     }
 
-    testWidgets('us01/fr04/e01, us01/s7, D11: disabled adds no look of its '
+    testWidgets('co01_03/us01/fr04/e01, co01_03/us01/s7, D11: disabled adds no look of its '
         'own; the dimming belongs to StratumDisabled', (tester) async {
       final (look, box) = await baseline(tester);
 
@@ -448,7 +481,7 @@ void main() {
       FullWidgetState.focused,
       FullWidgetState.dragged,
     ]) {
-      testWidgets('us01/fr04/e02: ${state.name} keeps the look', (
+      testWidgets('co01_03/us01/fr04/e02: ${state.name} keeps the look', (
         tester,
       ) async {
         final (look, box) = await baseline(tester);
@@ -461,20 +494,25 @@ void main() {
     }
 
     for (final feedback in FeedbackState.values) {
-      testWidgets('us01/fr04/e03: feedback ${feedback.name} keeps the look '
-          'and color', (tester) async {
-        final (look, box) = await baseline(tester);
+      testWidgets(
+        'co01_03/us01/fr04/e03: feedback ${feedback.name} keeps the look '
+        'and color',
+        (tester) async {
+          final (look, box) = await baseline(tester);
 
-        await tester.pumpWidget(
-          themedHost(StratumCaret(feedbackState: feedback)),
-        );
+          await tester.pumpWidget(
+            themedHost(StratumCaret(feedbackState: feedback)),
+          );
 
-        expect(_look(tester), look);
-        expect(_box(tester), box);
-      });
+          expect(_look(tester), look);
+          expect(_box(tester), box);
+        },
+      );
     }
 
-    testWidgets('us01/fr04/e04: loading keeps the look', (tester) async {
+    testWidgets('co01_03/us01/fr04/e04: loading keeps the look', (
+      tester,
+    ) async {
       final (look, box) = await baseline(tester);
 
       await tester.pumpWidget(themedHost(const StratumCaret(loading: true)));
@@ -483,7 +521,7 @@ void main() {
       expect(_box(tester), box);
     });
 
-    testWidgets('us01/fr04/e05, us01/s8: customStyle fills the box and the '
+    testWidgets('co01_03/us01/fr04/e05, co01_03/us01/s8: customStyle fills the box and the '
         'glyph keeps its style, size, and color', (tester) async {
       const fill = Color(0xFFEEEEEE);
       final (look, _) = await baseline(tester);
@@ -545,37 +583,37 @@ void main() {
     const quarter = math.pi / 2;
     for (final (name, textDirection, direction, angle) in [
       (
-        'us02/fr01/e01: left to right, start points left',
+        'co01_03/us02/fr01/e01: left to right, start points left',
         TextDirection.ltr,
         StratumCaretDirection.start,
         quarter,
       ),
       (
-        'us02/fr01/e01: left to right, end points right',
+        'co01_03/us02/fr01/e01: left to right, end points right',
         TextDirection.ltr,
         StratumCaretDirection.end,
         3 * quarter,
       ),
       (
-        'us02/fr01/e02, nfr-l02: right to left, start points right',
+        'co01_03/us02/fr01/e02, nfr-l02: right to left, start points right',
         TextDirection.rtl,
         StratumCaretDirection.start,
         3 * quarter,
       ),
       (
-        'us02/fr01/e02, us02/s4, nfr-l02: right to left, end points left',
+        'co01_03/us02/fr01/e02, co01_03/us02/s4, nfr-l02: right to left, end points left',
         TextDirection.rtl,
         StratumCaretDirection.end,
         quarter,
       ),
       (
-        'us02/fr01/e03, nfr-l02: right to left, up points up',
+        'co01_03/us02/fr01/e03, nfr-l02: right to left, up points up',
         TextDirection.rtl,
         StratumCaretDirection.up,
         math.pi,
       ),
       (
-        'us02/fr01/e03, nfr-l02: right to left, down points down',
+        'co01_03/us02/fr01/e03, nfr-l02: right to left, down points down',
         TextDirection.rtl,
         StratumCaretDirection.down,
         0.0,
@@ -594,56 +632,60 @@ void main() {
     }
   });
 
-  testWidgets('us02/fr05/e01, us02/s7: the caret adds nothing to its '
-      "owner's semantics", (tester) async {
-    final semantics = tester.ensureSemantics();
-    await tester.pumpWidget(
-      themedHost(
-        Semantics(
-          container: true,
-          label: 'Details',
-          expanded: true,
-          child: const StratumCaret(),
+  testWidgets(
+    'co01_03/us02/fr05/e01, co01_03/us02/s7: the caret adds nothing to its '
+    "owner's semantics",
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          Semantics(
+            container: true,
+            label: 'Details',
+            expanded: true,
+            child: const StratumCaret(),
+          ),
         ),
-      ),
-    );
+      );
 
-    final node = tester.getSemantics(find.bySemanticsLabel('Details'));
-    expect(
-      node,
-      matchesSemantics(
-        label: 'Details',
-        hasExpandedState: true,
-        isExpanded: true,
-      ),
-    );
-    expect(node.childrenCount, 0);
-    semantics.dispose();
-  });
-
-  testWidgets('us02/fr05/e02, us07/fr03/e01, R11: a disabled caret adds no '
-      'disabled node', (
-    tester,
-  ) async {
-    final semantics = tester.ensureSemantics();
-    await tester.pumpWidget(
-      themedHost(
-        Semantics(
-          container: true,
+      final node = tester.getSemantics(find.bySemanticsLabel('Details'));
+      expect(
+        node,
+        matchesSemantics(
           label: 'Details',
-          child: const StratumCaret(disabled: true),
+          hasExpandedState: true,
+          isExpanded: true,
         ),
-      ),
-    );
+      );
+      expect(node.childrenCount, 0);
+      semantics.dispose();
+    },
+  );
 
-    final node = tester.getSemantics(find.bySemanticsLabel('Details'));
-    expect(node, matchesSemantics(label: 'Details', hasEnabledState: false));
-    expect(node.childrenCount, 0);
-    semantics.dispose();
-  });
+  testWidgets(
+    'co01_03/us02/fr05/e02, us07/fr03/e01, R11: a disabled caret adds no '
+    'disabled node',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          Semantics(
+            container: true,
+            label: 'Details',
+            child: const StratumCaret(disabled: true),
+          ),
+        ),
+      );
+
+      final node = tester.getSemantics(find.bySemanticsLabel('Details'));
+      expect(node, matchesSemantics(label: 'Details', hasEnabledState: false));
+      expect(node.childrenCount, 0);
+      semantics.dispose();
+    },
+  );
 
   group('StratumCaret turn', () {
-    testWidgets('us02/fr02/e02, us02/s1: the first half turn, down to up, '
+    testWidgets('co01_03/us02/fr02/e02, co01_03/us02/s1: the first half turn, down to up, '
         'turns clockwise over the 125 ms fast level', (tester) async {
       await tester.pumpWidget(_turning(StratumCaretDirection.down));
       await tester.pumpWidget(_turning(StratumCaretDirection.up));
@@ -667,36 +709,42 @@ void main() {
       expect(tester.hasRunningAnimations, isFalse);
     });
 
-    testWidgets('us02/fr02/e03, us02/s2: the next half turn, up to down, '
-        'turns back counterclockwise', (tester) async {
-      await tester.pumpWidget(_turning(StratumCaretDirection.down));
-      await tester.pumpWidget(_turning(StratumCaretDirection.up));
-      await tester.pumpAndSettle();
-      expect(_angle(tester), math.pi);
-
-      await tester.pumpWidget(_turning(StratumCaretDirection.down));
-      await tester.pump(const Duration(milliseconds: 62));
-      expect(_angle(tester), allOf(greaterThan(0), lessThan(math.pi)));
-      await tester.pumpAndSettle();
-      expect(_angle(tester), 0);
-    });
-
-    testWidgets('us02/fr02/e03: a third half turn goes clockwise again, '
-        'opposite to the second', (tester) async {
-      await tester.pumpWidget(_turning(StratumCaretDirection.down));
-      for (final direction in [
-        StratumCaretDirection.up,
-        StratumCaretDirection.down,
-        StratumCaretDirection.up,
-      ]) {
-        await tester.pumpWidget(_turning(direction));
+    testWidgets(
+      'co01_03/us02/fr02/e03, co01_03/us02/s2: the next half turn, up to down, '
+      'turns back counterclockwise',
+      (tester) async {
+        await tester.pumpWidget(_turning(StratumCaretDirection.down));
+        await tester.pumpWidget(_turning(StratumCaretDirection.up));
         await tester.pumpAndSettle();
-      }
+        expect(_angle(tester), math.pi);
 
-      expect(_angle(tester), math.pi);
-    });
+        await tester.pumpWidget(_turning(StratumCaretDirection.down));
+        await tester.pump(const Duration(milliseconds: 62));
+        expect(_angle(tester), allOf(greaterThan(0), lessThan(math.pi)));
+        await tester.pumpAndSettle();
+        expect(_angle(tester), 0);
+      },
+    );
 
-    testWidgets('us02/fr02/e01, us02/s3: end to down in a left-to-right app '
+    testWidgets(
+      'co01_03/us02/fr02/e03: a third half turn goes clockwise again, '
+      'opposite to the second',
+      (tester) async {
+        await tester.pumpWidget(_turning(StratumCaretDirection.down));
+        for (final direction in [
+          StratumCaretDirection.up,
+          StratumCaretDirection.down,
+          StratumCaretDirection.up,
+        ]) {
+          await tester.pumpWidget(_turning(direction));
+          await tester.pumpAndSettle();
+        }
+
+        expect(_angle(tester), math.pi);
+      },
+    );
+
+    testWidgets('co01_03/us02/fr02/e01, co01_03/us02/s3: end to down in a left-to-right app '
         'turns a quarter clockwise, never three quarters back', (tester) async {
       await tester.pumpWidget(_turning(StratumCaretDirection.end));
       expect(_angle(tester), moreOrLessEquals(3 * math.pi / 2));
@@ -711,61 +759,70 @@ void main() {
       expect(_angle(tester), moreOrLessEquals(2 * math.pi));
     });
 
-    testWidgets('us02/fr02/e04: down to start turns a quarter clockwise, '
-        'then start to end, the first half turn, turns clockwise', (
-      tester,
-    ) async {
-      await tester.pumpWidget(_turning(StratumCaretDirection.down));
-      await tester.pumpWidget(_turning(StratumCaretDirection.start));
-      await tester.pumpAndSettle();
-      expect(_angle(tester), moreOrLessEquals(math.pi / 2));
-
-      await tester.pumpWidget(_turning(StratumCaretDirection.end));
-      await tester.pumpAndSettle();
-      expect(_angle(tester), moreOrLessEquals(3 * math.pi / 2));
-    });
-
-    testWidgets('us02/fr02/e04: a quarter turn between two half turns leaves '
-        'the next half turn opposite to the last one', (tester) async {
-      await tester.pumpWidget(_turning(StratumCaretDirection.down));
-      for (final direction in [
-        StratumCaretDirection.up,
-        StratumCaretDirection.start,
-        StratumCaretDirection.end,
-      ]) {
-        await tester.pumpWidget(_turning(direction));
+    testWidgets(
+      'co01_03/us02/fr02/e04: down to start turns a quarter clockwise, '
+      'then start to end, the first half turn, turns clockwise',
+      (tester) async {
+        await tester.pumpWidget(_turning(StratumCaretDirection.down));
+        await tester.pumpWidget(_turning(StratumCaretDirection.start));
         await tester.pumpAndSettle();
-      }
+        expect(_angle(tester), moreOrLessEquals(math.pi / 2));
 
-      // down → up: +π, clockwise; up → start: −π/2, the short way;
-      // start → end: −π, opposite to the clockwise half turn.
-      expect(_angle(tester), moreOrLessEquals(-math.pi / 2));
-    });
+        await tester.pumpWidget(_turning(StratumCaretDirection.end));
+        await tester.pumpAndSettle();
+        expect(_angle(tester), moreOrLessEquals(3 * math.pi / 2));
+      },
+    );
 
-    testWidgets("us02/fr02: a turn runs over the theme's fast level on its "
-        'standard curve', (tester) async {
-      final theme = motionTheme(
-        fast: const Duration(milliseconds: 200),
-        standard: const StratumNamedCurve('easeIn'),
-      );
-      await tester.pumpWidget(
-        _turning(StratumCaretDirection.down, theme: theme),
-      );
-      await tester.pumpWidget(_turning(StratumCaretDirection.up, theme: theme));
+    testWidgets(
+      'co01_03/us02/fr02/e04: a quarter turn between two half turns leaves '
+      'the next half turn opposite to the last one',
+      (tester) async {
+        await tester.pumpWidget(_turning(StratumCaretDirection.down));
+        for (final direction in [
+          StratumCaretDirection.up,
+          StratumCaretDirection.start,
+          StratumCaretDirection.end,
+        ]) {
+          await tester.pumpWidget(_turning(direction));
+          await tester.pumpAndSettle();
+        }
 
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(
-        _angle(tester),
-        moreOrLessEquals(math.pi * Curves.easeIn.transform(0.5)),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(_angle(tester), math.pi);
-    });
+        // down → up: +π, clockwise; up → start: −π/2, the short way;
+        // start → end: −π, opposite to the clockwise half turn.
+        expect(_angle(tester), moreOrLessEquals(-math.pi / 2));
+      },
+    );
+
+    testWidgets(
+      "co01_03/us02/fr02: a turn runs over the theme's fast level on its "
+      'standard curve',
+      (tester) async {
+        final theme = motionTheme(
+          fast: const Duration(milliseconds: 200),
+          standard: const StratumNamedCurve('easeIn'),
+        );
+        await tester.pumpWidget(
+          _turning(StratumCaretDirection.down, theme: theme),
+        );
+        await tester.pumpWidget(
+          _turning(StratumCaretDirection.up, theme: theme),
+        );
+
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(
+          _angle(tester),
+          moreOrLessEquals(math.pi * Curves.easeIn.transform(0.5)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(_angle(tester), math.pi);
+      },
+    );
 
     for (final (name, viaMediaQuery) in [
-      ('us02/fr03/e01, nfr-u03: the app disables animations', true),
+      ('co01_03/us02/fr03/e01, nfr-u03: the app disables animations', true),
       (
-        'us02/fr03/e02, us02/s5, nfr-u03: the platform reduce-motion flag is '
+        'co01_03/us02/fr03/e02, co01_03/us02/s5, nfr-u03: the platform reduce-motion flag is '
             'on',
         false,
       ),
@@ -795,9 +852,12 @@ void main() {
     }
 
     for (final (name, viaMediaQuery) in [
-      ('us02/fr03/e01, nfr-u03: the app disables animations mid-turn', true),
       (
-        'us02/fr03/e02, nfr-u03: the platform reduce-motion flag turns on '
+        'co01_03/us02/fr03/e01, nfr-u03: the app disables animations mid-turn',
+        true,
+      ),
+      (
+        'co01_03/us02/fr03/e02, nfr-u03: the platform reduce-motion flag turns on '
             'mid-turn',
         false,
       ),
@@ -836,27 +896,30 @@ void main() {
       });
     }
 
-    testWidgets('us02/fr03: a direction change turns instead of jumping '
-        'when reduced motion turns off in the same frame', (tester) async {
-      addTearDown(
-        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-      );
-      tester.platformDispatcher.accessibilityFeaturesTestValue =
-          const FakeAccessibilityFeatures(reduceMotion: true);
-      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+    testWidgets(
+      'co01_03/us02/fr03: a direction change turns instead of jumping '
+      'when reduced motion turns off in the same frame',
+      (tester) async {
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        await tester.pumpWidget(_turning(StratumCaretDirection.down));
 
-      tester.platformDispatcher.accessibilityFeaturesTestValue =
-          const FakeAccessibilityFeatures();
-      await tester.pumpWidget(_turning(StratumCaretDirection.up));
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures();
+        await tester.pumpWidget(_turning(StratumCaretDirection.up));
 
-      expect(_angle(tester), 0);
-      expect(tester.hasRunningAnimations, isTrue);
+        expect(_angle(tester), 0);
+        expect(tester.hasRunningAnimations, isTrue);
 
-      await tester.pumpAndSettle();
-      expect(_angle(tester), math.pi);
-    });
+        await tester.pumpAndSettle();
+        expect(_angle(tester), math.pi);
+      },
+    );
 
-    testWidgets('us02/fr04/e01, us02/s6: end moves to the left at once when '
+    testWidgets('co01_03/us02/fr04/e01, co01_03/us02/s6: end moves to the left at once when '
         'the app switches to right to left', (tester) async {
       await tester.pumpWidget(_turning(StratumCaretDirection.end));
 
@@ -872,37 +935,43 @@ void main() {
       StratumCaretDirection.up,
       StratumCaretDirection.down,
     ]) {
-      testWidgets('us02/fr04/e02: ${direction.name} stays as it is when the '
-          'text direction flips', (tester) async {
-        await tester.pumpWidget(_turning(direction));
-        final before = _angle(tester);
+      testWidgets(
+        'co01_03/us02/fr04/e02: ${direction.name} stays as it is when the '
+        'text direction flips',
+        (tester) async {
+          await tester.pumpWidget(_turning(direction));
+          final before = _angle(tester);
 
-        await tester.pumpWidget(
-          _turning(direction, textDirection: TextDirection.rtl),
-        );
+          await tester.pumpWidget(
+            _turning(direction, textDirection: TextDirection.rtl),
+          );
 
-        expect(_angle(tester), before);
-        expect(tester.hasRunningAnimations, isFalse);
-      });
+          expect(_angle(tester), before);
+          expect(tester.hasRunningAnimations, isFalse);
+        },
+      );
     }
 
-    testWidgets('us02/fr02: a new direction mid-turn turns on from the live '
-        'angle with no jump', (tester) async {
-      await tester.pumpWidget(_turning(StratumCaretDirection.down));
-      await tester.pumpWidget(_turning(StratumCaretDirection.up));
-      await tester.pump(const Duration(milliseconds: 62));
-      final live = _angle(tester);
+    testWidgets(
+      'co01_03/us02/fr02: a new direction mid-turn turns on from the live '
+      'angle with no jump',
+      (tester) async {
+        await tester.pumpWidget(_turning(StratumCaretDirection.down));
+        await tester.pumpWidget(_turning(StratumCaretDirection.up));
+        await tester.pump(const Duration(milliseconds: 62));
+        final live = _angle(tester);
 
-      await tester.pumpWidget(_turning(StratumCaretDirection.down));
-      expect(_angle(tester), moreOrLessEquals(live));
+        await tester.pumpWidget(_turning(StratumCaretDirection.down));
+        expect(_angle(tester), moreOrLessEquals(live));
 
-      await tester.pump(const Duration(milliseconds: 62));
-      expect(_angle(tester), allOf(greaterThan(0), lessThan(live)));
-      await tester.pumpAndSettle();
-      expect(_angle(tester), 0);
-    });
+        await tester.pump(const Duration(milliseconds: 62));
+        expect(_angle(tester), allOf(greaterThan(0), lessThan(live)));
+        await tester.pumpAndSettle();
+        expect(_angle(tester), 0);
+      },
+    );
 
-    testWidgets('us02/fr02: three overlapping direction changes in one '
+    testWidgets('co01_03/us02/fr02: three overlapping direction changes in one '
         'turn alternate the half-turn way (inv. 8)', (tester) async {
       await tester.pumpWidget(_turning(StratumCaretDirection.down));
       await tester.pumpWidget(_turning(StratumCaretDirection.up));
@@ -929,50 +998,62 @@ void main() {
       expect(_angle(tester), math.pi);
     });
 
-    testWidgets('us02/fr02: a rebuild that keeps the direction starts no '
-        'turn', (tester) async {
-      await tester.pumpWidget(_turning(StratumCaretDirection.up));
+    testWidgets(
+      'co01_03/us02/fr02: a rebuild that keeps the direction starts no '
+      'turn',
+      (tester) async {
+        await tester.pumpWidget(_turning(StratumCaretDirection.up));
 
-      await tester.pumpWidget(
-        _turning(StratumCaretDirection.up, customColor: _custom),
-      );
+        await tester.pumpWidget(
+          _turning(StratumCaretDirection.up, customColor: _custom),
+        );
 
-      expect(tester.hasRunningAnimations, isFalse);
-      expect(_angle(tester), math.pi);
-      expect(_painter(tester).color, _custom);
-    });
+        expect(tester.hasRunningAnimations, isFalse);
+        expect(_angle(tester), math.pi);
+        expect(_painter(tester).color, _custom);
+      },
+    );
 
-    testWidgets('us02/fr02, us02/fr04: a direction and a text direction that '
-        'change in one frame turn once, the short way to the new side', (
-      tester,
-    ) async {
-      await tester.pumpWidget(_turning(StratumCaretDirection.down));
+    testWidgets(
+      'co01_03/us02/fr02, co01_03/us02/fr04: a direction and a text direction that '
+      'change in one frame turn once, the short way to the new side',
+      (tester) async {
+        await tester.pumpWidget(_turning(StratumCaretDirection.down));
 
-      await tester.pumpWidget(
-        _turning(StratumCaretDirection.start, textDirection: TextDirection.rtl),
-      );
-      expect(tester.hasRunningAnimations, isTrue);
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          _turning(
+            StratumCaretDirection.start,
+            textDirection: TextDirection.rtl,
+          ),
+        );
+        expect(tester.hasRunningAnimations, isTrue);
+        await tester.pumpAndSettle();
 
-      // Right to left, start points right: a quarter counterclockwise
-      // from down.
-      expect(_angle(tester), moreOrLessEquals(-math.pi / 2));
-    });
+        // Right to left, start points right: a quarter counterclockwise
+        // from down.
+        expect(_angle(tester), moreOrLessEquals(-math.pi / 2));
+      },
+    );
 
-    testWidgets('us02/fr02: a fast level with no duration shows the new '
-        'direction at once (themes s03 inv. 15)', (tester) async {
-      final theme = _fastLevel(const AnimationStyle());
-      await tester.pumpWidget(
-        _turning(StratumCaretDirection.down, theme: theme),
-      );
+    testWidgets(
+      'co01_03/us02/fr02: a fast level with no duration shows the new '
+      'direction at once (themes s03 inv. 15)',
+      (tester) async {
+        final theme = _fastLevel(const AnimationStyle());
+        await tester.pumpWidget(
+          _turning(StratumCaretDirection.down, theme: theme),
+        );
 
-      await tester.pumpWidget(_turning(StratumCaretDirection.up, theme: theme));
+        await tester.pumpWidget(
+          _turning(StratumCaretDirection.up, theme: theme),
+        );
 
-      expect(_angle(tester), math.pi);
-      expect(tester.hasRunningAnimations, isFalse);
-    });
+        expect(_angle(tester), math.pi);
+        expect(tester.hasRunningAnimations, isFalse);
+      },
+    );
 
-    testWidgets('us02/fr02: a fast level with no curve turns on '
+    testWidgets('co01_03/us02/fr02: a fast level with no curve turns on '
         'easeInOutSine (themes s03 inv. 15)', (tester) async {
       final theme = _fastLevel(
         const AnimationStyle(duration: Duration(milliseconds: 200)),

@@ -113,7 +113,7 @@ void main() {
     );
   });
 
-  testWidgets('us07/fr02/e05, NFR-U03: an animated image pauses on its '
+  testWidgets('fo03/us07/fr02/e05, NFR-U03: an animated image pauses on its '
       'first frame too, under the platform reduce-motion flag alone', (
     tester,
   ) async {

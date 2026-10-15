@@ -136,49 +136,52 @@ void main() {
   // `us13/s7` (splash in front) is out of scope for this task: `splash`
   // stays `planned` (themes `s01_architecture.md:183`); M5-T31 defers it.
 
-  testWidgets('us13/s1: us13/fr02: the app builds its MaterialApp from '
-      'the config', (tester) async {
-    tester.platformDispatcher.localeTestValue = const Locale('en', 'US');
-    addTearDown(tester.platformDispatcher.clearLocaleTestValue);
-    tester.view
-      ..devicePixelRatio = 1
-      ..physicalSize = const Size(1000, 800);
-    addTearDown(tester.view.reset);
-    final controller = await _controller();
-    StratumAppConfig? seen;
-    await tester.pumpWidget(
-      StratumApplication(
-        controller: controller,
-        themeMode: ThemeMode.light,
-        appBuilder: (context, stratum) {
-          seen = stratum;
-          return MaterialApp(
-            theme: stratum.theme,
-            darkTheme: stratum.darkTheme,
-            themeMode: stratum.themeMode,
-            builder: stratum.builder,
-            home: const Text('home'),
-          );
-        },
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('home'), findsOneWidget);
-    expect(seen!.themeMode, ThemeMode.light);
-    expect(find.byType(StratumThemeApplication), findsOneWidget);
-    final textScaler = MediaQuery.textScalerOf(
-      tester.element(find.byType(StratumApplication)),
-    );
-    ThemeData material(StratumThemeData data) => data.toThemeData(
-      locale: const Locale('en', 'US'),
-      windowSize: WindowSize.tablet,
-      textScaler: textScaler,
-    );
-    expect(seen!.theme, material(controller.themes.light));
-    expect(seen!.darkTheme, material(controller.themes.dark!));
-  });
+  testWidgets(
+    'fo03/us13/s1: fo03/us13/fr02: the app builds its MaterialApp from '
+    'the config',
+    (tester) async {
+      tester.platformDispatcher.localeTestValue = const Locale('en', 'US');
+      addTearDown(tester.platformDispatcher.clearLocaleTestValue);
+      tester.view
+        ..devicePixelRatio = 1
+        ..physicalSize = const Size(1000, 800);
+      addTearDown(tester.view.reset);
+      final controller = await _controller();
+      StratumAppConfig? seen;
+      await tester.pumpWidget(
+        StratumApplication(
+          controller: controller,
+          themeMode: ThemeMode.light,
+          appBuilder: (context, stratum) {
+            seen = stratum;
+            return MaterialApp(
+              theme: stratum.theme,
+              darkTheme: stratum.darkTheme,
+              themeMode: stratum.themeMode,
+              builder: stratum.builder,
+              home: const Text('home'),
+            );
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('home'), findsOneWidget);
+      expect(seen!.themeMode, ThemeMode.light);
+      expect(find.byType(StratumThemeApplication), findsOneWidget);
+      final textScaler = MediaQuery.textScalerOf(
+        tester.element(find.byType(StratumApplication)),
+      );
+      ThemeData material(StratumThemeData data) => data.toThemeData(
+        locale: const Locale('en', 'US'),
+        windowSize: WindowSize.tablet,
+        textScaler: textScaler,
+      );
+      expect(seen!.theme, material(controller.themes.light));
+      expect(seen!.darkTheme, material(controller.themes.dark!));
+    },
+  );
 
-  testWidgets('us13/fr02: a theme with no dark data hands a null '
+  testWidgets('fo03/us13/fr02: a theme with no dark data hands a null '
       'darkTheme', (tester) async {
     final controller = _NoDarkController();
     addTearDown(controller.dispose);
@@ -196,7 +199,7 @@ void main() {
     expect(seen!.theme.brightness, Brightness.light);
   });
 
-  testWidgets('us13/fr01: with no controller, the preloaded theme reaches '
+  testWidgets('fo03/us13/fr01: with no controller, the preloaded theme reaches '
       'the app under every layer; unmount disposes it', (tester) async {
     StratumThemeController? preloaded;
     await tester.pumpWidget(
@@ -234,46 +237,52 @@ void main() {
     expect(() => preloaded!.addListener(() {}), throwsFlutterError);
   });
 
-  testWidgets('us13/fr01/e07: with no error frame, a start theme that fails '
-      'keeps the background and is reported once', (tester) async {
-    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
-    await tester.pumpWidget(_failingStart());
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isA<StratumThemeFormatException>());
-    expect(
-      _backgroundBox(StratumApplication.noSplashLightBackground),
-      findsOneWidget,
-    );
-    expect(find.text('home'), findsNothing);
-    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
-    await tester.pump();
-    expect(tester.takeException(), isNull);
-    expect(
-      _backgroundBox(StratumApplication.noSplashDarkBackground),
-      findsOneWidget,
-    );
-  });
+  testWidgets(
+    'fo03/us13/fr01/e07: with no error frame, a start theme that fails '
+    'keeps the background and is reported once',
+    (tester) async {
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await tester.pumpWidget(_failingStart());
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isA<StratumThemeFormatException>());
+      expect(
+        _backgroundBox(StratumApplication.noSplashLightBackground),
+        findsOneWidget,
+      );
+      expect(find.text('home'), findsNothing);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(
+        _backgroundBox(StratumApplication.noSplashDarkBackground),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('us13/fr01/e07: with an error frame, a start theme that fails '
-      'shows that frame, unreported', (tester) async {
-    await tester.pumpWidget(
-      _failingStart(
-        error: (context, error) => Text(
-          'failed ${error.runtimeType}',
-          textDirection: TextDirection.ltr,
+  testWidgets(
+    'fo03/us13/fr01/e07: with an error frame, a start theme that fails '
+    'shows that frame, unreported',
+    (tester) async {
+      await tester.pumpWidget(
+        _failingStart(
+          error: (context, error) => Text(
+            'failed ${error.runtimeType}',
+            textDirection: TextDirection.ltr,
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('failed StratumThemeFormatException'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    expect(
-      _backgroundBox(StratumApplication.noSplashLightBackground),
-      findsNothing,
-    );
-  });
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('failed StratumThemeFormatException'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      expect(
+        _backgroundBox(StratumApplication.noSplashLightBackground),
+        findsNothing,
+      );
+    },
+  );
 
-  testWidgets('us13/fr01: inner layers in order: theme application, '
+  testWidgets('fo03/us13/fr01: inner layers in order: theme application, '
       'toast host, web zoom, child', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -303,7 +312,7 @@ void main() {
     );
   });
 
-  testWidgets('us13/s2: a notice from a screen shows with no host of '
+  testWidgets('fo03/us13/s2: a notice from a screen shows with no host of '
       'the app', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -327,7 +336,7 @@ void main() {
     expect(find.text('Hello'), findsOneWidget);
   });
 
-  testWidgets('us13/s3: us13/fr02/e01: a Cupertino app gets the same '
+  testWidgets('fo03/us13/s3: fo03/us13/fr02/e01: a Cupertino app gets the same '
       'layers', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -341,7 +350,7 @@ void main() {
     expect(find.byType(StratumThemeApplication), findsOneWidget);
   });
 
-  testWidgets('us13/fr02/e01: a plain WidgetsApp gets the same layers', (
+  testWidgets('fo03/us13/fr02/e01: a plain WidgetsApp gets the same layers', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -364,7 +373,7 @@ void main() {
     expect(find.byType(StratumThemeApplication), findsOneWidget);
   });
 
-  testWidgets('us13/s5: us13/fr03: the app wrapper sits inside the '
+  testWidgets('fo03/us13/s5: fo03/us13/fr03: the app wrapper sits inside the '
       'Stratum layers', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -388,7 +397,7 @@ void main() {
     );
   });
 
-  testWidgets('us13/fr03/e01: an unchanged builder puts the layers '
+  testWidgets('fo03/us13/fr03/e01: an unchanged builder puts the layers '
       'directly around the navigator', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -408,7 +417,7 @@ void main() {
     );
   });
 
-  testWidgets('us13/fr03/e02: an app builder that skips the config '
+  testWidgets('fo03/us13/fr03/e02: an app builder that skips the config '
       'builder drops the inner layers', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -423,7 +432,7 @@ void main() {
     expect(find.byType(StratumToastHost), findsNothing);
   });
 
-  testWidgets('us13/s6: us13/fr01/e01: no webZoom leaves the layer '
+  testWidgets('fo03/us13/s6: fo03/us13/fr01/e01: no webZoom leaves the layer '
       'out, others keep order', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -443,7 +452,7 @@ void main() {
     );
   });
 
-  testWidgets('us13/fr01/e02: a component reads the live corner radius, '
+  testWidgets('fo03/us13/fr01/e02: a component reads the live corner radius, '
       'unaffected by the wrapper', (tester) async {
     const radius = BorderRadius.all(Radius.circular(24));
     BorderRadius? seen;
@@ -468,7 +477,7 @@ void main() {
     expect(seen, radius);
   });
 
-  testWidgets('us13/fr01/e05: notices false leaves the host out and '
+  testWidgets('fo03/us13/fr01/e05: notices false leaves the host out and '
       'showToast throws', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -486,7 +495,7 @@ void main() {
     );
   });
 
-  testWidgets('us13/fr01/e06: noticeHost replaces the plain notice '
+  testWidgets('fo03/us13/fr01/e06: noticeHost replaces the plain notice '
       'host', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -501,7 +510,7 @@ void main() {
     expect(find.byKey(const Key('mine')), findsOneWidget);
   });
 
-  testWidgets('us13/fr01/e06: notices false drops the layer whatever '
+  testWidgets('fo03/us13/fr01/e06: notices false drops the layer whatever '
       'noticeHost holds', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -516,7 +525,7 @@ void main() {
     expect(find.byType(StratumToastHost), findsNothing);
   });
 
-  testWidgets('us13/fr01/e06: a rebuild with a new noticeHost takes '
+  testWidgets('fo03/us13/fr01/e06: a rebuild with a new noticeHost takes '
       'effect', (tester) async {
     final controller = await _controller();
     Widget app(Key key) => StratumApplication(
@@ -534,7 +543,7 @@ void main() {
     expect(find.byKey(const Key('second')), findsOneWidget);
   });
 
-  testWidgets('us13/fr02/e03: a mode change runs the app builder '
+  testWidgets('fo03/us13/fr02/e03: a mode change runs the app builder '
       'again', (tester) async {
     final modes = <ThemeMode>[];
     final controller = await _controller();
@@ -552,7 +561,7 @@ void main() {
     expect(modes.last, ThemeMode.dark);
   });
 
-  testWidgets('us13/fr02/e03: an active-theme switch runs the app '
+  testWidgets('fo03/us13/fr02/e03: an active-theme switch runs the app '
       'builder again with the new theme', (tester) async {
     final controller = await StratumThemeController.preload(
       bundle: FakeThemeBundle(themes: {'brand': _brandTheme}),
@@ -574,7 +583,7 @@ void main() {
     expect(seen!.theme.colorScheme.primary, _brandRed);
   });
 
-  testWidgets('us13/fr02/e03: a resize inside one window size class runs '
+  testWidgets('fo03/us13/fr02/e03: a resize inside one window size class runs '
       'the app builder no extra time', (tester) async {
     tester.view
       ..devicePixelRatio = 1
@@ -602,7 +611,7 @@ void main() {
     expect(calls, before + 1);
   });
 
-  testWidgets('us13/fr02/e03: a platform locale change runs the app '
+  testWidgets('fo03/us13/fr02/e03: a platform locale change runs the app '
       'builder again', (tester) async {
     addTearDown(tester.platformDispatcher.clearLocaleTestValue);
     final controller = await _controller();
@@ -637,7 +646,7 @@ void main() {
     );
   });
 
-  testWidgets('us13/fr01: an app-held controller stays usable after the '
+  testWidgets('fo03/us13/fr01: an app-held controller stays usable after the '
       'wrapper unmounts', (tester) async {
     final controller = await _controller();
     await tester.pumpWidget(
@@ -652,28 +661,31 @@ void main() {
     expect(() => controller.addListener(() {}), returnsNormally);
   });
 
-  testWidgets('us13/s4: us13/fr02/e02: the app keeps its own locale; the theme '
-      'application reads it', (tester) async {
-    await tester.pumpWidget(
-      StratumApplication(
-        controller: await _controller(),
-        appBuilder: (c, s) => MaterialApp(
-          locale: const Locale('th'),
-          supportedLocales: const [Locale('th')],
-          localizationsDelegates: StratumLabels.localizationsDelegates,
-          builder: s.builder,
-          home: const Text('home'),
+  testWidgets(
+    'fo03/us13/s4: fo03/us13/fr02/e02: the app keeps its own locale; the theme '
+    'application reads it',
+    (tester) async {
+      await tester.pumpWidget(
+        StratumApplication(
+          controller: await _controller(),
+          appBuilder: (c, s) => MaterialApp(
+            locale: const Locale('th'),
+            supportedLocales: const [Locale('th')],
+            localizationsDelegates: StratumLabels.localizationsDelegates,
+            builder: s.builder,
+            home: const Text('home'),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(
-      Localizations.localeOf(tester.element(find.text('home'))),
-      const Locale('th'),
-    );
-  });
+      );
+      await tester.pumpAndSettle();
+      expect(
+        Localizations.localeOf(tester.element(find.text('home'))),
+        const Locale('th'),
+      );
+    },
+  );
 
-  testWidgets('us13/fr01: systemStyle reaches StratumThemeApplication', (
+  testWidgets('fo03/us13/fr01: systemStyle reaches StratumThemeApplication', (
     tester,
   ) async {
     const style = SystemStyle(barMode: SystemBarMode.topOnly);
@@ -692,7 +704,7 @@ void main() {
     expect(app.systemStyle, style);
   });
 
-  testWidgets('us13/fr01: componentPartDefaults reaches '
+  testWidgets('fo03/us13/fr01: componentPartDefaults reaches '
       'StratumThemeApplication', (tester) async {
     Map<Type, Object> parts(StratumTheme theme) => const {};
     await tester.pumpWidget(
@@ -710,7 +722,7 @@ void main() {
     expect(app.componentPartDefaults, same(parts));
   });
 
-  testWidgets('us13/fr01: componentDefaults and highContrast reach '
+  testWidgets('fo03/us13/fr01: componentDefaults and highContrast reach '
       'StratumThemeApplication', (tester) async {
     Map<Type, WidgetStyle> defaults(StratumTheme theme) => const {};
     await tester.pumpWidget(
@@ -730,39 +742,40 @@ void main() {
     expect(app.highContrast, StratumHighContrastMode.on);
   });
 
-  testWidgets('us13/fr01: the preload inputs reach StratumThemePreloader', (
-    tester,
-  ) async {
-    void onThemeChanged(String id) {}
-    void onRemoteThemeError(String id, StratumRemoteThemeException error) {}
-    Widget errorBuilder(BuildContext context, Object error) =>
-        const SizedBox.shrink();
-    final remoteThemes = <StratumRemoteTheme>[];
-    await tester.pumpWidget(
-      StratumApplication(
-        initialThemeId: 'brand',
-        onThemeChanged: onThemeChanged,
-        googleFontsTimeout: const Duration(seconds: 7),
-        remoteThemes: remoteThemes,
-        onRemoteThemeError: onRemoteThemeError,
-        error: errorBuilder,
-        appBuilder: (c, s) =>
-            MaterialApp(builder: s.builder, home: const Text('home')),
-      ),
-    );
-    final preloader = tester.widget<StratumThemePreloader>(
-      find.byType(StratumThemePreloader),
-    );
-    expect(preloader.initialThemeId, 'brand');
-    expect(preloader.onThemeChanged, same(onThemeChanged));
-    expect(preloader.googleFontsTimeout, const Duration(seconds: 7));
-    expect(preloader.remoteThemes, same(remoteThemes));
-    expect(preloader.onRemoteThemeError, same(onRemoteThemeError));
-    expect(preloader.error, same(errorBuilder));
-    await tester.pumpWidget(const SizedBox());
-  });
+  testWidgets(
+    'fo03/us13/fr01: the preload inputs reach StratumThemePreloader',
+    (tester) async {
+      void onThemeChanged(String id) {}
+      void onRemoteThemeError(String id, StratumRemoteThemeException error) {}
+      Widget errorBuilder(BuildContext context, Object error) =>
+          const SizedBox.shrink();
+      final remoteThemes = <StratumRemoteTheme>[];
+      await tester.pumpWidget(
+        StratumApplication(
+          initialThemeId: 'brand',
+          onThemeChanged: onThemeChanged,
+          googleFontsTimeout: const Duration(seconds: 7),
+          remoteThemes: remoteThemes,
+          onRemoteThemeError: onRemoteThemeError,
+          error: errorBuilder,
+          appBuilder: (c, s) =>
+              MaterialApp(builder: s.builder, home: const Text('home')),
+        ),
+      );
+      final preloader = tester.widget<StratumThemePreloader>(
+        find.byType(StratumThemePreloader),
+      );
+      expect(preloader.initialThemeId, 'brand');
+      expect(preloader.onThemeChanged, same(onThemeChanged));
+      expect(preloader.googleFontsTimeout, const Duration(seconds: 7));
+      expect(preloader.remoteThemes, same(remoteThemes));
+      expect(preloader.onRemoteThemeError, same(onRemoteThemeError));
+      expect(preloader.error, same(errorBuilder));
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
-  testWidgets('us13/fr04/e03: the gate sits first inside '
+  testWidgets('fo03/us13/fr04/e03: the gate sits first inside '
       'stratum.builder, around the navigator', (tester) async {
     final answer = Completer<UpdateStatus>();
     await tester.pumpWidget(
@@ -798,7 +811,7 @@ void main() {
     expect(find.text('Home'), findsNothing);
   });
 
-  testWidgets('us13/fr04/e03: a required answer hides a shown notice and '
+  testWidgets('fo03/us13/fr04/e03: a required answer hides a shown notice and '
       'an open dialog', (tester) async {
     final answer = Completer<UpdateStatus>();
     await tester.pumpWidget(
@@ -842,7 +855,7 @@ void main() {
     expect(find.text('Dialog'), findsNothing);
   });
 
-  testWidgets('us13/fr01/e01: all four inner layers keep their order, and '
+  testWidgets('fo03/us13/fr01/e01: all four inner layers keep their order, and '
       'notices false keeps the gate over web zoom', (tester) async {
     final controller = await _controller();
     final answer = Completer<UpdateStatus>();
@@ -873,7 +886,7 @@ void main() {
     expect(under(under(gate, StratumWebZoom), Navigator), findsOneWidget);
   });
 
-  testWidgets('us13/fr01/e04: with no splash the default background '
+  testWidgets('fo03/us13/fr01/e04: with no splash the default background '
       'shows until the theme is active', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -892,7 +905,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('us13/fr01/e04: a dark themeMode with no splash shows '
+  testWidgets('fo03/us13/fr01/e04: a dark themeMode with no splash shows '
       'the dark background', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -912,7 +925,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('us13/fr01/e04: a light themeMode with no splash shows '
+  testWidgets('fo03/us13/fr01/e04: a light themeMode with no splash shows '
       'the light background', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -932,7 +945,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('us13/fr01/e04: themeMode system with platform brightness '
+  testWidgets('fo03/us13/fr01/e04: themeMode system with platform brightness '
       'dark shows the dark background', (tester) async {
     await tester.pumpWidget(
       MediaQuery(
@@ -955,7 +968,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('us13/fr01/e04: themeMode system with platform brightness '
+  testWidgets('fo03/us13/fr01/e04: themeMode system with platform brightness '
       'light shows the light background', (tester) async {
     await tester.pumpWidget(
       MediaQuery(
@@ -978,7 +991,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('us13/fr01/e04: loadingBuilder replaces the default '
+  testWidgets('fo03/us13/fr01/e04: loadingBuilder replaces the default '
       'background', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -993,7 +1006,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  test('us13/fr01/e04: the no-splash colors equal the default theme '
+  test('fo03/us13/fr01/e04: the no-splash colors equal the default theme '
       'background', () {
     expect(
       StratumApplication.noSplashLightBackground,
@@ -1033,7 +1046,7 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('us13/fr01/e01: adding updateGate on a rebuild keeps the '
+  testWidgets('fo03/us13/fr01/e01: adding updateGate on a rebuild keeps the '
       'pushed route', (tester) async {
     final controller = await _controller();
     Widget app({required bool gate}) => StratumApplication(
@@ -1067,7 +1080,7 @@ void main() {
     expect(find.text('pushed'), findsOneWidget);
   });
 
-  testWidgets('us13/fr01/e01: removing webZoom on a rebuild keeps the '
+  testWidgets('fo03/us13/fr01/e01: removing webZoom on a rebuild keeps the '
       'pushed route', (tester) async {
     final controller = await _controller();
     Widget app({required bool zoom}) => StratumApplication(
@@ -1095,7 +1108,7 @@ void main() {
     expect(find.text('pushed'), findsOneWidget);
   });
 
-  testWidgets('us13/fr01: controller moving from null to non-null keeps '
+  testWidgets('fo03/us13/fr01: controller moving from null to non-null keeps '
       'the app widget mounted', (tester) async {
     final controller = await _controller();
     Widget app(StratumThemeController? c) => DefaultAssetBundle(
@@ -1116,7 +1129,7 @@ void main() {
     expect(find.text('1'), findsOneWidget);
   });
 
-  testWidgets('us13/fr01: a nested wrapper sharing the outer '
+  testWidgets('fo03/us13/fr01: a nested wrapper sharing the outer '
       'controller works, with notices false', (tester) async {
     await tester.pumpWidget(
       StratumApplication(
@@ -1148,7 +1161,7 @@ void main() {
     expect(find.text('Hello'), findsOneWidget);
   });
 
-  testWidgets('us13/fr02: MaterialApp.router renders a pushed page under '
+  testWidgets('fo03/us13/fr02: MaterialApp.router renders a pushed page under '
       "the toast host, with no route of the wrapper's own", (tester) async {
     final provider = PlatformRouteInformationProvider(
       initialRouteInformation: RouteInformation(uri: Uri.parse('/')),
@@ -1187,7 +1200,7 @@ void main() {
     expect(find.byType(Navigator), findsOneWidget);
   });
 
-  testWidgets('us13/fr01/e01: adding updateGate on a rebuild keeps the '
+  testWidgets('fo03/us13/fr01/e01: adding updateGate on a rebuild keeps the '
       'Router State identity and the pushed page, with MaterialApp.router', (
     tester,
   ) async {

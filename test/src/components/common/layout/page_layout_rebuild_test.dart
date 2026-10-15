@@ -57,7 +57,7 @@ Widget _page({
 
 void main() {
   group('PageLayout build counts (US-18 FR-02; layout s03 invariant 63)', () {
-    testWidgets('us18/fr02/e01: a drawer opens and closes, no slot builds '
+    testWidgets('fo06/us18/fr02/e01: a drawer opens and closes, no slot builds '
         'again', (tester) async {
       _view(tester, const Size(390, 844));
       final counts = <String, int>{};
@@ -84,7 +84,7 @@ void main() {
     });
 
     testWidgets(
-      'us18/fr02/e01: the iOS slide drawer opens and closes, no slot '
+      'fo06/us18/fr02/e01: the iOS slide drawer opens and closes, no slot '
       'builds again',
       (tester) async {
         _view(tester, const Size(390, 844));
@@ -112,7 +112,7 @@ void main() {
     );
 
     testWidgets(
-      'us18/fr02/e02: us19/fr06/e04: a 60-frame pane drag builds no slot',
+      'fo06/us18/fr02/e02: fo06/us19/fr06/e04: a 60-frame pane drag builds no slot',
       (tester) async {
         _view(tester, const Size(1300, 800));
         final counts = <String, int>{};
@@ -139,7 +139,7 @@ void main() {
     );
 
     testWidgets(
-      'us18/fr02/e03: a tablet-to-desktop resize, both above the drawer '
+      'fo06/us18/fr02/e03: a tablet-to-desktop resize, both above the drawer '
       'cut, builds no slot',
       (tester) async {
         _view(tester, const Size(1000, 800)); // tablet
@@ -160,7 +160,7 @@ void main() {
     );
 
     testWidgets(
-      'us19/fr01/e05: a drawer-cut crossing remounts no center slot',
+      'fo06/us19/fr01/e05: a drawer-cut crossing remounts no center slot',
       (tester) async {
         _view(tester, const Size(390, 844)); // mobile: left is a closed
         // drawer, never built.
@@ -183,7 +183,7 @@ void main() {
     );
 
     testWidgets(
-      'us19/fr01/e05: a drawer-cut crossing down remounts no center slot',
+      'fo06/us19/fr01/e05: a drawer-cut crossing down remounts no center slot',
       (tester) async {
         _view(tester, const Size(1000, 800)); // tablet: left is an inline
         // pane, already built.
@@ -256,7 +256,7 @@ void main() {
     });
 
     testWidgets(
-      'us18/fr02/e04: the app wraps only body, only its listener rebuilds',
+      'fo06/us18/fr02/e04: the app wraps only body, only its listener rebuilds',
       (tester) async {
         _view(tester, const Size(390, 844));
         final counts = <String, int>{};
@@ -267,8 +267,7 @@ void main() {
             header: _Counter('header', counts),
             body: ValueListenableBuilder<int>(
               valueListenable: state,
-              builder: (context, value, _) =>
-                  _Counter('body $value', counts),
+              builder: (context, value, _) => _Counter('body $value', counts),
             ),
           ),
         );
@@ -280,7 +279,7 @@ void main() {
     );
 
     testWidgets(
-      'us18/fr02/e05: the app wraps the whole page, every slot rebuilds',
+      'fo06/us18/fr02/e05: the app wraps the whole page, every slot rebuilds',
       (tester) async {
         final counts = <String, int>{};
         final state = ValueNotifier(0);

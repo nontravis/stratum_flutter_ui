@@ -44,7 +44,7 @@ StratumAnimationConfig _config({
 
 void main() {
   group('StratumAnimation.fromConfig', () {
-    test('us11/fr01: gives the six levels, each reversing at 64% on '
+    test('fo03/us11/fr01: gives the six levels, each reversing at 64% on '
         'standard', () {
       final animation = StratumAnimation.fromConfig(_config());
 
@@ -109,7 +109,7 @@ void main() {
       expect(normal.defaultStyle, normal.normal);
     });
 
-    test('us11/fr01: defaultStyle follows a micro default', () {
+    test('fo03/us11/fr01: defaultStyle follows a micro default', () {
       final micro = StratumAnimation.fromConfig(_config(defaultLevel: 'micro'));
 
       expect(micro.defaultLevel, StratumMotionLevel.micro);
@@ -117,7 +117,7 @@ void main() {
       expect(micro.defaultStyle.duration, const Duration(milliseconds: 30));
     });
 
-    test('us11/fr01/e01: two animations that differ only in micro '
+    test('fo03/us11/fr01/e01: two animations that differ only in micro '
         'are not equal', () {
       const base = StratumAnimation.packageDefault;
       StratumAnimation withMicro(AnimationStyle micro) => StratumAnimation(
@@ -208,7 +208,7 @@ void main() {
       );
     });
 
-    test('us11/s1: a change that animates forward runs 125 ms on '
+    test('fo03/us11/s1: a change that animates forward runs 125 ms on '
         'easeInOutSine', () {
       const fast = StratumAnimation.packageDefault;
 
@@ -216,7 +216,7 @@ void main() {
       expect(fast.defaultStyle.curve, Curves.easeInOutSine);
     });
 
-    test('us11/s2: a change that animates back runs 80 ms on '
+    test('fo03/us11/s2: a change that animates back runs 80 ms on '
         'easeInOutSine', () {
       const fast = StratumAnimation.packageDefault;
 
@@ -227,7 +227,7 @@ void main() {
       expect(fast.defaultStyle.reverseCurve, Curves.easeInOutSine);
     });
 
-    test('us11/fr01: carries micro at 30 and 19.2 ms and veryFast at 75 '
+    test('fo03/us11/fr01: carries micro at 30 and 19.2 ms and veryFast at 75 '
         'and 48 ms', () {
       const motion = StratumAnimation.packageDefault;
 
@@ -284,13 +284,16 @@ void main() {
       expect(data, same(view));
     });
 
-    testWidgets('us11/fr01/e02: with disableAnimations StratumAnimation.of '
-        'gives the yaml micro level', (tester) async {
-      final (view, _) = await read(tester, disableAnimations: true);
+    testWidgets(
+      'fo03/us11/fr01/e02: with disableAnimations StratumAnimation.of '
+      'gives the yaml micro level',
+      (tester) async {
+        final (view, _) = await read(tester, disableAnimations: true);
 
-      expect(view.micro.duration, const Duration(milliseconds: 30));
-      expect(view.micro.reverseDuration, const Duration(microseconds: 19200));
-    });
+        expect(view.micro.duration, const Duration(milliseconds: 30));
+        expect(view.micro.reverseDuration, const Duration(microseconds: 19200));
+      },
+    );
 
     testWidgets("fr01: with the platform's reduceMotion both readers give "
         '77 ms', (tester) async {

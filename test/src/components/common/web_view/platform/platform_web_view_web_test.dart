@@ -104,7 +104,7 @@ void main() {
   }
 
   test(
-    'us01/fr01: a controller load reports one start and one finish',
+    'co01_02/us01/fr01: a controller load reports one start and one finish',
     () async {
       final url = appOrigin.replace(path: '/one');
       await view.load(StratumWebViewSource.url(url));
@@ -113,34 +113,40 @@ void main() {
     },
   );
 
-  test('us01/fr01/e06: a frame load with no open start reports its start '
-      'right before its finish', () async {
-    final url = appOrigin.replace(path: '/one');
-    await view.load(StratumWebViewSource.url(url));
-    fireFrameLoad();
-    // A link inside the frame: the frame loads again with no controller call.
-    fireFrameLoad();
-    expect(listener.events, [
-      'started $url',
-      'finished $url',
-      'started $url',
-      'finished $url',
-    ]);
-  });
+  test(
+    'co01_02/us01/fr01/e06: a frame load with no open start reports its start '
+    'right before its finish',
+    () async {
+      final url = appOrigin.replace(path: '/one');
+      await view.load(StratumWebViewSource.url(url));
+      fireFrameLoad();
+      // A link inside the frame: the frame loads again with no controller call.
+      fireFrameLoad();
+      expect(listener.events, [
+        'started $url',
+        'finished $url',
+        'started $url',
+        'finished $url',
+      ]);
+    },
+  );
 
-  test('us01/fr01/e06: HTML whose frame reloads on re-insertion reports a '
-      'start before that finish', () async {
-    await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
-    fireFrameLoad();
-    // The view is inserted again: srcdoc reloads with no controller call.
-    fireFrameLoad();
-    expect(listener.events, [
-      'started null',
-      'finished null',
-      'started null',
-      'finished null',
-    ]);
-  });
+  test(
+    'co01_02/us01/fr01/e06: HTML whose frame reloads on re-insertion reports a '
+    'start before that finish',
+    () async {
+      await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      fireFrameLoad();
+      // The view is inserted again: srcdoc reloads with no controller call.
+      fireFrameLoad();
+      expect(listener.events, [
+        'started null',
+        'finished null',
+        'started null',
+        'finished null',
+      ]);
+    },
+  );
 
   test('renders HTML in a scripts-only sandbox', () async {
     await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
@@ -191,27 +197,30 @@ void main() {
     },
   );
 
-  test('us03/fr05: each message reaches the listener with its sender, the '
-      'origin for a URL page and the adopted render for HTML', () async {
-    await loadBlobScript("parent.postMessage('hi','*');");
-    attach();
-    await waitForMessages(1);
-    expect(
-      listener.senders.single,
-      isA<PlatformUrlPageSender>().having(
-        (sender) => sender.origin,
-        'origin',
-        appOrigin,
-      ),
-    );
-    await view.load(
-      const StratumWebViewSource.html(
-        "<script>StratumBridge.postMessage('ready');</script>",
-      ),
-    );
-    await waitForMessages(2);
-    expect(listener.senders.last, isA<PlatformHtmlDocumentSender>());
-  });
+  test(
+    'co01_02/us03/fr05: each message reaches the listener with its sender, the '
+    'origin for a URL page and the adopted render for HTML',
+    () async {
+      await loadBlobScript("parent.postMessage('hi','*');");
+      attach();
+      await waitForMessages(1);
+      expect(
+        listener.senders.single,
+        isA<PlatformUrlPageSender>().having(
+          (sender) => sender.origin,
+          'origin',
+          appOrigin,
+        ),
+      );
+      await view.load(
+        const StratumWebViewSource.html(
+          "<script>StratumBridge.postMessage('ready');</script>",
+        ),
+      );
+      await waitForMessages(2);
+      expect(listener.senders.last, isA<PlatformHtmlDocumentSender>());
+    },
+  );
 
   test('drops a real message from another window, not the frame', () async {
     await view.load(missingPage());
@@ -280,67 +289,73 @@ void main() {
     expect(listener.messages, isEmpty);
   });
 
-  test('us03/fr01/e13: a forged message event, with an allowed origin and '
-      'the frame as source, is dropped', () async {
-    await view.load(missingPage());
-    attach();
-    dispatchMessage('forged'.toJS, origin: appOrigin.toString());
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    expect(listener.messages, isEmpty);
-  });
+  test(
+    'co01_02/us03/fr01/e13: a forged message event, with an allowed origin and '
+    'the frame as source, is dropped',
+    () async {
+      await view.load(missingPage());
+      attach();
+      dispatchMessage('forged'.toJS, origin: appOrigin.toString());
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(listener.messages, isEmpty);
+    },
+  );
 
-  test('us03/fr01/e13: a forged "null" handshake carrying the real nonce, '
-      'with a real port, never adopts and never hijacks the bridge', () async {
-    // An echo listener proves the genuine bridge still round-trips after
-    // the forgery: a regression that closes the real port without adopting
-    // the forged one (a bridge DoS) would fail this, not just the attacker
-    // check below.
-    await view.load(
-      const StratumWebViewSource.html(
-        '<script>\n'
-        "window.addEventListener('message', function(e) {\n"
-        "StratumBridge.postMessage('echo:' + e.data);\n"
-        '});\n'
-        "StratumBridge.postMessage('ready');\n"
-        '</script>',
-      ),
-    );
-    attach();
-    await waitForMessages(1); // the real handshake's 'ready' message
-    final srcdocValue = view.iframe.srcdoc;
-    if (!srcdocValue.isA<JSString>()) fail('expected a string srcdoc');
-    final srcdoc = (srcdocValue as JSString).toDart;
-    final nonce = RegExp('stratum-bridge-handshake:([0-9a-f]{32})')
-        .firstMatch(srcdoc)!
-        .group(1)!;
-
-    final evilChannel = web.MessageChannel();
-    var attackerSawPost = false;
-    evilChannel.port1.onmessage = ((web.MessageEvent event) {
-      attackerSawPost = true;
-    }).toJS;
-    evilChannel.port1.start();
-    web.window.dispatchEvent(
-      web.MessageEvent(
-        'message',
-        web.MessageEventInit(
-          data: 'stratum-bridge-handshake:$nonce'.toJS,
-          origin: 'null',
-          source: view.iframe.contentWindow,
-          ports: [evilChannel.port2].toJS,
+  test(
+    'co01_02/us03/fr01/e13: a forged "null" handshake carrying the real nonce, '
+    'with a real port, never adopts and never hijacks the bridge',
+    () async {
+      // An echo listener proves the genuine bridge still round-trips after
+      // the forgery: a regression that closes the real port without adopting
+      // the forged one (a bridge DoS) would fail this, not just the attacker
+      // check below.
+      await view.load(
+        const StratumWebViewSource.html(
+          '<script>\n'
+          "window.addEventListener('message', function(e) {\n"
+          "StratumBridge.postMessage('echo:' + e.data);\n"
+          '});\n'
+          "StratumBridge.postMessage('ready');\n"
+          '</script>',
         ),
-      ),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 100));
+      );
+      attach();
+      await waitForMessages(1); // the real handshake's 'ready' message
+      final srcdocValue = view.iframe.srcdoc;
+      if (!srcdocValue.isA<JSString>()) fail('expected a string srcdoc');
+      final srcdoc = (srcdocValue as JSString).toDart;
+      final nonce = RegExp('stratum-bridge-handshake:([0-9a-f]{32})')
+          .firstMatch(srcdoc)!
+          .group(1)!;
 
-    await view.postMessage('to-page');
-    await waitForMessages(2);
-    expect(listener.messages, [
-      const StratumWebViewMessage(data: 'ready'),
-      const StratumWebViewMessage(data: 'echo:to-page'),
-    ]);
-    expect(attackerSawPost, isFalse);
-  });
+      final evilChannel = web.MessageChannel();
+      var attackerSawPost = false;
+      evilChannel.port1.onmessage = ((web.MessageEvent event) {
+        attackerSawPost = true;
+      }).toJS;
+      evilChannel.port1.start();
+      web.window.dispatchEvent(
+        web.MessageEvent(
+          'message',
+          web.MessageEventInit(
+            data: 'stratum-bridge-handshake:$nonce'.toJS,
+            origin: 'null',
+            source: view.iframe.contentWindow,
+            ports: [evilChannel.port2].toJS,
+          ),
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      await view.postMessage('to-page');
+      await waitForMessages(2);
+      expect(listener.messages, [
+        const StratumWebViewMessage(data: 'ready'),
+        const StratumWebViewMessage(data: 'echo:to-page'),
+      ]);
+      expect(attackerSawPost, isFalse);
+    },
+  );
 
   test('StratumBridge.postMessage from our HTML reaches the listener '
       'with origin null', () async {
@@ -501,80 +516,51 @@ location.href = 'data:text/html,' + encodeURIComponent(
     );
   });
 
-  test('us03/fr05/e06: a reply reaches the render whose port carried the '
-      "message, and throws once a re-insertion's handshake replaced that "
-      'port', () async {
-    await view.load(
-      const StratumWebViewSource.html(
-        '<script>\n'
-        "window.addEventListener('message', function(e) {\n"
-        "StratumBridge.postMessage('echo:' + e.data);\n"
-        '});\n'
-        "StratumBridge.postMessage('ready');\n"
-        '</script>',
-      ),
-    );
-    attach();
-    await waitForMessages(1);
-    final first = listener.senders.last as PlatformHtmlDocumentSender;
-    await view.replyToDocument(first, 'ping');
-    await waitForMessages(2);
-    expect(listener.messages.last.data, 'echo:ping');
-
-    view.iframe.remove();
-    final host = web.HTMLDivElement();
-    web.document.body!.appendChild(host);
-    // A tear-off of a JS interop member does not compile, so wrap it.
-    // ignore: unnecessary_lambdas
-    addTearDown(() => host.remove());
-    view.attachTo(host);
-    // The re-insertion destroys the document that owned the port before the
-    // new handshake runs: the reply must throw at once, never resolve into
-    // a dead port (US-03 FR-05 E06).
-    await expectLater(
-      view.replyToDocument(first, 'early'),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
-          'The HTML document that sent the message is gone.',
-        ),
-      ),
-    );
-    await waitForMessages(3);
-    final second = listener.senders.last as PlatformHtmlDocumentSender;
-
-    await expectLater(
-      view.replyToDocument(first, 'late'),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
-          'The HTML document that sent the message is gone.',
-        ),
-      ),
-    );
-    await view.replyToDocument(second, 'pong');
-    await waitForMessages(4);
-    expect(listener.messages.last.data, 'echo:pong');
-  });
-
   test(
-    'us03/fr05/e06: a reply throws once the view leaves the tree, with no '
-    're-insertion',
+    'co01_02/us03/fr05/e06: a reply reaches the render whose port carried the '
+    "message, and throws once a re-insertion's handshake replaced that "
+    'port',
     () async {
       await view.load(
         const StratumWebViewSource.html(
-          "<script>StratumBridge.postMessage('ready');</script>",
+          '<script>\n'
+          "window.addEventListener('message', function(e) {\n"
+          "StratumBridge.postMessage('echo:' + e.data);\n"
+          '});\n'
+          "StratumBridge.postMessage('ready');\n"
+          '</script>',
         ),
       );
       attach();
       await waitForMessages(1);
       final first = listener.senders.last as PlatformHtmlDocumentSender;
+      await view.replyToDocument(first, 'ping');
+      await waitForMessages(2);
+      expect(listener.messages.last.data, 'echo:ping');
 
       view.iframe.remove();
-      // No re-insertion follows: `attachTo` never runs, so only the
-      // disconnected iframe itself can close this window (US-03 FR-05 E06).
+      final host = web.HTMLDivElement();
+      web.document.body!.appendChild(host);
+      // A tear-off of a JS interop member does not compile, so wrap it.
+      // ignore: unnecessary_lambdas
+      addTearDown(() => host.remove());
+      view.attachTo(host);
+      // The re-insertion destroys the document that owned the port before the
+      // new handshake runs: the reply must throw at once, never resolve into
+      // a dead port (US-03 FR-05 E06).
+      await expectLater(
+        view.replyToDocument(first, 'early'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'The HTML document that sent the message is gone.',
+          ),
+        ),
+      );
+      await waitForMessages(3);
+      final second = listener.senders.last as PlatformHtmlDocumentSender;
+
       await expectLater(
         view.replyToDocument(first, 'late'),
         throwsA(
@@ -585,11 +571,40 @@ location.href = 'data:text/html,' + encodeURIComponent(
           ),
         ),
       );
+      await view.replyToDocument(second, 'pong');
+      await waitForMessages(4);
+      expect(listener.messages.last.data, 'echo:pong');
     },
   );
 
+  test('co01_02/us03/fr05/e06: a reply throws once the view leaves the tree, with no '
+      're-insertion', () async {
+    await view.load(
+      const StratumWebViewSource.html(
+        "<script>StratumBridge.postMessage('ready');</script>",
+      ),
+    );
+    attach();
+    await waitForMessages(1);
+    final first = listener.senders.last as PlatformHtmlDocumentSender;
+
+    view.iframe.remove();
+    // No re-insertion follows: `attachTo` never runs, so only the
+    // disconnected iframe itself can close this window (US-03 FR-05 E06).
+    await expectLater(
+      view.replyToDocument(first, 'late'),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'The HTML document that sent the message is gone.',
+        ),
+      ),
+    );
+  });
+
   test(
-    'us03/fr05/e06: a reply throws once a load leaves the HTML entry',
+    'co01_02/us03/fr05/e06: a reply throws once a load leaves the HTML entry',
     () async {
       await view.load(
         const StratumWebViewSource.html(
@@ -613,7 +628,7 @@ location.href = 'data:text/html,' + encodeURIComponent(
     },
   );
 
-  test('us03/fr05/e07: after a link away inside the frame, a reply '
+  test('co01_02/us03/fr05/e07: after a link away inside the frame, a reply '
       'resolves and nothing arrives', () async {
     await view.load(
       const StratumWebViewSource.html(
@@ -735,7 +750,7 @@ location.href = 'data:text/html,' + encodeURIComponent(
     },
   );
 
-  test('us04/fr01/e02: currentUrl reports the requested URL until the '
+  test('co01_02/us04/fr01/e02: currentUrl reports the requested URL until the '
       "frame's load for it, even while the frame shows the page it leaves, "
       "then the frame's location", () async {
     final first = appOrigin.replace(path: '/missing');
@@ -750,7 +765,7 @@ location.href = 'data:text/html,' + encodeURIComponent(
     expect(await view.currentUrl(), second);
   });
 
-  test('us04/fr01/e02: currentUrl reports the entry URL while a '
+  test('co01_02/us04/fr01/e02: currentUrl reports the entry URL while a '
       "re-inserted view restarts that entry's navigation, not the "
       "restarted navigation's transient about:blank", () async {
     final url = appOrigin.replace(path: '/missing');
@@ -771,7 +786,7 @@ location.href = 'data:text/html,' + encodeURIComponent(
     expect(await view.currentUrl(), url);
   });
 
-  test('us04/fr01/e03: once the frame is genuinely cross-origin, currentUrl '
+  test('co01_02/us04/fr01/e03: once the frame is genuinely cross-origin, currentUrl '
       'returns the last URL the controller loaded, read from the catch '
       'branch its cross-origin location throws into', () async {
     // A `data:` navigation (not `srcdoc`) gives the frame its own opaque
@@ -803,37 +818,40 @@ location.href = 'data:text/html,' + encodeURIComponent(
     expect(await view.currentUrl(), b);
   });
 
-  test('us03/fr01/e05: an outgoing URL page message arrives with its own '
-      'origin after the view moved on, to HTML or to another URL', () async {
-    // Each real page posts its own message from `beforeunload`, its last
-    // script run while still the page the frame shows: a real reproduction
-    // of an outgoing page's late message, in place of forging the event.
-    // `pagehide` and `unload` never deliver a `postMessage` sent from this
-    // frame's own navigation in this harness; `beforeunload` does.
-    await loadBlobScript(
-      "window.addEventListener('beforeunload',function(){"
-      "parent.postMessage('to html','*');});",
-    );
-    attach();
-    // Each page's `beforeunload` listener must already be registered
-    // before the next navigation leaves it, so wait for that page's load.
-    await finishes(1);
-    await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
-    await finishes(2);
-    await loadBlobScript(
-      "window.addEventListener('beforeunload',function(){"
-      "parent.postMessage('to url','*');});",
-    );
-    await finishes(3);
-    await view.load(
-      StratumWebViewSource.url(appOrigin.replace(path: '/second')),
-    );
-    await waitForMessages(2);
-    expect(listener.messages, [
-      StratumWebViewMessage(data: 'to html', origin: appOrigin),
-      StratumWebViewMessage(data: 'to url', origin: appOrigin),
-    ]);
-  });
+  test(
+    'co01_02/us03/fr01/e05: an outgoing URL page message arrives with its own '
+    'origin after the view moved on, to HTML or to another URL',
+    () async {
+      // Each real page posts its own message from `beforeunload`, its last
+      // script run while still the page the frame shows: a real reproduction
+      // of an outgoing page's late message, in place of forging the event.
+      // `pagehide` and `unload` never deliver a `postMessage` sent from this
+      // frame's own navigation in this harness; `beforeunload` does.
+      await loadBlobScript(
+        "window.addEventListener('beforeunload',function(){"
+        "parent.postMessage('to html','*');});",
+      );
+      attach();
+      // Each page's `beforeunload` listener must already be registered
+      // before the next navigation leaves it, so wait for that page's load.
+      await finishes(1);
+      await view.load(const StratumWebViewSource.html('<p>Hi</p>'));
+      await finishes(2);
+      await loadBlobScript(
+        "window.addEventListener('beforeunload',function(){"
+        "parent.postMessage('to url','*');});",
+      );
+      await finishes(3);
+      await view.load(
+        StratumWebViewSource.url(appOrigin.replace(path: '/second')),
+      );
+      await waitForMessages(2);
+      expect(listener.messages, [
+        StratumWebViewMessage(data: 'to html', origin: appOrigin),
+        StratumWebViewMessage(data: 'to url', origin: appOrigin),
+      ]);
+    },
+  );
 
   test('a load started just before dispose leaves the frame blank', () async {
     final pending = view.load(const StratumWebViewSource.html('<p>Hi</p>'));
@@ -856,7 +874,7 @@ location.href = 'data:text/html,' + encodeURIComponent(
     expect(listener.pagesStarted, isEmpty);
   });
 
-  test('us03/fr02/e17: a named send throws before any post when the '
+  test('co01_02/us03/fr02/e17: a named send throws before any post when the '
       'current entry has another origin', () async {
     await view.load(missingPage());
     attach();
@@ -873,7 +891,7 @@ location.href = 'data:text/html,' + encodeURIComponent(
     );
   });
 
-  test('us03/fr02/e14, us03/fr02/e18: a named send matches the current '
+  test('co01_02/us03/fr02/e14, co01_02/us03/fr02/e18: a named send matches the current '
       'entry by origin, so another page of that origin receives it', () async {
     await view.load(missingPage());
     attach();
@@ -888,7 +906,7 @@ location.href = 'data:text/html,' + encodeURIComponent(
     );
   });
 
-  test("us03/fr02/e16: a named send to the app's HTML throws, while an "
+  test("co01_02/us03/fr02/e16: a named send to the app's HTML throws, while an "
       'unnamed one still reaches it', () async {
     final ready = Completer<void>();
     listener.onMessageCallback = (message) {
@@ -924,7 +942,7 @@ location.href = 'data:text/html,' + encodeURIComponent(
     );
   });
 
-  test('us03/s8, us03/fr02/e17: after the view moves to a page of another '
+  test('co01_02/us03/s8, co01_02/us03/fr02/e17: after the view moves to a page of another '
       'allowed origin, a send naming the first origin throws', () async {
     listener.allowedOrigins = {appOrigin, partner};
     await view.load(missingPage());

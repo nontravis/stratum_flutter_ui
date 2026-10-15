@@ -78,7 +78,7 @@ Future<void> _withTargetPlatform(
 }
 
 void main() {
-  testWidgets('us18/fr07/e01: a null systemStyle adds no scope; a set one '
+  testWidgets('fo06/us18/fr07/e01: a null systemStyle adds no scope; a set one '
       'wins over the auto icons', (tester) async {
     systemBarsView(tester);
     await tester.pumpWidget(
@@ -111,7 +111,7 @@ void main() {
     expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
   });
 
-  testWidgets('us18/fr07: with no slot at the bar point, the outer fill '
+  testWidgets('fo06/us18/fr07: with no slot at the bar point, the outer fill '
       'declares itself (edge review F1)', (tester) async {
     systemBarsView(tester);
     Widget page(Color fill) => systemStyleApp(
@@ -128,29 +128,38 @@ void main() {
     expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
   });
 
-  testWidgets('us18/fr07/e04: with no header, an inline left pane covering '
-      'the status bar point declares its fill (correctness review Minor 2)', (
-    tester,
-  ) async {
-    systemBarsView(tester);
-    Widget page(Color fill) => systemStyleApp(
-      home: PageLayout(
-        left: const SizedBox(),
-        body: const Text('Body'),
-        leftSide: const PageSide(minWidth: 500),
-        customStyle: PageLayoutStyle(left: WidgetStyle(backgroundColor: fill)),
-      ),
-    );
-    await tester.pumpWidget(page(_black));
+  testWidgets(
+    'fo06/us18/fr07/e04: with no header, an inline left pane covering '
+    'the status bar point declares its fill (correctness review Minor 2)',
+    (tester) async {
+      systemBarsView(tester);
+      Widget page(Color fill) => systemStyleApp(
+        home: PageLayout(
+          left: const SizedBox(),
+          body: const Text('Body'),
+          leftSide: const PageSide(minWidth: 500),
+          customStyle: PageLayoutStyle(
+            left: WidgetStyle(backgroundColor: fill),
+          ),
+        ),
+      );
+      await tester.pumpWidget(page(_black));
 
-    expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.light);
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.light,
+      );
 
-    await tester.pumpWidget(page(_white));
+      await tester.pumpWidget(page(_white));
 
-    expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
-  });
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
+    },
+  );
 
-  testWidgets("us18/fr07/e07: a page systemStyle nested in another page's "
+  testWidgets("fo06/us18/fr07/e07: a page systemStyle nested in another page's "
       'body merges over it, field by field (correctness review Minor 2)', (
     tester,
   ) async {
@@ -184,7 +193,7 @@ void main() {
     });
   });
 
-  testWidgets('us18/fr07/e09: a page with systemStyle set reads the same '
+  testWidgets('fo06/us18/fr07/e09: a page with systemStyle set reads the same '
       'semantics tree as one without (correctness review Minor 2)', (
     tester,
   ) async {
@@ -208,7 +217,7 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('us18/fr07/e02: a dark, then a light header fill flips the '
+  testWidgets('fo06/us18/fr07/e02: a dark, then a light header fill flips the '
       'auto status icons', (tester) async {
     systemBarsView(tester);
     Widget page(Color fill) => systemStyleApp(
@@ -228,7 +237,7 @@ void main() {
     expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
   });
 
-  testWidgets('us18/fr07/e02: with no header, a top slot fill at the top '
+  testWidgets('fo06/us18/fr07/e02: with no header, a top slot fill at the top '
       'edge declares itself', (tester) async {
     systemBarsView(tester);
     Widget page(Color fill) => systemStyleApp(
@@ -247,7 +256,7 @@ void main() {
     expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
   });
 
-  testWidgets('us18/fr07/e02: with no header, top, or tab, a body fill at '
+  testWidgets('fo06/us18/fr07/e02: with no header, top, or tab, a body fill at '
       'the top edge declares itself', (tester) async {
     systemBarsView(tester);
     Widget page(Color fill) => systemStyleApp(
@@ -264,7 +273,7 @@ void main() {
     expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
   });
 
-  testWidgets('us18/fr07/e02: a footer, bottom, and body fill under the '
+  testWidgets('fo06/us18/fr07/e02: a footer, bottom, and body fill under the '
       'navigation bar flip the auto navigation icons (Android)', (
     tester,
   ) async {
@@ -311,7 +320,7 @@ void main() {
     });
   });
 
-  testWidgets('us18/fr07/e03: a gradient header fill declares nothing, so '
+  testWidgets('fo06/us18/fr07/e03: a gradient header fill declares nothing, so '
       'the icons follow the theme page background', (tester) async {
     systemBarsView(tester);
     await tester.pumpWidget(
@@ -333,7 +342,7 @@ void main() {
     );
   });
 
-  testWidgets('us18/fr07/e03: a header fill with both a color and a '
+  testWidgets('fo06/us18/fr07/e03: a header fill with both a color and a '
       'gradient declares nothing, so the icons follow the fill beneath '
       '(edge review F2)', (tester) async {
     systemBarsView(tester);
@@ -357,7 +366,7 @@ void main() {
     );
   });
 
-  testWidgets("us18/fr07 correctness: a header fill's opacity folds into "
+  testWidgets("fo06/us18/fr07 correctness: a header fill's opacity folds into "
       'the declared alpha, so the icons match what the eye sees '
       '(correctness review Minor 1)', (tester) async {
     systemBarsView(tester);
@@ -377,46 +386,61 @@ void main() {
     expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
   });
 
-  testWidgets('us19/fr04/e08, us20/fr06/e07: an open modal blends the scrim '
-      'over the header; the mid-fade fill tracks the fade; icons restore '
-      'after close', (tester) async {
-    systemBarsView(tester);
-    final navigator = GlobalKey<NavigatorState>();
-    Widget page() => systemStyleApp(
-      navigatorKey: navigator,
-      home: _page(
-        header: const SizedBox(),
-        customStyle: const PageLayoutStyle(
-          header: WidgetStyle(backgroundColor: _flipGray),
+  testWidgets(
+    'fo06/us19/fr04/e08, fo06/us20/fr06/e07: an open modal blends the scrim '
+    'over the header; the mid-fade fill tracks the fade; icons restore '
+    'after close',
+    (tester) async {
+      systemBarsView(tester);
+      final navigator = GlobalKey<NavigatorState>();
+      Widget page() => systemStyleApp(
+        navigatorKey: navigator,
+        home: _page(
+          header: const SizedBox(),
+          customStyle: const PageLayoutStyle(
+            header: WidgetStyle(backgroundColor: _flipGray),
+          ),
         ),
-      ),
-    );
-    await tester.pumpWidget(page());
-    expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
+      );
+      await tester.pumpWidget(page());
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
 
-    unawaited(
-      showModalLayout<void>(
-        navigator.currentContext!,
-        type: ModalLayoutType.modal,
-        builder: (context) => const ModalLayout(body: SizedBox()),
-      ),
-    );
-    await tester.pump();
-    // The theme's `normal` level runs 200 ms; 30 ms in, the fade on
-    // `easeInOutSine` sits near 6 percent, before the quarter-fade flip.
-    await tester.pump(const Duration(milliseconds: 30));
+      unawaited(
+        showModalLayout<void>(
+          navigator.currentContext!,
+          type: ModalLayoutType.modal,
+          builder: (context) => const ModalLayout(body: SizedBox()),
+        ),
+      );
+      await tester.pump();
+      // The theme's `normal` level runs 200 ms; 30 ms in, the fade on
+      // `easeInOutSine` sits near 6 percent, before the quarter-fade flip.
+      await tester.pump(const Duration(milliseconds: 30));
 
-    expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
 
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-    expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.light);
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.light,
+      );
 
-    navigator.currentState!.pop();
-    await tester.pumpAndSettle();
+      navigator.currentState!.pop();
+      await tester.pumpAndSettle();
 
-    expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
-  });
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
+    },
+  );
 
   testWidgets('performance review I1: a RepaintBoundary isolates the '
       "scrim's blurred box from its per-frame fill declaration", (
@@ -467,7 +491,7 @@ void main() {
     );
   });
 
-  testWidgets('us19/fr04/e08: an open drawer blends the scrim over the '
+  testWidgets('fo06/us19/fr04/e08: an open drawer blends the scrim over the '
       'header', (tester) async {
     systemBarsView(tester);
     _phoneView(tester);
@@ -492,7 +516,7 @@ void main() {
     expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.light);
   });
 
-  testWidgets('us20/fr06/e07: a scrim with showBackground false declares '
+  testWidgets('fo06/us20/fr06/e07: a scrim with showBackground false declares '
       'nothing', (tester) async {
     systemBarsView(tester);
     final navigator = GlobalKey<NavigatorState>();
@@ -521,7 +545,7 @@ void main() {
     expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
   });
 
-  testWidgets('us20/fr06/e08: a bottom sheet surface runs under the '
+  testWidgets('fo06/us20/fr06/e08: a bottom sheet surface runs under the '
       'navigation bar and declares its fill', (tester) async {
     systemBarsView(tester);
     _phoneView(tester);
@@ -558,37 +582,40 @@ void main() {
     });
   });
 
-  testWidgets('us20/fr06/e08: a bottom sheet surface with both a color and '
-      'a gradient declares nothing, so the icons follow the fill beneath '
-      '(edge review F2)', (tester) async {
-    systemBarsView(tester);
-    final navigator = GlobalKey<NavigatorState>();
-    await tester.pumpWidget(
-      systemStyleApp(navigatorKey: navigator, home: _page()),
-    );
+  testWidgets(
+    'fo06/us20/fr06/e08: a bottom sheet surface with both a color and '
+    'a gradient declares nothing, so the icons follow the fill beneath '
+    '(edge review F2)',
+    (tester) async {
+      systemBarsView(tester);
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        systemStyleApp(navigatorKey: navigator, home: _page()),
+      );
 
-    unawaited(
-      showModalLayout<void>(
-        navigator.currentContext!,
-        type: ModalLayoutType.bottomSheet,
-        builder: (context) => const ModalLayout(
-          body: SizedBox(height: 600),
-          customStyle: ModalLayoutStyle(
-            surface: WidgetStyle(
-              backgroundColor: _black,
-              backgroundGradient: LinearGradient(colors: [_black, _white]),
+      unawaited(
+        showModalLayout<void>(
+          navigator.currentContext!,
+          type: ModalLayoutType.bottomSheet,
+          builder: (context) => const ModalLayout(
+            body: SizedBox(height: 600),
+            customStyle: ModalLayoutStyle(
+              surface: WidgetStyle(
+                backgroundColor: _black,
+                backgroundGradient: LinearGradient(colors: [_black, _white]),
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(
-      SystemChrome.latestStyle?.statusBarIconBrightness,
-      pickLightIcons(_pageBackground) ? Brightness.light : Brightness.dark,
-    );
-  });
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        pickLightIcons(_pageBackground) ? Brightness.light : Brightness.dark,
+      );
+    },
+  );
 
   testWidgets('performance review Minor: a header fill crossing the '
       "solid/gradient line keeps the slot's State", (tester) async {
@@ -616,7 +643,7 @@ void main() {
     expect(tester.state(find.byType(_StateProbe)), same(before));
   });
 
-  testWidgets('us18/fr07/e06: a declared fill and an undeclared gradient '
+  testWidgets('fo06/us18/fr07/e06: a declared fill and an undeclared gradient '
       'read the same semantics tree', (tester) async {
     systemBarsView(tester);
     final handle = tester.ensureSemantics();

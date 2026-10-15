@@ -336,7 +336,7 @@ void main() {
         highContrastDark: data,
       ),
     };
-    testWidgets('us14/fr01: a new app-wide system style rebuilds', (
+    testWidgets('fo03/us14/fr01: a new app-wide system style rebuilds', (
       tester,
     ) async {
       expect(
@@ -392,7 +392,7 @@ void main() {
     });
   });
 
-  group('us10/fr05: StratumThemeApplication.wrap', () {
+  group('fo03/us10/fr05: StratumThemeApplication.wrap', () {
     testWidgets('copies the theme set, both modes, the component defaults, '
         'and the app-wide system style', (tester) async {
       late Widget wrapped;
@@ -482,7 +482,7 @@ void main() {
       child: child,
     );
 
-    testWidgets('us09/fr01/e02: inserts a WindowSizeScope when none is '
+    testWidgets('fo03/us09/fr01/e02: inserts a WindowSizeScope when none is '
         'above', (tester) async {
       WindowSize? found;
       await tester.pumpWidget(
@@ -511,10 +511,10 @@ void main() {
     });
   });
 
-  group('us02/fr01: StratumThemeApplication.controlled', () {
+  group('fo03/us02/fr01: StratumThemeApplication.controlled', () {
     setUp(ThemeFontLoader.reset);
 
-    testWidgets('us02/s1: a switch rebuilds each dependent once, with the '
+    testWidgets('fo03/us02/s1: a switch rebuilds each dependent once, with the '
         'new data', (tester) async {
       final controller = await StratumThemeController.preload(
         bundle: FakeThemeBundle(themes: {'brand': markTheme('brand-mark')}),
@@ -686,7 +686,7 @@ void main() {
       expect(found, [null, same(controller)]);
     });
 
-    testWidgets('us10/fr05: wrap keeps the controller and both modes', (
+    testWidgets('fo03/us10/fr05: wrap keeps the controller and both modes', (
       tester,
     ) async {
       final controller = await StratumThemeController.preload(
@@ -739,7 +739,7 @@ void main() {
     });
   });
 
-  group('us05/fr02/e08: a theme with no wait', () {
+  group('fo03/us05/fr02/e08: a theme with no wait', () {
     setUp(ThemeFontLoader.reset);
 
     testWidgets('StratumThemeApplication(themes:) draws the weights a '

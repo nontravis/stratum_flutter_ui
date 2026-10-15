@@ -44,7 +44,7 @@ void main() {
     ('light', defaultThemeSet.light),
     ('dark', defaultThemeSet.dark!),
   ]) {
-    group('us08/fr01/e01: the $name ColorScheme', () {
+    group('fo03/us08/fr01/e01: the $name ColorScheme', () {
       final scheme = _material(data).colorScheme;
       final color = data.color;
 
@@ -89,7 +89,7 @@ void main() {
     });
   }
 
-  test('us08/s1: the section 10.3 fields', () {
+  test('fo03/us08/s1: the section 10.3 fields', () {
     final data = defaultThemeSet.light;
     final material = _material(data);
     final color = data.color;
@@ -117,14 +117,17 @@ void main() {
     expect(material.dividerTheme.color, color.border.defaults.normal);
   });
 
-  test('us08/fr01/e05: the Material theme sets no system bar style for the '
-      'app bar', () {
-    for (final data in [defaultThemeSet.light, defaultThemeSet.dark!]) {
-      expect(_material(data).appBarTheme.systemOverlayStyle, isNull);
-    }
-  });
+  test(
+    'fo03/us08/fr01/e05: the Material theme sets no system bar style for the '
+    'app bar',
+    () {
+      for (final data in [defaultThemeSet.light, defaultThemeSet.dark!]) {
+        expect(_material(data).appBarTheme.systemOverlayStyle, isNull);
+      }
+    },
+  );
 
-  group('us08/s2, us08/fr01/e02: the text theme of themes s01 Material text '
+  group('fo03/us08/s2, fo03/us08/fr01/e02: the text theme of themes s01 Material text '
       'theme', () {
     final slots = <String, (TextStyle? Function(TextTheme), StratumTextStyle)>{
       'displayLarge': (
@@ -181,15 +184,18 @@ void main() {
       }
     }
 
-    test("us08/fr01/e02: the six title and label slots draw the body type's "
-        'weight, 400 in the package default', () {
-      expect(
-        _titlesAndLabels(_material(defaultThemeSet.light).textTheme),
-        everyElement(FontWeight.w400),
-      );
-    });
+    test(
+      "fo03/us08/fr01/e02: the six title and label slots draw the body type's "
+      'weight, 400 in the package default',
+      () {
+        expect(
+          _titlesAndLabels(_material(defaultThemeSet.light).textTheme),
+          everyElement(FontWeight.w400),
+        );
+      },
+    );
 
-    test('us08/fr01/e03: a theme whose body declares another weight draws '
+    test('fo03/us08/fr01/e03: a theme whose body declares another weight draws '
         'it in the six title and label slots', () {
       final data = StratumThemeSet.fromConfig(
         StratumThemeConfig.parse(
@@ -237,7 +243,7 @@ void main() {
   });
 
   group('the application inserts the Material theme', () {
-    testWidgets('us08/fr01: Theme.of below it follows the active data', (
+    testWidgets('fo03/us08/fr01: Theme.of below it follows the active data', (
       tester,
     ) async {
       ColorScheme? scheme;
@@ -328,7 +334,7 @@ void main() {
     });
   });
 
-  group('us08/fr01/e04: the page transitions', () {
+  group('fo03/us08/fr01/e04: the page transitions', () {
     /// A [MaterialApp] whose builder places an application of [data]
     /// above the navigator.
     Widget app(GlobalKey<NavigatorState> navigator, StratumThemeData data) =>
@@ -385,7 +391,7 @@ void main() {
       );
     });
 
-    testWidgets('us05/s6: the default theme gives the iOS slide and its '
+    testWidgets('fo03/us05/s6: the default theme gives the iOS slide and its '
         'swipe-back', (tester) async {
       final navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(app(navigator, defaultThemeSet.light));
@@ -403,7 +409,7 @@ void main() {
       expect(find.byKey(const ValueKey('page')), findsNothing);
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
-    testWidgets('us08/s3: a plain Material page enters with the active '
+    testWidgets('fo03/us08/s3: a plain Material page enters with the active '
         "theme's iOS slide and its swipe-back", (tester) async {
       final navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(app(navigator, defaultThemeSet.light));
@@ -470,7 +476,7 @@ void main() {
       }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
     });
 
-    testWidgets('us05/s7: a desktop window takes the desktop type '
+    testWidgets('fo03/us05/s7: a desktop window takes the desktop type '
         'through the application', (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1300, 800);
@@ -496,7 +502,7 @@ void main() {
       expect(above(FadeTransition), findsNothing);
     });
 
-    testWidgets('us05/s8: a PageTransition shows its own type over the '
+    testWidgets('fo03/us05/s8: a PageTransition shows its own type over the '
         "theme's", (tester) async {
       final navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(
@@ -522,7 +528,7 @@ void main() {
       ScreenTransitionType.fadeThrough,
       ScreenTransitionType.sharedAxisHorizontal,
     ]) {
-      testWidgets('us05/fr01: ${type.name} of a dark theme fills with its '
+      testWidgets('fo03/us05/fr01: ${type.name} of a dark theme fills with its '
           "canvas color, not Flutter's fallback", (tester) async {
         final dark = defaultThemeSet.dark!;
         final navigator = GlobalKey<NavigatorState>();

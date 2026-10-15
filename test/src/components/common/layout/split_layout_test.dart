@@ -211,29 +211,29 @@ Future<void> _press(WidgetTester tester, LogicalKeyboardKey key) async {
 
 void main() {
   group('splitStep', () {
-    test('us21/fr03/e03: a step stops at the start pane maximum', () {
+    test('fo06/us21/fr03/e03: a step stops at the start pane maximum', () {
       expect(splitStep(start: 490, end: 510, delta: 16, startMax: 500), 500);
     });
 
-    test('us21/fr02/e02: a step stops at the neighbor minimum', () {
+    test('fo06/us21/fr02/e02: a step stops at the neighbor minimum', () {
       expect(splitStep(start: 600, end: 310, delta: 64, endMin: 300), 610);
     });
 
-    test('us21/fr03/e03: a step stops at the start pane minimum', () {
+    test('fo06/us21/fr03/e03: a step stops at the start pane minimum', () {
       expect(splitStep(start: 210, end: 790, delta: -64, startMin: 200), 200);
     });
 
-    test('us21/fr02/e02: a step stops at the neighbor maximum', () {
+    test('fo06/us21/fr02/e02: a step stops at the neighbor maximum', () {
       expect(splitStep(start: 600, end: 400, delta: -64, endMax: 450), 550);
     });
 
-    test('us21/fr03: a free step moves by the whole delta', () {
+    test('fo06/us21/fr03: a free step moves by the whole delta', () {
       expect(splitStep(start: 300, end: 700, delta: 16), 316);
     });
   });
 
   group('SplitLayout panes', () {
-    test('us21/fr01: SplitPane has value equality and copyWith', () {
+    test('fo06/us21/fr01: SplitPane has value equality and copyWith', () {
       // Built at run time from a parameter, so no const canonicalization
       // makes them one instance and the check reads `==`, not identity.
       SplitPane make(double min) =>
@@ -248,12 +248,12 @@ void main() {
       expect(c.size, 100);
     });
 
-    test('us21/fr01: SplitPane copyWith honors the min-max assert', () {
+    test('fo06/us21/fr01: SplitPane copyWith honors the min-max assert', () {
       const pane = SplitPane(child: SizedBox(), min: 50);
       expect(() => pane.copyWith(max: 10), throwsA(isA<AssertionError>()));
     });
 
-    testWidgets('us21/fr01/e01: two panes side by side with one divider', (
+    testWidgets('fo06/us21/fr01/e01: two panes side by side with one divider', (
       tester,
     ) async {
       _view(tester);
@@ -267,16 +267,17 @@ void main() {
       expect(_divider, findsOneWidget);
     });
 
-    testWidgets('us21/s6: us21/fr01/e02: a null pane leaves no divider', (
-      tester,
-    ) async {
-      _view(tester);
-      await tester.pumpWidget(_split(detail: false));
-      expect(_divider, findsNothing);
-      expect(_listWidth(tester), 1000);
-    });
+    testWidgets(
+      'fo06/us21/s6: fo06/us21/fr01/e02: a null pane leaves no divider',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split(detail: false));
+        expect(_divider, findsNothing);
+        expect(_listWidth(tester), 1000);
+      },
+    );
 
-    testWidgets('us21/fr01/e03: RTL puts the first pane on the right', (
+    testWidgets('fo06/us21/fr01/e03: RTL puts the first pane on the right', (
       tester,
     ) async {
       _view(tester);
@@ -286,25 +287,26 @@ void main() {
       expect(tester.getTopLeft(find.text('Detail')).dx, 0);
     });
 
-    testWidgets('us21/fr01: a vertical split stacks the first pane on top', (
-      tester,
-    ) async {
-      _view(tester);
-      await tester.pumpWidget(
-        _split(
-          axis: Axis.vertical,
-          panes: [
-            SplitPane(size: 100, child: _pane('List')),
-            SplitPane(child: _pane('Detail')),
-          ],
-        ),
-      );
-      expect(tester.getSize(find.text('List')).height, 100);
-      expect(tester.getTopLeft(find.text('Detail')).dy, 100);
-    });
+    testWidgets(
+      'fo06/us21/fr01: a vertical split stacks the first pane on top',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(
+          _split(
+            axis: Axis.vertical,
+            panes: [
+              SplitPane(size: 100, child: _pane('List')),
+              SplitPane(child: _pane('Detail')),
+            ],
+          ),
+        );
+        expect(tester.getSize(find.text('List')).height, 100);
+        expect(tester.getTopLeft(find.text('Detail')).dy, 100);
+      },
+    );
 
     testWidgets(
-      'us21/fr01/e02: a pane keeps its State when its neighbor hides and shows',
+      'fo06/us21/fr01/e02: a pane keeps its State when its neighbor hides and shows',
       (tester) async {
         _view(tester);
         await tester.pumpWidget(_split());
@@ -317,17 +319,22 @@ void main() {
   });
 
   group('SplitLayout keyboard', () {
-    testWidgets('us21/s2: us21/fr03: Tab reaches the divider and the right '
-        'arrow steps 16', (tester) async {
-      _view(tester);
-      await tester.pumpWidget(_split());
-      await _tab(tester);
-      expect(_dividerNode(tester).hasPrimaryFocus, isTrue);
-      await _press(tester, LogicalKeyboardKey.arrowRight);
-      expect(_listWidth(tester), closeTo(316, 1));
-    });
+    testWidgets(
+      'fo06/us21/s2: fo06/us21/fr03: Tab reaches the divider and the right '
+      'arrow steps 16',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split());
+        await _tab(tester);
+        expect(_dividerNode(tester).hasPrimaryFocus, isTrue);
+        await _press(tester, LogicalKeyboardKey.arrowRight);
+        expect(_listWidth(tester), closeTo(316, 1));
+      },
+    );
 
-    testWidgets('us21/fr03/e06: Shift with an arrow steps 64', (tester) async {
+    testWidgets('fo06/us21/fr03/e06: Shift with an arrow steps 64', (
+      tester,
+    ) async {
       _view(tester);
       await tester.pumpWidget(_split());
       await _tab(tester);
@@ -335,20 +342,21 @@ void main() {
       expect(_listWidth(tester), closeTo(364, 1));
     });
 
-    testWidgets('us21/s3: End takes the start pane maximum, Home its minimum', (
-      tester,
-    ) async {
-      _view(tester);
-      await tester.pumpWidget(_split());
-      await _tab(tester);
-      await _press(tester, LogicalKeyboardKey.end);
-      expect(_listWidth(tester), closeTo(500, 1));
-      await _press(tester, LogicalKeyboardKey.home);
-      expect(_listWidth(tester), closeTo(200, 1));
-    });
+    testWidgets(
+      'fo06/us21/s3: End takes the start pane maximum, Home its minimum',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split());
+        await _tab(tester);
+        await _press(tester, LogicalKeyboardKey.end);
+        expect(_listWidth(tester), closeTo(500, 1));
+        await _press(tester, LogicalKeyboardKey.home);
+        expect(_listWidth(tester), closeTo(200, 1));
+      },
+    );
 
     for (final direction in TextDirection.values) {
-      testWidgets('us19/fr06/e02: with the end pane primary under '
+      testWidgets('fo06/us19/fr06/e02: with the end pane primary under '
           '${direction.name}, End takes the end pane to its maximum and Home '
           'to its minimum, and the arrows still move by screen direction', (
         tester,
@@ -375,17 +383,20 @@ void main() {
       });
     }
 
-    testWidgets('us21/fr03: End stops at the neighbor minimum when the start '
-        'pane has no '
-        'maximum', (tester) async {
-      _view(tester);
-      await tester.pumpWidget(_split(panes: [_list(max: null), _detail()]));
-      await _tab(tester);
-      await _press(tester, LogicalKeyboardKey.end);
-      expect(_listWidth(tester), closeTo(700, 1));
-    });
+    testWidgets(
+      'fo06/us21/fr03: End stops at the neighbor minimum when the start '
+      'pane has no '
+      'maximum',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split(panes: [_list(max: null), _detail()]));
+        await _tab(tester);
+        await _press(tester, LogicalKeyboardKey.end);
+        expect(_listWidth(tester), closeTo(700, 1));
+      },
+    );
 
-    testWidgets('us21/fr03/e03: an arrow step past a limit stops there', (
+    testWidgets('fo06/us21/fr03/e03: an arrow step past a limit stops there', (
       tester,
     ) async {
       _view(tester);
@@ -396,99 +407,112 @@ void main() {
       expect(_listWidth(tester), closeTo(500, 1));
     });
 
-    testWidgets('us21/s5: under RTL the left arrow moves the divider left on '
-        'screen and Shift stops at the limit', (tester) async {
-      _view(tester);
-      await tester.pumpWidget(_split(direction: TextDirection.rtl));
-      final before = tester.getCenter(_divider).dx;
-      await _tab(tester);
-      await _press(tester, LogicalKeyboardKey.arrowLeft);
-      expect(tester.getCenter(_divider).dx, closeTo(before - 16, 1));
-      for (var i = 0; i < 10; i++) {
-        await _shift(tester, LogicalKeyboardKey.arrowLeft);
-      }
-      expect(_listWidth(tester), closeTo(500, 1));
-    });
+    testWidgets(
+      'fo06/us21/s5: under RTL the left arrow moves the divider left on '
+      'screen and Shift stops at the limit',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split(direction: TextDirection.rtl));
+        final before = tester.getCenter(_divider).dx;
+        await _tab(tester);
+        await _press(tester, LogicalKeyboardKey.arrowLeft);
+        expect(tester.getCenter(_divider).dx, closeTo(before - 16, 1));
+        for (var i = 0; i < 10; i++) {
+          await _shift(tester, LogicalKeyboardKey.arrowLeft);
+        }
+        expect(_listWidth(tester), closeTo(500, 1));
+      },
+    );
 
-    testWidgets('us21/fr03/e02: under RTL the right arrow moves the divider '
-        'right on screen', (tester) async {
-      _view(tester);
-      await tester.pumpWidget(_split(direction: TextDirection.rtl));
-      final before = tester.getCenter(_divider).dx;
-      await _tab(tester);
-      await _press(tester, LogicalKeyboardKey.arrowRight);
-      expect(tester.getCenter(_divider).dx, closeTo(before + 16, 1));
-      expect(_listWidth(tester), closeTo(284, 1));
-    });
+    testWidgets(
+      'fo06/us21/fr03/e02: under RTL the right arrow moves the divider '
+      'right on screen',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split(direction: TextDirection.rtl));
+        final before = tester.getCenter(_divider).dx;
+        await _tab(tester);
+        await _press(tester, LogicalKeyboardKey.arrowRight);
+        expect(tester.getCenter(_divider).dx, closeTo(before + 16, 1));
+        expect(_listWidth(tester), closeTo(284, 1));
+      },
+    );
 
-    testWidgets('us21/fr03/e04: the up arrow on a horizontal split passes on', (
-      tester,
-    ) async {
-      _view(tester);
-      final upKeys = <KeyEvent>[];
-      await tester.pumpWidget(
-        Focus(
-          onKeyEvent: (node, event) {
-            if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-              upKeys.add(event);
-            }
-            return KeyEventResult.ignored;
-          },
-          child: _split(),
-        ),
-      );
-      await _tab(tester);
-      expect(_dividerNode(tester).hasPrimaryFocus, isTrue);
-      await _press(tester, LogicalKeyboardKey.arrowUp);
-      expect(_listWidth(tester), closeTo(300, 1));
-      expect(upKeys, isNotEmpty);
-    });
+    testWidgets(
+      'fo06/us21/fr03/e04: the up arrow on a horizontal split passes on',
+      (tester) async {
+        _view(tester);
+        final upKeys = <KeyEvent>[];
+        await tester.pumpWidget(
+          Focus(
+            onKeyEvent: (node, event) {
+              if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                upKeys.add(event);
+              }
+              return KeyEventResult.ignored;
+            },
+            child: _split(),
+          ),
+        );
+        await _tab(tester);
+        expect(_dividerNode(tester).hasPrimaryFocus, isTrue);
+        await _press(tester, LogicalKeyboardKey.arrowUp);
+        expect(_listWidth(tester), closeTo(300, 1));
+        expect(upKeys, isNotEmpty);
+      },
+    );
 
-    testWidgets('us21/fr03/e04: a vertical split steps by the down arrow and '
-        'passes the '
-        'left arrow on', (tester) async {
-      _view(tester);
-      await tester.pumpWidget(
-        _split(
-          axis: Axis.vertical,
-          panes: [
-            SplitPane(size: 100, child: _pane('List')),
-            SplitPane(child: _pane('Detail')),
-          ],
-        ),
-      );
-      await _tab(tester);
-      await _press(tester, LogicalKeyboardKey.arrowDown);
-      expect(tester.getSize(find.text('List')).height, closeTo(116, 1));
-      await _press(tester, LogicalKeyboardKey.arrowLeft);
-      expect(tester.getSize(find.text('List')).height, closeTo(116, 1));
-    });
+    testWidgets(
+      'fo06/us21/fr03/e04: a vertical split steps by the down arrow and '
+      'passes the '
+      'left arrow on',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(
+          _split(
+            axis: Axis.vertical,
+            panes: [
+              SplitPane(size: 100, child: _pane('List')),
+              SplitPane(child: _pane('Detail')),
+            ],
+          ),
+        );
+        await _tab(tester);
+        await _press(tester, LogicalKeyboardKey.arrowDown);
+        expect(tester.getSize(find.text('List')).height, closeTo(116, 1));
+        await _press(tester, LogicalKeyboardKey.arrowLeft);
+        expect(tester.getSize(find.text('List')).height, closeTo(116, 1));
+      },
+    );
 
-    testWidgets('us21/fr03/e01: Tab visits the start pane, the divider, then '
-        'the end pane', (tester) async {
-      _view(tester);
-      final list = FocusNode();
-      final detail = FocusNode();
-      addTearDown(list.dispose);
-      addTearDown(detail.dispose);
-      await tester.pumpWidget(
-        _split(
-          panes: [
-            _list(node: list),
-            _detail(node: detail),
-          ],
-        ),
-      );
-      await _tab(tester);
-      expect(list.hasPrimaryFocus, isTrue);
-      await _tab(tester);
-      expect(_dividerNode(tester).hasPrimaryFocus, isTrue);
-      await _tab(tester);
-      expect(detail.hasPrimaryFocus, isTrue);
-    });
+    testWidgets(
+      'fo06/us21/fr03/e01: Tab visits the start pane, the divider, then '
+      'the end pane',
+      (tester) async {
+        _view(tester);
+        final list = FocusNode();
+        final detail = FocusNode();
+        addTearDown(list.dispose);
+        addTearDown(detail.dispose);
+        await tester.pumpWidget(
+          _split(
+            panes: [
+              _list(node: list),
+              _detail(node: detail),
+            ],
+          ),
+        );
+        await _tab(tester);
+        expect(list.hasPrimaryFocus, isTrue);
+        await _tab(tester);
+        expect(_dividerNode(tester).hasPrimaryFocus, isTrue);
+        await _tab(tester);
+        expect(detail.hasPrimaryFocus, isTrue);
+      },
+    );
 
     for (final direction in TextDirection.values) {
-      testWidgets('us21/fr03/e01: Tab finishes the start pane before the '
+      testWidgets('fo06/us21/fr03/e01: Tab finishes the start pane before the '
           'divider and the end pane, two stops a pane, ${direction.name}', (
         tester,
       ) async {
@@ -531,7 +555,7 @@ void main() {
       });
     }
 
-    testWidgets('us21/fr03/e05: with resizing off Tab never stops on a '
+    testWidgets('fo06/us21/fr03/e05: with resizing off Tab never stops on a '
         'divider', (tester) async {
       _view(tester);
       final list = FocusNode();
@@ -555,84 +579,90 @@ void main() {
   });
 
   group('SplitLayout slider node', () {
-    testWidgets('NFR-U06: us21/s4: us21/fr04/e01: a slider node with label, '
-        'percent, focus, and step actions', (tester) async {
-      _view(tester);
-      await tester.pumpWidget(_split());
-      expect(
-        tester.getSemantics(_divider),
-        matchesSemantics(
-          label: 'Resize panes',
-          value: '30%',
-          increasedValue: '32%',
-          decreasedValue: '28%',
-          isSlider: true,
-          isFocusable: true,
-          hasFocusAction: true,
-          hasIncreaseAction: true,
-          hasDecreaseAction: true,
-        ),
-      );
-      await _tab(tester);
-      expect(
-        tester.getSemantics(_divider),
-        matchesSemantics(
-          label: 'Resize panes',
-          value: '30%',
-          increasedValue: '32%',
-          decreasedValue: '28%',
-          isSlider: true,
-          isFocusable: true,
-          isFocused: true,
-          hasFocusAction: true,
-          hasIncreaseAction: true,
-          hasDecreaseAction: true,
-        ),
-      );
-      tester.semantics.performAction(
-        find.semantics.byLabel('Resize panes'),
-        SemanticsAction.increase,
-      );
-      await tester.pump();
-      expect(_listWidth(tester), closeTo(316, 1));
-      expect(tester.getSemantics(_divider).value, '32%');
-    });
-
-    testWidgets('us19/fr06: with the end pane primary the slider reads the '
-        "end pane's share, and increase widens the end pane", (tester) async {
-      _view(tester);
-      await tester.pumpWidget(_split(endPrimary: true));
-      expect(
-        tester.getSemantics(_divider),
-        matchesSemantics(
-          label: 'Resize panes',
-          value: '70%',
-          increasedValue: '72%',
-          decreasedValue: '68%',
-          isSlider: true,
-          isFocusable: true,
-          hasFocusAction: true,
-          hasIncreaseAction: true,
-          hasDecreaseAction: true,
-        ),
-      );
-      tester.semantics.performAction(
-        find.semantics.byLabel('Resize panes'),
-        SemanticsAction.increase,
-      );
-      await tester.pump();
-      expect(_listWidth(tester), closeTo(284, 1));
-      expect(tester.getSemantics(_divider).value, '72%');
-      tester.semantics.performAction(
-        find.semantics.byLabel('Resize panes'),
-        SemanticsAction.decrease,
-      );
-      await tester.pump();
-      expect(_listWidth(tester), closeTo(300, 1));
-    });
+    testWidgets(
+      'NFR-U06: fo06/us21/s4: fo06/us21/fr04/e01: a slider node with label, '
+      'percent, focus, and step actions',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split());
+        expect(
+          tester.getSemantics(_divider),
+          matchesSemantics(
+            label: 'Resize panes',
+            value: '30%',
+            increasedValue: '32%',
+            decreasedValue: '28%',
+            isSlider: true,
+            isFocusable: true,
+            hasFocusAction: true,
+            hasIncreaseAction: true,
+            hasDecreaseAction: true,
+          ),
+        );
+        await _tab(tester);
+        expect(
+          tester.getSemantics(_divider),
+          matchesSemantics(
+            label: 'Resize panes',
+            value: '30%',
+            increasedValue: '32%',
+            decreasedValue: '28%',
+            isSlider: true,
+            isFocusable: true,
+            isFocused: true,
+            hasFocusAction: true,
+            hasIncreaseAction: true,
+            hasDecreaseAction: true,
+          ),
+        );
+        tester.semantics.performAction(
+          find.semantics.byLabel('Resize panes'),
+          SemanticsAction.increase,
+        );
+        await tester.pump();
+        expect(_listWidth(tester), closeTo(316, 1));
+        expect(tester.getSemantics(_divider).value, '32%');
+      },
+    );
 
     testWidgets(
-      'us21/fr04: the decrease action steps the divider toward the start',
+      'fo06/us19/fr06: with the end pane primary the slider reads the '
+      "end pane's share, and increase widens the end pane",
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split(endPrimary: true));
+        expect(
+          tester.getSemantics(_divider),
+          matchesSemantics(
+            label: 'Resize panes',
+            value: '70%',
+            increasedValue: '72%',
+            decreasedValue: '68%',
+            isSlider: true,
+            isFocusable: true,
+            hasFocusAction: true,
+            hasIncreaseAction: true,
+            hasDecreaseAction: true,
+          ),
+        );
+        tester.semantics.performAction(
+          find.semantics.byLabel('Resize panes'),
+          SemanticsAction.increase,
+        );
+        await tester.pump();
+        expect(_listWidth(tester), closeTo(284, 1));
+        expect(tester.getSemantics(_divider).value, '72%');
+        tester.semantics.performAction(
+          find.semantics.byLabel('Resize panes'),
+          SemanticsAction.decrease,
+        );
+        await tester.pump();
+        expect(_listWidth(tester), closeTo(300, 1));
+      },
+    );
+
+    testWidgets(
+      'fo06/us21/fr04: the decrease action steps the divider toward the start',
       (tester) async {
         _view(tester);
         await tester.pumpWidget(_split());
@@ -645,22 +675,25 @@ void main() {
       },
     );
 
-    testWidgets('us21/fr04/e04: increase at the start pane maximum keeps the '
-        'divider and its value', (tester) async {
-      _view(tester);
-      await tester.pumpWidget(_split());
-      await _tab(tester);
-      await _press(tester, LogicalKeyboardKey.end);
-      tester.semantics.performAction(
-        find.semantics.byLabel('Resize panes'),
-        SemanticsAction.increase,
-      );
-      await tester.pump();
-      expect(_listWidth(tester), closeTo(500, 1));
-      expect(tester.getSemantics(_divider).value, '50%');
-    });
+    testWidgets(
+      'fo06/us21/fr04/e04: increase at the start pane maximum keeps the '
+      'divider and its value',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split());
+        await _tab(tester);
+        await _press(tester, LogicalKeyboardKey.end);
+        tester.semantics.performAction(
+          find.semantics.byLabel('Resize panes'),
+          SemanticsAction.increase,
+        );
+        await tester.pump();
+        expect(_listWidth(tester), closeTo(500, 1));
+        expect(tester.getSemantics(_divider).value, '50%');
+      },
+    );
 
-    testWidgets('us21/fr04/e03: an app label replaces the built-in one', (
+    testWidgets('fo06/us21/fr04/e03: an app label replaces the built-in one', (
       tester,
     ) async {
       _view(tester);
@@ -669,7 +702,7 @@ void main() {
       expect(_divider, findsNothing);
     });
 
-    testWidgets('us21/fr04/e02: in Thai the node reads the Thai built-in '
+    testWidgets('fo06/us21/fr04/e02: in Thai the node reads the Thai built-in '
         'label', (tester) async {
       _view(tester);
       await tester.pumpWidget(
@@ -690,41 +723,50 @@ void main() {
   });
 
   group('SplitLayout divider look', () {
-    test('us21/fr05: SplitDividerState has value equality and copyWith', () {
-      // Built at run time from a parameter, so no const canonicalization
-      // makes them one instance and the check reads `==`, not identity.
-      SplitDividerState make(bool hovered) =>
-          SplitDividerState(hovered: hovered, focused: true);
-      final a = make(true);
-      final b = make(true);
-      expect(identical(a, b), isFalse);
-      expect(a, b);
-      expect(a.hashCode, b.hashCode);
-      final c = a.copyWith(focused: false);
-      expect(c.focused, isFalse);
-      expect(c.hovered, isTrue);
-    });
+    test(
+      'fo06/us21/fr05: SplitDividerState has value equality and copyWith',
+      () {
+        // Built at run time from a parameter, so no const canonicalization
+        // makes them one instance and the check reads `==`, not identity.
+        SplitDividerState make(bool hovered) =>
+            SplitDividerState(hovered: hovered, focused: true);
+        final a = make(true);
+        final b = make(true);
+        expect(identical(a, b), isFalse);
+        expect(a, b);
+        expect(a.hashCode, b.hashCode);
+        final c = a.copyWith(focused: false);
+        expect(c.focused, isFalse);
+        expect(c.hovered, isTrue);
+      },
+    );
 
-    testWidgets('us21/fr05/e02: with no dividerBuilder nothing paints, yet '
-        'the hit area and focus ring work', (tester) async {
-      _view(tester);
-      await tester.pumpWidget(_split());
-      expect(_paintsNothingVisible(tester, _hitArea), isTrue);
-      expect(tester.getSize(_divider).width, greaterThanOrEqualTo(48));
-      await _tab(tester);
-      await tester.pumpAndSettle();
-      expect(_ring(tester).a, greaterThan(0));
-    });
+    testWidgets(
+      'fo06/us21/fr05/e02: with no dividerBuilder nothing paints, yet '
+      'the hit area and focus ring work',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split());
+        expect(_paintsNothingVisible(tester, _hitArea), isTrue);
+        expect(tester.getSize(_divider).width, greaterThanOrEqualTo(48));
+        await _tab(tester);
+        await tester.pumpAndSettle();
+        expect(_ring(tester).a, greaterThan(0));
+      },
+    );
 
-    testWidgets('us21/fr05: a painted divider overlays the seam and takes no '
-        'layout space', (tester) async {
-      _view(tester);
-      await tester.pumpWidget(_split(dividerBuilder: _line([])));
-      expect(_listWidth(tester), 300);
-      expect(tester.getTopLeft(find.text('Detail')).dx, 300);
-      expect(tester.getCenter(find.byKey(_lineKey)).dx, 300);
-      expect(tester.getSize(find.byKey(_lineKey)).height, 400);
-    });
+    testWidgets(
+      'fo06/us21/fr05: a painted divider overlays the seam and takes no '
+      'layout space',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split(dividerBuilder: _line([])));
+        expect(_listWidth(tester), 300);
+        expect(tester.getTopLeft(find.text('Detail')).dx, 300);
+        expect(tester.getCenter(find.byKey(_lineKey)).dx, 300);
+        expect(tester.getSize(find.byKey(_lineKey)).height, 400);
+      },
+    );
 
     testWidgets('R17: the builder receives hovered, dragging, and focused', (
       tester,
@@ -756,7 +798,9 @@ void main() {
       expect(states.last, const SplitDividerState(focused: true));
     });
 
-    testWidgets('us21/fr05: a resize cursor shows on hover', (tester) async {
+    testWidgets('fo06/us21/fr05: a resize cursor shows on hover', (
+      tester,
+    ) async {
       _view(tester);
       await tester.pumpWidget(_split());
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -769,25 +813,28 @@ void main() {
       );
     });
 
-    testWidgets('us21/fr05/e03: with resizing off the painted divider stays, '
-        'with no focus ring or slider node', (tester) async {
-      _view(tester);
-      final states = <SplitDividerState>[];
-      await tester.pumpWidget(
-        _split(resizable: false, dividerBuilder: _line(states)),
-      );
-      expect(find.byKey(_lineKey), findsOneWidget);
-      expect(states.last, const SplitDividerState());
-      expect(
-        find.descendant(
-          of: find.byType(SplitLayout),
-          matching: find.byType(StratumFocusBorder),
-        ),
-        findsNothing,
-      );
-    });
+    testWidgets(
+      'fo06/us21/fr05/e03: with resizing off the painted divider stays, '
+      'with no focus ring or slider node',
+      (tester) async {
+        _view(tester);
+        final states = <SplitDividerState>[];
+        await tester.pumpWidget(
+          _split(resizable: false, dividerBuilder: _line(states)),
+        );
+        expect(find.byKey(_lineKey), findsOneWidget);
+        expect(states.last, const SplitDividerState());
+        expect(
+          find.descendant(
+            of: find.byType(SplitLayout),
+            matching: find.byType(StratumFocusBorder),
+          ),
+          findsNothing,
+        );
+      },
+    );
 
-    testWidgets('us21/fr05/e04: a painted divider restyles with the theme '
+    testWidgets('fo06/us21/fr05/e04: a painted divider restyles with the theme '
         'token its builder reads', (tester) async {
       _view(tester);
       Color line() => tester
@@ -810,7 +857,7 @@ void main() {
   });
 
   group('SplitLayoutController', () {
-    testWidgets('us21/fr02/e03: a kept fraction opens the pane at it', (
+    testWidgets('fo06/us21/fr02/e03: a kept fraction opens the pane at it', (
       tester,
     ) async {
       _view(tester);
@@ -821,18 +868,21 @@ void main() {
       expect(notifies.single, 0);
     });
 
-    test('us21/fr02/e06: a kept fraction that is NaN, infinite, or negative '
-        'reads as none, from the constructor and from a set', () {
-      for (final bad in _unusable) {
-        final controller = SplitLayoutController(fractions: [bad, 0.6]);
-        addTearDown(controller.dispose);
-        expect(controller.fractions, [null, 0.6], reason: '$bad');
-        controller.fractions = [0.4, bad];
-        expect(controller.fractions, [0.4, null], reason: '$bad');
-      }
-    });
+    test(
+      'fo06/us21/fr02/e06: a kept fraction that is NaN, infinite, or negative '
+      'reads as none, from the constructor and from a set',
+      () {
+        for (final bad in _unusable) {
+          final controller = SplitLayoutController(fractions: [bad, 0.6]);
+          addTearDown(controller.dispose);
+          expect(controller.fractions, [null, 0.6], reason: '$bad');
+          controller.fractions = [0.4, bad];
+          expect(controller.fractions, [0.4, null], reason: '$bad');
+        }
+      },
+    );
 
-    testWidgets('us21/fr02/e06: a pane whose kept fraction is not finite '
+    testWidgets('fo06/us21/fr02/e06: a pane whose kept fraction is not finite '
         'opens as if none were chosen', (tester) async {
       _view(tester);
       for (final bad in _unusable) {
@@ -849,7 +899,7 @@ void main() {
       }
     });
 
-    testWidgets('us21/fr02/e06: the split reads an unusable fraction a '
+    testWidgets('fo06/us21/fr02/e06: the split reads an unusable fraction a '
         'controller hands it as none, and a key step stays finite', (
       tester,
     ) async {
@@ -937,29 +987,32 @@ void main() {
       expect(notifies.single, 1);
     });
 
-    testWidgets('us21/fr02/e05: a window clamp changes only the drawn size '
-        'and notifies nothing', (tester) async {
-      _view(tester);
-      final notifies = [0];
-      final controller = _counted(notifies);
-      await tester.pumpWidget(_split(controller: controller));
-      await tester.dragFrom(tester.getCenter(_divider), const Offset(50, 0));
-      await tester.pumpAndSettle();
-      expect(notifies.single, 1);
-      final chosen = controller.fractions;
+    testWidgets(
+      'fo06/us21/fr02/e05: a window clamp changes only the drawn size '
+      'and notifies nothing',
+      (tester) async {
+        _view(tester);
+        final notifies = [0];
+        final controller = _counted(notifies);
+        await tester.pumpWidget(_split(controller: controller));
+        await tester.dragFrom(tester.getCenter(_divider), const Offset(50, 0));
+        await tester.pumpAndSettle();
+        expect(notifies.single, 1);
+        final chosen = controller.fractions;
 
-      tester.view.physicalSize = const Size(560, 400);
-      await tester.pumpAndSettle();
-      expect(_listWidth(tester), closeTo(200, 1));
-      expect(tester.getSize(find.text('Detail')).width, closeTo(360, 1));
-      expect(notifies.single, 1);
-      expect(controller.fractions, chosen);
+        tester.view.physicalSize = const Size(560, 400);
+        await tester.pumpAndSettle();
+        expect(_listWidth(tester), closeTo(200, 1));
+        expect(tester.getSize(find.text('Detail')).width, closeTo(360, 1));
+        expect(notifies.single, 1);
+        expect(controller.fractions, chosen);
 
-      tester.view.physicalSize = const Size(1000, 400);
-      await tester.pumpAndSettle();
-      expect(_listWidth(tester), closeTo(350, 1));
-      expect(notifies.single, 1);
-    });
+        tester.view.physicalSize = const Size(1000, 400);
+        await tester.pumpAndSettle();
+        expect(_listWidth(tester), closeTo(350, 1));
+        expect(notifies.single, 1);
+      },
+    );
 
     testWidgets('R22: fractions the app sets in code move the panes', (
       tester,
@@ -974,7 +1027,7 @@ void main() {
       expect(notifies.single, 1);
     });
 
-    testWidgets('us21/fr02: fractions keep each pane inside its limits', (
+    testWidgets('fo06/us21/fr02: fractions keep each pane inside its limits', (
       tester,
     ) async {
       _view(tester);
@@ -985,21 +1038,24 @@ void main() {
       expect(controller.fractions, [0.9, 0.1]);
     });
 
-    testWidgets('us21/fr02/e04: with resizing off a drag notifies nothing', (
-      tester,
-    ) async {
-      _view(tester);
-      final notifies = [0];
-      final controller = _counted(notifies);
-      await tester.pumpWidget(_split(resizable: false, controller: controller));
-      await tester.dragFrom(const Offset(300, 200), const Offset(50, 0));
-      await tester.pumpAndSettle();
-      expect(notifies.single, 0);
-      expect(controller.fractions, isNull);
-    });
+    testWidgets(
+      'fo06/us21/fr02/e04: with resizing off a drag notifies nothing',
+      (tester) async {
+        _view(tester);
+        final notifies = [0];
+        final controller = _counted(notifies);
+        await tester.pumpWidget(
+          _split(resizable: false, controller: controller),
+        );
+        await tester.dragFrom(const Offset(300, 200), const Offset(50, 0));
+        await tester.pumpAndSettle();
+        expect(notifies.single, 0);
+        expect(controller.fractions, isNull);
+      },
+    );
 
     testWidgets(
-      'us21/fr02: a parent rebuild during a drag keeps the dragged size',
+      'fo06/us21/fr02: a parent rebuild during a drag keeps the dragged size',
       (tester) async {
         _view(tester);
         await tester.pumpWidget(_split());
@@ -1017,7 +1073,7 @@ void main() {
     );
 
     testWidgets(
-      'us21/fr02: a hidden pane keeps its fraction for when it shows again',
+      'fo06/us21/fr02: a hidden pane keeps its fraction for when it shows again',
       (tester) async {
         _view(tester);
         final notifies = [0];
@@ -1044,45 +1100,46 @@ void main() {
       },
     );
 
-    testWidgets('us21/fr02/e05: a drag under a window clamp stores only the '
-        'two moved panes; a clamped third pane keeps its fraction', (
-      tester,
-    ) async {
-      _view(tester, const Size(600, 400));
-      final notifies = [0];
-      final controller = _counted(notifies, fractions: [0.2, 0.5, 0.3]);
-      await tester.pumpWidget(
-        _split(
-          controller: controller,
-          panes: [
-            SplitPane(min: 200, child: _pane('List')),
-            SplitPane(min: 100, child: _pane('Detail')),
-            SplitPane(size: 300, min: 250, child: _pane('Extra')),
-          ],
-        ),
-      );
-      expect(_listWidth(tester), closeTo(200, 1));
-      expect(tester.getSize(find.text('Extra')).width, closeTo(250, 1));
-      await tester.dragFrom(
-        tester.getCenter(_divider.first),
-        const Offset(10, 0),
-      );
-      await tester.pumpAndSettle();
-      expect(notifies.single, 1);
-      expect(
-        controller.fractions![0]! + controller.fractions![1]!,
-        closeTo(0.7, 1e-9),
-      );
-      expect(controller.fractions![0], closeTo(0.42, 1e-3));
-      expect(controller.fractions![2], 0.3);
+    testWidgets(
+      'fo06/us21/fr02/e05: a drag under a window clamp stores only the '
+      'two moved panes; a clamped third pane keeps its fraction',
+      (tester) async {
+        _view(tester, const Size(600, 400));
+        final notifies = [0];
+        final controller = _counted(notifies, fractions: [0.2, 0.5, 0.3]);
+        await tester.pumpWidget(
+          _split(
+            controller: controller,
+            panes: [
+              SplitPane(min: 200, child: _pane('List')),
+              SplitPane(min: 100, child: _pane('Detail')),
+              SplitPane(size: 300, min: 250, child: _pane('Extra')),
+            ],
+          ),
+        );
+        expect(_listWidth(tester), closeTo(200, 1));
+        expect(tester.getSize(find.text('Extra')).width, closeTo(250, 1));
+        await tester.dragFrom(
+          tester.getCenter(_divider.first),
+          const Offset(10, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(notifies.single, 1);
+        expect(
+          controller.fractions![0]! + controller.fractions![1]!,
+          closeTo(0.7, 1e-9),
+        );
+        expect(controller.fractions![0], closeTo(0.42, 1e-3));
+        expect(controller.fractions![2], 0.3);
 
-      tester.view.physicalSize = const Size(1000, 400);
-      await tester.pumpAndSettle();
-      expect(tester.getSize(find.text('Extra')).width, closeTo(300, 1));
-      expect(notifies.single, 1);
-    });
+        tester.view.physicalSize = const Size(1000, 400);
+        await tester.pumpAndSettle();
+        expect(tester.getSize(find.text('Extra')).width, closeTo(300, 1));
+        expect(notifies.single, 1);
+      },
+    );
 
-    testWidgets('us21/fr02/e03: a pane collapsed to 0 stays collapsed on '
+    testWidgets('fo06/us21/fr02/e03: a pane collapsed to 0 stays collapsed on '
         'resize and on restore', (tester) async {
       _view(tester);
       final notifies = [0];
@@ -1108,29 +1165,32 @@ void main() {
       expect(_listWidth(tester), closeTo(900, 1));
     });
 
-    testWidgets('us21/fr02: a pane hidden at the first settle opens at its own '
-        'size and leaves the chosen panes their ratio', (tester) async {
-      _view(tester);
-      final notifies = [0];
-      final controller = _counted(notifies);
-      Widget three({required bool extra}) => _split(
-        controller: controller,
-        panes: [
-          _list(),
-          _detail(),
-          if (extra) SplitPane(size: 200, child: _pane('Extra')) else null,
-        ],
-      );
-      await tester.pumpWidget(three(extra: false));
-      await tester.dragFrom(tester.getCenter(_divider), const Offset(50, 0));
-      await tester.pumpAndSettle();
-      expect(controller.fractions![2], isNull);
-      await tester.pumpWidget(three(extra: true));
-      expect(tester.getSize(find.text('Extra')).width, closeTo(200, 1));
-      expect(_listWidth(tester), closeTo(280, 1));
-      expect(tester.getSize(find.text('Detail')).width, closeTo(520, 1));
-      expect(notifies.single, 1);
-    });
+    testWidgets(
+      'fo06/us21/fr02: a pane hidden at the first settle opens at its own '
+      'size and leaves the chosen panes their ratio',
+      (tester) async {
+        _view(tester);
+        final notifies = [0];
+        final controller = _counted(notifies);
+        Widget three({required bool extra}) => _split(
+          controller: controller,
+          panes: [
+            _list(),
+            _detail(),
+            if (extra) SplitPane(size: 200, child: _pane('Extra')) else null,
+          ],
+        );
+        await tester.pumpWidget(three(extra: false));
+        await tester.dragFrom(tester.getCenter(_divider), const Offset(50, 0));
+        await tester.pumpAndSettle();
+        expect(controller.fractions![2], isNull);
+        await tester.pumpWidget(three(extra: true));
+        expect(tester.getSize(find.text('Extra')).width, closeTo(200, 1));
+        expect(_listWidth(tester), closeTo(280, 1));
+        expect(tester.getSize(find.text('Detail')).width, closeTo(520, 1));
+        expect(notifies.single, 1);
+      },
+    );
 
     testWidgets('R22: a passed controller outlives the layout', (tester) async {
       _view(tester);
@@ -1141,7 +1201,7 @@ void main() {
       controller.dispose();
     });
 
-    testWidgets('us21/fr02: a controller swapped in drives the panes, and '
+    testWidgets('fo06/us21/fr02: a controller swapped in drives the panes, and '
         'dropping it '
         'keeps its fractions', (tester) async {
       _view(tester);
@@ -1174,7 +1234,7 @@ void main() {
       expect(_ring(tester), isNot(isSameColorAs(idle)));
     });
 
-    testWidgets('NFR-U05: us21/fr05/e01: the hit area spans the platform '
+    testWidgets('NFR-U05: fo06/us21/fr05/e01: the hit area spans the platform '
         'minimum centered on the seam, and a drag beside the seam moves it', (
       tester,
     ) async {
@@ -1229,7 +1289,7 @@ void main() {
     });
 
     testWidgets(
-      'us21/fr05: the app-wide StratumFocusBorder style restyles the ring',
+      'fo06/us21/fr05: the app-wide StratumFocusBorder style restyles the ring',
       (tester) async {
         _view(tester);
         const red = Color(0xFFFF0000);
@@ -1295,32 +1355,38 @@ void main() {
     double paneWidth(WidgetTester tester) =>
         tester.getSize(find.byType(ListView)).width;
 
-    testWidgets('us21/fr05/e01: a tap on a pane button inside the hit band '
-        'reaches the button', (tester) async {
-      _view(tester);
-      final scroll = ScrollController();
-      addTearDown(scroll.dispose);
-      var taps = 0;
-      await tester.pumpWidget(band(onTap: () => taps++, scroll: scroll));
-      await tester.tapAt(const Offset(290, 200));
-      await tester.pumpAndSettle();
-      expect(taps, 1);
-      expect(paneWidth(tester), 300);
-    });
+    testWidgets(
+      'fo06/us21/fr05/e01: a tap on a pane button inside the hit band '
+      'reaches the button',
+      (tester) async {
+        _view(tester);
+        final scroll = ScrollController();
+        addTearDown(scroll.dispose);
+        var taps = 0;
+        await tester.pumpWidget(band(onTap: () => taps++, scroll: scroll));
+        await tester.tapAt(const Offset(290, 200));
+        await tester.pumpAndSettle();
+        expect(taps, 1);
+        expect(paneWidth(tester), 300);
+      },
+    );
 
-    testWidgets('us21/fr05/e01: a vertical drag inside the hit band scrolls '
-        'the pane', (tester) async {
-      _view(tester);
-      final scroll = ScrollController();
-      addTearDown(scroll.dispose);
-      await tester.pumpWidget(band(onTap: () {}, scroll: scroll));
-      await tester.dragFrom(const Offset(285, 300), const Offset(0, -150));
-      await tester.pumpAndSettle();
-      expect(scroll.offset, greaterThan(0));
-      expect(paneWidth(tester), 300);
-    });
+    testWidgets(
+      'fo06/us21/fr05/e01: a vertical drag inside the hit band scrolls '
+      'the pane',
+      (tester) async {
+        _view(tester);
+        final scroll = ScrollController();
+        addTearDown(scroll.dispose);
+        await tester.pumpWidget(band(onTap: () {}, scroll: scroll));
+        await tester.dragFrom(const Offset(285, 300), const Offset(0, -150));
+        await tester.pumpAndSettle();
+        expect(scroll.offset, greaterThan(0));
+        expect(paneWidth(tester), 300);
+      },
+    );
 
-    testWidgets('us21/fr05/e01: a horizontal drag inside the hit band '
+    testWidgets('fo06/us21/fr05/e01: a horizontal drag inside the hit band '
         'resizes the panes', (tester) async {
       _view(tester);
       final scroll = ScrollController();
@@ -1332,25 +1398,28 @@ void main() {
       expect(scroll.offset, 0);
     });
 
-    testWidgets('us21/fr05/e03: with resizing off a painted divider takes no '
-        'press', (tester) async {
-      _view(tester);
-      final scroll = ScrollController();
-      addTearDown(scroll.dispose);
-      var taps = 0;
-      await tester.pumpWidget(
-        band(
-          onTap: () => taps++,
-          scroll: scroll,
-          resizable: false,
-          dividerBuilder: (context, state) =>
-              const ColoredBox(color: Color(0xFF000000)),
-        ),
-      );
-      await tester.tapAt(const Offset(290, 200));
-      await tester.pumpAndSettle();
-      expect(taps, 1);
-    });
+    testWidgets(
+      'fo06/us21/fr05/e03: with resizing off a painted divider takes no '
+      'press',
+      (tester) async {
+        _view(tester);
+        final scroll = ScrollController();
+        addTearDown(scroll.dispose);
+        var taps = 0;
+        await tester.pumpWidget(
+          band(
+            onTap: () => taps++,
+            scroll: scroll,
+            resizable: false,
+            dividerBuilder: (context, state) =>
+                const ColoredBox(color: Color(0xFF000000)),
+          ),
+        );
+        await tester.tapAt(const Offset(290, 200));
+        await tester.pumpAndSettle();
+        expect(taps, 1);
+      },
+    );
   });
 
   group('SplitLayout drag interrupted', () {
@@ -1406,127 +1475,135 @@ void main() {
       expect(notifies.single, before + 1);
     }
 
-    testWidgets('us21/fr02/e04: resizing turned off mid-drag ends the drag '
-        'with no notify, and the split takes taps and drags again', (
-      tester,
-    ) async {
-      _view(tester);
-      final notifies = [0];
-      final controller = _counted(notifies);
-      var taps = 0;
-      await tester.pumpWidget(
-        host(controller: controller, onTap: () => taps++),
-      );
-      final gesture = await dragHalfway(tester);
-      await tester.pumpWidget(
-        host(controller: controller, onTap: () => taps++, resizable: false),
-      );
-      await tester.pump();
-      expect(detailWidth(tester), closeTo(700, 1));
-      await tester.tap(find.text('Tap'));
-      expect(taps, 1);
-      await gesture.up();
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      expect(notifies.single, 0);
-      await tester.pumpWidget(
-        host(controller: controller, onTap: () => taps++),
-      );
-      await tester.tap(find.text('Tap'));
-      expect(taps, 2);
-      await expectAlive(tester, notifies, 0);
-    });
+    testWidgets(
+      'fo06/us21/fr02/e04: resizing turned off mid-drag ends the drag '
+      'with no notify, and the split takes taps and drags again',
+      (tester) async {
+        _view(tester);
+        final notifies = [0];
+        final controller = _counted(notifies);
+        var taps = 0;
+        await tester.pumpWidget(
+          host(controller: controller, onTap: () => taps++),
+        );
+        final gesture = await dragHalfway(tester);
+        await tester.pumpWidget(
+          host(controller: controller, onTap: () => taps++, resizable: false),
+        );
+        await tester.pump();
+        expect(detailWidth(tester), closeTo(700, 1));
+        await tester.tap(find.text('Tap'));
+        expect(taps, 1);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(notifies.single, 0);
+        await tester.pumpWidget(
+          host(controller: controller, onTap: () => taps++),
+        );
+        await tester.tap(find.text('Tap'));
+        expect(taps, 2);
+        await expectAlive(tester, notifies, 0);
+      },
+    );
 
-    testWidgets('us21/fr01/e02: the end pane hiding mid-drag ends the drag '
-        'with no notify, and the split takes taps and drags again', (
-      tester,
-    ) async {
-      _view(tester);
-      final notifies = [0];
-      final controller = _counted(notifies);
-      var taps = 0;
-      await tester.pumpWidget(
-        host(controller: controller, onTap: () => taps++),
-      );
-      final gesture = await dragHalfway(tester);
-      await tester.pumpWidget(
-        host(controller: controller, onTap: () => taps++, detail: false),
-      );
-      await tester.pump();
-      await tester.tap(find.text('Tap'));
-      expect(taps, 1);
-      await gesture.up();
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      expect(notifies.single, 0);
-      await tester.pumpWidget(
-        host(controller: controller, onTap: () => taps++),
-      );
-      await tester.tap(find.text('Tap'));
-      expect(taps, 2);
-      await expectAlive(tester, notifies, 0);
-    });
+    testWidgets(
+      'fo06/us21/fr01/e02: the end pane hiding mid-drag ends the drag '
+      'with no notify, and the split takes taps and drags again',
+      (tester) async {
+        _view(tester);
+        final notifies = [0];
+        final controller = _counted(notifies);
+        var taps = 0;
+        await tester.pumpWidget(
+          host(controller: controller, onTap: () => taps++),
+        );
+        final gesture = await dragHalfway(tester);
+        await tester.pumpWidget(
+          host(controller: controller, onTap: () => taps++, detail: false),
+        );
+        await tester.pump();
+        await tester.tap(find.text('Tap'));
+        expect(taps, 1);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(notifies.single, 0);
+        await tester.pumpWidget(
+          host(controller: controller, onTap: () => taps++),
+        );
+        await tester.tap(find.text('Tap'));
+        expect(taps, 2);
+        await expectAlive(tester, notifies, 0);
+      },
+    );
 
-    testWidgets('us21/fr02: a split unmounted mid-drag notifies nothing, and '
-        'a new one takes taps and drags', (tester) async {
-      _view(tester);
-      final notifies = [0];
-      final controller = _counted(notifies);
-      var taps = 0;
-      await tester.pumpWidget(
-        host(controller: controller, onTap: () => taps++),
-      );
-      final gesture = await dragHalfway(tester);
-      await tester.pumpWidget(const SizedBox.shrink());
-      await gesture.up();
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      expect(notifies.single, 0);
-      await tester.pumpWidget(
-        host(controller: controller, onTap: () => taps++),
-      );
-      await tester.tap(find.text('Tap'));
-      expect(taps, 1);
-      await expectAlive(tester, notifies, 0);
-    });
+    testWidgets(
+      'fo06/us21/fr02: a split unmounted mid-drag notifies nothing, and '
+      'a new one takes taps and drags',
+      (tester) async {
+        _view(tester);
+        final notifies = [0];
+        final controller = _counted(notifies);
+        var taps = 0;
+        await tester.pumpWidget(
+          host(controller: controller, onTap: () => taps++),
+        );
+        final gesture = await dragHalfway(tester);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(notifies.single, 0);
+        await tester.pumpWidget(
+          host(controller: controller, onTap: () => taps++),
+        );
+        await tester.tap(find.text('Tap'));
+        expect(taps, 1);
+        await expectAlive(tester, notifies, 0);
+      },
+    );
 
-    testWidgets('us21/fr02: a pane before the dragged divider hiding keeps '
-        'the drag on its pair, from the new layout', (tester) async {
-      _view(tester);
-      final notifies = [0];
-      final controller = _counted(notifies);
-      Widget three({required bool first}) => _split(
-        controller: controller,
-        panes: [
-          if (first) SplitPane(size: 200, child: _pane('A')) else null,
-          SplitPane(child: _pane('B')),
-          SplitPane(child: _pane('C')),
-        ],
-      );
-      await tester.pumpWidget(three(first: true));
-      final gesture = await tester.startGesture(
-        tester.getCenter(_divider.last),
-      );
-      await gesture.moveBy(const Offset(30, 0));
-      await tester.pump();
-      expect(tester.getSize(find.text('B')).width, closeTo(430, 1));
-      await tester.pumpWidget(three(first: false));
-      expect(tester.getSize(find.text('B')).width, closeTo(500, 1));
-      await gesture.moveBy(const Offset(20, 0));
-      await tester.pump();
-      final b = tester.getSize(find.text('B')).width;
-      final c = tester.getSize(find.text('C')).width;
-      expect(b + c, closeTo(1000, 1));
-      expect(b, closeTo(520, 1));
-      await gesture.up();
-      await tester.pump();
-      expect(notifies.single, 1);
-      expect(controller.fractions![1], closeTo(0.52, 1e-3));
-    });
+    testWidgets(
+      'fo06/us21/fr02: a pane before the dragged divider hiding keeps '
+      'the drag on its pair, from the new layout',
+      (tester) async {
+        _view(tester);
+        final notifies = [0];
+        final controller = _counted(notifies);
+        Widget three({required bool first}) => _split(
+          controller: controller,
+          panes: [
+            if (first) SplitPane(size: 200, child: _pane('A')) else null,
+            SplitPane(child: _pane('B')),
+            SplitPane(child: _pane('C')),
+          ],
+        );
+        await tester.pumpWidget(three(first: true));
+        final gesture = await tester.startGesture(
+          tester.getCenter(_divider.last),
+        );
+        await gesture.moveBy(const Offset(30, 0));
+        await tester.pump();
+        expect(tester.getSize(find.text('B')).width, closeTo(430, 1));
+        await tester.pumpWidget(three(first: false));
+        expect(tester.getSize(find.text('B')).width, closeTo(500, 1));
+        await gesture.moveBy(const Offset(20, 0));
+        await tester.pump();
+        final b = tester.getSize(find.text('B')).width;
+        final c = tester.getSize(find.text('C')).width;
+        expect(b + c, closeTo(1000, 1));
+        expect(b, closeTo(520, 1));
+        await gesture.up();
+        await tester.pump();
+        expect(notifies.single, 1);
+        expect(controller.fractions![1], closeTo(0.52, 1e-3));
+      },
+    );
   });
 
   group('SplitLayout drag', () {
-    testWidgets('us21/s1: us21/fr02: a drag resizes both panes', (
+    testWidgets('fo06/us21/s1: fo06/us21/fr02: a drag resizes both panes', (
       tester,
     ) async {
       _view(tester);
@@ -1537,29 +1614,31 @@ void main() {
       expect(tester.getSize(find.text('Detail')).width, closeTo(650, 1));
     });
 
-    testWidgets('us21/s8: us21/fr02/e01: a drag past the maximum stops there', (
-      tester,
-    ) async {
-      _view(tester);
-      await tester.pumpWidget(_split());
-      await tester.dragFrom(tester.getCenter(_divider), const Offset(400, 0));
-      await tester.pumpAndSettle();
-      expect(_listWidth(tester), closeTo(500, 1));
-    });
-
-    testWidgets('us21/fr02/e02: a drag past the neighbor minimum stops there', (
-      tester,
-    ) async {
-      _view(tester);
-      await tester.pumpWidget(_split(panes: [_list(max: null), _detail()]));
-      await tester.dragFrom(tester.getCenter(_divider), const Offset(600, 0));
-      await tester.pumpAndSettle();
-      expect(_listWidth(tester), closeTo(700, 1));
-      expect(tester.getSize(find.text('Detail')).width, closeTo(300, 1));
-    });
+    testWidgets(
+      'fo06/us21/s8: fo06/us21/fr02/e01: a drag past the maximum stops there',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split());
+        await tester.dragFrom(tester.getCenter(_divider), const Offset(400, 0));
+        await tester.pumpAndSettle();
+        expect(_listWidth(tester), closeTo(500, 1));
+      },
+    );
 
     testWidgets(
-      'us21/fr02: a drag under RTL moves the divider with the pointer',
+      'fo06/us21/fr02/e02: a drag past the neighbor minimum stops there',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split(panes: [_list(max: null), _detail()]));
+        await tester.dragFrom(tester.getCenter(_divider), const Offset(600, 0));
+        await tester.pumpAndSettle();
+        expect(_listWidth(tester), closeTo(700, 1));
+        expect(tester.getSize(find.text('Detail')).width, closeTo(300, 1));
+      },
+    );
+
+    testWidgets(
+      'fo06/us21/fr02: a drag under RTL moves the divider with the pointer',
       (tester) async {
         _view(tester);
         await tester.pumpWidget(_split(direction: TextDirection.rtl));
@@ -1569,14 +1648,17 @@ void main() {
       },
     );
 
-    testWidgets('us21/s7: us21/fr01/e04: resizing off takes no drag, focus, '
-        'or slider node', (tester) async {
-      _view(tester);
-      await tester.pumpWidget(_split(resizable: false));
-      expect(_divider, findsNothing);
-      await tester.dragFrom(const Offset(300, 200), const Offset(50, 0));
-      await tester.pumpAndSettle();
-      expect(_listWidth(tester), 300);
-    });
+    testWidgets(
+      'fo06/us21/s7: fo06/us21/fr01/e04: resizing off takes no drag, focus, '
+      'or slider node',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(_split(resizable: false));
+        expect(_divider, findsNothing);
+        await tester.dragFrom(const Offset(300, 200), const Offset(50, 0));
+        await tester.pumpAndSettle();
+        expect(_listWidth(tester), 300);
+      },
+    );
   });
 }

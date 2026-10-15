@@ -72,35 +72,41 @@ Future<void> _enter(WidgetTester tester, TestGesture mouse) async {
 
 void main() {
   group('HoverBuilder', () {
-    testWidgets('us16/s1, us16/fr01: a pointer entering builds the hover '
-        'look and calls onHover(true)', (tester) async {
-      final hovers = <bool>[];
-      final seen = <bool>[];
-      await tester.pumpWidget(themedHost(_card(hovers, seen)));
-      expect(find.text('idle'), findsOneWidget);
+    testWidgets(
+      'fo06/us16/s1, fo06/us16/fr01: a pointer entering builds the hover '
+      'look and calls onHover(true)',
+      (tester) async {
+        final hovers = <bool>[];
+        final seen = <bool>[];
+        await tester.pumpWidget(themedHost(_card(hovers, seen)));
+        expect(find.text('idle'), findsOneWidget);
 
-      await _enter(tester, await _mouse(tester));
+        await _enter(tester, await _mouse(tester));
 
-      expect(find.text('hovered'), findsOneWidget);
-      expect(hovers, [true]);
-    });
+        expect(find.text('hovered'), findsOneWidget);
+        expect(hovers, [true]);
+      },
+    );
 
-    testWidgets('us16/s2, us16/fr01: the pointer leaving builds the idle '
-        'look and calls onHover(false)', (tester) async {
-      final hovers = <bool>[];
-      final seen = <bool>[];
-      await tester.pumpWidget(themedHost(_card(hovers, seen)));
-      final mouse = await _mouse(tester);
-      await _enter(tester, mouse);
+    testWidgets(
+      'fo06/us16/s2, fo06/us16/fr01: the pointer leaving builds the idle '
+      'look and calls onHover(false)',
+      (tester) async {
+        final hovers = <bool>[];
+        final seen = <bool>[];
+        await tester.pumpWidget(themedHost(_card(hovers, seen)));
+        final mouse = await _mouse(tester);
+        await _enter(tester, mouse);
 
-      await mouse.moveTo(Offset.zero);
-      await tester.pump();
+        await mouse.moveTo(Offset.zero);
+        await tester.pump();
 
-      expect(find.text('idle'), findsOneWidget);
-      expect(hovers, [true, false]);
-    });
+        expect(find.text('idle'), findsOneWidget);
+        expect(hovers, [true, false]);
+      },
+    );
 
-    testWidgets('us16/fr01/e01, BP5: a pointer move inside builds nothing '
+    testWidgets('fo06/us16/fr01/e01, BP5: a pointer move inside builds nothing '
         'and calls nothing', (tester) async {
       final hovers = <bool>[];
       final seen = <bool>[];
@@ -118,187 +124,201 @@ void main() {
       expect(hovers, [true]);
     });
 
-    testWidgets('us16/fr01, PD4: the builder and onHover see the new value in '
-        'the same frame', (tester) async {
-      final hovers = <bool>[];
-      final seen = <bool>[];
-      await tester.pumpWidget(themedHost(_card(hovers, seen)));
-      final mouse = await _mouse(tester);
+    testWidgets(
+      'fo06/us16/fr01, PD4: the builder and onHover see the new value in '
+      'the same frame',
+      (tester) async {
+        final hovers = <bool>[];
+        final seen = <bool>[];
+        await tester.pumpWidget(themedHost(_card(hovers, seen)));
+        final mouse = await _mouse(tester);
 
-      await mouse.moveTo(tester.getCenter(find.byType(HoverBuilder)));
-      await tester.pump();
+        await mouse.moveTo(tester.getCenter(find.byType(HoverBuilder)));
+        await tester.pump();
 
-      expect(hovers, [true]);
-      expect(seen.last, isTrue);
-    });
+        expect(hovers, [true]);
+        expect(seen.last, isTrue);
+      },
+    );
 
-    testWidgets('us16/s3, us16/fr01/e02, BP4: content scrolling under a '
-        'still pointer moves hover to the row that comes under it', (
-      tester,
-    ) async {
-      final controller = ScrollController();
-      addTearDown(controller.dispose);
-      final hovers = [<bool>[], <bool>[], <bool>[], <bool>[]];
-      await tester.pumpWidget(
-        themedHost(
-          SizedBox(
-            width: 200,
-            height: 100,
-            child: ListView(
-              controller: controller,
-              children: [
-                for (var i = 0; i < 4; i++)
-                  HoverBuilder(
-                    onHover: hovers[i].add,
-                    builder: (context, hovered, child) => SizedBox(
-                      height: 50,
-                      child: Text(hovered ? 'row $i hovered' : 'row $i'),
+    testWidgets(
+      'fo06/us16/s3, fo06/us16/fr01/e02, BP4: content scrolling under a '
+      'still pointer moves hover to the row that comes under it',
+      (tester) async {
+        final controller = ScrollController();
+        addTearDown(controller.dispose);
+        final hovers = [<bool>[], <bool>[], <bool>[], <bool>[]];
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              width: 200,
+              height: 100,
+              child: ListView(
+                controller: controller,
+                children: [
+                  for (var i = 0; i < 4; i++)
+                    HoverBuilder(
+                      onHover: hovers[i].add,
+                      builder: (context, hovered, child) => SizedBox(
+                        height: 50,
+                        child: Text(hovered ? 'row $i hovered' : 'row $i'),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      );
-      final mouse = await _mouse(tester);
-      await mouse.moveTo(tester.getCenter(find.text('row 0')));
-      await tester.pump();
-      expect(find.text('row 0 hovered'), findsOneWidget);
+        );
+        final mouse = await _mouse(tester);
+        await mouse.moveTo(tester.getCenter(find.text('row 0')));
+        await tester.pump();
+        expect(find.text('row 0 hovered'), findsOneWidget);
 
-      controller.jumpTo(50);
-      // The scroll frame, after which Flutter's mouse tracker reports the
-      // exit and the enter, then the frame the two builders schedule.
-      await tester.pump();
-      await tester.pump();
+        controller.jumpTo(50);
+        // The scroll frame, after which Flutter's mouse tracker reports the
+        // exit and the enter, then the frame the two builders schedule.
+        await tester.pump();
+        await tester.pump();
 
-      expect(find.text('row 0 hovered'), findsNothing);
-      expect(find.text('row 1 hovered'), findsOneWidget);
-      expect(hovers[0], [true, false]);
-      expect(hovers[1], [true]);
-    });
+        expect(find.text('row 0 hovered'), findsNothing);
+        expect(find.text('row 1 hovered'), findsOneWidget);
+        expect(hovers[0], [true, false]);
+        expect(hovers[1], [true]);
+      },
+    );
 
-    testWidgets('us16/fr01/e03, BP1: child reaches builder as the same widget '
-        'on every call and does not rebuild', (tester) async {
-      var childBuilds = 0;
-      final counted = _Counted(
-        onBuild: () => childBuilds++,
-        child: const SizedBox(width: 40, height: 20),
-      );
-      final received = <Widget?>[];
-      await tester.pumpWidget(
-        themedHost(
-          HoverBuilder(
-            builder: (context, hovered, child) {
-              received.add(child);
-              return child!;
-            },
-            child: counted,
+    testWidgets(
+      'fo06/us16/fr01/e03, BP1: child reaches builder as the same widget '
+      'on every call and does not rebuild',
+      (tester) async {
+        var childBuilds = 0;
+        final counted = _Counted(
+          onBuild: () => childBuilds++,
+          child: const SizedBox(width: 40, height: 20),
+        );
+        final received = <Widget?>[];
+        await tester.pumpWidget(
+          themedHost(
+            HoverBuilder(
+              builder: (context, hovered, child) {
+                received.add(child);
+                return child!;
+              },
+              child: counted,
+            ),
           ),
-        ),
-      );
-      final mouse = await _mouse(tester);
-      await _enter(tester, mouse);
-      await mouse.moveTo(Offset.zero);
-      await tester.pump();
+        );
+        final mouse = await _mouse(tester);
+        await _enter(tester, mouse);
+        await mouse.moveTo(Offset.zero);
+        await tester.pump();
 
-      expect(received, hasLength(3));
-      expect(received, everyElement(same(counted)));
-      expect(childBuilds, 1);
-    });
+        expect(received, hasLength(3));
+        expect(received, everyElement(same(counted)));
+        expect(childBuilds, 1);
+      },
+    );
 
-    testWidgets('us16/fr01: removing a hovered builder calls no listener and '
-        'throws nothing', (tester) async {
-      final hovers = <bool>[];
-      final seen = <bool>[];
-      await tester.pumpWidget(themedHost(_card(hovers, seen)));
-      await _enter(tester, await _mouse(tester));
+    testWidgets(
+      'fo06/us16/fr01: removing a hovered builder calls no listener and '
+      'throws nothing',
+      (tester) async {
+        final hovers = <bool>[];
+        final seen = <bool>[];
+        await tester.pumpWidget(themedHost(_card(hovers, seen)));
+        await _enter(tester, await _mouse(tester));
 
-      await tester.pumpWidget(themedHost(const SizedBox()));
-      await tester.pump();
+        await tester.pumpWidget(themedHost(const SizedBox()));
+        await tester.pump();
 
-      expect(tester.takeException(), isNull);
-      expect(hovers, [true]);
-    });
+        expect(tester.takeException(), isNull);
+        expect(hovers, [true]);
+      },
+    );
 
-    testWidgets('us16/fr03/e02, us16/fr03: a 16 px icon keeps its size and '
-        'gets no overlay while hovered', (tester) async {
-      await tester.pumpWidget(
-        themedHost(
-          HoverBuilder(
-            builder: (context, hovered, child) =>
-                const Icon(Icons.star, size: 16),
+    testWidgets(
+      'fo06/us16/fr03/e02, fo06/us16/fr03: a 16 px icon keeps its size and '
+      'gets no overlay while hovered',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            HoverBuilder(
+              builder: (context, hovered, child) =>
+                  const Icon(Icons.star, size: 16),
+            ),
           ),
-        ),
-      );
-      expect(tester.getSize(find.byType(HoverBuilder)), const Size(16, 16));
+        );
+        expect(tester.getSize(find.byType(HoverBuilder)), const Size(16, 16));
 
-      await _enter(tester, await _mouse(tester));
+        await _enter(tester, await _mouse(tester));
 
-      expect(tester.getSize(find.byType(HoverBuilder)), const Size(16, 16));
-      expect(
-        find.descendant(
-          of: find.byType(HoverBuilder),
-          matching: find.byType(DecoratedBox),
-        ),
-        findsNothing,
-      );
-    });
+        expect(tester.getSize(find.byType(HoverBuilder)), const Size(16, 16));
+        expect(
+          find.descendant(
+            of: find.byType(HoverBuilder),
+            matching: find.byType(DecoratedBox),
+          ),
+          findsNothing,
+        );
+      },
+    );
 
-    testWidgets('us16/fr03, D1: taps, the cursor, and hover reach the widgets '
-        'it wraps, and the opaque wrapped widget keeps blocking the widget '
-        'behind it (RQ1: same footprint as no wrapper at all)', (
-      tester,
-    ) async {
-      var taps = 0;
-      final behind = <bool>[];
-      await tester.pumpWidget(
-        themedHost(
-          SizedBox(
-            width: 200,
-            height: 200,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: MouseRegion(
-                    onEnter: (_) => behind.add(true),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-                Center(
-                  child: HoverBuilder(
-                    builder: (context, hovered, child) => child!,
+    testWidgets(
+      'fo06/us16/fr03, D1: taps, the cursor, and hover reach the widgets '
+      'it wraps, and the opaque wrapped widget keeps blocking the widget '
+      'behind it (RQ1: same footprint as no wrapper at all)',
+      (tester) async {
+        var taps = 0;
+        final behind = <bool>[];
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              width: 200,
+              height: 200,
+              child: Stack(
+                children: [
+                  Positioned.fill(
                     child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        // A childless box takes no hit of its own.
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => taps++,
-                        child: const SizedBox(width: 40, height: 40),
+                      onEnter: (_) => behind.add(true),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                  Center(
+                    child: HoverBuilder(
+                      builder: (context, hovered, child) => child!,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          // A childless box takes no hit of its own.
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => taps++,
+                          child: const SizedBox(width: 40, height: 40),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      await _enter(tester, await _mouse(tester));
-      await tester.tap(find.byType(HoverBuilder));
+        await _enter(tester, await _mouse(tester));
+        await tester.tap(find.byType(HoverBuilder));
 
-      // The wrapped GestureDetector is opaque, so it absorbs the hit at the
-      // HoverBuilder's own position: the Stack sibling behind gets no
-      // `onEnter`, exactly as it would with no HoverBuilder there at all.
-      expect(behind, isEmpty);
-      expect(
-        tester.binding.mouseTracker.debugDeviceActiveCursor(1),
-        SystemMouseCursors.click,
-      );
-      expect(taps, 1);
-    });
+        // The wrapped GestureDetector is opaque, so it absorbs the hit at the
+        // HoverBuilder's own position: the Stack sibling behind gets no
+        // `onEnter`, exactly as it would with no HoverBuilder there at all.
+        expect(behind, isEmpty);
+        expect(
+          tester.binding.mouseTracker.debugDeviceActiveCursor(1),
+          SystemMouseCursors.click,
+        );
+        expect(taps, 1);
+      },
+    );
 
-    testWidgets('us16/fr03, RQ1: an ancestor GestureDetector above the '
+    testWidgets('fo06/us16/fr03, RQ1: an ancestor GestureDetector above the '
         'builder gets the tap on the wrapped Text', (tester) async {
       var aboveTaps = 0;
       await tester.pumpWidget(
@@ -317,101 +337,105 @@ void main() {
       expect(aboveTaps, 1);
     });
 
-    testWidgets('us16/fr03, RQ1: a Stack sibling behind the wrapped opaque '
-        'child gets no tap', (tester) async {
-      var front = 0;
-      var behind = 0;
-      const hostKey = Key('rq1B');
-      await tester.pumpWidget(
-        themedHost(
-          SizedBox(
-            key: hostKey,
-            width: 200,
-            height: 200,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    onTap: () => behind++,
-                    behavior: HitTestBehavior.opaque,
-                    child: const SizedBox.expand(),
+    testWidgets(
+      'fo06/us16/fr03, RQ1: a Stack sibling behind the wrapped opaque '
+      'child gets no tap',
+      (tester) async {
+        var front = 0;
+        var behind = 0;
+        const hostKey = Key('rq1B');
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              key: hostKey,
+              width: 200,
+              height: 200,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: () => behind++,
+                      behavior: HitTestBehavior.opaque,
+                      child: const SizedBox.expand(),
+                    ),
                   ),
-                ),
-                Positioned(
-                  left: 50,
-                  top: 50,
-                  width: 100,
-                  height: 100,
-                  child: GestureDetector(
-                    onTap: () => front++,
+                  Positioned(
+                    left: 50,
+                    top: 50,
+                    width: 100,
+                    height: 100,
+                    child: GestureDetector(
+                      onTap: () => front++,
+                      child: HoverBuilder(
+                        builder: (context, hovered, child) => child!,
+                        child: const ColoredBox(color: Colors.red),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final topLeft = tester.getTopLeft(find.byKey(hostKey));
+        await tester.tapAt(topLeft + const Offset(100, 100));
+
+        expect(front, 1);
+        expect(behind, 0);
+      },
+    );
+
+    testWidgets(
+      'fo06/us16/fr03, RQ1: a Stack sibling behind the wrapped opaque '
+      'child gets no hover enter',
+      (tester) async {
+        final frontHover = <bool>[];
+        final behindHover = <bool>[];
+        const hostKey = Key('rq1D');
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              key: hostKey,
+              width: 200,
+              height: 200,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: MouseRegion(
+                      onEnter: (_) => behindHover.add(true),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                  Positioned(
+                    left: 50,
+                    top: 50,
+                    width: 100,
+                    height: 100,
                     child: HoverBuilder(
+                      onHover: frontHover.add,
                       builder: (context, hovered, child) => child!,
                       child: const ColoredBox(color: Colors.red),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      final topLeft = tester.getTopLeft(find.byKey(hostKey));
-      await tester.tapAt(topLeft + const Offset(100, 100));
+        final topLeft = tester.getTopLeft(find.byKey(hostKey));
+        final mouse = await _mouse(tester);
+        await mouse.moveTo(topLeft + const Offset(100, 100));
+        await tester.pump();
 
-      expect(front, 1);
-      expect(behind, 0);
-    });
+        expect(frontHover, [true]);
+        expect(behindHover, isEmpty);
+      },
+    );
 
-    testWidgets('us16/fr03, RQ1: a Stack sibling behind the wrapped opaque '
-        'child gets no hover enter', (tester) async {
-      final frontHover = <bool>[];
-      final behindHover = <bool>[];
-      const hostKey = Key('rq1D');
-      await tester.pumpWidget(
-        themedHost(
-          SizedBox(
-            key: hostKey,
-            width: 200,
-            height: 200,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: MouseRegion(
-                    onEnter: (_) => behindHover.add(true),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-                Positioned(
-                  left: 50,
-                  top: 50,
-                  width: 100,
-                  height: 100,
-                  child: HoverBuilder(
-                    onHover: frontHover.add,
-                    builder: (context, hovered, child) => child!,
-                    child: const ColoredBox(color: Colors.red),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-
-      final topLeft = tester.getTopLeft(find.byKey(hostKey));
-      final mouse = await _mouse(tester);
-      await mouse.moveTo(topLeft + const Offset(100, 100));
-      await tester.pump();
-
-      expect(frontHover, [true]);
-      expect(behindHover, isEmpty);
-    });
-
-    testWidgets('us16/fr03, RQ1: the whole box still reports hover, '
-        'including a padding gap outside the painted content', (
-      tester,
-    ) async {
+    testWidgets('fo06/us16/fr03, RQ1: the whole box still reports hover, '
+        'including a padding gap outside the painted content', (tester) async {
       final hovers = <bool>[];
       const hostKey = Key('rq1E');
       await tester.pumpWidget(
@@ -440,35 +464,38 @@ void main() {
       expect(hovers, [true]);
     });
 
-    testWidgets('us16/fr04/e01, NFR-U06: semantics label the wrapped group '
-        'in one node of its own, read before the nodes inside', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          HoverBuilder(
-            semantics: const SemanticsProperties(label: 'ที่อยู่จัดส่ง'),
-            builder: (context, hovered, child) => child!,
-            child: Semantics(
-              container: true,
-              textField: true,
-              label: 'ถนน',
-              child: const SizedBox(width: 80, height: 20),
+    testWidgets(
+      'fo06/us16/fr04/e01, NFR-U06: semantics label the wrapped group '
+      'in one node of its own, read before the nodes inside',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            HoverBuilder(
+              semantics: const SemanticsProperties(label: 'ที่อยู่จัดส่ง'),
+              builder: (context, hovered, child) => child!,
+              child: Semantics(
+                container: true,
+                textField: true,
+                label: 'ถนน',
+                child: const SizedBox(width: 80, height: 20),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('ที่อยู่จัดส่ง')),
-        matchesSemantics(
-          label: 'ที่อยู่จัดส่ง',
-          children: [matchesSemantics(label: 'ถนน', isTextField: true)],
-        ),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('ที่อยู่จัดส่ง')),
+          matchesSemantics(
+            label: 'ที่อยู่จัดส่ง',
+            children: [matchesSemantics(label: 'ถนน', isTextField: true)],
+          ),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us16/fr04/e02, NFR-U06: null semantics adds no node; the '
+    testWidgets('fo06/us16/fr04/e02, NFR-U06: null semantics adds no node; the '
         'wrapped node reads unchanged', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -503,7 +530,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us16/fr04, Minor 2: toggling semantics null <-> a value '
+    testWidgets('fo06/us16/fr04, Minor 2: toggling semantics null <-> a value '
         "keeps a TextField's State and typed text, instead of remounting "
         'it', (tester) async {
       SemanticsProperties? semantics;
@@ -547,44 +574,48 @@ void main() {
       );
     });
 
-    testWidgets('us16/s8, us16/fr05/e01, BP3: inside a disabled component a '
-        'pointer entering builds the idle look and calls nothing', (
-      tester,
-    ) async {
-      final hovers = <bool>[];
-      final seen = <bool>[];
-      await tester.pumpWidget(
-        themedHost(_Component(disabled: true, child: _card(hovers, seen))),
-      );
+    testWidgets(
+      'fo06/us16/s8, fo06/us16/fr05/e01, BP3: inside a disabled component a '
+      'pointer entering builds the idle look and calls nothing',
+      (tester) async {
+        final hovers = <bool>[];
+        final seen = <bool>[];
+        await tester.pumpWidget(
+          themedHost(_Component(disabled: true, child: _card(hovers, seen))),
+        );
 
-      await _enter(tester, await _mouse(tester));
+        await _enter(tester, await _mouse(tester));
 
-      expect(find.text('idle'), findsOneWidget);
-      expect(hovers, isEmpty);
-    });
+        expect(find.text('idle'), findsOneWidget);
+        expect(hovers, isEmpty);
+      },
+    );
 
-    testWidgets('us16/fr05/e02, BP3: a hovered builder whose component turns '
-        'disabled reads false and calls nothing', (tester) async {
-      final hovers = <bool>[];
-      final seen = <bool>[];
-      final card = _card(hovers, seen);
-      await tester.pumpWidget(
-        themedHost(_Component(disabled: false, child: card)),
-      );
-      await _enter(tester, await _mouse(tester));
-      expect(hovers, [true]);
+    testWidgets(
+      'fo06/us16/fr05/e02, BP3: a hovered builder whose component turns '
+      'disabled reads false and calls nothing',
+      (tester) async {
+        final hovers = <bool>[];
+        final seen = <bool>[];
+        final card = _card(hovers, seen);
+        await tester.pumpWidget(
+          themedHost(_Component(disabled: false, child: card)),
+        );
+        await _enter(tester, await _mouse(tester));
+        expect(hovers, [true]);
 
-      await tester.pumpWidget(
-        themedHost(_Component(disabled: true, child: card)),
-      );
-      await tester.pump();
+        await tester.pumpWidget(
+          themedHost(_Component(disabled: true, child: card)),
+        );
+        await tester.pump();
 
-      expect(find.text('idle'), findsOneWidget);
-      expect(seen.last, isFalse);
-      expect(hovers, [true]);
-    });
+        expect(find.text('idle'), findsOneWidget);
+        expect(seen.last, isFalse);
+        expect(hovers, [true]);
+      },
+    );
 
-    testWidgets('us16/fr05, BP3: a component re-enabling under a still '
+    testWidgets('fo06/us16/fr05, BP3: a component re-enabling under a still '
         'pointer rebuilds the hovered look and calls onHover(true) again', (
       tester,
     ) async {
@@ -634,7 +665,7 @@ void main() {
       expect(find.text('hovered'), findsOneWidget);
     });
 
-    test('us16/fr01/e04, us16/fr01/e05, us16/fr03/e03, BP6, PD12: the '
+    test('fo06/us16/fr01/e04, fo06/us16/fr01/e05, fo06/us16/fr03/e03, BP6, PD12: the '
         "dartdoc names the observer's limits and warns about touch and "
         'color-only state', () {
       final source = File(

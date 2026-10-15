@@ -333,28 +333,31 @@ void main() {
       },
     );
 
-    testWidgets("us11/fr01: an interaction animates a style over the theme's "
-        'fast level by default', (tester) async {
-      await tester.pumpWidget(
-        themedHost(
-          const _Layout(
-            style: WidgetStyle(width: 40),
-            interaction: Interaction(),
+    testWidgets(
+      "fo06/us11/fr01: an interaction animates a style over the theme's "
+      'fast level by default',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              style: WidgetStyle(width: 40),
+              interaction: Interaction(),
+            ),
+            theme: motionTheme(),
           ),
-          theme: motionTheme(),
-        ),
-      );
+        );
 
-      final style = tester
-          .widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox))
-          .style
-          ?.animationStyle;
-      expect(style?.duration, const Duration(milliseconds: 77));
-      expect(style?.reverseDuration, const Duration(microseconds: 49280));
-      expect(style?.curve, Curves.easeInOutSine);
-    });
+        final style = tester
+            .widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox))
+            .style
+            ?.animationStyle;
+        expect(style?.duration, const Duration(milliseconds: 77));
+        expect(style?.reverseDuration, const Duration(microseconds: 49280));
+        expect(style?.curve, Curves.easeInOutSine);
+      },
+    );
 
-    testWidgets('us11/fr01: with no theme above it takes the package '
+    testWidgets('fo06/us11/fr01: with no theme above it takes the package '
         "default's fast level", (tester) async {
       await tester.pumpWidget(
         const Directionality(

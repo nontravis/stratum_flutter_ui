@@ -17,7 +17,7 @@ void main() {
     (TargetPlatform.linux, true),
   ]) {
     test(
-      'us01/fr02/e04: a resource error with code 14 on ${platform.name} '
+      'co01_02/us01/fr02/e04: a resource error with code 14 on ${platform.name} '
       'is ${reported ? 'reported' : 'dropped as a cancelled navigation'}',
       () async {
         debugDefaultTargetPlatformOverride = platform;
@@ -57,18 +57,21 @@ void main() {
       expect(harness.channelNames, {'StratumBridge'});
     });
 
-    test('us03/fr01/e07: a message is judged by the last main-frame page '
-        'start at receipt, because the platform names no sender', () {
-      harness
-        ..sendBridgeMessage('before', senderUrl: appPage.toString())
-        ..startPage(appPage.toString())
-        ..sendBridgeMessage('after', senderUrl: 'https://evil.example.net/');
-      expect(listener.messages, [
-        StratumWebViewMessage(data: 'after', origin: appOrigin),
-      ]);
-    });
+    test(
+      'co01_02/us03/fr01/e07: a message is judged by the last main-frame page '
+      'start at receipt, because the platform names no sender',
+      () {
+        harness
+          ..sendBridgeMessage('before', senderUrl: appPage.toString())
+          ..startPage(appPage.toString())
+          ..sendBridgeMessage('after', senderUrl: 'https://evil.example.net/');
+        expect(listener.messages, [
+          StratumWebViewMessage(data: 'after', origin: appOrigin),
+        ]);
+      },
+    );
 
-    test('us03/fr01/e06: a sub-frame message arrives stamped with the '
+    test('co01_02/us03/fr01/e06: a sub-frame message arrives stamped with the '
         'top-level origin', () {
       harness
         ..startPage(appPage.toString())

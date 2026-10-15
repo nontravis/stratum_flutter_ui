@@ -338,7 +338,9 @@ void main() {
       expect(_overlayColor(tester), next);
     });
 
-    testWidgets("us11/fr01: fades over the theme's fast level", (tester) async {
+    testWidgets("fo06/us11/fr01: fades over the theme's fast level", (
+      tester,
+    ) async {
       await tester.pumpWidget(
         themedHost(const StratumInkWell(onTap: _noop, child: _box)),
       );
@@ -417,34 +419,37 @@ void main() {
       expect(_overlayColor(tester), fakeHover);
     });
 
-    testWidgets('us11/fr01: a fast level with no duration or curve fades at '
-        'zero duration on easeInOutSine', (tester) async {
-      final theme = fakeTheme.copyWith(
-        animation: StratumAnimation(
-          micro: StratumAnimation.packageDefault.micro,
-          veryFast: StratumAnimation.packageDefault.veryFast,
-          fast: const AnimationStyle(),
-          normal: StratumAnimation.packageDefault.normal,
-          slow: StratumAnimation.packageDefault.slow,
-          verySlow: StratumAnimation.packageDefault.verySlow,
-          appear: StratumAnimation.packageDefault.appear,
-          defaultLevel: StratumMotionLevel.fast,
-        ),
-      );
+    testWidgets(
+      'fo06/us11/fr01: a fast level with no duration or curve fades at '
+      'zero duration on easeInOutSine',
+      (tester) async {
+        final theme = fakeTheme.copyWith(
+          animation: StratumAnimation(
+            micro: StratumAnimation.packageDefault.micro,
+            veryFast: StratumAnimation.packageDefault.veryFast,
+            fast: const AnimationStyle(),
+            normal: StratumAnimation.packageDefault.normal,
+            slow: StratumAnimation.packageDefault.slow,
+            verySlow: StratumAnimation.packageDefault.verySlow,
+            appear: StratumAnimation.packageDefault.appear,
+            defaultLevel: StratumMotionLevel.fast,
+          ),
+        );
 
-      await tester.pumpWidget(
-        themedHost(
-          const StratumInkWell(onTap: _noop, child: _box),
-          theme: theme,
-        ),
-      );
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(onTap: _noop, child: _box),
+            theme: theme,
+          ),
+        );
 
-      final builder = tester.widget<TweenAnimationBuilder<Color?>>(
-        find.byType(TweenAnimationBuilder<Color?>),
-      );
-      expect(builder.duration, Duration.zero);
-      expect(builder.curve, Curves.easeInOutSine);
-    });
+        final builder = tester.widget<TweenAnimationBuilder<Color?>>(
+          find.byType(TweenAnimationBuilder<Color?>),
+        );
+        expect(builder.duration, Duration.zero);
+        expect(builder.curve, Curves.easeInOutSine);
+      },
+    );
 
     testWidgets('paints over the child, inside InkWell', (tester) async {
       await tester.pumpWidget(
@@ -604,19 +609,22 @@ void main() {
   });
 
   group('StratumInkWell focus', () {
-    testWidgets('us04/fr03/e01: unmounting leaves a caller focusNode usable', (
-      tester,
-    ) async {
-      final node = _node();
-      await tester.pumpWidget(
-        themedHost(StratumInkWell(onTap: _noop, focusNode: node, child: _box)),
-      );
-      await tester.pumpWidget(themedHost(_box));
+    testWidgets(
+      'fo06/us04/fr03/e01: unmounting leaves a caller focusNode usable',
+      (tester) async {
+        final node = _node();
+        await tester.pumpWidget(
+          themedHost(
+            StratumInkWell(onTap: _noop, focusNode: node, child: _box),
+          ),
+        );
+        await tester.pumpWidget(themedHost(_box));
 
-      expect(() => node.addListener(_noop), returnsNormally);
-    });
+        expect(() => node.addListener(_noop), returnsNormally);
+      },
+    );
 
-    testWidgets('us04/fr03/e02: the focus node swaps between internal and '
+    testWidgets('fo06/us04/fr03/e02: the focus node swaps between internal and '
         'caller', (tester) async {
       final node = _node();
       Widget build(FocusNode? focusNode) => themedHost(
@@ -694,31 +702,34 @@ void main() {
       expect(_ring(tester), isTrue);
     });
 
-    testWidgets('us04/fr03/e04: focusedVisible leaves focus on another node '
-        'after a tap', (tester) async {
-      final other = _node();
-      await tester.pumpWidget(
-        themedHost(
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Focus(
-                focusNode: other,
-                child: const SizedBox(width: 10, height: 10),
-              ),
-              const StratumInkWell(onTap: _noop, child: _box),
-            ],
+    testWidgets(
+      'fo06/us04/fr03/e04: focusedVisible leaves focus on another node '
+      'after a tap',
+      (tester) async {
+        final other = _node();
+        await tester.pumpWidget(
+          themedHost(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Focus(
+                  focusNode: other,
+                  child: const SizedBox(width: 10, height: 10),
+                ),
+                const StratumInkWell(onTap: _noop, child: _box),
+              ],
+            ),
           ),
-        ),
-      );
-      other.requestFocus();
-      await tester.pump();
+        );
+        other.requestFocus();
+        await tester.pump();
 
-      await tester.tap(find.byType(StratumInkWell));
-      await tester.pump();
+        await tester.tap(find.byType(StratumInkWell));
+        await tester.pump();
 
-      expect(other.hasFocus, isTrue);
-    });
+        expect(other.hasFocus, isTrue);
+      },
+    );
 
     testWidgets('none cannot take focus and has no ring', (tester) async {
       final node = _node();
@@ -817,7 +828,7 @@ void main() {
       },
     );
 
-    testWidgets('us04/fr03/e05: a hovered and focused surface shows the '
+    testWidgets('fo06/us04/fr03/e05: a hovered and focused surface shows the '
         'focused look', (tester) async {
       _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
       final node = _node();
@@ -838,7 +849,7 @@ void main() {
     });
 
     testWidgets(
-      'us04/fr03/e12: a focused surface in another state still shows the '
+      'fo06/us04/fr03/e12: a focused surface in another state still shows the '
       'ring; a disabled one takes no focus and shows none',
       (tester) async {
         _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
@@ -869,31 +880,28 @@ void main() {
       },
     );
 
-    testWidgets(
-      'us04/fr03/e03: a focused surface that turns disabled loses focus and '
-      'its ring',
-      (tester) async {
-        _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
-        final node = _node();
-        Widget build({required bool disabled}) => themedHost(
-          StratumInkWell(
-            onTap: _noop,
-            focusNode: node,
-            disabled: disabled,
-            child: _box,
-          ),
-        );
-        await tester.pumpWidget(build(disabled: false));
-        node.requestFocus();
-        await tester.pumpAndSettle();
-        expect(_ring(tester), isTrue);
+    testWidgets('fo06/us04/fr03/e03: a focused surface that turns disabled loses focus and '
+        'its ring', (tester) async {
+      _useHighlightStrategy(FocusHighlightStrategy.alwaysTraditional);
+      final node = _node();
+      Widget build({required bool disabled}) => themedHost(
+        StratumInkWell(
+          onTap: _noop,
+          focusNode: node,
+          disabled: disabled,
+          child: _box,
+        ),
+      );
+      await tester.pumpWidget(build(disabled: false));
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      expect(_ring(tester), isTrue);
 
-        await tester.pumpWidget(build(disabled: true));
-        await tester.pumpAndSettle();
-        expect(node.hasFocus, isFalse);
-        expect(_ring(tester), isFalse);
-      },
-    );
+      await tester.pumpWidget(build(disabled: true));
+      await tester.pumpAndSettle();
+      expect(node.hasFocus, isFalse);
+      expect(_ring(tester), isFalse);
+    });
 
     testWidgets('onFocusChange reports each change', (tester) async {
       final node = _node();
@@ -974,25 +982,26 @@ void main() {
   });
 
   group('StratumInkWell semantics', () {
-    testWidgets('us04/s4: an activation callback gives an enabled button', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(const StratumInkWell(onTap: _noop, child: _box)),
-      );
+    testWidgets(
+      'fo06/us04/s4: an activation callback gives an enabled button',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(const StratumInkWell(onTap: _noop, child: _box)),
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: true,
-          hasTapAction: true,
-        ),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true,
+          ),
+        );
+        handle.dispose();
+      },
+    );
 
     testWidgets('disabled gives a dimmed button with no action', (
       tester,
@@ -1029,7 +1038,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us04/fr02/e01: semantics hands the role to the caller', (
+    testWidgets('fo06/us04/fr02/e01: semantics hands the role to the caller', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
@@ -1057,34 +1066,35 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us04/fr02: a label-only semantics keeps the button role', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          const StratumInkWell(
-            onTap: _noop,
-            semantics: SemanticsProperties(label: 'Open settings'),
-            child: _box,
+    testWidgets(
+      'fo06/us04/fr02: a label-only semantics keeps the button role',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(
+              onTap: _noop,
+              semantics: SemanticsProperties(label: 'Open settings'),
+              child: _box,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          label: 'Open settings',
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: true,
-          hasTapAction: true,
-        ),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            label: 'Open settings',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true,
+          ),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us04/fr02/e06: button false opts out even with a label', (
+    testWidgets('fo06/us04/fr02/e06: button false opts out even with a label', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
@@ -1111,146 +1121,151 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us04/fr02/e07: an image semantics keeps the button role', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          const StratumInkWell(
-            onTap: _noop,
-            semantics: SemanticsProperties(image: true, label: 'Avatar'),
-            child: _box,
+    testWidgets(
+      'fo06/us04/fr02/e07: an image semantics keeps the button role',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(
+              onTap: _noop,
+              semantics: SemanticsProperties(image: true, label: 'Avatar'),
+              child: _box,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          label: 'Avatar',
-          isImage: true,
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: true,
-          hasTapAction: true,
-        ),
-      );
-      handle.dispose();
-    });
-
-    testWidgets('us04/fr02/e07: a header semantics keeps the button role', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          const StratumInkWell(
-            onTap: _noop,
-            semantics: SemanticsProperties(header: true, label: 'Recent'),
-            child: _box,
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            label: 'Avatar',
+            isImage: true,
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true,
           ),
-        ),
-      );
+        );
+        handle.dispose();
+      },
+    );
 
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          label: 'Recent',
-          isHeader: true,
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: true,
-          hasTapAction: true,
-        ),
-      );
-      handle.dispose();
-    });
-
-    testWidgets('us04/fr02/e07: a selected semantics keeps the button role', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          const StratumInkWell(
-            onTap: _noop,
-            semantics: SemanticsProperties(selected: true, label: 'Week'),
-            child: _box,
+    testWidgets(
+      'fo06/us04/fr02/e07: a header semantics keeps the button role',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(
+              onTap: _noop,
+              semantics: SemanticsProperties(header: true, label: 'Recent'),
+              child: _box,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          label: 'Week',
-          hasSelectedState: true,
-          isSelected: true,
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: true,
-          hasTapAction: true,
-        ),
-      );
-      handle.dispose();
-    });
-
-    testWidgets('us04/fr02/e07: an enabled semantics keeps the button role', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          const StratumInkWell(
-            onTap: _noop,
-            semantics: SemanticsProperties(enabled: true, label: 'Save'),
-            child: _box,
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            label: 'Recent',
+            isHeader: true,
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true,
           ),
-        ),
-      );
+        );
+        handle.dispose();
+      },
+    );
 
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          label: 'Save',
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: true,
-          hasTapAction: true,
-        ),
-      );
-      handle.dispose();
-    });
-
-    testWidgets('us04/fr02/e07: a caller enabled false wins over the surface', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          const StratumInkWell(
-            onTap: _noop,
-            semantics: SemanticsProperties(enabled: false, label: 'Save'),
-            child: _box,
+    testWidgets(
+      'fo06/us04/fr02/e07: a selected semantics keeps the button role',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(
+              onTap: _noop,
+              semantics: SemanticsProperties(selected: true, label: 'Week'),
+              child: _box,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          label: 'Save',
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: false,
-          hasTapAction: true,
-        ),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            label: 'Week',
+            hasSelectedState: true,
+            isSelected: true,
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true,
+          ),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us04/fr02/e08: a none role keeps the button role', (
+    testWidgets(
+      'fo06/us04/fr02/e07: an enabled semantics keeps the button role',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(
+              onTap: _noop,
+              semantics: SemanticsProperties(enabled: true, label: 'Save'),
+              child: _box,
+            ),
+          ),
+        );
+
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            label: 'Save',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true,
+          ),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e07: a caller enabled false wins over the surface',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(
+              onTap: _noop,
+              semantics: SemanticsProperties(enabled: false, label: 'Save'),
+              child: _box,
+            ),
+          ),
+        );
+
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            label: 'Save',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+            hasTapAction: true,
+          ),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us04/fr02/e08: a none role keeps the button role', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
@@ -1281,7 +1296,7 @@ void main() {
     });
 
     testWidgets(
-      'us04/fr02/e02: a label-only semantics with no activation callback '
+      'fo06/us04/fr02/e02: a label-only semantics with no activation callback '
       'adds no button',
       (tester) async {
         final handle = tester.ensureSemantics();
@@ -1308,60 +1323,66 @@ void main() {
       },
     );
 
-    testWidgets('us04/fr02/e01: a false-valued role field still removes the '
-        'button role', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          const StratumInkWell(
-            onTap: _noop,
-            semantics: SemanticsProperties(checked: false, label: 'Mute'),
-            child: _box,
+    testWidgets(
+      'fo06/us04/fr02/e01: a false-valued role field still removes the '
+      'button role',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(
+              onTap: _noop,
+              semantics: SemanticsProperties(checked: false, label: 'Mute'),
+              child: _box,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          label: 'Mute',
-          isButton: false,
-          hasCheckedState: true,
-          isChecked: false,
-          hasEnabledState: true,
-          isEnabled: true,
-          hasTapAction: true,
-        ),
-      );
-      handle.dispose();
-    });
-
-    testWidgets('us04/fr02: a disabled label-only semantics reads as a dimmed '
-        'button', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          const StratumInkWell(
-            onTap: _noop,
-            disabled: true,
-            semantics: SemanticsProperties(label: 'Open settings'),
-            child: _box,
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            label: 'Mute',
+            isButton: false,
+            hasCheckedState: true,
+            isChecked: false,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true,
           ),
-        ),
-      );
+        );
+        handle.dispose();
+      },
+    );
 
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          label: 'Open settings',
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: false,
-          hasTapAction: false,
-        ),
-      );
-      handle.dispose();
-    });
+    testWidgets(
+      'fo06/us04/fr02: a disabled label-only semantics reads as a dimmed '
+      'button',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const StratumInkWell(
+              onTap: _noop,
+              disabled: true,
+              semantics: SemanticsProperties(label: 'Open settings'),
+              child: _box,
+            ),
+          ),
+        );
+
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            label: 'Open settings',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+            hasTapAction: false,
+          ),
+        );
+        handle.dispose();
+      },
+    );
 
     testWidgets('excludeFromSemantics adds nothing', (tester) async {
       final handle = tester.ensureSemantics();
@@ -1402,7 +1423,7 @@ void main() {
     });
   });
 
-  group('us04/fr02, s03/inv8: tapSurfaceHeadingLevel', () {
+  group('fo06/us04/fr02, s03/inv8: tapSurfaceHeadingLevel', () {
     int? level(
       SemanticsProperties? semantics, {
       bool isWeb = true,
@@ -1415,19 +1436,22 @@ void main() {
       semantics: semantics,
     );
 
-    test('us04/fr02/e07: a header button on web takes level 2', () {
+    test('fo06/us04/fr02/e07: a header button on web takes level 2', () {
       expect(
         level(const SemanticsProperties(header: true, label: 'Recent')),
         2,
       );
     });
 
-    test('us04/fr02/e07: a caller button true splits with no callback', () {
-      const semantics = SemanticsProperties(button: true, header: true);
-      expect(level(semantics, hasActivation: false), 2);
-    });
+    test(
+      'fo06/us04/fr02/e07: a caller button true splits with no callback',
+      () {
+        const semantics = SemanticsProperties(button: true, header: true);
+        expect(level(semantics, hasActivation: false), 2);
+      },
+    );
 
-    test('us04/fr02/e07: a caller button true wins over a link', () {
+    test('fo06/us04/fr02/e07: a caller button true wins over a link', () {
       const semantics = SemanticsProperties(
         button: true,
         link: true,
@@ -1436,7 +1460,7 @@ void main() {
       expect(level(semantics, hasActivation: false), 2);
     });
 
-    test('us04/fr02/e07: native platforms never split', () {
+    test('fo06/us04/fr02/e07: native platforms never split', () {
       expect(
         level(const SemanticsProperties(header: true), isWeb: false),
         isNull,
@@ -1447,33 +1471,36 @@ void main() {
       );
     });
 
-    test('us04/fr02/e07: no header and no headingLevel gives no split', () {
-      expect(level(null), isNull);
-      expect(level(const SemanticsProperties(label: 'Recent')), isNull);
-      expect(
-        level(const SemanticsProperties(header: false, label: 'Recent')),
-        isNull,
-      );
-      expect(
-        level(const SemanticsProperties(image: true, label: 'Avatar')),
-        isNull,
-      );
-    });
+    test(
+      'fo06/us04/fr02/e07: no header and no headingLevel gives no split',
+      () {
+        expect(level(null), isNull);
+        expect(level(const SemanticsProperties(label: 'Recent')), isNull);
+        expect(
+          level(const SemanticsProperties(header: false, label: 'Recent')),
+          isNull,
+        );
+        expect(
+          level(const SemanticsProperties(image: true, label: 'Avatar')),
+          isNull,
+        );
+      },
+    );
 
-    test('us04/fr02/e09: a headingLevel from 1 to 6 sets the level', () {
+    test('fo06/us04/fr02/e09: a headingLevel from 1 to 6 sets the level', () {
       for (var value = 1; value <= 6; value++) {
         expect(level(SemanticsProperties(headingLevel: value)), value);
       }
     });
 
-    test('us04/fr02/e09: a headingLevel wins over header', () {
+    test('fo06/us04/fr02/e09: a headingLevel wins over header', () {
       expect(
         level(const SemanticsProperties(header: true, headingLevel: 4)),
         4,
       );
     });
 
-    test('us04/fr02/e08: a role of none still splits', () {
+    test('fo06/us04/fr02/e08: a role of none still splits', () {
       expect(
         level(
           const SemanticsProperties(role: SemanticsRole.none, header: true),
@@ -1482,7 +1509,7 @@ void main() {
       );
     });
 
-    test('us04/fr02/e01: a node that is no button gives no split', () {
+    test('fo06/us04/fr02/e01: a node that is no button gives no split', () {
       expect(
         level(const SemanticsProperties(header: true), hasActivation: false),
         isNull,
@@ -1497,14 +1524,14 @@ void main() {
       );
     });
 
-    test('us04/fr02/e06: a caller button false gives no split', () {
+    test('fo06/us04/fr02/e06: a caller button false gives no split', () {
       expect(
         level(const SemanticsProperties(button: false, header: true)),
         isNull,
       );
     });
 
-    test('us04/fr02/e03: excludeFromSemantics gives no split', () {
+    test('fo06/us04/fr02/e03: excludeFromSemantics gives no split', () {
       expect(
         level(
           const SemanticsProperties(header: true),
@@ -1522,7 +1549,7 @@ void main() {
     });
   });
 
-  group('us04/fr02, s03/inv8: semanticsWithoutHeading', () {
+  group('fo06/us04/fr02, s03/inv8: semanticsWithoutHeading', () {
     /// A caller semantics with many fields set besides `header` and
     /// `headingLevel`, so the tripwire sees any field the subclass drops.
     SemanticsProperties properties({
@@ -1563,7 +1590,7 @@ void main() {
     }
 
     testWidgets(
-      'us04/fr02/e07: drops header and headingLevel and keeps every other '
+      'fo06/us04/fr02/e07: drops header and headingLevel and keeps every other '
       'field',
       (tester) async {
         final handle = tester.ensureSemantics();
@@ -1595,60 +1622,65 @@ void main() {
       },
     );
 
-    testWidgets('us04/fr02/e07: takes the ambient direction like Semantics', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      final stripped = await dataOf(
-        tester,
-        semanticsWithoutHeading(
-          properties: properties(
-            header: true,
-            headingLevel: 3,
-            textDirection: null,
+    testWidgets(
+      'fo06/us04/fr02/e07: takes the ambient direction like Semantics',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final stripped = await dataOf(
+          tester,
+          semanticsWithoutHeading(
+            properties: properties(
+              header: true,
+              headingLevel: 3,
+              textDirection: null,
+            ),
+            child: _box,
           ),
-          child: _box,
-        ),
-        direction: TextDirection.rtl,
-      );
-      final expected = await dataOf(
-        tester,
-        Semantics.fromProperties(
-          properties: properties(textDirection: null),
-          child: _box,
-        ),
-        direction: TextDirection.rtl,
-      );
+          direction: TextDirection.rtl,
+        );
+        final expected = await dataOf(
+          tester,
+          Semantics.fromProperties(
+            properties: properties(textDirection: null),
+            child: _box,
+          ),
+          direction: TextDirection.rtl,
+        );
 
-      expect(stripped.textDirection, TextDirection.rtl);
-      expect(stripped, expected);
-      handle.dispose();
-    });
+        expect(stripped.textDirection, TextDirection.rtl);
+        expect(stripped, expected);
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us04/fr02/e07: an update keeps header and headingLevel off', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await dataOf(
-        tester,
-        semanticsWithoutHeading(
-          properties: const SemanticsProperties(header: true, label: 'Old'),
-          child: _box,
-        ),
-      );
-      final updated = await dataOf(
-        tester,
-        semanticsWithoutHeading(
-          properties: const SemanticsProperties(headingLevel: 4, label: 'New'),
-          child: _box,
-        ),
-      );
+    testWidgets(
+      'fo06/us04/fr02/e07: an update keeps header and headingLevel off',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await dataOf(
+          tester,
+          semanticsWithoutHeading(
+            properties: const SemanticsProperties(header: true, label: 'Old'),
+            child: _box,
+          ),
+        );
+        final updated = await dataOf(
+          tester,
+          semanticsWithoutHeading(
+            properties: const SemanticsProperties(
+              headingLevel: 4,
+              label: 'New',
+            ),
+            child: _box,
+          ),
+        );
 
-      expect(updated.label, 'New');
-      expect(updated.flagsCollection.isHeader, isFalse);
-      expect(updated.headingLevel, 0);
-      handle.dispose();
-    });
+        expect(updated.label, 'New');
+        expect(updated.flagsCollection.isHeader, isFalse);
+        expect(updated.headingLevel, 0);
+        handle.dispose();
+      },
+    );
   });
 
   group('StratumInkWell gestures', () {
@@ -1716,7 +1748,7 @@ void main() {
       expect(calls, isEmpty);
     });
 
-    testWidgets('us04/s3: Enter calls onTap on a focused widget', (
+    testWidgets('fo06/us04/s3: Enter calls onTap on a focused widget', (
       tester,
     ) async {
       var taps = 0;
@@ -1762,84 +1794,96 @@ void main() {
   });
 
   group('StratumInkWell inside a disabled component', () {
-    testWidgets('us04/fr02/e10, fo08 us07/s12: a press already down is '
-        'cancelled when the component turns disabled and runs no tap', (
+    testWidgets(
+      'fo06/us04/fr02/e10, fo08 fo06/us07/s12: a press already down is '
+      'cancelled when the component turns disabled and runs no tap',
+      (tester) async {
+        var taps = 0;
+        final states = _states({});
+        // One instance across both pumps, so only the disabled scope tells
+        // the surface about the flip.
+        final surface = StratumInkWell(
+          onTap: () => taps++,
+          statesController: states,
+          child: _box,
+        );
+        Widget build({required bool disabled}) =>
+            themedHost(_Component(disabled: disabled, child: surface));
+        await tester.pumpWidget(build(disabled: false));
+        final press = await tester.startGesture(
+          tester.getCenter(find.byType(StratumInkWell)),
+        );
+        await tester.pump(kPressTimeout);
+        expect(states.value, contains(WidgetState.pressed));
+
+        await tester.pumpWidget(build(disabled: true));
+        expect(states.value, isNot(contains(WidgetState.pressed)));
+        await press.up();
+        await tester.pump(kDoubleTapTimeout);
+
+        expect(taps, 0);
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e10: a long press already down never fires once '
+      'the component turns disabled',
+      (tester) async {
+        var longPresses = 0;
+        Widget build({required bool disabled}) => themedHost(
+          _Component(
+            disabled: disabled,
+            child: StratumInkWell(
+              onLongPress: () => longPresses++,
+              child: _box,
+            ),
+          ),
+        );
+        await tester.pumpWidget(build(disabled: false));
+        final press = await tester.startGesture(
+          tester.getCenter(find.byType(StratumInkWell)),
+        );
+        await tester.pump(kPressTimeout);
+
+        await tester.pumpWidget(build(disabled: true));
+        await tester.pump(kLongPressTimeout);
+        await press.up();
+        await tester.pumpAndSettle();
+
+        expect(longPresses, 0);
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e10: it reads as a dimmed button with no action, '
+      'as its own disabled gives',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const _Component(
+              disabled: true,
+              child: StratumInkWell(onTap: _noop, child: _box),
+            ),
+          ),
+        );
+
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+            hasTapAction: false,
+          ),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us04/fr02/e10: enabled again, it takes taps', (
       tester,
     ) async {
-      var taps = 0;
-      final states = _states({});
-      // One instance across both pumps, so only the disabled scope tells
-      // the surface about the flip.
-      final surface = StratumInkWell(
-        onTap: () => taps++,
-        statesController: states,
-        child: _box,
-      );
-      Widget build({required bool disabled}) =>
-          themedHost(_Component(disabled: disabled, child: surface));
-      await tester.pumpWidget(build(disabled: false));
-      final press = await tester.startGesture(
-        tester.getCenter(find.byType(StratumInkWell)),
-      );
-      await tester.pump(kPressTimeout);
-      expect(states.value, contains(WidgetState.pressed));
-
-      await tester.pumpWidget(build(disabled: true));
-      expect(states.value, isNot(contains(WidgetState.pressed)));
-      await press.up();
-      await tester.pump(kDoubleTapTimeout);
-
-      expect(taps, 0);
-    });
-
-    testWidgets('us04/fr02/e10: a long press already down never fires once '
-        'the component turns disabled', (tester) async {
-      var longPresses = 0;
-      Widget build({required bool disabled}) => themedHost(
-        _Component(
-          disabled: disabled,
-          child: StratumInkWell(onLongPress: () => longPresses++, child: _box),
-        ),
-      );
-      await tester.pumpWidget(build(disabled: false));
-      final press = await tester.startGesture(
-        tester.getCenter(find.byType(StratumInkWell)),
-      );
-      await tester.pump(kPressTimeout);
-
-      await tester.pumpWidget(build(disabled: true));
-      await tester.pump(kLongPressTimeout);
-      await press.up();
-      await tester.pumpAndSettle();
-
-      expect(longPresses, 0);
-    });
-
-    testWidgets('us04/fr02/e10: it reads as a dimmed button with no action, '
-        'as its own disabled gives', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          const _Component(
-            disabled: true,
-            child: StratumInkWell(onTap: _noop, child: _box),
-          ),
-        ),
-      );
-
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: false,
-          hasTapAction: false,
-        ),
-      );
-      handle.dispose();
-    });
-
-    testWidgets('us04/fr02/e10: enabled again, it takes taps', (tester) async {
       var taps = 0;
       Widget build({required bool disabled}) => themedHost(
         _Component(
@@ -1865,7 +1909,7 @@ void main() {
       return mouse;
     }
 
-    testWidgets('us04/fr04/e05: turning disabled under the pointer calls '
+    testWidgets('fo06/us04/fr04/e05: turning disabled under the pointer calls '
         'onHover(false) once', (tester) async {
       final hovers = <bool>[];
       Widget build({required bool disabled}) => themedHost(
@@ -1885,7 +1929,7 @@ void main() {
       expect(hovers, [true, false]);
     });
 
-    testWidgets('us04/fr04/e05: a component turning disabled under the '
+    testWidgets('fo06/us04/fr04/e05: a component turning disabled under the '
         'pointer calls onHover(false) once', (tester) async {
       final hovers = <bool>[];
       // One instance across the pumps, so only the disabled scope tells
@@ -1906,7 +1950,7 @@ void main() {
       expect(hovers, [true, false]);
     });
 
-    testWidgets('us04/fr04/e05: while disabled, the pointer leaving and '
+    testWidgets('fo06/us04/fr04/e05: while disabled, the pointer leaving and '
         'coming back calls nothing', (tester) async {
       final hovers = <bool>[];
       Widget build({required bool disabled}) => themedHost(
@@ -1930,7 +1974,7 @@ void main() {
       expect(hovers, [true, false]);
     });
 
-    testWidgets('us04/fr04/e06: enabled again under a still pointer, '
+    testWidgets('fo06/us04/fr04/e06: enabled again under a still pointer, '
         'onHover(true) fires once within one frame', (tester) async {
       final hovers = <bool>[];
       Widget build({required bool disabled}) => themedHost(
@@ -1952,7 +1996,7 @@ void main() {
       expect(hovers, [true, false, true]);
     });
 
-    testWidgets('us04/fr04/e06: a component enabled again under a still '
+    testWidgets('fo06/us04/fr04/e06: a component enabled again under a still '
         'pointer calls onHover(true) once within one frame', (tester) async {
       final hovers = <bool>[];
       final surface = StratumInkWell(
@@ -1973,7 +2017,7 @@ void main() {
       expect(hovers, [true, false, true]);
     });
 
-    testWidgets('us04/fr04/e06: enabled again after the pointer left, '
+    testWidgets('fo06/us04/fr04/e06: enabled again after the pointer left, '
         'onHover is not called', (tester) async {
       final hovers = <bool>[];
       Widget build({required bool disabled}) => themedHost(
@@ -1997,58 +2041,62 @@ void main() {
       expect(hovers, [true, false]);
     });
 
-    testWidgets('us04/fr04/e03, us04/fr04/e05, us04/fr04/e06: with no '
-        'activation callback, onHover follows the flip both ways', (
-      tester,
-    ) async {
-      final hovers = <bool>[];
-      Widget build({required bool disabled}) => themedHost(
-        StratumInkWell(onHover: hovers.add, disabled: disabled, child: _box),
-      );
-      await tester.pumpWidget(build(disabled: false));
-      await hoverOver(tester);
+    testWidgets(
+      'fo06/us04/fr04/e03, fo06/us04/fr04/e05, fo06/us04/fr04/e06: with no '
+      'activation callback, onHover follows the flip both ways',
+      (tester) async {
+        final hovers = <bool>[];
+        Widget build({required bool disabled}) => themedHost(
+          StratumInkWell(onHover: hovers.add, disabled: disabled, child: _box),
+        );
+        await tester.pumpWidget(build(disabled: false));
+        await hoverOver(tester);
 
-      await tester.pumpWidget(build(disabled: true));
-      await tester.pump();
-      await tester.pumpWidget(build(disabled: false));
-      await tester.pump();
+        await tester.pumpWidget(build(disabled: true));
+        await tester.pump();
+        await tester.pumpWidget(build(disabled: false));
+        await tester.pump();
 
-      expect(hovers, [true, false, true]);
-    });
+        expect(hovers, [true, false, true]);
+      },
+    );
 
-    testWidgets("us04/fr04/e05: an onHover that sets an ancestor's state on "
-        'the flip runs after the frame, with no build error', (tester) async {
-      final hovers = <bool>[];
-      var disabled = false;
-      late StateSetter setHost;
-      await tester.pumpWidget(
-        themedHost(
-          StatefulBuilder(
-            builder: (context, setState) {
-              setHost = setState;
-              return StratumInkWell(
-                onTap: _noop,
-                disabled: disabled,
-                onHover: (value) => setState(() => hovers.add(value)),
-                child: _box,
-              );
-            },
+    testWidgets(
+      "fo06/us04/fr04/e05: an onHover that sets an ancestor's state on "
+      'the flip runs after the frame, with no build error',
+      (tester) async {
+        final hovers = <bool>[];
+        var disabled = false;
+        late StateSetter setHost;
+        await tester.pumpWidget(
+          themedHost(
+            StatefulBuilder(
+              builder: (context, setState) {
+                setHost = setState;
+                return StratumInkWell(
+                  onTap: _noop,
+                  disabled: disabled,
+                  onHover: (value) => setState(() => hovers.add(value)),
+                  child: _box,
+                );
+              },
+            ),
           ),
-        ),
-      );
-      await hoverOver(tester);
+        );
+        await hoverOver(tester);
 
-      setHost(() => disabled = true);
-      await tester.pump();
-      await tester.pump();
+        setHost(() => disabled = true);
+        await tester.pump();
+        await tester.pump();
 
-      expect(tester.takeException(), isNull);
-      expect(hovers, [true, false]);
-    });
+        expect(tester.takeException(), isNull);
+        expect(hovers, [true, false]);
+      },
+    );
   });
 
   group('StratumInkWell context-menu key', () {
-    testWidgets('us05/s1: the context-menu key calls onSecondaryTap', (
+    testWidgets('fo06/us05/s1: the context-menu key calls onSecondaryTap', (
       tester,
     ) async {
       var calls = 0;
@@ -2070,7 +2118,7 @@ void main() {
       expect(calls, 1);
     });
 
-    testWidgets('us05/s2: Shift+F10 calls onSecondaryTap', (tester) async {
+    testWidgets('fo06/us05/s2: Shift+F10 calls onSecondaryTap', (tester) async {
       var calls = 0;
       final node = _node();
       await tester.pumpWidget(
@@ -2178,7 +2226,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us05/fr04/e01: under th the action reads the Thai '
+    testWidgets('fo06/us05/fr04/e01: under th the action reads the Thai '
         'built-in label', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -2197,7 +2245,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us05/fr04/e02: under ja the action reads the English '
+    testWidgets('fo06/us05/fr04/e02: under ja the action reads the English '
         'built-in label', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -2239,32 +2287,35 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us05/fr04: under th the material showMenuTooltip wins over '
-        'the built-in label', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        Localizations(
-          locale: const Locale('th'),
-          delegates: const [
-            _MenuLocalizationsDelegate(),
-            DefaultWidgetsLocalizations.delegate,
-          ],
-          child: themedHost(
-            const StratumInkWell(onSecondaryTap: _noop, child: _box),
+    testWidgets(
+      'fo06/us05/fr04: under th the material showMenuTooltip wins over '
+      'the built-in label',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          Localizations(
+            locale: const Locale('th'),
+            delegates: const [
+              _MenuLocalizationsDelegate(),
+              DefaultWidgetsLocalizations.delegate,
+            ],
+            child: themedHost(
+              const StratumInkWell(onSecondaryTap: _noop, child: _box),
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumInkWell)),
-        isSemantics(
-          customActions: [const CustomSemanticsAction(label: 'Open menu')],
-        ),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.byType(StratumInkWell)),
+          isSemantics(
+            customActions: [const CustomSemanticsAction(label: 'Open menu')],
+          ),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us05/s3: the action label follows the app language from '
+    testWidgets('fo06/us05/s3: the action label follows the app language from '
         'English to Thai', (tester) async {
       final handle = tester.ensureSemantics();
       const surface = StratumInkWell(onSecondaryTap: _noop, child: _box);
@@ -2324,30 +2375,31 @@ void main() {
   });
 
   group('StratumInkWell shortcuts', () {
-    testWidgets('us05/s4: a binding fires only while the surface has focus', (
-      tester,
-    ) async {
-      var calls = 0;
-      final node = _node();
-      await tester.pumpWidget(
-        themedHost(
-          StratumInkWell(
-            onTap: _noop,
-            shortcuts: {_controlKey: () => calls++},
-            focusNode: node,
-            child: _box,
+    testWidgets(
+      'fo06/us05/s4: a binding fires only while the surface has focus',
+      (tester) async {
+        var calls = 0;
+        final node = _node();
+        await tester.pumpWidget(
+          themedHost(
+            StratumInkWell(
+              onTap: _noop,
+              shortcuts: {_controlKey: () => calls++},
+              focusNode: node,
+              child: _box,
+            ),
           ),
-        ),
-      );
+        );
 
-      await _controlK(tester);
-      expect(calls, 0);
+        await _controlK(tester);
+        expect(calls, 0);
 
-      node.requestFocus();
-      await tester.pump();
-      await _controlK(tester);
-      expect(calls, 1);
-    });
+        node.requestFocus();
+        await tester.pump();
+        await _controlK(tester);
+        expect(calls, 1);
+      },
+    );
 
     testWidgets('a binding never fires while disabled', (tester) async {
       var calls = 0;
@@ -2389,7 +2441,7 @@ void main() {
     });
 
     testWidgets(
-      'us05/s5: an unmodified binding is skipped inside a TextField',
+      'fo06/us05/s5: an unmodified binding is skipped inside a TextField',
       (tester) async {
         var letters = 0;
         var commands = 0;
@@ -2417,7 +2469,7 @@ void main() {
       },
     );
 
-    testWidgets('us05/s6: a binding does not fire while focus rests on '
+    testWidgets('fo06/us05/s6: a binding does not fire while focus rests on '
         'another surface', (tester) async {
       var calls = 0;
       final rowNode = _node();
@@ -2681,7 +2733,7 @@ void main() {
 
   group('StratumInkWell US-04 scenarios', () {
     testWidgets(
-      'us04/s1: pressing a card covers it with the pressed overlay, and '
+      'fo06/us04/s1: pressing a card covers it with the pressed overlay, and '
       'releasing it runs its action',
       (tester) async {
         var taps = 0;
@@ -2704,7 +2756,7 @@ void main() {
     );
 
     testWidgets(
-      'us04/s2: a pointer entering a card fades the hover overlay in over '
+      'fo06/us04/s2: a pointer entering a card fades the hover overlay in over '
       "the theme's fast level",
       (tester) async {
         await tester.pumpWidget(
@@ -2728,7 +2780,7 @@ void main() {
       },
     );
 
-    testWidgets('us04/s5: tabbing to a card shows the ring around it', (
+    testWidgets('fo06/us04/s5: tabbing to a card shows the ring around it', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -2746,37 +2798,34 @@ void main() {
       );
     });
 
-    testWidgets(
-      'us04/s6: a tap on a card leaves focus and the on-screen keyboard on a '
-      'text field',
-      (tester) async {
-        var taps = 0;
-        await tester.pumpWidget(
-          _appHost(
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _noteField,
-                StratumInkWell(onTap: () => taps++, child: _box),
-              ],
-            ),
+    testWidgets('fo06/us04/s6: a tap on a card leaves focus and the on-screen keyboard on a '
+        'text field', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        _appHost(
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _noteField,
+              StratumInkWell(onTap: () => taps++, child: _box),
+            ],
           ),
-        );
-        await tester.showKeyboard(find.byType(TextField));
-        expect(tester.testTextInput.isVisible, isTrue);
+        ),
+      );
+      await tester.showKeyboard(find.byType(TextField));
+      expect(tester.testTextInput.isVisible, isTrue);
 
-        await tester.tap(find.byType(StratumInkWell));
-        await tester.pump();
+      await tester.tap(find.byType(StratumInkWell));
+      await tester.pump();
 
-        expect(taps, 1);
-        final field = tester.widget<EditableText>(find.byType(EditableText));
-        expect(field.focusNode.hasPrimaryFocus, isTrue);
-        expect(tester.testTextInput.isVisible, isTrue);
-      },
-    );
+      expect(taps, 1);
+      final field = tester.widget<EditableText>(find.byType(EditableText));
+      expect(field.focusNode.hasPrimaryFocus, isTrue);
+      expect(tester.testTextInput.isVisible, isTrue);
+    });
 
     testWidgets(
-      'us04/s7: a disabled card runs nothing on a tap or Enter, shows no '
+      'fo06/us04/s7: a disabled card runs nothing on a tap or Enter, shows no '
       'overlay, and reads as a dimmed button',
       (tester) async {
         final handle = tester.ensureSemantics();

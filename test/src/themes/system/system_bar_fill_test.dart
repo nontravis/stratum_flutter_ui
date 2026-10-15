@@ -18,31 +18,35 @@ import 'package:stratum_ui/src/themes/system/system_bars.dart';
 import 'system_style_fakes.dart';
 
 void main() {
-  testWidgets('NFR-U06, us14/fr05/e04: the fill owns no semantics node and '
-      'the child reads unchanged', (tester) async {
-    systemBarsView(tester);
-    final handle = tester.ensureSemantics();
-    await tester.pumpWidget(
-      playButtonPage(Alignment.topCenter, (child) => child),
-    );
-    final plain = semanticsTree(tester);
+  testWidgets(
+    'NFR-U06, fo03/us14/fr05/e04: the fill owns no semantics node and '
+    'the child reads unchanged',
+    (tester) async {
+      systemBarsView(tester);
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        playButtonPage(Alignment.topCenter, (child) => child),
+      );
+      final plain = semanticsTree(tester);
 
-    await tester.pumpWidget(
-      playButtonPage(
-        Alignment.topCenter,
-        (child) => SystemBarFill(color: const Color(0xFF000000), child: child),
-      ),
-    );
+      await tester.pumpWidget(
+        playButtonPage(
+          Alignment.topCenter,
+          (child) =>
+              SystemBarFill(color: const Color(0xFF000000), child: child),
+        ),
+      );
 
-    expect(semanticsTree(tester), plain);
-    expect(
-      tester.getSemantics(find.bySemanticsLabel('Play')),
-      matchesSemantics(label: 'Play', isButton: true, hasTapAction: true),
-    );
-    handle.dispose();
-  });
+      expect(semanticsTree(tester), plain);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Play')),
+        matchesSemantics(label: 'Play', isButton: true, hasTapAction: true),
+      );
+      handle.dispose();
+    },
+  );
 
-  testWidgets('us14/fr05: the fill paints nothing, takes no focus, and '
+  testWidgets('fo03/us14/fr05: the fill paints nothing, takes no focus, and '
       'leaves a tap to its child', (tester) async {
     systemBarsView(tester);
     var taps = 0;
@@ -76,7 +80,7 @@ void main() {
     Color(0xFF777777),
     Color(0xFFFFEB3B),
   ]) {
-    testWidgets('NFR-U01, NFR-U07, us14/fr02: automatic icons hold 3:1 '
+    testWidgets('NFR-U01, NFR-U07, fo03/us14/fr02: automatic icons hold 3:1 '
         'against the declared fill $fill', (tester) async {
       systemBarsView(tester);
       await tester.pumpWidget(systemStyleApp(home: headerPage(fill)));
