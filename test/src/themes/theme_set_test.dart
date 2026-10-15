@@ -481,7 +481,7 @@ void main() {
     });
   });
 
-  test('two sets are equal when each member is the same instance', () {
+  test('D4, 5.4: two sets compare their four data by value', () {
     final light = fakeTheme;
 
     expect(StratumThemeSet(light: light), StratumThemeSet(light: light));
@@ -491,7 +491,24 @@ void main() {
     );
     expect(
       StratumThemeSet(light: light),
-      isNot(StratumThemeSet(light: light.copyWith())),
+      StratumThemeSet(light: light.copyWith()),
+    );
+    expect(
+      StratumThemeSet(light: light),
+      isNot(
+        StratumThemeSet(
+          light: light.copyWith(physics: const BouncingScrollPhysics()),
+        ),
+      ),
+    );
+    expect(StratumThemeSet(light: light).copyWith(dark: light).dark, light);
+  });
+
+  test('Review Focus 1: two parses of one config differ, since the token '
+      'groups compare by identity', () {
+    expect(
+      StratumThemeSet.fromConfig(defaultThemeConfig),
+      isNot(StratumThemeSet.fromConfig(defaultThemeConfig)),
     );
   });
 }

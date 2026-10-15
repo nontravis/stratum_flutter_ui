@@ -1,5 +1,8 @@
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
+
+part 'generated/theme_set.freezed.dart';
 
 /// Whether the application shows a theme's high-contrast data.
 enum StratumHighContrastMode {
@@ -23,14 +26,22 @@ enum StratumHighContrastMode {
 typedef HighContrastMode = StratumHighContrastMode;
 
 /// The four theme data of one theme, one per color set (spec section 7.1).
-@immutable
-class StratumThemeSet {
-  const new({
-    required this.light,
-    this.dark,
-    this.highContrastLight,
-    this.highContrastDark,
-  });
+@valueModel
+abstract class StratumThemeSet with _$StratumThemeSet {
+  const factory({
+    required StratumThemeData light,
+
+    /// Null shows [light] in dark mode (FO-03 US-04 FR-01).
+    StratumThemeData? dark,
+
+    /// Null shows [light] when high contrast is on.
+    StratumThemeData? highContrastLight,
+
+    /// Null shows the dark pick when high contrast is on.
+    StratumThemeData? highContrastDark,
+  }) = _StratumThemeSet;
+
+  const new _();
 
   /// One data per color set of [config]; every other group is shared by
   /// the four, but `shadow`, whose colors each data takes from its own
@@ -113,17 +124,6 @@ class StratumThemeSet {
     );
   }
 
-  final StratumThemeData light;
-
-  /// Null shows [light] in dark mode (FO-03 US-04 FR-01).
-  final StratumThemeData? dark;
-
-  /// Null shows [light] when high contrast is on.
-  final StratumThemeData? highContrastLight;
-
-  /// Null shows the dark pick when high contrast is on.
-  final StratumThemeData? highContrastDark;
-
   /// Light, normal: [light]. Dark, normal: [dark], else [light].
   /// Light, high contrast: [highContrastLight], else [light].
   /// Dark, high contrast: [highContrastDark], else [dark], else [light].
@@ -132,23 +132,6 @@ class StratumThemeSet {
     if (!highContrast) return normal;
     return (dark ? highContrastDark : highContrastLight) ?? normal;
   }
-
-  /// Equal when each member is the identical instance (spec G7).
-  @override
-  bool operator ==(Object other) =>
-      other is StratumThemeSet &&
-      identical(other.light, light) &&
-      identical(other.dark, dark) &&
-      identical(other.highContrastLight, highContrastLight) &&
-      identical(other.highContrastDark, highContrastDark);
-
-  @override
-  int get hashCode => Object.hash(
-    identityHashCode(light),
-    identityHashCode(dark),
-    identityHashCode(highContrastLight),
-    identityHashCode(highContrastDark),
-  );
 
   /// The `app.<name>` colors of one color set, by name.
   static Map<String, Color> _appColors(Map<String, Color> colors) =>

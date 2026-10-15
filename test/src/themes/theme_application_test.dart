@@ -359,7 +359,9 @@ void main() {
           await rebuilds(
             tester,
             (child) => StratumThemeApplication(
-              themes: build(fakeTheme.copyWith()),
+              themes: build(
+                fakeTheme.copyWith(physics: const BouncingScrollPhysics()),
+              ),
               themeMode: ThemeMode.light,
               child: child,
             ),
@@ -368,6 +370,26 @@ void main() {
         );
       });
     }
+
+    testWidgets('fr02/e03, D4: a set rebuilt over equal data rebuilds '
+        'nothing', (tester) async {
+      expect(
+        await rebuilds(
+          tester,
+          (child) => StratumThemeApplication(
+            themes: StratumThemeSet(
+              light: _light.copyWith(),
+              dark: _dark,
+              highContrastLight: _contrastLight,
+              highContrastDark: _contrastDark,
+            ),
+            themeMode: ThemeMode.light,
+            child: child,
+          ),
+        ),
+        0,
+      );
+    });
   });
 
   group('us10/fr05: StratumThemeApplication.wrap', () {
