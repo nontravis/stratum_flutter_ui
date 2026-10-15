@@ -15,6 +15,8 @@ import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.
 import 'package:stratum_ui/src/components/common/web_view/web_view.dart';
 import 'package:stratum_ui_example/main.dart';
 
+import 'support/pump_until.dart';
+
 /// Turns on the screenshot checkpoints (F-01 US-08 FR-01 input
 /// `checkpoints`): `--dart-define=WEB_VIEW_CHECKPOINTS=true`.
 const _checkpoints = bool.fromEnvironment('WEB_VIEW_CHECKPOINTS');
@@ -66,7 +68,7 @@ void main() {
       // once and a refused frame finishes within a few frames, so this
       // polls every frame from the first one on.
       final spinner = find.byType(CircularProgressIndicator);
-      final started = await _pumpUntil(
+      final started = await pumpUntil(
         tester,
         () =>
             spinner.evaluate().isNotEmpty ||
@@ -76,7 +78,7 @@ void main() {
       );
       final loaded =
           started &&
-          await _pumpUntil(
+          await pumpUntil(
             tester,
             () => spinner.evaluate().isEmpty,
             timeout: const Duration(seconds: 45),
@@ -121,7 +123,7 @@ void main() {
       (tester) async {
         final page = server.page('/ok');
         final recorder = await _showPage(tester, page);
-        final finished = await _pumpUntil(
+        final finished = await pumpUntil(
           tester,
           () => recorder.finishes.isNotEmpty,
         );
@@ -141,7 +143,7 @@ void main() {
       (tester) async {
         final page = server.page('/missing');
         final recorder = await _showPage(tester, page);
-        final reported = await _pumpUntil(
+        final reported = await pumpUntil(
           tester,
           () => recorder.errors.isNotEmpty,
         );
@@ -162,7 +164,7 @@ void main() {
       final page = server.page('/redirect');
       final target = server.page('/gone');
       final recorder = await _showPage(tester, page);
-      final reported = await _pumpUntil(
+      final reported = await pumpUntil(
         tester,
         () => recorder.errors.isNotEmpty,
       );
@@ -183,7 +185,7 @@ void main() {
       // the redirect target before it starts never reaches the app.
       final page = server.page('/redirect-ok');
       final recorder = await _showPage(tester, page);
-      final finished = await _pumpUntil(
+      final finished = await pumpUntil(
         tester,
         () => recorder.finishes.isNotEmpty,
       );
@@ -201,7 +203,7 @@ void main() {
       (tester) async {
         final page = await _closedPortPage();
         final recorder = await _showPage(tester, page);
-        final reported = await _pumpUntil(
+        final reported = await pumpUntil(
           tester,
           () => recorder.errors.isNotEmpty,
         );
@@ -223,7 +225,7 @@ void main() {
         final controller = StratumWebViewController();
         final flip = server.page('/flip-nostore', query: 'case=back');
         final recorder = await _showPage(tester, flip, controller: controller);
-        final shown = await _pumpUntil(
+        final shown = await pumpUntil(
           tester,
           () => recorder.finishes.isNotEmpty,
         );
@@ -269,10 +271,7 @@ void main() {
       final first = server.page('/ok');
       final missing = server.page('/missing', query: 'case=forward');
       final recorder = await _showPage(tester, first, controller: controller);
-      final shown = await _pumpUntil(
-        tester,
-        () => recorder.finishes.isNotEmpty,
-      );
+      final shown = await pumpUntil(tester, () => recorder.finishes.isNotEmpty);
       await tester.pump(_settle);
       final failed =
           shown &&
@@ -317,7 +316,7 @@ void main() {
         final controller = StratumWebViewController();
         final flip = server.page('/flip', query: 'case=reload');
         final recorder = await _showPage(tester, flip, controller: controller);
-        final shown = await _pumpUntil(
+        final shown = await pumpUntil(
           tester,
           () => recorder.finishes.isNotEmpty,
         );
@@ -349,7 +348,7 @@ void main() {
         final page = server.page('/redirect');
         final target = server.page('/gone');
         final recorder = await _showPage(tester, page, controller: controller);
-        final failed = await _pumpUntil(
+        final failed = await pumpUntil(
           tester,
           () => recorder.errors.isNotEmpty,
         );
@@ -384,14 +383,14 @@ void main() {
           controller: controller,
           allowedOrigins: {server.origin},
         );
-        final ready = await _pumpUntil(
+        final ready = await pumpUntil(
           tester,
           () => recorder.messages.contains('ready'),
         );
         if (ready) await controller.postMessage('ping');
         final echoed =
             ready &&
-            await _pumpUntil(
+            await pumpUntil(
               tester,
               () => recorder.messages.contains('echo:ping'),
             );
@@ -420,14 +419,14 @@ void main() {
           controller: controller,
           allowedOrigins: {server.origin},
         );
-        final ready = await _pumpUntil(
+        final ready = await pumpUntil(
           tester,
           () => recorder.messages.contains('ready:CSS1Compat'),
         );
         if (ready) await controller.postMessage('ping');
         final echoed =
             ready &&
-            await _pumpUntil(
+            await pumpUntil(
               tester,
               () => recorder.messages.contains('echo:ping'),
             );
@@ -437,7 +436,7 @@ void main() {
         if (echoed) await controller.reply(recorder.received.first, 'pong');
         final replied =
             echoed &&
-            await _pumpUntil(
+            await pumpUntil(
               tester,
               () => recorder.messages.contains('echo:pong'),
             );
@@ -474,7 +473,7 @@ void main() {
       );
       int readyCount() =>
           recorder.messages.where((data) => data.startsWith('ready:')).length;
-      final first = await _pumpUntil(tester, () => readyCount() == 1);
+      final first = await pumpUntil(tester, () => readyCount() == 1);
       final mark = first
           ? await _finishAfter(tester, recorder, controller.reload)
           : null;
@@ -483,11 +482,11 @@ void main() {
       var echoed = false;
       if (keepsHtml) {
         again =
-            mark != null && await _pumpUntil(tester, () => readyCount() == 2);
+            mark != null && await pumpUntil(tester, () => readyCount() == 2);
         if (again) await controller.postMessage('pong');
         echoed =
             again &&
-            await _pumpUntil(
+            await pumpUntil(
               tester,
               () => recorder.messages.contains('echo:pong'),
             );
@@ -569,10 +568,10 @@ void main() {
         return null;
       }
 
-      final readyA = await _pumpUntil(tester, () => readyFrom(server) != null);
+      final readyA = await pumpUntil(tester, () => readyFrom(server) != null);
       if (readyA) await controller.loadUrl(partner.page('/bridge'));
       final readyB =
-          readyA && await _pumpUntil(tester, () => readyFrom(partner) != null);
+          readyA && await pumpUntil(tester, () => readyFrom(partner) != null);
       Object? refusal;
       if (readyB) {
         try {
@@ -584,7 +583,7 @@ void main() {
       if (readyB) await controller.reply(readyFrom(partner)!, 'control');
       final controlled =
           readyB &&
-          await _pumpUntil(
+          await pumpUntil(
             tester,
             () => recorder.messages.contains('echo:control'),
           );
@@ -639,14 +638,14 @@ Future<void> _expectLinkAwayRefused(
     controller: controller,
     allowedOrigins: {Uri.parse('https://allowed.example')},
   );
-  final ready = await _pumpUntil(
+  final ready = await pumpUntil(
     tester,
     () => recorder.messages.contains('ready:CSS1Compat'),
   );
   if (ready) await controller.postMessage('go:$away');
   final arrived =
       ready &&
-      await _pumpUntil(
+      await pumpUntil(
         tester,
         () => recorder.finishes.any((url) => url?.path == away.path),
       );
@@ -712,25 +711,6 @@ void _expectWebKitHistoryMove(_Recorder recorder, int mark, Uri entry) {
     expect(kinds, ['started', 'finished']);
     expect(errors, isEmpty);
   }
-}
-
-/// Pumps a frame every [interval] until [done] holds; returns `false` once
-/// [timeout] passes.
-///
-/// It never fails on its own, so a case can log what it saw before it
-/// asserts.
-Future<bool> _pumpUntil(
-  WidgetTester tester,
-  bool Function() done, {
-  Duration timeout = const Duration(seconds: 30),
-  Duration interval = const Duration(milliseconds: 100),
-}) async {
-  final deadline = DateTime.now().add(timeout);
-  while (!done()) {
-    if (DateTime.now().isAfter(deadline)) return false;
-    await tester.pump(interval);
-  }
-  return true;
 }
 
 /// Marks the checkpoint [name] (US-08 scenario 8) when checkpoints are on.
@@ -1039,7 +1019,7 @@ Future<int?> _finishAfter(
 ) async {
   final mark = recorder.mark;
   await action();
-  final finished = await _pumpUntil(
+  final finished = await pumpUntil(
     tester,
     () => recorder.kindsSince(mark).contains('finished'),
   );
