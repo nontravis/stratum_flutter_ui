@@ -177,26 +177,32 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
     ],
   )
   ```
-- **`ReorderableListViewLayout`** (`.builder` only) — a reorderable list on widgets `SliverReorderableList`, with a
-  caller-placed drag handle or `longPressDrag`, `onReorderItem`, and `dragStyle` for the lifted item; each item keeps
-  its `State` and focus across a move through a global key that never uses the index. An item finds the list through
-  `SliverReorderableList.maybeOf(context)`, not `ReorderableList.maybeOf`. The list builds a private
-  `SliverReorderableList` subtype, which `find.byType(SliverReorderableList)` misses: a test finds it with
-  `find.byWidgetPredicate((widget) => widget is SliverReorderableList)`.
-  A drag held near a viewport edge scrolls the list toward that edge; `autoScrollerVelocityScalar` scales its speed.
-  Under reduced motion the neighbors a drag passes and a dropped item take their slots at once; the lifted look
-  still fades.
+- **`ReorderableListViewLayout`** (`.builder` only) — a reorderable list on stratum's own private
+  `SliverReorderableList` subtype, with a caller-placed drag handle or `longPressDrag`, `onReorderItem`, and `dragStyle`
+  for the lifted item; it keys each item by its own key, with no global key, so the item keeps its `State` and focus
+  across a move. An item finds the list through `SliverReorderableList.maybeOf(context)`, not `ReorderableList.maybeOf`,
+  and a test through `find.byWidgetPredicate((widget) => widget is SliverReorderableList)`, not `find.byType`.
+  A dragged item stays hidden in its slot, with its screen-reader node, while a still image of it follows the pointer: a
+  spinner or caret in it stops until the drop, and a text field in it needs no app `Material`. A long press in a focused
+  text field stays the field's; a handle still drags.
+  A drag held near a viewport edge scrolls the list toward that edge; `autoScrollerVelocityScalar` scales its speed. A
+  dragged item longer than the list scrolls it only once one of its edges shows, toward the side still sticking out; in
+  an app `DragBoundary` it stays inside, or only the pointer does on an axis it outgrows.
+  The neighbors a drag passes and a dropped item move on the theme's `normal` level and `standard` curve, at once under
+  reduced motion; the lifted look keeps its timing.
   Keyboard: Alt+arrow along the axis moves the focused item one slot, Alt+Home/Alt+End move it to either end; a move
   past either end is still handled, so it never reaches the browser (Chrome's Alt+Left/Alt+Right Back/Forward).
-  A screen reader hears each move by key, screen-reader action, or drop, and each reorder key past an end, in English
-  or Thai; a held key speaks once, where the item ends, when it is let go. `moveAnnouncement`, `atStartAnnouncement`,
-  and `atEndAnnouncement` replace the texts, and an empty one stays silent.
+  A screen reader hears each move by key, screen-reader action, or drop, and each reorder key past an end, in English or
+  Thai; a held key speaks once, where the item ends, when it is let go. `moveAnnouncement`, `atStartAnnouncement`, and
+  `atEndAnnouncement` replace the texts, and an empty one stays silent. A screen-reader move treats its item as focused
+  while focus stays put, moving no focus.
   An item that holds focus, on its own node or one inside it, stays alive with its State and focus when a scroll, the
   user's or the app's, takes it out of view, and the list scrolls nothing for it; Tab, Shift+Tab, or an arrow key from
   it brings it back into view first, then moves focus; an app's own `nextFocus()`, `previousFocus()`, or
   `focusInDirection()` on it brings it back the same way, and when the app holds the scroll so it cannot come back,
-  focus goes to the first item that shows (the last, going backward), and with none showing it leaves the list that
-  way; a focus that moves elsewhere lets it go.
+  focus goes to the first item that shows (the last, going backward), and with none showing it leaves the list that way;
+  a focus that moves elsewhere lets it go. The newest input wins: a drag, or an EndUser or app scroll (even in the app's
+  `moveItem` turn), ends the list's scroll toward a moved, dropped, or growing item; the list never scrolls against it.
   Without dragging: dragging is the list's only pointer path, so the app adds one that needs no drag (WCAG 2.5.7),
   such as Move up and Move down buttons or context-menu entries on each item, until a component in the package
   provides it. They call the handler the app passes to `onReorderItem`, with the indexes the keys pass, and that
@@ -223,27 +229,28 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 
   Insert and remove: pass a `ReorderableItemsController` as `itemsController` (not the scroll `controller`) and call
   `insertItem(index)` or `removeItem(index)` in the turn of the data change, outside a build and `onReorderItem`,
-  `onReorderStart`, and `onReorderEnd`; from those, call after the frame.
+  `onReorderStart`, and `onReorderEnd`; from those, call after the frame. Such a call before every built item moves the
+  items on screen one row.
   An added item grows and fades in over the theme's `normal` level; a removed one shrinks and fades out in its current
   look unless `removeItem`'s `builder` gives another; `itemTransitionBuilder(context, animation, child)` replaces size
-  and fade both ways. Without `builder`, a removed item's leaving copy ends at once if its key returns; a `builder`
-  keeps it fading in its own look. The leaving item keeps its State and rebuilds: an item reading data through `context`
-  (`watch` or `select` by id or index, a provider family) needs a `builder` capturing that data. Under reduced motion,
-  or with `itemExtent`, `itemExtentBuilder`, or `prototypeItem`, the size jumps and the fade plays.
-  Until flutter/flutter#193710 ships, an item with its own semantics boundary (nested scroll view, tappable
-  `StratumInkWell`, `Semantics(container: true)`) asserts at `object.dart:6723` in debug with semantics on (every
-  `testWidgets`) when an `itemTransitionBuilder` fades it through opacity 0 or a focused far `moveItem` lands where the
-  frame does not lay it out (uneven heights, app-held scroll). Check a removed item's semantics after its exit, or walk
-  the live semantics tree: `find.bySemanticsLabel` reads a stale debug cache for excluded subtrees.
+  and fade both ways and wraps every item, one at rest at value 1, as `AnimatedList` does: return one widget shape for
+  every value, or the item's State ends. Without `builder`, a removed item's leaving copy ends at once if its key
+  returns; a `builder` keeps it fading in its own look. The leaving item keeps its State and rebuilds: an item reading
+  data through `context` (`watch` or `select` by id or index, a provider family) needs a `builder` capturing that data.
+  Under reduced motion, or with `itemExtent`, `itemExtentBuilder`, or `prototypeItem`, the size jumps and the fade
+  plays.
+  A leaving item has no screen-reader node from its first frame; test it on the live semantics tree:
+  `find.bySemanticsLabel` reads a stale debug cache for excluded subtrees.
   Focus on a removed item, or on one dropped from the data with no call (a remove, a replace, or, with no
   `findChildIndexCallback`, a reorder), moves to the next item, else the previous, else the nearest item with a
   focusable node, else a focusable list's Tab stop, and the list shows it, unless the app moves focus in the same turn
   or after the frame. A focused item removed and inserted back with its key in the same turn keeps focus instead and
-  shows on screen. Reordering a leaving item's neighbor ends the leaving item. During a drag, an `insertItem`,
-  `removeItem`, `moveItem`, key or screen-reader move, item-count change, or same-count data change that moves or
-  replaces the dragged item ends it first, and a pointer cancel or a second pointer's takeover ends it, each with
-  `onReorderEnd` at its start index and no `onReorderItem`; key and screen-reader moves then report their own. Every
-  drag ends with exactly one `onReorderEnd`; a drop reports the index Flutter's reorderable list gives it.
+  shows on screen. A lift ends the item's grow-in; a lift or reorder of a leaving item's neighbor ends the leaving item.
+  During a drag, an `insertItem`, `removeItem`, `moveItem`, key or screen-reader move, item-count change, or same-count
+  data change that moves or replaces the dragged item ends it first, and a pointer cancel or a second pointer's takeover
+  ends it, each with `onReorderEnd` at its start index and no `onReorderItem`; key and screen-reader moves then report
+  their own. A reorder key, screen-reader move, or drag during a drop's settle completes the drop first, `onReorderItem`
+  included. Every drag ends with exactly one `onReorderEnd`; a drop's `onReorderEnd` reports its gap's insert index.
 
   ```dart
   final itemsController = ReorderableItemsController();
