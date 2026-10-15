@@ -230,7 +230,7 @@ String _deepBlock(Random random) {
 }
 
 void main() {
-  group('fo01 fo01/us01/fr01/e07, g4, g9: no text the gate passes holds an '
+  group('fo01/us01/fr01/e07, g4, g9: no text the gate passes holds an '
       'anchor, alias, or tag, a collection key, or nests past 64, for '
       'package:yaml', () {
     test('hand-made attempts to hide a property, a collection key, or a '

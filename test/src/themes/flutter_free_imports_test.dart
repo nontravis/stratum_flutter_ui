@@ -96,7 +96,7 @@ void main() {
     expect(_refused('tool/gen_theme_tokens.dart', refuseIo: false), isEmpty);
   });
 
-  test('minor5, fo03/us01/fr02/e04, s03/inv13: no file under '
+  test('minor5, s03/inv13: no file under '
       'lib/src/themes/remote/ imports dart:io, in either quote style', () {
     final files = Directory('lib/src/themes/remote')
         .listSync(recursive: true)

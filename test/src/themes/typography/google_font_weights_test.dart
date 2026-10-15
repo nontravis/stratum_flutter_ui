@@ -28,7 +28,7 @@ StratumTypography _typography(
 );
 
 void main() {
-  group('fo02/us05/fr02, s03/inv13: GoogleFontWeights.of', () {
+  group('fo02/us08/fr02, s03/inv13: GoogleFontWeights.of', () {
     test('the package default loads Inter, Roboto Mono, and Kanit in 400 '
         'and 600, Geist and Geist Mono in 600', () {
       expect(GoogleFontWeights.of(defaultThemeSet.light.typography), {
