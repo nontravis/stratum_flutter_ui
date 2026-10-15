@@ -47,34 +47,37 @@ void main() {
       expect(result.values.palette.values.first, isA<int>());
     });
 
-    test('us01/fr01/e01: a checksum mismatch throws before a generation is '
-        'taken', () async {
-      var generations = 0;
-      final good = remoteTheme('brand');
+    test(
+      'fo04/us01/fr01/e01: a checksum mismatch throws before a generation is '
+      'taken',
+      () async {
+        var generations = 0;
+        final good = remoteTheme('brand');
 
-      await expectLater(
-        checkRemoteInstall(
-          StratumRemoteTheme(
-            id: 'brand',
-            bytes: good.bytes,
-            checksum: checksumOf([0]),
+        await expectLater(
+          checkRemoteInstall(
+            StratumRemoteTheme(
+              id: 'brand',
+              bytes: good.bytes,
+              checksum: checksumOf([0]),
+            ),
+            packageDefault: remotePackageDefault,
+            parseValues: _inline,
+            nextGeneration: () => ++generations,
           ),
-          packageDefault: remotePackageDefault,
-          parseValues: _inline,
-          nextGeneration: () => ++generations,
-        ),
-        throwsA(
-          isA<StratumRemoteThemeException>().having(
-            (error) => error.code,
-            'code',
-            StratumRemoteThemeErrorCode.checksumMismatch,
+          throwsA(
+            isA<StratumRemoteThemeException>().having(
+              (error) => error.code,
+              'code',
+              StratumRemoteThemeErrorCode.checksumMismatch,
+            ),
           ),
-        ),
-      );
-      expect(generations, 0);
-    });
+        );
+        expect(generations, 0);
+      },
+    );
 
-    test('us01/fr03/e01: a theme problem is theme_format with the source '
+    test('fo04/us01/fr03/e01: a theme problem is theme_format with the source '
         '<id>@<generation>', () async {
       await expectLater(
         checkRemoteInstall(
@@ -99,7 +102,7 @@ void main() {
       );
     });
 
-    test('us01/fr03/e09: a named file the zip lacks is missing_entry with '
+    test('fo04/us01/fr03/e09: a named file the zip lacks is missing_entry with '
         'its path', () async {
       await expectLater(
         checkRemoteInstall(
@@ -121,7 +124,7 @@ void main() {
     });
   });
 
-  group('us01/fr03/e01, fo01 us01/fr01/e07, r16 (t25): hostile theme files '
+  group('fo04/us01/fr03/e01, fo01 fo04/us01/fr01/e07, r16 (t25): hostile theme files '
       'in a zip are theme_format', () {
     /// Anchors a0 to a[depth], each a list of the one before twice, then a
     /// mapping key built from the last.

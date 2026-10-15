@@ -39,7 +39,7 @@ void main() {
     google = recordRemoteGoogleFonts();
   });
 
-  test("d5, us01/s1, us01/s2: install then switch shows the zip's colors, "
+  test("d5, fo04/us01/s1, fo04/us01/s2: install then switch shows the zip's colors, "
       'fonts, and asset', () async {
     final controller = await StratumThemeController.preload(
       bundle: RemoteFakeBundle(),
@@ -73,7 +73,7 @@ void main() {
     );
   });
 
-  test('us01/s2, typography s01 FO-04 row: body text resolves to the zip '
+  test('fo04/us01/s2, typography s01 FO-04 row: body text resolves to the zip '
       'font family, and the zip font asks Google for nothing', () async {
     final controller = await StratumThemeController.preload(
       bundle: RemoteFakeBundle(),
@@ -104,7 +104,7 @@ void main() {
     expect(google, everyElement(isIn(_baseGoogle)));
   });
 
-  test("us01/s7, us01/fr03/e10: a Google font a zip names loads by FO-03's "
+  test("fo04/us01/s7, fo04/us01/fr03/e10: a Google font a zip names loads by FO-03's "
       'path, with no download path of its own', () async {
     final controller = await StratumThemeController.preload(
       bundle: RemoteFakeBundle(),

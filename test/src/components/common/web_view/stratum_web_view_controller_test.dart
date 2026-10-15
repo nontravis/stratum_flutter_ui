@@ -80,7 +80,7 @@ void main() {
     expect(platform().sentTargets, [null]);
   });
 
-  test('us03/fr02/e14: a named target is compared as an origin and passed on '
+  test('co01_02/us03/fr02/e14: a named target is compared as an origin and passed on '
       'as one', () async {
     controller.configure(
       StratumWebViewConfiguration(allowedOrigins: {appOrigin}),
@@ -93,7 +93,7 @@ void main() {
     expect(platform().sentMessages, ['x']);
   });
 
-  test('us03/fr02/e15, nf01/NFR-Sec02: a named send whose target matches no '
+  test('co01_02/us03/fr02/e15, nf01/NFR-Sec02: a named send whose target matches no '
       'allowed entry, a host-less one included, throws before the platform '
       'runs', () async {
     controller.configure(
@@ -148,7 +148,7 @@ void main() {
   });
 
   group('reply', () {
-    test('us03/fr05/e01: reply throws ArgumentError for a message this '
+    test('co01_02/us03/fr05/e01: reply throws ArgumentError for a message this '
         'controller did not deliver', () async {
       controller.configure(
         StratumWebViewConfiguration(
@@ -211,7 +211,7 @@ void main() {
       expect(platforms.last.documentReplies, isEmpty);
     });
 
-    test('us03/fr05/e02: reply checks dispose first, then the message, then '
+    test('co01_02/us03/fr05/e02: reply checks dispose first, then the message, then '
         'the bridge gate', () async {
       final disposed = StratumWebViewController()..dispose();
       await expectLater(
@@ -294,7 +294,7 @@ void main() {
       );
     });
 
-    test('us03/fr05/e03, us03/fr05/e04, us03/s8: a reply to a URL page is a '
+    test('co01_02/us03/fr05/e03, co01_02/us03/fr05/e04, co01_02/us03/s8: a reply to a URL page is a '
         "send naming the message's origin, and the platform's refusal "
         'surfaces', () async {
       controller.configure(
@@ -317,7 +317,7 @@ void main() {
       );
     });
 
-    test('us03/fr05/e05: a reply to a URL page whose origin left the allowlist '
+    test('co01_02/us03/fr05/e05: a reply to a URL page whose origin left the allowlist '
         'throws before the platform runs', () async {
       controller.configure(
         StratumWebViewConfiguration(
@@ -351,7 +351,7 @@ void main() {
       expect(platform().sentMessages, isEmpty);
     });
 
-    test('us03/fr05/e06, us03/fr05/e08: a reply to own HTML goes to the '
+    test('co01_02/us03/fr05/e06, co01_02/us03/fr05/e08: a reply to own HTML goes to the '
         'platform with the document that sent the message', () async {
       controller.configure(
         StratumWebViewConfiguration(
@@ -377,7 +377,7 @@ void main() {
     });
 
     test(
-      'us03/fr05: a reply from inside onMessage reaches its sender',
+      'co01_02/us03/fr05: a reply from inside onMessage reaches its sender',
       () async {
         controller.configure(
           StratumWebViewConfiguration(
@@ -395,26 +395,29 @@ void main() {
       },
     );
 
-    test('G4 us03/fr05: two replies to the same still-valid sender both '
-        'land', () async {
-      controller.configure(
-        StratumWebViewConfiguration(
-          allowedOrigins: {appOrigin},
-          onMessage: (_) {},
-        ),
-      );
-      final message = StratumWebViewMessage(data: 'ready:${appOrigin.host}');
-      platform().listener.onMessage(message, const FakeHtmlDocumentSender());
+    test(
+      'G4 co01_02/us03/fr05: two replies to the same still-valid sender both '
+      'land',
+      () async {
+        controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {appOrigin},
+            onMessage: (_) {},
+          ),
+        );
+        final message = StratumWebViewMessage(data: 'ready:${appOrigin.host}');
+        platform().listener.onMessage(message, const FakeHtmlDocumentSender());
 
-      await controller.reply(message, 'first');
-      await controller.reply(message, 'second');
-      expect(platform().documentReplies, [
-        (const FakeHtmlDocumentSender(), 'first'),
-        (const FakeHtmlDocumentSender(), 'second'),
-      ]);
-    });
+        await controller.reply(message, 'first');
+        await controller.reply(message, 'second');
+        expect(platform().documentReplies, [
+          (const FakeHtmlDocumentSender(), 'first'),
+          (const FakeHtmlDocumentSender(), 'second'),
+        ]);
+      },
+    );
 
-    test('us03/fr05: a reply to one of two HTML messages uses that '
+    test('co01_02/us03/fr05: a reply to one of two HTML messages uses that '
         "message's own sender, never the other's", () async {
       controller.configure(
         StratumWebViewConfiguration(
@@ -447,7 +450,7 @@ void main() {
     });
 
     test(
-      'G5 us03/fr05: an empty-string reply reaches the sender whole',
+      'G5 co01_02/us03/fr05: an empty-string reply reaches the sender whole',
       () async {
         controller.configure(
           StratumWebViewConfiguration(

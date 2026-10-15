@@ -199,7 +199,7 @@ Widget _systemApp({
 }
 
 void main() {
-  test('us01/fr04: close times', () {
+  test('co05_07/us01/fr04: close times', () {
     expect(
       toastCloseTime(hasAction: false, screenReader: false),
       const Duration(seconds: 4),
@@ -218,22 +218,25 @@ void main() {
     );
   });
 
-  test('us01/fr04: StratumToastAction has value equality and copyWith', () {
-    // Built at run time from a parameter, so no const canonicalization
-    // makes them one instance and the check reads `==`, not identity.
-    StratumToastAction make(String label) =>
-        StratumToastAction(label: label, onPressed: _noop);
-    final a = make('Undo');
-    final b = make('Undo');
-    expect(identical(a, b), isFalse);
-    expect(a, b);
-    expect(a.hashCode, b.hashCode);
-    final c = a.copyWith(label: 'Redo');
-    expect(c.label, 'Redo');
-    expect(c.onPressed, _noop);
-  });
+  test(
+    'co05_07/us01/fr04: StratumToastAction has value equality and copyWith',
+    () {
+      // Built at run time from a parameter, so no const canonicalization
+      // makes them one instance and the check reads `==`, not identity.
+      StratumToastAction make(String label) =>
+          StratumToastAction(label: label, onPressed: _noop);
+      final a = make('Undo');
+      final b = make('Undo');
+      expect(identical(a, b), isFalse);
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+      final c = a.copyWith(label: 'Redo');
+      expect(c.label, 'Redo');
+      expect(c.onPressed, _noop);
+    },
+  );
 
-  test('us01/fr02: StratumToastPlacement.float has value equality and '
+  test('co05_07/us01/fr02: StratumToastPlacement.float has value equality and '
       'copyWith', () {
     // Built at run time from a parameter, so no const canonicalization
     // makes them one instance and the check reads `==`, not identity.
@@ -250,7 +253,7 @@ void main() {
     expect(c.corner, StratumToastCorner.topEnd);
   });
 
-  test('us01/fr02: StratumToastPlacement.solid has value equality and '
+  test('co05_07/us01/fr02: StratumToastPlacement.solid has value equality and '
       'copyWith', () {
     // Built at run time from a parameter, so no const canonicalization
     // makes them one instance and the check reads `==`, not identity.
@@ -265,30 +268,33 @@ void main() {
     expect(c.edge, StratumToastEdge.top);
   });
 
-  test('us01/fr06: StratumToastNotice has value equality and copyWith', () {
-    StratumToastNotice notice({String message = 'Hi'}) => StratumToastNotice(
-      message: message,
-      kind: FeedbackState.info,
-      placement: const StratumToastPlacement.solid(StratumToastEdge.bottom),
-      insets: EdgeInsets.zero,
-      pageSnack: null,
-      customStyle: null,
-      close: _noop,
-      closeLabel: 'Close',
-      kindLabel: 'Info',
-    );
-    final a = notice();
-    final b = notice();
-    expect(a, b);
-    expect(a.hashCode, b.hashCode);
-    final c = a.copyWith(message: 'Bye');
-    expect(c.message, 'Bye');
-    expect(c.kind, a.kind);
-  });
+  test(
+    'co05_07/us01/fr06: StratumToastNotice has value equality and copyWith',
+    () {
+      StratumToastNotice notice({String message = 'Hi'}) => StratumToastNotice(
+        message: message,
+        kind: FeedbackState.info,
+        placement: const StratumToastPlacement.solid(StratumToastEdge.bottom),
+        insets: EdgeInsets.zero,
+        pageSnack: null,
+        customStyle: null,
+        close: _noop,
+        closeLabel: 'Close',
+        kindLabel: 'Info',
+      );
+      final a = notice();
+      final b = notice();
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+      final c = a.copyWith(message: 'Bye');
+      expect(c.message, 'Bye');
+      expect(c.kind, a.kind);
+    },
+  );
 
   const undo = StratumToastAction(label: 'Undo', onPressed: _noop);
 
-  testWidgets('us01/s6: a notice with an action closes after 8 s', (
+  testWidgets('co05_07/us01/s6: a notice with an action closes after 8 s', (
     tester,
   ) async {
     _view(tester);
@@ -309,7 +315,7 @@ void main() {
     expect(find.text('Item deleted'), findsNothing);
   });
 
-  testWidgets('us01/s7: the pointer resting on it pauses the timer', (
+  testWidgets('co05_07/us01/s7: the pointer resting on it pauses the timer', (
     tester,
   ) async {
     _view(tester);
@@ -360,26 +366,27 @@ void main() {
     },
   );
 
-  testWidgets('us01/s8: us01/fr04/e01: held while a screen reader runs', (
-    tester,
-  ) async {
-    _view(tester);
-    await tester.pumpWidget(
-      _app(
-        _button(
-          'go',
-          (c) => c.showToast(message: 'Item deleted', action: undo),
+  testWidgets(
+    'co05_07/us01/s8: co05_07/us01/fr04/e01: held while a screen reader runs',
+    (tester) async {
+      _view(tester);
+      await tester.pumpWidget(
+        _app(
+          _button(
+            'go',
+            (c) => c.showToast(message: 'Item deleted', action: undo),
+          ),
+          media: (data) => data.copyWith(accessibleNavigation: true),
         ),
-        media: (data) => data.copyWith(accessibleNavigation: true),
-      ),
-    );
-    await tester.tap(find.text('go'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 30));
-    expect(find.text('Item deleted'), findsOneWidget);
-  });
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 30));
+      expect(find.text('Item deleted'), findsOneWidget);
+    },
+  );
 
-  testWidgets('us01/s11: the action runs and the notice closes', (
+  testWidgets('co05_07/us01/s11: the action runs and the notice closes', (
     tester,
   ) async {
     _view(tester);
@@ -406,33 +413,30 @@ void main() {
     expect(find.text('Item deleted'), findsNothing);
   });
 
-  testWidgets(
-    'us01/s12: us01/fr04/e04: Esc on the focused close button closes it; '
-    'Esc with focus outside closes nothing',
-    (tester) async {
-      _view(tester);
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        _app(_button('go', (c) => c.showToast(message: 'Esc me'))),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      // With focus outside every notice, Esc closes nothing (e04).
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pump();
-      expect(find.text('Esc me'), findsOneWidget);
-      // Focus the close button directly, through its semantics focus
-      // action rather than a tap (a tap on it closes the notice before
-      // any key could reach it), then Esc closes it.
-      _focusViaSemantics(tester, 'Close');
-      await tester.pump();
-      expect(find.text('Esc me'), findsOneWidget);
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(find.text('Esc me'), findsNothing);
-      handle.dispose();
-    },
-  );
+  testWidgets('co05_07/us01/s12: co05_07/us01/fr04/e04: Esc on the focused close button closes it; '
+      'Esc with focus outside closes nothing', (tester) async {
+    _view(tester);
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      _app(_button('go', (c) => c.showToast(message: 'Esc me'))),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    // With focus outside every notice, Esc closes nothing (e04).
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(find.text('Esc me'), findsOneWidget);
+    // Focus the close button directly, through its semantics focus
+    // action rather than a tap (a tap on it closes the notice before
+    // any key could reach it), then Esc closes it.
+    _focusViaSemantics(tester, 'Close');
+    await tester.pump();
+    expect(find.text('Esc me'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Esc me'), findsNothing);
+    handle.dispose();
+  });
 
   testWidgets(
     'probe-tab defect 3: focus returns to the node that held it before it '
@@ -501,32 +505,29 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/s9: NFR-U06: us01/fr05: announced as kind name then message, '
-    'focus kept',
-    (tester) async {
-      _view(tester);
-      final announced = _announceRecorder(tester);
-      await tester.pumpWidget(
-        _app(
-          _button(
-            'go',
-            (c) => c.showToast(
-              message: 'Low battery',
-              kind: FeedbackState.warning,
-            ),
-          ),
+  testWidgets('co05_07/us01/s9: NFR-U06: co05_07/us01/fr05: announced as kind name then message, '
+      'focus kept', (tester) async {
+    _view(tester);
+    final announced = _announceRecorder(tester);
+    await tester.pumpWidget(
+      _app(
+        _button(
+          'go',
+          (c) =>
+              c.showToast(message: 'Low battery', kind: FeedbackState.warning),
         ),
-      );
-      await tester.tap(find.text('go'));
-      final focusBefore = FocusManager.instance.primaryFocus;
-      await tester.pumpAndSettle();
-      expect(announced, ['Warning, Low battery']);
-      expect(FocusManager.instance.primaryFocus, focusBefore);
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('go'));
+    final focusBefore = FocusManager.instance.primaryFocus;
+    await tester.pumpAndSettle();
+    expect(announced, ['Warning, Low battery']);
+    expect(FocusManager.instance.primaryFocus, focusBefore);
+  });
 
-  testWidgets('us01/s10: us01/fr05/e01: announced in Thai', (tester) async {
+  testWidgets('co05_07/us01/s10: co05_07/us01/fr05/e01: announced in Thai', (
+    tester,
+  ) async {
     _view(tester);
     final announced = _announceRecorder(tester);
     await tester.pumpWidget(
@@ -555,36 +556,39 @@ void main() {
     expect(announced, ['ข้อผิดพลาด, บันทึกไม่สำเร็จ']);
   });
 
-  testWidgets('us01/fr05/e03: a queued solid notice is announced only when '
-      'it shows', (tester) async {
-    _view(tester);
-    final announced = _announceRecorder(tester);
-    await tester.pumpWidget(
-      _app(
-        _button('go', (c) {
-          c
-            ..showToast(
-              message: 'one',
-              placement: const StratumToastPlacement.solid(
-                StratumToastEdge.bottom,
-              ),
-            )
-            ..showToast(
-              message: 'two',
-              placement: const StratumToastPlacement.solid(
-                StratumToastEdge.bottom,
-              ),
-            );
-        }),
-      ),
-    );
-    await tester.tap(find.text('go'));
-    await tester.pumpAndSettle();
-    expect(announced, ['Information, one']);
-  });
+  testWidgets(
+    'co05_07/us01/fr05/e03: a queued solid notice is announced only when '
+    'it shows',
+    (tester) async {
+      _view(tester);
+      final announced = _announceRecorder(tester);
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) {
+            c
+              ..showToast(
+                message: 'one',
+                placement: const StratumToastPlacement.solid(
+                  StratumToastEdge.bottom,
+                ),
+              )
+              ..showToast(
+                message: 'two',
+                placement: const StratumToastPlacement.solid(
+                  StratumToastEdge.bottom,
+                ),
+              );
+          }),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(announced, ['Information, one']);
+    },
+  );
 
   testWidgets(
-    'NFR-U06: us01/fr01/e08: the kind icon, the action, and the close '
+    'NFR-U06: co05_07/us01/fr01/e08: the kind icon, the action, and the close '
     'button each carry their own accessible name',
     (tester) async {
       _view(tester);
@@ -628,84 +632,80 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/s21: us01/fr06/e04: an app builder draws the look, the host '
-    'keeps timing',
-    (tester) async {
-      _view(tester);
-      await tester.pumpWidget(
-        MaterialApp(
-          builder: (context, child) => StratumThemeApplication(
-            themes: StratumThemeSet(light: fakeTheme),
-            themeMode: ThemeMode.light,
-            child: StratumToastHost(
-              builder: (context, notice) => Text('mine: ${notice.message}'),
-              child: child!,
-            ),
-          ),
-          home: Scaffold(body: _button('go', (c) => c.showToast(message: 'x'))),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(find.text('mine: x'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 4));
-      await tester.pumpAndSettle();
-      expect(find.text('mine: x'), findsNothing);
-    },
-  );
-
-  testWidgets('NFR-U08: us01/s20: us01/fr06/e03: each of the four kinds '
-      'shows its own icon under high contrast', (tester) async {
+  testWidgets('co05_07/us01/s21: co05_07/us01/fr06/e04: an app builder draws the look, the host '
+      'keeps timing', (tester) async {
     _view(tester);
-    final icons = <IconData?>{};
-    for (final kind in FeedbackState.values) {
-      await tester.pumpWidget(
-        _app(
-          _button('go', (c) => c.showToast(message: kind.name, kind: kind)),
-          highContrast: StratumHighContrastMode.on,
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => StratumThemeApplication(
+          themes: StratumThemeSet(light: fakeTheme),
+          themeMode: ThemeMode.light,
+          child: StratumToastHost(
+            builder: (context, notice) => Text('mine: ${notice.message}'),
+            child: child!,
+          ),
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      icons.addAll(
-        tester.widgetList<Icon>(find.byType(Icon)).map((i) => i.icon),
-      );
-      await tester.pumpWidget(const SizedBox());
-      await tester.pumpAndSettle();
-    }
-    expect(icons.length, greaterThanOrEqualTo(5)); // four kinds plus close
+        home: Scaffold(body: _button('go', (c) => c.showToast(message: 'x'))),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('mine: x'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(find.text('mine: x'), findsNothing);
   });
 
   testWidgets(
-    'NFR-U04: us01/s19: us01/fr06/e02: at 200% the message wraps with no '
-    'overflow',
+    'NFR-U08: co05_07/us01/s20: co05_07/us01/fr06/e03: each of the four kinds '
+    'shows its own icon under high contrast',
     (tester) async {
       _view(tester);
-      await tester.pumpWidget(
-        _app(
-          _button(
-            'go',
-            (c) => c.showToast(
-              message: 'A message long enough to wrap onto two lines',
-            ),
+      final icons = <IconData?>{};
+      for (final kind in FeedbackState.values) {
+        await tester.pumpWidget(
+          _app(
+            _button('go', (c) => c.showToast(message: kind.name, kind: kind)),
+            highContrast: StratumHighContrastMode.on,
           ),
-          media: (data) =>
-              data.copyWith(textScaler: const TextScaler.linear(2)),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        icons.addAll(
+          tester.widgetList<Icon>(find.byType(Icon)).map((i) => i.icon),
+        );
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+      }
+      expect(icons.length, greaterThanOrEqualTo(5)); // four kinds plus close
     },
   );
+
+  testWidgets('NFR-U04: co05_07/us01/s19: co05_07/us01/fr06/e02: at 200% the message wraps with no '
+      'overflow', (tester) async {
+    _view(tester);
+    await tester.pumpWidget(
+      _app(
+        _button(
+          'go',
+          (c) => c.showToast(
+            message: 'A message long enough to wrap onto two lines',
+          ),
+        ),
+        media: (data) => data.copyWith(textScaler: const TextScaler.linear(2)),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
 
   for (final (source, app, platform) in [
     ('app', true, false),
     ('platform', false, true),
   ]) {
     testWidgets(
-      'NFR-U03: us01/s18: under $source reduced motion one pump shows the '
+      'NFR-U03: co05_07/us01/s18: under $source reduced motion one pump shows the '
       'settled look',
       (tester) async {
         _view(tester);
@@ -739,26 +739,23 @@ void main() {
     );
   }
 
-  testWidgets(
-    'NFR-U03: us01/s18: with full motion the show still runs, proving the '
-    'reduced rows are not vacuous',
-    (tester) async {
-      _view(tester);
-      await tester.pumpWidget(
-        _app(_button('go', (c) => c.showToast(message: 'Slide'))),
-      );
-      await tester.tap(find.text('go'));
-      var frames = 0;
-      while (find.text('Slide').evaluate().isEmpty && frames < 10) {
-        await tester.pump(const Duration(milliseconds: 16));
-        frames++;
-      }
+  testWidgets('NFR-U03: co05_07/us01/s18: with full motion the show still runs, proving the '
+      'reduced rows are not vacuous', (tester) async {
+    _view(tester);
+    await tester.pumpWidget(
+      _app(_button('go', (c) => c.showToast(message: 'Slide'))),
+    );
+    await tester.tap(find.text('go'));
+    var frames = 0;
+    while (find.text('Slide').evaluate().isEmpty && frames < 10) {
       await tester.pump(const Duration(milliseconds: 16));
-      final during = tester.getRect(find.text('Slide'));
-      await tester.pumpAndSettle();
-      expect(tester.getRect(find.text('Slide')), isNot(during));
-    },
-  );
+      frames++;
+    }
+    await tester.pump(const Duration(milliseconds: 16));
+    final during = tester.getRect(find.text('Slide'));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.text('Slide')), isNot(during));
+  });
 
   testWidgets(
     'NFR-U01: NFR-U05: NFR-U07: action and close are labeled, sized, and '
@@ -824,7 +821,7 @@ void main() {
   );
 
   testWidgets(
-    'NFR-U02: us01/fr05/e04: Tab reaches the action, then the close button',
+    'NFR-U02: co05_07/us01/fr05/e04: Tab reaches the action, then the close button',
     (tester) async {
       _view(tester);
       final handle = tester.ensureSemantics();
@@ -857,7 +854,7 @@ void main() {
     },
   );
 
-  testWidgets('NFR-U09: us01/s13: us01/fr04/e05: the close button (the swipe '
+  testWidgets('NFR-U09: co05_07/us01/s13: co05_07/us01/fr04/e05: the close button (the swipe '
       "gesture's tap alternative) closes it", (tester) async {
     _view(tester);
     final handle = tester.ensureSemantics();
@@ -884,34 +881,31 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets(
-    'NFR-E01: us01/fr06/e01: review focus 5: the look follows the theme '
-    'while the notice shows',
-    (tester) async {
-      _view(tester);
-      Widget app(StratumThemeData theme) => MaterialApp(
-        builder: (context, child) => StratumThemeApplication(
-          themes: StratumThemeSet(light: theme),
-          themeMode: ThemeMode.light,
-          child: StratumToastHost(child: child!),
-        ),
-        home: Scaffold(body: _button('go', (c) => c.showToast(message: 'T'))),
-      );
-      await tester.pumpWidget(app(defaultThemeSet.light));
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      final light = _surfaceColor(tester, 'T');
-      // Switch the theme while the same notice shows (N18): the notice
-      // still on screen repaints on the dark tokens.
-      await tester.pumpWidget(app(defaultThemeSet.dark!));
-      await tester.pumpAndSettle();
-      final dark = _surfaceColor(tester, 'T');
-      expect(find.text('T'), findsOneWidget);
-      expect(light, isNot(dark));
-      await tester.pumpWidget(const SizedBox());
-      await tester.pumpAndSettle();
-    },
-  );
+  testWidgets('NFR-E01: co05_07/us01/fr06/e01: review focus 5: the look follows the theme '
+      'while the notice shows', (tester) async {
+    _view(tester);
+    Widget app(StratumThemeData theme) => MaterialApp(
+      builder: (context, child) => StratumThemeApplication(
+        themes: StratumThemeSet(light: theme),
+        themeMode: ThemeMode.light,
+        child: StratumToastHost(child: child!),
+      ),
+      home: Scaffold(body: _button('go', (c) => c.showToast(message: 'T'))),
+    );
+    await tester.pumpWidget(app(defaultThemeSet.light));
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    final light = _surfaceColor(tester, 'T');
+    // Switch the theme while the same notice shows (N18): the notice
+    // still on screen repaints on the dark tokens.
+    await tester.pumpWidget(app(defaultThemeSet.dark!));
+    await tester.pumpAndSettle();
+    final dark = _surfaceColor(tester, 'T');
+    expect(find.text('T'), findsOneWidget);
+    expect(light, isNot(dark));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('NFR-E02: a call customStyle wins over the theme, field by '
       'field', (tester) async {
@@ -935,7 +929,7 @@ void main() {
     expect(style.dropShadow, isNotEmpty);
   });
 
-  testWidgets('us01/fr06: s03 invariant 16: the app-wide '
+  testWidgets('co05_07/us01/fr06: s03 invariant 16: the app-wide '
       'StratumComponentDefaults.partsOf<WidgetStyle> layer wins over the '
       'theme, with no customStyle set', (tester) async {
     _view(tester);
@@ -954,52 +948,49 @@ void main() {
     expect(style.backgroundColor, green);
   });
 
-  testWidgets(
-    'n20: us01/fr06/e06: StratumToastHost(closeButtonLabel:, kindLabels:) '
-    "override FO-09's built-in labels (s03 invariant 11)",
-    (tester) async {
-      _view(tester);
-      final handle = tester.ensureSemantics();
-      final announced = _announceRecorder(tester);
-      await tester.pumpWidget(
-        MaterialApp(
-          builder: (context, child) => StratumThemeApplication(
-            themes: StratumThemeSet(light: fakeTheme),
-            themeMode: ThemeMode.light,
-            child: StratumToastHost(
-              closeButtonLabel: 'Dismiss',
-              kindLabels: const {FeedbackState.info: 'FYI'},
-              child: child!,
-            ),
+  testWidgets('n20: co05_07/us01/fr06/e06: StratumToastHost(closeButtonLabel:, kindLabels:) '
+      "override FO-09's built-in labels (s03 invariant 11)", (tester) async {
+    _view(tester);
+    final handle = tester.ensureSemantics();
+    final announced = _announceRecorder(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => StratumThemeApplication(
+          themes: StratumThemeSet(light: fakeTheme),
+          themeMode: ThemeMode.light,
+          child: StratumToastHost(
+            closeButtonLabel: 'Dismiss',
+            kindLabels: const {FeedbackState.info: 'FYI'},
+            child: child!,
           ),
-          home: Scaffold(body: _button('go', (c) => c.showToast(message: 'x'))),
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(announced, ['FYI, x']);
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('FYI')),
-        matchesSemantics(label: 'FYI'),
-      );
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('Dismiss')),
-        matchesSemantics(
-          label: 'Dismiss',
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: true,
-          isFocusable: true,
-          hasTapAction: true,
-          hasFocusAction: true,
-        ),
-      );
-      handle.dispose();
-    },
-  );
+        home: Scaffold(body: _button('go', (c) => c.showToast(message: 'x'))),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(announced, ['FYI, x']);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('FYI')),
+      matchesSemantics(label: 'FYI'),
+    );
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Dismiss')),
+      matchesSemantics(
+        label: 'Dismiss',
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        isFocusable: true,
+        hasTapAction: true,
+        hasFocusAction: true,
+      ),
+    );
+    handle.dispose();
+  });
 
   testWidgets(
-    'us01/fr05/e02: an unheld locale (Japanese) reads the English kind '
+    'co05_07/us01/fr05/e02: an unheld locale (Japanese) reads the English kind '
     'name',
     (tester) async {
       _view(tester);
@@ -1016,79 +1007,64 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/fr02/e08: a dark solid top notice over a light header flips the '
-    'status bar icons',
-    (tester) async {
-      systemBarsView(tester);
-      await tester.pumpWidget(
-        _systemApp(
-          goStyle: const WidgetStyle(backgroundColor: Color(0xFF1F242E)),
-        ),
-      );
-      // A light page header: dark icons win on it.
-      expect(
-        SystemChrome.latestStyle?.statusBarIconBrightness,
-        Brightness.dark,
-      );
-      // A dark solid top notice covers the bar point: light icons win on
-      // its declared fill while it shows (piece 5).
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(
-        SystemChrome.latestStyle?.statusBarIconBrightness,
-        Brightness.light,
-      );
-      await tester.pump(const Duration(seconds: 4));
-      await tester.pumpAndSettle();
-      // The notice gone, the header's fill wins again.
-      expect(
-        SystemChrome.latestStyle?.statusBarIconBrightness,
-        Brightness.dark,
-      );
-    },
-  );
+  testWidgets('co05_07/us01/fr02/e08: a dark solid top notice over a light header flips the '
+      'status bar icons', (tester) async {
+    systemBarsView(tester);
+    await tester.pumpWidget(
+      _systemApp(
+        goStyle: const WidgetStyle(backgroundColor: Color(0xFF1F242E)),
+      ),
+    );
+    // A light page header: dark icons win on it.
+    expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
+    // A dark solid top notice covers the bar point: light icons win on
+    // its declared fill while it shows (piece 5).
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.light);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    // The notice gone, the header's fill wins again.
+    expect(SystemChrome.latestStyle?.statusBarIconBrightness, Brightness.dark);
+  });
+
+  testWidgets('co05_07/us01/fr02/e08: a dark solid bottom notice over a light footer flips '
+      'the navigation bar icons', (tester) async {
+    systemBarsView(tester);
+    // T27 lifts a solid bottom notice above a page footer, so this row
+    // runs on a page without one: the fill runs under the home
+    // indicator and covers the bar point (FR-02 statement).
+    await tester.pumpWidget(
+      _systemApp(
+        edge: StratumToastEdge.bottom,
+        pageBars: false,
+        goStyle: const WidgetStyle(backgroundColor: Color(0xFF1F242E)),
+      ),
+    );
+    // No page fill under the bar: dark icons win on the plain page.
+    expect(
+      SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
+      Brightness.dark,
+    );
+    // A dark solid bottom notice covers the bar point: light icons win
+    // on its declared fill while it shows (piece 5, both edges).
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(
+      SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
+      Brightness.light,
+    );
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    // The notice gone, the page's own fill wins again.
+    expect(
+      SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
+      Brightness.dark,
+    );
+  });
 
   testWidgets(
-    'us01/fr02/e08: a dark solid bottom notice over a light footer flips '
-    'the navigation bar icons',
-    (tester) async {
-      systemBarsView(tester);
-      // T27 lifts a solid bottom notice above a page footer, so this row
-      // runs on a page without one: the fill runs under the home
-      // indicator and covers the bar point (FR-02 statement).
-      await tester.pumpWidget(
-        _systemApp(
-          edge: StratumToastEdge.bottom,
-          pageBars: false,
-          goStyle: const WidgetStyle(backgroundColor: Color(0xFF1F242E)),
-        ),
-      );
-      // No page fill under the bar: dark icons win on the plain page.
-      expect(
-        SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
-        Brightness.dark,
-      );
-      // A dark solid bottom notice covers the bar point: light icons win
-      // on its declared fill while it shows (piece 5, both edges).
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(
-        SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
-        Brightness.light,
-      );
-      await tester.pump(const Duration(seconds: 4));
-      await tester.pumpAndSettle();
-      // The notice gone, the page's own fill wins again.
-      expect(
-        SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
-        Brightness.dark,
-      );
-    },
-  );
-
-  testWidgets(
-    'us01/fr02/e09: a gradient fill and an app look declare nothing',
+    'co05_07/us01/fr02/e09: a gradient fill and an app look declare nothing',
     (tester) async {
       systemBarsView(tester);
       await tester.pumpWidget(
@@ -1149,7 +1125,7 @@ void main() {
   // E14; FR-06 E06; s03 invariants 10, 11, 18, 19).
 
   testWidgets(
-    'us01/fr05/e06 e10: the default shortcut reaches the notice from a '
+    'co05_07/us01/fr05/e06 e10: the default shortcut reaches the notice from a '
     'text field on the web-edge route, and Esc returns focus with its '
     'text intact',
     (tester) async {
@@ -1197,7 +1173,7 @@ void main() {
   );
 
   testWidgets(
-    'us01/fr05/e07: the shortcut reaches the notice from inside an open '
+    'co05_07/us01/fr05/e07: the shortcut reaches the notice from inside an open '
     "dialog, and closing it returns focus to the dialog's control",
     (tester) async {
       _view(tester);
@@ -1232,25 +1208,28 @@ void main() {
     },
   );
 
-  testWidgets('us01/fr05/e08: the shortcut does nothing while no notice '
-      'shows', (tester) async {
-    _view(tester);
-    await _withTargetPlatform(TargetPlatform.linux, () async {
-      final field = FocusNode(debugLabel: 'field');
-      addTearDown(field.dispose);
-      await tester.pumpWidget(
-        _app(Focus(focusNode: field, child: const SizedBox())),
-      );
-      field.requestFocus();
-      await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.f8);
-      await tester.pump();
-      expect(FocusManager.instance.primaryFocus, field);
-    });
-  });
+  testWidgets(
+    'co05_07/us01/fr05/e08: the shortcut does nothing while no notice '
+    'shows',
+    (tester) async {
+      _view(tester);
+      await _withTargetPlatform(TargetPlatform.linux, () async {
+        final field = FocusNode(debugLabel: 'field');
+        addTearDown(field.dispose);
+        await tester.pumpWidget(
+          _app(Focus(focusNode: field, child: const SizedBox())),
+        );
+        field.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await tester.pump();
+        expect(FocusManager.instance.primaryFocus, field);
+      });
+    },
+  );
 
   testWidgets(
-    'us01/fr05/e11: an empty focusShortcuts list binds no key and the '
+    'co05_07/us01/fr05/e11: an empty focusShortcuts list binds no key and the '
     'announcement carries no hint',
     (tester) async {
       _view(tester);
@@ -1288,7 +1267,7 @@ void main() {
   );
 
   testWidgets(
-    'us01/fr05/e13: on macOS the default shortcut is Option+T then F8, '
+    'co05_07/us01/fr05/e13: on macOS the default shortcut is Option+T then F8, '
     'the hint naming Option+T first',
     (tester) async {
       _view(tester);
@@ -1309,28 +1288,25 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/fr05/e13: elsewhere the default shortcut is F8 then Alt+T, the '
-    'hint naming F8 first',
-    (tester) async {
-      _view(tester);
-      await _withTargetPlatform(TargetPlatform.linux, () async {
-        final announced = _announceRecorder(tester);
-        await tester.pumpWidget(
-          _app(_button('go', (c) => c.showToast(message: 'x', action: undo))),
-        );
-        await tester.tap(find.text('go'));
-        await tester.pumpAndSettle();
-        expect(announced, ['Information, x, Press F8 to reach it']);
-        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
-        await tester.pumpAndSettle();
-        _expectFocusedInRing(tester, find.text('Undo'));
-      });
-    },
-  );
+  testWidgets('co05_07/us01/fr05/e13: elsewhere the default shortcut is F8 then Alt+T, the '
+      'hint naming F8 first', (tester) async {
+    _view(tester);
+    await _withTargetPlatform(TargetPlatform.linux, () async {
+      final announced = _announceRecorder(tester);
+      await tester.pumpWidget(
+        _app(_button('go', (c) => c.showToast(message: 'x', action: undo))),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(announced, ['Information, x, Press F8 to reach it']);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+      await tester.pumpAndSettle();
+      _expectFocusedInRing(tester, find.text('Undo'));
+    });
+  });
 
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
-    testWidgets('us01/fr05/e14: no hint on $platform', (tester) async {
+    testWidgets('co05_07/us01/fr05/e14: no hint on $platform', (tester) async {
       _view(tester);
       await _withTargetPlatform(platform, () async {
         final announced = _announceRecorder(tester);
@@ -1344,32 +1320,37 @@ void main() {
     });
   }
 
-  testWidgets('us01/fr06/e06: focusShortcutHint: replaces the built-in hint', (
-    tester,
-  ) async {
-    _view(tester);
-    await _withTargetPlatform(TargetPlatform.linux, () async {
-      final announced = _announceRecorder(tester);
-      await tester.pumpWidget(
-        MaterialApp(
-          builder: (context, child) => StratumThemeApplication(
-            themes: StratumThemeSet(light: fakeTheme),
-            themeMode: ThemeMode.light,
-            child: StratumToastHost(
-              focusShortcutHint: 'or hit F8',
-              child: child!,
+  testWidgets(
+    'co05_07/us01/fr06/e06: focusShortcutHint: replaces the built-in hint',
+    (tester) async {
+      _view(tester);
+      await _withTargetPlatform(TargetPlatform.linux, () async {
+        final announced = _announceRecorder(tester);
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => StratumThemeApplication(
+              themes: StratumThemeSet(light: fakeTheme),
+              themeMode: ThemeMode.light,
+              child: StratumToastHost(
+                focusShortcutHint: 'or hit F8',
+                child: child!,
+              ),
+            ),
+            home: Scaffold(
+              body: _button('go', (c) => c.showToast(message: 'x')),
             ),
           ),
-          home: Scaffold(body: _button('go', (c) => c.showToast(message: 'x'))),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(announced, ['Information, x, or hit F8']);
-    });
-  });
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        expect(announced, ['Information, x, or hit F8']);
+      });
+    },
+  );
 
-  testWidgets('us01/fr05/e01: the Thai hint names the key', (tester) async {
+  testWidgets('co05_07/us01/fr05/e01: the Thai hint names the key', (
+    tester,
+  ) async {
     _view(tester);
     await _withTargetPlatform(TargetPlatform.linux, () async {
       final announced = _announceRecorder(tester);
@@ -1395,146 +1376,138 @@ void main() {
   // R27 fix round 1: review-r27.correctness.review.md finding 1,
   // review-r27.edge.review.md findings B to E and G.
 
-  testWidgets(
-    'us01/fr05/fr06/e04: the shortcut reaches a custom builder look, its '
-    'first traversable descendant, no plain-look focus-node plumbing '
-    'needed',
-    (tester) async {
-      _view(tester);
-      final handle = tester.ensureSemantics();
-      await _withTargetPlatform(TargetPlatform.linux, () async {
-        await tester.pumpWidget(
-          MaterialApp(
-            builder: (context, child) => StratumThemeApplication(
-              themes: StratumThemeSet(light: fakeTheme),
-              themeMode: ThemeMode.light,
-              child: StratumToastHost(
-                builder: (context, notice) => TextButton(
-                  onPressed: notice.close,
-                  child: Text('mine: ${notice.message}'),
-                ),
-                child: child!,
-              ),
-            ),
-            home: Scaffold(
-              body: _button('go', (c) => c.showToast(message: 'x')),
-            ),
-          ),
-        );
-        await tester.tap(find.text('go'));
-        await tester.pumpAndSettle();
-        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
-        await tester.pumpAndSettle();
-        expect(
-          tester
-              .getSemantics(find.bySemanticsLabel('mine: x'))
-              .flagsCollection
-              .isFocused,
-          Tristate.isTrue,
-        );
-      });
-      handle.dispose();
-    },
-  );
-
-  testWidgets('us01/fr05: a notice with no focusable descendant leaves the key '
-      'unhandled', (tester) async {
+  testWidgets('co05_07/us01/fr05/fr06/e04: the shortcut reaches a custom builder look, its '
+      'first traversable descendant, no plain-look focus-node plumbing '
+      'needed', (tester) async {
     _view(tester);
+    final handle = tester.ensureSemantics();
     await _withTargetPlatform(TargetPlatform.linux, () async {
-      final field = FocusNode(debugLabel: 'field');
-      addTearDown(field.dispose);
       await tester.pumpWidget(
         MaterialApp(
           builder: (context, child) => StratumThemeApplication(
             themes: StratumThemeSet(light: fakeTheme),
             themeMode: ThemeMode.light,
             child: StratumToastHost(
-              builder: (context, notice) => Text(notice.message),
+              builder: (context, notice) => TextButton(
+                onPressed: notice.close,
+                child: Text('mine: ${notice.message}'),
+              ),
               child: child!,
             ),
           ),
-          home: Scaffold(
-            body: Column(
-              children: [
-                Focus(focusNode: field, child: const SizedBox()),
-                _button('go', (c) => c.showToast(message: 'x')),
-              ],
-            ),
-          ),
+          home: Scaffold(body: _button('go', (c) => c.showToast(message: 'x'))),
         ),
       );
       await tester.tap(find.text('go'));
       await tester.pumpAndSettle();
-      field.requestFocus();
-      await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.f8);
-      await tester.pump();
-      expect(FocusManager.instance.primaryFocus, field);
-    });
-  });
-
-  testWidgets('us01/fr05: the shortcut reaches a close-only notice through its '
-      'close button', (tester) async {
-    _view(tester);
-    await _withTargetPlatform(TargetPlatform.linux, () async {
-      await tester.pumpWidget(
-        _app(_button('go', (c) => c.showToast(message: 'x'))),
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel('mine: x'))
+            .flagsCollection
+            .isFocused,
+        Tristate.isTrue,
       );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      await tester.sendKeyEvent(LogicalKeyboardKey.f8);
-      await tester.pumpAndSettle();
-      _expectFocusedInRing(tester, find.byIcon(Icons.close));
     });
+    handle.dispose();
   });
 
   testWidgets(
-    'us01/fr05/e09: with several notices on screen, the shortcut reaches '
-    'the one that showed last',
+    'co05_07/us01/fr05: a notice with no focusable descendant leaves the key '
+    'unhandled',
     (tester) async {
       _view(tester);
-      final handle = tester.ensureSemantics();
+      await _withTargetPlatform(TargetPlatform.linux, () async {
+        final field = FocusNode(debugLabel: 'field');
+        addTearDown(field.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => StratumThemeApplication(
+              themes: StratumThemeSet(light: fakeTheme),
+              themeMode: ThemeMode.light,
+              child: StratumToastHost(
+                builder: (context, notice) => Text(notice.message),
+                child: child!,
+              ),
+            ),
+            home: Scaffold(
+              body: Column(
+                children: [
+                  Focus(focusNode: field, child: const SizedBox()),
+                  _button('go', (c) => c.showToast(message: 'x')),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        field.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await tester.pump();
+        expect(FocusManager.instance.primaryFocus, field);
+      });
+    },
+  );
+
+  testWidgets(
+    'co05_07/us01/fr05: the shortcut reaches a close-only notice through its '
+    'close button',
+    (tester) async {
+      _view(tester);
       await _withTargetPlatform(TargetPlatform.linux, () async {
         await tester.pumpWidget(
-          _app(
-            _button('go', (c) {
-              c
-                ..showToast(
-                  message: 'First',
-                  action: const StratumToastAction(
-                    label: 'A',
-                    onPressed: _noop,
-                  ),
-                )
-                ..showToast(
-                  message: 'Second',
-                  action: const StratumToastAction(
-                    label: 'B',
-                    onPressed: _noop,
-                  ),
-                );
-            }),
-          ),
+          _app(_button('go', (c) => c.showToast(message: 'x'))),
         );
         await tester.tap(find.text('go'));
         await tester.pumpAndSettle();
         await tester.sendKeyEvent(LogicalKeyboardKey.f8);
         await tester.pumpAndSettle();
-        _expectFocusedInRing(tester, find.text('B'));
-        expect(
-          tester
-              .getSemantics(find.bySemanticsLabel('A'))
-              .flagsCollection
-              .isFocused,
-          isNot(Tristate.isTrue),
-        );
+        _expectFocusedInRing(tester, find.byIcon(Icons.close));
       });
-      handle.dispose();
     },
   );
 
+  testWidgets('co05_07/us01/fr05/e09: with several notices on screen, the shortcut reaches '
+      'the one that showed last', (tester) async {
+    _view(tester);
+    final handle = tester.ensureSemantics();
+    await _withTargetPlatform(TargetPlatform.linux, () async {
+      await tester.pumpWidget(
+        _app(
+          _button('go', (c) {
+            c
+              ..showToast(
+                message: 'First',
+                action: const StratumToastAction(label: 'A', onPressed: _noop),
+              )
+              ..showToast(
+                message: 'Second',
+                action: const StratumToastAction(label: 'B', onPressed: _noop),
+              );
+          }),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+      await tester.pumpAndSettle();
+      _expectFocusedInRing(tester, find.text('B'));
+      expect(
+        tester
+            .getSemantics(find.bySemanticsLabel('A'))
+            .flagsCollection
+            .isFocused,
+        isNot(Tristate.isTrue),
+      );
+    });
+    handle.dispose();
+  });
+
   testWidgets(
-    'us01/fr05/e10: a custom non-empty focusShortcuts list moves focus; '
+    'co05_07/us01/fr05/e10: a custom non-empty focusShortcuts list moves focus; '
     'the default key no longer does, and the hint names the custom key',
     (tester) async {
       _view(tester);
@@ -1626,7 +1599,7 @@ void main() {
   // Final fix wave A: review-final-m4 edge I1, I4, I9; correctness 8, 9, 10.
 
   testWidgets(
-    'us01/fr04/e03: edge I1: a later notice at the same corner leaves the '
+    'co05_07/us01/fr04/e03: edge I1: a later notice at the same corner leaves the '
     'first one focused, paused, and reachable by the shortcut',
     (tester) async {
       _view(tester);
@@ -1690,111 +1663,100 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/fr03/e04: us01/fr04/e07: correctness 8, edge I4: evicting the '
-    'focused oldest notice returns focus as a close does',
-    (tester) async {
-      _view(tester);
-      final handle = tester.ensureSemantics();
+  testWidgets('co05_07/us01/fr03/e04: co05_07/us01/fr04/e07: correctness 8, edge I4: evicting the '
+      'focused oldest notice returns focus as a close does', (tester) async {
+    _view(tester);
+    final handle = tester.ensureSemantics();
+    final field = FocusNode(debugLabel: 'field');
+    addTearDown(field.dispose);
+    await tester.pumpWidget(
+      _app(
+        Column(
+          children: [
+            Focus(focusNode: field, child: const SizedBox.square(dimension: 1)),
+            _button('go', (c) {
+              for (final label in ['A', 'B', 'C']) {
+                c.showToast(
+                  message: 'n$label',
+                  action: StratumToastAction(label: label, onPressed: _noop),
+                );
+              }
+            }),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    field.requestFocus();
+    await tester.pump();
+    // Real Tab presses, as in probe-tab defect 3: the route's traversal
+    // edge drops its own focus history on the way into a notice, so only
+    // the host's kept node can bring focus back.
+    FocusNode? before;
+    var reached = false;
+    for (var i = 0; i < 6 && !reached; i++) {
+      before = FocusManager.instance.primaryFocus;
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      reached =
+          tester
+              .getSemantics(find.bySemanticsLabel('A'))
+              .flagsCollection
+              .isFocused ==
+          Tristate.isTrue;
+    }
+    expect(reached, isTrue, reason: 'Tab never reached the oldest notice');
+    tester.element(find.text('go')).showToast(message: 'nD');
+    await tester.pumpAndSettle();
+    expect(find.text('nA'), findsNothing);
+    expect(find.text('nD'), findsOneWidget);
+    expect(FocusManager.instance.primaryFocus, before);
+    handle.dispose();
+  });
+
+  testWidgets('co05_07/us01/fr04/e09: its page closed while focus sat in the notice, focus '
+      'goes to the page now on top', (tester) async {
+    _view(tester);
+    final handle = tester.ensureSemantics();
+    await _withTargetPlatform(TargetPlatform.linux, () async {
       final field = FocusNode(debugLabel: 'field');
       addTearDown(field.dispose);
       await tester.pumpWidget(
-        _app(
-          Column(
-            children: [
-              Focus(
-                focusNode: field,
-                child: const SizedBox.square(dimension: 1),
-              ),
-              _button('go', (c) {
-                for (final label in ['A', 'B', 'C']) {
-                  c.showToast(
-                    message: 'n$label',
-                    action: StratumToastAction(label: label, onPressed: _noop),
-                  );
-                }
-              }),
-            ],
-          ),
-        ),
+        _app(_button('go', (c) => c.showToast(message: 'Gone', action: undo))),
       );
       await tester.tap(find.text('go'));
       await tester.pumpAndSettle();
-      field.requestFocus();
-      await tester.pump();
-      // Real Tab presses, as in probe-tab defect 3: the route's traversal
-      // edge drops its own focus history on the way into a notice, so only
-      // the host's kept node can bring focus back.
-      FocusNode? before;
-      var reached = false;
-      for (var i = 0; i < 6 && !reached; i++) {
-        before = FocusManager.instance.primaryFocus;
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-        await tester.pump();
-        reached =
-            tester
-                .getSemantics(find.bySemanticsLabel('A'))
-                .flagsCollection
-                .isFocused ==
-            Tristate.isTrue;
-      }
-      expect(reached, isTrue, reason: 'Tab never reached the oldest notice');
-      tester.element(find.text('go')).showToast(message: 'nD');
-      await tester.pumpAndSettle();
-      expect(find.text('nA'), findsNothing);
-      expect(find.text('nD'), findsOneWidget);
-      expect(FocusManager.instance.primaryFocus, before);
-      handle.dispose();
-    },
-  );
-
-  testWidgets(
-    'us01/fr04/e09: its page closed while focus sat in the notice, focus '
-    'goes to the page now on top',
-    (tester) async {
-      _view(tester);
-      final handle = tester.ensureSemantics();
-      await _withTargetPlatform(TargetPlatform.linux, () async {
-        final field = FocusNode(debugLabel: 'field');
-        addTearDown(field.dispose);
-        await tester.pumpWidget(
-          _app(
-            _button('go', (c) => c.showToast(message: 'Gone', action: undo)),
-          ),
-        );
-        await tester.tap(find.text('go'));
-        await tester.pumpAndSettle();
-        final home = tester.element(find.text('go'));
-        Navigator.of(home).push(
-          MaterialPageRoute<void>(
-            builder: (_) => Scaffold(
-              body: Focus(
-                focusNode: field,
-                child: const SizedBox.square(dimension: 1),
-              ),
+      final home = tester.element(find.text('go'));
+      Navigator.of(home).push(
+        MaterialPageRoute<void>(
+          builder: (_) => Scaffold(
+            body: Focus(
+              focusNode: field,
+              child: const SizedBox.square(dimension: 1),
             ),
           ),
-        );
-        await tester.pumpAndSettle();
-        field.requestFocus();
-        await tester.pump();
-        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
-        await tester.pumpAndSettle();
-        _expectFocusedInRing(tester, find.text('Undo'));
-        Navigator.of(home).pop();
-        await tester.pumpAndSettle();
-        // The route now on top takes focus as it becomes current
-        // (`ModalRoute` `setFirstFocus`), so the notice holds none.
-        expect(field.parent, isNull, reason: 'its page closed');
-        _expectFocusInside(FocusScope.of(home));
-        expect(find.text('Gone'), findsOneWidget);
-      });
-      handle.dispose();
-    },
-  );
+        ),
+      );
+      await tester.pumpAndSettle();
+      field.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+      await tester.pumpAndSettle();
+      _expectFocusedInRing(tester, find.text('Undo'));
+      Navigator.of(home).pop();
+      await tester.pumpAndSettle();
+      // The route now on top takes focus as it becomes current
+      // (`ModalRoute` `setFirstFocus`), so the notice holds none.
+      expect(field.parent, isNull, reason: 'its page closed');
+      _expectFocusInside(FocusScope.of(home));
+      expect(find.text('Gone'), findsOneWidget);
+    });
+    handle.dispose();
+  });
 
   testWidgets(
-    'us01/fr04/e09: correctness 9, edge I4: with the control that held '
+    'co05_07/us01/fr04/e09: correctness 9, edge I4: with the control that held '
     'focus gone, a close focuses the page on top, and the control coming '
     'back takes no focus',
     (tester) async {
@@ -1852,41 +1814,38 @@ void main() {
     },
   );
 
-  testWidgets(
-    'NFR-U03: us01/s18: correctness 10: under reduced motion the notice '
-    'fades in, with no slide',
-    (tester) async {
-      _view(tester);
-      await tester.pumpWidget(
-        _app(
-          _button('go', (c) => c.showToast(message: 'Fade')),
-          media: (data) => data.copyWith(disableAnimations: true),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      var frames = 0;
-      while (find.text('Fade').evaluate().isEmpty && frames < 10) {
-        await tester.pump(const Duration(milliseconds: 16));
-        frames++;
-      }
-      double opacity() => tester
-          .widgetList<FadeTransition>(
-            find.ancestor(
-              of: find.text('Fade'),
-              matching: find.byType(FadeTransition),
-            ),
-          )
-          .fold(1, (product, fade) => product * fade.opacity.value);
-      final first = tester.getRect(find.text('Fade'));
-      expect(opacity(), lessThan(1));
-      await tester.pumpAndSettle();
-      expect(opacity(), 1);
-      expect(tester.getRect(find.text('Fade')), first);
-    },
-  );
+  testWidgets('NFR-U03: co05_07/us01/s18: correctness 10: under reduced motion the notice '
+      'fades in, with no slide', (tester) async {
+    _view(tester);
+    await tester.pumpWidget(
+      _app(
+        _button('go', (c) => c.showToast(message: 'Fade')),
+        media: (data) => data.copyWith(disableAnimations: true),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    var frames = 0;
+    while (find.text('Fade').evaluate().isEmpty && frames < 10) {
+      await tester.pump(const Duration(milliseconds: 16));
+      frames++;
+    }
+    double opacity() => tester
+        .widgetList<FadeTransition>(
+          find.ancestor(
+            of: find.text('Fade'),
+            matching: find.byType(FadeTransition),
+          ),
+        )
+        .fold(1, (product, fade) => product * fade.opacity.value);
+    final first = tester.getRect(find.text('Fade'));
+    expect(opacity(), lessThan(1));
+    await tester.pumpAndSettle();
+    expect(opacity(), 1);
+    expect(tester.getRect(find.text('Fade')), first);
+  });
 
   testWidgets(
-    'NFR-U03: NFR-U09: us01/fr04/e05: edge I9: under reduced motion a swipe '
+    'NFR-U03: NFR-U09: co05_07/us01/fr04/e05: edge I9: under reduced motion a swipe '
     'closes the notice at once, with no move or resize animation',
     (tester) async {
       _view(tester);
@@ -1908,37 +1867,34 @@ void main() {
     },
   );
 
-  testWidgets(
-    'NFR-U09: us01/fr04/e05: edge I9: a fling closes a solid notice, and the '
-    'queued one shows',
-    (tester) async {
-      _view(tester);
-      const solid = StratumToastPlacement.solid(StratumToastEdge.bottom);
-      await tester.pumpWidget(
-        _app(
-          _button('go', (c) {
-            for (final m in ['one', 'two']) {
-              c.showToast(message: m, placement: solid);
-            }
-          }),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      await tester.fling(find.text('one'), const Offset(-300, 0), 1000);
-      await tester.pumpAndSettle();
-      expect(find.text('one'), findsNothing);
-      expect(find.text('two'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('NFR-U09: co05_07/us01/fr04/e05: edge I9: a fling closes a solid notice, and the '
+      'queued one shows', (tester) async {
+    _view(tester);
+    const solid = StratumToastPlacement.solid(StratumToastEdge.bottom);
+    await tester.pumpWidget(
+      _app(
+        _button('go', (c) {
+          for (final m in ['one', 'two']) {
+            c.showToast(message: m, placement: solid);
+          }
+        }),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    await tester.fling(find.text('one'), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('one'), findsNothing);
+    expect(find.text('two'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   // s03 invariant 6: the corner next to a screen corner follows its curve
   // (correctness 3, edge I10).
 
   for (final (screen, shape) in [(55.0, 'concentric'), (24.0, 'floored')]) {
     testWidgets(
-      'us01/fr02/e02: a bottom float under a screen corner of radius $screen '
+      'co05_07/us01/fr02/e02: a bottom float under a screen corner of radius $screen '
       'takes the $shape radius at its bottom corners',
       (tester) async {
         _view(tester);
@@ -1979,7 +1935,7 @@ void main() {
   }
 
   testWidgets(
-    'us01/fr02/e02: only the notice nearest the screen edge curves with it',
+    'co05_07/us01/fr02/e02: only the notice nearest the screen edge curves with it',
     (tester) async {
       _view(tester);
       await tester.pumpWidget(
@@ -2009,7 +1965,7 @@ void main() {
   );
 
   testWidgets(
-    'us01/fr02/e03: with no screen radius reported every corner takes '
+    'co05_07/us01/fr02/e03: with no screen radius reported every corner takes '
     'radius.lg',
     (tester) async {
       _view(tester);
@@ -2026,188 +1982,177 @@ void main() {
   // R28: `context.dismissAllToasts()` (US-01 FR-04 E11 to E14; s03
   // invariant 20).
 
-  testWidgets(
-    'r28: us01/fr04/e11: a dismiss-all call with nothing showing or queued '
-    'does nothing',
-    (tester) async {
-      _view(tester);
-      final field = FocusNode(debugLabel: 'field');
-      addTearDown(field.dispose);
-      await tester.pumpWidget(
-        _app(
-          Column(
+  testWidgets('r28: co05_07/us01/fr04/e11: a dismiss-all call with nothing showing or queued '
+      'does nothing', (tester) async {
+    _view(tester);
+    final field = FocusNode(debugLabel: 'field');
+    addTearDown(field.dispose);
+    await tester.pumpWidget(
+      _app(
+        Column(
+          children: [
+            TextField(focusNode: field),
+            _button('go', (c) => c.showToast(message: 'Later')),
+          ],
+        ),
+      ),
+    );
+    field.requestFocus();
+    await tester.pump();
+    tester.element(find.text('go')).dismissAllToasts();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(FocusManager.instance.primaryFocus, field);
+    // The host still shows the next call.
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('Later'), findsOneWidget);
+  });
+
+  testWidgets('r28: co05_07/us01/fr04/e12: a dismiss-all call closes every float and solid '
+      'notice at once and empties the solid queue', (tester) async {
+    _view(tester);
+    const top = StratumToastPlacement.solid(StratumToastEdge.top);
+    await tester.pumpWidget(
+      _app(
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(focusNode: field),
-              _button('go', (c) => c.showToast(message: 'Later')),
+              _button('go', (c) {
+                c
+                  ..showToast(
+                    message: 'Float A',
+                    placement: const StratumToastPlacement.float(
+                      StratumToastCorner.bottomStart,
+                    ),
+                  )
+                  ..showToast(
+                    message: 'Float B',
+                    placement: const StratumToastPlacement.float(
+                      StratumToastCorner.topEnd,
+                    ),
+                  )
+                  ..showToast(message: 'Solid 1', placement: top)
+                  ..showToast(message: 'Solid 2', placement: top);
+              }),
+              _button('all', (c) => c.dismissAllToasts()),
+              _button(
+                'next',
+                (c) => c.showToast(message: 'Solid 3', placement: top),
+              ),
             ],
           ),
         ),
-      );
-      field.requestFocus();
-      await tester.pump();
-      tester.element(find.text('go')).dismissAllToasts();
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      expect(FocusManager.instance.primaryFocus, field);
-      // The host still shows the next call.
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(find.text('Later'), findsOneWidget);
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('Solid 1'), findsOneWidget);
+    expect(find.text('Solid 2'), findsNothing);
+    await tester.tap(find.text('all'));
+    await tester.pumpAndSettle();
+    for (final m in ['Float A', 'Float B', 'Solid 1', 'Solid 2']) {
+      expect(find.text(m), findsNothing, reason: m);
+    }
+    // The queue is empty: past every close time, the queued notice never
+    // shows.
+    await tester.pump(const Duration(seconds: 9));
+    await tester.pumpAndSettle();
+    expect(find.text('Solid 2'), findsNothing);
+    // The solid slot is free: the next solid notice shows at once.
+    await tester.tap(find.text('next'));
+    await tester.pumpAndSettle();
+    expect(find.text('Solid 3'), findsOneWidget);
+  });
 
-  testWidgets(
-    'r28: us01/fr04/e12: a dismiss-all call closes every float and solid '
-    'notice at once and empties the solid queue',
-    (tester) async {
-      _view(tester);
-      const top = StratumToastPlacement.solid(StratumToastEdge.top);
-      await tester.pumpWidget(
-        _app(
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _button('go', (c) {
-                  c
-                    ..showToast(
-                      message: 'Float A',
-                      placement: const StratumToastPlacement.float(
-                        StratumToastCorner.bottomStart,
-                      ),
-                    )
-                    ..showToast(
-                      message: 'Float B',
-                      placement: const StratumToastPlacement.float(
-                        StratumToastCorner.topEnd,
-                      ),
-                    )
-                    ..showToast(message: 'Solid 1', placement: top)
-                    ..showToast(message: 'Solid 2', placement: top);
-                }),
-                _button('all', (c) => c.dismissAllToasts()),
-                _button(
-                  'next',
-                  (c) => c.showToast(message: 'Solid 3', placement: top),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(find.text('Solid 1'), findsOneWidget);
-      expect(find.text('Solid 2'), findsNothing);
-      await tester.tap(find.text('all'));
-      await tester.pumpAndSettle();
-      for (final m in ['Float A', 'Float B', 'Solid 1', 'Solid 2']) {
-        expect(find.text(m), findsNothing, reason: m);
-      }
-      // The queue is empty: past every close time, the queued notice never
-      // shows.
-      await tester.pump(const Duration(seconds: 9));
-      await tester.pumpAndSettle();
-      expect(find.text('Solid 2'), findsNothing);
-      // The solid slot is free: the next solid notice shows at once.
-      await tester.tap(find.text('next'));
-      await tester.pumpAndSettle();
-      expect(find.text('Solid 3'), findsOneWidget);
-    },
-  );
+  testWidgets('r28: co05_07/us01/fr04/e12: a notice the same handler showed just before the '
+      'call never lands', (tester) async {
+    _view(tester);
+    await tester.pumpWidget(
+      _app(
+        _button('go', (c) {
+          c
+            ..showToast(message: 'Gone')
+            ..dismissAllToasts();
+        }),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gone'), findsNothing);
+    // The corner still shows the next call.
+    tester.element(find.text('go')).showToast(message: 'Back');
+    await tester.pumpAndSettle();
+    expect(find.text('Back'), findsOneWidget);
+  });
 
-  testWidgets(
-    'r28: us01/fr04/e12: a notice the same handler showed just before the '
-    'call never lands',
-    (tester) async {
-      _view(tester);
-      await tester.pumpWidget(
-        _app(
-          _button('go', (c) {
-            c
-              ..showToast(message: 'Gone')
-              ..dismissAllToasts();
-          }),
+  testWidgets('r28: co05_07/us01/fr04/e12: a show deferred past the build, then the call in '
+      'the same build, never lands', (tester) async {
+    _view(tester);
+    final mount = ValueNotifier(false);
+    addTearDown(mount.dispose);
+    await tester.pumpWidget(
+      _app(
+        ValueListenableBuilder<bool>(
+          valueListenable: mount,
+          builder: (_, on, _) =>
+              on ? const _ShowThenDismissOnMount() : const SizedBox(),
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(find.text('Gone'), findsNothing);
-      // The corner still shows the next call.
-      tester.element(find.text('go')).showToast(message: 'Back');
-      await tester.pumpAndSettle();
-      expect(find.text('Back'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'r28: us01/fr04/e12: a show deferred past the build, then the call in '
-    'the same build, never lands',
-    (tester) async {
-      _view(tester);
-      final mount = ValueNotifier(false);
-      addTearDown(mount.dispose);
-      await tester.pumpWidget(
-        _app(
-          ValueListenableBuilder<bool>(
-            valueListenable: mount,
-            builder: (_, on, _) =>
-                on ? const _ShowThenDismissOnMount() : const SizedBox(),
-          ),
-        ),
-      );
-      // Mounted inside a frame, so the show defers past the build phase.
-      mount.value = true;
-      await tester.pump();
-      await tester.pumpAndSettle();
-      expect(find.text('Never'), findsNothing);
-    },
-  );
+      ),
+    );
+    // Mounted inside a frame, so the show defers past the build phase.
+    mount.value = true;
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('Never'), findsNothing);
+  });
 
   for (final (motion, reduced) in [('reduced', true), ('full', false)]) {
-    testWidgets('r28: us01/fr04/e13: under $motion motion a dismiss-all call '
-        '${reduced ? 'closes with no exit animation' : 'runs the exit fade'}', (
-      tester,
-    ) async {
-      _view(tester);
-      await tester.pumpWidget(
-        _app(
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _button('go', (c) {
-                  c
-                    ..showToast(message: 'Bye')
-                    ..showToast(
-                      message: 'Solid bye',
-                      placement: const StratumToastPlacement.solid(
-                        StratumToastEdge.top,
-                      ),
-                    );
-                }),
-                _button('all', (c) => c.dismissAllToasts()),
-              ],
+    testWidgets(
+      'r28: co05_07/us01/fr04/e13: under $motion motion a dismiss-all call '
+      '${reduced ? 'closes with no exit animation' : 'runs the exit fade'}',
+      (tester) async {
+        _view(tester);
+        await tester.pumpWidget(
+          _app(
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _button('go', (c) {
+                    c
+                      ..showToast(message: 'Bye')
+                      ..showToast(
+                        message: 'Solid bye',
+                        placement: const StratumToastPlacement.solid(
+                          StratumToastEdge.top,
+                        ),
+                      );
+                  }),
+                  _button('all', (c) => c.dismissAllToasts()),
+                ],
+              ),
             ),
+            media: (data) => data.copyWith(disableAnimations: reduced),
           ),
-          media: (data) => data.copyWith(disableAnimations: reduced),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('all'));
-      await tester.pump();
-      final shown = reduced ? findsNothing : findsOneWidget;
-      expect(find.text('Bye'), shown);
-      expect(find.text('Solid bye'), shown);
-      await tester.pumpAndSettle();
-      expect(find.text('Bye'), findsNothing);
-      expect(find.text('Solid bye'), findsNothing);
-    });
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('all'));
+        await tester.pump();
+        final shown = reduced ? findsNothing : findsOneWidget;
+        expect(find.text('Bye'), shown);
+        expect(find.text('Solid bye'), shown);
+        await tester.pumpAndSettle();
+        expect(find.text('Bye'), findsNothing);
+        expect(find.text('Solid bye'), findsNothing);
+      },
+    );
   }
 
   testWidgets(
-    'r28: us01/fr04/e14: a dismiss-all call that closes the notice holding '
+    'r28: co05_07/us01/fr04/e14: a dismiss-all call that closes the notice holding '
     'focus returns focus to the text field the shortcut left',
     (tester) async {
       _view(tester);

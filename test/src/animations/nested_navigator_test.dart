@@ -66,7 +66,7 @@ void main() {
     transitions: transitionsOf(ScreenTransitionType.fade),
   );
 
-  testWidgets('us05/fr01/e06: a push or pop on the nested navigator moves '
+  testWidgets('fo05/us05/fr01/e06: a push or pop on the nested navigator moves '
       'only its pages and leaves the host page still', (tester) async {
     final inner = GlobalKey<NavigatorState>();
     await tester.pumpWidget(
@@ -93,64 +93,73 @@ void main() {
     expect(_dx(tester, 'innerPage'), greaterThan(0));
   });
 
-  testWidgets('us05/fr01/e06: a push on the outer navigator moves the host '
-      'page once, its nested page with it', (tester) async {
-    final outer = GlobalKey<NavigatorState>();
-    await tester.pumpWidget(
-      _app(outer, joinedTheme, _pushNavigator(GlobalKey<NavigatorState>())),
-    );
+  testWidgets(
+    'fo05/us05/fr01/e06: a push on the outer navigator moves the host '
+    'page once, its nested page with it',
+    (tester) async {
+      final outer = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        _app(outer, joinedTheme, _pushNavigator(GlobalKey<NavigatorState>())),
+      );
 
-    outer.currentState!.push(_route('upper')).ignore();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      outer.currentState!.push(_route('upper')).ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    final host = tester.getTopLeft(_bar).dx;
-    expect(host, lessThan(0));
-    expect(host, closeTo(_dx(tester, 'upper') - _width(tester, 'upper'), 1e-6));
-    expect(_dx(tester, 'innerHome'), closeTo(host, 1e-6));
-  });
+      final host = tester.getTopLeft(_bar).dx;
+      expect(host, lessThan(0));
+      expect(
+        host,
+        closeTo(_dx(tester, 'upper') - _width(tester, 'upper'), 1e-6),
+      );
+      expect(_dx(tester, 'innerHome'), closeTo(host, 1e-6));
+    },
+  );
 
-  testWidgets('us05/fr01/e06, us05/fr05: a StratumTransitionPage in the '
-      'nested page list moves only the nested pages', (tester) async {
-    final pages = ValueNotifier<List<Page<Object?>>>(const [_innerHome]);
-    addTearDown(pages.dispose);
-    await tester.pumpWidget(
-      _app(
-        GlobalKey<NavigatorState>(),
-        fadeTheme,
-        ValueListenableBuilder<List<Page<Object?>>>(
-          valueListenable: pages,
-          builder: (context, list, _) =>
-              Navigator(pages: list, onDidRemovePage: (_) {}),
+  testWidgets(
+    'fo05/us05/fr01/e06, fo05/us05/fr05: a StratumTransitionPage in the '
+    'nested page list moves only the nested pages',
+    (tester) async {
+      final pages = ValueNotifier<List<Page<Object?>>>(const [_innerHome]);
+      addTearDown(pages.dispose);
+      await tester.pumpWidget(
+        _app(
+          GlobalKey<NavigatorState>(),
+          fadeTheme,
+          ValueListenableBuilder<List<Page<Object?>>>(
+            valueListenable: pages,
+            builder: (context, list, _) =>
+                Navigator(pages: list, onDidRemovePage: (_) {}),
+          ),
         ),
-      ),
-    );
+      );
 
-    pages.value = const [
-      _innerHome,
-      StratumTransitionPage<void>(
-        key: ValueKey('innerPagePage'),
-        type: ScreenTransitionType.rightToLeftJoined,
-        child: SizedBox.expand(key: ValueKey('innerPage')),
-      ),
-    ];
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      pages.value = const [
+        _innerHome,
+        StratumTransitionPage<void>(
+          key: ValueKey('innerPagePage'),
+          type: ScreenTransitionType.rightToLeftJoined,
+          child: SizedBox.expand(key: ValueKey('innerPage')),
+        ),
+      ];
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    expect(tester.takeException(), isNull);
-    expect(tester.getTopLeft(_bar), Offset.zero);
-    expect(_dx(tester, 'innerHome'), lessThan(0));
-    expect(
-      _dx(tester, 'innerHome'),
-      closeTo(_dx(tester, 'innerPage') - _width(tester, 'innerPage'), 1e-6),
-    );
+      expect(tester.takeException(), isNull);
+      expect(tester.getTopLeft(_bar), Offset.zero);
+      expect(_dx(tester, 'innerHome'), lessThan(0));
+      expect(
+        _dx(tester, 'innerHome'),
+        closeTo(_dx(tester, 'innerPage') - _width(tester, 'innerPage'), 1e-6),
+      );
 
-    await tester.pumpAndSettle();
-    pages.value = const [_innerHome];
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+      pages.value = const [_innerHome];
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    expect(tester.getTopLeft(_bar), Offset.zero);
-    expect(_dx(tester, 'innerPage'), greaterThan(0));
-  });
+      expect(tester.getTopLeft(_bar), Offset.zero);
+      expect(_dx(tester, 'innerPage'), greaterThan(0));
+    },
+  );
 }

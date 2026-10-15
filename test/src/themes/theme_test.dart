@@ -47,7 +47,7 @@ Widget _host(void Function(StratumTheme theme) read, {bool scope = true}) {
 }
 
 void main() {
-  group('us09/fr01: StratumTheme dimension reads', () {
+  group('fo03/us09/fr01: StratumTheme dimension reads', () {
     final cases = <(double, double)>[
       (400, 16),
       (900, 16),

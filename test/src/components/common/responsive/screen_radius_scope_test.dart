@@ -171,7 +171,7 @@ void main() {
   setUp(ScreenRadiusScope.reset);
 
   testWidgets(
-    'us04/fr03/e03: on iOS publishes the probe radius while Flutter reads null',
+    'fo07/us04/fr03/e03: on iOS publishes the probe radius while Flutter reads null',
     (tester) async {
       _mockEvents(tester, [_r46]);
       BorderRadius? radius;
@@ -184,34 +184,38 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
-  testWidgets('us04/fr03/e04: an older iOS sends null and radius stays null', (
-    tester,
-  ) async {
-    _mockEvents(tester, [null]);
-    BorderRadius? radius = BorderRadius.zero;
+  testWidgets(
+    'fo07/us04/fr03/e04: an older iOS sends null and radius stays null',
+    (tester) async {
+      _mockEvents(tester, [null]);
+      BorderRadius? radius = BorderRadius.zero;
 
-    await tester.pumpWidget(_reader((r) => radius = r));
-    await tester.pump();
+      await tester.pumpWidget(_reader((r) => radius = r));
+      await tester.pump();
 
-    expect(radius, isNull);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+      expect(radius, isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
 
-  testWidgets('us04/fr03: a nil event after a value drops the radius to null', (
-    tester,
-  ) async {
-    late MockStreamHandlerEventSink sink;
-    _mockProbe(tester, onListen: (s) => sink = s..success(_r46));
-    BorderRadius? radius;
-    await tester.pumpWidget(_reader((r) => radius = r));
-    await tester.pump();
+  testWidgets(
+    'fo07/us04/fr03: a nil event after a value drops the radius to null',
+    (tester) async {
+      late MockStreamHandlerEventSink sink;
+      _mockProbe(tester, onListen: (s) => sink = s..success(_r46));
+      BorderRadius? radius;
+      await tester.pumpWidget(_reader((r) => radius = r));
+      await tester.pump();
 
-    sink.success(null);
-    await _pumpEvent(tester);
+      sink.success(null);
+      await _pumpEvent(tester);
 
-    expect(radius, isNull);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+      expect(radius, isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
 
-  testWidgets('us04/fr03: a corner the probe leaves out reads zero', (
+  testWidgets('fo07/us04/fr03: a corner the probe leaves out reads zero', (
     tester,
   ) async {
     _mockEvents(tester, [
@@ -231,7 +235,7 @@ void main() {
     );
   }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
-  testWidgets('us04/fr03: never overrides a radius Flutter fills', (
+  testWidgets('fo07/us04/fr03: never overrides a radius Flutter fills', (
     tester,
   ) async {
     _mockEvents(tester, [_r46]);
@@ -250,7 +254,7 @@ void main() {
   }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
   testWidgets(
-    'us04/fr03: with no native plugin, iOS reads null and reports no error',
+    'fo07/us04/fr03: with no native plugin, iOS reads null and reports no error',
     (tester) async {
       BorderRadius? radius = BorderRadius.zero;
 
@@ -265,7 +269,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
-  testWidgets('us04/fr03: an error event is reported and reads null', (
+  testWidgets('fo07/us04/fr03: an error event is reported and reads null', (
     tester,
   ) async {
     late MockStreamHandlerEventSink sink;
@@ -289,7 +293,9 @@ void main() {
     ('an event that is not a map', 46.0),
   ];
   for (final (name, event) in malformed) {
-    testWidgets('us04/fr03: $name is reported and reads null', (tester) async {
+    testWidgets('fo07/us04/fr03: $name is reported and reads null', (
+      tester,
+    ) async {
       late MockStreamHandlerEventSink sink;
       _mockProbe(tester, onListen: (s) => sink = s..success(_r46));
       BorderRadius? radius;
@@ -304,7 +310,7 @@ void main() {
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
   }
 
-  testWidgets('us04/fr03: the end of the stream keeps the last radius', (
+  testWidgets('fo07/us04/fr03: the end of the stream keeps the last radius', (
     tester,
   ) async {
     _mockEvents(tester, [_r46]);
@@ -329,7 +335,7 @@ void main() {
   // Web never subscribes (`kIsWeb` in `_darwin`); were it to, the
   // MissingPluginException path the no-plugin test proves reads null.
   testWidgets(
-    'us04/fr03/e05: on Windows, Linux, and Android it listens to no probe',
+    'fo07/us04/fr03/e05: on Windows, Linux, and Android it listens to no probe',
     (tester) async {
       var listened = false;
       _mockProbe(
@@ -354,7 +360,7 @@ void main() {
     }),
   );
 
-  testWidgets('us04/fr03: unmounting the scope cancels the probe', (
+  testWidgets('fo07/us04/fr03: unmounting the scope cancels the probe', (
     tester,
   ) async {
     var cancels = 0;
@@ -372,7 +378,7 @@ void main() {
     expect(cancels, 1);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  testWidgets('us04/fr03: a failed listen is reported', (tester) async {
+  testWidgets('fo07/us04/fr03: a failed listen is reported', (tester) async {
     _mockProbe(tester, onListen: (_) => throw PlatformException(code: 'error'));
 
     await tester.pumpWidget(_reader((_) {}));
@@ -382,7 +388,7 @@ void main() {
   }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
   testWidgets(
-    'us04/fr03: a failed cancel is reported, never an unhandled error',
+    'fo07/us04/fr03: a failed cancel is reported, never an unhandled error',
     (tester) async {
       _mockProbe(
         tester,
@@ -404,7 +410,7 @@ void main() {
   );
 
   testWidgets(
-    'us04/fr03/e06: a change event rebuilds the radius reader once and no '
+    'fo07/us04/fr03/e06: a change event rebuilds the radius reader once and no '
     'height reader, on the first event, a value change, and a nil event',
     (tester) async {
       late MockStreamHandlerEventSink sink;
@@ -469,7 +475,7 @@ void main() {
   );
 
   testWidgets(
-    'us04/fr03: the first probe event moves nothing — zero rebuilds, '
+    'fo07/us04/fr03: the first probe event moves nothing — zero rebuilds, '
     'deactivate, or activate on a non-radius State',
     (tester) async {
       late MockStreamHandlerEventSink sink;
@@ -525,7 +531,7 @@ void main() {
   );
 
   testWidgets(
-    'us04/fr03: a reverse event (value to null) moves nothing either',
+    'fo07/us04/fr03: a reverse event (value to null) moves nothing either',
     (tester) async {
       late MockStreamHandlerEventSink sink;
       _mockProbe(tester, onListen: (s) => sink = s..success(_r46));
@@ -580,7 +586,7 @@ void main() {
   );
 
   testWidgets(
-    'us04/fr03: on iOS the pass-through MediaQuery is present before any '
+    'fo07/us04/fr03: on iOS the pass-through MediaQuery is present before any '
     'probe event',
     (tester) async {
       _mockProbe(tester, onListen: (_) {});
@@ -605,7 +611,7 @@ void main() {
   );
 
   testWidgets(
-    'us04/fr03: on Android the scope inserts no MediaQuery before any '
+    'fo07/us04/fr03: on Android the scope inserts no MediaQuery before any '
     "probe event, matching today's tree",
     (tester) async {
       await tester.pumpWidget(
@@ -628,7 +634,7 @@ void main() {
   );
 
   testWidgets(
-    'us04/fr03: the first probe value and a later nil keep every State '
+    'fo07/us04/fr03: the first probe value and a later nil keep every State '
     'below the scope',
     (tester) async {
       late MockStreamHandlerEventSink sink;

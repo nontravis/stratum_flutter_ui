@@ -951,7 +951,7 @@ typography:
       ),
     ];
     for (final (name, body, expected) in transitionCases) {
-      test('us01/fr01/e11: reports $name', () {
+      test('fo01/us01/fr01/e11: reports $name', () {
         expect(_problems(body), [expected]);
       });
     }

@@ -14,7 +14,7 @@ StratumFocusBorder _ring(WidgetTester tester) =>
 void main() {
   group('FocusSpread', () {
     testWidgets(
-      'us04/fr03/e10: builds StratumFocusBorder, its color passed on as '
+      'fo06/us04/fr03/e10: builds StratumFocusBorder, its color passed on as '
       'customColor, focus as the focused state, inside as insideEdge',
       (tester) async {
         const red = Color(0xFFFF0000);
@@ -43,7 +43,7 @@ void main() {
     );
 
     testWidgets(
-      'us04/fr03/e10: an unfocused FocusSpread with no inside builds the '
+      'fo06/us04/fr03/e10: an unfocused FocusSpread with no inside builds the '
       'normal look around its child in the theme color',
       (tester) async {
         await tester.pumpWidget(themedHost(const FocusSpread(child: _box)));

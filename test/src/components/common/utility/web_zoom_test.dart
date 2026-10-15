@@ -22,22 +22,25 @@ void main() {
       ),
     ),
   ]) {
-    testWidgets('co01-04/us01/fr02, us01/fr02/e02: with $name it builds its '
-        'child alone off the web', (tester) async {
-      await tester.pumpWidget(_host(zoom));
+    testWidgets(
+      'co01-04/us01/fr02, co01_04/us01/fr02/e02: with $name it builds its '
+      'child alone off the web',
+      (tester) async {
+        await tester.pumpWidget(_host(zoom));
 
-      Widget? built;
-      tester
-          .element(find.byType(StratumWebZoom))
-          .visitChildElements((element) => built = element.widget);
-      expect(built, same(zoom.child));
-      expect(find.byType(InteractiveViewer), findsNothing);
-      expect(find.byType(StratumDisabled), findsNothing);
-    });
+        Widget? built;
+        tester
+            .element(find.byType(StratumWebZoom))
+            .visitChildElements((element) => built = element.widget);
+        expect(built, same(zoom.child));
+        expect(find.byType(InteractiveViewer), findsNothing);
+        expect(find.byType(StratumDisabled), findsNothing);
+      },
+    );
   }
 
   testWidgets(
-    'co01-04/us01/fr02/e01, us01/s8: a pinch on Android reaches the child '
+    'co01-04/us01/fr02/e01, co01_04/us01/s8: a pinch on Android reaches the child '
     'as it would with no web zoom',
     variant: TargetPlatformVariant.only(TargetPlatform.android),
     (tester) async {
@@ -82,23 +85,26 @@ void main() {
       ('a minimum of 0', 0.0, 2.5),
       ('a negative minimum', -1.0, 2.5),
     ]) {
-      test('co01-04/us01/fr01/e04, us01/fr02/e02, us01/s9: $name stops the '
-          'build with a message about the scale limits', () {
-        expect(
-          () => StratumWebZoom(
-            minScale: min,
-            maxScale: max,
-            child: const SizedBox(),
-          ),
-          throwsA(
-            isA<AssertionError>().having(
-              (error) => '${error.message}',
-              'message',
-              contains('Scale'),
+      test(
+        'co01-04/us01/fr01/e04, co01_04/us01/fr02/e02, co01_04/us01/s9: $name stops the '
+        'build with a message about the scale limits',
+        () {
+          expect(
+            () => StratumWebZoom(
+              minScale: min,
+              maxScale: max,
+              child: const SizedBox(),
             ),
-          ),
-        );
-      });
+            throwsA(
+              isA<AssertionError>().having(
+                (error) => '${error.message}',
+                'message',
+                contains('Scale'),
+              ),
+            ),
+          );
+        },
+      );
     }
 
     test('a maximum equal to the minimum is valid', () {

@@ -68,7 +68,7 @@ void main() {
     recordRemoteGoogleFonts();
   });
 
-  test('us01/s1, us01/s2, us01/fr03/e06: an install of a new id registers '
+  test('fo04/us01/s1, fo04/us01/s2, fo04/us01/fr03/e06: an install of a new id registers '
       'with no repaint and no callback; a switch shows its fonts', () async {
     final (controller, changes) = await _start(RemoteFakeBundle());
     var notified = 0;
@@ -88,7 +88,7 @@ void main() {
     expect(loads, [('brand@1/Prompt', 1)]);
   });
 
-  test('us01/s8, us01/fr03/e05: a re-install of the active id repaints once '
+  test('fo04/us01/s8, fo04/us01/fr03/e05: a re-install of the active id repaints once '
       'in one step, with no theme-change callback', () async {
     final (controller, changes) = await _start(RemoteFakeBundle());
     await controller.install(
@@ -109,7 +109,7 @@ void main() {
     expect(loads, [('brand@1/Prompt', 1), ('brand@2/Prompt', 1)]);
   });
 
-  test('us01/fr03/e07, us01/fr01/e04: a failing install of the active id '
+  test('fo04/us01/fr03/e07, fo04/us01/fr01/e04: a failing install of the active id '
       'changes nothing', () async {
     final (controller, _) = await _start(RemoteFakeBundle());
     await controller.install(_zip('brand'));
@@ -141,50 +141,56 @@ void main() {
     expect(controller.remoteBundle.holds('stratum-remote/brand/1'), isTrue);
   });
 
-  test('us01/s4, us01/fr01/e01: a checksum mismatch adds no theme', () async {
-    final (controller, _) = await _start(RemoteFakeBundle());
-    final good = _zip('brand');
+  test(
+    'fo04/us01/s4, fo04/us01/fr01/e01: a checksum mismatch adds no theme',
+    () async {
+      final (controller, _) = await _start(RemoteFakeBundle());
+      final good = _zip('brand');
 
-    await expectLater(
-      controller.install(
-        StratumRemoteTheme(
-          id: 'brand',
-          bytes: good.bytes,
-          checksum: checksumOf([0]),
+      await expectLater(
+        controller.install(
+          StratumRemoteTheme(
+            id: 'brand',
+            bytes: good.bytes,
+            checksum: checksumOf([0]),
+          ),
         ),
-      ),
-      throwsA(
-        isA<StratumRemoteThemeException>().having(
-          (e) => e.code,
-          'code',
-          StratumRemoteThemeErrorCode.checksumMismatch,
+        throwsA(
+          isA<StratumRemoteThemeException>().having(
+            (e) => e.code,
+            'code',
+            StratumRemoteThemeErrorCode.checksumMismatch,
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(controller.themeIds, ['default']);
-  });
+      expect(controller.themeIds, ['default']);
+    },
+  );
 
-  test('us01/s11: a zip named default is refused and default stays', () async {
-    final (controller, _) = await _start(RemoteFakeBundle());
-    final before = controller.themes;
+  test(
+    'fo04/us01/s11: a zip named default is refused and default stays',
+    () async {
+      final (controller, _) = await _start(RemoteFakeBundle());
+      final before = controller.themes;
 
-    await expectLater(
-      controller.install(_zip('default')),
-      throwsA(
-        isA<StratumRemoteThemeException>().having(
-          (e) => e.code,
-          'code',
-          StratumRemoteThemeErrorCode.invalidId,
+      await expectLater(
+        controller.install(_zip('default')),
+        throwsA(
+          isA<StratumRemoteThemeException>().having(
+            (e) => e.code,
+            'code',
+            StratumRemoteThemeErrorCode.invalidId,
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(controller.themes, same(before));
-    expect(controller.themeIds, ['default']);
-  });
+      expect(controller.themes, same(before));
+      expect(controller.themeIds, ['default']);
+    },
+  );
 
-  test('us01/s9, us01/fr03/e04: a zip replaces a bundled id for the run, and '
+  test('fo04/us01/s9, fo04/us01/fr03/e04: a zip replaces a bundled id for the run, and '
       'the bundled theme comes back at a start with no zip', () async {
     final bundle = RemoteFakeBundle(
       themes: {'brand': '$remoteSchemaLine\n${_mark('bundled-mark')}'},
@@ -202,28 +208,31 @@ void main() {
     expect(_fontKeys(fresh), contains('bundled-mark'));
   });
 
-  test('us01/fr03/e08: a switch that starts before an install of the active '
-      'id swaps drops the swap and keeps the registration', () async {
-    final (controller, changes) = await _start(RemoteFakeBundle());
-    await controller.install(_zip('brand'));
-    await controller.switchTo('brand');
-    final hold = Completer<void>();
-    ThemeFontLoader.load = (family, files) =>
-        family == 'brand@2/Prompt' ? hold.future : Future<void>.value();
+  test(
+    'fo04/us01/fr03/e08: a switch that starts before an install of the active '
+    'id swaps drops the swap and keeps the registration',
+    () async {
+      final (controller, changes) = await _start(RemoteFakeBundle());
+      await controller.install(_zip('brand'));
+      await controller.switchTo('brand');
+      final hold = Completer<void>();
+      ThemeFontLoader.load = (family, files) =>
+          family == 'brand@2/Prompt' ? hold.future : Future<void>.value();
 
-    final installing = controller.install(
-      _zip('brand', body: '$_font\n    new-mark: { family: new-mark }'),
-    );
-    await pumpEventQueue();
-    await controller.switchTo('default');
-    hold.complete();
-    await installing;
+      final installing = controller.install(
+        _zip('brand', body: '$_font\n    new-mark: { family: new-mark }'),
+      );
+      await pumpEventQueue();
+      await controller.switchTo('default');
+      hold.complete();
+      await installing;
 
-    expect(controller.activeId, 'default');
-    expect(changes, ['brand', 'default']);
-    await controller.switchTo('brand');
-    expect(_fontKeys(controller), contains('new-mark'));
-  });
+      expect(controller.activeId, 'default');
+      expect(changes, ['brand', 'default']);
+      await controller.switchTo('brand');
+      expect(_fontKeys(controller), contains('new-mark'));
+    },
+  );
 
   test('r10/oq4: an earlier generation leaves memory once no theme on screen '
       "uses it, and stays through the new install's font load", () async {
@@ -249,7 +258,7 @@ void main() {
     expect(overlay.holds('stratum-remote/brand/3'), isTrue);
   });
 
-  test('us01/fr03/e11, r13: a switch to the active id before its install '
+  test('fo04/us01/fr03/e11, r13: a switch to the active id before its install '
       'registers changes nothing, and the install swaps', () async {
     final (controller, changes) = await _start(RemoteFakeBundle());
     await controller.install(_zip('brand', body: '$_font\n    $_old'));
@@ -280,7 +289,7 @@ void main() {
     expect(changes, ['brand']);
   });
 
-  test('us01/fr03/e11, r13: a switch to the active id after its install '
+  test('fo04/us01/fr03/e11, r13: a switch to the active id after its install '
       'registers lands it and completes once it is on screen, and the '
       "install's swap drops, when the install's fonts finish first", () async {
     final (controller, changes) = await _start(RemoteFakeBundle());
@@ -310,7 +319,7 @@ void main() {
     expect(changes, ['brand']);
   });
 
-  test('us01/fr03/e11, r13: a switch to the active id after its install '
+  test('fo04/us01/fr03/e11, r13: a switch to the active id after its install '
       "registers lands it, and the install's swap of the folder on screen "
       'drops, when the switch finishes first', () async {
     final (controller, changes) = await _start(RemoteFakeBundle());
@@ -349,7 +358,7 @@ void main() {
     expect(changes, ['brand']);
   });
 
-  test('us01/fr03/e11, r13 order 1: a switch to the active id that '
+  test('fo04/us01/fr03/e11, r13 order 1: a switch to the active id that '
       'overtakes a switch away lands the install whose swap dropped, with '
       'one repaint and no callback', () async {
     final (controller, changes) = await _start(RemoteFakeBundle());
@@ -388,7 +397,7 @@ void main() {
     expect(changes, ['brand']);
   });
 
-  test('us01/fr03/e08, r13 order 2: a switch away that fails after an '
+  test('fo04/us01/fr03/e08, r13 order 2: a switch away that fails after an '
       "active-id install's swap dropped lands the install, with one repaint "
       'and no callback', () async {
     final (controller, changes) = await _start(
@@ -425,7 +434,7 @@ void main() {
     expect(changes, ['brand']);
   });
 
-  test('us01/fr03/e13, r12: a theme file holding a byte that is not UTF-8 '
+  test('fo04/us01/fr03/e13, r12: a theme file holding a byte that is not UTF-8 '
       'is refused as theme_format at that byte, and nothing changes', () async {
     final (controller, changes) = await _start(RemoteFakeBundle());
     final before = controller.themes;
@@ -465,7 +474,7 @@ void main() {
     expect(changes, isEmpty);
   });
 
-  test('us01/fr03/e12, ruling n4: a later call registered first, so the '
+  test('fo04/us01/fr03/e12, ruling n4: a later call registered first, so the '
       'earlier call registers nothing and completes with no error', () async {
     final (controller, _) = await _start(RemoteFakeBundle());
     final holds = <Completer<void>>[];
@@ -496,7 +505,7 @@ void main() {
     expect(controller.remoteBundle.holds('stratum-remote/brand/2'), isTrue);
   });
 
-  test('us01/fr03/e12, ruling n4: a later install call that fails leaves '
+  test('fo04/us01/fr03/e12, ruling n4: a later install call that fails leaves '
       'an earlier call free to register', () async {
     final (controller, _) = await _start(RemoteFakeBundle());
     final hold = Completer<void>();
@@ -529,33 +538,36 @@ void main() {
     expect(_fontKeys(controller), contains('first'));
   });
 
-  test('us01/fr03/e12, ruling n4: of two overlapping installs of the active '
-      'id, the earlier one whose fonts finish last never swaps over the '
-      'later one', () async {
-    final (controller, changes) = await _start(RemoteFakeBundle());
-    await controller.install(_zip('brand', body: _mark('old')));
-    await controller.switchTo('brand');
-    final hold = Completer<void>();
-    ThemeFontLoader.load = (family, files) =>
-        family == 'brand@2/Prompt' ? hold.future : Future<void>.value();
-    var notified = 0;
-    controller.addListener(() => notified++);
+  test(
+    'fo04/us01/fr03/e12, ruling n4: of two overlapping installs of the active '
+    'id, the earlier one whose fonts finish last never swaps over the '
+    'later one',
+    () async {
+      final (controller, changes) = await _start(RemoteFakeBundle());
+      await controller.install(_zip('brand', body: _mark('old')));
+      await controller.switchTo('brand');
+      final hold = Completer<void>();
+      ThemeFontLoader.load = (family, files) =>
+          family == 'brand@2/Prompt' ? hold.future : Future<void>.value();
+      var notified = 0;
+      controller.addListener(() => notified++);
 
-    final earlier = controller.install(
-      _zip('brand', body: '$_font\n    first: { family: first }'),
-    );
-    await pumpEventQueue();
-    await controller.install(_zip('brand', body: _mark('second')));
-    hold.complete();
-    await earlier;
+      final earlier = controller.install(
+        _zip('brand', body: '$_font\n    first: { family: first }'),
+      );
+      await pumpEventQueue();
+      await controller.install(_zip('brand', body: _mark('second')));
+      hold.complete();
+      await earlier;
 
-    expect(_fontKeys(controller), contains('second'));
-    expect(_fontKeys(controller), isNot(contains('first')));
-    expect(notified, 1);
-    expect(changes, ['brand']);
-  });
+      expect(_fontKeys(controller), contains('second'));
+      expect(_fontKeys(controller), isNot(contains('first')));
+      expect(notified, 1);
+      expect(changes, ['brand']);
+    },
+  );
 
-  test('us01/fr03: themeIds list default, then bundled and installed ids '
+  test('fo04/us01/fr03: themeIds list default, then bundled and installed ids '
       'together in alphabetical order', () async {
     final (controller, _) = await _start(
       RemoteFakeBundle(
@@ -606,7 +618,7 @@ void main() {
     expect(overlay.holds('stratum-remote/brand/2'), isTrue);
   });
 
-  test('r10/oq4, us01/fr03/e08: the generation on screen stays in memory '
+  test('r10/oq4, fo04/us01/fr03/e08: the generation on screen stays in memory '
       'while a switch away loads, after the registry moved on', () async {
     final (controller, _) = await _start(RemoteFakeBundle());
     final overlay = controller.remoteBundle;
@@ -643,7 +655,7 @@ void main() {
     expect(overlay.holds('stratum-remote/brand/2'), isTrue);
   });
 
-  test('us01/fr03/e08 fix-1 trigger A: a switch to another id that starts '
+  test('fo04/us01/fr03/e08 fix-1 trigger A: a switch to another id that starts '
       'before an active-id install swaps drops the swap, with one repaint '
       'when the switch lands', () async {
     final changes = <String>[];
@@ -690,7 +702,7 @@ void main() {
     expect(changes, ['default']);
   });
 
-  test('us01/fr03/e05 fix-1 trigger B: a switch away that fails to parse '
+  test('fo04/us01/fr03/e05 fix-1 trigger B: a switch away that fails to parse '
       'while an active-id install loads does not strand the install off '
       'screen', () async {
     final changes = <String>[];

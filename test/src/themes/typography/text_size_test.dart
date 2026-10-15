@@ -179,21 +179,24 @@ void main() {
   });
 
   group('textSizeOf size math, s03 steps 5 and 6', () {
-    test('us02/fr01/e02: the font size adds the window scale and adjustSize; '
-        'the line box leaves both out', () {
-      final sizes = _sizeOf(
-        window: 'desktop',
-        adjustSize: const StratumDimension.fixed(2),
-      );
+    test(
+      'fo02/us02/fr01/e02: the font size adds the window scale and adjustSize; '
+      'the line box leaves both out',
+      () {
+        final sizes = _sizeOf(
+          window: 'desktop',
+          adjustSize: const StratumDimension.fixed(2),
+        );
 
-      expect(sizes.size, 17);
-      expect(sizes.fontSize, 19);
-      expect(sizes.lineBox, 24);
-      expect(sizes.drawnFontSize, 19);
-      expect(sizes.drawnLineBox, 24);
-    });
+        expect(sizes.size, 17);
+        expect(sizes.fontSize, 19);
+        expect(sizes.lineBox, 24);
+        expect(sizes.drawnFontSize, 19);
+        expect(sizes.drawnLineBox, 24);
+      },
+    );
 
-    test('us03/fr01/e01: the scaler scales the line box base on its own, '
+    test('fo02/us03/fr01/e01: the scaler scales the line box base on its own, '
         'and a percent spaceHeight resolves against the scaled base', () {
       final sizes = _sizeOf(
         window: 'desktop',
@@ -215,7 +218,7 @@ void main() {
       ('infinite', const StratumDimension.fixed(double.infinity)),
       ('NaN', const StratumDimension.fixed(double.nan)),
     ]) {
-      test('us02/fr01/e04: a font size $name draws at base, dropping the '
+      test('fo02/us02/fr01/e04: a font size $name draws at base, dropping the '
           'window scale and adjustSize; size and the line box keep their '
           'own rules', () {
         final sizes = _sizeOf(window: 'desktop', adjustSize: adjustSize);
@@ -232,7 +235,7 @@ void main() {
       ('infinite', const StratumDimension.fixed(double.infinity), 1.0, 16.0),
       ('NaN', const StratumDimension.fixed(double.nan), 1.0, 16.0),
     ]) {
-      test('us02/fr01/e05: a line box $name draws at the scaled base, '
+      test('fo02/us02/fr01/e05: a line box $name draws at the scaled base, '
           'dropping spaceHeight; the font size keeps its own rule', () {
         final sizes = _sizeOf(
           spaceHeight: spaceHeight,
@@ -244,7 +247,7 @@ void main() {
       });
     }
 
-    test('us02/fr01/e06: both fail together', () {
+    test('fo02/us02/fr01/e06: both fail together', () {
       final sizes = _sizeOf(
         adjustSize: const StratumDimension.percent(-1),
         spaceHeight: const StratumDimension.fixed(-16),
@@ -270,14 +273,14 @@ void main() {
     }
   });
 
-  group('textSizeOf letter-spacing basis, s03 step 8, us02/fr01/e07', () {
+  group('textSizeOf letter-spacing basis, s03 step 8, fo02/us02/fr01/e07', () {
     for (final (name, scaleValue) in [
       ('of 0', const StratumDimension.fixed(-16)),
       ('below 0', const StratumDimension.fixed(-20)),
       ('infinite', const StratumDimension.fixed(double.infinity)),
       ('NaN', const StratumDimension.fixed(double.nan)),
     ]) {
-      test('us02/fr01/e07: a letter-spacing basis $name draws at base, '
+      test('fo02/us02/fr01/e07: a letter-spacing basis $name draws at base, '
           'dropping the window scale; size keeps its own rule', () {
         final sizes = _sizeOf(
           window: 'desktop',
@@ -288,7 +291,7 @@ void main() {
       });
     }
 
-    test('us02/fr01/e07: a drawable basis keeps the window scale', () {
+    test('fo02/us02/fr01/e07: a drawable basis keeps the window scale', () {
       final sizes = _sizeOf(
         window: 'desktop',
         ownScale: const {'desktop': StratumDimension.fixed(3)},
@@ -298,7 +301,7 @@ void main() {
     });
   });
 
-  group('nearestFontSize, us02/fr02', () {
+  group('nearestFontSize, fo02/us02/fr02', () {
     test('the closest defined size, the smaller one on a tie', () {
       const defined = [FontSize.s14, FontSize.s18];
 

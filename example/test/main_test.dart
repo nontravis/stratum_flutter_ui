@@ -26,7 +26,7 @@ void main() {
   tearDown(() => debugStratumWebViewPlatformFactory = null);
 
   testWidgets(
-    'us01/fr01/e05: urlAddress unset, the URL tab loads https://flutter.dev',
+    'f01/us01/fr01/e05: urlAddress unset, the URL tab loads https://flutter.dev',
     (tester) async {
       await tester.pumpWidget(const StratumWebViewExampleApp());
 
@@ -37,22 +37,23 @@ void main() {
     },
   );
 
-  testWidgets('us01/fr01/e05: urlAddress set, the URL tab loads it instead', (
-    tester,
-  ) async {
-    final address = Uri.parse('http://127.0.0.1:9999/ok');
+  testWidgets(
+    'f01/us01/fr01/e05: urlAddress set, the URL tab loads it instead',
+    (tester) async {
+      final address = Uri.parse('http://127.0.0.1:9999/ok');
 
-    await tester.pumpWidget(StratumWebViewExampleApp(urlAddress: address));
+      await tester.pumpWidget(StratumWebViewExampleApp(urlAddress: address));
 
-    final loads = created.expand((fake) => fake.loads);
-    expect(loads, contains(StratumWebViewSource.url(address)));
-    expect(
-      loads,
-      isNot(
-        contains(StratumWebViewSource.url(Uri.parse('https://flutter.dev'))),
-      ),
-    );
-  });
+      final loads = created.expand((fake) => fake.loads);
+      expect(loads, contains(StratumWebViewSource.url(address)));
+      expect(
+        loads,
+        isNot(
+          contains(StratumWebViewSource.url(Uri.parse('https://flutter.dev'))),
+        ),
+      );
+    },
+  );
 }
 
 /// Records every source a controller loads; `buildView` and the other calls

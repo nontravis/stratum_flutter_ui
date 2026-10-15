@@ -22,46 +22,50 @@ Future<TestGesture> _mouseOn(WidgetTester tester, Finder target) async {
 }
 
 void main() {
-  testWidgets('us12/fr01, us12/fr01/e01, us12/fr01/e04: loads the default '
-      'theme and shows the four checks, each opening with its steps', (
-    tester,
-  ) async {
-    await _pumpDemo(tester);
+  testWidgets(
+    'f01/us12/fr01, f01/us12/fr01/e01, f01/us12/fr01/e04: loads the default '
+    'theme and shows the four checks, each opening with its steps',
+    (tester) async {
+      await _pumpDemo(tester);
 
-    for (final opening in [
-      '1. Hover. Move the mouse onto the card',
-      '2. Cards built from their state. Hover, press and hold',
-      '3. Disabled under a still mouse. Press a button below',
-      '4. Focus inside a group. Click the street field',
-    ]) {
-      expect(find.textContaining(opening), findsOneWidget, reason: opening);
-    }
-    expect(find.text('Hover and focus demo'), findsOneWidget);
-    expect(find.text('Not hovered'), findsOneWidget);
-    expect(find.text('Card A: Idle'), findsOneWidget);
-    expect(find.text('Card B: Idle'), findsOneWidget);
-    expect(find.text('Toggle card A in 3 s'), findsOneWidget);
-    expect(find.text('Group: no focus'), findsOneWidget);
-    expect(find.text('Log: nothing yet.'), findsOneWidget);
-  });
+      for (final opening in [
+        '1. Hover. Move the mouse onto the card',
+        '2. Cards built from their state. Hover, press and hold',
+        '3. Disabled under a still mouse. Press a button below',
+        '4. Focus inside a group. Click the street field',
+      ]) {
+        expect(find.textContaining(opening), findsOneWidget, reason: opening);
+      }
+      expect(find.text('Hover and focus demo'), findsOneWidget);
+      expect(find.text('Not hovered'), findsOneWidget);
+      expect(find.text('Card A: Idle'), findsOneWidget);
+      expect(find.text('Card B: Idle'), findsOneWidget);
+      expect(find.text('Toggle card A in 3 s'), findsOneWidget);
+      expect(find.text('Group: no focus'), findsOneWidget);
+      expect(find.text('Log: nothing yet.'), findsOneWidget);
+    },
+  );
 
-  testWidgets('us12/s1: the hover card reads Hovered, then Not hovered, and '
-      'logs one hover on and one hover off', (tester) async {
-    await _pumpDemo(tester);
-    final mouse = await _mouseOn(tester, find.text('Not hovered'));
-    expect(find.text('Hovered'), findsOneWidget);
+  testWidgets(
+    'f01/us12/s1: the hover card reads Hovered, then Not hovered, and '
+    'logs one hover on and one hover off',
+    (tester) async {
+      await _pumpDemo(tester);
+      final mouse = await _mouseOn(tester, find.text('Not hovered'));
+      expect(find.text('Hovered'), findsOneWidget);
 
-    await mouse.moveTo(Offset.zero);
-    await tester.pump();
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
 
-    expect(find.text('Not hovered'), findsOneWidget);
-    expect(
-      find.text('Log: Hover card onHover(true); Hover card onHover(false)'),
-      findsOneWidget,
-    );
-  });
+      expect(find.text('Not hovered'), findsOneWidget);
+      expect(
+        find.text('Log: Hover card onHover(true); Hover card onHover(false)'),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('us12/s2: the row list scrolling under a still mouse moves '
+  testWidgets('f01/us12/s2: the row list scrolling under a still mouse moves '
       'hover to the next row', (tester) async {
     await _pumpDemo(tester);
     await _mouseOn(tester, find.text('Row 1'));
@@ -86,7 +90,7 @@ void main() {
     expect(find.text('Row 2, hovered'), findsOneWidget);
   });
 
-  testWidgets('us12/s3: Tab to card A reads Focused', (tester) async {
+  testWidgets('f01/us12/s3: Tab to card A reads Focused', (tester) async {
     await _pumpDemo(tester);
 
     // Tests run as Android, where a scrolling box is no Tab stop; on web and
@@ -97,34 +101,35 @@ void main() {
     expect(find.text('Card A: Focused'), findsOneWidget);
   });
 
-  testWidgets('us12/s4, us12/fr01/e03: a toggle disables card A under a '
-      'still pointer and logs one hover off, then one hover on', (
-    tester,
-  ) async {
-    await _pumpDemo(tester);
-    await _mouseOn(tester, find.text('Card A: Idle'));
-    expect(find.text('Card A: Hovered'), findsOneWidget);
+  testWidgets(
+    'f01/us12/s4, f01/us12/fr01/e03: a toggle disables card A under a '
+    'still pointer and logs one hover off, then one hover on',
+    (tester) async {
+      await _pumpDemo(tester);
+      await _mouseOn(tester, find.text('Card A: Idle'));
+      expect(find.text('Card A: Hovered'), findsOneWidget);
 
-    await tester.tap(find.text('Toggle card A in 3 s'));
-    await tester.pump(toggleDelay);
-    await tester.pump();
-    expect(find.text('Card A: Disabled'), findsOneWidget);
+      await tester.tap(find.text('Toggle card A in 3 s'));
+      await tester.pump(toggleDelay);
+      await tester.pump();
+      expect(find.text('Card A: Disabled'), findsOneWidget);
 
-    await tester.tap(find.text('Toggle card A in 3 s'));
-    await tester.pump(toggleDelay);
-    await tester.pump();
+      await tester.tap(find.text('Toggle card A in 3 s'));
+      await tester.pump(toggleDelay);
+      await tester.pump();
 
-    expect(find.text('Card A: Hovered'), findsOneWidget);
-    expect(
-      find.text(
-        'Log: Card A onHover(true); Card A onHover(false); '
-        'Card A onHover(true)',
-      ),
-      findsOneWidget,
-    );
-  });
+      expect(find.text('Card A: Hovered'), findsOneWidget);
+      expect(
+        find.text(
+          'Log: Card A onHover(true); Card A onHover(false); '
+          'Card A onHover(true)',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('us12/s5: a click on the street field reads focus inside and '
+  testWidgets('f01/us12/s5: a click on the street field reads focus inside and '
       'logs one focus in', (tester) async {
     await _pumpDemo(tester);
     final street = find.widgetWithText(TextField, 'ถนน');
@@ -138,17 +143,18 @@ void main() {
     expect(find.text('Log: Group onFocusChange(true)'), findsOneWidget);
   });
 
-  testWidgets('us12/s6: the address group carries its screen-reader label', (
-    tester,
-  ) async {
-    final handle = tester.ensureSemantics();
-    await _pumpDemo(tester);
+  testWidgets(
+    'f01/us12/s6: the address group carries its screen-reader label',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpDemo(tester);
 
-    expect(find.bySemanticsLabel('ที่อยู่จัดส่ง'), findsOneWidget);
-    handle.dispose();
-  });
+      expect(find.bySemanticsLabel('ที่อยู่จัดส่ง'), findsOneWidget);
+      handle.dispose();
+    },
+  );
 
-  test('us12/fr01/e02: every state reads as text', () {
+  test('f01/us12/fr01/e02: every state reads as text', () {
     expect(stateText('Card A', const InteractionState()), 'Card A: Idle');
     expect(
       stateText(

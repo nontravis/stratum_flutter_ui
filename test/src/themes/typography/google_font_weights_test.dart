@@ -28,7 +28,7 @@ StratumTypography _typography(
 );
 
 void main() {
-  group('us05/fr02, s03/inv13: GoogleFontWeights.of', () {
+  group('fo02/us05/fr02, s03/inv13: GoogleFontWeights.of', () {
     test('the package default loads Inter, Roboto Mono, and Kanit in 400 '
         'and 600, Geist and Geist Mono in 600', () {
       expect(GoogleFontWeights.of(defaultThemeSet.light.typography), {
@@ -205,14 +205,14 @@ void main() {
     });
   });
 
-  group('us08/fr02: GoogleFontWeights.snap', () {
+  group('fo02/us08/fr02: GoogleFontWeights.snap', () {
     final loaded = {FontWeight.w400, FontWeight.w600};
 
-    test('us08/fr02/e03: a weight in the set stays', () {
+    test('fo02/us08/fr02/e03: a weight in the set stays', () {
       expect(GoogleFontWeights.snap(FontWeight.w600, loaded), FontWeight.w600);
     });
 
-    test('us08/fr02/e04: a weight outside the set takes the nearest', () {
+    test('fo02/us08/fr02/e04: a weight outside the set takes the nearest', () {
       expect(GoogleFontWeights.snap(FontWeight.w300, loaded), FontWeight.w400);
       expect(GoogleFontWeights.snap(FontWeight.w700, loaded), FontWeight.w600);
       expect(
@@ -221,7 +221,7 @@ void main() {
       );
     });
 
-    test('us08/fr02/e05: a tie takes the heavier, in any set order', () {
+    test('fo02/us08/fr02/e05: a tie takes the heavier, in any set order', () {
       expect(GoogleFontWeights.snap(FontWeight.w500, loaded), FontWeight.w600);
       expect(
         GoogleFontWeights.snap(FontWeight.w500, {
@@ -232,20 +232,23 @@ void main() {
       );
     });
 
-    test('us08/fr02/e05: a weight off the hundreds snaps the same way', () {
-      final near = {FontWeight.w400, FontWeight.w500};
+    test(
+      'fo02/us08/fr02/e05: a weight off the hundreds snaps the same way',
+      () {
+        final near = {FontWeight.w400, FontWeight.w500};
 
-      expect(
-        GoogleFontWeights.snap(const FontWeight(450), near),
-        FontWeight.w500,
-      );
-      expect(
-        GoogleFontWeights.snap(const FontWeight(430), near),
-        FontWeight.w400,
-      );
-    });
+        expect(
+          GoogleFontWeights.snap(const FontWeight(450), near),
+          FontWeight.w500,
+        );
+        expect(
+          GoogleFontWeights.snap(const FontWeight(430), near),
+          FontWeight.w400,
+        );
+      },
+    );
 
-    test('us08/fr02/e09: an empty set keeps the weight', () {
+    test('fo02/us08/fr02/e09: an empty set keeps the weight', () {
       expect(
         GoogleFontWeights.snap(FontWeight.w500, const {}),
         FontWeight.w500,

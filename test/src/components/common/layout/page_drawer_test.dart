@@ -341,7 +341,7 @@ class _KeptState extends State<_Kept> {
 
 void main() {
   group('PageDrawer helpers', () {
-    test('us19/fr02/e01: e02: the default type is slide on iOS and front '
+    test('fo06/us19/fr02/e01: e02: the default type is slide on iOS and front '
         'elsewhere', () {
       expect(defaultDrawerType(TargetPlatform.iOS), PageDrawerType.slide);
       for (final platform in [
@@ -355,42 +355,47 @@ void main() {
       }
     });
 
-    test('us19/fr04/e01: e02: e03: 80% of the screen within min and max', () {
-      expect(drawerWidth(360), 288);
-      expect(drawerWidth(500), 360);
-      expect(drawerWidth(320, min: 300), 300);
-      expect(drawerWidth(500, max: 320), 320);
-    });
+    test(
+      'fo06/us19/fr04/e01: e02: e03: 80% of the screen within min and max',
+      () {
+        expect(drawerWidth(360), 288);
+        expect(drawerWidth(500), 360);
+        expect(drawerWidth(320, min: 300), 300);
+        expect(drawerWidth(500, max: 320), 320);
+      },
+    );
   });
 
   group('PageDrawer open and close', () {
-    testWidgets('us19/s1: us19/fr03/e01: the menu button opens the start '
-        'drawer at 80% width, focus moves in, and the change reports', (
-      tester,
-    ) async {
-      final reports = <PageDrawerSide?>[];
-      await _pump(tester, _page(changed: reports.add));
-      final menu = Focus.of(tester.element(find.text('Menu')));
-      await _openMenu(tester);
-      expect(tester.getRect(_panel), const Rect.fromLTWH(0, 0, 288, 780));
-      expect(reports, [PageDrawerSide.left]);
-      final focused = FocusManager.instance.primaryFocus!;
-      expect(focused, isNot(menu));
-      expect(focused.rect, tester.getRect(_panel));
-    });
+    testWidgets(
+      'fo06/us19/s1: fo06/us19/fr03/e01: the menu button opens the start '
+      'drawer at 80% width, focus moves in, and the change reports',
+      (tester) async {
+        final reports = <PageDrawerSide?>[];
+        await _pump(tester, _page(changed: reports.add));
+        final menu = Focus.of(tester.element(find.text('Menu')));
+        await _openMenu(tester);
+        expect(tester.getRect(_panel), const Rect.fromLTWH(0, 0, 288, 780));
+        expect(reports, [PageDrawerSide.left]);
+        final focused = FocusManager.instance.primaryFocus!;
+        expect(focused, isNot(menu));
+        expect(focused.rect, tester.getRect(_panel));
+      },
+    );
 
-    testWidgets('us19/fr03/e02: close with no drawer open reports nothing', (
-      tester,
-    ) async {
-      var reports = 0;
-      await _pump(tester, _page(changed: (_) => reports++));
-      PageLayout.of(tester.element(find.text('Menu'))).close();
-      await tester.pumpAndSettle();
-      expect(reports, 0);
-      expect(_drawer, findsNothing);
-    });
+    testWidgets(
+      'fo06/us19/fr03/e02: close with no drawer open reports nothing',
+      (tester) async {
+        var reports = 0;
+        await _pump(tester, _page(changed: (_) => reports++));
+        PageLayout.of(tester.element(find.text('Menu'))).close();
+        await tester.pumpAndSettle();
+        expect(reports, 0);
+        expect(_drawer, findsNothing);
+      },
+    );
 
-    testWidgets("us19/fr03/e08: PageLayout.of returns the app's own "
+    testWidgets("fo06/us19/fr03/e08: PageLayout.of returns the app's own "
         'controller, which opens the drawer', (tester) async {
       final controller = PageLayoutController();
       addTearDown(controller.dispose);
@@ -427,7 +432,7 @@ void main() {
       expect(_drawer, findsNothing);
     });
 
-    testWidgets('us19/fr03: openRight opens the end drawer from the end '
+    testWidgets('fo06/us19/fr03: openRight opens the end drawer from the end '
         'edge', (tester) async {
       await _pump(tester, _page(right: const Text('end item')));
       PageLayout.of(tester.element(find.text('Menu'))).openRight();
@@ -445,18 +450,20 @@ void main() {
       );
     });
 
-    testWidgets('us19/s2: an edge swipe opens the start drawer on Android', (
-      tester,
-    ) async {
-      final reports = <PageDrawerSide?>[];
-      await _pump(tester, _page(changed: reports.add));
-      await tester.dragFrom(const Offset(2, 400), const Offset(250, 0));
-      await tester.pumpAndSettle();
-      expect(_drawer, findsOneWidget);
-      expect(reports, [PageDrawerSide.left]);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+    testWidgets(
+      'fo06/us19/s2: an edge swipe opens the start drawer on Android',
+      (tester) async {
+        final reports = <PageDrawerSide?>[];
+        await _pump(tester, _page(changed: reports.add));
+        await tester.dragFrom(const Offset(2, 400), const Offset(250, 0));
+        await tester.pumpAndSettle();
+        expect(_drawer, findsOneWidget);
+        expect(reports, [PageDrawerSide.left]);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.android),
+    );
 
-    testWidgets('us19/fr03: an edge swipe from the end edge opens the end '
+    testWidgets('fo06/us19/fr03: an edge swipe from the end edge opens the end '
         'drawer', (tester) async {
       await _pump(tester, _page(right: const Text('end item')));
       await tester.dragFrom(const Offset(358, 400), const Offset(-250, 0));
@@ -465,80 +472,75 @@ void main() {
       expect(_drawer, findsOneWidget);
     });
 
-    testWidgets('us19/fr03/e05: edge swipe off opens nothing, and the menu '
-        'button still opens the drawer', (tester) async {
-      await _pump(tester, _page(edgeSwipe: false));
-      await tester.dragFrom(const Offset(2, 400), const Offset(250, 0));
-      await tester.pumpAndSettle();
-      expect(_drawer, findsNothing);
-      await _openMenu(tester);
-      expect(_drawer, findsOneWidget);
-    });
-
     testWidgets(
-      'us19/s3: us19/fr03/e03: on iOS a page that can go back keeps the '
-      'back swipe',
+      'fo06/us19/fr03/e05: edge swipe off opens nothing, and the menu '
+      'button still opens the drawer',
       (tester) async {
-        _view(tester, const Size(390, 844));
-        await tester.pumpWidget(
-          _app(
-            Builder(
-              builder: (context) => TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const PageLayout(
-                      left: Text('drawer item'),
-                      body: Text('second'),
-                    ),
-                  ),
-                ),
-                child: const Text('go'),
-              ),
-            ),
-          ),
-        );
-        await tester.tap(find.text('go'));
-        await tester.pumpAndSettle();
-        await tester.dragFrom(const Offset(2, 400), const Offset(300, 0));
-        await tester.pumpAndSettle();
-        expect(find.text('second'), findsNothing);
-        expect(find.text('go'), findsOneWidget);
-        expect(_drawer, findsNothing);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
-    );
-
-    testWidgets(
-      'us19/fr03/e03: on iOS the start edge of a page that can go back opens '
-      'no drawer, even in a route with no back swipe',
-      (tester) async {
-        _view(tester, const Size(390, 844));
-        await tester.pumpWidget(
-          _app(
-            Builder(
-              builder: (context) => TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  PageRouteBuilder<void>(pageBuilder: (_, _, _) => _page()),
-                ),
-                child: const Text('go'),
-              ),
-            ),
-          ),
-        );
-        await tester.tap(find.text('go'));
-        await tester.pumpAndSettle();
+        await _pump(tester, _page(edgeSwipe: false));
         await tester.dragFrom(const Offset(2, 400), const Offset(250, 0));
         await tester.pumpAndSettle();
-        expect(find.text('Menu'), findsOneWidget);
         expect(_drawer, findsNothing);
         await _openMenu(tester);
         expect(_drawer, findsOneWidget);
       },
-      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
     );
 
+    testWidgets('fo06/us19/s3: fo06/us19/fr03/e03: on iOS a page that can go back keeps the '
+        'back swipe', (tester) async {
+      _view(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        _app(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const PageLayout(
+                    left: Text('drawer item'),
+                    body: Text('second'),
+                  ),
+                ),
+              ),
+              child: const Text('go'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      await tester.dragFrom(const Offset(2, 400), const Offset(300, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('second'), findsNothing);
+      expect(find.text('go'), findsOneWidget);
+      expect(_drawer, findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('fo06/us19/fr03/e03: on iOS the start edge of a page that can go back opens '
+        'no drawer, even in a route with no back swipe', (tester) async {
+      _view(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        _app(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(
+                context,
+              ).push(PageRouteBuilder<void>(pageBuilder: (_, _, _) => _page())),
+              child: const Text('go'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      await tester.dragFrom(const Offset(2, 400), const Offset(250, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Menu'), findsOneWidget);
+      expect(_drawer, findsNothing);
+      await _openMenu(tester);
+      expect(_drawer, findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
     testWidgets(
-      'us19/fr03/e04: on the first page of an iPhone app a swipe from the '
+      'fo06/us19/fr03/e04: on the first page of an iPhone app a swipe from the '
       'left edge opens the start drawer',
       (tester) async {
         _view(tester, const Size(390, 844));
@@ -552,127 +554,143 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.iOS),
     );
 
-    testWidgets('us19/s9: us19/fr03/e06: back with a drawer open closes it '
-        'and the page stays; a second back leaves the page', (tester) async {
-      _view(tester, const Size(390, 844));
-      final reports = <PageDrawerSide?>[];
-      await tester.pumpWidget(
-        _app(
-          Builder(
-            builder: (context) => TextButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _page(changed: reports.add),
+    testWidgets(
+      'fo06/us19/s9: fo06/us19/fr03/e06: back with a drawer open closes it '
+      'and the page stays; a second back leaves the page',
+      (tester) async {
+        _view(tester, const Size(390, 844));
+        final reports = <PageDrawerSide?>[];
+        await tester.pumpWidget(
+          _app(
+            Builder(
+              builder: (context) => TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _page(changed: reports.add),
+                  ),
                 ),
+                child: const Text('go'),
               ),
-              child: const Text('go'),
             ),
           ),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      await _openMenu(tester);
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.text('Menu'), findsOneWidget);
-      expect(_drawer, findsNothing);
-      expect(reports, [PageDrawerSide.left, null]);
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.text('Menu'), findsNothing);
-      expect(find.text('go'), findsOneWidget);
-    });
+        );
+        await tester.tap(find.text('go'));
+        await tester.pumpAndSettle();
+        await _openMenu(tester);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.text('Menu'), findsOneWidget);
+        expect(_drawer, findsNothing);
+        expect(reports, [PageDrawerSide.left, null]);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.text('Menu'), findsNothing);
+        expect(find.text('go'), findsOneWidget);
+      },
+    );
 
-    testWidgets('R19: us19/fr05: a drawer opened while loading takes focus '
-        'once loading ends, and Esc returns focus to the opener', (
+    testWidgets(
+      'R19: fo06/us19/fr05: a drawer opened while loading takes focus '
+      'once loading ends, and Esc returns focus to the opener',
+      (tester) async {
+        await _pump(tester, _page());
+        final menu = Focus.of(tester.element(find.text('Menu')))
+          ..requestFocus();
+        await tester.pump();
+        await _pump(tester, _page(loading: true));
+        await tester.pump(const Duration(milliseconds: 200));
+        PageLayout.of(tester.element(find.text('Menu'))).openLeft();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(menu.hasFocus, isFalse);
+
+        await _pump(tester, _page());
+        await tester.pumpAndSettle();
+        final focused = FocusManager.instance.primaryFocus!;
+        expect(focused, isNot(menu));
+        expect(focused.rect, tester.getRect(_panel));
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(_drawer, findsNothing);
+        expect(FocusManager.instance.primaryFocus, menu);
+      },
+    );
+
+    testWidgets(
+      'fo06/us19/fr05: a drawer a keyboard opened hands focus back to '
+      'its opener on Esc',
+      (tester) async {
+        await _pump(tester, _page());
+        final menu = await _openByKeyboard(tester);
+        expect(_drawer, findsOneWidget);
+        expect(FocusManager.instance.primaryFocus, isNot(menu));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(_drawer, findsNothing);
+        expect(FocusManager.instance.primaryFocus, menu);
+      },
+    );
+
+    testWidgets(
+      'fo06/us19/fr05: focus stays in the page when the opener is gone '
+      'by the time the drawer closes',
+      (tester) async {
+        final show = ValueNotifier(true);
+        addTearDown(show.dispose);
+        await _pump(
+          tester,
+          PageLayout(
+            left: const Text('drawer item'),
+            body: ValueListenableBuilder<bool>(
+              valueListenable: show,
+              builder: (_, on, _) => on ? const _Menu() : const Text('gone'),
+            ),
+          ),
+        );
+        final menu = await _openByKeyboard(tester);
+        show.value = false;
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(_drawer, findsNothing);
+        final focused = FocusManager.instance.primaryFocus;
+        expect(focused, isNot(menu));
+        expect(focused?.context?.mounted, isTrue);
+      },
+    );
+
+    testWidgets(
+      'fo06/us19/fr05: a drawer opened from code behind a covering route '
+      'leaves focus on that route',
+      (tester) async {
+        _view(tester, const Size(390, 844));
+        final controller = PageLayoutController();
+        addTearDown(controller.dispose);
+        final cover = FocusNode(debugLabel: 'cover');
+        addTearDown(cover.dispose);
+        await tester.pumpWidget(_app(_page(controller: controller)));
+        Navigator.of(tester.element(find.text('Menu'))).push(
+          PageRouteBuilder<void>(
+            opaque: false,
+            pageBuilder: (_, _, _) => Focus(
+              focusNode: cover,
+              autofocus: true,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, cover);
+        controller.openLeft();
+        await tester.pumpAndSettle();
+        expect(FocusManager.instance.primaryFocus, cover);
+      },
+    );
+
+    testWidgets('fo06/us19/fr03/e07: Esc closes the open drawer', (
       tester,
     ) async {
-      await _pump(tester, _page());
-      final menu = Focus.of(tester.element(find.text('Menu')))..requestFocus();
-      await tester.pump();
-      await _pump(tester, _page(loading: true));
-      await tester.pump(const Duration(milliseconds: 200));
-      PageLayout.of(tester.element(find.text('Menu'))).openLeft();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(menu.hasFocus, isFalse);
-
-      await _pump(tester, _page());
-      await tester.pumpAndSettle();
-      final focused = FocusManager.instance.primaryFocus!;
-      expect(focused, isNot(menu));
-      expect(focused.rect, tester.getRect(_panel));
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(_drawer, findsNothing);
-      expect(FocusManager.instance.primaryFocus, menu);
-    });
-
-    testWidgets('us19/fr05: a drawer a keyboard opened hands focus back to '
-        'its opener on Esc', (tester) async {
-      await _pump(tester, _page());
-      final menu = await _openByKeyboard(tester);
-      expect(_drawer, findsOneWidget);
-      expect(FocusManager.instance.primaryFocus, isNot(menu));
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(_drawer, findsNothing);
-      expect(FocusManager.instance.primaryFocus, menu);
-    });
-
-    testWidgets('us19/fr05: focus stays in the page when the opener is gone '
-        'by the time the drawer closes', (tester) async {
-      final show = ValueNotifier(true);
-      addTearDown(show.dispose);
-      await _pump(
-        tester,
-        PageLayout(
-          left: const Text('drawer item'),
-          body: ValueListenableBuilder<bool>(
-            valueListenable: show,
-            builder: (_, on, _) => on ? const _Menu() : const Text('gone'),
-          ),
-        ),
-      );
-      final menu = await _openByKeyboard(tester);
-      show.value = false;
-      await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
-      expect(_drawer, findsNothing);
-      final focused = FocusManager.instance.primaryFocus;
-      expect(focused, isNot(menu));
-      expect(focused?.context?.mounted, isTrue);
-    });
-
-    testWidgets('us19/fr05: a drawer opened from code behind a covering route '
-        'leaves focus on that route', (tester) async {
-      _view(tester, const Size(390, 844));
-      final controller = PageLayoutController();
-      addTearDown(controller.dispose);
-      final cover = FocusNode(debugLabel: 'cover');
-      addTearDown(cover.dispose);
-      await tester.pumpWidget(_app(_page(controller: controller)));
-      Navigator.of(tester.element(find.text('Menu'))).push(
-        PageRouteBuilder<void>(
-          opaque: false,
-          pageBuilder: (_, _, _) => Focus(
-            focusNode: cover,
-            autofocus: true,
-            child: const SizedBox.expand(),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(FocusManager.instance.primaryFocus, cover);
-      controller.openLeft();
-      await tester.pumpAndSettle();
-      expect(FocusManager.instance.primaryFocus, cover);
-    });
-
-    testWidgets('us19/fr03/e07: Esc closes the open drawer', (tester) async {
       final reports = <PageDrawerSide?>[];
       await _pump(tester, _page(changed: reports.add));
       await _openMenu(tester);
@@ -682,7 +700,7 @@ void main() {
       expect(reports, [PageDrawerSide.left, null]);
     });
 
-    testWidgets('us19/fr03: a drag toward the closed side closes the open '
+    testWidgets('fo06/us19/fr03: a drag toward the closed side closes the open '
         'drawer', (tester) async {
       await _pump(tester, _page());
       await _openMenu(tester);
@@ -691,16 +709,19 @@ void main() {
       expect(_drawer, findsNothing);
     });
 
-    testWidgets('us19/s7: us19/fr02: under right-to-left text the start '
-        'drawer opens from the right edge', (tester) async {
-      await _pump(tester, _page(), direction: TextDirection.rtl);
-      await _openMenu(tester);
-      expect(tester.getRect(_panel), const Rect.fromLTRB(72, 0, 360, 780));
-    });
+    testWidgets(
+      'fo06/us19/s7: fo06/us19/fr02: under right-to-left text the start '
+      'drawer opens from the right edge',
+      (tester) async {
+        await _pump(tester, _page(), direction: TextDirection.rtl);
+        await _openMenu(tester);
+        expect(tester.getRect(_panel), const Rect.fromLTRB(72, 0, 360, 780));
+      },
+    );
   });
 
   group('PageDrawer types and motion', () {
-    test('us19/fr02: PageSide has value equality and copyWith', () {
+    test('fo06/us19/fr02: PageSide has value equality and copyWith', () {
       // Built at run time from a parameter, so no const canonicalization
       // makes them one instance and the check reads `==`, not identity.
       PageSide make(double minWidth) =>
@@ -715,30 +736,26 @@ void main() {
       expect(c.type, PageDrawerType.front);
     });
 
-    test('us19/fr02: PageSide copyWith honors the page scale assert', () {
+    test('fo06/us19/fr02: PageSide copyWith honors the page scale assert', () {
       const side = PageSide(pageScale: 0.5);
       expect(() => side.copyWith(pageScale: 2), throwsA(isA<AssertionError>()));
     });
 
-    testWidgets(
-      'us19/fr02/e02: with no type on Android the drawer moves in over the '
-      'still page',
-      (tester) async {
-        await _pump(tester, _page());
-        await tester.tap(find.text('Menu'));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 100));
-        expect(tester.getRect(_panel).left, inExclusiveRange(-288, 0));
-        expect(tester.getRect(_body), Offset.zero & _phone);
-        await tester.pumpAndSettle();
-        expect(tester.getRect(_panel).left, 0);
-        expect(tester.getRect(_body), Offset.zero & _phone);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.android),
-    );
+    testWidgets('fo06/us19/fr02/e02: with no type on Android the drawer moves in over the '
+        'still page', (tester) async {
+      await _pump(tester, _page());
+      await tester.tap(find.text('Menu'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.getRect(_panel).left, inExclusiveRange(-288, 0));
+      expect(tester.getRect(_body), Offset.zero & _phone);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(_panel).left, 0);
+      expect(tester.getRect(_body), Offset.zero & _phone);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
     testWidgets(
-      'us19/fr02/e01: with no type on iOS the drawer and the page slide '
+      'fo06/us19/fr02/e01: with no type on iOS the drawer and the page slide '
       'together',
       (tester) async {
         await _pump(tester, _page());
@@ -755,34 +772,37 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.iOS),
     );
 
-    testWidgets('us19/fr02/e04: back with a page scale moves the page aside '
-        'over the still drawer, scales it, and rounds it with the screen '
-        'radius', (tester) async {
-      await _pump(
-        tester,
-        _page(
-          leftSide: const PageSide(type: PageDrawerType.back, pageScale: 0.9),
-        ),
-        media: (data) =>
-            data.applyDisplayCornerRadii(BorderRadius.circular(40)),
-      );
-      await tester.tap(find.text('Menu'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(tester.getRect(_panel), const Rect.fromLTWH(0, 0, 288, 780));
-      await tester.pumpAndSettle();
-      expect(tester.getRect(_panel), const Rect.fromLTWH(0, 0, 288, 780));
-      // Scaled by 0.9 about its center, then moved aside by the drawer width.
-      expect(tester.getRect(_body), const Rect.fromLTRB(306, 39, 630, 741));
-      final clip = tester.widget<ClipRRect>(
-        find
-            .ancestor(of: find.text('Menu'), matching: find.byType(ClipRRect))
-            .first,
-      );
-      expect(clip.borderRadius, BorderRadius.circular(40));
-    });
+    testWidgets(
+      'fo06/us19/fr02/e04: back with a page scale moves the page aside '
+      'over the still drawer, scales it, and rounds it with the screen '
+      'radius',
+      (tester) async {
+        await _pump(
+          tester,
+          _page(
+            leftSide: const PageSide(type: PageDrawerType.back, pageScale: 0.9),
+          ),
+          media: (data) =>
+              data.applyDisplayCornerRadii(BorderRadius.circular(40)),
+        );
+        await tester.tap(find.text('Menu'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(tester.getRect(_panel), const Rect.fromLTWH(0, 0, 288, 780));
+        await tester.pumpAndSettle();
+        expect(tester.getRect(_panel), const Rect.fromLTWH(0, 0, 288, 780));
+        // Scaled by 0.9 about its center, then moved aside by the drawer width.
+        expect(tester.getRect(_body), const Rect.fromLTRB(306, 39, 630, 741));
+        final clip = tester.widget<ClipRRect>(
+          find
+              .ancestor(of: find.text('Menu'), matching: find.byType(ClipRRect))
+              .first,
+        );
+        expect(clip.borderRadius, BorderRadius.circular(40));
+      },
+    );
 
-    testWidgets('us19/fr02/e04: back with no page scale keeps the page '
+    testWidgets('fo06/us19/fr02/e04: back with no page scale keeps the page '
         'unscaled', (tester) async {
       await _pump(
         tester,
@@ -792,26 +812,29 @@ void main() {
       expect(tester.getRect(_body), const Rect.fromLTWH(288, 0, 360, 780));
     });
 
-    testWidgets('us19/fr02/e06: a drag on a half-open slide drawer moves the '
-        'drawer and the page in step', (tester) async {
-      await _pump(
-        tester,
-        _page(leftSide: const PageSide(type: PageDrawerType.slide)),
-      );
-      await _openMenu(tester);
-      final gesture = await tester.startGesture(const Offset(250, 400));
-      await gesture.moveBy(const Offset(-40, 0));
-      await gesture.moveBy(const Offset(-60, 0));
-      await tester.pump();
-      final panel = tester.getRect(_panel);
-      final body = tester.getRect(_body);
-      expect(body.left, inExclusiveRange(0, 288));
-      expect(panel.right, moreOrLessEquals(body.left));
-      await gesture.up();
-      await tester.pumpAndSettle();
-    });
+    testWidgets(
+      'fo06/us19/fr02/e06: a drag on a half-open slide drawer moves the '
+      'drawer and the page in step',
+      (tester) async {
+        await _pump(
+          tester,
+          _page(leftSide: const PageSide(type: PageDrawerType.slide)),
+        );
+        await _openMenu(tester);
+        final gesture = await tester.startGesture(const Offset(250, 400));
+        await gesture.moveBy(const Offset(-40, 0));
+        await gesture.moveBy(const Offset(-60, 0));
+        await tester.pump();
+        final panel = tester.getRect(_panel);
+        final body = tester.getRect(_body);
+        expect(body.left, inExclusiveRange(0, 288));
+        expect(panel.right, moreOrLessEquals(body.left));
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
 
-    testWidgets('us19/fr02: permanent shows the drawer with no motion', (
+    testWidgets('fo06/us19/fr02: permanent shows the drawer with no motion', (
       tester,
     ) async {
       await _pump(
@@ -827,72 +850,78 @@ void main() {
       expect(_drawer, findsNothing);
     });
 
-    testWidgets('us19/fr02/e03: page opens the drawer content as a new page, '
-        'and back returns to the page it opened from', (tester) async {
-      _view(tester, const Size(390, 844));
-      final reports = <PageDrawerSide?>[];
-      await tester.pumpWidget(
-        _app(
-          _page(
-            changed: reports.add,
-            leftSide: const PageSide(type: PageDrawerType.page),
-          ),
-        ),
-      );
-      await _openMenu(tester);
-      expect(find.text('drawer item'), findsOneWidget);
-      expect(find.text('Menu'), findsNothing);
-      expect(find.byType(Scrim), findsNothing);
-      expect(reports, [PageDrawerSide.left]);
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.text('Menu'), findsOneWidget);
-      expect(find.text('drawer item'), findsNothing);
-      expect(reports, [PageDrawerSide.left, null]);
-    });
-
-    testWidgets('us18/fr02/e05: an open page drawer shows the slot the app '
-        'rebuilds the page with', (tester) async {
-      _view(tester, const Size(390, 844));
-      var on = false;
-      await tester.pumpWidget(
-        _app(
-          StatefulBuilder(
-            builder: (context, setState) => _page(
+    testWidgets(
+      'fo06/us19/fr02/e03: page opens the drawer content as a new page, '
+      'and back returns to the page it opened from',
+      (tester) async {
+        _view(tester, const Size(390, 844));
+        final reports = <PageDrawerSide?>[];
+        await tester.pumpWidget(
+          _app(
+            _page(
+              changed: reports.add,
               leftSide: const PageSide(type: PageDrawerType.page),
-              style: PageLayoutStyle(
-                left: WidgetStyle(
-                  backgroundColor: on ? Colors.green : Colors.red,
+            ),
+          ),
+        );
+        await _openMenu(tester);
+        expect(find.text('drawer item'), findsOneWidget);
+        expect(find.text('Menu'), findsNothing);
+        expect(find.byType(Scrim), findsNothing);
+        expect(reports, [PageDrawerSide.left]);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.text('Menu'), findsOneWidget);
+        expect(find.text('drawer item'), findsNothing);
+        expect(reports, [PageDrawerSide.left, null]);
+      },
+    );
+
+    testWidgets(
+      'fo06/us18/fr02/e05: an open page drawer shows the slot the app '
+      'rebuilds the page with',
+      (tester) async {
+        _view(tester, const Size(390, 844));
+        var on = false;
+        await tester.pumpWidget(
+          _app(
+            StatefulBuilder(
+              builder: (context, setState) => _page(
+                leftSide: const PageSide(type: PageDrawerType.page),
+                style: PageLayoutStyle(
+                  left: WidgetStyle(
+                    backgroundColor: on ? Colors.green : Colors.red,
+                  ),
                 ),
-              ),
-              left: Switch(
-                value: on,
-                onChanged: (value) => setState(() => on = value),
+                left: Switch(
+                  value: on,
+                  onChanged: (value) => setState(() => on = value),
+                ),
               ),
             ),
           ),
-        ),
-      );
-      await _openMenu(tester);
-      Finder fill() => find
-          .ancestor(
-            of: find.byType(Switch),
-            matching: find.byType(ContainerLayout),
-          )
-          .first;
-      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
-      await tester.tap(find.byType(Switch));
-      await tester.pumpAndSettle();
-      expect(on, isTrue);
-      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
-      expect(
-        tester.widget<ContainerLayout>(fill()).style!.backgroundColor,
-        Colors.green,
-      );
-    });
+        );
+        await _openMenu(tester);
+        Finder fill() => find
+            .ancestor(
+              of: find.byType(Switch),
+              matching: find.byType(ContainerLayout),
+            )
+            .first;
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+        await tester.tap(find.byType(Switch));
+        await tester.pumpAndSettle();
+        expect(on, isTrue);
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+        expect(
+          tester.widget<ContainerLayout>(fill()).style!.backgroundColor,
+          Colors.green,
+        );
+      },
+    );
 
     testWidgets(
-      'us19/fr03/e07: NFR-U09: Esc closes a page drawer on a desktop, and '
+      'fo06/us19/fr03/e07: NFR-U09: Esc closes a page drawer on a desktop, and '
       'focus returns to the opener',
       (tester) async {
         // Under 600 on its shortest side, a desktop window is mobile, so its
@@ -919,77 +948,86 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
 
-    testWidgets('NFR-U06: us19/fr05: a page drawer reads as a named screen, '
-        'and the page it opened from stays silent', (tester) async {
-      _view(tester, const Size(390, 844));
-      await tester.pumpWidget(
-        _app(_page(leftSide: const PageSide(type: PageDrawerType.page))),
-      );
-      await _openMenu(tester);
-      expect(
-        tester.getSemantics(_drawer),
-        isSemantics(
-          label: 'Navigation menu',
-          scopesRoute: true,
-          namesRoute: true,
-        ),
-      );
-      expect(find.semantics.byLabel('drawer item'), findsOne);
-      expect(find.semantics.byLabel('Menu'), findsNothing);
-    });
+    testWidgets(
+      'NFR-U06: fo06/us19/fr05: a page drawer reads as a named screen, '
+      'and the page it opened from stays silent',
+      (tester) async {
+        _view(tester, const Size(390, 844));
+        await tester.pumpWidget(
+          _app(_page(leftSide: const PageSide(type: PageDrawerType.page))),
+        );
+        await _openMenu(tester);
+        expect(
+          tester.getSemantics(_drawer),
+          isSemantics(
+            label: 'Navigation menu',
+            scopesRoute: true,
+            namesRoute: true,
+          ),
+        );
+        expect(find.semantics.byLabel('drawer item'), findsOne);
+        expect(find.semantics.byLabel('Menu'), findsNothing);
+      },
+    );
 
     for (final (source, app, platform) in [
       ('app', true, false),
       ('platform', false, true),
     ]) {
-      testWidgets('NFR-U03: us19/s6: us19/fr02/e05: with $source reduced '
-          'motion a slide drawer fades with no movement', (tester) async {
-        if (platform) {
-          tester.platformDispatcher.accessibilityFeaturesTestValue =
-              const FakeAccessibilityFeatures(reduceMotion: true);
-          addTearDown(
-            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      testWidgets(
+        'NFR-U03: fo06/us19/s6: fo06/us19/fr02/e05: with $source reduced '
+        'motion a slide drawer fades with no movement',
+        (tester) async {
+          if (platform) {
+            tester.platformDispatcher.accessibilityFeaturesTestValue =
+                const FakeAccessibilityFeatures(reduceMotion: true);
+            addTearDown(
+              tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+            );
+          }
+          await _pump(
+            tester,
+            _page(leftSide: const PageSide(type: PageDrawerType.slide)),
+            media: (data) => data.copyWith(disableAnimations: app),
           );
-        }
-        await _pump(
-          tester,
-          _page(leftSide: const PageSide(type: PageDrawerType.slide)),
-          media: (data) => data.copyWith(disableAnimations: app),
-        );
-        await tester.tap(find.text('Menu'));
-        await tester.pump();
-        expect(tester.getRect(_panel), const Rect.fromLTWH(0, 0, 288, 780));
-        expect(tester.getRect(_body), Offset.zero & _phone);
-        await tester.pump(const Duration(milliseconds: 100));
-        expect(_panelOpacity(tester), inExclusiveRange(0, 1));
-        expect(tester.getRect(_panel), const Rect.fromLTWH(0, 0, 288, 780));
-        expect(tester.getRect(_body), Offset.zero & _phone);
-      });
+          await tester.tap(find.text('Menu'));
+          await tester.pump();
+          expect(tester.getRect(_panel), const Rect.fromLTWH(0, 0, 288, 780));
+          expect(tester.getRect(_body), Offset.zero & _phone);
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(_panelOpacity(tester), inExclusiveRange(0, 1));
+          expect(tester.getRect(_panel), const Rect.fromLTWH(0, 0, 288, 780));
+          expect(tester.getRect(_body), Offset.zero & _phone);
+        },
+      );
     }
   });
 
   group('PageDrawer width and scrim', () {
-    testWidgets('us19/fr04/e04: e05: the corners on the screen corners take '
-        'the screen radius, else 0', (tester) async {
-      for (final (radius, expected) in [
-        (BorderRadius.circular(40), const Radius.circular(40)),
-        (null, Radius.zero),
-      ]) {
-        await _pump(
-          tester,
-          _page(key: ValueKey(radius)),
-          media: (data) => data.applyDisplayCornerRadii(radius),
-        );
-        await _openMenu(tester);
-        final corners = _panelStyle(tester).borderRadius! as BorderRadius;
-        expect(corners.topLeft, expected);
-        expect(corners.bottomLeft, expected);
-        expect(corners.topRight, Radius.zero);
-        expect(corners.bottomRight, Radius.zero);
-      }
-    });
+    testWidgets(
+      'fo06/us19/fr04/e04: e05: the corners on the screen corners take '
+      'the screen radius, else 0',
+      (tester) async {
+        for (final (radius, expected) in [
+          (BorderRadius.circular(40), const Radius.circular(40)),
+          (null, Radius.zero),
+        ]) {
+          await _pump(
+            tester,
+            _page(key: ValueKey(radius)),
+            media: (data) => data.applyDisplayCornerRadii(radius),
+          );
+          await _openMenu(tester);
+          final corners = _panelStyle(tester).borderRadius! as BorderRadius;
+          expect(corners.topLeft, expected);
+          expect(corners.bottomLeft, expected);
+          expect(corners.topRight, Radius.zero);
+          expect(corners.bottomRight, Radius.zero);
+        }
+      },
+    );
 
-    testWidgets("R18: us19/fr04/e07: the panel fills its side's slot fill "
+    testWidgets("R18: fo06/us19/fr04/e07: the panel fills its side's slot fill "
         'under shadow/4', (tester) async {
       await _pump(tester, _page());
       await _openMenu(tester);
@@ -1001,33 +1039,39 @@ void main() {
       expect(style.dropShadow, fakeTheme.shadow.level4);
     });
 
-    testWidgets('us19/s1: us19/fr04: the scrim dims and blurs the page with '
-        'the modal scrim tokens', (tester) async {
-      await _pump(tester, _page());
-      await _openMenu(tester);
-      final style = tester.widget<ContainerLayout>(_scrim).style!;
-      final color = fakeTheme.color.background.defaults.normalInverse;
-      expect(
-        style.backgroundColor,
-        color.withValues(alpha: color.a * fakeTheme.opacity.scrim),
-      );
-      expect(style.backgroundBlur, fakeTheme.blur.level1);
-    });
+    testWidgets(
+      'fo06/us19/s1: fo06/us19/fr04: the scrim dims and blurs the page with '
+      'the modal scrim tokens',
+      (tester) async {
+        await _pump(tester, _page());
+        await _openMenu(tester);
+        final style = tester.widget<ContainerLayout>(_scrim).style!;
+        final color = fakeTheme.color.background.defaults.normalInverse;
+        expect(
+          style.backgroundColor,
+          color.withValues(alpha: color.a * fakeTheme.opacity.scrim),
+        );
+        expect(style.backgroundBlur, fakeTheme.blur.level1);
+      },
+    );
 
-    testWidgets('us19/fr04: the scrim fades once on the standard curve, as '
-        'the modal scrim does', (tester) async {
-      await _pump(tester, _page());
-      await tester.tap(find.text('Menu'));
-      await tester.pump();
-      final normal = fakeTheme.animation.normal.duration!;
-      await tester.pump(normal ~/ 4);
-      expect(
-        _scrimOpacity(tester),
-        closeTo(Curves.easeInOutSine.transform(0.25), 0.01),
-      );
-    });
+    testWidgets(
+      'fo06/us19/fr04: the scrim fades once on the standard curve, as '
+      'the modal scrim does',
+      (tester) async {
+        await _pump(tester, _page());
+        await tester.tap(find.text('Menu'));
+        await tester.pump();
+        final normal = fakeTheme.animation.normal.duration!;
+        await tester.pump(normal ~/ 4);
+        expect(
+          _scrimOpacity(tester),
+          closeTo(Curves.easeInOutSine.transform(0.25), 0.01),
+        );
+      },
+    );
 
-    testWidgets('NFR-E01: us19/fr04/e06: the scrim follows the theme', (
+    testWidgets('NFR-E01: fo06/us19/fr04/e06: the scrim follows the theme', (
       tester,
     ) async {
       Future<Color?> scrimOf(StratumThemeData theme) async {
@@ -1057,7 +1101,7 @@ void main() {
       expect(_panelStyle(tester).dropShadow, fakeTheme.shadow.level4);
     });
 
-    testWidgets('NFR-U09: us19/fr03: a scrim tap closes the drawer', (
+    testWidgets('NFR-U09: fo06/us19/fr03: a scrim tap closes the drawer', (
       tester,
     ) async {
       final reports = <PageDrawerSide?>[];
@@ -1079,35 +1123,38 @@ void main() {
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     });
 
-    testWidgets('NFR-U02: us19/fr05/e01: Tab and Shift+Tab stay inside the '
-        'open drawer', (tester) async {
-      await _pump(
-        tester,
-        _page(
-          left: ColumnLayout(
-            children: [
-              TextButton(onPressed: () {}, child: const Text('one')),
-              TextButton(onPressed: () {}, child: const Text('two')),
-            ],
+    testWidgets(
+      'NFR-U02: fo06/us19/fr05/e01: Tab and Shift+Tab stay inside the '
+      'open drawer',
+      (tester) async {
+        await _pump(
+          tester,
+          _page(
+            left: ColumnLayout(
+              children: [
+                TextButton(onPressed: () {}, child: const Text('one')),
+                TextButton(onPressed: () {}, child: const Text('two')),
+              ],
+            ),
           ),
-        ),
-      );
-      await _openMenu(tester);
-      final one = Focus.of(tester.element(find.text('one')));
-      final two = Focus.of(tester.element(find.text('two')));
-      final seen = <FocusNode?>[];
-      for (var i = 0; i < 4; i++) {
+        );
+        await _openMenu(tester);
+        final one = Focus.of(tester.element(find.text('one')));
+        final two = Focus.of(tester.element(find.text('two')));
+        final seen = <FocusNode?>[];
+        for (var i = 0; i < 4; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          seen.add(FocusManager.instance.primaryFocus);
+        }
+        expect(seen, [one, two, one, two]);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
         await tester.pump();
-        seen.add(FocusManager.instance.primaryFocus);
-      }
-      expect(seen, [one, two, one, two]);
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
-      await tester.pump();
-      expect(FocusManager.instance.primaryFocus, one);
-    });
+        expect(FocusManager.instance.primaryFocus, one);
+      },
+    );
 
     testWidgets('NFR-U04: at twice the text size the drawer keeps its width '
         'and its content wraps with no overflow', (tester) async {
@@ -1147,28 +1194,29 @@ void main() {
       await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
     });
 
-    testWidgets('NFR-U06: us19/s8: us19/fr05: the drawer reads as a named '
-        'screen, the page behind is hidden, and the scrim reads Dismiss', (
-      tester,
-    ) async {
-      await _pump(tester, _page());
-      await _openMenu(tester);
-      expect(
-        tester.getSemantics(_drawer),
-        isSemantics(
-          label: 'Navigation menu',
-          scopesRoute: true,
-          namesRoute: true,
-        ),
-      );
-      expect(find.semantics.byLabel('Menu'), findsNothing);
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('Dismiss')),
-        isSemantics(label: 'Dismiss', hasTapAction: true),
-      );
-    });
+    testWidgets(
+      'NFR-U06: fo06/us19/s8: fo06/us19/fr05: the drawer reads as a named '
+      'screen, the page behind is hidden, and the scrim reads Dismiss',
+      (tester) async {
+        await _pump(tester, _page());
+        await _openMenu(tester);
+        expect(
+          tester.getSemantics(_drawer),
+          isSemantics(
+            label: 'Navigation menu',
+            scopesRoute: true,
+            namesRoute: true,
+          ),
+        );
+        expect(find.semantics.byLabel('Menu'), findsNothing);
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('Dismiss')),
+          isSemantics(label: 'Dismiss', hasTapAction: true),
+        );
+      },
+    );
 
-    testWidgets('NFR-U06: us19/fr05: a back drawer painted under the page '
+    testWidgets('NFR-U06: fo06/us19/fr05: a back drawer painted under the page '
         'still reads, and the page behind is hidden', (tester) async {
       await _pump(
         tester,
@@ -1180,7 +1228,7 @@ void main() {
       expect(find.semantics.byLabel('Menu'), findsNothing);
     });
 
-    testWidgets('NFR-U06: us19/fr05/e02: in Thai the drawer and the scrim '
+    testWidgets('NFR-U06: fo06/us19/fr05/e02: in Thai the drawer and the scrim '
         'read the Thai built-in labels', (tester) async {
       tester.platformDispatcher.localeTestValue = const Locale('th');
       addTearDown(tester.platformDispatcher.clearLocaleTestValue);
@@ -1190,7 +1238,7 @@ void main() {
       expect(find.bySemanticsLabel('ปิด'), findsOneWidget);
     });
 
-    testWidgets("NFR-U06: us19/fr05/e03: the app's drawer label replaces "
+    testWidgets("NFR-U06: fo06/us19/fr05/e03: the app's drawer label replaces "
         'the built-in one', (tester) async {
       await _pump(
         tester,
@@ -1201,7 +1249,7 @@ void main() {
       expect(_drawer, findsNothing);
     });
 
-    testWidgets('NFR-U06: us19/fr05/e04: a screen reader activating the '
+    testWidgets('NFR-U06: fo06/us19/fr05/e04: a screen reader activating the '
         'scrim closes the drawer', (tester) async {
       await _pump(tester, _page());
       await _openMenu(tester);
@@ -1280,54 +1328,63 @@ void main() {
   });
 
   group('PageDrawer or inline pane by window size', () {
-    testWidgets('us19/fr01/e01: on a phone both sides are drawers that take '
-        'no space', (tester) async {
-      await _pump(tester, _sides());
-      expect(find.text('left pane'), findsNothing);
-      expect(find.text('right pane'), findsNothing);
-      expect(_dividers, findsNothing);
-      expect(tester.getRect(_box('Open right')), Offset.zero & _phone);
-    });
+    testWidgets(
+      'fo06/us19/fr01/e01: on a phone both sides are drawers that take '
+      'no space',
+      (tester) async {
+        await _pump(tester, _sides());
+        expect(find.text('left pane'), findsNothing);
+        expect(find.text('right pane'), findsNothing);
+        expect(_dividers, findsNothing);
+        expect(tester.getRect(_box('Open right')), Offset.zero & _phone);
+      },
+    );
 
-    testWidgets('us19/s4: us19/fr01/e02: a tablet shows both sides inline '
-        'beside the center column, one divider each, with top spanning the '
-        'center column and right (Q13)', (tester) async {
-      await _pump(
-        tester,
-        _sides(
-          controller: _widths(left: 240, right: 300),
-          top: const Text('top bar'),
-        ),
-        size: _tablet,
-      );
-      expect(
-        tester.getRect(_box('left pane')),
-        const Rect.fromLTRB(0, 0, 240, 800),
-      );
-      final top = tester.getRect(_box('top bar'));
-      expect(top.left, 240);
-      expect(top.right, 1000);
-      expect(
-        tester.getRect(_box('right pane')),
-        Rect.fromLTRB(700, top.bottom, 1000, 800),
-      );
-      expect(
-        tester.getRect(_box('Open right')),
-        Rect.fromLTRB(240, top.bottom, 700, 800),
-      );
-      expect(_dividers, findsNWidgets(2));
-    });
+    testWidgets(
+      'fo06/us19/s4: fo06/us19/fr01/e02: a tablet shows both sides inline '
+      'beside the center column, one divider each, with top spanning the '
+      'center column and right (Q13)',
+      (tester) async {
+        await _pump(
+          tester,
+          _sides(
+            controller: _widths(left: 240, right: 300),
+            top: const Text('top bar'),
+          ),
+          size: _tablet,
+        );
+        expect(
+          tester.getRect(_box('left pane')),
+          const Rect.fromLTRB(0, 0, 240, 800),
+        );
+        final top = tester.getRect(_box('top bar'));
+        expect(top.left, 240);
+        expect(top.right, 1000);
+        expect(
+          tester.getRect(_box('right pane')),
+          Rect.fromLTRB(700, top.bottom, 1000, 800),
+        );
+        expect(
+          tester.getRect(_box('Open right')),
+          Rect.fromLTRB(240, top.bottom, 700, 800),
+        );
+        expect(_dividers, findsNWidgets(2));
+      },
+    );
 
-    testWidgets('us19/fr01/e03: with the cut at desktop a tablet keeps both '
-        'sides as drawers', (tester) async {
-      await _pump(tester, _sides(cut: WindowSize.desktop), size: _tablet);
-      expect(find.text('left pane'), findsNothing);
-      expect(_dividers, findsNothing);
-      await _openRight(tester);
-      expect(_drawer, findsOneWidget);
-    });
+    testWidgets(
+      'fo06/us19/fr01/e03: with the cut at desktop a tablet keeps both '
+      'sides as drawers',
+      (tester) async {
+        await _pump(tester, _sides(cut: WindowSize.desktop), size: _tablet);
+        expect(find.text('left pane'), findsNothing);
+        expect(_dividers, findsNothing);
+        await _openRight(tester);
+        expect(_drawer, findsOneWidget);
+      },
+    );
 
-    testWidgets('us19/fr01: a cut at mobile shows the sides inline on a '
+    testWidgets('fo06/us19/fr01: a cut at mobile shows the sides inline on a '
         'landscape phone', (tester) async {
       await _pump(
         tester,
@@ -1342,31 +1399,34 @@ void main() {
       expect(_dividers, findsOneWidget);
     });
 
-    testWidgets('review focus 2: us19/fr01/e05: crossing the cut with a drawer '
-        'open closes it once the frame ends, so a parent can set its state, '
-        'and shows the pane (Q26)', (tester) async {
-      final reports = <PageDrawerSide?>[];
-      Widget page() => StatefulBuilder(
-        builder: (context, setState) => PageLayout(
-          onDrawerChanged: (side) => setState(() => reports.add(side)),
-          left: const Text('left pane'),
-          body: const _Menu(),
-        ),
-      );
-      _view(tester);
-      await tester.pumpWidget(_host(page()));
-      await _openMenu(tester);
-      expect(reports, [PageDrawerSide.left]);
-      _view(tester, _tablet);
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      expect(reports, [PageDrawerSide.left, null]);
-      expect(_drawer, findsNothing);
-      expect(find.text('left pane'), findsOneWidget);
-      expect(tester.getRect(find.text('left pane')).left, 0);
-    });
+    testWidgets(
+      'review focus 2: fo06/us19/fr01/e05: crossing the cut with a drawer '
+      'open closes it once the frame ends, so a parent can set its state, '
+      'and shows the pane (Q26)',
+      (tester) async {
+        final reports = <PageDrawerSide?>[];
+        Widget page() => StatefulBuilder(
+          builder: (context, setState) => PageLayout(
+            onDrawerChanged: (side) => setState(() => reports.add(side)),
+            left: const Text('left pane'),
+            body: const _Menu(),
+          ),
+        );
+        _view(tester);
+        await tester.pumpWidget(_host(page()));
+        await _openMenu(tester);
+        expect(reports, [PageDrawerSide.left]);
+        _view(tester, _tablet);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(reports, [PageDrawerSide.left, null]);
+        expect(_drawer, findsNothing);
+        expect(find.text('left pane'), findsOneWidget);
+        expect(tester.getRect(find.text('left pane')).left, 0);
+      },
+    );
 
-    testWidgets('us19/fr01/e05: crossing the cut both ways remounts no '
+    testWidgets('fo06/us19/fr01/e05: crossing the cut both ways remounts no '
         'center slot (Q14)', (tester) async {
       final made = [0];
       await _pump(tester, _sides(body: _Kept(made)));
@@ -1381,37 +1441,40 @@ void main() {
   });
 
   group('PageDrawer right overlay drawer', () {
-    test('us19/fr01/e04: the overlay drawer is 450 wide at bigDesktop and '
+    test('fo06/us19/fr01/e04: the overlay drawer is 450 wide at bigDesktop and '
         '400 below it', () {
       expect(overlayDrawerWidth(WindowSize.bigDesktop), 450);
       expect(overlayDrawerWidth(WindowSize.desktop), 400);
       expect(overlayDrawerWidth(WindowSize.tablet), 400);
     });
 
-    testWidgets('us19/s5: us19/fr01/e04: at bigDesktop right takes no space '
-        'closed and opens 450 wide from the end edge over a scrim, with a '
-        'close button', (tester) async {
-      final reports = <PageDrawerSide?>[];
-      await _pump(
-        tester,
-        _sides(overlay: true, changed: reports.add),
-        size: _bigDesktop,
-      );
-      expect(find.text('right pane'), findsNothing);
-      expect(_dividers, findsOneWidget);
-      expect(tester.getRect(_box('Open right')).right, 1700);
-      await _openRight(tester);
-      expect(reports, [PageDrawerSide.right]);
-      expect(
-        tester.getRect(_box('right pane')),
-        const Rect.fromLTRB(1250, 0, 1700, 900),
-      );
-      expect(_scrim, findsOneWidget);
-      expect(find.bySemanticsLabel('Close'), findsOneWidget);
-    });
+    testWidgets(
+      'fo06/us19/s5: fo06/us19/fr01/e04: at bigDesktop right takes no space '
+      'closed and opens 450 wide from the end edge over a scrim, with a '
+      'close button',
+      (tester) async {
+        final reports = <PageDrawerSide?>[];
+        await _pump(
+          tester,
+          _sides(overlay: true, changed: reports.add),
+          size: _bigDesktop,
+        );
+        expect(find.text('right pane'), findsNothing);
+        expect(_dividers, findsOneWidget);
+        expect(tester.getRect(_box('Open right')).right, 1700);
+        await _openRight(tester);
+        expect(reports, [PageDrawerSide.right]);
+        expect(
+          tester.getRect(_box('right pane')),
+          const Rect.fromLTRB(1250, 0, 1700, 900),
+        );
+        expect(_scrim, findsOneWidget);
+        expect(find.bySemanticsLabel('Close'), findsOneWidget);
+      },
+    );
 
     for (final (name, size) in [('desktop', _desktop), ('tablet', _tablet)]) {
-      testWidgets('us19/fr01/e04: at $name the overlay drawer opens 400 '
+      testWidgets('fo06/us19/fr01/e04: at $name the overlay drawer opens 400 '
           'wide', (tester) async {
         await _pump(tester, _sides(overlay: true), size: size);
         await _openRight(tester);
@@ -1422,7 +1485,7 @@ void main() {
       });
     }
 
-    testWidgets('us19/fr01/e04: the overlay drawer moves in front of the '
+    testWidgets('fo06/us19/fr01/e04: the overlay drawer moves in front of the '
         'still page on iOS too', (tester) async {
       await _pump(tester, _sides(overlay: true), size: _desktop);
       final page = tester.getRect(_box('Open right'));
@@ -1430,50 +1493,59 @@ void main() {
       expect(tester.getRect(_box('Open right')), page);
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
-    testWidgets('us19/fr01/e04: the close button closes the overlay drawer '
-        'and reports it closed', (tester) async {
-      final reports = <PageDrawerSide?>[];
-      await _pump(
-        tester,
-        _sides(overlay: true, changed: reports.add),
-        size: _desktop,
-      );
-      await _openRight(tester);
-      await tester.tap(find.bySemanticsLabel('Close'));
-      await tester.pumpAndSettle();
-      expect(find.text('right pane'), findsNothing);
-      expect(reports, [PageDrawerSide.right, null]);
-    });
+    testWidgets(
+      'fo06/us19/fr01/e04: the close button closes the overlay drawer '
+      'and reports it closed',
+      (tester) async {
+        final reports = <PageDrawerSide?>[];
+        await _pump(
+          tester,
+          _sides(overlay: true, changed: reports.add),
+          size: _desktop,
+        );
+        await _openRight(tester);
+        await tester.tap(find.bySemanticsLabel('Close'));
+        await tester.pumpAndSettle();
+        expect(find.text('right pane'), findsNothing);
+        expect(reports, [PageDrawerSide.right, null]);
+      },
+    );
 
-    testWidgets('us19/fr01/e06: under right-to-left text the overlay drawer '
-        'opens from the left edge', (tester) async {
-      await _pump(
-        tester,
-        _sides(overlay: true),
-        size: _desktop,
-        direction: TextDirection.rtl,
-      );
-      await _openRight(tester);
-      expect(
-        tester.getRect(_box('right pane')),
-        const Rect.fromLTRB(0, 0, 400, 900),
-      );
-    });
+    testWidgets(
+      'fo06/us19/fr01/e06: under right-to-left text the overlay drawer '
+      'opens from the left edge',
+      (tester) async {
+        await _pump(
+          tester,
+          _sides(overlay: true),
+          size: _desktop,
+          direction: TextDirection.rtl,
+        );
+        await _openRight(tester);
+        expect(
+          tester.getRect(_box('right pane')),
+          const Rect.fromLTRB(0, 0, 400, 900),
+        );
+      },
+    );
 
-    testWidgets('us19/fr01/e04: on a screen narrower than the overlay drawer '
-        'it fits the screen', (tester) async {
-      await _pump(
-        tester,
-        _sides(cut: WindowSize.mobile, overlay: true, left: false),
-      );
-      await _openRight(tester);
-      expect(
-        tester.getRect(_box('right pane')),
-        const Rect.fromLTRB(0, 0, 360, 780),
-      );
-    });
+    testWidgets(
+      'fo06/us19/fr01/e04: on a screen narrower than the overlay drawer '
+      'it fits the screen',
+      (tester) async {
+        await _pump(
+          tester,
+          _sides(cut: WindowSize.mobile, overlay: true, left: false),
+        );
+        await _openRight(tester);
+        expect(
+          tester.getRect(_box('right pane')),
+          const Rect.fromLTRB(0, 0, 360, 780),
+        );
+      },
+    );
 
-    testWidgets('us18/fr02/e03: a resize within one window size reruns no '
+    testWidgets('fo06/us18/fr02/e03: a resize within one window size reruns no '
         'page build for the overlay drawer', (tester) async {
       await _pump(tester, _sides(overlay: true), size: _desktop);
       final outer = find
@@ -1488,7 +1560,7 @@ void main() {
       expect(tester.widget(outer), same(built));
     });
 
-    testWidgets('us19/fr01: below the cut an overlay right is a plain '
+    testWidgets('fo06/us19/fr01: below the cut an overlay right is a plain '
         'drawer with no close button', (tester) async {
       await _pump(tester, _sides(overlay: true));
       await _openRight(tester);
@@ -1496,7 +1568,7 @@ void main() {
       expect(find.bySemanticsLabel('Close'), findsNothing);
     });
 
-    testWidgets('us19/fr01/e05: turning the overlay off while it is open '
+    testWidgets('fo06/us19/fr01/e05: turning the overlay off while it is open '
         'closes it and shows right inline', (tester) async {
       final reports = <PageDrawerSide?>[];
       await _pump(
@@ -1517,18 +1589,21 @@ void main() {
   });
 
   group('PageDrawer resizable inline side panes', () {
-    testWidgets('us19/fr06/e03: a controller built with a kept width opens '
-        'the pane at it', (tester) async {
-      await _pump(
-        tester,
-        _sides(right: false, controller: _widths(left: 240)),
-        size: _desktop,
-      );
-      expect(tester.getRect(_box('left pane')).width, 240);
-      expect(tester.getRect(_box('Open right')).left, 240);
-    });
+    testWidgets(
+      'fo06/us19/fr06/e03: a controller built with a kept width opens '
+      'the pane at it',
+      (tester) async {
+        await _pump(
+          tester,
+          _sides(right: false, controller: _widths(left: 240)),
+          size: _desktop,
+        );
+        expect(tester.getRect(_box('left pane')).width, 240);
+        expect(tester.getRect(_box('Open right')).left, 240);
+      },
+    );
 
-    test('us19/fr06/e10: the Figma side widths: left 280 and right 380 at '
+    test('fo06/us19/fr06/e10: the Figma side widths: left 280 and right 380 at '
         'bigDesktop, 260 and 320 below', () {
       for (final window in WindowSize.values) {
         final wide = window == WindowSize.bigDesktop;
@@ -1543,7 +1618,7 @@ void main() {
       ('bigDesktop', _bigDesktop, 280.0, 380.0),
     ]) {
       testWidgets(
-        'us19/fr06/e10: at $name a side with no chosen width opens at '
+        'fo06/us19/fr06/e10: at $name a side with no chosen width opens at '
         'its Figma width',
         (tester) async {
           await _pump(
@@ -1561,7 +1636,7 @@ void main() {
       );
     }
 
-    test('us19/fr06/e11: a kept width that is NaN, infinite, or negative '
+    test('fo06/us19/fr06/e11: a kept width that is NaN, infinite, or negative '
         'reads as none, from the constructor and from a set', () {
       for (final bad in _unusable) {
         final notes = [0];
@@ -1578,68 +1653,77 @@ void main() {
       }
     });
 
-    testWidgets('us19/fr06/e11: a pane whose kept width is not finite opens '
-        'at its Figma width', (tester) async {
-      for (final bad in _unusable) {
-        final controller = _widths(left: bad, right: bad);
+    testWidgets(
+      'fo06/us19/fr06/e11: a pane whose kept width is not finite opens '
+      'at its Figma width',
+      (tester) async {
+        for (final bad in _unusable) {
+          final controller = _widths(left: bad, right: bad);
+          await _pump(
+            tester,
+            KeyedSubtree(
+              key: ValueKey(controller),
+              child: PageLayout(
+                controller: controller,
+                left: const Text('left pane'),
+                right: const Text('right pane'),
+                body: const _OpenRight(),
+              ),
+            ),
+            size: _desktop,
+          );
+          expect(tester.takeException(), isNull, reason: '$bad');
+          expect(tester.getRect(_box('left pane')).width, 260, reason: '$bad');
+          expect(tester.getRect(_box('right pane')).width, 320, reason: '$bad');
+        }
+      },
+    );
+
+    testWidgets(
+      'fo06/us19/fr06/e11: the page reads an unusable width a controller '
+      'hands it as none',
+      (tester) async {
+        for (final bad in _unusable) {
+          final controller = _Unchecked(bad);
+          addTearDown(controller.dispose);
+          await _pump(
+            tester,
+            KeyedSubtree(
+              key: ValueKey(controller),
+              child: PageLayout(
+                controller: controller,
+                left: const Text('left pane'),
+                right: const Text('right pane'),
+                body: const _OpenRight(),
+              ),
+            ),
+            size: _desktop,
+          );
+          expect(tester.takeException(), isNull, reason: '$bad');
+          expect(tester.getRect(_box('left pane')).width, 260, reason: '$bad');
+          expect(tester.getRect(_box('right pane')).width, 320, reason: '$bad');
+        }
+      },
+    );
+
+    testWidgets(
+      'fo06/us19/fr06/e03: a chosen width wins over the Figma width of '
+      'its side only',
+      (tester) async {
         await _pump(
           tester,
-          KeyedSubtree(
-            key: ValueKey(controller),
-            child: PageLayout(
-              controller: controller,
-              left: const Text('left pane'),
-              right: const Text('right pane'),
-              body: const _OpenRight(),
-            ),
+          PageLayout(
+            controller: _widths(left: 300),
+            left: const Text('left pane'),
+            right: const Text('right pane'),
+            body: const _OpenRight(),
           ),
           size: _desktop,
         );
-        expect(tester.takeException(), isNull, reason: '$bad');
-        expect(tester.getRect(_box('left pane')).width, 260, reason: '$bad');
-        expect(tester.getRect(_box('right pane')).width, 320, reason: '$bad');
-      }
-    });
-
-    testWidgets('us19/fr06/e11: the page reads an unusable width a controller '
-        'hands it as none', (tester) async {
-      for (final bad in _unusable) {
-        final controller = _Unchecked(bad);
-        addTearDown(controller.dispose);
-        await _pump(
-          tester,
-          KeyedSubtree(
-            key: ValueKey(controller),
-            child: PageLayout(
-              controller: controller,
-              left: const Text('left pane'),
-              right: const Text('right pane'),
-              body: const _OpenRight(),
-            ),
-          ),
-          size: _desktop,
-        );
-        expect(tester.takeException(), isNull, reason: '$bad');
-        expect(tester.getRect(_box('left pane')).width, 260, reason: '$bad');
-        expect(tester.getRect(_box('right pane')).width, 320, reason: '$bad');
-      }
-    });
-
-    testWidgets('us19/fr06/e03: a chosen width wins over the Figma width of '
-        'its side only', (tester) async {
-      await _pump(
-        tester,
-        PageLayout(
-          controller: _widths(left: 300),
-          left: const Text('left pane'),
-          right: const Text('right pane'),
-          body: const _OpenRight(),
-        ),
-        size: _desktop,
-      );
-      expect(tester.getRect(_box('left pane')).width, 300);
-      expect(tester.getRect(_box('right pane')).width, 320);
-    });
+        expect(tester.getRect(_box('left pane')).width, 300);
+        expect(tester.getRect(_box('right pane')).width, 320);
+      },
+    );
 
     /// A page at [_desktop] with unbounded sides, `left` 240 and `right` 300
     /// wide, and a center column kept at least [minCenter] wide.
@@ -1652,40 +1736,46 @@ void main() {
           body: const Text('center'),
         );
 
-    testWidgets('R23: us19/fr06/e08: a drag of either divider stops where the '
-        'center column keeps 320', (tester) async {
-      final controller = _widths(left: 240, right: 300);
-      await _pump(tester, unbounded(controller), size: _desktop);
-      await tester.dragFrom(
-        tester.getCenter(_dividers.at(1)),
-        const Offset(2000, 0),
-      );
-      await tester.pumpAndSettle();
-      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
-      expect(controller.leftWidth, closeTo(680, 1e-6));
-      expect(controller.rightWidth, 300);
-      controller.leftWidth = 240;
-      await tester.pump();
-      await tester.dragFrom(
-        tester.getCenter(_dividers.at(0)),
-        const Offset(-2000, 0),
-      );
-      await tester.pumpAndSettle();
-      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
-      expect(controller.rightWidth, closeTo(740, 1e-6));
-    });
+    testWidgets(
+      'R23: fo06/us19/fr06/e08: a drag of either divider stops where the '
+      'center column keeps 320',
+      (tester) async {
+        final controller = _widths(left: 240, right: 300);
+        await _pump(tester, unbounded(controller), size: _desktop);
+        await tester.dragFrom(
+          tester.getCenter(_dividers.at(1)),
+          const Offset(2000, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+        expect(controller.leftWidth, closeTo(680, 1e-6));
+        expect(controller.rightWidth, 300);
+        controller.leftWidth = 240;
+        await tester.pump();
+        await tester.dragFrom(
+          tester.getCenter(_dividers.at(0)),
+          const Offset(-2000, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+        expect(controller.rightWidth, closeTo(740, 1e-6));
+      },
+    );
 
-    testWidgets('R23: us19/fr06/e08: End on the left divider stops where the '
-        'center column keeps 320', (tester) async {
-      final controller = _widths(left: 240, right: 300);
-      await _pump(tester, unbounded(controller), size: _desktop);
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.end);
-      await tester.pump();
-      expect(controller.leftWidth, closeTo(680, 1e-6));
-      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
-    });
+    testWidgets(
+      'R23: fo06/us19/fr06/e08: End on the left divider stops where the '
+      'center column keeps 320',
+      (tester) async {
+        final controller = _widths(left: 240, right: 300);
+        await _pump(tester, unbounded(controller), size: _desktop);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.end);
+        await tester.pump();
+        expect(controller.leftWidth, closeTo(680, 1e-6));
+        expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+      },
+    );
 
     testWidgets('R23: minCenterWidth moves the center minimum', (tester) async {
       final controller = _widths(left: 240, right: 300);
@@ -1702,40 +1792,44 @@ void main() {
       expect(tester.getRect(_box('center')).width, closeTo(500, 1e-6));
     });
 
-    testWidgets('R23: us19/fr06/e09: a window too narrow for both panes and '
-        'the center minimum narrows the panes first, and notifies nothing', (
-      tester,
-    ) async {
-      final notes = [0];
-      final controller = _widths(left: 260, right: 320, notes: notes);
-      await _pump(tester, unbounded(controller), size: const Size(800, 700));
-      final left = tester.getRect(_box('left pane')).width;
-      final right = tester.getRect(_box('right pane')).width;
-      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
-      expect(left + right, closeTo(480, 1e-6));
-      expect(left, lessThan(260));
-      expect(notes.single, 0);
-      expect(controller.leftWidth, 260);
-    });
+    testWidgets(
+      'R23: fo06/us19/fr06/e09: a window too narrow for both panes and '
+      'the center minimum narrows the panes first, and notifies nothing',
+      (tester) async {
+        final notes = [0];
+        final controller = _widths(left: 260, right: 320, notes: notes);
+        await _pump(tester, unbounded(controller), size: const Size(800, 700));
+        final left = tester.getRect(_box('left pane')).width;
+        final right = tester.getRect(_box('right pane')).width;
+        expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+        expect(left + right, closeTo(480, 1e-6));
+        expect(left, lessThan(260));
+        expect(notes.single, 0);
+        expect(controller.leftWidth, 260);
+      },
+    );
 
-    testWidgets('R23: us19/fr06/e09: a narrow window keeps left at its own '
-        'minimum and narrows right before the center', (tester) async {
-      await _pump(
-        tester,
-        const PageLayout(
-          leftSide: PageSide(minWidth: 240),
-          left: Text('left pane'),
-          right: Text('right pane'),
-          body: Text('center'),
-        ),
-        size: const Size(800, 700),
-      );
-      expect(tester.getRect(_box('left pane')).width, closeTo(240, 1e-6));
-      expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
-      expect(tester.getRect(_box('right pane')).width, closeTo(240, 1e-6));
-    });
+    testWidgets(
+      'R23: fo06/us19/fr06/e09: a narrow window keeps left at its own '
+      'minimum and narrows right before the center',
+      (tester) async {
+        await _pump(
+          tester,
+          const PageLayout(
+            leftSide: PageSide(minWidth: 240),
+            left: Text('left pane'),
+            right: Text('right pane'),
+            body: Text('center'),
+          ),
+          size: const Size(800, 700),
+        );
+        expect(tester.getRect(_box('left pane')).width, closeTo(240, 1e-6));
+        expect(tester.getRect(_box('center')).width, closeTo(320, 1e-6));
+        expect(tester.getRect(_box('right pane')).width, closeTo(240, 1e-6));
+      },
+    );
 
-    testWidgets('R23: us19/fr06: a large right width set from code never '
+    testWidgets('R23: fo06/us19/fr06: a large right width set from code never '
         'squeezes left under its minimum', (tester) async {
       final controller = _widths(right: 300);
       await _pump(
@@ -1757,48 +1851,52 @@ void main() {
       expect(controller.rightWidth, 900);
     });
 
-    testWidgets("us19/fr06: the side's width bounds clamp its Figma width", (
-      tester,
-    ) async {
-      await _pump(
-        tester,
-        const PageLayout(
-          leftSide: PageSide(maxWidth: 250),
-          rightSide: PageSide(minWidth: 400),
-          left: Text('left pane'),
-          right: Text('right pane'),
-          body: _OpenRight(),
-        ),
-        size: _desktop,
-      );
-      expect(tester.getRect(_box('left pane')).width, 250);
-      expect(tester.getRect(_box('right pane')).width, 400);
-    });
+    testWidgets(
+      "fo06/us19/fr06: the side's width bounds clamp its Figma width",
+      (tester) async {
+        await _pump(
+          tester,
+          const PageLayout(
+            leftSide: PageSide(maxWidth: 250),
+            rightSide: PageSide(minWidth: 400),
+            left: Text('left pane'),
+            right: Text('right pane'),
+            body: _OpenRight(),
+          ),
+          size: _desktop,
+        );
+        expect(tester.getRect(_box('left pane')).width, 250);
+        expect(tester.getRect(_box('right pane')).width, 400);
+      },
+    );
 
-    testWidgets('us19/fr06/e01: a drag past the maximum stops there, and the '
-        'controller notifies once, when the drag ends', (tester) async {
-      final notes = [0];
-      final controller = _widths(left: 240, notes: notes);
-      await _pump(
-        tester,
-        _sides(right: false, controller: controller),
-        size: _desktop,
-      );
-      final drag = await tester.startGesture(tester.getCenter(_dividers));
-      for (var i = 0; i < 4; i++) {
-        await drag.moveBy(const Offset(100, 0));
-        await tester.pump();
-      }
-      expect(tester.getRect(_box('left pane')).width, closeTo(400, 1e-6));
-      expect(notes.single, 0);
-      await drag.up();
-      await tester.pumpAndSettle();
-      expect(notes.single, 1);
-      expect(controller.leftWidth, closeTo(400, 1e-6));
-      expect(tester.getRect(_box('left pane')).width, closeTo(400, 1e-6));
-    });
+    testWidgets(
+      'fo06/us19/fr06/e01: a drag past the maximum stops there, and the '
+      'controller notifies once, when the drag ends',
+      (tester) async {
+        final notes = [0];
+        final controller = _widths(left: 240, notes: notes);
+        await _pump(
+          tester,
+          _sides(right: false, controller: controller),
+          size: _desktop,
+        );
+        final drag = await tester.startGesture(tester.getCenter(_dividers));
+        for (var i = 0; i < 4; i++) {
+          await drag.moveBy(const Offset(100, 0));
+          await tester.pump();
+        }
+        expect(tester.getRect(_box('left pane')).width, closeTo(400, 1e-6));
+        expect(notes.single, 0);
+        await drag.up();
+        await tester.pumpAndSettle();
+        expect(notes.single, 1);
+        expect(controller.leftWidth, closeTo(400, 1e-6));
+        expect(tester.getRect(_box('left pane')).width, closeTo(400, 1e-6));
+      },
+    );
 
-    testWidgets('us19/fr06/e02: End takes the focused divider to the pane '
+    testWidgets('fo06/us19/fr06/e02: End takes the focused divider to the pane '
         'maximum and Home to its minimum, one notification per step', (
       tester,
     ) async {
@@ -1828,58 +1926,61 @@ void main() {
     });
 
     for (final direction in TextDirection.values) {
-      testWidgets('us19/fr06/e02: under ${direction.name} End takes either '
-          "divider's side pane to its maximum and Home to its minimum, while "
-          'the arrows move by screen direction', (tester) async {
-        final controller = _widths(left: 240, right: 300);
-        await _pump(
-          tester,
-          PageLayout(
-            controller: controller,
-            leftSide: const PageSide(minWidth: 200, maxWidth: 400),
-            rightSide: const PageSide(minWidth: 200, maxWidth: 500),
-            left: const Text('left pane'),
-            right: const Text('right pane'),
-            body: const Text('center'),
-          ),
-          size: _desktop,
-          direction: direction,
-        );
-        final ltr = direction == TextDirection.ltr;
-        // The arrow toward the center column on screen widens each pane.
-        final towardCenterOfLeft = ltr
-            ? LogicalKeyboardKey.arrowRight
-            : LogicalKeyboardKey.arrowLeft;
-        final towardCenterOfRight = ltr
-            ? LogicalKeyboardKey.arrowLeft
-            : LogicalKeyboardKey.arrowRight;
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-        await tester.pump();
-        await tester.sendKeyEvent(LogicalKeyboardKey.end);
-        await tester.pump();
-        expect(controller.leftWidth, closeTo(400, 1e-6));
-        await tester.sendKeyEvent(LogicalKeyboardKey.home);
-        await tester.pump();
-        expect(controller.leftWidth, closeTo(200, 1e-6));
-        await tester.sendKeyEvent(towardCenterOfLeft);
-        await tester.pump();
-        expect(controller.leftWidth, closeTo(216, 1e-6));
-        expect(tester.getRect(_box('left pane')).width, closeTo(216, 1e-6));
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-        await tester.pump();
-        expect(_focusLabel, startsWith('SplitLayout divider'));
-        await tester.sendKeyEvent(LogicalKeyboardKey.end);
-        await tester.pump();
-        expect(controller.rightWidth, closeTo(500, 1e-6));
-        expect(tester.getRect(_box('right pane')).width, closeTo(500, 1e-6));
-        await tester.sendKeyEvent(LogicalKeyboardKey.home);
-        await tester.pump();
-        expect(controller.rightWidth, closeTo(200, 1e-6));
-        await tester.sendKeyEvent(towardCenterOfRight);
-        await tester.pump();
-        expect(controller.rightWidth, closeTo(216, 1e-6));
-        expect(tester.getRect(_box('right pane')).width, closeTo(216, 1e-6));
-      });
+      testWidgets(
+        'fo06/us19/fr06/e02: under ${direction.name} End takes either '
+        "divider's side pane to its maximum and Home to its minimum, while "
+        'the arrows move by screen direction',
+        (tester) async {
+          final controller = _widths(left: 240, right: 300);
+          await _pump(
+            tester,
+            PageLayout(
+              controller: controller,
+              leftSide: const PageSide(minWidth: 200, maxWidth: 400),
+              rightSide: const PageSide(minWidth: 200, maxWidth: 500),
+              left: const Text('left pane'),
+              right: const Text('right pane'),
+              body: const Text('center'),
+            ),
+            size: _desktop,
+            direction: direction,
+          );
+          final ltr = direction == TextDirection.ltr;
+          // The arrow toward the center column on screen widens each pane.
+          final towardCenterOfLeft = ltr
+              ? LogicalKeyboardKey.arrowRight
+              : LogicalKeyboardKey.arrowLeft;
+          final towardCenterOfRight = ltr
+              ? LogicalKeyboardKey.arrowLeft
+              : LogicalKeyboardKey.arrowRight;
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.end);
+          await tester.pump();
+          expect(controller.leftWidth, closeTo(400, 1e-6));
+          await tester.sendKeyEvent(LogicalKeyboardKey.home);
+          await tester.pump();
+          expect(controller.leftWidth, closeTo(200, 1e-6));
+          await tester.sendKeyEvent(towardCenterOfLeft);
+          await tester.pump();
+          expect(controller.leftWidth, closeTo(216, 1e-6));
+          expect(tester.getRect(_box('left pane')).width, closeTo(216, 1e-6));
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          expect(_focusLabel, startsWith('SplitLayout divider'));
+          await tester.sendKeyEvent(LogicalKeyboardKey.end);
+          await tester.pump();
+          expect(controller.rightWidth, closeTo(500, 1e-6));
+          expect(tester.getRect(_box('right pane')).width, closeTo(500, 1e-6));
+          await tester.sendKeyEvent(LogicalKeyboardKey.home);
+          await tester.pump();
+          expect(controller.rightWidth, closeTo(200, 1e-6));
+          await tester.sendKeyEvent(towardCenterOfRight);
+          await tester.pump();
+          expect(controller.rightWidth, closeTo(216, 1e-6));
+          expect(tester.getRect(_box('right pane')).width, closeTo(216, 1e-6));
+        },
+      );
     }
 
     testWidgets('R22: a width set from code moves the pane and notifies '
@@ -1897,7 +1998,7 @@ void main() {
       expect(notes.single, 1);
     });
 
-    testWidgets('us19/fr06/e07: a window narrower than the chosen width '
+    testWidgets('fo06/us19/fr06/e07: a window narrower than the chosen width '
         'clamps only the drawn width and notifies nothing', (tester) async {
       final notes = [0];
       final controller = _widths(left: 380, notes: notes);
@@ -1937,7 +2038,7 @@ void main() {
       expect(tester.getRect(_box('left pane')).width, 260);
     });
 
-    testWidgets('us19/fr06: a drag of the right divider reports the right '
+    testWidgets('fo06/us19/fr06: a drag of the right divider reports the right '
         'width', (tester) async {
       final notes = [0];
       final controller = _widths(right: 300, notes: notes);
@@ -1954,7 +2055,7 @@ void main() {
       expect(notes.single, 1);
     });
 
-    testWidgets('us19/fr06/e05: under right-to-left text left sits at the '
+    testWidgets('fo06/us19/fr06/e05: under right-to-left text left sits at the '
         'right edge, and its divider moves by screen direction', (
       tester,
     ) async {
@@ -1977,7 +2078,7 @@ void main() {
       expect(tester.getRect(_box('left pane')).left, closeTo(1044, 1e-6));
     });
 
-    testWidgets('us19/fr06/e04: a divider drag builds no slot again', (
+    testWidgets('fo06/us19/fr06/e04: a divider drag builds no slot again', (
       tester,
     ) async {
       var builds = 0;
@@ -2006,61 +2107,76 @@ void main() {
       expect(builds, 1);
     });
 
-    testWidgets('R17: us19/fr06/e06: with no divider builders nothing paints '
-        'over a seam, while each seam still reads as a slider', (tester) async {
-      await _pump(
-        tester,
-        _sides(controller: _widths(left: 240, right: 300)),
-        size: _desktop,
-      );
-      expect(_dividers, findsNWidgets(2));
-      for (final seam in _dividers.evaluate()) {
-        var visible = false;
-        expect(
-          seam.renderObject,
-          paints..everything((method, arguments) {
-            for (final paint in arguments.whereType<Paint>()) {
-              if (paint.color.a > 0) visible = true;
-            }
-            return true;
-          }),
+    testWidgets(
+      'R17: fo06/us19/fr06/e06: with no divider builders nothing paints '
+      'over a seam, while each seam still reads as a slider',
+      (tester) async {
+        await _pump(
+          tester,
+          _sides(controller: _widths(left: 240, right: 300)),
+          size: _desktop,
         );
-        expect(visible, isFalse);
-      }
-      expect(
-        tester.getSemantics(_dividers.first),
-        isSemantics(label: 'Resize panes', isSlider: true),
-      );
-    });
+        expect(_dividers, findsNWidgets(2));
+        for (final seam in _dividers.evaluate()) {
+          var visible = false;
+          expect(
+            seam.renderObject,
+            paints..everything((method, arguments) {
+              for (final paint in arguments.whereType<Paint>()) {
+                if (paint.color.a > 0) visible = true;
+              }
+              return true;
+            }),
+          );
+          expect(visible, isFalse);
+        }
+        expect(
+          tester.getSemantics(_dividers.first),
+          isSemantics(label: 'Resize panes', isSlider: true),
+        );
+      },
+    );
 
-    testWidgets('R17: us19/fr06: the divider builders paint over their seams '
-        'with no layout space and hear the focused state', (tester) async {
-      final states = <String, List<SplitDividerState>>{'left': [], 'right': []};
-      SplitDividerBuilder line(String side) => (context, state) {
-        states[side]!.add(state);
-        return ColoredBox(key: ValueKey(side), color: const Color(0xFF000000));
-      };
-      await _pump(
-        tester,
-        _sides(
-          controller: _widths(left: 240, right: 300),
-          leftDivider: line('left'),
-          rightDivider: line('right'),
-        ),
-        size: _desktop,
-      );
-      final minimum = TapTargetSize.minimumFor(defaultTargetPlatform).width;
-      expect(tester.getRect(_box('left pane')).right, 240);
-      expect(tester.getRect(_box('Open right')).left, 240);
-      expect(tester.getCenter(find.byKey(const ValueKey('left'))).dx, 240);
-      expect(tester.getSize(find.byKey(const ValueKey('left'))).width, minimum);
-      expect(tester.getCenter(find.byKey(const ValueKey('right'))).dx, 1000);
-      expect(states['left']!.last.focused, isFalse);
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
-      expect(states['left']!.last.focused, isTrue);
-      expect(states['right']!.last.focused, isFalse);
-    });
+    testWidgets(
+      'R17: fo06/us19/fr06: the divider builders paint over their seams '
+      'with no layout space and hear the focused state',
+      (tester) async {
+        final states = <String, List<SplitDividerState>>{
+          'left': [],
+          'right': [],
+        };
+        SplitDividerBuilder line(String side) => (context, state) {
+          states[side]!.add(state);
+          return ColoredBox(
+            key: ValueKey(side),
+            color: const Color(0xFF000000),
+          );
+        };
+        await _pump(
+          tester,
+          _sides(
+            controller: _widths(left: 240, right: 300),
+            leftDivider: line('left'),
+            rightDivider: line('right'),
+          ),
+          size: _desktop,
+        );
+        final minimum = TapTargetSize.minimumFor(defaultTargetPlatform).width;
+        expect(tester.getRect(_box('left pane')).right, 240);
+        expect(tester.getRect(_box('Open right')).left, 240);
+        expect(tester.getCenter(find.byKey(const ValueKey('left'))).dx, 240);
+        expect(
+          tester.getSize(find.byKey(const ValueKey('left'))).width,
+          minimum,
+        );
+        expect(tester.getCenter(find.byKey(const ValueKey('right'))).dx, 1000);
+        expect(states['left']!.last.focused, isFalse);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(states['left']!.last.focused, isTrue);
+        expect(states['right']!.last.focused, isFalse);
+      },
+    );
   });
 
   group('PageDrawer side pane and overlay accessibility gate', () {
@@ -2097,21 +2213,24 @@ void main() {
       expect(_ring(tester, _dividers), isNot(isSameColorAs(idle)));
     });
 
-    testWidgets('NFR-U02: us19/fr01/e04: Tab reaches the overlay drawer close '
-        'button after the pane and shows its focus ring', (tester) async {
-      await _pump(tester, _sides(overlay: true), size: _desktop);
-      await _openRight(tester);
-      final close = find.bySemanticsLabel('Close');
-      final idle = _ring(tester, close);
-      expect(idle.a, 0);
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pumpAndSettle();
-      expect(
-        tester.getSemantics(close),
-        isSemantics(label: 'Close', isButton: true, isFocused: true),
-      );
-      expect(_ring(tester, close), isNot(isSameColorAs(idle)));
-    });
+    testWidgets(
+      'NFR-U02: fo06/us19/fr01/e04: Tab reaches the overlay drawer close '
+      'button after the pane and shows its focus ring',
+      (tester) async {
+        await _pump(tester, _sides(overlay: true), size: _desktop);
+        await _openRight(tester);
+        final close = find.bySemanticsLabel('Close');
+        final idle = _ring(tester, close);
+        expect(idle.a, 0);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(
+          tester.getSemantics(close),
+          isSemantics(label: 'Close', isButton: true, isFocused: true),
+        );
+        expect(_ring(tester, close), isNot(isSameColorAs(idle)));
+      },
+    );
 
     // The inline panes move only under the EndUser's drag or key, with no
     // animation; the overlay drawer slides in, so it carries the row.
@@ -2190,7 +2309,7 @@ void main() {
       );
     });
 
-    testWidgets('NFR-U05: us19/fr06: each divider hit area spans the '
+    testWidgets('NFR-U05: fo06/us19/fr06: each divider hit area spans the '
         'platform minimum centered on its seam', (tester) async {
       await _pump(
         tester,
@@ -2229,38 +2348,39 @@ void main() {
       );
     }, variant: TargetPlatformVariant.all());
 
-    testWidgets('NFR-U06: us19/fr06: a divider reads as a slider valued by '
-        "the left pane's share, with step actions, and turns focused", (
-      tester,
-    ) async {
-      await _pump(
-        tester,
-        _sides(right: false, controller: _widths(left: 240)),
-        size: _desktop,
-      );
-      expect(
-        tester.getSemantics(_dividers),
-        matchesSemantics(
-          label: 'Resize panes',
-          value: '18%',
-          increasedValue: '20%',
-          decreasedValue: '17%',
-          isSlider: true,
-          isFocusable: true,
-          hasFocusAction: true,
-          hasIncreaseAction: true,
-          hasDecreaseAction: true,
-        ),
-      );
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
-      expect(
-        tester.getSemantics(_dividers),
-        isSemantics(label: 'Resize panes', isSlider: true, isFocused: true),
-      );
-    });
+    testWidgets(
+      'NFR-U06: fo06/us19/fr06: a divider reads as a slider valued by '
+      "the left pane's share, with step actions, and turns focused",
+      (tester) async {
+        await _pump(
+          tester,
+          _sides(right: false, controller: _widths(left: 240)),
+          size: _desktop,
+        );
+        expect(
+          tester.getSemantics(_dividers),
+          matchesSemantics(
+            label: 'Resize panes',
+            value: '18%',
+            increasedValue: '20%',
+            decreasedValue: '17%',
+            isSlider: true,
+            isFocusable: true,
+            hasFocusAction: true,
+            hasIncreaseAction: true,
+            hasDecreaseAction: true,
+          ),
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(
+          tester.getSemantics(_dividers),
+          isSemantics(label: 'Resize panes', isSlider: true, isFocused: true),
+        );
+      },
+    );
 
-    testWidgets('NFR-U06: us19/fr06: the right divider reads as a slider '
+    testWidgets('NFR-U06: fo06/us19/fr06: the right divider reads as a slider '
         "valued by the right pane's share, and increase widens it", (
       tester,
     ) async {
@@ -2290,43 +2410,49 @@ void main() {
       expect(tester.getRect(_box('right pane')).width, closeTo(316, 1e-6));
     });
 
-    testWidgets('NFR-U06: us19/fr01/e04: the overlay drawer reads as a named '
-        'screen with a labeled close button', (tester) async {
-      await _pump(tester, _sides(overlay: true), size: _desktop);
-      await _openRight(tester);
-      expect(
-        tester.getSemantics(_drawer),
-        isSemantics(
-          label: 'Navigation menu',
-          scopesRoute: true,
-          namesRoute: true,
-        ),
-      );
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('Close')),
-        matchesSemantics(
-          label: 'Close',
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: true,
-          isFocusable: true,
-          hasTapAction: true,
-          hasFocusAction: true,
-        ),
-      );
-    });
+    testWidgets(
+      'NFR-U06: fo06/us19/fr01/e04: the overlay drawer reads as a named '
+      'screen with a labeled close button',
+      (tester) async {
+        await _pump(tester, _sides(overlay: true), size: _desktop);
+        await _openRight(tester);
+        expect(
+          tester.getSemantics(_drawer),
+          isSemantics(
+            label: 'Navigation menu',
+            scopesRoute: true,
+            namesRoute: true,
+          ),
+        );
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('Close')),
+          matchesSemantics(
+            label: 'Close',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            isFocusable: true,
+            hasTapAction: true,
+            hasFocusAction: true,
+          ),
+        );
+      },
+    );
 
-    testWidgets('NFR-U06: us19/fr05/e02: in Thai the close button reads the '
-        'Thai built-in label', (tester) async {
-      tester.platformDispatcher.localeTestValue = const Locale('th');
-      addTearDown(tester.platformDispatcher.clearLocaleTestValue);
-      await _pump(tester, _sides(overlay: true), size: _desktop);
-      await _openRight(tester);
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('ปิด').last),
-        isSemantics(label: 'ปิด', isButton: true),
-      );
-    });
+    testWidgets(
+      'NFR-U06: fo06/us19/fr05/e02: in Thai the close button reads the '
+      'Thai built-in label',
+      (tester) async {
+        tester.platformDispatcher.localeTestValue = const Locale('th');
+        addTearDown(tester.platformDispatcher.clearLocaleTestValue);
+        await _pump(tester, _sides(overlay: true), size: _desktop);
+        await _openRight(tester);
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('ปิด').last),
+          isSemantics(label: 'ปิด', isButton: true),
+        );
+      },
+    );
 
     testWidgets('NFR-U07: the overlay drawer text passes contrast in every '
         'bundled theme', (tester) async {

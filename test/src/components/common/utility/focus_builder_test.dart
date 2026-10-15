@@ -82,174 +82,195 @@ Widget _addressGroup({
 
 void main() {
   group('FocusBuilder', () {
-    testWidgets('us16/s4, us16/fr02, us16/fr02/e02, BP2: a tap on a field '
-        'inside builds the focused look and calls onFocusChange(true)', (
-      tester,
-    ) async {
-      final changes = <bool>[];
-      final street = _node('street');
-      await tester.pumpWidget(
-        _app(
-          _addressGroup(street: street, city: _node('city'), changes: changes),
-        ),
-      );
-      expect(find.text('group idle'), findsOneWidget);
-
-      await tester.tap(find.byType(TextField).first);
-      await tester.pump();
-
-      expect(street.hasPrimaryFocus, isTrue);
-      expect(find.text('group focused'), findsOneWidget);
-      expect(changes, [true]);
-    });
-
-    testWidgets('us16/s5, us16/fr02/e01: Tab from the street field to the '
-        'city field keeps the look and calls nothing', (tester) async {
-      final changes = <bool>[];
-      final seen = <bool>[];
-      final city = _node('city');
-      await tester.pumpWidget(
-        _app(
-          _addressGroup(
-            street: _node('street'),
-            city: city,
-            changes: changes,
-            seen: seen,
+    testWidgets(
+      'fo06/us16/s4, fo06/us16/fr02, fo06/us16/fr02/e02, BP2: a tap on a field '
+      'inside builds the focused look and calls onFocusChange(true)',
+      (tester) async {
+        final changes = <bool>[];
+        final street = _node('street');
+        await tester.pumpWidget(
+          _app(
+            _addressGroup(
+              street: street,
+              city: _node('city'),
+              changes: changes,
+            ),
           ),
-        ),
-      );
-      await tester.tap(find.byType(TextField).first);
-      await tester.pump();
-      final calls = seen.length;
+        );
+        expect(find.text('group idle'), findsOneWidget);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
+        await tester.tap(find.byType(TextField).first);
+        await tester.pump();
 
-      expect(city.hasPrimaryFocus, isTrue);
-      expect(find.text('group focused'), findsOneWidget);
-      expect(seen, hasLength(calls));
-      expect(changes, [true]);
-    });
+        expect(street.hasPrimaryFocus, isTrue);
+        expect(find.text('group focused'), findsOneWidget);
+        expect(changes, [true]);
+      },
+    );
 
-    testWidgets('us16/fr02: focus leaving the group builds the idle look and '
-        'calls onFocusChange(false)', (tester) async {
-      final changes = <bool>[];
-      final outside = _node('outside');
-      await tester.pumpWidget(
-        _app(
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _addressGroup(
-                street: _node('street'),
-                city: _node('city'),
-                changes: changes,
-              ),
-              SizedBox(width: 200, child: TextField(focusNode: outside)),
-            ],
+    testWidgets(
+      'fo06/us16/s5, fo06/us16/fr02/e01: Tab from the street field to the '
+      'city field keeps the look and calls nothing',
+      (tester) async {
+        final changes = <bool>[];
+        final seen = <bool>[];
+        final city = _node('city');
+        await tester.pumpWidget(
+          _app(
+            _addressGroup(
+              street: _node('street'),
+              city: city,
+              changes: changes,
+              seen: seen,
+            ),
           ),
-        ),
-      );
-      await tester.tap(find.byType(TextField).first);
-      await tester.pump();
+        );
+        await tester.tap(find.byType(TextField).first);
+        await tester.pump();
+        final calls = seen.length;
 
-      outside.requestFocus();
-      await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
 
-      expect(find.text('group idle'), findsOneWidget);
-      expect(changes, [true, false]);
-    });
+        expect(city.hasPrimaryFocus, isTrue);
+        expect(find.text('group focused'), findsOneWidget);
+        expect(seen, hasLength(calls));
+        expect(changes, [true]);
+      },
+    );
 
-    testWidgets('us16/fr02, PD4: the builder and onFocusChange see the new '
-        'value in the same frame', (tester) async {
-      final changes = <bool>[];
-      final seen = <bool>[];
-      final street = _node('street');
-      await tester.pumpWidget(
-        _app(
-          _addressGroup(
-            street: street,
-            city: _node('city'),
-            changes: changes,
-            seen: seen,
+    testWidgets(
+      'fo06/us16/fr02: focus leaving the group builds the idle look and '
+      'calls onFocusChange(false)',
+      (tester) async {
+        final changes = <bool>[];
+        final outside = _node('outside');
+        await tester.pumpWidget(
+          _app(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _addressGroup(
+                  street: _node('street'),
+                  city: _node('city'),
+                  changes: changes,
+                ),
+                SizedBox(width: 200, child: TextField(focusNode: outside)),
+              ],
+            ),
           ),
-        ),
-      );
+        );
+        await tester.tap(find.byType(TextField).first);
+        await tester.pump();
 
-      street.requestFocus();
-      await tester.pump();
+        outside.requestFocus();
+        await tester.pump();
 
-      expect(changes, [true]);
-      expect(seen.last, isTrue);
-    });
+        expect(find.text('group idle'), findsOneWidget);
+        expect(changes, [true, false]);
+      },
+    );
 
-    testWidgets('us16/fr03, D1: taps and the cursor reach the widget a focus '
-        'builder wraps, and its footprint stays the same', (tester) async {
-      var taps = 0;
-      await tester.pumpWidget(
-        themedHost(
-          FocusBuilder(
-            builder: (context, focused, child) => child!,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                // A childless box takes no hit of its own.
-                behavior: HitTestBehavior.opaque,
-                onTap: () => taps++,
-                child: const SizedBox(width: 40, height: 40),
+    testWidgets(
+      'fo06/us16/fr02, PD4: the builder and onFocusChange see the new '
+      'value in the same frame',
+      (tester) async {
+        final changes = <bool>[];
+        final seen = <bool>[];
+        final street = _node('street');
+        await tester.pumpWidget(
+          _app(
+            _addressGroup(
+              street: street,
+              city: _node('city'),
+              changes: changes,
+              seen: seen,
+            ),
+          ),
+        );
+
+        street.requestFocus();
+        await tester.pump();
+
+        expect(changes, [true]);
+        expect(seen.last, isTrue);
+      },
+    );
+
+    testWidgets(
+      'fo06/us16/fr03, D1: taps and the cursor reach the widget a focus '
+      'builder wraps, and its footprint stays the same',
+      (tester) async {
+        var taps = 0;
+        await tester.pumpWidget(
+          themedHost(
+            FocusBuilder(
+              builder: (context, focused, child) => child!,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  // A childless box takes no hit of its own.
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => taps++,
+                  child: const SizedBox(width: 40, height: 40),
+                ),
               ),
             ),
           ),
-        ),
-      );
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: Offset.zero);
-      addTearDown(mouse.removePointer);
-      await tester.pump();
+        );
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        await tester.pump();
 
-      await mouse.moveTo(tester.getCenter(find.byType(FocusBuilder)));
-      await tester.pump();
-      await tester.tap(find.byType(FocusBuilder));
+        await mouse.moveTo(tester.getCenter(find.byType(FocusBuilder)));
+        await tester.pump();
+        await tester.tap(find.byType(FocusBuilder));
 
-      expect(tester.getSize(find.byType(FocusBuilder)), const Size(40, 40));
-      expect(
-        tester.binding.mouseTracker.debugDeviceActiveCursor(1),
-        SystemMouseCursors.click,
-      );
-      expect(taps, 1);
-    });
+        expect(tester.getSize(find.byType(FocusBuilder)), const Size(40, 40));
+        expect(
+          tester.binding.mouseTracker.debugDeviceActiveCursor(1),
+          SystemMouseCursors.click,
+        );
+        expect(taps, 1);
+      },
+    );
 
-    testWidgets('us16/s6, us16/fr03/e01, us16/fr03, D1: Tab lands straight in '
-        'a wrapped text field, with no stop and no ring on the wrapper', (
-      tester,
-    ) async {
-      final before = _node('before');
-      final field = _node('field');
-      await tester.pumpWidget(
-        _app(
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(width: 200, child: TextField(focusNode: before)),
-              FocusBuilder(
-                builder: (context, focused, child) => child!,
-                child: SizedBox(width: 200, child: TextField(focusNode: field)),
-              ),
-            ],
+    testWidgets(
+      'fo06/us16/s6, fo06/us16/fr03/e01, fo06/us16/fr03, D1: Tab lands straight in '
+      'a wrapped text field, with no stop and no ring on the wrapper',
+      (tester) async {
+        final before = _node('before');
+        final field = _node('field');
+        await tester.pumpWidget(
+          _app(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: 200, child: TextField(focusNode: before)),
+                FocusBuilder(
+                  builder: (context, focused, child) => child!,
+                  child: SizedBox(
+                    width: 200,
+                    child: TextField(focusNode: field),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      );
-      before.requestFocus();
-      await tester.pump();
+        );
+        before.requestFocus();
+        await tester.pump();
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
 
-      expect(field.hasPrimaryFocus, isTrue);
-      expect(find.byType(StratumFocusBorder), findsNothing);
-    });
+        expect(field.hasPrimaryFocus, isTrue);
+        expect(find.byType(StratumFocusBorder), findsNothing);
+      },
+    );
 
-    testWidgets('us16/fr02/e03: a subtree with no node that takes focus '
+    testWidgets('fo06/us16/fr02/e03: a subtree with no node that takes focus '
         'stays unfocused', (tester) async {
       final seen = <bool>[];
       final outside = _node('outside');
@@ -277,7 +298,7 @@ void main() {
       expect(seen, everyElement(isFalse));
     });
 
-    testWidgets('us16/fr02/e04, BP1: child reaches builder as the same '
+    testWidgets('fo06/us16/fr02/e04, BP1: child reaches builder as the same '
         'widget on every call and does not rebuild', (tester) async {
       var childBuilds = 0;
       final inner = _node('inner');
@@ -317,92 +338,101 @@ void main() {
       expect(childBuilds, 1);
     });
 
-    testWidgets('us16/fr02: removing a focused builder calls no listener and '
-        'throws nothing', (tester) async {
-      final changes = <bool>[];
-      await tester.pumpWidget(
-        _app(
-          _addressGroup(
-            street: _node('street'),
-            city: _node('city'),
-            changes: changes,
-          ),
-        ),
-      );
-      await tester.tap(find.byType(TextField).first);
-      await tester.pump();
-
-      await tester.pumpWidget(_app(const SizedBox()));
-      await tester.pump();
-
-      expect(tester.takeException(), isNull);
-      expect(changes, [true]);
-    });
-
-    testWidgets('us16/s7, us16/fr04/e01, NFR-U06: the group label reads '
-        'before its street field', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          FocusBuilder(
-            semantics: const SemanticsProperties(label: 'ที่อยู่จัดส่ง'),
-            builder: (context, focused, child) => child!,
-            child: Semantics(
-              container: true,
-              textField: true,
-              label: 'ถนน',
-              child: const SizedBox(width: 80, height: 20),
+    testWidgets(
+      'fo06/us16/fr02: removing a focused builder calls no listener and '
+      'throws nothing',
+      (tester) async {
+        final changes = <bool>[];
+        await tester.pumpWidget(
+          _app(
+            _addressGroup(
+              street: _node('street'),
+              city: _node('city'),
+              changes: changes,
             ),
           ),
-        ),
-      );
+        );
+        await tester.tap(find.byType(TextField).first);
+        await tester.pump();
 
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('ที่อยู่จัดส่ง')),
-        matchesSemantics(
-          label: 'ที่อยู่จัดส่ง',
-          children: [matchesSemantics(label: 'ถนน', isTextField: true)],
-        ),
-      );
-      handle.dispose();
-    });
+        await tester.pumpWidget(_app(const SizedBox()));
+        await tester.pump();
 
-    testWidgets('us16/fr04/e02, PD6, NFR-U06: null semantics adds no node; '
-        'the wrapped node reads unchanged', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        themedHost(
-          FocusBuilder(
-            builder: (context, focused, child) => child!,
-            child: Semantics(
-              container: true,
-              textField: true,
-              label: 'Field',
-              child: const SizedBox(width: 80, height: 20),
+        expect(tester.takeException(), isNull);
+        expect(changes, [true]);
+      },
+    );
+
+    testWidgets(
+      'fo06/us16/s7, fo06/us16/fr04/e01, NFR-U06: the group label reads '
+      'before its street field',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            FocusBuilder(
+              semantics: const SemanticsProperties(label: 'ที่อยู่จัดส่ง'),
+              builder: (context, focused, child) => child!,
+              child: Semantics(
+                container: true,
+                textField: true,
+                label: 'ถนน',
+                child: const SizedBox(width: 80, height: 20),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('Field')),
-        matchesSemantics(label: 'Field', isTextField: true),
-      );
-      expect(
-        find.descendant(
-          of: find.byType(FocusBuilder),
-          matching: find.byType(Semantics),
-        ),
-        // Minor 2: FocusBuilder always builds its own `container: false`
-        // `Semantics.fromProperties` wrapper (one), plus the wrapped
-        // field's own `Semantics` (one) — two widgets, but still no extra
-        // accessibility node, proven above by the unchanged 'Field' node.
-        findsNWidgets(2),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('ที่อยู่จัดส่ง')),
+          matchesSemantics(
+            label: 'ที่อยู่จัดส่ง',
+            children: [matchesSemantics(label: 'ถนน', isTextField: true)],
+          ),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us16/fr04, Minor 2: toggling semantics null <-> a value '
+    testWidgets(
+      'fo06/us16/fr04/e02, PD6, NFR-U06: null semantics adds no node; '
+      'the wrapped node reads unchanged',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            FocusBuilder(
+              builder: (context, focused, child) => child!,
+              child: Semantics(
+                container: true,
+                textField: true,
+                label: 'Field',
+                child: const SizedBox(width: 80, height: 20),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('Field')),
+          matchesSemantics(label: 'Field', isTextField: true),
+        );
+        expect(
+          find.descendant(
+            of: find.byType(FocusBuilder),
+            matching: find.byType(Semantics),
+          ),
+          // Minor 2: FocusBuilder always builds its own `container: false`
+          // `Semantics.fromProperties` wrapper (one), plus the wrapped
+          // field's own `Semantics` (one) — two widgets, but still no extra
+          // accessibility node, proven above by the unchanged 'Field' node.
+          findsNWidgets(2),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us16/fr04, Minor 2: toggling semantics null <-> a value '
         "keeps a focused field's State and focus, instead of remounting "
         'it', (tester) async {
       SemanticsProperties? semantics;
@@ -437,27 +467,32 @@ void main() {
       expect(field.hasFocus, isTrue);
     });
 
-    testWidgets('us16/fr05/e03, BP3: a focused field whose component turns '
-        'disabled loses focus, reads false, and calls nothing', (tester) async {
-      final changes = <bool>[];
-      final street = _node('street');
-      final group = _addressGroup(
-        street: street,
-        city: _node('city'),
-        changes: changes,
-      );
-      await tester.pumpWidget(_app(_Component(disabled: false, child: group)));
-      await tester.tap(find.byType(TextField).first);
-      await tester.pump();
-      expect(changes, [true]);
+    testWidgets(
+      'fo06/us16/fr05/e03, BP3: a focused field whose component turns '
+      'disabled loses focus, reads false, and calls nothing',
+      (tester) async {
+        final changes = <bool>[];
+        final street = _node('street');
+        final group = _addressGroup(
+          street: street,
+          city: _node('city'),
+          changes: changes,
+        );
+        await tester.pumpWidget(
+          _app(_Component(disabled: false, child: group)),
+        );
+        await tester.tap(find.byType(TextField).first);
+        await tester.pump();
+        expect(changes, [true]);
 
-      await tester.pumpWidget(_app(_Component(disabled: true, child: group)));
-      await tester.pump();
+        await tester.pumpWidget(_app(_Component(disabled: true, child: group)));
+        await tester.pump();
 
-      expect(street.hasFocus, isFalse);
-      expect(find.text('group idle'), findsOneWidget);
-      expect(changes, [true]);
-    });
+        expect(street.hasFocus, isFalse);
+        expect(find.text('group idle'), findsOneWidget);
+        expect(changes, [true]);
+      },
+    );
 
     testWidgets("NFR-U08: under high contrast the app's text cue for focus "
         'shows', (tester) async {
@@ -485,7 +520,7 @@ void main() {
       expect(find.text('group focused'), findsOneWidget);
     });
 
-    test('us16/fr02, us16/fr03/e03, BP6, PD12: the dartdoc names the '
+    test('fo06/us16/fr02, fo06/us16/fr03/e03, BP6, PD12: the dartdoc names the '
         "observer's limits and warns against color-only state", () {
       final source = File(
         'lib/src/components/common/utility/focus_builder.dart',

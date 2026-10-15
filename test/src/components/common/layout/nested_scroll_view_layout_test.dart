@@ -191,7 +191,7 @@ void main() {
     }, variant: _desktop);
 
     testWidgets('under reduced motion Down jumps along the range '
-        '(us07/fr04)', (tester) async {
+        '(fo06/us07/fr04)', (tester) async {
       final before = _node('before');
       await tester.pumpWidget(
         MediaQuery(

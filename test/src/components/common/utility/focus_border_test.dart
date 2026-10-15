@@ -143,7 +143,7 @@ Future<void> _expectShownLooksOnly(
 void main() {
   group('StratumFocusBorder look', () {
     testWidgets(
-      'us04/fr03: an outside ring shows only when focused, 3 px in '
+      'fo06/us04/fr03: an outside ring shows only when focused, 3 px in '
       'border.subtle.blue after a 2 px gap at the child radius plus the gap',
       (tester) async {
         for (final state in [FullWidgetState.normal, FullWidgetState.hovered]) {
@@ -162,7 +162,7 @@ void main() {
     );
 
     testWidgets(
-      'us04/fr03/e07: an outside ring with insideEdge paints the outside '
+      'fo06/us04/fr03/e07: an outside ring with insideEdge paints the outside '
       'color and width on the inner edge at the child radius, gap unused',
       (tester) async {
         for (final gap in [null, 6.0]) {
@@ -189,7 +189,7 @@ void main() {
     );
 
     testWidgets(
-      'us04/fr03: an inside ring paints border.default.normal on the inner '
+      'fo06/us04/fr03: an inside ring paints border.default.normal on the inner '
       'edge, 3 px when hovered and 2 px when focused, nothing when normal',
       (tester) async {
         const inside = StratumFocusBorderStyle.inside;
@@ -217,7 +217,7 @@ void main() {
     );
 
     testWidgets(
-      'us04/fr03/e11: every other FullWidgetState value shows the normal '
+      'fo06/us04/fr03/e11: every other FullWidgetState value shows the normal '
       'look, no ring, in either style',
       (tester) async {
         const shown = {
@@ -237,7 +237,7 @@ void main() {
     );
 
     testWidgets(
-      'us04/fr03/e08: a width override applies in every shown state of '
+      'fo06/us04/fr03/e08: a width override applies in every shown state of '
       'either style',
       (tester) async {
         for (final state in [
@@ -265,31 +265,34 @@ void main() {
       },
     );
 
-    testWidgets("us04/fr03: customColor replaces either style's color and gap "
-        'replaces the 2 px gap', (tester) async {
-      const red = Color(0xFFFF0000);
-      await tester.pumpWidget(
-        _ring(state: FullWidgetState.focused, customColor: red, gap: 6),
-      );
-      await tester.pumpAndSettle();
-      final ring = _painted(tester);
-      expect(ring.color, isSameColorAs(red));
-      expect(ring.inner, _rrect(-6, -6, 46, 26, 16));
-      expect(ring.outer, _rrect(-9, -9, 49, 29, 19));
+    testWidgets(
+      "fo06/us04/fr03: customColor replaces either style's color and gap "
+      'replaces the 2 px gap',
+      (tester) async {
+        const red = Color(0xFFFF0000);
+        await tester.pumpWidget(
+          _ring(state: FullWidgetState.focused, customColor: red, gap: 6),
+        );
+        await tester.pumpAndSettle();
+        final ring = _painted(tester);
+        expect(ring.color, isSameColorAs(red));
+        expect(ring.inner, _rrect(-6, -6, 46, 26, 16));
+        expect(ring.outer, _rrect(-9, -9, 49, 29, 19));
 
-      await tester.pumpWidget(
-        _ring(
-          style: StratumFocusBorderStyle.inside,
-          state: FullWidgetState.hovered,
-          customColor: red,
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(_painted(tester).color, isSameColorAs(red));
-    });
+        await tester.pumpWidget(
+          _ring(
+            style: StratumFocusBorderStyle.inside,
+            state: FullWidgetState.hovered,
+            customColor: red,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(_painted(tester).color, isSameColorAs(red));
+      },
+    );
 
     testWidgets(
-      'us04/fr03: a ring around a child with no radius takes the gap as '
+      'fo06/us04/fr03: a ring around a child with no radius takes the gap as '
       'its radius',
       (tester) async {
         await tester.pumpWidget(
@@ -304,7 +307,7 @@ void main() {
     );
 
     testWidgets(
-      'us07/fr03/e01: an outside ring reaches its gap plus its width, the '
+      'fo06/us07/fr03/e01: an outside ring reaches its gap plus its width, the '
       "app-wide default's after a restyle",
       (tester) async {
         double? reach;
@@ -337,35 +340,29 @@ void main() {
       },
     );
 
-    testWidgets(
-      "us04/fr03/e13: a caller's customStyle restyles only the shown looks; "
-      'every nothing look still shows no ring',
-      (tester) async {
-        await _expectShownLooksOnly(
-          tester,
-          (style, state) =>
-              _ring(style: style, state: state, customStyle: _redStyle),
-        );
-      },
-    );
+    testWidgets("fo06/us04/fr03/e13: a caller's customStyle restyles only the shown looks; "
+        'every nothing look still shows no ring', (tester) async {
+      await _expectShownLooksOnly(
+        tester,
+        (style, state) =>
+            _ring(style: style, state: state, customStyle: _redStyle),
+      );
+    });
+
+    testWidgets('fo06/us04/fr03/e13: an app-wide default restyles only the shown looks of '
+        'every ring; every nothing look still shows no ring', (tester) async {
+      await _expectShownLooksOnly(
+        tester,
+        (style, state) => _ring(
+          style: style,
+          state: state,
+          defaults: const {StratumFocusBorder: _redStyle},
+        ),
+      );
+    });
 
     testWidgets(
-      'us04/fr03/e13: an app-wide default restyles only the shown looks of '
-      'every ring; every nothing look still shows no ring',
-      (tester) async {
-        await _expectShownLooksOnly(
-          tester,
-          (style, state) => _ring(
-            style: style,
-            state: state,
-            defaults: const {StratumFocusBorder: _redStyle},
-          ),
-        );
-      },
-    );
-
-    testWidgets(
-      'us04/fr03/e14: an app-wide default restyles width, but insideEdge '
+      'fo06/us04/fr03/e14: an app-wide default restyles width, but insideEdge '
       'still places the ring on the inner edge',
       (tester) async {
         await tester.pumpWidget(
@@ -385,7 +382,7 @@ void main() {
     );
 
     testWidgets(
-      'us04/fr03/e14: a customStyle restyles color and width, but the '
+      'fo06/us04/fr03/e14: a customStyle restyles color and width, but the '
       'outside ring still computes its placement after the gap',
       (tester) async {
         await tester.pumpWidget(
@@ -401,7 +398,7 @@ void main() {
     );
 
     testWidgets(
-      "us04/fr03/e14: the ring's own customColor, width, and gap win over "
+      "fo06/us04/fr03/e14: the ring's own customColor, width, and gap win over "
       'either style layer',
       (tester) async {
         const blue = Color(0xFF0000FF);
@@ -425,7 +422,7 @@ void main() {
     );
 
     testWidgets(
-      'us04/fr03/e14: a layer border with no top side keeps the default '
+      'fo06/us04/fr03/e14: a layer border with no top side keeps the default '
       'color and width, not a black hairline',
       (tester) async {
         await tester.pumpWidget(
@@ -448,7 +445,7 @@ void main() {
     );
 
     testWidgets(
-      'us04/fr03/e14: a layer border side with color and width paints '
+      'fo06/us04/fr03/e14: a layer border side with color and width paints '
       'exactly that color and width',
       (tester) async {
         const green = Color(0xFF00FF00);
@@ -475,39 +472,45 @@ void main() {
   });
 
   group('StratumFocusBorder motion', () {
-    testWidgets("us04/fr03: the ring fades over the theme's fast level on its "
-        'standard curve', (tester) async {
-      final theme = motionTheme(
-        fast: const Duration(milliseconds: 100),
-        standard: const StratumNamedCurve('easeIn'),
-      );
-      await tester.pumpWidget(_ring(theme: theme));
-      await tester.pumpWidget(
-        _ring(state: FullWidgetState.focused, theme: theme),
-      );
+    testWidgets(
+      "fo06/us04/fr03: the ring fades over the theme's fast level on its "
+      'standard curve',
+      (tester) async {
+        final theme = motionTheme(
+          fast: const Duration(milliseconds: 100),
+          standard: const StratumNamedCurve('easeIn'),
+        );
+        await tester.pumpWidget(_ring(theme: theme));
+        await tester.pumpWidget(
+          _ring(state: FullWidgetState.focused, theme: theme),
+        );
 
-      final builder = tester.widget<TweenAnimationBuilder<WidgetStyle>>(
-        find.byType(TweenAnimationBuilder<WidgetStyle>),
-      );
-      expect(builder.duration, const Duration(milliseconds: 100));
-      expect(builder.curve, Curves.easeIn);
-      expect(_painted(tester).color.a, 0);
+        final builder = tester.widget<TweenAnimationBuilder<WidgetStyle>>(
+          find.byType(TweenAnimationBuilder<WidgetStyle>),
+        );
+        expect(builder.duration, const Duration(milliseconds: 100));
+        expect(builder.curve, Curves.easeIn);
+        expect(_painted(tester).color.a, 0);
 
-      await tester.pump(const Duration(milliseconds: 50));
-      final half = _painted(tester).color.a;
-      expect(half, greaterThan(0));
-      expect(half, lessThan(1));
+        await tester.pump(const Duration(milliseconds: 50));
+        final half = _painted(tester).color.a;
+        expect(half, greaterThan(0));
+        expect(half, lessThan(1));
 
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(_painted(tester).color, isSameColorAs(_colors.border.subtle.blue));
-    });
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(
+          _painted(tester).color,
+          isSameColorAs(_colors.border.subtle.blue),
+        );
+      },
+    );
 
     for (final (name, fromMediaQuery) in [
       ('MediaQuery.disableAnimations', true),
       ('the platform reduceMotion flag', false),
     ]) {
       testWidgets(
-        'us04/fr03/e06: under $name the ring takes its new look at once',
+        'fo06/us04/fr03/e06: under $name the ring takes its new look at once',
         (tester) async {
           if (!fromMediaQuery) {
             tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -535,7 +538,7 @@ void main() {
     }
 
     testWidgets(
-      'us04/fr03: a state flip before the fade settles continues smoothly '
+      'fo06/us04/fr03: a state flip before the fade settles continues smoothly '
       'from the live value, not a restart',
       (tester) async {
         await tester.pumpWidget(_ring());
@@ -556,7 +559,7 @@ void main() {
 
   group('StratumFocusBorder layout', () {
     testWidgets(
-      'us04/fr03/e09: no style, state, placement, or width changes the '
+      'fo06/us04/fr03/e09: no style, state, placement, or width changes the '
       "child's layout size, position, or State",
       (tester) async {
         await tester.pumpWidget(_ring());

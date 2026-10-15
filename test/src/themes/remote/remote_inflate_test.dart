@@ -297,7 +297,7 @@ void main() {
     }
   }
 
-  group('us01/fr02/e10, rz11: well-formed streams inflate', () {
+  group('fo04/us01/fr02/e10, rz11: well-formed streams inflate', () {
     for (final (label, data) in [
       ('nothing', Uint8List(0)),
       ('one byte', Uint8List.fromList([7])),
@@ -329,7 +329,7 @@ void main() {
     });
   });
 
-  group('us01/fr02/e10, rz11 (m3-t7 security W1 to W6, P2 v10, v11, v14): '
+  group('fo04/us01/fr02/e10, rz11 (m3-t7 security W1 to W6, P2 v10, v11, v14): '
       'malformed streams are refused', () {
     final b3 = _Bits()
       ..stored(small, last: false)
@@ -511,7 +511,7 @@ void main() {
     }
   });
 
-  group('us01/fr02/e07, rz11: the output limit and its buffer', () {
+  group('fo04/us01/fr02/e07, rz11: the output limit and its buffer', () {
     final stored = (_Bits()..stored(Uint8List(100), last: true)).done();
 
     test('an output of exactly the limit inflates, and one byte past it '
@@ -640,7 +640,7 @@ void main() {
     }, testOn: 'vm');
   });
 
-  group('us01/fr02/e10, rz13: one budget per zip, 16 Huffman blocks plus '
+  group('fo04/us01/fr02/e10, rz13: one budget per zip, 16 Huffman blocks plus '
       'one per deflate entry plus one per 512 output bytes', () {
     Uint8List emptyFixed(int count, {List<int> before = const []}) {
       final bits = _Bits();

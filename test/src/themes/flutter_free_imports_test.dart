@@ -90,13 +90,13 @@ void main() {
     expect(_refused('bin/stratum_theme.dart', refuseIo: false), isEmpty);
   });
 
-  test('us10/fr01/e04, s03/inv33: tool/gen_theme_tokens.dart reaches no '
+  test('fo03/us10/fr01/e04, s03/inv33: tool/gen_theme_tokens.dart reaches no '
       'Flutter, dart:ui, or src.dart barrel, so dart run regenerates the '
       'tokens', () {
     expect(_refused('tool/gen_theme_tokens.dart', refuseIo: false), isEmpty);
   });
 
-  test('minor5, us01/fr02/e04, s03/inv13: no file under '
+  test('minor5, fo03/us01/fr02/e04, s03/inv13: no file under '
       'lib/src/themes/remote/ imports dart:io, in either quote style', () {
     final files = Directory('lib/src/themes/remote')
         .listSync(recursive: true)
