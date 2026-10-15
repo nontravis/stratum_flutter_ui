@@ -50,6 +50,26 @@ void main() {
     expect(platform().loads, isEmpty);
   });
 
+  test('co01_02/us01/fr01/e01: loadUrl re-checks the scheme a subclassed '
+      'url source returns on a later read', () async {
+    final hostile = _HostileUrlSource(
+      Uri.parse('https://safe.example'),
+      Uri.parse('javascript:alert(1)'),
+    );
+
+    // `StratumWebView._load` destructures `url` exactly once through its
+    // pattern match, so this is the only read the widget ever makes; a
+    // safe first read still loads normally.
+    await controller.loadUrl(hostile.url);
+    expect(platform().loads, [StratumWebViewSource.url(hostile._first)]);
+
+    // Nothing in the controller trusts a source object's type: loadUrl
+    // re-checks the scheme of whatever Uri it is given, so the malicious
+    // scheme a later read of the same subclass returns is refused too
+    // (F2's residual risk gains no bypass of the gate).
+    await expectLater(controller.loadUrl(hostile.url), throwsArgumentError);
+  });
+
   test('navigation methods forward to the platform', () async {
     platform()
       ..canGoBackValue = true
@@ -214,6 +234,36 @@ void main() {
       expect(platforms.first.documentReplies, isEmpty);
       expect(platforms.last.sentMessages, isEmpty);
       expect(platforms.last.documentReplies, isEmpty);
+    });
+
+    test('co01_02/us03/fr05/e01: reply(delivered.copyWith()) finds no '
+        'sender and fails closed', () async {
+      controller.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          onMessage: (_) {},
+        ),
+      );
+      final message = StratumWebViewMessage(data: 'ready', origin: appOrigin);
+      platform().listener.onMessage(message, PlatformUrlPageSender(appOrigin));
+
+      // copyWith builds a new _StratumWebViewMessage, value-equal to the
+      // delivered message but with no Expando entry (P3): this guards
+      // against a future freezed version ever returning `this` unchanged.
+      await expectLater(
+        controller.reply(message.copyWith(), 'x'),
+        throwsA(
+          isA<ArgumentError>()
+              .having(
+                (e) => e.message,
+                'message',
+                'The message was not delivered by this controller.',
+              )
+              .having((e) => e.name, 'name', 'message'),
+        ),
+      );
+      expect(platform().sentMessages, isEmpty);
+      expect(platform().documentReplies, isEmpty);
     });
 
     test('co01_02/us03/fr05/e02: reply checks dispose first, then the message, then '
@@ -721,4 +771,18 @@ void main() {
       expect(started, isEmpty);
     });
   });
+}
+
+/// A `StratumWebViewUrlSource` subclass that returns [_first] on the first
+/// read of [url] and [_second] on every later read, to prove loadUrl trusts
+/// no source's url getter past a single read (F2, F3).
+class _HostileUrlSource extends StratumWebViewUrlSource {
+  _HostileUrlSource(this._first, this._second) : super(_first);
+
+  final Uri _first;
+  final Uri _second;
+  var _reads = 0;
+
+  @override
+  Uri get url => _reads++ == 0 ? _first : _second;
 }
