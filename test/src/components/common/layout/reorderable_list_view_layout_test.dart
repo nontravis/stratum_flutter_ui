@@ -11943,11 +11943,10 @@ void main() {
         await tester.pumpWidget(
           _app(
             StratumComponentDefaults(
-              styles: const {
-                StratumFocusBorder: WidgetStyle(
-                  border: Border.fromBorderSide(
-                    BorderSide(color: Color(0xFF2563EB), width: 3),
-                  ),
+              styles: const {},
+              parts: const {
+                StratumFocusBorder: StratumFocusBorderStyle(
+                  color: WidgetStatePropertyAll(Color(0xFF2563EB)),
                 ),
               },
               child: Column(

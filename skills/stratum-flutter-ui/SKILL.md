@@ -317,17 +317,28 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 ## Focus ring
 
 - **`StratumFocusBorder`** — the Figma `FocusBorder` ring around one `child`. `StratumInkWell`, and so every
-  `interaction`, and every focusable scroll view already draw it; wrap a widget yourself only when it takes focus or
-  hover without them. Key parameters: `style` (`StratumFocusBorderPlacement.outside`, the default, for every interaction
-  the user does not type into; `.inside` for form fields), `state` (`FullWidgetState.focused`, `.hovered`, or
+  `interaction`, every focusable scroll view, and every `SplitLayout` divider already draw it; wrap a widget yourself
+  only when it takes focus or hover without them. Parameters: `state` (`FullWidgetState.focused`, `.hovered`, or
   `.normal`, resolved from focus and hover alone: a field in error that holds focus still passes `focused`, and any
   other value shows no ring), `borderRadius` (the child's own radius), `insideEdge` (an outside ring on the child's
-  inner edge, for a box whose ring around it would leave the window), and per-ring `customColor`, `width`, and `gap`.
-  Look: outside, 3 px in `border.subtle.blue` after a 2 px gap, only when focused; inside, `border.default.normal`
-  on the inner edge, 3 px when hovered and 2 px when focused. It fades over the theme's `fast` level, shows at once
-  under reduced motion, and never changes the child's layout size. Its colors stay below 3:1 by design in the light
-  and dark themes (WCAG 1.4.11), and both high-contrast themes give the outside ring 3:1 or more; pass `customColor`
-  where an app needs that ratio in light or dark.
+  inner edge, for a box whose ring around it would leave the window), and `customStyle`, a
+  `StratumFocusBorderStyle`. Every look value comes from that focus style, field by field over four levels, low to
+  high: the theme's `focus` group; `componentPartDefaults: (theme) => {StratumFocusBorder:
+  StratumFocusBorderStyle(...)}` for every ring; the host type's style (`StratumInkWellStyle`, `ScrollFocusStyle`,
+  `SplitLayoutStyle`) and its `focus` field; and one instance. The style's fields: `color`, `width`, `gap`,
+  `radius`, `placement` (`StratumFocusBorderPlacement.outside`, the default, for every interaction the user does
+  not type into; `.inside` for form fields), `motion` (an `AnimationStyle`), `secondRing` (`(color: c, width:
+  null)`, a two-tone ring touching the first on the side away from the child's edge, outward for an outside ring and
+  inward for an inside or `insideEdge` one, at the first ring's width unless set), and `glow` (a
+  `List<BoxShadow>`). Every field but `placement` takes `WidgetStateProperty.all(v)` or
+  `WidgetStateProperty.fromMap({WidgetState.hovered: a, WidgetState.focused: b})`. A width of 0 or a fully
+  transparent color fails a debug assert, and no field draws a dashed ring. The every-ring style lives only in
+  `componentPartDefaults`: a `componentDefaults` entry under `StratumFocusBorder` fails a debug assert. Default look: outside, 3 px in
+  `border.subtle.blue` after a 2 px gap, only when focused; inside, `border.default.normal` on the inner edge, 3 px
+  when hovered and 2 px when focused. It fades over the style's motion, shows at once under reduced motion, second
+  ring and glow included, and never changes the child's layout size. Its default colors stay below 3:1 in the light
+  and dark themes (WCAG 1.4.11), and both high-contrast themes give the outside ring 3:1 or more; set a focus style
+  color, from the theme's `focus` group up to one ring, where an app needs that ratio in light or dark.
 - **`StratumInkWell`** — the tap surface every `interaction` builds on. Its own hover and press overlay fades over
   the theme's `fast` level and snaps straight to its target color under reduced motion, same as the ring above it.
   `tapTargetSize` (default `TapTargetSize.platform`) grows its layout and hit area to the platform minimum

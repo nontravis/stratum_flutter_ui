@@ -2379,18 +2379,17 @@ void main() {
     ) async {
       _useTraditionalHighlight();
       // Default 2 px gap + a 5 px restyled width = reach 7: a 7 px margin
-      // holds it, a 6 px margin does not. The layer sets both color and
-      // width, since a layer border side sets the two together.
+      // holds it, a 6 px margin does not.
       const layerColor = Color(0xFF00FF00);
       for (final (margin, inside) in [(7.0, false), (6.0, true)]) {
         await tester.pumpWidget(
           themedHost(
             StratumComponentDefaults(
-              styles: const {
-                StratumFocusBorder: WidgetStyle(
-                  border: Border.fromBorderSide(
-                    BorderSide(color: layerColor, width: 5),
-                  ),
+              styles: const {},
+              parts: const {
+                StratumFocusBorder: StratumFocusBorderStyle(
+                  color: WidgetStatePropertyAll(layerColor),
+                  width: WidgetStatePropertyAll(5),
                 ),
               },
               child: SizedBox(
@@ -2424,11 +2423,12 @@ void main() {
         _useTraditionalHighlight();
         Widget host(double? width) => themedHost(
           StratumComponentDefaults(
-            styles: width == null
+            styles: const {},
+            parts: width == null
                 ? const {}
                 : {
-                    StratumFocusBorder: WidgetStyle(
-                      border: Border.fromBorderSide(BorderSide(width: width)),
+                    StratumFocusBorder: StratumFocusBorderStyle(
+                      width: WidgetStatePropertyAll(width),
                     ),
                   },
             child: const SizedBox(

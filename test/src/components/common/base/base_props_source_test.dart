@@ -41,4 +41,12 @@ void main() {
       expect(source, isNot(contains(prop)), reason: prop);
     }
   });
+
+  test('(j), base s03 invariant 21: the ring reads no styles-map entry', () {
+    final source = File('lib/src/components/common/utility/focus_border.dart')
+        .readAsStringSync();
+    expect(source, isNot(contains('styleOf(')));
+    expect(source, isNot(contains('resolveStyle(')));
+    expect(source, contains('debugCheckNoComponentStyle('));
+  });
 }

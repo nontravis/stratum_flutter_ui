@@ -52,10 +52,11 @@ Widget _split({
   Axis axis = Axis.horizontal,
   StratumThemeData? theme,
   bool highContrast = false,
-  Map<Type, WidgetStyle> componentStyles = const {},
+  Map<Type, Object> componentParts = const {},
 }) => (highContrast ? _highContrastHost : themedHost)(
   StratumComponentDefaults(
-    styles: componentStyles,
+    styles: const {},
+    parts: componentParts,
     child: Shortcuts(
       shortcuts: WidgetsApp.defaultShortcuts,
       child: Actions(
@@ -1257,9 +1258,9 @@ void main() {
         const red = Color(0xFFFF0000);
         await tester.pumpWidget(
           _split(
-            componentStyles: const {
-              StratumFocusBorder: WidgetStyle(
-                border: Border.fromBorderSide(BorderSide(color: red, width: 3)),
+            componentParts: const {
+              StratumFocusBorder: StratumFocusBorderStyle(
+                color: WidgetStatePropertyAll(red),
               ),
             },
           ),
