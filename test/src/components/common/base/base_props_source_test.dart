@@ -50,6 +50,14 @@ void main() {
     expect(source, contains('debugCheckNoComponentStyle('));
   });
 
+  test('(j), caret s03 invariant 14: the caret reads no styles-map entry', () {
+    final source = File('lib/src/components/common/utility/caret.dart')
+        .readAsStringSync();
+    expect(source, isNot(contains('resolveStyle(')));
+    expect(source, isNot(contains('styleOf(')));
+    expect(source, contains('debugCheckNoComponentStyle('));
+  });
+
   test('R1, (g): NestedScrollViewLayout takes no scrollFocusStyle, since its '
       'box is never focusable and shows no ring', () {
     expect(

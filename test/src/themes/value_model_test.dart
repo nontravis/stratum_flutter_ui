@@ -68,6 +68,8 @@ const _valueModelFiles = [
   'lib/src/components/common/model/scroll_focus/scroll_focus_style.dart',
   // M4-T12: the split layout's own style of FO-06.
   'lib/src/components/common/model/split_layout/split_layout_style.dart',
+  // M5-T14: the caret's own box style.
+  'lib/src/components/common/model/caret/stratum_caret_style.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside

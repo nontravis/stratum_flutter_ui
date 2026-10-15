@@ -391,7 +391,12 @@ beside `style`, which draws the box.
   `direction` to turn it: it turns the short way over the theme's `fast` level, a half turn back the way the last
   half turn came, and shows the new direction at once under reduced motion or when the text direction flips. It
   adds nothing to the semantics tree: announce expanded or collapsed on the component that holds it. It takes no
-  `state`, `feedbackState`, `loading`, or `windowSize`; `customStyle` styles the box, never the glyph.
+  `state`, `feedbackState`, `loading`, or `windowSize`; `customStyle` takes a `StratumCaretStyle`, the 16
+  `WidgetStyle` fields its childless box shows (no `padding`, `alignment`, `clipBehavior`, `foregroundBlur`, or min
+  and max sizes), and styles the box, never the glyph: a `width` or `height` grows the box past its side, the glyph
+  keeps its size and sits centered, and the box never shrinks below the glyph. `componentPartDefaults: (theme) =>
+  {StratumCaret: StratumCaretStyle(...)}` restyles every caret's box; a `componentDefaults` entry under
+  `StratumCaret` fails a debug assert.
 - **Named colors** — a component of your own on `StratumStatelessWidget` or `StratumStatefulWidget` maps its `color`
   prop with `resolveColor(context, (colors) => colors.icon.color, fallback)`: the token of that name in the group
   you pick (`background.color`, `border.color`, `icon.color`, or `text.color`), else `fallback` when `color` is null

@@ -7,6 +7,10 @@ import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
 
+// NFR-U02, NFR-U05, and NFR-U09 n/a: a decorator whose state the owning
+// component supplies (CO-01-03 US-01 gate block).
+// NFR-U04 n/a: no text; the caret's size comes from size or customSize.
+
 /// The one widget that paints a caret glyph; foreground, so a
 /// `customStyle` background never hides it.
 final Finder _glyph = find.byWidgetPredicate(
@@ -552,7 +556,9 @@ void main() {
 
       await tester.pumpWidget(
         themedHost(
-          const StratumCaret(customStyle: WidgetStyle(backgroundColor: fill)),
+          const StratumCaret(
+            customStyle: StratumCaretStyle(backgroundColor: fill),
+          ),
         ),
       );
 
@@ -561,31 +567,12 @@ void main() {
       expect(_look(tester), look);
     });
 
-    testWidgets('inv. 14: customStyle padding never shrinks the glyph', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const StratumCaret(
-            customStyle: WidgetStyle(padding: EdgeInsets.all(2)),
-          ),
-        ),
-      );
-
-      expect(tester.getSize(_glyph), const Size(16, 16));
-      final (:path, paint: _) = _drawn();
-      expect(
-        path.getBounds(),
-        rectMoreOrLessEquals(const Rect.fromLTRB(-5, -2.5, 5, 2.5)),
-      );
-    });
-
     testWidgets('a customStyle margin leaves the glyph centered in the box '
         'inside the margin at full size', (tester) async {
       await tester.pumpWidget(
         themedHost(
           const StratumCaret(
-            customStyle: WidgetStyle(margin: EdgeInsets.all(4)),
+            customStyle: StratumCaretStyle(margin: EdgeInsets.all(4)),
           ),
         ),
       );
@@ -597,6 +584,99 @@ void main() {
       expect(
         path.getBounds(),
         rectMoreOrLessEquals(const Rect.fromLTRB(-5, -2.5, 5, 2.5)),
+      );
+    });
+
+    for (final (name, style, size, center)
+        in <(String, StratumCaretStyle, Size, Offset)>[
+          (
+            'a width',
+            const StratumCaretStyle(width: 40),
+            const Size(40, 16),
+            const Offset(20, 8),
+          ),
+          (
+            'a height',
+            const StratumCaretStyle(height: 30),
+            const Size(16, 30),
+            const Offset(8, 15),
+          ),
+          (
+            'a width and a margin',
+            const StratumCaretStyle(width: 40, margin: EdgeInsets.all(4)),
+            const Size(48, 24),
+            const Offset(24, 12),
+          ),
+          (
+            'a width below the side',
+            const StratumCaretStyle(width: 8),
+            const Size(16, 16),
+            const Offset(8, 8),
+          ),
+        ]) {
+      testWidgets('co01_03/us01/fr04/e06, R7(3): $name grows the box past '
+          'side x side, never below it, and the glyph keeps its size, '
+          'centered', (tester) async {
+        await tester.pumpWidget(themedHost(StratumCaret(customStyle: style)));
+
+        expect(tester.getSize(find.byType(StratumCaret)), size);
+        expect(_glyph, paints..translate(x: center.dx, y: center.dy));
+        final (:path, paint: _) = _drawn();
+        expect(
+          path.getBounds(),
+          rectMoreOrLessEquals(const Rect.fromLTRB(-5, -2.5, 5, 2.5)),
+        );
+      });
+    }
+
+    testWidgets('fo03/us06/fr01, caret s03 invariant 14: an app-wide box style '
+        'under StratumCaret restyles every caret, and the instance style wins '
+        'field by field', (tester) async {
+      const fill = Color(0xFFEEEEEE);
+      const ink = Color(0xFF111111);
+      Widget host(StratumCaretStyle? own) => themedHost(
+        StratumComponentDefaults(
+          styles: const {},
+          parts: const {
+            StratumCaret: StratumCaretStyle(backgroundColor: fill, width: 30),
+          },
+          child: StratumCaret(customStyle: own),
+        ),
+      );
+
+      await tester.pumpWidget(host(null));
+      expect(_box(tester).backgroundColor, fill);
+      expect(tester.getSize(find.byType(StratumCaret)), const Size(30, 16));
+
+      await tester.pumpWidget(
+        host(const StratumCaretStyle(backgroundColor: ink)),
+      );
+      expect(_box(tester).backgroundColor, ink);
+      expect(tester.getSize(find.byType(StratumCaret)), const Size(30, 16));
+    });
+
+    testWidgets('fo03/us06/fr01/e05, (j): a WidgetStyle under StratumCaret in '
+        'the styles map fails a debug assert naming componentPartDefaults and '
+        'StratumCaretStyle', (tester) async {
+      await tester.pumpWidget(
+        themedHost(
+          const StratumComponentDefaults(
+            styles: {StratumCaret: WidgetStyle(padding: EdgeInsets.all(4))},
+            child: StratumCaret(),
+          ),
+        ),
+      );
+
+      expect(
+        tester.takeException(),
+        isA<FlutterError>().having(
+          (error) => error.message,
+          'message',
+          allOf(
+            contains('componentPartDefaults'),
+            contains('StratumCaretStyle'),
+          ),
+        ),
       );
     });
   });
@@ -657,8 +737,8 @@ void main() {
   });
 
   testWidgets(
-    'co01_03/us02/fr05/e01, co01_03/us02/s7: the caret adds nothing to its '
-    "owner's semantics",
+    'NFR-U06, co01_03/us02/fr05/e01, co01_03/us02/s7: the caret adds nothing '
+    "to its owner's semantics",
     (tester) async {
       final semantics = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -851,7 +931,7 @@ void main() {
         false,
       ),
     ]) {
-      testWidgets('$name: the new direction shows in the next frame', (
+      testWidgets('NFR-U03, $name: the new direction shows in the next frame', (
         tester,
       ) async {
         if (!viaMediaQuery) {
@@ -1094,5 +1174,260 @@ void main() {
         moreOrLessEquals(math.pi * Curves.easeInOutSine.transform(0.5)),
       );
     });
+  });
+
+  group('StratumCaret accessibility gate', () {
+    /// The contrast ratio of [foreground] laid over [background].
+    double ratio(Color foreground, Color background) {
+      final front = Color.alphaBlend(foreground, background).computeLuminance();
+      final back = background.computeLuminance();
+      final (light, dark) = front > back ? (front, back) : (back, front);
+      return (light + 0.05) / (dark + 0.05);
+    }
+
+    testWidgets('NFR-U01: the caret paints no text, so text contrast passes', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(_defaultThemeHost(const StratumCaret()));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      semantics.dispose();
+    });
+
+    test('NFR-U07: the glyph color holds 3:1 or more against the page '
+        'background in the bundled light and dark themes', () {
+      for (final theme in [defaultThemeSet.light, defaultThemeSet.dark!]) {
+        expect(
+          ratio(
+            theme.color.icon.defaults.primary,
+            theme.color.background.defaults.normal,
+          ),
+          greaterThanOrEqualTo(3),
+          reason: '${theme.themeMode}',
+        );
+      }
+    });
+
+    testWidgets('NFR-U08: the direction shows as the glyph angle under high '
+        'contrast, never as a color', (tester) async {
+      Future<(double, Color)> painted(StratumCaretDirection direction) async {
+        await tester.pumpWidget(
+          StratumThemeApplication(
+            themes: defaultThemeSet,
+            themeMode: ThemeMode.light,
+            highContrast: StratumHighContrastMode.on,
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: Center(
+                child: StratumCaret(
+                  key: ValueKey(direction),
+                  direction: direction,
+                ),
+              ),
+            ),
+          ),
+        );
+        return (_angle(tester), _painter(tester).color);
+      }
+
+      final (down, downColor) = await painted(StratumCaretDirection.down);
+      final (up, upColor) = await painted(StratumCaretDirection.up);
+      expect(up, isNot(moreOrLessEquals(down)));
+      expect(upColor, isSameColorAs(downColor));
+    });
+
+    testWidgets('NFR-E01: the glyph color follows the theme with no '
+        'customStyle', (tester) async {
+      await tester.pumpWidget(_defaultThemeHost(const StratumCaret()));
+      final light = _painter(tester).color;
+      await tester.pumpWidget(
+        _defaultThemeHost(const StratumCaret(), mode: ThemeMode.dark),
+      );
+      expect(_painter(tester).color, isNot(isSameColorAs(light)));
+    });
+
+    // NFR-E02: one test per field of StratumCaretStyle, the caret's own
+    // customStyle type: the field reaches the box, and the glyph keeps its
+    // look.
+    const fill = Color(0xFFEEEEEE);
+    const gradient = LinearGradient(colors: [fill, Color(0xFFDDDDDD)]);
+    final image = DecorationImage(
+      image: MemoryImage(
+        Uint8List.fromList(const [
+          0x89,
+          0x50,
+          0x4E,
+          0x47,
+          0x0D,
+          0x0A,
+          0x1A,
+          0x0A,
+          0x00,
+          0x00,
+          0x00,
+          0x0D,
+          0x49,
+          0x48,
+          0x44,
+          0x52,
+          0x00,
+          0x00,
+          0x00,
+          0x01,
+          0x00,
+          0x00,
+          0x00,
+          0x01,
+          0x08,
+          0x06,
+          0x00,
+          0x00,
+          0x00,
+          0x1F,
+          0x15,
+          0xC4,
+          0x89,
+          0x00,
+          0x00,
+          0x00,
+          0x0A,
+          0x49,
+          0x44,
+          0x41,
+          0x54,
+          0x78,
+          0x9C,
+          0x63,
+          0x00,
+          0x01,
+          0x00,
+          0x00,
+          0x05,
+          0x00,
+          0x01,
+          0x0D,
+          0x0A,
+          0x2D,
+          0xB4,
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x49,
+          0x45,
+          0x4E,
+          0x44,
+          0xAE,
+          0x42,
+          0x60,
+          0x82,
+        ]),
+      ),
+    );
+    final cases =
+        <(String, StratumCaretStyle, Object? Function(WidgetStyle box))>[
+          (
+            'opacity',
+            const StratumCaretStyle(opacity: 0.5),
+            (box) => box.opacity,
+          ),
+          (
+            'border',
+            StratumCaretStyle(border: Border.all(color: fill)),
+            (box) => box.border,
+          ),
+          (
+            'borderRadius',
+            const StratumCaretStyle(
+              borderRadius: BorderRadius.all(Radius.circular(4)),
+            ),
+            (box) => box.borderRadius,
+          ),
+          (
+            'backgroundColor',
+            const StratumCaretStyle(backgroundColor: fill),
+            (box) => box.backgroundColor,
+          ),
+          (
+            'backgroundGradient',
+            const StratumCaretStyle(backgroundGradient: gradient),
+            (box) => box.backgroundGradient,
+          ),
+          (
+            'backgroundImage',
+            StratumCaretStyle(backgroundImage: image),
+            (box) => box.backgroundImage,
+          ),
+          (
+            'backgroundBlur',
+            const StratumCaretStyle(
+              backgroundBlur: ImageBlurFilter(sigmaX: 2, sigmaY: 2),
+            ),
+            (box) => box.backgroundBlur,
+          ),
+          (
+            'foregroundColor',
+            const StratumCaretStyle(foregroundColor: fill),
+            (box) => box.foregroundColor,
+          ),
+          (
+            'foregroundGradient',
+            const StratumCaretStyle(foregroundGradient: gradient),
+            (box) => box.foregroundGradient,
+          ),
+          (
+            'foregroundImage',
+            StratumCaretStyle(foregroundImage: image),
+            (box) => box.foregroundImage,
+          ),
+          (
+            'innerShadow',
+            const StratumCaretStyle(innerShadow: [BoxShadow(blurRadius: 2)]),
+            (box) => box.innerShadow,
+          ),
+          (
+            'dropShadow',
+            const StratumCaretStyle(dropShadow: [BoxShadow(blurRadius: 2)]),
+            (box) => box.dropShadow,
+          ),
+          (
+            'animationStyle',
+            const StratumCaretStyle(animationStyle: AnimationStyle.noAnimation),
+            (box) => box.animationStyle,
+          ),
+        ];
+    for (final (field, style, read) in cases) {
+      testWidgets('NFR-E02: $field reaches the box, and the glyph keeps its '
+          'look', (tester) async {
+        await tester.pumpWidget(themedHost(const StratumCaret()));
+        final look = _look(tester);
+
+        await tester.pumpWidget(themedHost(StratumCaret(customStyle: style)));
+
+        expect(read(_box(tester)), read(style.toWidgetStyle()));
+        expect(_look(tester), look);
+      });
+    }
+
+    for (final (field, style, size) in <(String, StratumCaretStyle, Size)>[
+      ('width', const StratumCaretStyle(width: 40), const Size(40, 16)),
+      ('height', const StratumCaretStyle(height: 30), const Size(16, 30)),
+      (
+        'margin',
+        const StratumCaretStyle(margin: EdgeInsets.all(4)),
+        const Size(24, 24),
+      ),
+    ]) {
+      testWidgets('NFR-E02: $field grows the box, and the glyph keeps its '
+          'look', (tester) async {
+        await tester.pumpWidget(themedHost(const StratumCaret()));
+        final look = _look(tester);
+
+        await tester.pumpWidget(themedHost(StratumCaret(customStyle: style)));
+
+        expect(tester.getSize(find.byType(StratumCaret)), size);
+        expect(_look(tester), look);
+      });
+    }
   });
 }
