@@ -32,6 +32,9 @@ const _valueModelFiles = [
   'lib/src/themes/font_data.dart',
   'lib/src/components/common/style/text_style_builder.dart',
   'lib/src/animations/theme_transitions.dart',
+  // M2-T11: the shipped models of FO-05 (design 5.2).
+  'lib/src/components/common/model/image_blur_filter.dart',
+  'lib/src/components/common/model/widget_style.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside

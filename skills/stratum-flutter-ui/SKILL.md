@@ -21,7 +21,7 @@ Values: these compare by value, field by field, and derive a variant with `copyW
 `StratumAnimation`, `StratumThemeData`, `StratumAppPalette`, `StratumThemeSet`, `StratumRemoteTheme` (its `bytes` by
 content), `StratumFontData`, `StratumTextStyle` (`copyWith` beside its fluent getters),
 `StratumThemeTransitions`. These carry no `map` or
-`when`; read a sealed one with a Dart `switch`: `StratumAppConfig`.
+`when`; read a sealed one with a Dart `switch`: `StratumAppConfig`, `WidgetStyle`, `ImageBlurFilter`.
 
 ## Install
 
