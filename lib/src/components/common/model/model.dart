@@ -1,3 +1,4 @@
+export 'focus_border/stratum_focus_border_style.dart';
 export 'focus_group.dart';
 export 'image_blur_filter.dart';
 export 'interaction.dart';

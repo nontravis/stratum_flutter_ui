@@ -60,6 +60,8 @@ const _valueModelFiles = [
   'lib/src/components/common/model/toast/stratum_toast_action.dart',
   'lib/src/components/common/model/toast/stratum_toast_notice.dart',
   'lib/src/components/common/model/toast/stratum_toast_placement.dart',
+  // M3-T7: the freezed focus style of FO-06.
+  'lib/src/components/common/model/focus_border/stratum_focus_border_style.dart',
 ];
 
 /// The generated file of [source]: `generated/<name>.freezed.dart` beside

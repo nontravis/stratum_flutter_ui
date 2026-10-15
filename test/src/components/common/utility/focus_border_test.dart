@@ -26,7 +26,7 @@ class _ProbeState extends State<_Probe> {
 }
 
 Widget _ring({
-  StratumFocusBorderStyle style = StratumFocusBorderStyle.outside,
+  StratumFocusBorderPlacement style = StratumFocusBorderPlacement.outside,
   FullWidgetState state = FullWidgetState.normal,
   bool insideEdge = false,
   BorderRadiusGeometry? borderRadius = _radius,
@@ -110,9 +110,10 @@ StratumColorTokens get _colors => fakeTheme.color;
 /// and the inside style's hovered look.
 Future<void> _expectShownLooksOnly(
   WidgetTester tester,
-  Widget Function(StratumFocusBorderStyle style, FullWidgetState state) host,
+  Widget Function(StratumFocusBorderPlacement style, FullWidgetState state)
+  host,
 ) async {
-  for (final style in StratumFocusBorderStyle.values) {
+  for (final style in StratumFocusBorderPlacement.values) {
     for (final state in FullWidgetState.values) {
       await tester.pumpWidget(host(style, state));
       await tester.pumpAndSettle();
@@ -120,14 +121,14 @@ Future<void> _expectShownLooksOnly(
       final shown =
           state == FullWidgetState.focused ||
           (state == FullWidgetState.hovered &&
-              style == StratumFocusBorderStyle.inside);
+              style == StratumFocusBorderPlacement.inside);
       final ring = _painted(tester);
       if (!shown) {
         expect(ring.color.a, 0, reason: why);
         continue;
       }
       expect(ring.color, isSameColorAs(_red), reason: why);
-      if (style == StratumFocusBorderStyle.outside) {
+      if (style == StratumFocusBorderPlacement.outside) {
         // The restyle moves color and width only (R8): the outside ring
         // still sits after the default 2 px gap, at the restyled width.
         expect(ring.inner, _rrect(-2, -2, 42, 22, 12), reason: why);
@@ -192,7 +193,7 @@ void main() {
       'fo06/us04/fr03: an inside ring paints border.default.normal on the inner '
       'edge, 3 px when hovered and 2 px when focused, nothing when normal',
       (tester) async {
-        const inside = StratumFocusBorderStyle.inside;
+        const inside = StratumFocusBorderPlacement.inside;
         await tester.pumpWidget(_ring(style: inside));
         expect(_hidden(tester), isTrue);
 
@@ -225,7 +226,7 @@ void main() {
           FullWidgetState.hovered,
           FullWidgetState.focused,
         };
-        for (final style in StratumFocusBorderStyle.values) {
+        for (final style in StratumFocusBorderPlacement.values) {
           for (final state in FullWidgetState.values) {
             if (shown.contains(state)) continue;
             await tester.pumpWidget(_ring(style: style, state: state));
@@ -246,7 +247,7 @@ void main() {
         ]) {
           await tester.pumpWidget(
             _ring(
-              style: StratumFocusBorderStyle.inside,
+              style: StratumFocusBorderPlacement.inside,
               state: state,
               width: 4,
             ),
@@ -281,7 +282,7 @@ void main() {
 
         await tester.pumpWidget(
           _ring(
-            style: StratumFocusBorderStyle.inside,
+            style: StratumFocusBorderPlacement.inside,
             state: FullWidgetState.hovered,
             customColor: red,
           ),
@@ -566,7 +567,7 @@ void main() {
         final probe = tester.state(find.byType(_Probe));
         final origin = tester.getTopLeft(find.byType(_Probe));
 
-        for (final style in StratumFocusBorderStyle.values) {
+        for (final style in StratumFocusBorderPlacement.values) {
           for (final state in [
             FullWidgetState.normal,
             FullWidgetState.hovered,
@@ -635,7 +636,7 @@ void main() {
 
           await tester.pumpWidget(
             _ring(
-              style: StratumFocusBorderStyle.inside,
+              style: StratumFocusBorderPlacement.inside,
               state: FullWidgetState.focused,
               theme: theme,
             ),

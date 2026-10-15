@@ -814,7 +814,7 @@ void main() {
         final ring = tester.widget<StratumFocusBorder>(
           find.byType(StratumFocusBorder),
         );
-        expect(ring.style, StratumFocusBorderStyle.outside);
+        expect(ring.style, StratumFocusBorderPlacement.outside);
         expect(ring.insideEdge, isFalse);
         expect(ring.borderRadius, radius);
         expect(ring.customColor, isNull);

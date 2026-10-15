@@ -318,7 +318,7 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 
 - **`StratumFocusBorder`** — the Figma `FocusBorder` ring around one `child`. `StratumInkWell`, and so every
   `interaction`, and every focusable scroll view already draw it; wrap a widget yourself only when it takes focus or
-  hover without them. Key parameters: `style` (`StratumFocusBorderStyle.outside`, the default, for every interaction
+  hover without them. Key parameters: `style` (`StratumFocusBorderPlacement.outside`, the default, for every interaction
   the user does not type into; `.inside` for form fields), `state` (`FullWidgetState.focused`, `.hovered`, or
   `.normal`, resolved from focus and hover alone: a field in error that holds focus still passes `focused`, and any
   other value shows no ring), `borderRadius` (the child's own radius), `insideEdge` (an outside ring on the child's

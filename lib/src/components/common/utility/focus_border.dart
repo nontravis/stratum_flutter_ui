@@ -25,19 +25,6 @@ double focusBorderOutsideReach(BuildContext context) {
   return _defaultGap + width;
 }
 
-/// The look of a [StratumFocusBorder], picked by component kind.
-enum StratumFocusBorderStyle {
-  /// For every interaction the user does not type into: `StratumInkWell`,
-  /// `ScrollFocus`, and buttons. A 3 px `border.subtle.blue` ring after a
-  /// 2 px gap outside the child, shown only when focused.
-  outside,
-
-  /// For form components the user types into. A `border.default.normal`
-  /// ring on the child's inner edge, 3 px when hovered and 2 px when
-  /// focused.
-  inside,
-}
-
 /// Provides a **consistent keyboard-focus and hover indicator** that layers
 /// on top of interactive elements, making the active element visually
 /// obvious without modifying the element's own styling.
@@ -85,7 +72,7 @@ enum StratumFocusBorderStyle {
 class StratumFocusBorder extends StratumStatefulWidget {
   const new({
     super.key,
-    this.style = StratumFocusBorderStyle.outside,
+    this.style = StratumFocusBorderPlacement.outside,
     this.customColor,
     required this.child,
     this.insideEdge = false,
@@ -96,10 +83,10 @@ class StratumFocusBorder extends StratumStatefulWidget {
     this.customStyle,
   });
 
-  /// The look, picked by component kind: [StratumFocusBorderStyle.inside]
+  /// The look, picked by component kind: [StratumFocusBorderPlacement.inside]
   /// for form components the user types into, else
-  /// [StratumFocusBorderStyle.outside].
-  final StratumFocusBorderStyle style;
+  /// [StratumFocusBorderPlacement.outside].
+  final StratumFocusBorderPlacement style;
 
   /// Replaces the style's theme color on this ring with any color: the
   /// ring's only color override, so the base `color` never colors it.
@@ -143,7 +130,7 @@ class _StratumFocusBorderState extends State<StratumFocusBorder> {
   WidgetStyle _look(BuildContext context) {
     final widget = this.widget;
     final theme = widget.resolveTheme(context);
-    final outside = widget.style == StratumFocusBorderStyle.outside;
+    final outside = widget.style == StratumFocusBorderPlacement.outside;
     final focused = widget.state == FullWidgetState.focused;
     final hovered = widget.state == FullWidgetState.hovered;
     final shows = focused || (hovered && !outside);
