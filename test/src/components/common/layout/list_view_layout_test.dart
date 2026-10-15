@@ -195,43 +195,45 @@ void main() {
       expect(find.byType(AnimatedStyledBox), findsNothing);
     });
 
-    testWidgets('scrolls style padding with the items and keeps the box', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          _sized(
-            const ListViewLayout.builder(
-              style: WidgetStyle(
-                padding: EdgeInsets.all(16),
-                backgroundColor: Color(0xFFFFFFFF),
+    testWidgets(
+      'fo06/us03/fr01, fo06/us03/s1: scrolls style padding with the items '
+      'and keeps the box',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            _sized(
+              const ListViewLayout.builder(
+                style: WidgetStyle(
+                  padding: EdgeInsets.all(16),
+                  backgroundColor: Color(0xFFFFFFFF),
+                ),
+                itemCount: 50,
+                itemBuilder: _item,
               ),
-              itemCount: 50,
-              itemBuilder: _item,
             ),
           ),
-        ),
-      );
+        );
 
-      final list = tester.widget<ListView>(find.byType(ListView));
-      expect(list.padding, const EdgeInsets.all(16));
-      final box = tester.widget<AnimatedStyledBox>(
-        find.byType(AnimatedStyledBox),
-      );
-      expect(box.style?.padding, isNull);
-      final boxTop = tester.getTopLeft(find.byType(AnimatedStyledBox));
-      final itemTop = tester.getTopLeft(find.byKey(const ValueKey(0)));
-      expect(itemTop.dy - boxTop.dy, 16);
+        final list = tester.widget<ListView>(find.byType(ListView));
+        expect(list.padding, const EdgeInsets.all(16));
+        final box = tester.widget<AnimatedStyledBox>(
+          find.byType(AnimatedStyledBox),
+        );
+        expect(box.style?.padding, isNull);
+        final boxTop = tester.getTopLeft(find.byType(AnimatedStyledBox));
+        final itemTop = tester.getTopLeft(find.byKey(const ValueKey(0)));
+        expect(itemTop.dy - boxTop.dy, 16);
 
-      await tester.drag(find.byType(ListView), const Offset(0, -40));
-      await tester.pump();
+        await tester.drag(find.byType(ListView), const Offset(0, -40));
+        await tester.pump();
 
-      expect(tester.getTopLeft(find.byType(AnimatedStyledBox)), boxTop);
-      expect(
-        tester.getTopLeft(find.byKey(const ValueKey(0))).dy,
-        lessThan(itemTop.dy),
-      );
-    });
+        expect(tester.getTopLeft(find.byType(AnimatedStyledBox)), boxTop);
+        expect(
+          tester.getTopLeft(find.byKey(const ValueKey(0))).dy,
+          lessThan(itemTop.dy),
+        );
+      },
+    );
 
     testWidgets('clips a rounded box with antiAlias', (tester) async {
       await tester.pumpWidget(
@@ -261,25 +263,26 @@ void main() {
       );
     });
 
-    testWidgets('applies the physics parameter on top of the theme', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          _sized(
-            const ListViewLayout.builder(
-              physics: NeverScrollableScrollPhysics(),
-              itemCount: 3,
-              itemBuilder: _item,
+    testWidgets(
+      'fo06/us03/fr02: applies the physics parameter on top of the theme',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            _sized(
+              const ListViewLayout.builder(
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: 3,
+                itemBuilder: _item,
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      final chain = _physicsChain(tester);
-      expect(chain.first, NeverScrollableScrollPhysics);
-      expect(chain, contains(ClampingScrollPhysics));
-    });
+        final chain = _physicsChain(tester);
+        expect(chain.first, NeverScrollableScrollPhysics);
+        expect(chain, contains(ClampingScrollPhysics));
+      },
+    );
 
     testWidgets('reads the theme physics', (tester) async {
       await tester.pumpWidget(

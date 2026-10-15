@@ -631,8 +631,8 @@ void main() {
     }, variant: TargetPlatformVariant.desktop());
 
     testWidgets(
-      'fo06/us07/s1: arrows, Page Down, Home, and End scroll the focused '
-      'viewport',
+      'fo06/us07/fr02, fo06/us07/s1, fo06/us07/s2, fo06/us07/s3: arrows, '
+      'Page Down, Home, and End scroll the focused viewport',
       (tester) async {
         final before = _node();
         await tester.pumpWidget(

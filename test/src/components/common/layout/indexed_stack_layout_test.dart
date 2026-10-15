@@ -39,10 +39,7 @@ FocusNode _node(String label) {
 
 /// A 40 px box that can take focus on [node].
 Widget _focusable(FocusNode node) {
-  return Focus(
-    focusNode: node,
-    child: const SizedBox(width: 40, height: 40),
-  );
+  return Focus(focusNode: node, child: const SizedBox(width: 40, height: 40));
 }
 
 /// The label of the node that holds primary focus.
@@ -78,10 +75,8 @@ Widget _stackOfList(
             controller: controller,
             focusable: focusable,
             itemCount: 100,
-            itemBuilder: (context, i) => Focus(
-              debugLabel: 'row $i',
-              child: const SizedBox(height: 40),
-            ),
+            itemBuilder: (context, i) =>
+                Focus(debugLabel: 'row $i', child: const SizedBox(height: 40)),
           ),
         ],
       ),
@@ -118,7 +113,7 @@ Future<void> _switchIntoList(
 
 void main() {
   group('IndexedStackLayout', () {
-    testWidgets('shows the child at index', (tester) async {
+    testWidgets('fo06/us09/fr01: shows the child at index', (tester) async {
       await tester.pumpWidget(
         _host(
           const IndexedStackLayout(
@@ -226,9 +221,7 @@ void main() {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         _host(
-          const IndexedStackLayout(
-            children: [Text('shown'), Text('hidden')],
-          ),
+          const IndexedStackLayout(children: [Text('shown'), Text('hidden')]),
         ),
       );
 
@@ -238,8 +231,8 @@ void main() {
     });
 
     testWidgets(
-      "focus inside the outgoing child moves to the incoming child's first "
-      'node',
+      'fo06/us09/fr02, fo06/us09/s1: focus inside the outgoing child moves '
+      "to the incoming child's first node",
       (tester) async {
         final outgoing = _node('outgoing');
         final first = _node('incoming first');
@@ -267,17 +260,13 @@ void main() {
       },
     );
 
-    testWidgets(
-      "focus moves to the Tab stop of the incoming child's scrolled "
-      'focusable list, on screen',
-      (tester) async {
-        await _switchIntoList(tester, offset: 400);
+    testWidgets("focus moves to the Tab stop of the incoming child's scrolled "
+        'focusable list, on screen', (tester) async {
+      await _switchIntoList(tester, offset: 400);
 
-        expect(_focused(), 'ScrollFocus');
-        expect(_focusInView(tester), isTrue);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(_focused(), 'ScrollFocus');
+      expect(_focusInView(tester), isTrue);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets(
       'focus moves to the first row of a scrolled list that is not a Tab '
@@ -297,7 +286,9 @@ void main() {
       'the item that last held focus',
       (tester) async {
         final outgoing = _node('outgoing');
-        final items = [for (final label in ['a', 'b', 'c']) _node(label)];
+        final items = [
+          for (final label in ['a', 'b', 'c']) _node(label),
+        ];
         Widget build(int index) => _host(
           IndexedStackLayout(
             index: index,
@@ -406,36 +397,34 @@ void main() {
       expect(_focused(), 'tabs');
     });
 
-    testWidgets(
-      'scroll makes the box a Tab stop whose keys scroll it',
-      (tester) async {
-        final before = _node('before');
-        await tester.pumpWidget(
-          _keyboardHost(
-            const IndexedStackLayout(
-              style: WidgetStyle(width: 200, height: 100),
-              scroll: Scroll(),
-              children: [SizedBox(width: 200, height: 1000)],
-            ),
-            before: before,
+    testWidgets('scroll makes the box a Tab stop whose keys scroll it', (
+      tester,
+    ) async {
+      final before = _node('before');
+      await tester.pumpWidget(
+        _keyboardHost(
+          const IndexedStackLayout(
+            style: WidgetStyle(width: 200, height: 100),
+            scroll: Scroll(),
+            children: [SizedBox(width: 200, height: 1000)],
           ),
-        );
-        before.requestFocus();
-        await tester.pump();
+          before: before,
+        ),
+      );
+      before.requestFocus();
+      await tester.pump();
 
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-        await tester.pump();
-        expect(_focused(), 'ScrollFocus');
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-        await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(_focused(), 'ScrollFocus');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
 
-        final position = tester
-            .state<ScrollableState>(find.byType(Scrollable))
-            .position;
-        expect(position.pixels, 50);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position;
+      expect(position.pixels, 50);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 }
 

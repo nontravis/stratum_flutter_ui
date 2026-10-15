@@ -505,7 +505,7 @@ void main() {
     );
 
     test(
-      'fo06/us06/fr01: equal part styles are equal, so an equal app-wide map '
+      'fo06/us20/fr01: equal part styles are equal, so an equal app-wide map '
       'rebuilds no modal layout',
       () {
         // Built at run time, so no const canonicalization makes them one

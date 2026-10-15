@@ -473,7 +473,8 @@ void main() {
   });
 
   group('BoxLayout scroll', () {
-    testWidgets('scrolls inside the box along scrollDirection', (tester) async {
+    testWidgets('fo06/us02/fr01, fo06/us02/s4: scrolls inside the box along '
+        'scrollDirection', (tester) async {
       await tester.pumpWidget(
         themedHost(
           const _Layout(
@@ -638,32 +639,34 @@ void main() {
       });
     }
 
-    testWidgets('ratio with scroll shapes the frame and scrolls the content', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const SizedBox(
-            width: 320,
-            child: ColumnLayout(
-              ratio: 16 / 9,
-              style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
-              scroll: Scroll(),
-              children: [SizedBox(height: 600)],
+    testWidgets(
+      'fo06/us02/fr03: ratio with scroll shapes the frame and scrolls the '
+      'content',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const SizedBox(
+              width: 320,
+              child: ColumnLayout(
+                ratio: 16 / 9,
+                style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
+                scroll: Scroll(),
+                children: [SizedBox(height: 600)],
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(tester.getSize(find.byType(ColumnLayout)), const Size(320, 180));
-      expect(
-        tester
-            .state<ScrollableState>(find.byType(Scrollable))
-            .position
-            .maxScrollExtent,
-        420,
-      );
-    });
+        expect(tester.getSize(find.byType(ColumnLayout)), const Size(320, 180));
+        expect(
+          tester
+              .state<ScrollableState>(find.byType(Scrollable))
+              .position
+              .maxScrollExtent,
+          420,
+        );
+      },
+    );
 
     // The tap-surface focus rule (us04/fr03): not disabled, canRequestFocus,
     // a focus type other than none, and an activation callback or a
