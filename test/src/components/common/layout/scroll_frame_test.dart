@@ -2451,6 +2451,43 @@ void main() {
       }
     }, variant: TargetPlatformVariant.desktop());
 
+    testWidgets('fo06/us07/fr03/e01: the window check re-runs when the same '
+        "instance's scrollFocusStyle changes while focused", (tester) async {
+      _useTraditionalHighlight();
+      Widget host(double? width) => themedHost(
+        SizedBox(
+          width: 800 - 12,
+          height: 600 - 12,
+          child: ColumnLayout(
+            scroll: Scroll(
+              scrollFocusStyle: width == null
+                  ? null
+                  : ScrollFocusStyle(
+                      focus: StratumFocusBorderStyle(
+                        width: WidgetStatePropertyAll(width),
+                      ),
+                    ),
+            ),
+            children: const [SizedBox(height: 2000)],
+          ),
+        ),
+      );
+
+      // Margin 6: the default reach (gap 2 + width 3 = 5) fits outside.
+      await tester.pumpWidget(host(null));
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isFalse);
+
+      // A width-8 restyle on the same ColumnLayout/ScrollFocus instance
+      // (didUpdateWidget, not StratumComponentDefaults) grows the reach
+      // to 10, past the 6 px margin, while the box still holds focus.
+      await tester.pumpWidget(host(8));
+      await tester.pumpAndSettle();
+
+      expect(_ringInside(tester), isTrue);
+    }, variant: TargetPlatformVariant.desktop());
+
     testWidgets(
       'fo06/us07/fr03/e01: the window check re-runs when an app-wide restyle '
       'changes while focused',

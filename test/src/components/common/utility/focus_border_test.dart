@@ -735,6 +735,33 @@ void main() {
       expect(reach, 7);
     });
 
+    testWidgets('layout s03 invariant 80, R7(6): an inside-placed host '
+        'style reaches the inside focused width, not the outside floor', (
+      tester,
+    ) async {
+      double? reach;
+      await tester.pumpWidget(
+        themedHost(
+          Builder(
+            builder: (context) {
+              reach = focusBorderOutsideReach(
+                context,
+                customStyle: const StratumFocusBorderStyle(
+                  placement: StratumFocusBorderPlacement.inside,
+                ),
+              );
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      // The theme's inside look (focused: 2 px, no gap), not the outside
+      // floor (gap 2 + width 3 = 5) that ignoring the merged placement
+      // would read.
+      expect(reach, 2);
+    });
+
     testWidgets('fo06/us07/fr03/e03: no Stratum theme above, no reach', (
       tester,
     ) async {

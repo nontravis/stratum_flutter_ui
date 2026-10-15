@@ -122,15 +122,20 @@ double focusBorderOutsideReach(
 }) {
   final theme = StratumThemeApplication.maybeOf(context);
   if (theme == null) return 0;
-  final style = focusStyleOver(
-    _themeLevel(theme, StratumFocusBorderPlacement.outside, BorderRadius.zero),
-    focusStyleOver(
-      StratumComponentDefaults.partsOf<StratumFocusBorderStyle>(
-        context,
-        StratumFocusBorder,
-      ),
-      customStyle,
+  final upper = focusStyleOver(
+    StratumComponentDefaults.partsOf<StratumFocusBorderStyle>(
+      context,
+      StratumFocusBorder,
     ),
+    customStyle,
+  );
+  // The merged upper levels' own placement, as `_looks` reads it (layout
+  // s03 invariant 80): an inside-placed host style floors on the theme's
+  // inside look, never the outside one.
+  final placement = upper?.placement ?? StratumFocusBorderPlacement.outside;
+  final style = focusStyleOver(
+    _themeLevel(theme, placement, BorderRadius.zero),
+    upper,
   )!;
   const focused = {WidgetState.focused};
   final width = style.width?.resolve(focused) ?? 0.0;

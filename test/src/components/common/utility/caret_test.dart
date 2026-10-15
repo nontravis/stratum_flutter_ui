@@ -587,6 +587,29 @@ void main() {
       );
     });
 
+    testWidgets('a directional customStyle margin resolves against the '
+        'ambient text direction, an RTL start landing on the right', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        themedHost(
+          const StratumCaret(
+            customStyle: StratumCaretStyle(
+              margin: EdgeInsetsDirectional.only(start: 8),
+            ),
+          ),
+          textDirection: TextDirection.rtl,
+        ),
+      );
+
+      expect(tester.getSize(find.byType(StratumCaret)), const Size(24, 16));
+      expect(tester.getSize(_glyph), const Size(24, 16));
+      // The margin's 8 px sits on the right (RTL start = right), so the
+      // glyph centers in the remaining 16 px on the left, not at the
+      // 24 px box's own center.
+      expect(_glyph, paints..translate(x: 8, y: 8));
+    });
+
     for (final (name, style, size, center)
         in <(String, StratumCaretStyle, Size, Offset)>[
           (
