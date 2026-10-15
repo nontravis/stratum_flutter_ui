@@ -166,26 +166,50 @@ void main() {
       },
     );
 
-    testWidgets('the semantic rect equals the box and excludes the margin', (
+    testWidgets(
+      'fo06/us01/s3, fo06/us01/fr03/e02: the semantic rect equals the box '
+      'and excludes the margin',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              style: WidgetStyle(
+                width: 40,
+                height: 20,
+                margin: EdgeInsets.all(8),
+              ),
+              semantics: SemanticsProperties(label: 'box'),
+            ),
+          ),
+        );
+
+        expect(tester.getSize(find.byType(_Layout)), const Size(56, 36));
+        final node = tester.getSemantics(find.bySemanticsLabel('box'));
+        expect(node.rect.size, const Size(40, 20));
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us01/fr03: the semantic rect rotates with the box', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         themedHost(
           const _Layout(
-            style: WidgetStyle(
-              width: 40,
-              height: 20,
-              margin: EdgeInsets.all(8),
-            ),
+            style: WidgetStyle(width: 40, height: 20),
+            rotate: 90,
             semantics: SemanticsProperties(label: 'box'),
           ),
         ),
       );
 
-      expect(tester.getSize(find.byType(_Layout)), const Size(56, 36));
       final node = tester.getSemantics(find.bySemanticsLabel('box'));
-      expect(node.rect.size, const Size(40, 20));
+      final rotated = MatrixUtils.transformRect(node.transform!, node.rect);
+      // A 90-degree rotation swaps width and height; the ambient view scale
+      // cancels out of the ratio, so this holds whatever that scale is.
+      expect(rotated.width / rotated.height, closeTo(20 / 40, 1e-9));
       handle.dispose();
     });
 

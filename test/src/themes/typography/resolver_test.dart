@@ -786,7 +786,8 @@ typography:
   });
 
   group('TypographyResolver fonts', () {
-    test('the locale tags run from th_TH to th to default', () {
+    test('fo02/us05/s1, fo02/us05/fr01: the locale tags run from th_TH to '
+        'th to default', () {
       expect(
         resolve(StratumTextStyle.header.s24, locale: _thTH).fontFamily,
         'packages/thai_fonts/Inter TH',
@@ -877,7 +878,8 @@ typography:
       expect(warnings, ['Stratum theme: no mono font for body; using Inter']);
     });
 
-    test('the fallback lists the same type from every other tag', () {
+    test('fo02/us05/fr02: the fallback lists the same type from every '
+        'other tag', () {
       expect(resolve(StratumTextStyle.body).fontFamilyFallback, ['Font A']);
       expect(resolve(StratumTextStyle.header.s24).fontFamilyFallback, [
         'packages/thai_fonts/Inter TH',
@@ -1508,7 +1510,7 @@ typography:
       },
     );
 
-    test('fo02/us05/fr02/e05: a weight the yaml does not declare for a Google '
+    test('fo03/us05/fr02/e05: a weight the yaml does not declare for a Google '
         'font is never asked of the library', () {
       theme = defaultThemeSet.light.copyWith();
 
@@ -1592,7 +1594,7 @@ typography:
     default:
       body: brand''');
 
-    test('fo02/us05/s4: two themes that ship the same family name resolve '
+    test('fo03/us05/s4: two themes that ship the same family name resolve '
         'apart', () {
       theme = themed({'brand': brandFont});
       final brand = resolve(StratumTextStyle.body);
@@ -1603,7 +1605,7 @@ typography:
       expect(night.fontFamily, 'night/DB Heavent');
     });
 
-    test('fo02/us05/fr01/e05: a theme that inherits the font draws with its '
+    test('fo03/us05/fr01/e05: a theme that inherits the font draws with its '
         "source's registration", () {
       theme = themed({'default': brandFont, 'brand': layer('name: brand')});
 
@@ -1623,7 +1625,7 @@ typography:
       },
     );
 
-    test('fo02/us05/fr01/e07: a theme font carries the resolved weight', () {
+    test('fo03/us05/fr01/e07: a theme font carries the resolved weight', () {
       theme = themed({'brand': brandFont});
 
       expect(resolve(StratumTextStyle.body).fontWeight, FontWeight.w400);

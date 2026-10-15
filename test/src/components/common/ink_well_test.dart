@@ -1796,36 +1796,35 @@ void main() {
   });
 
   group('StratumInkWell inside a disabled component', () {
-    testWidgets(
-      'fo06/us04/fr02/e10, fo08 fo06/us07/s12: a press already down is '
-      'cancelled when the component turns disabled and runs no tap',
-      (tester) async {
-        var taps = 0;
-        final states = _states({});
-        // One instance across both pumps, so only the disabled scope tells
-        // the surface about the flip.
-        final surface = StratumInkWell(
-          onTap: () => taps++,
-          statesController: states,
-          child: _box,
-        );
-        Widget build({required bool disabled}) =>
-            themedHost(_Component(disabled: disabled, child: surface));
-        await tester.pumpWidget(build(disabled: false));
-        final press = await tester.startGesture(
-          tester.getCenter(find.byType(StratumInkWell)),
-        );
-        await tester.pump(kPressTimeout);
-        expect(states.value, contains(WidgetState.pressed));
+    testWidgets('fo06/us04/fr02/e10, fo08/us07/s12: a press already down is '
+        'cancelled when the component turns disabled and runs no tap', (
+      tester,
+    ) async {
+      var taps = 0;
+      final states = _states({});
+      // One instance across both pumps, so only the disabled scope tells
+      // the surface about the flip.
+      final surface = StratumInkWell(
+        onTap: () => taps++,
+        statesController: states,
+        child: _box,
+      );
+      Widget build({required bool disabled}) =>
+          themedHost(_Component(disabled: disabled, child: surface));
+      await tester.pumpWidget(build(disabled: false));
+      final press = await tester.startGesture(
+        tester.getCenter(find.byType(StratumInkWell)),
+      );
+      await tester.pump(kPressTimeout);
+      expect(states.value, contains(WidgetState.pressed));
 
-        await tester.pumpWidget(build(disabled: true));
-        expect(states.value, isNot(contains(WidgetState.pressed)));
-        await press.up();
-        await tester.pump(kDoubleTapTimeout);
+      await tester.pumpWidget(build(disabled: true));
+      expect(states.value, isNot(contains(WidgetState.pressed)));
+      await press.up();
+      await tester.pump(kDoubleTapTimeout);
 
-        expect(taps, 0);
-      },
-    );
+      expect(taps, 0);
+    });
 
     testWidgets(
       'fo06/us04/fr02/e10: a long press already down never fires once '

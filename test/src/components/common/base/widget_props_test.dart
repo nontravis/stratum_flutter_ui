@@ -175,11 +175,11 @@ void main() {
       expect(size, WidgetSize.small);
     });
 
-    testWidgets('fo08/us01/fr02/e05: the deprecated resolveSize returns what '
+    testWidgets('fo08/us01/fr02: the deprecated resolveSize returns what '
         'resolveDefaultSize returns', (tester) async {
       final size = await _readInBuild(
         tester,
-        // Pins the deprecated alias (FO-08 US-01 FR-02 E05).
+        // Pins the deprecated alias (FO-08 US-01 FR-02).
         // ignore: deprecated_member_use_from_same_package
         const _StatelessProbe().resolveSize,
         wrap: _themed,
@@ -222,7 +222,7 @@ void main() {
 
       final size = await _readInBuild(
         tester,
-        // Pins the deprecated alias (FO-08 US-01 FR-02 E05).
+        // Pins the deprecated alias (FO-08 US-01 FR-02).
         // ignore: deprecated_member_use_from_same_package
         probe.resolveSize,
         wrap: _themed,
