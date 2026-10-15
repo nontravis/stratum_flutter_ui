@@ -851,6 +851,7 @@ void main() {
         'S4',
         'S5',
         'S6-intrinsic',
+        'S7',
       ]);
     });
 

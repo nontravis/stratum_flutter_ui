@@ -28,6 +28,13 @@ abstract interface class PerfKit {
 
   /// A box with [style] around [child].
   Widget container({WidgetStyle? style, Widget? child});
+
+  /// A reorderable list of [itemCount] items [itemBuilder] builds, each
+  /// keyed by the builder, that applies no move.
+  Widget reorderList({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  });
 }
 
 /// The layouts of the code under test.
@@ -68,15 +75,27 @@ class CurrentKit implements PerfKit {
   Widget container({WidgetStyle? style, Widget? child}) {
     return ContainerLayout(style: style, child: child);
   }
+
+  @override
+  Widget reorderList({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  }) {
+    return ReorderableListViewLayout.builder(
+      itemCount: itemCount,
+      onReorderItem: (from, to) {},
+      itemBuilder: itemBuilder,
+    );
+  }
 }
 
 /// The layouts of the frozen baseline (spec section 9.3).
 ///
-/// The focus border's baseline is the commit its branch starts from, which
+/// The baseline is the commit the branch under test starts from, which
 /// each frozen file's header names: a tappable row is a
-/// `BaselineRowLayout` on `BaselineFlexLayout`, whose tap surface is
-/// `BaselineStratumInkWell` with its `BaselineFocusSpread` ring, and the
-/// shared `Interaction`, which the focus border does not change.
+/// `BaselineRowLayout` on `BaselineFlexLayout` with its
+/// `BaselineStratumInkWell` tap surface and the shared `Interaction`, and
+/// the reorder list is a `BaselineReorderableListViewLayout`.
 class BaselineKit implements PerfKit {
   const new();
 
@@ -114,4 +133,13 @@ class BaselineKit implements PerfKit {
   Widget container({WidgetStyle? style, Widget? child}) {
     return BaselineContainerLayout(style: style, child: child);
   }
+
+  @override
+  Widget reorderList({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  }) => throw StateError(
+    'S7 has no frozen baseline: freeze the reorder layout with '
+    'tool/perf_freeze.dart first (R59, R64)',
+  );
 }

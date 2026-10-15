@@ -177,14 +177,13 @@ ScrollPosition _position(WidgetTester tester) {
 }
 
 /// Scrolls one traced window down [distance] and back.
-Future<void> Function(WidgetTester tester) _scroll({
-  double distance = 4000,
-}) {
+Future<void> Function(WidgetTester tester) _scroll({double distance = 4000}) {
   return (tester) => scrollFor(tester, traceWindow, distance: distance);
 }
 
 /// The scenes of spec section 9.1, in run order, plus `S6-intrinsic` for
-/// the crossAxisIntrinsic ABBA follow-up: the S2-plain null control first,
+/// the crossAxisIntrinsic ABBA follow-up and `S7`, a reorder list at rest,
+/// for the identity sliver's ABBA (R51): the S2-plain null control first,
 /// so each run measures its own noise before the scenes it judges.
 /// `tool/perf_abba.dart` lists the same keys in its `catalog`.
 final perfScenes = <PerfScene>[
@@ -252,6 +251,15 @@ final perfScenes = <PerfScene>[
   PerfScene(
     'S6-intrinsic',
     build: (kit) => _list((index) => _intrinsicRow(kit, index)),
+    drive: _scroll(),
+  ),
+  PerfScene(
+    'S7',
+    build: (kit) => kit.reorderList(
+      itemCount: _rowCount,
+      itemBuilder: (context, index) =>
+          KeyedSubtree(key: ValueKey(index), child: _row(kit, index)),
+    ),
     drive: _scroll(),
   ),
 ];
