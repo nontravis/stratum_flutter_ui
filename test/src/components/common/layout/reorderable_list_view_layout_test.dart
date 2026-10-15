@@ -17245,9 +17245,19 @@ void main() {
         final pixelRatio = tester.view.devicePixelRatio;
         expect(tester.getSize(find.byType(RawImage)).height, 40);
         expect(proxy.image!.height / pixelRatio, 40);
+
+        // The drag opens a gap of the item's full slot, as from rest: the
+        // frame after the lift lays that slot out at full size.
+        for (var i = 0; i < 6; i++) {
+          await gesture.moveBy(const Offset(0, 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.pump(const Duration(seconds: 3));
+        expect(_offsetBetween(tester, 0, 1), 40);
         await gesture.up();
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        expect(_harness(tester).moves, [(1, 3)]);
       },
     );
 

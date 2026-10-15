@@ -400,6 +400,7 @@ class _ReorderSliverState extends SliverReorderableListState {
   // raster settles where it was let go.
   void _dragEnd(_Lift lift) {
     setState(() {
+      _measureLiftedSlot(lift);
       final insert = _insertIndex!;
       final Offset? slot;
       if (insert - lift.index == 1) {
@@ -549,8 +550,18 @@ class _ReorderSliverState extends SliverReorderableListState {
     _startAutoScrollIfNecessary();
   }
 
+  /// Refreshes [lift]'s slot measure from the lifted item's slot as the
+  /// last layout left it ([_Lift.measureSlot]), so the gap and the drop
+  /// read the slot a lift during the grow-in lets grow to full size.
+  void _measureLiftedSlot(_Lift lift) {
+    final key = _dragKey;
+    final item = key == null ? null : _items[key];
+    if (item != null && item.mounted) lift.measureSlot(item);
+  }
+
   void _dragUpdateItems() {
     final lift = _lift!;
+    _measureLiftedSlot(lift);
     final gapExtent = lift.slotExtent;
     // The lifted item's slot, around the raster, as each neighbor measures
     // its own.
@@ -1118,13 +1129,10 @@ class _Lift extends Drag {
     capturedThemes = item.widget.capturedThemes;
     dragOffset = itemRenderBox.globalToLocal(initialPosition);
     itemSize = itemRenderBox.size;
-    slotInset =
-        itemRenderBox.localToGlobal(Offset.zero) -
-        slotBox.localToGlobal(Offset.zero);
+    measureSlot(item);
     _rawDragPosition = initialPosition;
     boundary = _dragBoundaryRect(listState.context);
     dragPosition = _adjustedDragOffset(initialPosition);
-    slotExtent = _sizeExtent(slotBox.size, scrollDirection);
     itemLayoutConstraints = itemRenderBox.constraints;
     image = item.snapshot(View.maybeOf(item.context)?.devicePixelRatio ?? 1);
   }
@@ -1147,15 +1155,32 @@ class _Lift extends Drag {
   late Size itemSize;
 
   /// Where the raster sits inside the slot the item fills, which a caller
-  /// transition may pad (R48).
-  late Offset slotInset;
+  /// transition may pad (R48), as the slot's last layout left it
+  /// ([measureSlot]).
+  Offset slotInset = Offset.zero;
   late BoxConstraints itemLayoutConstraints;
 
   /// The extent along the scroll axis of the slot the item fills, its
   /// caller transition included: the gap the drag opens, as each neighbor
-  /// measures its own slot.
-  late double slotExtent;
+  /// measures its own slot, as the slot's last layout left it
+  /// ([measureSlot]).
+  double slotExtent = 0;
   late CapturedThemes capturedThemes;
+
+  /// Reads [slotExtent] and [slotInset] from [item]'s slot as its last
+  /// layout left it. The slot is read again at each use, never frozen at
+  /// the lift: a lift during the item's grow-in ends it with no flush (R45,
+  /// D5), so only the frame after lays the slot out at full size. A slot
+  /// with no layout keeps the measure it has.
+  void measureSlot(_ReorderItemState item) {
+    final slot = item.context.findRenderObject();
+    if (slot is! RenderBox || !slot.hasSize) return;
+    final raster = item.snapshotBoundary;
+    slotExtent = _sizeExtent(slot.size, scrollDirection);
+    slotInset = raster == null
+        ? Offset.zero
+        : MatrixUtils.transformPoint(raster.getTransformTo(slot), Offset.zero);
+  }
 
   /// The raster the proxy shows; null when the item never painted.
   ui.Image? image;
