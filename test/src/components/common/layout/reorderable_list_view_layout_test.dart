@@ -16900,10 +16900,14 @@ void main() {
       },
     );
 
+    // A focus move through the traversal policy from the focused item a
+    // fling carried out of view: the EndUser's Tab or an app's nextFocus()
+    // (R66; main's ruling on the Task 26 review, Minor 3).
+    final flingFocusMoves = ValueVariant<String>({'Tab', 'nextFocus()'});
     testWidgets(
-      'R66: a Tab from the focused item a fling carried out of view, during '
-      "the fling's momentum, stops the fling, brings the item back, then "
-      'moves focus on as a Tab from the item in view does',
+      'R66: a <Tab, app nextFocus()> from the focused item a fling carried '
+      "out of view, during the fling's momentum, stops the fling at once, "
+      'brings the item back, then moves focus on as from the item in view',
       (tester) async {
         final position = await _pumpScrolled(
           tester,
@@ -16922,11 +16926,22 @@ void main() {
         await tester.pump(const Duration(milliseconds: 16));
         // The momentum still runs once the EndUser let go, item 100 held
         // with its focus past the cache band, where its rect reads NaN, so
-        // the Tab brings it back first (R40, invariant 21).
+        // the focus move brings it back first (R40, invariant 21).
         expect(position.pixels, greaterThan(flung));
         expect(state.node.rect.isFinite, isFalse);
 
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        final atMove = position.pixels;
+        if (flingFocusMoves.currentValue == 'Tab') {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        } else {
+          state.node.nextFocus();
+        }
+        // The fling stops at the move: no frame lays out past it.
+        await tester.pump();
+        expect(laidOffset(tester), lessThanOrEqualTo(atMove));
+        await tester.pump();
+        expect(laidOffset(tester), 4000);
+        expect(await laidFrames(tester, 10), everyElement(4000.0));
         await tester.pumpAndSettle();
 
         // The bring-back shows item 100 by the least scroll from above, at
@@ -16940,6 +16955,88 @@ void main() {
           same(_itemState(tester, 101).node),
         );
         expectKept(tester, 100, state);
+      },
+      variant: flingFocusMoves,
+    );
+
+    testWidgets(
+      'R66: an app moveItem of the focused item during the momentum of an '
+      'EndUser fling stops nothing: the fling runs on, and the item stays '
+      'parked with its State and focus',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          _Harness(count: 200, itemsController: ReorderableItemsController()),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+
+        await tester.fling(
+          find.byType(Scrollable).first,
+          const Offset(0, -100),
+          1000,
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 16));
+        final atCall = position.pixels;
+
+        _harness(tester).move(100, 101);
+        // An app's input never stops the EndUser's scroll: each frame lays
+        // the momentum out further.
+        final laid = await laidFrames(tester, 5);
+        expect(laid.first, greaterThan(atCall));
+        expect([...laid]..sort(), laid);
+        expect(laid.toSet(), hasLength(5));
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, greaterThan(laid.last));
+        expectParked(tester, 100, state, node);
+      },
+    );
+
+    testWidgets(
+      'R66: an Alt+Down during the momentum of a trackpad fling, with a '
+      'mouse button held on an item, stops the fling and reveals the moved '
+      'item: a mouse holds no drag of the list',
+      (tester) async {
+        final position = await _pumpScrolled(
+          tester,
+          const _Harness(count: 200),
+        );
+        final state = _itemState(tester, 100)..expanded = true;
+        final node = await _focusItem(tester, 100);
+
+        await tester.trackpadFling(
+          find.byType(Scrollable).first,
+          const Offset(0, -100),
+          1000,
+        );
+        await tester.pump();
+        final flung = position.pixels;
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(position.pixels, greaterThan(flung));
+        expect(shown(tester, 100), isFalse);
+
+        // Under the default drag devices a mouse never drags the list, so
+        // its button held on an item holds no drag of it.
+        final mouse = await tester.startGesture(
+          tester.getCenter(find.byKey(const ValueKey(105))),
+          kind: PointerDeviceKind.mouse,
+        );
+        await _altNow(tester, LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        await tester.pump();
+        // Slot 101 lies at 4040 to 4080 px, above the view: the least
+        // scroll that shows it puts it at the top.
+        expect(laidOffset(tester), 4040);
+        expect(await laidFrames(tester, 10), everyElement(4040.0));
+        await mouse.cancel();
+        await tester.pumpAndSettle();
+
+        expect(position.pixels, 4040);
+        expect(shown(tester, 100), isTrue);
+        expectKept(tester, 100, state, node: node);
+        expect(_harness(tester).moves, [(100, 101)]);
       },
     );
   });

@@ -489,9 +489,9 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// drag: its [ScrollStartNotification] carried drag details.
   var _otherScrollDragged = false;
 
-  /// The pointers down on this list's Scrollable now, a trackpad's pan
-  /// included ([_scrollView]): while one is down, the EndUser still holds
-  /// what they touch.
+  /// The pointers down on this list's Scrollable now, of a kind it drags
+  /// with, a trackpad's pan included ([_pointerDown]): while one is down,
+  /// the EndUser may still hold a drag of the list.
   final _pointersDown = <int>{};
 
   /// Whether what still runs of the scroll [_otherScrolling] tracks is the
@@ -3325,10 +3325,12 @@ class _ReorderableBodyState extends State<_ReorderableBody>
   /// An input that ends a lift ends it first ([_endDragForCall],
   /// [_cancelDrag], [_handleReorderEnd]); a continuation never takes.
   /// [byEndUser] tells whose input it is, so no show input leaves it
-  /// unsaid: one of the EndUser's, a key or screen-reader move, a drop, or
-  /// a Tab from a parked or held item, is newer than the fling of a drag
-  /// they let go of and first stops it ([_stopFling], R66); one of the
-  /// app's, a call or a data change, never stops their scroll.
+  /// unsaid: one of the EndUser's, a key or screen-reader move or a drop,
+  /// is newer than the fling of a drag they let go of and first stops it
+  /// ([_stopFling], R66); so does a focus move through the traversal
+  /// policy from a parked or held item ([_bringBackNode]), the EndUser's
+  /// Tab or an app's `nextFocus()` alike, since focus must show (R60 to
+  /// R62); a call or a data change of the app's never stops their scroll.
   void _takeScroll({required bool byEndUser}) {
     if (byEndUser) _stopFling();
     if (_lifting || _otherScrolling || !_scrollTaken) return;
@@ -4250,8 +4252,14 @@ class _ReorderableBodyState extends State<_ReorderableBody>
               SchedulerPhase.persistentCallbacks &&
           notification.metrics.outOfRange);
 
-  /// Counts [event]'s pointer down on the list ([_pointersDown]).
-  void _pointerDown(PointerEvent event) => _pointersDown.add(event.pointer);
+  /// Counts [event]'s pointer down on the list ([_pointersDown]) when the
+  /// list's Scrollable drags with its kind ([ScrollBehavior.dragDevices]):
+  /// one it never drags with, as a mouse under the default behavior, holds
+  /// no drag, so it keeps no fling from stopping (R66).
+  void _pointerDown(PointerEvent event) {
+    final devices = ScrollConfiguration.of(context).dragDevices;
+    if (devices.contains(event.kind)) _pointersDown.add(event.pointer);
+  }
 
   /// Drops [event]'s pointer, lifted or canceled, from [_pointersDown].
   void _pointerLifted(PointerEvent event) =>
