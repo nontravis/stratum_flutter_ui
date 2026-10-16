@@ -1,0 +1,23 @@
+ACTIVITY MANAGER ACTIVITIES (dumpsys activity activities)
+Display #0 (activities from top to bottom):
+  Stack #1: type=standard mode=fullscreen
+  isSleeping=false
+  mBounds=Rect(0, 0 - 0, 0)
+    Task id #6
+    mBounds=Rect(0, 0 - 1080, 1920)
+    mMinWidth=-1
+    mMinHeight=-1
+    mLastNonFullscreenBounds=null
+    * TaskRecord{9f8e7d6c #6 A=10001:com.android.launcher3 U=0 StackId=1 sz=1}
+      userId=0 affinity=com.android.launcher3
+      intent={act=android.intent.action.MAIN cat=[android.intent.category.HOME] cmp=com.android.launcher3/.Launcher}
+      Activities=[ActivityRecord{9f8e7d6c u0 com.android.launcher3/.Launcher t6}]
+      hasBeenVisible=true
+      * Hist #0: ActivityRecord{9f8e7d6c u0 com.android.launcher3/.Launcher t6}
+          packageName=com.android.launcher3 processName=com.android.launcher3
+          launchedFromUid=10001 launchedFromPackage=null userId=0
+          app=ProcessRecord{1a2b3c4d 987:com.android.launcher3/u0a1}
+          Intent { act=android.intent.action.MAIN cat=[android.intent.category.HOME] cmp=com.android.launcher3/.Launcher }
+          frontOfTask=true task=TaskRecord{9f8e7d6c #6}
+          realActivity=com.android.launcher3/.Launcher
+          State=STOPPED stack=TaskRecord{9f8e7d6c #6}

@@ -6,7 +6,12 @@ Usage: ``python3 -I system_style_device_test.probes.py <probe_dir> <platform>``
 `<probe_dir>` holds the captures the device-round script took at each
 `PROBE:<name>` marker (device-test probe contract item 2,
 tmp/device-round/probe-contract.md:6-9): `<name>.png` on every platform,
-plus `<name>.window.txt` and `<name>.recents.txt` on android. Stdlib only
+plus `<name>.window.txt` and `<name>.activities.txt` on android. The
+recents-label check reads `<name>.activities.txt` (`dumpsys activity
+activities`), never `<name>.recents.txt` (`dumpsys activity recents`):
+on both API 28 and API 34+, the recents dump's task-level `dump()` never
+prints a `taskDescription` line, so a label can never appear there
+(tmp/device-round/rca-recents.findings.md:5-9,43-50). Stdlib only
 (contract item 3): PNG is decoded with `zlib`, no Pillow.
 
 `<probe_dir>` also holds `device.txt` (contract item 2b), one `key=value`
@@ -166,6 +171,21 @@ _CUTOUT_FRACTION = {
     "android": 0.12,
 }
 
+# Flutter's debug-mode banner (`CheckedModeBanner`) is a fixed-size ribbon
+# anchored at the top-right corner; on a real device screenshot it sits
+# inside the right icon zone and can get picked as "the icon" (RCA finding
+# tmp/device-round/rca-white-page.findings.md evidence item 3: the iphone
+# white_page capture's "icon" was the DEBUG text at x=1090..1162 of 1206;
+# pixel_2's was x=995..1032 of 1080 -- a real icon zone with no icon in it
+# otherwise reads as 0 non-fill pixels). The exclusion is an absolute pixel
+# width, gated to device-sized screenshots only (`_DEBUG_BANNER_MIN_IMAGE_
+# WIDTH_PX`): the existing synthetic ios fixtures are 150px wide and place
+# their own icon marker 10px from the right edge specifically to simulate a
+# real icon there, so a width-proportional exclusion would wrongly swallow
+# it too (no stable proportional line separates the two at that scale).
+_DEBUG_BANNER_MIN_IMAGE_WIDTH_PX = 500
+_DEBUG_BANNER_WIDTH_PX = 130
+
 
 def _luma(rgb: tuple[int, int, int]) -> float:
     r, g, b = rgb
@@ -174,16 +194,21 @@ def _luma(rgb: tuple[int, int, int]) -> float:
 
 def sample_status_bar(
     png: Png, platform: str
-) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+) -> tuple[tuple[int, int, int], tuple[int, int, int] | None]:
     """Returns `(fill_color, icon_color)` sampled from the top strip.
 
     `fill_color` is the strip's most common color OUTSIDE the icon margins
     and the center cutout (US-14 FR-02:9 -- the fill under the bar, or the
     bar color FR-01 paints over it as the topmost layer). `icon_color` is
     the highest-luma-delta-from-`fill_color` pixel searched ONLY inside the
-    left/right icon margins (FR-02:49 defines the icon as the higher-
-    contrast element against what lies beneath it), so a center cutout can
-    never masquerade as the fill or get picked as the icon.
+    left/right icon margins, excluding the debug-banner band on a device-
+    sized image (FR-02:49 defines the icon as the higher-contrast element
+    against what lies beneath it), so a center cutout or the banner can
+    never masquerade as the fill or get picked as the icon. `icon_color` is
+    `None` when no pixel in either margin differs from the fill at all --
+    the icon itself is not visible against this page (real capture,
+    rca-white-page.findings.md evidence item 3: a dark icon over a page
+    that renders fully black leaves 0 differing pixels in the clock zone).
     """
     strip_h = max(_MIN_STRIP_PX, round(png.height * _STRIP_HEIGHT_FRACTION))
     strip_h = min(strip_h, png.height)
@@ -195,12 +220,18 @@ def sample_status_bar(
     cutout_half = round(png.width * cutout_frac / 2)
     cx = png.width // 2
     cutout_x0, cutout_x1 = max(0, cx - cutout_half), min(png.width, cx + cutout_half)
+    banner_w = (
+        _DEBUG_BANNER_WIDTH_PX if png.width >= _DEBUG_BANNER_MIN_IMAGE_WIDTH_PX else 0
+    )
 
     def in_cutout(x: int) -> bool:
         return cutout_x0 <= x < cutout_x1
 
     def in_icon_zone(x: int) -> bool:
         return x < icon_zone_w or x >= png.width - icon_zone_w
+
+    def in_banner(x: int) -> bool:
+        return x >= png.width - banner_w
 
     def fill_counts(skip_icon_zones: bool) -> dict[tuple[int, int, int], int]:
         counts: dict[tuple[int, int, int], int] = {}
@@ -220,11 +251,11 @@ def sample_status_bar(
     fill = max(counts, key=lambda c: counts[c])
     fill_luma = _luma(fill)
 
-    icon = fill
-    best_delta = -1.0
+    icon: tuple[int, int, int] | None = None
+    best_delta = 0.0
     for y in range(y0, y1):
         for x in range(png.width):
-            if in_cutout(x) or not in_icon_zone(x):
+            if in_cutout(x) or not in_icon_zone(x) or in_banner(x):
                 continue
             rgb = png.get(x, y)[:3]
             delta = abs(_luma(rgb) - fill_luma)
@@ -240,7 +271,7 @@ def brightness_of(rgb: tuple[int, int, int]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Android window.txt / recents.txt parsing
+# Android window.txt / activities.txt parsing
 #
 # `dumpsys window` carries two generations of this state, and a real capture
 # on this round's two android targets (`.claude/device-test.toml:8-19`) can
@@ -290,27 +321,33 @@ def parse_bar_visible(window_txt: str, bar: str) -> bool | None:
         return m.group(1) == "true"
 
     # Legacy (pre-30, covers the pixel_2/API 28 target, where
-    # `WindowInsetsController` does not exist yet): `WindowState.dump`
-    # (android-9.0.0_r22 tag) prints `mSystemUiVisibility=0x<hex>`; a set
-    # bit HIDES the bar (android.view.View: `SYSTEM_UI_FLAG_FULLSCREEN` =
-    # 0x4 hides statusBars, `SYSTEM_UI_FLAG_HIDE_NAVIGATION` = 0x2 hides
-    # navigationBars). Scoped to the app's own window since every window
-    # carries its own copy of this field.
+    # `WindowInsetsController` does not exist yet): no `InsetsSource` dump
+    # exists, and `WindowState.dump` (android-9.0.0_r22 tag) never prints
+    # an `mSystemUiVisibility=0x<hex>` line either (0 hits across 7 real
+    # API 28 captures -- rca-white-page.findings.md evidence item 2). The
+    # field it DOES print is the app's own requested `vsysui=<FLAG NAMES>`
+    # inside its `mAttrs={...}` block (same field `parse_appearance` reads
+    # below): `FULLSCREEN` hides statusBars, `HIDE_NAVIGATION` hides
+    # navigationBars (android.view.View). A real device below API 29 can
+    # set these on entering an immersive page and never clear them again
+    # (the engine ignores the library's restore call,
+    # rca-white-page.findings.md "Side finding"), so this can legitimately
+    # read "still hidden" after the app asks to show the bars again -- a
+    # real FAIL for that scenario, not a parser defect.
     block = _app_window_block(window_txt)
     if block is None:
         return None
-    m = re.search(r"mSystemUiVisibility\s*=\s*0x([0-9a-fA-F]+)", block)
+    m = re.search(r"vsysui=([^}\n]*)", block)
     if m is None:
         return None
-    flags = int(m.group(1), 16)
-    hide_bit = _SYSTEM_UI_FLAG_FULLSCREEN if bar == "statusBars" else _SYSTEM_UI_FLAG_HIDE_NAVIGATION
-    return (flags & hide_bit) == 0
+    hide_name = _VSYSUI_FULLSCREEN if bar == "statusBars" else _VSYSUI_HIDE_NAVIGATION
+    return not bool(re.search(rf"\b{hide_name}\b", m.group(1)))
 
 
-_SYSTEM_UI_FLAG_HIDE_NAVIGATION = 0x00000002  # android.view.View
-_SYSTEM_UI_FLAG_FULLSCREEN = 0x00000004  # android.view.View
-_SYSTEM_UI_FLAG_LIGHT_STATUS_BAR = 0x00002000  # android.view.View, API 23+
-_SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR = 0x00000010  # android.view.View, API 26+
+_VSYSUI_HIDE_NAVIGATION = "HIDE_NAVIGATION"  # android.view.View, hides navigationBars
+_VSYSUI_FULLSCREEN = "FULLSCREEN"  # android.view.View, hides statusBars
+_VSYSUI_LIGHT_STATUS_BAR = "LIGHT_STATUS_BAR"  # android.view.View, API 23+
+_VSYSUI_LIGHT_NAVIGATION_BAR = "LIGHT_NAVIGATION_BAR"  # android.view.View, API 26+
 
 _LIGHT_STATUS_BARS_NAME = "LIGHT_STATUS_BARS"
 _LIGHT_NAVIGATION_BARS_NAME = "LIGHT_NAVIGATION_BARS"
@@ -335,34 +372,89 @@ def parse_appearance(window_txt: str, bar: str) -> bool:
         name = _LIGHT_STATUS_BARS_NAME if bar == "statusBars" else _LIGHT_NAVIGATION_BARS_NAME
         return name in m.group(1)
 
-    # Legacy (pre-30): the equivalent request is this app's own
-    # `SYSTEM_UI_FLAG_LIGHT_STATUS_BAR` (0x2000) / `SYSTEM_UI_FLAG_
-    # LIGHT_NAVIGATION_BAR` (0x10) bit inside its `mSystemUiVisibility`
-    # (the same per-window field `parse_bar_visible` reads), so it needs
-    # the same app-window scoping.
+    # Legacy (pre-30): `mSystemUiVisibility=0x<hex>` never appears in a
+    # real API 28 capture (confirmed: 0 hits across 7 real pixel_2 dumps,
+    # rca-white-page.findings.md evidence item 2 -- the prior hex-flag
+    # path here never matched, so every API 28 icon-appearance read was
+    # vacuously False). What AOSP actually prints is this app's own
+    # requested `vsysui=<FLAG NAMES>` inside its `mAttrs={...}` block
+    # (`WindowState.dump`, android-9.0.0_r22 tag): the view-level flag
+    # name is singular (`LIGHT_STATUS_BAR`/`LIGHT_NAVIGATION_BAR`), unlike
+    # the modern, plural `InsetsFlags` name above. Same app-window scoping
+    # as `parse_bar_visible`, which reads the same `vsysui=` field.
     block = _app_window_block(window_txt)
     if block is None:
         return False
-    m = re.search(r"mSystemUiVisibility\s*=\s*0x([0-9a-fA-F]+)", block)
+    m = re.search(r"vsysui=([^}\n]*)", block)
     if m is None:
         return False
-    flags = int(m.group(1), 16)
-    bit = _SYSTEM_UI_FLAG_LIGHT_STATUS_BAR if bar == "statusBars" else _SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-    return (flags & bit) != 0
+    name = _VSYSUI_LIGHT_STATUS_BAR if bar == "statusBars" else _VSYSUI_LIGHT_NAVIGATION_BAR
+    return bool(re.search(rf"\b{name}\b", m.group(1)))
 
 
-def parse_recents_label(recents_txt: str) -> str | None:
-    """The app-switcher label AOSP actually dumps for the top recent task.
+def _app_activity_block(activities_txt: str) -> str | None:
+    """Isolates the text of this app's own `Hist #N: ActivityRecord{...}`
+    block in a `dumpsys activity activities` capture.
 
-    `ActivityRecord.dump` prints `taskDescription: label="<text>"` whenever
-    a task carries a `TaskDescription` (API 28: frameworks/base/services/
-    core/java/com/android/server/am/ActivityRecord.java; API 29+: the same
-    method moved to .../wm/ActivityRecord.java, same literal shape). A null
-    label still dumps the literal text `"null"`, always quoted.
+    RCA (tmp/device-round/rca-recents.findings.md:1-11,35-50): only this
+    dump reaches `ActivityRecord.dump`, which is the one place a task's
+    label is ever printed; `dumpsys activity recents` dumps `TaskRecord`/
+    `Task` instead, whose `dump()` never prints one.
+
+    On API 28, `ActivityStackSupervisor.dumpHistoryList` prints each
+    activity under a `  * Hist #N: ActivityRecord{<hash> u<uid>
+    <pkg>/<cmp> t<task>}` header (frameworks/base/services/core/java/com/
+    android/server/am/ActivityStackSupervisor.java:4192-4196, called from
+    `ActivityStack.dumpActivitiesLocked`, :5042-5051, which itself prints
+    a `Task id #<N>` header per task). On API 34+, `TaskFragment.dump`
+    calls `ActivityRecord.dumpActivity` with the same `"Hist "` label
+    (frameworks/base/services/core/java/com/android/server/wm/
+    TaskFragment.java:3010-3013), headed `Hist  #N: ActivityRecord{...}`
+    (two spaces: the label string already ends in one).
+
+    Splitting on any of the three headers that can start the next block
+    (`Hist #N:`, `Task id #N`, or a task's own `* Task{...}`/`* TaskRecord
+    {...}` line) and keeping the one whose `Hist #N:` line names this
+    app's component scopes the read to this app's own activity, never
+    another app's (the launcher, settings, and the assistant all show up
+    in a real capture).
     """
-    m = re.search(r'taskDescription:\s*label\s*=\s*"([^"]*)"', recents_txt)
-    if m is None:
+    blocks = re.split(
+        r"(?=^[ \t]*\*?[ \t]*(?:Hist[ \t]*#\d+:|Task id #\d+|\*[ \t]*Task(?:Record)?\{))",
+        activities_txt,
+        flags=re.MULTILINE,
+    )
+    hist_header_re = re.compile(
+        rf"^[ \t]*\*?[ \t]*Hist[ \t]*#\d+:\s*ActivityRecord\{{[^\n]*\b{re.escape(_PACKAGE)}/"
+    )
+    for block in blocks:
+        first_line = block.split("\n", 1)[0]
+        if hist_header_re.match(first_line):
+            return block
+    return None
+
+
+def parse_recents_label(activities_txt: str) -> str | None:
+    """The app-switcher label AOSP actually dumps for this app's top
+    activity, or `None` when the capture cannot answer the question at
+    all (this app's `Hist #N:` block is missing from `activities_txt`).
+
+    `ActivityRecord.dump` prints a `taskDescription:` section with
+    `label="<text>"` only when the activity carries a `TaskDescription`
+    object with a non-null label, icon, or non-zero primary color (API 28:
+    ActivityRecord.java:435-456; API 34+: ActivityRecord.java:1095-1115,
+    saved at tmp/device-round/rca-recents.aosp/). A block found but no such
+    line reads as `""` -- a real "no label was set" answer, not a parse
+    failure. `None` is reserved for the block itself going missing (no
+    `Hist #N:` line named this app at all), which FR-04's check (below)
+    reports as "could not parse" rather than a false label mismatch.
+    """
+    block = _app_activity_block(activities_txt)
+    if block is None:
         return None
+    m = re.search(r'taskDescription:\s*label\s*=\s*"([^"]*)"', block)
+    if m is None:
+        return ""
     return m.group(1)
 
 
@@ -437,6 +529,8 @@ def _check_icon(
     else:
         png = read_png(probe_dir / f"{name}.png")
         _fill, icon = sample_status_bar(png, platform)
+        if icon is None:
+            return False, f"no visible status-bar icons ({cite})"
         actual = brightness_of(icon)
         detail = f"png icon sample {actual} ({cite})"
     return actual == expected, f"expected {expected}, got {actual}: {detail}"
@@ -466,7 +560,7 @@ def _check_bars_hidden(
         return False, (
             f"could not parse statusBars/navigationBars visibility in "
             f"{name}.window.txt (tried InsetsSource type=/visible= and legacy "
-            f"mSystemUiVisibility=) ({cite})"
+            f"vsysui=) ({cite})"
         )
     sdk = sdk_level_for(probe_dir)
     if sdk is None:
@@ -493,7 +587,7 @@ def _check_bars_shown(probe_dir: Path, name: str, platform: str, cite: str) -> t
         return False, (
             f"could not parse statusBars/navigationBars visibility in "
             f"{name}.window.txt (tried InsetsSource type=/visible= and legacy "
-            f"mSystemUiVisibility=) ({cite})"
+            f"vsysui=) ({cite})"
         )
     ok = bool(status_visible) and bool(nav_visible)
     return ok, f"expected both visible, got statusBars={status_visible} navigationBars={nav_visible} ({cite})"
@@ -503,11 +597,11 @@ def _check_recents_label(
     probe_dir: Path, name: str, platform: str, expected: str, cite: str
 ) -> tuple[bool, str]:
     if platform != "android":
-        raise ValueError("the recents-label check needs recents.txt (android only)")
-    recents_txt = _require(probe_dir, name, "recents.txt")
-    label = parse_recents_label(recents_txt)
+        raise ValueError("the recents-label check needs activities.txt (android only)")
+    activities_txt = _require(probe_dir, name, "activities.txt")
+    label = parse_recents_label(activities_txt)
     if label is None:
-        return False, f"could not parse taskDescription label in {name}.recents.txt ({cite})"
+        return False, f"could not parse taskDescription label in {name}.activities.txt ({cite})"
     ok = label == expected
     return ok, f"expected label={expected!r}, got {label!r} ({cite})"
 

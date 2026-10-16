@@ -1,2 +1,0 @@
-  * Recent #0: Task{98765 #1 type=standard A=10123:dev.stratum.stratum_ui_example U=0 visible=true}
-    taskDescription: label="Video" icon=null iconResource=0 iconFilename=null primaryColor=0 backgroundColor=0 statusBarColor=0 navigationBarColor=0
