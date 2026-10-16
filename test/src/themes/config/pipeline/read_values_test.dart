@@ -135,6 +135,13 @@ color:
       );
     });
 
+    test('fo01/us01/s5: an unquoted hex color reads as a yaml comment, so '
+        'the value is empty and the color path is reported required', () {
+      expect(_problems('color:\n  light:\n    brand:\n      normal: #FFFFFF'), [
+        'layer1 color.light.brand.normal: required [required]',
+      ]);
+    });
+
     test('checks the kind after resolution, at the holder, naming the '
         'alias', () {
       const expected =
@@ -593,8 +600,8 @@ color:
   });
 
   group('readThemeValues extensions and typography', () {
-    test('fo01/us01/fr02: extensions read as plain values, brace strings kept, '
-        'unmodifiable', () {
+    test('fo01/us01/s2, fo01/us01/fr02: extensions read as plain values, '
+        'brace strings kept, unmodifiable', () {
       final (config, errors) = _read([
         layer('''
 extensions:

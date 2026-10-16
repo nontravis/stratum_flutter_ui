@@ -177,6 +177,32 @@ void main() {
     expect(sheet, 40);
   });
 
+  testWidgets(
+    'fo01/us01/s1: a complete theme file shows its space, radius, color, '
+    'and font in a widget that reads the applied theme',
+    (tester) async {
+      late StratumTheme theme;
+
+      await tester.pumpWidget(
+        StratumThemeApplication(
+          themes: StratumThemeSet(light: defaultThemeSet.light),
+          themeMode: ThemeMode.light,
+          child: Builder(
+            builder: (context) {
+              theme = StratumTheme.of(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(theme.space.md, 16);
+      expect(theme.radius.sm, 8);
+      expect(theme.color.brand.normal, const Color(0xFF3B82F6));
+      expect(theme.typography.fonts['inter']?.family, 'Inter');
+    },
+  );
+
   group('rebuilds on resize', () {
     Future<int> resizes(
       WidgetTester tester,

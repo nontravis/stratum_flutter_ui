@@ -43,6 +43,22 @@ class _Component extends StratumStatelessWidget {
   Widget build(BuildContext context) => child;
 }
 
+/// A component on the stateless base that resolves its own [WidgetStyle]
+/// (own default, then the app-wide default) and passes the resolved
+/// radius to its tap surface, as a real button would stand on
+/// [StratumInkWell] and share its app-wide shape (base s03 invariant 5;
+/// FO-03 US-06 FR-01).
+class _ButtonStandIn extends StratumStatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) => StratumInkWell(
+    onTap: _noop,
+    borderRadius: resolveStyle(context, const WidgetStyle(), null).borderRadius,
+    child: _box,
+  );
+}
+
 /// The overlay inside [InkWell]; the ring above it paints a foreground
 /// [DecoratedBox] too.
 Finder get _overlay => find.descendant(
@@ -60,6 +76,25 @@ Color? _overlayColor(WidgetTester tester) {
   final color = (box.decoration as BoxDecoration).color;
   return color == null || color.a == 0 ? null : color;
 }
+
+/// Every overlay [DecoratedBox] below an [InkWell] on screen, as [_overlay]
+/// finds the one below a single surface.
+Finder get _overlays => find.descendant(
+  of: find.byType(InkWell),
+  matching: find.byWidgetPredicate(
+    (widget) =>
+        widget is DecoratedBox &&
+        widget.position == DecorationPosition.foreground,
+  ),
+);
+
+/// The rendered shape of every [StratumInkWell] on screen: each overlay's
+/// own [BoxDecoration.borderRadius], the surface's actual painted corners,
+/// not only its resolved style.
+List<BorderRadiusGeometry?> _overlayBorderRadii(WidgetTester tester) => [
+  for (final box in tester.widgetList<DecoratedBox>(_overlays))
+    (box.decoration as BoxDecoration).borderRadius,
+];
 
 /// Whether the ring shows: its state is focused.
 bool _ring(WidgetTester tester) =>
@@ -3219,6 +3254,28 @@ void main() {
         ringOf('other').color,
         isSameColorAs(fakeTheme.color.border.subtle.blue),
       );
+    });
+  });
+
+  group('StratumInkWell app-wide shape default', () {
+    testWidgets('fo03/us06/s1: radius 0 as the app-wide default restyles every '
+        "instance that sets no radius of its own to the surface's actual "
+        'painted square corners', (tester) async {
+      await tester.pumpWidget(
+        themedHost(
+          const StratumComponentDefaults(
+            styles: {
+              _ButtonStandIn: WidgetStyle(borderRadius: BorderRadius.zero),
+            },
+            child: Column(children: [_ButtonStandIn(), _ButtonStandIn()]),
+          ),
+        ),
+      );
+
+      final radii = _overlayBorderRadii(tester);
+
+      expect(radii, hasLength(2));
+      expect(radii, everyElement(BorderRadius.zero));
     });
   });
 
