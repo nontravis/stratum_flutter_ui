@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
@@ -9,6 +8,7 @@ import 'package:stratum_ui/src/components/common/widget_settings/shared_preferen
 import 'package:stratum_ui/src/components/common/widget_settings/widget_setting_store.dart';
 import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
 
+import 'support/captured_reports.dart';
 import 'support/counting_setting_store.dart';
 import 'support/setting_controller_contract.dart';
 
@@ -112,10 +112,7 @@ void main() {
 
   test('fo10/us03/fr03/e01: a failed write keeps the session value and '
       'reports once', () async {
-    final reported = <FlutterErrorDetails>[];
-    final previous = FlutterError.onError;
-    FlutterError.onError = reported.add;
-    addTearDown(() => FlutterError.onError = previous);
+    final reported = captureErrorReports();
     final store = CountingSettingStore();
     final settings = await StratumWidgetSettingsController.preload(
       store: store,
@@ -131,10 +128,7 @@ void main() {
 
   test('fo10/us03/s2: fo10/us03/fr03/e02: a failed read at load gives '
       'defaults and one report', () async {
-    final reported = <FlutterErrorDetails>[];
-    final previous = FlutterError.onError;
-    FlutterError.onError = reported.add;
-    addTearDown(() => FlutterError.onError = previous);
+    final reported = captureErrorReports();
     final store = CountingSettingStore({'stratum/d/acme.inbox/g/w': 1.0})
       ..failReads = true;
 
@@ -149,10 +143,7 @@ void main() {
 
   test('fo10/us06/s2: fo10/us06/fr01/e02: no platform store gives defaults '
       'and one report', () async {
-    final reported = <FlutterErrorDetails>[];
-    final previous = FlutterError.onError;
-    FlutterError.onError = reported.add;
-    addTearDown(() => FlutterError.onError = previous);
+    final reported = captureErrorReports();
     SharedPreferencesAsyncPlatform.instance = null;
 
     final settings = await StratumWidgetSettingsController.preload();
@@ -163,10 +154,7 @@ void main() {
 
   test('fo10/us05/s2: fo10/us05/fr01/e04: a failed removal keeps the reset '
       'and reports once', () async {
-    final reported = <FlutterErrorDetails>[];
-    final previous = FlutterError.onError;
-    FlutterError.onError = reported.add;
-    addTearDown(() => FlutterError.onError = previous);
+    final reported = captureErrorReports();
     final store = CountingSettingStore({'stratum/d/acme.inbox/g/w': 1.0});
     final settings = await StratumWidgetSettingsController.preload(
       store: store,

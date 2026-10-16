@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/widget_settings/widget_setting_store.dart';
 import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
 
+import 'support/captured_reports.dart';
 import 'support/counting_setting_store.dart';
 
 void main() {
@@ -112,10 +112,7 @@ void main() {
 
   test('fo10/us04/fr01/e06: a failed read on a switch swaps to defaults and '
       'reports once', () async {
-    final reported = <FlutterErrorDetails>[];
-    final previous = FlutterError.onError;
-    FlutterError.onError = reported.add;
-    addTearDown(() => FlutterError.onError = previous);
+    final reported = captureErrorReports();
     final store = CountingSettingStore({'stratum/u/b/n/g/w': 3.0});
     final settings = await StratumWidgetSettingsController.preload(
       store: store,
