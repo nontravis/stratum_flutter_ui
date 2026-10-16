@@ -8,12 +8,19 @@ import 'package:multi_split_view/multi_split_view.dart'
         MultiSplitViewTheme,
         MultiSplitViewThemeData;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
+import 'package:stratum_ui/src/components/common/model/widget_setting/widget_setting_key.dart';
 import 'package:stratum_ui/src/components/common/utility/focus_border.dart'
     show focusStyleOver;
+import 'package:stratum_ui/src/components/common/widget_settings/setting_binding.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// Two sizes closer than this, in logical pixels, count as equal.
 const double _tolerance = 1e-6;
+
+/// The settings namespace and the value name a split remembers its
+/// fractions under (PD11).
+const String _settingNamespace = 'stratum.split_layout';
+const String _fractionsName = 'fractions';
 
 /// One arrow-key or slider step of a divider, in logical pixels.
 const double _step = 16;
@@ -105,6 +112,11 @@ class SplitLayoutController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sets [fractions] as the setter does, without a notify, so a split can
+  /// seed it inside the build phase (PD7).
+  @internal
+  void restore(List<double?>? fractions) => _fractions = _held(fractions);
+
   /// An unmodifiable copy of [value], each entry that is not a finite
   /// number of at least 0 read as null.
   static List<double?>? _held(List<double?>? value) =>
@@ -145,6 +157,7 @@ class SplitLayout extends StatefulWidget {
     this.dividerLabel,
     this.dividerBuilder,
     this.customStyle,
+    @internal this.setting,
     @internal this.endPrimary = false,
   });
 
@@ -172,6 +185,17 @@ class SplitLayout extends StatefulWidget {
   /// `SplitLayoutStyle` under `SplitLayout` in `componentPartDefaults`,
   /// level 2 (FO-06 US-21 FR-05); every field of it takes effect (NFR-E02).
   final SplitLayoutStyle? customStyle;
+
+  /// The settings key the split remembers its fractions under, in the
+  /// `StratumWidgetSettings` above; null remembers nothing (FO-10 US-01).
+  ///
+  /// - A stored list wins over [controller]'s, and each settled move saves.
+  /// - The restore at the first build notifies no listener of [controller]:
+  ///   read the controller after the first frame.
+  /// - A later store change moves the panes through [controller], which
+  ///   notifies. Kept inside the package.
+  @internal
+  final WidgetSettingKey? setting;
 
   /// Whether each divider speaks for the pane after it, the WAI-ARIA window
   /// splitter's primary pane, as `PageLayout`'s `right` divider does for its
@@ -222,6 +246,21 @@ class _SplitLayoutState extends State<SplitLayout> {
   /// Each pane's own traversal policy when none sits above the split.
   final _readingOrder = ReadingOrderTraversalPolicy();
 
+  /// Remembers the fractions under [SplitLayout.setting] (PD7).
+  late final _binding = WidgetSettingBinding(
+    namespace: _settingNamespace,
+    names: const [_fractionsName],
+    onStored: _onStored,
+  );
+
+  /// The controller's fractions when the split first met it, before any
+  /// restore; null for the split's own controller (PD18).
+  List<double?>? _appDefault;
+
+  /// The controller's fractions as the split last saw them; a settled
+  /// change saves only a list that differs (PD7).
+  List<double?>? _seen;
+
   SplitLayoutController get _controller =>
       widget.controller ?? (_ownController ??= SplitLayoutController());
 
@@ -241,27 +280,29 @@ class _SplitLayoutState extends State<SplitLayout> {
   @override
   void initState() {
     super.initState();
+    _appDefault = widget.controller?.fractions;
     _controller.addListener(_onChosen);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _restore(_binding.attach(context, widget.setting));
   }
 
   @override
   void didUpdateWidget(SplitLayout oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.controller == oldWidget.controller) return;
-    final old = oldWidget.controller ?? _ownController;
-    old?.removeListener(_onChosen);
-    if (widget.controller != null) {
-      _ownController?.dispose();
-      _ownController = null;
-    } else {
-      // The split's own controller starts where the app's left the panes.
-      _ownController = SplitLayoutController(fractions: old?.fractions);
-    }
-    _controller.addListener(_onChosen);
+    final swapped = widget.controller != oldWidget.controller;
+    if (swapped) _swapController(oldWidget);
+    // A swapped-in controller takes the stored list as at a first build.
+    final stored = _binding.rekey(widget.setting);
+    _restore(stored ?? (swapped ? _binding.stored() : null));
   }
 
   @override
   void dispose() {
+    _binding.dispose();
     _controller.removeListener(_onChosen);
     _ownController?.dispose();
     _engine.dispose();
@@ -337,8 +378,50 @@ class _SplitLayoutState extends State<SplitLayout> {
     );
   }
 
-  /// Lays the panes out again for the controller's new fractions.
-  void _onChosen() => setState(() {});
+  /// Moves the listener from [oldWidget]'s controller to the current one
+  /// and keeps the new one's fractions as the app default (PD18).
+  void _swapController(SplitLayout oldWidget) {
+    final old = oldWidget.controller ?? _ownController;
+    old?.removeListener(_onChosen);
+    if (widget.controller != null) {
+      _ownController?.dispose();
+      _ownController = null;
+    } else {
+      // The split's own controller starts where the app's left the panes.
+      _ownController = SplitLayoutController(fractions: old?.fractions);
+    }
+    _appDefault = widget.controller?.fractions;
+    _controller.addListener(_onChosen);
+  }
+
+  /// Seeds the controller with [stored]'s fractions without a notify, as
+  /// the build phase needs; none leaves the controller as it is.
+  void _restore(Map<String, Object?>? stored) {
+    final fractions = _decodeFractions(
+      stored?[_fractionsName],
+      widget.panes.length,
+    );
+    if (fractions != null) _controller.restore(fractions);
+    _seen = _controller.fractions;
+  }
+
+  /// Lays the panes out again for the controller's new fractions, and
+  /// saves them when they differ from the last list the split saw.
+  void _onChosen() {
+    setState(() {});
+    final fractions = _controller.fractions;
+    if (listEquals(fractions, _seen)) return;
+    _seen = fractions;
+    _binding.save(_fractionsName, _encodeFractions(fractions));
+  }
+
+  /// Moves the panes to a store change's fractions through the controller,
+  /// which notifies, else back to the app default (PD18).
+  void _onStored(Map<String, Object?> stored) {
+    _controller.fractions =
+        _decodeFractions(stored[_fractionsName], widget.panes.length) ??
+        _appDefault;
+  }
 
   /// Hands the two panes beside divider [divider] to the controller once a
   /// move settles: their entries split the sum they held in the ratio of
@@ -649,6 +732,24 @@ class _SplitLayoutState extends State<SplitLayout> {
     );
   }
 }
+
+/// [stored] as a [count]-pane fraction list: one text per pane, each `''`
+/// read as null and each other parsed; anything else reads as none (PD3).
+List<double?>? _decodeFractions(Object? stored, int count) {
+  if (stored is! List || stored.length != count) return null;
+  final fractions = <double?>[];
+  for (final entry in stored) {
+    if (entry is! String) return null;
+    fractions.add(entry.isEmpty ? null : double.tryParse(entry));
+  }
+  return fractions;
+}
+
+/// [fractions] as the store keeps them: one text per entry, `''` for a
+/// null one, else the number's round-tripping text (PD3).
+List<String>? _encodeFractions(List<double?>? fractions) => fractions == null
+    ? null
+    : [for (final entry in fractions) entry?.toString() ?? ''];
 
 /// [entry] when it is a finite number of at least 0, else null.
 double? _usableFraction(double? entry) =>

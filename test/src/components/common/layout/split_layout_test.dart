@@ -2,6 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/split_layout.dart'
     show splitStep;
+import 'package:stratum_ui/src/components/common/model/widget_setting/widget_setting_key.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_setting_store.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
@@ -35,7 +39,8 @@ SplitPane _detail({FocusNode? node}) =>
     SplitPane(flex: 1, min: 300, child: _pane('Detail', node));
 
 /// A list and detail split under the app's default Tab and activation
-/// keys, in a focused scope so the first Tab press reaches the keys.
+/// keys, in a focused scope so the first Tab press reaches the keys, and
+/// under a [StratumWidgetSettings] over [settings] when it is set.
 Widget _split({
   List<SplitPane?>? panes,
   bool resizable = true,
@@ -50,33 +55,41 @@ Widget _split({
   bool highContrast = false,
   Map<Type, Object> componentParts = const {},
   SplitLayoutStyle? customStyle,
-}) => (highContrast ? _highContrastHost : themedHost)(
-  StratumComponentDefaults(
-    styles: const {},
-    parts: componentParts,
-    child: Shortcuts(
-      shortcuts: WidgetsApp.defaultShortcuts,
-      child: Actions(
-        actions: WidgetsApp.defaultActions,
-        child: FocusScope(
-          autofocus: true,
-          child: SplitLayout(
-            axis: axis,
-            resizable: resizable,
-            endPrimary: endPrimary,
-            dividerLabel: label,
-            dividerBuilder: dividerBuilder,
-            controller: controller,
-            customStyle: customStyle,
-            panes: panes ?? [_list(), if (detail) _detail() else null],
+  WidgetSettingKey? setting,
+  StratumWidgetSettingsController? settings,
+}) {
+  final split = SplitLayout(
+    axis: axis,
+    resizable: resizable,
+    endPrimary: endPrimary,
+    dividerLabel: label,
+    dividerBuilder: dividerBuilder,
+    controller: controller,
+    customStyle: customStyle,
+    setting: setting,
+    panes: panes ?? [_list(), if (detail) _detail() else null],
+  );
+  return (highContrast ? _highContrastHost : themedHost)(
+    StratumComponentDefaults(
+      styles: const {},
+      parts: componentParts,
+      child: Shortcuts(
+        shortcuts: WidgetsApp.defaultShortcuts,
+        child: Actions(
+          actions: WidgetsApp.defaultActions,
+          child: FocusScope(
+            autofocus: true,
+            child: settings == null
+                ? split
+                : StratumWidgetSettings(controller: settings, child: split),
           ),
         ),
       ),
     ),
-  ),
-  textDirection: direction,
-  theme: theme,
-);
+    textDirection: direction,
+    theme: theme,
+  );
+}
 
 /// [child] under the package default's high-contrast light theme.
 Widget _highContrastHost(
@@ -601,6 +614,42 @@ void main() {
         await tester.pump();
         expect(_listWidth(tester), closeTo(316, 1));
         expect(tester.getSemantics(_divider).value, '32%');
+      },
+    );
+
+    testWidgets(
+      'NFR-U06: fo10/us01/fr02/e01: the slider reads the restored 40% on the '
+      'first frame',
+      (tester) async {
+        _view(tester);
+        final settings = await StratumWidgetSettingsController.preload(
+          store: StratumMemorySettingStore(
+            values: {
+              'stratum/d/stratum.split_layout/i/mail/fractions': ['0.4', '0.6'],
+            },
+          ),
+        );
+        addTearDown(settings.dispose);
+        await tester.pumpWidget(
+          _split(
+            setting: const WidgetSettingKey.id('mail'),
+            settings: settings,
+          ),
+        );
+        expect(
+          tester.getSemantics(_divider),
+          matchesSemantics(
+            label: 'Resize panes',
+            value: '40%',
+            increasedValue: '42%',
+            decreasedValue: '38%',
+            isSlider: true,
+            isFocusable: true,
+            hasFocusAction: true,
+            hasIncreaseAction: true,
+            hasDecreaseAction: true,
+          ),
+        );
       },
     );
 
