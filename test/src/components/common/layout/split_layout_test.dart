@@ -2,10 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/split_layout.dart'
     show splitStep;
-import 'package:stratum_ui/src/components/common/model/widget_setting/widget_setting_key.dart';
-import 'package:stratum_ui/src/components/common/widget_settings/widget_setting_store.dart';
-import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
-import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';

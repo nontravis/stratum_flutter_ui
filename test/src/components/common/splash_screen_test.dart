@@ -15,8 +15,6 @@
 // widgets the app's builder returns take their own customStyle.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
-import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
-import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 
