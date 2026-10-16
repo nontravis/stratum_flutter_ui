@@ -306,6 +306,41 @@ def _app_window_block(window_txt: str) -> str | None:
     return None
 
 
+# The system's "exit full screen" nudge AOSP shows while an app's immersive
+# request is in effect (`ViewRootImpl.InsetsOnFocusChangeHandler`/
+# `ImmersiveModeConfirmation`); it takes focus instead of the app without
+# taking the app's bar control away (RCA finding (3), rca-api36-probes.
+# findings.md:171-173), so the focus guard below treats it the same as the
+# app itself.
+_IMMERSIVE_MODE_CONFIRMATION = "ImmersiveModeConfirmation"
+
+
+def _focused_window_name(window_txt: str) -> str | None:
+    """The focused window's name, read from `mCurrentFocus=` or
+    `mFocusedWindow=` (`WindowManagerService.dump`/`WindowState.dump`,
+    both print `Window{<hash> u<user> <name>}`); `None` when the capture
+    has neither line.
+    """
+    m = re.search(r"mCurrentFocus=Window\{\S+ u\d+ (.*)\}\s*$", window_txt, re.MULTILINE)
+    if m is None:
+        m = re.search(r"mFocusedWindow=Window\{\S+ u\d+ (.*)\}\s*$", window_txt, re.MULTILINE)
+    return m.group(1) if m else None
+
+
+def _focus_violation(window_txt: str) -> str | None:
+    """The foreign window's name when the capture's focus belongs to
+    neither this app nor `ImmersiveModeConfirmation`, so every other
+    field the capture carries belongs to that window instead of Stratum
+    (RCA finding (2)(a), rca-api36-probes.findings.md:153-156). `None`
+    when focus is the app, is `ImmersiveModeConfirmation`, or the capture
+    carries no focus line at all (nothing to guard against).
+    """
+    name = _focused_window_name(window_txt)
+    if name is None or _PACKAGE in name or name == _IMMERSIVE_MODE_CONFIRMATION:
+        return None
+    return name
+
+
 def parse_bar_visible(window_txt: str, bar: str) -> bool | None:
     """Whether `bar` (`'statusBars'` or `'navigationBars'`) is visible.
 
@@ -353,38 +388,34 @@ _LIGHT_STATUS_BARS_NAME = "LIGHT_STATUS_BARS"
 _LIGHT_NAVIGATION_BARS_NAME = "LIGHT_NAVIGATION_BARS"
 
 
-def parse_appearance(window_txt: str, bar: str) -> bool:
-    """Whether the platform paints DARK content for `bar` ('statusBars' or
-    'navigationBars') because that bar's LIGHT_* appearance bit is set.
+def parse_appearance(window_txt: str, bar: str, sdk: int) -> bool:
+    """Whether the app's own window requests DARK content for `bar`
+    ('statusBars' or 'navigationBars') via that bar's LIGHT_* appearance
+    bit.
 
-    Modern (API 30+): `DisplayPolicy.dump` (frameworks/base/services/core/
-    java/com/android/server/wm/DisplayPolicy.java) prints `mLastAppearance=`
-    only when non-zero, naming each set bit via `InsetsFlags`'s ViewDebug
-    flag mapping (frameworks/base/core/java/android/view/InsetsFlags.java):
-    `LIGHT_STATUS_BARS` / `LIGHT_NAVIGATION_BARS`. This is one line for the
-    whole display (not per window), so -- unlike the legacy fallback below
-    -- no other window's state can stand in for it (important finding,
-    review-probe.findings.md:29-36). No line means appearance == 0: neither
-    bar requests dark content.
+    API 30+: the app's own window prints `apr=<FLAG NAMES>` inside its
+    `mAttrs={...}` block (`WindowState.dump`) -- what Stratum itself asked
+    for, independent of which window currently controls the display-wide
+    `mLastAppearance=` (a foreign window, such as an ANR dialog, can own
+    that field instead; RCA finding (2)(c), rca-api36-probes.findings.md:
+    121-161). Below 30, no `apr=` field exists; the app's own
+    `vsysui=<FLAG NAMES>` carries the same request under a singular flag
+    name (`LIGHT_STATUS_BAR`/`LIGHT_NAVIGATION_BAR`, same block
+    `parse_bar_visible`'s legacy path reads). Same app-window scoping as
+    `parse_bar_visible`.
+
+    No app window block in the capture, or no `apr=`/`vsysui=` line in it:
+    False (neither bit is set).
     """
-    m = re.search(r"mLastAppearance=([^\n]*)", window_txt)
-    if m is not None:
-        name = _LIGHT_STATUS_BARS_NAME if bar == "statusBars" else _LIGHT_NAVIGATION_BARS_NAME
-        return name in m.group(1)
-
-    # Legacy (pre-30): `mSystemUiVisibility=0x<hex>` never appears in a
-    # real API 28 capture (confirmed: 0 hits across 7 real pixel_2 dumps,
-    # rca-white-page.findings.md evidence item 2 -- the prior hex-flag
-    # path here never matched, so every API 28 icon-appearance read was
-    # vacuously False). What AOSP actually prints is this app's own
-    # requested `vsysui=<FLAG NAMES>` inside its `mAttrs={...}` block
-    # (`WindowState.dump`, android-9.0.0_r22 tag): the view-level flag
-    # name is singular (`LIGHT_STATUS_BAR`/`LIGHT_NAVIGATION_BAR`), unlike
-    # the modern, plural `InsetsFlags` name above. Same app-window scoping
-    # as `parse_bar_visible`, which reads the same `vsysui=` field.
     block = _app_window_block(window_txt)
     if block is None:
         return False
+    if sdk >= 30:
+        m = re.search(r"apr=([^}\n]*)", block)
+        if m is None:
+            return False
+        name = _LIGHT_STATUS_BARS_NAME if bar == "statusBars" else _LIGHT_NAVIGATION_BARS_NAME
+        return bool(re.search(rf"\b{name}\b", m.group(1)))
     m = re.search(r"vsysui=([^}\n]*)", block)
     if m is None:
         return False
@@ -462,13 +493,6 @@ def parse_recents_label(activities_txt: str) -> str | None:
 # Checks
 # ---------------------------------------------------------------------------
 
-# Android API level at and above which an app targeting API 36 has its
-# immersive bar modes ignored by the platform (US-14 FR-03 E05,
-# docs/prds/.../fr03_apply_bar_mode_and_rotation_lock.md:41; the test file's
-# own head comment, example/integration_test/system_style_device_test.dart:
-# 16-19, names this the pixel_8 / Android 16 exception -- design R8).
-_BARS_STAY_VISIBLE_SDK = 36
-
 # No `dumpsys window` dump prints an API level (confirmed against
 # `InsetsSource.java`, `WindowState.java`, `ActivityRecord.java`: none of
 # their dump() methods print `mTargetSdk`/`targetSdk`/`sdkInt` -- important
@@ -523,7 +547,13 @@ def _check_icon(
     """
     if platform == "android":
         window_txt = _require(probe_dir, name, "window.txt")
-        light = parse_appearance(window_txt, "statusBars")
+        violation = _focus_violation(window_txt)
+        if violation is not None:
+            return False, f"focus not app: {violation}"
+        sdk = sdk_level_for(probe_dir)
+        if sdk is None:
+            return False, f"device.txt missing ({cite})"
+        light = parse_appearance(window_txt, "statusBars", sdk)
         actual = "dark" if light else "light"
         detail = f"LIGHT_STATUS_BARS {'set' if light else 'unset'} -> {actual} icons ({cite})"
     else:
@@ -554,6 +584,9 @@ def _check_bars_hidden(
     if platform != "android":
         raise ValueError("bar-visibility checks need window.txt (android only)")
     window_txt = _require(probe_dir, name, "window.txt")
+    violation = _focus_violation(window_txt)
+    if violation is not None:
+        return False, f"focus not app: {violation}"
     status_visible = parse_bar_visible(window_txt, "statusBars")
     nav_visible = parse_bar_visible(window_txt, "navigationBars")
     if status_visible is None or nav_visible is None:
@@ -562,18 +595,8 @@ def _check_bars_hidden(
             f"{name}.window.txt (tried InsetsSource type=/visible= and legacy "
             f"vsysui=) ({cite})"
         )
-    sdk = sdk_level_for(probe_dir)
-    if sdk is None:
-        return False, f"device.txt missing ({cite})"
-    stays_visible = sdk >= _BARS_STAY_VISIBLE_SDK
-    expected_visible = stays_visible
-    actual_visible = status_visible or nav_visible
-    ok = actual_visible == expected_visible
-    detail = (
-        f"sdk={sdk} expected visible={expected_visible} (stay-visible exception "
-        f"{'applies' if stays_visible else 'does not apply'}), "
-        f"got statusBars={status_visible} navigationBars={nav_visible} ({cite})"
-    )
+    ok = not status_visible and not nav_visible
+    detail = f"expected both hidden, got statusBars={status_visible} navigationBars={nav_visible} ({cite})"
     return ok, detail
 
 
@@ -581,6 +604,9 @@ def _check_bars_shown(probe_dir: Path, name: str, platform: str, cite: str) -> t
     if platform != "android":
         raise ValueError("bar-visibility checks need window.txt (android only)")
     window_txt = _require(probe_dir, name, "window.txt")
+    violation = _focus_violation(window_txt)
+    if violation is not None:
+        return False, f"focus not app: {violation}"
     status_visible = parse_bar_visible(window_txt, "statusBars")
     nav_visible = parse_bar_visible(window_txt, "navigationBars")
     if status_visible is None or nav_visible is None:

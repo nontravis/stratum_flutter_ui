@@ -50,6 +50,11 @@ dev_dependencies:
   flutter_driver:
     sdk: flutter
 
+  # system_style_device_test.dart's support/probe.dart reads the device-test
+  # probe ack file (device-test probe contract item 1b) from the app's own
+  # data directory; previously only a transitive dependency.
+  path_provider: ^2.1.6
+
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your

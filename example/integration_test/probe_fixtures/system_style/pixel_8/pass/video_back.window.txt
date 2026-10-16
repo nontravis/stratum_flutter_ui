@@ -1,6 +1,6 @@
 WINDOW MANAGER WINDOWS (dumpsys window windows)
   DisplayPolicy:
   mInsetsState: InsetsState: {
-    InsetsSource id=7b type=statusBars frame=[0,0][1080,76] visible=true flags=0 sideHint=TOP boundingRects=[]
-    InsetsSource id=7b type=navigationBars frame=[0,2340][1080,2400] visible=true flags=0 sideHint=BOTTOM boundingRects=[]
+    InsetsSource id=7b type=statusBars frame=[0,0][1080,76] visible=false flags=0 sideHint=TOP boundingRects=[]
+    InsetsSource id=7b type=navigationBars frame=[0,2340][1080,2400] visible=false flags=0 sideHint=BOTTOM boundingRects=[]
   }

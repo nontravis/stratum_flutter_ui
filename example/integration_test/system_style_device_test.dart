@@ -13,17 +13,18 @@
 // The round also checks by eye on each Android and iOS target: the status
 // bar shows the app's dark color, which Stratum paints, with light icons
 // (design R7); the status bar icons read light over the dark header and
-// dark over the white page; both bars hide on the video page and show
-// again over it, except on pixel_8, whose Android 16 ignores the immersive
-// modes of an app that targets API 36, so the bars stay with no error, as
-// Flutter's `SystemChrome.setEnabledSystemUIMode` documents (design R8);
-// the recent-apps entry names the page. On the web it checks that the tab
-// title reads the page label and returns to the app label on back. The
+// dark over the white page; both bars hide on the video page, on every
+// Android API level this round targets, including pixel_8's Android 16,
+// and show again over it; the recent-apps entry names the page. On the
+// web it checks that the tab title reads the page label and returns to
+// the app label on back. The
 // `reportData` of each run records the view padding before and after the
 // bars hide.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
+
+import 'support/probe.dart';
 
 const _appWide = SystemStyle(appSwitcherLabel: 'Stratum');
 
@@ -91,16 +92,6 @@ Widget _whitePage(StratumThemeController controller) => ColoredBox(
   color: controller.themes.light.color.background.defaults.normal,
 );
 
-/// How long a probe keeps the frame still for the capture script outside
-/// this repository (device-test probe contract item 1).
-const _probeHold = Duration(milliseconds: 1500);
-
-/// Marks probe [name] and holds the frame still for [_probeHold].
-Future<void> _probe(WidgetTester tester, String name) async {
-  debugPrint('PROBE:$name');
-  await tester.pump(_probeHold);
-}
-
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   late StratumThemeController controller;
@@ -126,7 +117,7 @@ void main() {
         Brightness.light,
       );
     }
-    await _probe(tester, 'dark_header');
+    await probe('dark_header');
 
     navigator.currentState!.push(
       MaterialPageRoute<void>(builder: (context) => _whitePage(controller)),
@@ -144,7 +135,7 @@ void main() {
       tester.widget<ColoredBox>(find.byKey(_whitePageFillKey)).color,
       _whitePageExpectedFill,
     );
-    await _probe(tester, 'white_page');
+    await probe('white_page');
   });
 
   testWidgets('us14/s16, us14/fr01/e06, us14/fr02/e07: the app status bar '
@@ -170,7 +161,7 @@ void main() {
         Brightness.light,
       );
     }
-    await _probe(tester, 'dark_statusbar');
+    await probe('dark_statusbar');
   });
 
   testWidgets('us14/s7, us14/s8, us14/s9, us14/s12, us14/s13, us14/s14: the '
@@ -191,8 +182,8 @@ void main() {
     final hidden = tester.view.viewPadding;
     expect(find.text('Video'), findsOneWidget);
     expect(tester.takeException(), isNull);
-    await _probe(tester, 'video_bars_hidden');
-    await _probe(tester, 'recents_label');
+    await probe('video_bars_hidden');
+    await probe('recents_label');
 
     navigator.currentState!.push(
       MaterialPageRoute<void>(builder: (context) => const Text('Over')),
@@ -200,13 +191,13 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
     final shown = tester.view.viewPadding;
     expect(tester.takeException(), isNull);
-    await _probe(tester, 'video_bars_shown');
+    await probe('video_bars_shown');
 
     navigator.currentState!.pop();
     await tester.pumpAndSettle(const Duration(seconds: 1));
     expect(find.text('Video'), findsOneWidget);
     expect(tester.takeException(), isNull);
-    await _probe(tester, 'video_back');
+    await probe('video_back');
 
     binding.reportData = {
       'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
