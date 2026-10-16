@@ -31,6 +31,7 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
   final StratumWidgetSettingStore _store;
   final Map<String, Object> _cache = {};
   Future<void> _queueTail = Future<void>.value();
+  Future<void>? _loading;
   bool _isLoaded = false;
   bool _isDisposed = false;
   String? _userId;
@@ -58,19 +59,25 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
 
   /// Reads the current slot's keys once; later calls are a no-op.
   ///
-  /// A read the store refuses yields an empty cache and one report, so the
-  /// app starts with every default (PD12). A controller disposed while the
-  /// read is pending caches nothing from it.
-  Future<void> load() async {
-    if (_isLoaded) return;
+  /// Memoizes the first call, so a second call made before the first ends
+  /// awaits that same read instead of starting its own, which would
+  /// otherwise land after and revert a write made in between (US-03
+  /// FR-01). A read the store refuses yields an empty cache and one
+  /// report, so the app starts with every default (PD12). A controller
+  /// disposed while the read is pending caches nothing from it.
+  Future<void> load() => _loading ??= _load();
+
+  Future<void> _load() async {
     final prefix = userSettingPrefix(_userId);
     try {
       final values = await _queue(() => _store.read(prefix));
       if (!_isDisposed) {
         _cache.addEntries(
           values.entries.map(
-            (entry) =>
-                MapEntry(entry.key.substring(prefix.length), entry.value),
+            (entry) => MapEntry(
+              entry.key.substring(prefix.length),
+              _cacheable(entry.value),
+            ),
           ),
         );
       }
@@ -105,8 +112,10 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
   ///
   /// A no-op when [value] equals the cached value (PD13). Updates the
   /// cache and notifies before the store call, unless disposed; the store
-  /// call runs on the queue and never throws (PD12). Asserts [isLoaded]; a
-  /// release build is a no-op before load.
+  /// call runs on the queue and never throws (PD12). Caches a list by an
+  /// unmodifiable copy, so a caller's later mutation of its own list never
+  /// reaches the cache (US-02 FR-03). Asserts [isLoaded]; a release build
+  /// is a no-op before load.
   @internal
   Future<void> write(String logicalKey, Object? value) async {
     assert(isLoaded, _notLoadedMessage);
@@ -116,7 +125,7 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
       if (value == null) {
         _cache.remove(logicalKey);
       } else {
-        _cache[logicalKey] = value;
+        _cache[logicalKey] = _cacheable(value);
       }
       _notifyChanged({logicalKey});
     }
@@ -169,7 +178,10 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
       ..clear()
       ..addEntries(
         values.entries.map(
-          (entry) => MapEntry(entry.key.substring(prefix.length), entry.value),
+          (entry) => MapEntry(
+            entry.key.substring(prefix.length),
+            _cacheable(entry.value),
+          ),
         ),
       );
     _userId = userId;
@@ -246,6 +258,12 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
     if (a is List<String> && b is List<String>) return listEquals(a, b);
     return a == b;
   }
+
+  /// The value the cache keeps for [value]: an unmodifiable copy for a
+  /// list, so neither a caller's nor the store's own list instance is
+  /// ever the cache's (US-02 FR-03).
+  Object _cacheable(Object value) =>
+      value is List<String> ? List<String>.unmodifiable(value) : value;
 
   /// Chains [action] after every earlier call on the store, in call order,
   /// so a reset after a write removes it (PD12); never leaves the queue

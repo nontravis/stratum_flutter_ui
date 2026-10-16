@@ -200,6 +200,54 @@ void main() {
     expect(notifies, 1);
   });
 
+  test('fo10/us02/fr03: the cache holds a list by an unmodifiable copy, so a '
+      'caller never aliases it', () async {
+    final backing = StratumMemorySettingStore();
+    final settings = await StratumWidgetSettingsController.preload(
+      store: backing,
+    );
+    final part = settings.box('acme.inbox').global;
+    var notifies = 0;
+    settings.addListener(() => notifies++);
+
+    final own = ['a'];
+    await part.setStringList('tags', own);
+    own.add('mutated');
+    expect(part.getStringList('tags'), ['a']);
+    expect(() => part.getStringList('tags')!.add('x'), throwsUnsupportedError);
+
+    final copy = List<String>.of(part.getStringList('tags')!)..add('b');
+    await part.setStringList('tags', copy);
+
+    expect(part.getStringList('tags'), ['a', 'b']);
+    expect(notifies, 2);
+    expect(backing.values['stratum/d/acme.inbox/g/tags'], ['a', 'b']);
+  });
+
+  test('fo10/us03/fr01: load() memoizes so a concurrent call never reverts a '
+      'write made meanwhile', () async {
+    final store = CountingSettingStore({'stratum/d/acme.inbox/g/w': 1.0});
+    final hold1 = store.holdNextRead();
+    final hold2 = store.holdNextRead();
+    final settings = StratumWidgetSettingsController(store: store);
+    addTearDown(settings.dispose);
+    final part = settings.box('acme.inbox').global;
+
+    final first = settings.load();
+    final second = settings.load();
+
+    hold1.complete();
+    await first;
+
+    final writing = part.setDouble('w', 2);
+
+    hold2.complete();
+    await second;
+
+    expect(part.getDouble('w'), 2);
+    await writing;
+  });
+
   test(
     'fo10/us02/fr04: a write marks exactly its logical key changed',
     () async {

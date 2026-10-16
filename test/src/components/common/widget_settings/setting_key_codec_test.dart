@@ -51,6 +51,10 @@ void main() {
       throwsAssertionError,
     );
     expect(() => userSettingPrefix(''), throwsAssertionError);
+    expect(
+      () => logicalSettingKey('n', const WidgetSettingKey.id(''), 'x'),
+      throwsAssertionError,
+    );
   });
 
   test('fo10/us02/fr03: only the five storable types pass the value check', () {

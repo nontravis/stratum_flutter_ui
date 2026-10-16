@@ -208,6 +208,51 @@ void main() {
   );
 
   testWidgets(
+    'fo10/us04/fr01: a route-replaced page stops writing after it leaves '
+    'while its app controller lives on',
+    (tester) async {
+      _view(tester);
+      final store = CountingSettingStore();
+      final settings = await _settings(store);
+      final shared = _appController();
+      final navigator = GlobalKey<NavigatorState>();
+
+      await tester.pumpWidget(
+        _host(
+          settings,
+          Navigator(
+            key: navigator,
+            onGenerateRoute: (_) => MaterialPageRoute<void>(
+              builder: (_) => _page(
+                setting: const WidgetSettingKey.id('a'),
+                controller: shared,
+                id: '-a',
+              ),
+            ),
+          ),
+        ),
+      );
+
+      navigator.currentState!.pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => _page(
+            setting: const WidgetSettingKey.id('b'),
+            controller: shared,
+            id: '-b',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      shared.leftWidth = 350;
+      await tester.pump();
+
+      expect(store.values['${_box}i/a/left_width'], isNull);
+      expect(store.values['${_box}i/b/left_width'], 350.0);
+    },
+  );
+
+  testWidgets(
     'fo10/us01/s2: fo10/us01/fr02/e01: under StratumApplication the first '
     'frame with the page shows 400',
     (tester) async {

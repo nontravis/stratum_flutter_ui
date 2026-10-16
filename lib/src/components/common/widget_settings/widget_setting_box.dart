@@ -57,6 +57,8 @@ final class StratumWidgetSettingPart {
   String? getString(String name) => _read<String>(name);
 
   /// The stored list of text under [name], else null.
+  ///
+  /// The list is unmodifiable: copy it before adding or removing an entry.
   List<String>? getStringList(String name) => _read<List<String>>(name);
 
   /// Stores [value] as [name]'s yes-or-no value.

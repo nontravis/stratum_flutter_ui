@@ -631,13 +631,16 @@ class _PageLayoutState extends State<PageLayout>
     _appDefaultRight = widget.controller?.rightWidth;
   }
 
-  /// Lets [controller] go of this page, while it holds this page.
+  /// Lets [controller] go of this page: always drops this page's own
+  /// listener, whatever [controller] holds, so a controller a later page
+  /// took over never keeps a gone page's listener attached (a route swap
+  /// on one shared app controller).
   void _detach(PageLayoutController controller) {
+    controller.removeListener(_onControllerChanged);
     if (controller._layout != this) return;
     controller
       .._layout = null
-      .._openSide = null
-      ..removeListener(_onControllerChanged);
+      .._openSide = null;
   }
 
   /// Keeps the slot node that holds focus as loading turns true, and hands

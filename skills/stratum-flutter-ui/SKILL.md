@@ -765,8 +765,10 @@ beside `style`, which draws the box.
   saves through `onThemeChanged`; this feature adds no persistence to the theme runtime.
 - **Widget tests** — install `SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty()` in
   `setUp` (for example in `flutter_test_config.dart`) so every wrapper's own default store loads an empty box, or
-  pass `widgetSettings:` a controller preloaded over `StratumMemorySettingStore`; with neither, each wrapper reports
-  its failed load once and still shows its frame.
+  pass `widgetSettings:` a controller preloaded over `StratumMemorySettingStore`; with neither, a `StateError` about
+  the missing platform instance reports once through `FlutterError.reportError`, which fails a `testWidgets` test
+  that pumps `StratumSplashScreen` or `StratumApplication` with no theme controller, so add one of the two setups
+  before pumping either.
 
 ## System bars
 

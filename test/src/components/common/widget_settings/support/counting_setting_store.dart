@@ -13,13 +13,14 @@ final class CountingSettingStore implements StratumWidgetSettingStore {
   final StratumMemorySettingStore _store;
   final List<Completer<void>> _pendingHolds = [];
 
-  /// The number of completed reads.
+  /// The number of attempted reads; a failed call still counts, and a held
+  /// read counts once released.
   int reads = 0;
 
-  /// The number of completed writes.
+  /// The number of attempted writes; a failed call still counts.
   int writes = 0;
 
-  /// The number of completed removals.
+  /// The number of attempted removals; a failed call still counts.
   int removes = 0;
 
   /// Whether the next read throws `StateError('read failed')`.
