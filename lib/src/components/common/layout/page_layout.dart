@@ -416,6 +416,11 @@ class _PageLayoutState extends State<PageLayout>
     onStored: _onStored,
   );
 
+  /// The controller's widths when the page first met it, before any
+  /// restore; null for the page's own controller (PD18).
+  double? _appDefaultLeft;
+  double? _appDefaultRight;
+
   /// The controller's widths as this page last saw them; a settled change
   /// saves only a width that differs (PD7).
   double? _seenLeft;
@@ -450,6 +455,8 @@ class _PageLayoutState extends State<PageLayout>
   @override
   void initState() {
     super.initState();
+    _appDefaultLeft = widget.controller?.leftWidth;
+    _appDefaultRight = widget.controller?.rightWidth;
     _controller
       .._layout = this
       ..addListener(_onControllerChanged);
@@ -622,6 +629,8 @@ class _PageLayoutState extends State<PageLayout>
       .._layout = this
       .._openSide = openSide
       ..addListener(_onControllerChanged);
+    _appDefaultLeft = widget.controller?.leftWidth;
+    _appDefaultRight = widget.controller?.rightWidth;
   }
 
   /// Lets [controller] go of this page, while it holds this page.
@@ -1463,9 +1472,13 @@ class _PageLayoutState extends State<PageLayout>
     }
   }
 
-  /// Moves the panes to a store change's widths through the controller;
-  /// left to M5-T16 (PD7, PD18).
-  void _onStored(Map<String, Object?> stored) {}
+  /// Moves the panes to a store change's widths through the controller,
+  /// which notifies, else back to the app default (PD18).
+  void _onStored(Map<String, Object?> stored) {
+    _controller
+      ..leftWidth = _decodeWidth(stored[_leftWidthName]) ?? _appDefaultLeft
+      ..rightWidth = _decodeWidth(stored[_rightWidthName]) ?? _appDefaultRight;
+  }
 
   /// [PageLayout.snack] at the bottom center, above the bottom inset and
   /// the keyboard the page makes room for and within the side insets;
