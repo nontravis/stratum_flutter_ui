@@ -1,6 +1,4 @@
-import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
 import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_resolution.dart';
-import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// Wraps the app in Stratum's layers, outer to inner: the theme runtime
@@ -47,7 +45,7 @@ class StratumApplication extends StatefulWidget {
     this.notices = true,
     this.noticeHost,
     this.updateGate,
-    @internal this.widgetSettings,
+    this.widgetSettings,
     required this.appBuilder,
   });
 
@@ -56,7 +54,11 @@ class StratumApplication extends StatefulWidget {
   ///
   /// With one, every preload input is ignored: [initialThemeId],
   /// [onThemeChanged], [googleFontsTimeout], [remoteThemes],
-  /// [onRemoteThemeError], [error], and [loadingBuilder].
+  /// [onRemoteThemeError], [error], and [loadingBuilder]. One exception:
+  /// a rebuild that flips [controller] from null to non-null while the
+  /// widget settings load the null branch started is still pending shows
+  /// [loadingBuilder], else the no-splash background, until that load
+  /// ends.
   final StratumThemeController? controller;
 
   /// The theme id the app saved; a preload input, read once at the first
@@ -132,8 +134,8 @@ class StratumApplication extends StatefulWidget {
   /// The widget settings this app loads beside the start theme, under its
   /// own loading frame (PD8): with [controller], the one passed, else the
   /// scope above, asserted loaded; with none, the one passed, else the
-  /// scope above, else one of its own (PD9). Kept inside the package.
-  @internal
+  /// scope above, else one of its own (PD9), read once at the first
+  /// build.
   final StratumWidgetSettingsController? widgetSettings;
 
   /// Builds the app's own Material, iOS-style, or plain app widget from

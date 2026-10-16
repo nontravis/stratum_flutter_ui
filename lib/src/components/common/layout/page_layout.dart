@@ -11,7 +11,6 @@ import 'package:stratum_ui/src/components/common/layout/page_drawer.dart'
         resolveDrawerType;
 import 'package:stratum_ui/src/components/common/model/page_layout/page_areas.dart';
 import 'package:stratum_ui/src/components/common/model/solid_fill.dart';
-import 'package:stratum_ui/src/components/common/model/widget_setting/widget_setting_key.dart';
 import 'package:stratum_ui/src/components/common/widget_settings/setting_binding.dart';
 import 'package:stratum_ui/src/src.dart';
 
@@ -198,7 +197,7 @@ class PageLayout extends StatefulWidget {
     this.onDrawerChanged,
     this.customStyle,
     this.systemStyle,
-    @internal this.setting,
+    this.setting,
   });
 
   /// The slot across the full width on top.
@@ -304,8 +303,7 @@ class PageLayout extends StatefulWidget {
   /// - The restore at the first build notifies no listener of [controller]:
   ///   read the controller after the first frame.
   /// - A later store change moves the pane through [controller], which
-  ///   notifies. Kept inside the package.
-  @internal
+  ///   notifies.
   final WidgetSettingKey? setting;
 
   /// The controller of the nearest [PageLayout] above [context].

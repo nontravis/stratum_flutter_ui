@@ -102,4 +102,29 @@ void main() {
     expect(key, ScrollFocus);
     expect(ScrollFocusMode.values, hasLength(2));
   });
+
+  test('fo10/us02/fr01: fo10/us06/fr01: the package exports the widget '
+      'setting API', () {
+    const key = WidgetSettingKey.id('a');
+    expect(key, isA<WidgetSettingKey>());
+    expect(StratumMemorySettingStore(), isA<StratumWidgetSettingStore>());
+    expect(
+      StratumSharedPreferencesSettingStore(),
+      isA<StratumWidgetSettingStore>(),
+    );
+    expect(StratumWidgetSettingsController(), isA<ChangeNotifier>());
+    expect(
+      StratumWidgetSettings(
+        controller: StratumWidgetSettingsController(),
+        child: const SizedBox(),
+      ),
+      isA<StatefulWidget>(),
+    );
+
+    final source = File(
+      'lib/src/components/common/widget_settings/widget_settings.dart',
+    ).readAsStringSync();
+    expect(source, isNot(contains('setting_key_codec')));
+    expect(source, isNot(contains('setting_binding')));
+  });
 }

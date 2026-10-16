@@ -14,3 +14,4 @@ export 'style/style.dart';
 export 'text_entry_guard.dart';
 export 'utility/utility.dart';
 export 'web_view/web_view.dart';
+export 'widget_settings/widget_settings.dart';

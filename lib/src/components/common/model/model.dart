@@ -23,4 +23,5 @@ export 'web_view/web_view_error.dart';
 export 'web_view/web_view_message.dart';
 export 'web_view/web_view_navigation_decision.dart';
 export 'web_view/web_view_source.dart';
+export 'widget_setting/widget_setting_key.dart';
 export 'widget_style.dart';

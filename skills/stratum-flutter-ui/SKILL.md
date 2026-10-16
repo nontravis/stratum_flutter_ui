@@ -695,7 +695,13 @@ beside `style`, which draws the box.
   theme application inside its builder keeps the wrapper's `themeMode` (default `ThemeMode.system`) on every route.
 - `controller:` hands in a `StratumThemeController` you hold, which the wrapper never disposes. With one, the preload
   inputs (`initialThemeId`, `onThemeChanged`, `googleFontsTimeout`, `remoteThemes`, `onRemoteThemeError`, `error`,
-  `loadingBuilder`) are ignored; with none, the wrapper reads the first five once, at its first build.
+  `loadingBuilder`) are ignored; with none, the wrapper reads the first five once, at its first build. One
+  exception: a rebuild that flips `controller:` from null to one while the widget settings load the null branch
+  started is still pending shows `loadingBuilder`, else the background, until that load ends.
+- `widgetSettings:` hands in a `StratumWidgetSettingsController` you hold, read once at the first build; with none,
+  the wrapper reads the scope above, else makes its own over the default store and places a scope around the app
+  for `setting:` on a `PageLayout` or `SplitLayout` below to read (see Widget settings). With `controller:` set, a
+  settings controller this app uses must already be loaded.
 - `loadingBuilder:` replaces the theme's background color shown until the start theme is active. `error:` is the
   frame for a start theme that fails to load, and the failure reaches only it, so log it there; with none, the failure
   goes to `FlutterError.reportError` and the background stays. Both build above the app widget, with no
@@ -709,6 +715,58 @@ beside `style`, which draws the box.
 - `systemStyle:` forwards the app-wide system bar style to the theme application; see System bars.
 - `componentPartDefaults:` forwards the app-wide parts style per component type to the theme application; see
   Themes, App-wide component defaults.
+
+## Widget settings
+
+- **Opt in per instance** — pass `setting: WidgetSettingKey.global()` to a `PageLayout` or `SplitLayout` to have
+  Stratum remember that type's own sizes across every instance, or `setting: WidgetSettingKey.id('mail')` for the
+  instances that share that id; with no `setting:` Stratum persists nothing. A stored value wins over a passed
+  controller's, each value judged on its own; the controller's own value is the default only where the store holds
+  none. The restore at the first build notifies no listener of a passed controller: read it after the first frame,
+  not during it.
+- **Load before the first frame** — `StratumSplashScreen` and `StratumApplication` load the settings beside the
+  start theme, under the same held first frame, so a mounted `setting:` reads the loaded cache at its own first
+  build. Pass `widgetSettings:` a `StratumWidgetSettingsController` of your own to call `switchUser` from
+  `postload`, or preload it yourself ahead of either wrapper:
+
+  ```dart
+  // Without a Stratum wrapper: preload the device box before runApp.
+  final settings = await StratumWidgetSettingsController.preload();
+  runApp(StratumWidgetSettings(controller: settings, child: const MyApp()));
+
+  // After sign-in, and at sign-out.
+  await settings.switchUser('user-42');
+  await settings.switchUser(null);
+  ```
+
+- **A box per widget type** — a plain app widget reads and writes its own settings through
+  `StratumWidgetSettings.of(context, namespace: 'acme.inbox_filter')`, a declared, package-prefixed namespace that
+  returns a `StratumWidgetSettingBox`: `box.global` is the part every instance of that widget type shares, and
+  `box.id('mail')` the part shared only by instances carrying that id; `global` and an `id` never mix values, and
+  neither leaks into another widget type's box. Each part has `getBool`/`setBool`, `getInt`/`setInt`,
+  `getDouble`/`setDouble`, `getString`/`setString`, and `getStringList`/`setStringList`, plus `remove`; a write
+  rebuilds only the readers of that value.
+
+  ```dart
+  final box = StratumWidgetSettings.of(context, namespace: 'acme.inbox_filter');
+  final unreadOnly = box.global.getBool('unread_only') ?? false;
+  ```
+
+- **Per signed-in user** — `controller.switchUser('user-42')` loads that user's values, then swaps every reader at
+  once, so no default frame shows under the new user; `switchUser(null)` returns to the device box at sign-out.
+  `controller.clearUser('user-42')` clears only that user's Stratum keys, such as at account deletion.
+- **Reset** — `controller.resetId(namespace, id)`, `controller.resetType(namespace)`, and `controller.resetAll()`
+  reset by id, by type, or every Stratum setting of the current user; reset never touches the host app's own
+  keys or another user's.
+- **Swap the store** — the default store is `StratumSharedPreferencesSettingStore`, over `shared_preferences`.
+  `StratumMemorySettingStore` is the in-memory one for tests; pass it to your own
+  `StratumWidgetSettingsController(store: StratumMemorySettingStore())`.
+- **Theme persistence stays the app's** — widget settings are their own store, separate from the theme id the app
+  saves through `onThemeChanged`; this feature adds no persistence to the theme runtime.
+- **Widget tests** — install `SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty()` in
+  `setUp` (for example in `flutter_test_config.dart`) so every wrapper's own default store loads an empty box, or
+  pass `widgetSettings:` a controller preloaded over `StratumMemorySettingStore`; with neither, each wrapper reports
+  its failed load once and still shows its frame.
 
 ## System bars
 
@@ -864,13 +922,17 @@ beside `style`, which draws the box.
   drag across the axis that starts there still reaches the pane content under it. Paint one with
   `dividerBuilder: (context, state) => ...`, where `state.hovered`, `state.dragging`, and `state.focused` pick the
   look; the widget fills the hit area, so center a thin line in it and read its color from a theme token.
-- **Keep widths** — Stratum stores nothing. Pass a `SplitLayoutController(fractions: saved)` to restore kept
-  fractions (one per pane in `panes`, a null pane included; a null entry is a pane with no choice yet, which opens
-  at its own `size` or `flex`), listen to it to save `controller.fractions`, and set
+- **Keep widths** — pass `setting: WidgetSettingKey.global()` (every instance) or `setting:
+  WidgetSettingKey.id('mail')` (instances sharing that id) to have Stratum remember and restore the split's
+  fractions itself under the `StratumWidgetSettings` above (see Widget settings); with no `setting:`, Stratum
+  persists nothing. Pass a `SplitLayoutController(fractions: saved)` to restore kept
+  fractions yourself instead (one per pane in `panes`, a null pane included; a null entry is a pane with no choice
+  yet, which opens at its own `size` or `flex`), listen to it to save `controller.fractions`, and set
   `controller.fractions = [...]` from code. It notifies once per settled move (a drag's end, one key step, a slider
   action, or a code set), never per drag frame and never when a narrow window only squeezes the panes. A saved entry
   that is NaN, infinite, or negative reads as null, so a corrupt value opens the pane at its own size. With no
-  controller the split makes and disposes its own; it never disposes one you pass.
+  controller the split makes and disposes its own; it never disposes one you pass. With both, a stored value wins
+  over the controller's, which becomes the default only where the store holds none.
 
 ## Page layout
 
@@ -921,6 +983,11 @@ beside `style`, which draws the box.
   a key step, or a code set), never per drag frame and never when a narrow window only squeezes a pane. A saved
   width that is NaN, infinite, or negative reads as null, so a corrupt value opens Figma's width. The page disposes
   only the one it makes.
+- **Keep widths** — pass `setting: WidgetSettingKey.global()` (every instance) or `setting:
+  WidgetSettingKey.id('mail')` (instances sharing that id) to have Stratum remember and restore `leftWidth` and
+  `rightWidth` itself under the `StratumWidgetSettings` above (see Widget settings), judged each on its own; with
+  no `setting:`, Stratum persists nothing. With a passed controller too, a stored width wins, and the controller's
+  width becomes the default only where the store holds none.
 
 ## Hover and focus observers
 

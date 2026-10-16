@@ -8,7 +8,6 @@ import 'package:multi_split_view/multi_split_view.dart'
         MultiSplitViewTheme,
         MultiSplitViewThemeData;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
-import 'package:stratum_ui/src/components/common/model/widget_setting/widget_setting_key.dart';
 import 'package:stratum_ui/src/components/common/utility/focus_border.dart'
     show focusStyleOver;
 import 'package:stratum_ui/src/components/common/widget_settings/setting_binding.dart';
@@ -157,7 +156,7 @@ class SplitLayout extends StatefulWidget {
     this.dividerLabel,
     this.dividerBuilder,
     this.customStyle,
-    @internal this.setting,
+    this.setting,
     @internal this.endPrimary = false,
   });
 
@@ -193,8 +192,7 @@ class SplitLayout extends StatefulWidget {
   /// - The restore at the first build notifies no listener of [controller]:
   ///   read the controller after the first frame.
   /// - A later store change moves the panes through [controller], which
-  ///   notifies. Kept inside the package.
-  @internal
+  ///   notifies.
   final WidgetSettingKey? setting;
 
   /// Whether each divider speaks for the pane after it, the WAI-ARIA window

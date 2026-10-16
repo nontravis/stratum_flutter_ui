@@ -3,9 +3,7 @@ import 'package:stratum_ui/src/animations/screen_transition.dart';
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/splash_signal/splash_signal_none.dart'
     if (dart.library.js_interop) 'package:stratum_ui/src/components/common/splash_signal/splash_signal_web.dart';
-import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
 import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_resolution.dart';
-import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The step of [StratumSplashScreen] that failed, which
@@ -111,7 +109,7 @@ class StratumSplashScreen<T> extends StatefulWidget {
     this.themeMode = ThemeMode.system,
     this.highContrast = StratumHighContrastMode.system,
     this.loadingLabel,
-    @internal this.widgetSettings,
+    this.widgetSettings,
   });
 
   /// The theme id the app saved, else null for `default`.
@@ -189,9 +187,8 @@ class StratumSplashScreen<T> extends StatefulWidget {
 
   /// The widget settings this splash loads beside the start theme, under
   /// the held first frame (PD8): the one passed, else the scope above,
-  /// else one of its own (PD9). Pass one of your own to call
-  /// `switchUser` from [postload]. Kept inside the package.
-  @internal
+  /// else one of its own (PD9), read once at the first build. Pass one
+  /// of your own to call `switchUser` from [postload].
   final StratumWidgetSettingsController? widgetSettings;
 
   @override
