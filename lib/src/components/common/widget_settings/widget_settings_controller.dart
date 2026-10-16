@@ -16,7 +16,8 @@ import 'package:stratum_ui/src/components/common/widget_settings/widget_setting_
 /// write or removal keeps the session's value and reports once through
 /// [FlutterError.reportError], and a failed read at load yields an empty
 /// box and one report (PD12). A write of a value equal to the cached one
-/// neither notifies nor calls the store (PD13).
+/// neither notifies nor calls the store (PD13). A disposed controller swaps
+/// nothing from a pending [switchUser] and notifies nothing (US-04 FR-01).
 final class StratumWidgetSettingsController extends ChangeNotifier {
   new({StratumWidgetSettingStore? store})
     : _store = store ?? StratumSharedPreferencesSettingStore();
@@ -30,8 +31,10 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
   final Map<String, Object> _cache = {};
   Future<void> _queueTail = Future<void>.value();
   bool _isLoaded = false;
+  bool _isDisposed = false;
   String? _userId;
   Set<String>? _changedKeys;
+  int _switchToken = 0;
 
   /// Makes a controller and awaits its [load] before returning it.
   static Future<StratumWidgetSettingsController> preload({
@@ -70,6 +73,12 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
       _report(error, stack, 'while loading the widget settings');
     }
     _isLoaded = true;
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
   }
 
   /// The box [namespace] reads and writes through, with no scope
@@ -127,6 +136,64 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
 
   /// Resets every value of the current slot.
   Future<void> resetAll() => _reset('');
+
+  /// Switches to [userId]'s box, or the device box for null (US-04 FR-01).
+  ///
+  /// Awaits [load] first. Loads the new box through the store queue while
+  /// every reader keeps the shown box, then swaps the cache and [userId]
+  /// and notifies once; each call takes the next token, and only the
+  /// latest token's load swaps, so of two quick switches the last one
+  /// wins and the earlier load is dropped. A switch to the current user
+  /// reads nothing and drops a pending switch. A write made before the
+  /// swap goes to the user shown when it was made (s03 invariant 7). A
+  /// read the store refuses swaps to an empty box with one report; a
+  /// disposed controller swaps and notifies nothing.
+  Future<void> switchUser(String? userId) async {
+    await load();
+    final token = ++_switchToken;
+    if (userId == _userId) return;
+    final prefix = userSettingPrefix(userId);
+    var values = const <String, Object>{};
+    try {
+      values = await _queue(() => _store.read(prefix));
+    } on Object catch (error, stack) {
+      _report(error, stack, 'while switching the widget settings user');
+    }
+    if (_isDisposed || token != _switchToken) return;
+    _cache
+      ..clear()
+      ..addEntries(
+        values.entries.map(
+          (entry) => MapEntry(entry.key.substring(prefix.length), entry.value),
+        ),
+      );
+    _userId = userId;
+    _changedKeys = null;
+    notifyListeners();
+  }
+
+  /// Clears every stored setting of [userId] (US-04 FR-02).
+  ///
+  /// Removes every storage key a store read finds under that user's
+  /// prefix, leaving the device box and every other user's keys in place.
+  /// For the current user it also clears the shown cache and notifies
+  /// once with the keys it held.
+  Future<void> clearUser(String userId) async {
+    final prefix = userSettingPrefix(userId);
+    if (userId == _userId) {
+      _changedKeys = _cache.keys.toSet();
+      _cache.clear();
+      notifyListeners();
+    }
+    try {
+      await _queue(() async {
+        final stored = await _store.read(prefix);
+        if (stored.isNotEmpty) await _store.remove(stored.keys.toSet());
+      });
+    } on Object catch (error, stack) {
+      _report(error, stack, 'while clearing a widget settings user');
+    }
+  }
 
   /// Drops the cached keys under [logicalPrefix], notifies with exactly
   /// those, then queues removal of every storage key under the prefix the
