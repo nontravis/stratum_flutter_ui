@@ -80,4 +80,18 @@ void main() {
       expect(store.read('stratum/d/'), throwsStateError);
     },
   );
+
+  test('fo10/us02/fr03: a value outside the five types throws and writes '
+      'nothing', () async {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.withData({});
+    final store = StratumSharedPreferencesSettingStore();
+
+    await expectLater(
+      () => store.write('stratum/d/n/g/bad', <int>[1]),
+      throwsArgumentError,
+    );
+
+    expect(await SharedPreferencesAsync().getAll(), isEmpty);
+  });
 }

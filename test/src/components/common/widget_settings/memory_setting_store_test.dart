@@ -33,4 +33,16 @@ void main() {
     seed['stratum/d/n/g/a'] = 2;
     expect(store.values, {'stratum/d/n/g/a': 1});
   });
+
+  test('fo10/us02/fr03: a value outside the five types throws and writes '
+      'nothing', () async {
+    final store = StratumMemorySettingStore(values: {'host.theme': 'dark'});
+
+    await expectLater(
+      () => store.write('stratum/d/n/g/bad', <int>[1]),
+      throwsArgumentError,
+    );
+
+    expect(store.values, {'host.theme': 'dark'});
+  });
 }

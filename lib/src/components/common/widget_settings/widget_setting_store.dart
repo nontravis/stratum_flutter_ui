@@ -13,7 +13,8 @@ abstract interface class StratumWidgetSettingStore {
 
   /// Stores [value] under [key].
   ///
-  /// Asserts [isSettingValue]; the five storable types only (PD3).
+  /// Throws an [ArgumentError] when [value] is not one of the five storable
+  /// types (PD3).
   Future<void> write(String key, Object value);
 
   /// Removes only the entries under [keys].
@@ -42,10 +43,13 @@ final class StratumMemorySettingStore implements StratumWidgetSettingStore {
 
   @override
   Future<void> write(String key, Object value) async {
-    assert(
-      isSettingValue(value),
-      'value must be one of the five storable types',
-    );
+    if (!isSettingValue(value)) {
+      throw ArgumentError.value(
+        value,
+        'value',
+        'must be a bool, int, double, String, or List<String>',
+      );
+    }
     _values[key] = value;
   }
 

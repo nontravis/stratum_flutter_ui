@@ -30,10 +30,13 @@ final class StratumSharedPreferencesSettingStore
 
   @override
   Future<void> write(String key, Object value) async {
-    assert(
-      isSettingValue(value),
-      'value must be one of the five storable types',
-    );
+    if (!isSettingValue(value)) {
+      throw ArgumentError.value(
+        value,
+        'value',
+        'must be a bool, int, double, String, or List<String>',
+      );
+    }
     switch (value) {
       case final bool typed:
         await _preferences.setBool(key, typed);
@@ -45,8 +48,6 @@ final class StratumSharedPreferencesSettingStore
         await _preferences.setString(key, typed);
       case final List<String> typed:
         await _preferences.setStringList(key, typed);
-      case _:
-        break;
     }
   }
 
