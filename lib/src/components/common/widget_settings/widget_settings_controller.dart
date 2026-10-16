@@ -16,8 +16,9 @@ import 'package:stratum_ui/src/components/common/widget_settings/widget_setting_
 /// write or removal keeps the session's value and reports once through
 /// [FlutterError.reportError], and a failed read at load yields an empty
 /// box and one report (PD12). A write of a value equal to the cached one
-/// neither notifies nor calls the store (PD13). A disposed controller swaps
-/// nothing from a pending [switchUser] and notifies nothing (US-04 FR-01).
+/// neither notifies nor calls the store (PD13). A disposed controller
+/// notifies nothing, whatever call reaches it, and a pending [switchUser]
+/// swaps nothing either (US-04 FR-01, FR-02).
 final class StratumWidgetSettingsController extends ChangeNotifier {
   new({StratumWidgetSettingStore? store})
     : _store = store ?? StratumSharedPreferencesSettingStore();
@@ -58,17 +59,21 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
   /// Reads the current slot's keys once; later calls are a no-op.
   ///
   /// A read the store refuses yields an empty cache and one report, so the
-  /// app starts with every default (PD12).
+  /// app starts with every default (PD12). A controller disposed while the
+  /// read is pending caches nothing from it.
   Future<void> load() async {
     if (_isLoaded) return;
     final prefix = userSettingPrefix(_userId);
     try {
       final values = await _queue(() => _store.read(prefix));
-      _cache.addEntries(
-        values.entries.map(
-          (entry) => MapEntry(entry.key.substring(prefix.length), entry.value),
-        ),
-      );
+      if (!_isDisposed) {
+        _cache.addEntries(
+          values.entries.map(
+            (entry) =>
+                MapEntry(entry.key.substring(prefix.length), entry.value),
+          ),
+        );
+      }
     } on Object catch (error, stack) {
       _report(error, stack, 'while loading the widget settings');
     }
@@ -99,21 +104,22 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
   /// Stores [value] under [logicalKey], null removing it.
   ///
   /// A no-op when [value] equals the cached value (PD13). Updates the
-  /// cache and notifies before the store call, which runs on the queue and
-  /// never throws (PD12). Asserts [isLoaded]; a release build is a no-op
-  /// before load.
+  /// cache and notifies before the store call, unless disposed; the store
+  /// call runs on the queue and never throws (PD12). Asserts [isLoaded]; a
+  /// release build is a no-op before load.
   @internal
   Future<void> write(String logicalKey, Object? value) async {
     assert(isLoaded, _notLoadedMessage);
     if (!isLoaded) return;
     if (_sameValue(_cache[logicalKey], value)) return;
-    if (value == null) {
-      _cache.remove(logicalKey);
-    } else {
-      _cache[logicalKey] = value;
+    if (!_isDisposed) {
+      if (value == null) {
+        _cache.remove(logicalKey);
+      } else {
+        _cache[logicalKey] = value;
+      }
+      _notifyChanged({logicalKey});
     }
-    _changedKeys = {logicalKey};
-    notifyListeners();
     final storageKey = storageSettingKey(_userId, logicalKey);
     try {
       await _queue(
@@ -146,8 +152,7 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
   /// wins and the earlier load is dropped. A switch to the current user
   /// reads nothing and drops a pending switch. A write made before the
   /// swap goes to the user shown when it was made (s03 invariant 7). A
-  /// read the store refuses swaps to an empty box with one report; a
-  /// disposed controller swaps and notifies nothing.
+  /// read the store refuses swaps to an empty box with one report.
   Future<void> switchUser(String? userId) async {
     await load();
     final token = ++_switchToken;
@@ -168,8 +173,7 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
         ),
       );
     _userId = userId;
-    _changedKeys = null;
-    notifyListeners();
+    _notifyChanged(null);
   }
 
   /// Clears every stored setting of [userId] (US-04 FR-02).
@@ -177,13 +181,14 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
   /// Removes every storage key a store read finds under that user's
   /// prefix, leaving the device box and every other user's keys in place.
   /// For the current user it also clears the shown cache and notifies
-  /// once with the keys it held.
+  /// once with the keys it held, unless disposed, in which case it clears
+  /// and notifies nothing.
   Future<void> clearUser(String userId) async {
     final prefix = userSettingPrefix(userId);
-    if (userId == _userId) {
-      _changedKeys = _cache.keys.toSet();
+    if (userId == _userId && !_isDisposed) {
+      final cleared = _cache.keys.toSet();
       _cache.clear();
-      notifyListeners();
+      _notifyChanged(cleared);
     }
     try {
       await _queue(() async {
@@ -197,7 +202,8 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
 
   /// Drops the cached keys under [logicalPrefix], notifies with exactly
   /// those, then queues removal of every storage key under the prefix the
-  /// cache or a store read holds (s03 invariant 8).
+  /// cache or a store read holds (s03 invariant 8); unless disposed, which
+  /// drops and notifies nothing but still queues the removal.
   Future<void> _reset(String logicalPrefix) async {
     assert(isLoaded, _notLoadedMessage);
     if (!isLoaded) return;
@@ -205,9 +211,10 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
       for (final key in _cache.keys)
         if (key.startsWith(logicalPrefix)) key,
     };
-    _cache.removeWhere((key, _) => removed.contains(key));
-    _changedKeys = removed;
-    notifyListeners();
+    if (!_isDisposed) {
+      _cache.removeWhere((key, _) => removed.contains(key));
+      _notifyChanged(removed);
+    }
     final userId = _userId;
     final storagePrefix = storageSettingKey(userId, logicalPrefix);
     try {
@@ -222,6 +229,15 @@ final class StratumWidgetSettingsController extends ChangeNotifier {
     } on Object catch (error, stack) {
       _report(error, stack, 'while resetting the widget settings');
     }
+  }
+
+  /// Sets [changedKeys] to [keys] and notifies once; the one gate every
+  /// mutating call routes its notify through, so a disposed controller
+  /// notifies nothing (PD12, s03 invariant 7).
+  void _notifyChanged(Set<String>? keys) {
+    if (_isDisposed) return;
+    _changedKeys = keys;
+    notifyListeners();
   }
 
   /// Whether [a] and [b], the cached and the written value, are equal; a

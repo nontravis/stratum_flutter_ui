@@ -215,6 +215,22 @@ void main() {
     },
   );
 
+  test('fo10/us02/fr01: a write pending at dispose notifies nothing and '
+      'throws nothing', () async {
+    final settings = await StratumWidgetSettingsController.preload(
+      store: StratumMemorySettingStore(),
+    );
+    final part = settings.box('acme.inbox').global;
+    var notifies = 0;
+    settings
+      ..addListener(() => notifies++)
+      ..dispose();
+
+    await part.setDouble('w', 5);
+
+    expect(notifies, 0);
+  });
+
   test(
     'fo10/us05/fr01: a reset after a write removes it from the store',
     () async {

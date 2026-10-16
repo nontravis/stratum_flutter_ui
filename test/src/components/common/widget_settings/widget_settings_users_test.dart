@@ -173,6 +173,25 @@ void main() {
     expect(backing.values, {'stratum/d/n/g/w': 1.0, 'stratum/u/a/n/g/w': 2.0});
   });
 
+  test('fo10/us04/fr02: a clear pending at dispose notifies nothing and '
+      'throws nothing', () async {
+    final backing = StratumMemorySettingStore(
+      values: {'stratum/u/a/n/g/w': 2.0},
+    );
+    final settings = await StratumWidgetSettingsController.preload(
+      store: backing,
+    );
+    await settings.switchUser('a');
+    var notifies = 0;
+    settings
+      ..addListener(() => notifies++)
+      ..dispose();
+
+    await settings.clearUser('a');
+
+    expect(notifies, 0);
+  });
+
   test('fo10/us04/fr02: clearing the current user clears the shown values and '
       'notifies once', () async {
     final backing = StratumMemorySettingStore(
