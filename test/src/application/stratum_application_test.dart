@@ -1,10 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/l10n/stratum_labels.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 
 import '../components/common/fakes/fake_stratum_theme.dart';
+import '../components/common/widget_settings/support/counting_setting_store.dart';
 import '../themes/theme_runtime_fakes.dart';
 
 Future<StratumThemeController> _controller() =>
@@ -1241,5 +1244,136 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.state(find.byType(Router<Object>)), same(before));
     expect(find.text('pushed'), findsOneWidget);
+  });
+
+  group('StratumApplication widget settings', () {
+    testWidgets('fo10/us03/fr01/e02: the app shows its loading frame until the '
+        'settings load', (tester) async {
+      final store = CountingSettingStore({'stratum/d/acme.probe/g/w': 400.0});
+      final hold = store.holdNextRead();
+      final settings = StratumWidgetSettingsController(store: store);
+      addTearDown(settings.dispose);
+      await tester.pumpWidget(
+        DefaultAssetBundle(
+          bundle: FakeThemeBundle(),
+          child: StratumApplication(
+            widgetSettings: settings,
+            appBuilder: (c, s) => MaterialApp(
+              builder: s.builder,
+              home: Builder(
+                builder: (context) {
+                  final box = StratumWidgetSettings.of(
+                    context,
+                    namespace: 'acme.probe',
+                  );
+                  return Text(
+                    '${box.global.getDouble('w')}',
+                    textDirection: TextDirection.ltr,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(
+        _backgroundBox(StratumApplication.noSplashLightBackground),
+        findsOneWidget,
+      );
+      expect(find.text('400.0'), findsNothing);
+
+      hold.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('400.0'), findsOneWidget);
+    });
+
+    testWidgets(
+      'fo10/us03/fr01: with no theme controller and no settings the app '
+      'loads its own',
+      (tester) async {
+        StratumWidgetSettingsController? found;
+        await tester.pumpWidget(
+          DefaultAssetBundle(
+            bundle: FakeThemeBundle(),
+            child: StratumApplication(
+              appBuilder: (c, s) => MaterialApp(
+                builder: s.builder,
+                home: Builder(
+                  builder: (context) {
+                    found = StratumWidgetSettings.maybeControllerOf(context);
+                    return const Text('home', textDirection: TextDirection.ltr);
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('home'), findsOneWidget);
+        expect(found, isNotNull);
+      },
+    );
+
+    testWidgets(
+      'fo10/us03/fr01: with an app-held theme controller the app uses the '
+      'scope above and loads nothing',
+      (tester) async {
+        final above = StratumWidgetSettingsController();
+        addTearDown(above.dispose);
+        await above.load();
+        StratumWidgetSettingsController? found;
+        await tester.pumpWidget(
+          StratumWidgetSettings(
+            controller: above,
+            child: StratumApplication(
+              controller: await _controller(),
+              appBuilder: (c, s) => MaterialApp(
+                builder: s.builder,
+                home: Builder(
+                  builder: (context) {
+                    found = StratumWidgetSettings.maybeControllerOf(context);
+                    return const Text('home', textDirection: TextDirection.ltr);
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(identical(found, above), isTrue);
+      },
+    );
+
+    testWidgets(
+      'fo10/us03/fr02: an unloaded controller beside an app-held theme '
+      'controller fails an assert',
+      (tester) async {
+        final settings = StratumWidgetSettingsController();
+        addTearDown(settings.dispose);
+        await tester.pumpWidget(
+          StratumApplication(
+            controller: await _controller(),
+            widgetSettings: settings,
+            appBuilder: (c, s) =>
+                MaterialApp(builder: s.builder, home: const Text('home')),
+          ),
+        );
+
+        expect(
+          tester.takeException(),
+          isA<AssertionError>().having(
+            (error) => '${error.message}',
+            'message',
+            contains('preload'),
+          ),
+        );
+      },
+    );
   });
 }

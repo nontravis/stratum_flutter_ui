@@ -1,3 +1,6 @@
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_resolution.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// Wraps the app in Stratum's layers, outer to inner: the theme runtime
@@ -12,6 +15,9 @@ import 'package:stratum_ui/src/src.dart';
 /// - Mount ONE per process with [notices] true, since toastification under
 ///   the notice host is process-wide (CO-05-07); every other view's
 ///   wrapper passes `notices: false`.
+/// - With no [controller], the loading frame also holds for the widget
+///   settings load (PD8); with one, no settings controller preloads, and
+///   a settings controller this app uses must already be loaded.
 /// - A rebuild that flips [controller] from null to non-null, or that
 ///   adds or removes [updateGate], [webZoom], or [notices], keeps the app
 ///   widget [appBuilder] returns mounted; the navigator inside it stays
@@ -41,6 +47,7 @@ class StratumApplication extends StatefulWidget {
     this.notices = true,
     this.noticeHost,
     this.updateGate,
+    @internal this.widgetSettings,
     required this.appBuilder,
   });
 
@@ -122,6 +129,13 @@ class StratumApplication extends StatefulWidget {
   /// the layer out.
   final Widget Function(Widget child)? updateGate;
 
+  /// The widget settings this app loads beside the start theme, under its
+  /// own loading frame (PD8): with [controller], the one passed, else the
+  /// scope above, asserted loaded; with none, the one passed, else the
+  /// scope above, else one of its own (PD9). Kept inside the package.
+  @internal
+  final StratumWidgetSettingsController? widgetSettings;
+
   /// Builds the app's own Material, iOS-style, or plain app widget from
   /// the config FR-02 hands it.
   final StratumAppBuilder appBuilder;
@@ -173,6 +187,63 @@ class _StratumApplicationState extends State<StratumApplication> {
   /// flip from null to non-null reparents it instead of unmounting it.
   final GlobalKey _appKey = GlobalKey();
 
+  /// Whether [didChangeDependencies] already resolved the widget settings
+  /// controller (PD8, PD9): resolved once, whatever `widget.controller`
+  /// does afterwards.
+  bool _settingsStarted = false;
+
+  /// The widget settings controller this app uses, resolved once.
+  StratumWidgetSettingsController? _settingsController;
+
+  /// Whether this app disposes [_settingsController] with itself: true
+  /// only for one it made over the default store (PD9).
+  bool _ownsSettings = false;
+
+  /// Whether [_assemble] places a [StratumWidgetSettings] scope around its
+  /// result: true for a controller this app made or was passed directly,
+  /// false for one it found through the scope above (PD9).
+  bool _placesSettingsScope = false;
+
+  /// Resolves once [_settingsController]'s load ends, successfully or
+  /// not; null with `widget.controller` set, since that path preloads no
+  /// controller of its own (PD8, PD9).
+  Future<void>? _settingsLoad;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_settingsStarted) return;
+    _settingsStarted = true;
+    if (widget.controller == null) {
+      final (controller, owned) = resolveWidgetSettings(
+        context,
+        widget.widgetSettings,
+      );
+      _settingsController = controller;
+      _ownsSettings = owned;
+      _placesSettingsScope = owned || widget.widgetSettings != null;
+      _settingsLoad = controller.load();
+      return;
+    }
+    final controller =
+        widget.widgetSettings ??
+        StratumWidgetSettings.maybeControllerOf(context);
+    _settingsController = controller;
+    _placesSettingsScope = widget.widgetSettings != null;
+    assert(
+      controller == null || controller.isLoaded,
+      'StratumApplication was given a controller, so it never preloads '
+      'the widget settings controller it uses: await '
+      'StratumWidgetSettingsController.preload() in main() first.',
+    );
+  }
+
+  @override
+  void dispose() {
+    if (_ownsSettings) _settingsController?.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
@@ -185,15 +256,39 @@ class _StratumApplicationState extends State<StratumApplication> {
       onRemoteThemeError: widget.onRemoteThemeError,
       error: widget.error ?? widget._failedStart,
       loading: widget.loadingBuilder ?? widget._background,
-      builder: _assemble,
+      builder: _assembleAfterSettingsLoad,
     );
   }
 
+  /// [_assemble] once [_settingsLoad] ends, else [_loadingFrame]: the
+  /// held first frame covers both the theme preload (above, inside
+  /// [StratumThemePreloader]) and the settings load (PD8).
+  Widget _assembleAfterSettingsLoad(
+    BuildContext context,
+    StratumThemeController controller,
+  ) {
+    return FutureBuilder<void>(
+      future: _settingsLoad,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return _loadingFrame(context);
+        }
+        return _assemble(context, controller);
+      },
+    );
+  }
+
+  /// `widget.loadingBuilder`, else the no-splash background.
+  Widget _loadingFrame(BuildContext context) =>
+      (widget.loadingBuilder ?? widget._background)(context);
+
   /// Builds the config for [controller]'s active theme, again when the
   /// theme, the window size class, the text scale, or the platform locale
-  /// changes (FR-02 E03; themes s03 invariant 35).
+  /// changes (FR-02 E03; themes s03 invariant 35); under a
+  /// [StratumWidgetSettings] scope only for a controller this app placed
+  /// itself (PD8, PD9).
   Widget _assemble(BuildContext context, StratumThemeController controller) {
-    return WindowSizeScope(
+    final windowSized = WindowSizeScope(
       child: _PlatformLocaleBuilder(
         builder: (context, locale) => ListenableBuilder(
           listenable: controller,
@@ -206,6 +301,11 @@ class _StratumApplicationState extends State<StratumApplication> {
           ),
         ),
       ),
+    );
+    if (!_placesSettingsScope) return windowSized;
+    return StratumWidgetSettings(
+      controller: _settingsController!,
+      child: windowSized,
     );
   }
 
