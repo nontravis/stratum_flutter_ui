@@ -47,6 +47,18 @@ Future<void> _moveMouseTo(
   await tester.pump();
 }
 
+// WORKAROUND: the web engine echoes a DOM focus as a deferred
+// SemanticsAction.focus (Timer.run, platform_dispatcher.dart:1429-1430); a
+// key sent in the same JS task lands before the echo, which pulls focus
+// back. Real input never shares a task. Remove when the engine applies the
+// echo before the next event or drops a stale one.
+/// Pumps once, then yields a full event-loop turn, so a key sent right
+/// after never lands in the same JS task as a just-queued focus echo.
+Future<void> _pumpFocusMove(WidgetTester tester) async {
+  await tester.pump();
+  await Future<void>.delayed(Duration.zero);
+}
+
 /// Presses Tab until [target] finds a match, up to [maxTabs] times, so a
 /// check for where Tab lands stays true on every platform's own count of
 /// scroll-box stops. Never fails on its own: the caller's `expect` does.
@@ -269,12 +281,12 @@ void main() {
       await tester.ensureVisible(street);
       await tester.pumpAndSettle();
       await tester.tap(street);
-      await tester.pump();
+      await _pumpFocusMove(tester);
       expect(find.text('Group: focus inside'), findsOneWidget);
       expect(find.text('Log: Group onFocusChange(true)'), findsOneWidget);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
+      await _pumpFocusMove(tester);
       expect(
         find.text('Group: focus inside'),
         findsOneWidget,
@@ -298,7 +310,7 @@ void main() {
 
       if (tabLeavesTextField) {
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-        await tester.pump();
+        await _pumpFocusMove(tester);
         expect(find.text('Group: no focus'), findsOneWidget);
         expect(
           find.text(
