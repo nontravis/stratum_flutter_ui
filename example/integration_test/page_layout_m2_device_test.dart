@@ -35,17 +35,24 @@
 // - VoiceOver and TalkBack's own spoken announcement: this file checks
 //   the semantics tree `matchesSemantics` reads from, never audio a real
 //   screen reader speaks.
-// - A real on-screen keyboard's view-inset change on a host with no real
-//   keyboard (desktop, `-d flutter-tester`): the keyboard-lift test below
-//   calls the real `tester.showKeyboard`, then skips its own geometry
-//   assertion with a named reason when `tester.view.viewInsets.bottom`
-//   reports no change, so it still proves the lift on a real device or
-//   simulator, where the OS does open one.
+// - A real on-screen keyboard on a host with no such keyboard at all
+//   (desktop, web, and `-d flutter-tester`, which answers `defaultTargetPlatform`
+//   as Android but has no window manager to open one): the keyboard-lift
+//   test below skips there with a named reason, so it still proves the
+//   lift's logical-height math only on a real Android or iOS device or
+//   simulator, where `tester.showKeyboard` reaches the real OS keyboard.
+//   On a real Android or iOS target it never passes silently: a bounded
+//   wait with no keyboard fails, naming the view inset it saw.
 //
 //   flutter test integration_test/page_layout_m2_device_test.dart -d <device>
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
+
+import 'support/os_major_version.dart';
+import 'support/pump_until.dart';
 
 /// A page with an `Open` button that shows [type] (null picks a sheet
 /// below the tablet cut, a centered modal at and above it) and a `Page`
@@ -124,6 +131,25 @@ bool _hasFullWidthBlur(WidgetTester tester, Finder finder, double screenWidth) {
     (element) =>
         (element.renderObject! as RenderBox).size.width >= screenWidth - 1,
   );
+}
+
+/// Whether this run has a real on-screen keyboard to show: Android and iOS
+/// do, desktop and web never do, and `-d flutter-tester` answers Android to
+/// [defaultTargetPlatform] with no window manager behind it, caught here
+/// since only that fake Android run also reports a real OS version (an
+/// Apple one; a real Android device reports none).
+bool get _canShowSoftKeyboard {
+  switch (defaultTargetPlatform) {
+    case TargetPlatform.android:
+      return !kIsWeb && realOSMajorVersion == null;
+    case TargetPlatform.iOS:
+      return !kIsWeb;
+    case TargetPlatform.fuchsia:
+    case TargetPlatform.linux:
+    case TargetPlatform.macOS:
+    case TargetPlatform.windows:
+      return false;
+  }
 }
 
 void main() {
@@ -275,35 +301,58 @@ void main() {
     'us20/s4: fo06/us20/fr05/e04: a real soft keyboard lifts the sheet by '
     'its height',
     (tester) async {
+      if (!_canShowSoftKeyboard) {
+        markTestSkipped(
+          'a soft keyboard does not apply on '
+          '${kIsWeb ? 'web' : defaultTargetPlatform.name}',
+        );
+        return;
+      }
       final controller = await _controller();
       addTearDown(controller.dispose);
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(_app(controller, fieldInBody: true));
+      await tester.pumpWidget(
+        _app(controller, type: ModalLayoutType.bottomSheet, fieldInBody: true),
+      );
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       final before = tester.getRect(find.byType(ModalLayout));
 
       await tester.showKeyboard(find.byType(TextField));
+      double insetLogical() =>
+          MediaQuery.viewInsetsOf(tester.element(find.byType(ModalLayout)))
+              .bottom;
+      final opened = await pumpUntil(
+        tester,
+        () => insetLogical() > 0,
+        timeout: const Duration(seconds: 10),
+      );
       await tester.pumpAndSettle();
-      final keyboardInset = tester.view.viewInsets.bottom;
-      if (keyboardInset <= 0) {
-        markTestSkipped(
-          'this run opens no real on-screen keyboard (no view-inset '
-          'change from showKeyboard); only a real device or simulator '
-          'does',
-        );
-        return;
-      }
-      final lifted = tester.getRect(find.byType(ModalLayout));
 
+      if (!opened) {
+        final diagnostics = {
+          'viewInsetsBottom': tester.view.viewInsets.bottom,
+          'devicePixelRatio': tester.view.devicePixelRatio,
+          'hasFocus':
+              tester.binding.focusManager.primaryFocus?.hasFocus ?? false,
+          'platform': defaultTargetPlatform.name,
+        };
+        // ignore: avoid_print
+        print('KEYBOARD_DIAG ${jsonEncode(diagnostics)}');
+        fail(
+          'soft keyboard did not show: '
+          'viewInsets.bottom=${tester.view.viewInsets.bottom}, '
+          '${defaultTargetPlatform.name}',
+        );
+      }
+
+      final lifted = tester.getRect(find.byType(ModalLayout));
       expect(
         lifted.bottom,
-        lessThanOrEqualTo(before.bottom - keyboardInset + 1),
+        closeTo(before.bottom - insetLogical(), 1),
         reason:
-            'a real soft keyboard focus lifts the sheet clear of it, '
-            'not the FakeViewPadding stand-in a widget test uses',
+            'a real soft keyboard focus lifts the sheet clear of it by '
+            "its logical height, not the FakeViewPadding stand-in a "
+            'widget test uses',
       );
     },
   );
