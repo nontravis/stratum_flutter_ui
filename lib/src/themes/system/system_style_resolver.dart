@@ -303,6 +303,17 @@ final class _SystemStyleResolver {
   /// the resolver leaves the platform's own bar mode untouched (R11).
   SystemBarMode? _barMode;
 
+  /// The most recently requested mode not yet sent, while a previous
+  /// request's send is still in flight; a request that arrives before its
+  /// predecessor starts is dropped in favor of this one (device-round
+  /// review: `_restoreEdgeToEdge`'s two awaited sends must never interleave
+  /// with another mode's send, or the window can end on a stale mode).
+  SystemBarMode? _queuedMode;
+
+  /// The chain draining [_queuedMode] one mode at a time, or null when no
+  /// send is in flight.
+  Future<void>? _modeDrain;
+
   /// The orientations last sent; null before any layer has ever set them,
   /// so the resolver leaves the platform's own rotation lock untouched
   /// (R11).
@@ -401,7 +412,7 @@ final class _SystemStyleResolver {
           bars.barMode ?? (_barMode == null ? null : SystemBarMode.edgeToEdge);
       if (barMode != null && barMode != _barMode) {
         _barMode = barMode;
-        unawaited(_setMode(barMode));
+        _requestMode(barMode);
       }
     }
     if (mobile) {
@@ -416,10 +427,47 @@ final class _SystemStyleResolver {
     _sendDescription(bars);
   }
 
+  /// Queues [mode] as the next send, replacing any request still waiting
+  /// behind an in-flight one, and starts draining the queue if nothing is
+  /// in flight. Serializing every send through one queue, in request
+  /// order, keeps a multi-step send like `_restoreEdgeToEdge` from being
+  /// interleaved with another mode's send; the platform always ends on the
+  /// last mode requested.
+  void _requestMode(SystemBarMode mode) {
+    _queuedMode = mode;
+    _modeDrain ??= _drainMode();
+  }
+
+  Future<void> _drainMode() async {
+    try {
+      while (_queuedMode != null) {
+        final mode = _queuedMode!;
+        _queuedMode = null;
+        try {
+          await _setMode(mode);
+        } catch (exception, stack) {
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: exception,
+              stack: stack,
+              library: 'stratum_ui',
+              context: ErrorDescription(
+                'while sending the system bar mode $mode',
+              ),
+            ),
+          );
+        }
+      }
+    } finally {
+      // Always releases the slot, even on an error _setMode's own catch
+      // above did not swallow, so a later request can start a fresh drain
+      // instead of being queued behind one that will never run again.
+      _modeDrain = null;
+    }
+  }
+
   static Future<void> _setMode(SystemBarMode mode) => switch (mode) {
-    SystemBarMode.edgeToEdge => SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.edgeToEdge,
-    ),
+    SystemBarMode.edgeToEdge => _restoreEdgeToEdge(),
     SystemBarMode.immersive => SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.immersive,
     ),
@@ -438,6 +486,18 @@ final class _SystemStyleResolver {
       overlays: const [SystemUiOverlay.bottom],
     ),
   };
+
+  /// Sends a manual overlays request for both bars, awaited, then
+  /// `edgeToEdge`: the engine ignores a bare `edgeToEdge` below API 29 and
+  /// would otherwise leave an earlier mode's hidden-bar flags on the window
+  /// (themes s03 `SystemBarMode` row).
+  static Future<void> _restoreEdgeToEdge() async {
+    await SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: const [SystemUiOverlay.top, SystemUiOverlay.bottom],
+    );
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
 
   /// Sends the merged label, else the title of the nearest app widget
   /// `Title` read now, with the merged `appSwitcherColor` made opaque,

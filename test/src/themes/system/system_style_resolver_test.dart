@@ -762,18 +762,160 @@ void main() {
       expect(lastMode(calls), 'SystemUiMode.immersiveSticky');
       expect(lastOrientations(calls), ['DeviceOrientation.portraitUp']);
 
+      final sent = calls.length;
       navigator.currentState!.push(
         MaterialPageRoute<void>(builder: (context) => const SizedBox()),
       );
       await tester.pumpAndSettle();
       expect(lastMode(calls), 'SystemUiMode.edgeToEdge');
       expect(lastOrientations(calls), isEmpty);
+      _expectEdgeToEdgeRestore(calls, sent);
 
       navigator.currentState!.pop();
       await tester.pumpAndSettle();
       expect(lastMode(calls), 'SystemUiMode.immersiveSticky');
       expect(lastOrientations(calls), ['DeviceOrientation.portraitUp']);
     });
+
+    testWidgets(
+      'fo03/us14/fr03/e02, fo03/us14/fr03/e03: a mode requested while an '
+      "edgeToEdge restore's send is still in flight overtakes it, so the "
+      'window ends on the later mode, not a stale edgeToEdge',
+      (tester) async {
+        tester.view.padding = const FakeViewPadding(top: 72, bottom: 48);
+        addTearDown(tester.view.reset);
+        final calls = <MethodCall>[];
+        final overlaysGate = Completer<void>();
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            calls.add(call);
+            if (call.method == 'SystemChrome.setEnabledSystemUIOverlays') {
+              await overlaysGate.future;
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        addTearDown(() => debugSystemStyleIsWebOverride = null);
+
+        final tab = ValueNotifier(0);
+        addTearDown(tab.dispose);
+        await tester.pumpWidget(
+          systemStyleApp(
+            home: ValueListenableBuilder<int>(
+              valueListenable: tab,
+              builder: (context, index, child) => IndexedStackLayout(
+                index: index,
+                children: const [
+                  SystemStyleScope(style: _immersive, child: SizedBox()),
+                  SizedBox(),
+                ],
+              ),
+            ),
+          ),
+        );
+        expect(lastMode(calls), 'SystemUiMode.immersiveSticky');
+        calls.clear();
+
+        // Away from the immersive page: the restore's first send (the
+        // manual overlays request) blocks on `overlaysGate` before its
+        // second send (`edgeToEdge`).
+        tab.value = 1;
+        await tester.pump();
+        expect(
+          calls.map((call) => call.method),
+          contains('SystemChrome.setEnabledSystemUIOverlays'),
+        );
+
+        // Back to the immersive page while that restore is still
+        // mid-flight: a cheap single-call send that, unserialized, could
+        // land and complete before the stale `edgeToEdge` from the first
+        // request does.
+        tab.value = 0;
+        await tester.pump();
+
+        overlaysGate.complete();
+        await tester.pumpAndSettle();
+
+        expect(lastMode(calls), 'SystemUiMode.immersiveSticky');
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/fr03/e02: an error sending one mode is reported and does '
+      'not stall the queue for the next request',
+      (tester) async {
+        tester.view.padding = const FakeViewPadding(top: 72, bottom: 48);
+        addTearDown(tester.view.reset);
+        final calls = <MethodCall>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            calls.add(call);
+            if (call.method == 'SystemChrome.setEnabledSystemUIMode' &&
+                call.arguments == 'SystemUiMode.immersive') {
+              throw PlatformException(code: 'boom');
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        addTearDown(() => debugSystemStyleIsWebOverride = null);
+
+        final reported = <FlutterErrorDetails>[];
+        final previousOnError = FlutterError.onError;
+        FlutterError.onError = reported.add;
+        addTearDown(() => FlutterError.onError = previousOnError);
+
+        final tab = ValueNotifier(0);
+        addTearDown(tab.dispose);
+        await tester.pumpWidget(
+          systemStyleApp(
+            home: ValueListenableBuilder<int>(
+              valueListenable: tab,
+              builder: (context, index, child) => IndexedStackLayout(
+                index: index,
+                children: const [
+                  SizedBox(),
+                  SystemStyleScope(
+                    style: SystemStyle(barMode: SystemBarMode.immersive),
+                    child: SizedBox(),
+                  ),
+                  SystemStyleScope(
+                    style: SystemStyle(barMode: SystemBarMode.leanBack),
+                    child: SizedBox(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        expect(lastMode(calls), isNull);
+
+        // The immersive send throws; the error must reach FlutterError, not
+        // vanish, and must not leave the queue stuck.
+        tab.value = 1;
+        await tester.pump();
+        expect(reported, hasLength(1));
+        expect(reported.single.library, 'stratum_ui');
+
+        // A later, independent request must still reach the platform.
+        tab.value = 2;
+        await tester.pump();
+        expect(lastMode(calls), 'SystemUiMode.leanBack');
+      },
+    );
 
     testWidgets(
       'fo03/us14/s10, fo03/us14/fr03/e01: a dialog over the page keeps its '
@@ -844,10 +986,12 @@ void main() {
         );
         expect(lastMode(calls), 'SystemUiMode.immersiveSticky');
 
+        final sent = calls.length;
         tab.value = 1;
         await tester.pump();
 
         expect(lastMode(calls), 'SystemUiMode.edgeToEdge');
+        _expectEdgeToEdgeRestore(calls, sent);
       },
     );
 
@@ -888,11 +1032,13 @@ void main() {
         expect(lastMode(calls), 'SystemUiMode.immersive');
         expect(lastLabel(calls), 'Videos');
 
+        final sent = calls.length;
         await tester.tap(find.text('Music'));
         await tester.pumpAndSettle();
 
         expect(lastMode(calls), 'SystemUiMode.edgeToEdge');
         expect(lastLabel(calls), 'App');
+        _expectEdgeToEdgeRestore(calls, sent);
       },
     );
 
@@ -1101,3 +1247,28 @@ const _immersive = SystemStyle(
   barMode: SystemBarMode.immersiveSticky,
   orientations: [DeviceOrientation.portraitUp],
 );
+
+/// Asserts that, since index [from], [calls] restored edge-to-edge the way
+/// Android API below 29 needs (themes s03 `SystemBarMode` row): a manual
+/// overlays send of both bars, awaited, then `SystemUiMode.edgeToEdge`.
+void _expectEdgeToEdgeRestore(List<MethodCall> calls, int from) {
+  final restored = calls.sublist(from);
+  final overlays = restored.indexWhere(
+    (call) => call.method == 'SystemChrome.setEnabledSystemUIOverlays',
+  );
+  expect(overlays, isNonNegative, reason: 'no overlays send before edgeToEdge');
+  expect(restored[overlays].arguments, [
+    'SystemUiOverlay.top',
+    'SystemUiOverlay.bottom',
+  ]);
+  final mode = restored.indexWhere(
+    (call) => call.method == 'SystemChrome.setEnabledSystemUIMode',
+    overlays + 1,
+  );
+  expect(
+    mode,
+    greaterThan(overlays),
+    reason: 'edgeToEdge not sent after overlays',
+  );
+  expect(restored[mode].arguments, 'SystemUiMode.edgeToEdge');
+}
