@@ -66,6 +66,16 @@ Widget _header(Color color) => ColumnLayout(
   ],
 );
 
+/// How long a probe keeps the frame still for the capture script outside
+/// this repository (device-test probe contract item 1).
+const _probeHold = Duration(milliseconds: 1500);
+
+/// Marks probe [name] and holds the frame still for [_probeHold].
+Future<void> _probe(WidgetTester tester, String name) async {
+  debugPrint('PROBE:$name');
+  await tester.pump(_probeHold);
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   late StratumThemeController controller;
@@ -91,6 +101,21 @@ void main() {
         Brightness.light,
       );
     }
+    await _probe(tester, 'dark_header');
+
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(builder: (context) => const SizedBox()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    if (!kIsWeb) {
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
+    }
+    await _probe(tester, 'white_page');
   });
 
   testWidgets('us14/s16, us14/fr01/e06, us14/fr02/e07: the app status bar '
@@ -116,6 +141,7 @@ void main() {
         Brightness.light,
       );
     }
+    await _probe(tester, 'dark_statusbar');
   });
 
   testWidgets('us14/s7, us14/s8, us14/s9, us14/s12, us14/s13, us14/s14: the '
@@ -136,6 +162,8 @@ void main() {
     final hidden = tester.view.viewPadding;
     expect(find.text('Video'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await _probe(tester, 'video_bars_hidden');
+    await _probe(tester, 'recents_label');
 
     navigator.currentState!.push(
       MaterialPageRoute<void>(builder: (context) => const Text('Over')),
@@ -143,11 +171,13 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
     final shown = tester.view.viewPadding;
     expect(tester.takeException(), isNull);
+    await _probe(tester, 'video_bars_shown');
 
     navigator.currentState!.pop();
     await tester.pumpAndSettle(const Duration(seconds: 1));
     expect(find.text('Video'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await _probe(tester, 'video_back');
 
     binding.reportData = {
       'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
