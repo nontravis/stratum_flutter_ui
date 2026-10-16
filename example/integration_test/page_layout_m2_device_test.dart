@@ -318,8 +318,14 @@ void main() {
       final before = tester.getRect(find.byType(ModalLayout));
 
       await tester.showKeyboard(find.byType(TextField));
+      // Read at the root `Navigator`, not `ModalLayout`: smooth_sheets'
+      // `SheetMediaQuery` subtracts the sheet's own padding from the inset
+      // it republishes to descendants (smooth_sheets 1.3.0 viewport.dart
+      // :155-158), so a `ModalLayout`-context read always sees 0 once the
+      // sheet has lifted. `_SheetContent` reads the un-subtracted value at
+      // the `Navigator`, which is what the lift itself used.
       double insetLogical() =>
-          MediaQuery.viewInsetsOf(tester.element(find.byType(ModalLayout)))
+          MediaQuery.viewInsetsOf(tester.element(find.byType(Navigator).first))
               .bottom;
       final opened = await pumpUntil(
         tester,
