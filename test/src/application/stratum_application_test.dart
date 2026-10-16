@@ -1375,5 +1375,88 @@ void main() {
         );
       },
     );
+
+    testWidgets('fo10/us03/fr01: an app-held theme controller with no settings '
+        'controller in use places no scope and asserts nothing', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        StratumApplication(
+          controller: await _controller(),
+          appBuilder: (c, s) => MaterialApp(
+            builder: s.builder,
+            home: const Text('home', textDirection: TextDirection.ltr),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('home'), findsOneWidget);
+      expect(find.byType(StratumWidgetSettings), findsNothing);
+    });
+
+    testWidgets(
+      'fo10/us03/fr01: a controller flip from null to non-null mid-load '
+      'keeps the loading frame, with no unloaded settings read',
+      (tester) async {
+        final store = CountingSettingStore();
+        final hold = store.holdNextRead();
+        final settings = StratumWidgetSettingsController(store: store);
+        addTearDown(settings.dispose);
+        final themeController = await _controller();
+        Widget app(StratumThemeController? c) => DefaultAssetBundle(
+          bundle: FakeThemeBundle(),
+          child: StratumApplication(
+            controller: c,
+            widgetSettings: settings,
+            appBuilder: (ctx, s) => MaterialApp(
+              builder: s.builder,
+              home: const Text('home', textDirection: TextDirection.ltr),
+            ),
+          ),
+        );
+        await tester.pumpWidget(app(null));
+        await tester.pump();
+        expect(find.text('home'), findsNothing);
+
+        await tester.pumpWidget(app(themeController));
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(find.text('home'), findsNothing);
+        expect(
+          _backgroundBox(StratumApplication.noSplashLightBackground),
+          findsOneWidget,
+        );
+
+        hold.complete();
+        await tester.pumpAndSettle();
+
+        expect(find.text('home'), findsOneWidget);
+      },
+    );
+
+    testWidgets('fo10/us03/fr02: a controller flip from non-null to null still '
+        'shows the app once the fresh theme preload ends', (tester) async {
+      final controller = await _controller();
+      Widget app(StratumThemeController? c) => DefaultAssetBundle(
+        bundle: FakeThemeBundle(),
+        child: StratumApplication(
+          controller: c,
+          appBuilder: (ctx, s) => MaterialApp(
+            builder: s.builder,
+            home: const Text('home', textDirection: TextDirection.ltr),
+          ),
+        ),
+      );
+      await tester.pumpWidget(app(controller));
+      await tester.pumpAndSettle();
+      expect(find.text('home'), findsOneWidget);
+
+      await tester.pumpWidget(app(null));
+      await tester.pumpAndSettle();
+
+      expect(find.text('home'), findsOneWidget);
+    });
   });
 }

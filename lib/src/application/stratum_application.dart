@@ -204,10 +204,13 @@ class _StratumApplicationState extends State<StratumApplication> {
   /// false for one it found through the scope above (PD9).
   bool _placesSettingsScope = false;
 
-  /// Resolves once [_settingsController]'s load ends, successfully or
-  /// not; null with `widget.controller` set, since that path preloads no
-  /// controller of its own (PD8, PD9).
-  Future<void>? _settingsLoad;
+  /// Whether [_settingsController] is ready to read: true at once for an
+  /// app-held theme controller (PD8: that path preloads nothing), else
+  /// once its `load()` ends. Sticky for this State's whole life, so a
+  /// later `widget.controller` flip, either way, never re-gates the first
+  /// app frame on it and never hangs on a load that path never starts
+  /// (fix round 1).
+  bool _settingsReady = false;
 
   @override
   void didChangeDependencies() {
@@ -222,7 +225,12 @@ class _StratumApplicationState extends State<StratumApplication> {
       _settingsController = controller;
       _ownsSettings = owned;
       _placesSettingsScope = owned || widget.widgetSettings != null;
-      _settingsLoad = controller.load();
+      unawaited(
+        controller.load().whenComplete(() {
+          if (!mounted) return;
+          setState(() => _settingsReady = true);
+        }),
+      );
       return;
     }
     final controller =
@@ -236,6 +244,7 @@ class _StratumApplicationState extends State<StratumApplication> {
       'the widget settings controller it uses: await '
       'StratumWidgetSettingsController.preload() in main() first.',
     );
+    _settingsReady = true;
   }
 
   @override
@@ -247,7 +256,11 @@ class _StratumApplicationState extends State<StratumApplication> {
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
-    if (controller != null) return _assemble(context, controller);
+    if (controller != null) {
+      return _settingsReady
+          ? _assemble(context, controller)
+          : _loadingFrame(context);
+    }
     return StratumThemePreloader(
       initialThemeId: widget.initialThemeId,
       onThemeChanged: widget.onThemeChanged,
@@ -256,27 +269,18 @@ class _StratumApplicationState extends State<StratumApplication> {
       onRemoteThemeError: widget.onRemoteThemeError,
       error: widget.error ?? widget._failedStart,
       loading: widget.loadingBuilder ?? widget._background,
-      builder: _assembleAfterSettingsLoad,
+      builder: _assembleIfSettingsReady,
     );
   }
 
-  /// [_assemble] once [_settingsLoad] ends, else [_loadingFrame]: the
+  /// [_assemble] once [_settingsReady] is true, else [_loadingFrame]: the
   /// held first frame covers both the theme preload (above, inside
-  /// [StratumThemePreloader]) and the settings load (PD8).
-  Widget _assembleAfterSettingsLoad(
+  /// [StratumThemePreloader]) and the settings load (PD8), and stays
+  /// correct across a `widget.controller` flip either way (fix round 1).
+  Widget _assembleIfSettingsReady(
     BuildContext context,
     StratumThemeController controller,
-  ) {
-    return FutureBuilder<void>(
-      future: _settingsLoad,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return _loadingFrame(context);
-        }
-        return _assemble(context, controller);
-      },
-    );
-  }
+  ) => _settingsReady ? _assemble(context, controller) : _loadingFrame(context);
 
   /// `widget.loadingBuilder`, else the no-splash background.
   Widget _loadingFrame(BuildContext context) =>
