@@ -15,10 +15,13 @@
 // widgets the app's builder returns take their own customStyle.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 
 import '../../themes/theme_runtime_fakes.dart';
+import 'widget_settings/support/counting_setting_store.dart';
 
 /// The text the test builder draws for [state], so a finder reads which
 /// state is on screen.
@@ -30,21 +33,27 @@ String _nameOf(StratumSplashState<Object?> state) => switch (state) {
 };
 
 /// A splash over [bundle] whose builder adds each state it gets to
-/// [states] and draws [_nameOf] it.
+/// [states] and draws [_nameOf] it, [probe] drawn instead at done.
 Widget _splash(
   AssetBundle bundle, {
   required Future<String> Function() postload,
   String? initialThemeId,
   List<StratumSplashState<String>>? states,
   Duration minimumDuration = Duration.zero,
+  StratumWidgetSettingsController? widgetSettings,
+  Widget Function(BuildContext context)? probe,
 }) => DefaultAssetBundle(
   bundle: bundle,
   child: StratumSplashScreen<String>(
     initialThemeId: initialThemeId,
     minimumDuration: minimumDuration,
+    widgetSettings: widgetSettings,
     postload: (context, controller) => postload(),
     builder: (context, state) {
       states?.add(state);
+      if (state is StratumSplashDone<String> && probe != null) {
+        return Builder(builder: probe);
+      }
       return Text(_nameOf(state), textDirection: TextDirection.ltr);
     },
   ),
@@ -1421,6 +1430,117 @@ void main() {
       await tester.pump(Duration.zero);
 
       expect(tester.state(find.byType(_Spinner)), same(before));
+    });
+  });
+
+  group('StratumSplashScreen widget settings', () {
+    testWidgets(
+      'fo10/us03/s1: fo10/us03/fr01/e01: the splash holds the first frame '
+      'until the settings load',
+      (tester) async {
+        final store = CountingSettingStore();
+        final hold = store.holdNextRead();
+        final settings = StratumWidgetSettingsController(store: store);
+        addTearDown(settings.dispose);
+        final states = <StratumSplashState<String>>[];
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            postload: () => Completer<String>().future,
+            widgetSettings: settings,
+            states: states,
+          ),
+        );
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(states, isEmpty);
+
+        hold.complete();
+        await tester.pumpAndSettle();
+
+        expect(_last(states), isA<StratumSplashLoadingApp<String>>());
+      },
+    );
+
+    testWidgets(
+      'fo10/us04/fr01/e03: a switch in postload shows the user value on '
+      'the first app frame',
+      (tester) async {
+        final store = CountingSettingStore({
+          'stratum/u/a/acme.probe/g/w': 400.0,
+          'stratum/d/acme.probe/g/w': 300.0,
+        });
+        final settings = StratumWidgetSettingsController(store: store);
+        addTearDown(settings.dispose);
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            widgetSettings: settings,
+            postload: () async {
+              await settings.switchUser('a');
+              return 'ok';
+            },
+            probe: (context) {
+              final box = StratumWidgetSettings.of(
+                context,
+                namespace: 'acme.probe',
+              );
+              return Text(
+                '${box.global.getDouble('w')}',
+                textDirection: TextDirection.ltr,
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('400.0'), findsOneWidget);
+        expect(find.text('300.0'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'fo10/us03/fr01: with no settings passed the splash places its own',
+      (tester) async {
+        StratumWidgetSettingsController? found;
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            postload: () async => 'ok',
+            probe: (context) {
+              found = StratumWidgetSettings.maybeControllerOf(context);
+              return const SizedBox.shrink();
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(found, isNotNull);
+      },
+    );
+
+    testWidgets('fo10/us03/fr01: a scope above the splash is the one it '
+        'uses', (tester) async {
+      final above = StratumWidgetSettingsController();
+      addTearDown(above.dispose);
+      StratumWidgetSettingsController? found;
+      await tester.pumpWidget(
+        StratumWidgetSettings(
+          controller: above,
+          child: _splash(
+            FakeThemeBundle(),
+            postload: () async => 'ok',
+            probe: (context) {
+              found = StratumWidgetSettings.maybeControllerOf(context);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(identical(found, above), isTrue);
     });
   });
 }

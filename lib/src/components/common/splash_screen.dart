@@ -3,6 +3,9 @@ import 'package:stratum_ui/src/animations/screen_transition.dart';
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/splash_signal/splash_signal_none.dart'
     if (dart.library.js_interop) 'package:stratum_ui/src/components/common/splash_signal/splash_signal_web.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_controller.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_resolution.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/widget_settings_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 
 /// The step of [StratumSplashScreen] that failed, which
@@ -108,6 +111,7 @@ class StratumSplashScreen<T> extends StatefulWidget {
     this.themeMode = ThemeMode.system,
     this.highContrast = StratumHighContrastMode.system,
     this.loadingLabel,
+    @internal this.widgetSettings,
   });
 
   /// The theme id the app saved, else null for `default`.
@@ -183,6 +187,13 @@ class StratumSplashScreen<T> extends StatefulWidget {
   /// locale's language (FR-08).
   final String? loadingLabel;
 
+  /// The widget settings this splash loads beside the start theme, under
+  /// the held first frame (PD8): the one passed, else the scope above,
+  /// else one of its own (PD9). Pass one of your own to call
+  /// `switchUser` from [postload]. Kept inside the package.
+  @internal
+  final StratumWidgetSettingsController? widgetSettings;
+
   @override
   State<StratumSplashScreen<T>> createState() => _StratumSplashScreenState<T>();
 }
@@ -218,6 +229,22 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
   final GlobalKey _frameKey = GlobalKey();
   final GlobalKey _appKey = GlobalKey();
 
+  /// The widget settings this splash resolved at the first build (PD9).
+  StratumWidgetSettingsController? _settingsController;
+
+  /// Whether this splash disposes [_settingsController] with itself: true
+  /// only for one it made over the default store (PD9).
+  bool _ownsSettings = false;
+
+  /// Whether [build] places a [StratumWidgetSettings] scope around its
+  /// result: true unless [_settingsController] came from a scope above
+  /// (PD9), so the tree shape never changes between states.
+  bool _placesSettingsScope = false;
+
+  /// Resolves once [_settingsController]'s load ends, successfully or not
+  /// (PD8); set in [didChangeDependencies], awaited in [_loadTheme].
+  Future<void>? _settingsLoad;
+
   @override
   void initState() {
     super.initState();
@@ -230,6 +257,14 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     if (_started) return;
     _started = true;
     _bundle = DefaultAssetBundle.of(context);
+    final (controller, owned) = resolveWidgetSettings(
+      context,
+      widget.widgetSettings,
+    );
+    _settingsController = controller;
+    _ownsSettings = owned;
+    _placesSettingsScope = owned || widget.widgetSettings != null;
+    _settingsLoad = controller.load();
     unawaited(_loadTheme());
   }
 
@@ -248,11 +283,13 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
       );
     } on Object catch (error, stackTrace) {
       await _readPackageDefault();
+      await _settingsLoad;
       if (mounted) {
         _show(_failed(error, StratumSplashPhase.theme, stackTrace));
       }
       return;
     }
+    await _settingsLoad;
     if (!mounted) {
       controller.dispose();
       return;
@@ -365,6 +402,7 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     if (_holding) WidgetsBinding.instance.allowFirstFrame();
     _minimumTimer?.cancel();
     _controller?.dispose();
+    if (_ownsSettings) _settingsController?.dispose();
     super.dispose();
   }
 
@@ -374,8 +412,10 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
     final state = _state;
     // The first frame is held: no frame of the theme preload at launch
     // reaches the screen, so the builder first runs when the hold ends
-    // (FR-02 E01).
-    if (state == null) return const SizedBox.shrink();
+    // (FR-02 E01). The settings scope still wraps it, unchanged, so the
+    // tree shape never differs between the held frame and every later
+    // state (PD9).
+    if (state == null) return _wrapSettings(const SizedBox.shrink());
     // Above `MaterialApp` no `Localizations` exists: the platform locale
     // picks the direction, as it picks FO-09's labels (FR-07).
     final locale =
@@ -418,21 +458,36 @@ class _StratumSplashScreenState<T> extends State<StratumSplashScreen<T>> {
               child: FocusScope(autofocus: true, child: frame),
             ),
           );
-    return Directionality(
-      textDirection: _directionOf(locale),
-      child: _themed(
-        _SplashExit(
-          type: exit,
-          duration: widget.exitDuration,
-          curve: widget.exitCurve,
-          // The frame and the app each keep one GlobalKey for this
-          // State's whole life (FR-04): the exit still swaps between them
-          // once, at done, but a later change in the exit's own widget
-          // type reparents whichever one is on screen instead of
-          // unmounting it.
-          child: KeyedSubtree(key: done ? _appKey : _frameKey, child: content),
+    return _wrapSettings(
+      Directionality(
+        textDirection: _directionOf(locale),
+        child: _themed(
+          _SplashExit(
+            type: exit,
+            duration: widget.exitDuration,
+            curve: widget.exitCurve,
+            // The frame and the app each keep one GlobalKey for this
+            // State's whole life (FR-04): the exit still swaps between
+            // them once, at done, but a later change in the exit's own
+            // widget type reparents whichever one is on screen instead of
+            // unmounting it.
+            child: KeyedSubtree(
+              key: done ? _appKey : _frameKey,
+              child: content,
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  /// [child] under [_settingsController] when it did not come from a scope
+  /// above (PD9); else [child] unchanged.
+  Widget _wrapSettings(Widget child) {
+    if (!_placesSettingsScope) return child;
+    return StratumWidgetSettings(
+      controller: _settingsController!,
+      child: child,
     );
   }
 
