@@ -19,9 +19,12 @@ import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 class KeyboardVisibilityScope extends StatefulWidget {
   const new({required this.child, super.key});
 
+  /// The subtree that reads the published value.
   final Widget child;
 
-  static final ValueNotifier<bool?> _forced = ValueNotifier<bool?>(null);
+  static bool? _forcedValue;
+
+  static final Set<VoidCallback> _forcedListeners = <VoidCallback>{};
 
   // WORKAROUND: flutter_keyboard_visibility's method-channel default opens its
   // EventChannel on every host, so a dependent's first runAsync or golden test
@@ -30,6 +33,13 @@ class KeyboardVisibilityScope extends StatefulWidget {
   static bool get _mobileHost =>
       !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
+  /// Returns whether the keyboard is open, registering a dependency that
+  /// rebuilds on open or close.
+  ///
+  /// The value is the OS flag on an Android or iOS host, `false` elsewhere,
+  /// and a forced value set through [setVisibleForTesting] wins on every
+  /// host. Throws a [FlutterError] when no [KeyboardVisibilityScope] is
+  /// above [context].
   static bool of(BuildContext context) {
     final scope = context
         .dependOnInheritedWidgetOfExactType<_KeyboardVisibilityInherited>();
@@ -57,7 +67,12 @@ class KeyboardVisibilityScope extends StatefulWidget {
   /// with `false` in a tear-down. It is process-lifetime state: it also
   /// survives a hot reload, until a hot restart or relaunch.
   @visibleForTesting
-  static void setVisibleForTesting(bool isVisible) => _forced.value = isVisible;
+  static void setVisibleForTesting(bool isVisible) {
+    _forcedValue = isVisible;
+    for (final listener in _forcedListeners.toList()) {
+      listener();
+    }
+  }
 
   @override
   State<KeyboardVisibilityScope> createState() =>
@@ -71,7 +86,7 @@ class _KeyboardVisibilityScopeState extends State<KeyboardVisibilityScope> {
   @override
   void initState() {
     super.initState();
-    KeyboardVisibilityScope._forced.addListener(_handleForcedChange);
+    KeyboardVisibilityScope._forcedListeners.add(_handleForcedChange);
     if (KeyboardVisibilityScope._mobileHost) {
       final controller = KeyboardVisibilityController();
       _osVisible = controller.isVisible;
@@ -86,14 +101,14 @@ class _KeyboardVisibilityScopeState extends State<KeyboardVisibilityScope> {
 
   @override
   void dispose() {
-    KeyboardVisibilityScope._forced.removeListener(_handleForcedChange);
+    KeyboardVisibilityScope._forcedListeners.remove(_handleForcedChange);
     unawaited(_osSubscription?.cancel());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => _KeyboardVisibilityInherited(
-    isVisible: KeyboardVisibilityScope._forced.value ?? _osVisible,
+    isVisible: KeyboardVisibilityScope._forcedValue ?? _osVisible,
     child: widget.child,
   );
 }

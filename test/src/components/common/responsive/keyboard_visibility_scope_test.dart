@@ -1,8 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 import 'package:stratum_ui/src/components/common/responsive/keyboard_visibility_scope.dart';
 
 void main() {
+  // Scoped to this file: `flutter test` runs each file in its own process.
+  LeakTesting.enable();
+
   void setInsets(WidgetTester tester, double height) {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(400, 800);
@@ -209,6 +213,20 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'fo07/us04/fr02: a mounted, forced, and disposed scope leaks no object',
+    (tester) async {
+      addTearDown(() => KeyboardVisibilityScope.setVisibleForTesting(false));
+
+      await tester.pumpWidget(
+        KeyboardVisibilityScope(child: readVisibility((_) {})),
+      );
+      KeyboardVisibilityScope.setVisibleForTesting(true);
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   // Build Gate NFR-U01: n/a — a non-visual context read paints no color,
   // text, border, focus ring, or icon.
