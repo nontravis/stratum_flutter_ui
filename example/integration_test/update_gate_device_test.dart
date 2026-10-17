@@ -6,11 +6,11 @@
 // and the dialog open a route scope, with the routes behind the dialog
 // excluded from semantics while it shows; Esc dismisses the dialog and
 // Tab stays inside it. The test builds its own app from the public gate
-// API; no demo page exists for this on master. One check code cannot
-// judge: whether TalkBack and VoiceOver actually speak the route-scope
-// change out loud (stratum-device-round A1, A2, B1) — that needs a human
-// ear on a real screen reader. Runs in roadmap phase stratum-device-round,
-// never in a feature session:
+// API. One check code cannot judge: whether TalkBack and VoiceOver actually
+// speak the route-scope change out loud (stratum-device-round A1, A2, B1);
+// a person hears it on check 6 of the screen reader checks page,
+// `lib/screen_reader_demo.dart` (F-01 US-13). Runs in roadmap phase
+// stratum-device-round, never in a feature session:
 //
 //   flutter test integration_test/update_gate_device_test.dart -d <device>
 import 'dart:async';

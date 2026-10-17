@@ -28,11 +28,15 @@
 // otherwise skip it.
 //
 // Code cannot judge: whether TalkBack or VoiceOver actually speaks the
-// text, whether a fresh node truly reads clean with no audible overlap on
-// the platform's own speech engine, which path a target picks on its own
-// (`supportsAnnounce`'s real value), and the real wording of a platform's
-// built-in "showing items" collection announcement. Those stay a by-eye
-// check of the device round.
+// text, and which path a target picks on its own (`supportsAnnounce`'s
+// real value). A person listens for those on check 1 of the screen
+// reader checks page, `lib/screen_reader_demo.dart` (F-01 US-13).
+//
+// Also beyond code, and beyond check 1's own steps: whether a fresh node
+// truly reads clean with no audible overlap on the platform's own speech
+// engine, and the real wording of a platform's built-in "showing items"
+// collection announcement. A person judges both only in this device
+// round, by ear.
 //
 //   flutter test integration_test/reorder_a11y_device_test.dart -d <device>
 //   flutter drive --driver=test_driver/integration_test.dart \
