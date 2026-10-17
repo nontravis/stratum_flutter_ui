@@ -288,8 +288,33 @@ def brightness_of(rgb: tuple[int, int, int]) -> str:
 _PACKAGE = "dev.stratum.stratum_ui_example"
 
 
+def _live_windows_section(window_txt: str) -> str:
+    """Slices `window_txt` down to the `WINDOW MANAGER WINDOWS (dumpsys
+    window windows)` section alone.
+
+    `WindowManagerService.dump()` prints several sections in a fixed order,
+    each headed `^WINDOW MANAGER <NAME> (dumpsys window <cmd>)`; only this
+    section holds each window's *live* `WindowState.dump()` fields
+    (`package=`, `apr=`, `vsysui=`). After an app ANR, `WINDOW MANAGER LAST
+    ANR (dumpsys window lastanr)` prints a second, frozen `Window #N` block
+    naming the same `package=`, taken at the ANR instant, not the capture
+    instant (RCA root cause 2, rca-tablet-app-anr.findings.md). Scoping to
+    this section alone is what keeps `_app_window_block` from ever reading
+    that stale copy. Returns `window_txt` unchanged when the header is
+    missing (a synthetic fixture that starts directly at this section).
+    """
+    m = re.search(r"^WINDOW MANAGER WINDOWS\b.*$", window_txt, re.MULTILINE)
+    if m is None:
+        return window_txt
+    start = m.end()
+    m2 = re.search(r"^WINDOW MANAGER \S", window_txt[start:], re.MULTILINE)
+    end = start + m2.start() if m2 else len(window_txt)
+    return window_txt[start:end]
+
+
 def _app_window_block(window_txt: str) -> str | None:
-    """Isolates the text of this app's own `Window #N ...:` block.
+    """Isolates the text of this app's own `Window #N ...:` block, from the
+    live `WINDOW MANAGER WINDOWS` section only (`_live_windows_section`).
 
     `WindowManagerService.dump()` (frameworks/base/services/core/java/com/
     android/server/wm/WindowManagerService.java) prints one such block per
@@ -299,7 +324,9 @@ def _app_window_block(window_txt: str) -> str | None:
     `Window #N` headers and keeping the block naming `_PACKAGE` is what
     scopes a legacy per-window field to the app under test.
     """
-    blocks = re.split(r"(?=^ *Window #\d+)", window_txt, flags=re.MULTILINE)
+    blocks = re.split(
+        r"(?=^ *Window #\d+)", _live_windows_section(window_txt), flags=re.MULTILINE
+    )
     for block in blocks:
         if re.search(rf"package\s*=\s*{re.escape(_PACKAGE)}\b", block):
             return block
@@ -334,9 +361,20 @@ def _focus_violation(window_txt: str) -> str | None:
     (RCA finding (2)(a), rca-api36-probes.findings.md:153-156). `None`
     when focus is the app, is `ImmersiveModeConfirmation`, or the capture
     carries no focus line at all (nothing to guard against).
+
+    "Is the app" means the name is exactly this app's own `<package>/
+    <activity>` window (`startswith`, since the activity name varies), never
+    a substring match: an AOSP ANR dialog titled `Application Not
+    Responding: <package>` or `<package> isn't responding` also *contains*
+    `_PACKAGE`, so a substring check wrongly treated that dialog as the app
+    itself (RCA root cause 2, rca-tablet-app-anr.findings.md).
     """
     name = _focused_window_name(window_txt)
-    if name is None or _PACKAGE in name or name == _IMMERSIVE_MODE_CONFIRMATION:
+    if (
+        name is None
+        or name.startswith(_PACKAGE + "/")
+        or name == _IMMERSIVE_MODE_CONFIRMATION
+    ):
         return None
     return name
 
