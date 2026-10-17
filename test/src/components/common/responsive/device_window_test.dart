@@ -138,9 +138,11 @@ void main() {
   testWidgets('reports the keyboard height while the keyboard is open', (
     tester,
   ) async {
+    addTearDown(() => KeyboardVisibilityScope.setVisibleForTesting(false));
     setWindowSize(tester, const Size(400, 800));
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.reset);
+    KeyboardVisibilityScope.setVisibleForTesting(true);
     late double keyboardHeight;
     late bool isKeyboardVisible;
 
@@ -157,11 +159,15 @@ void main() {
     expect(isKeyboardVisible, isTrue);
   });
 
-  testWidgets('inside a Scaffold body, the keyboard reads as open but its '
-      'height as already consumed', (tester) async {
+  testWidgets('fo07/us04/s3: fo07/us04/fr02/e04: inside a Scaffold body, the '
+      'keyboard reads as open but its height as already consumed', (
+    tester,
+  ) async {
+    addTearDown(() => KeyboardVisibilityScope.setVisibleForTesting(false));
     setWindowSize(tester, const Size(400, 800));
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.reset);
+    KeyboardVisibilityScope.setVisibleForTesting(true);
     late double keyboardHeight;
     late bool isKeyboardVisible;
 

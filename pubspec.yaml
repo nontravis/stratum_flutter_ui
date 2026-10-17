@@ -28,6 +28,7 @@ dependencies:
       url: https://github.com/Nextzy/flutter-falconx
       ref: 4.1.0
       path: flutter_falconx
+  flutter_keyboard_visibility: ^7.0.1
   flutter_localizations:
     sdk: flutter
   flutter_svg: ^2.3.0
