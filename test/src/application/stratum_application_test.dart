@@ -478,6 +478,32 @@ void main() {
     expect(seen, radius);
   });
 
+  testWidgets('fo07/us04/fr02/e09: a StratumApplication screen reads the '
+      'keyboard flag with no setup', (tester) async {
+    addTearDown(() => KeyboardVisibilityScope.setVisibleForTesting(false));
+    bool? seen;
+    await tester.pumpWidget(
+      StratumApplication(
+        controller: await _controller(),
+        appBuilder: (c, s) => MaterialApp(
+          builder: s.builder,
+          home: Builder(
+            builder: (context) {
+              seen = context.deviceWindow.isKeyboardVisible;
+              return const Text('home');
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    KeyboardVisibilityScope.setVisibleForTesting(true);
+    await tester.pump();
+
+    expect(seen, isTrue);
+  });
+
   testWidgets('fo03/us13/fr01/e05: notices false leaves the host out and '
       'showToast throws', (tester) async {
     await tester.pumpWidget(

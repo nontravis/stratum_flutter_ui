@@ -514,6 +514,88 @@ void main() {
 
       expect(find.byType(WindowSizeScope), findsOneWidget);
     });
+
+    testWidgets('fo07/us04/fr02/e09: inserts a KeyboardVisibilityScope when '
+        'none is above', (tester) async {
+      bool? seen;
+      await tester.pumpWidget(
+        app(
+          Builder(
+            builder: (context) {
+              seen = KeyboardVisibilityScope.of(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(seen, isNotNull);
+      expect(tester.takeException(), isNull);
+      expect(find.byType(KeyboardVisibilityScope), findsOneWidget);
+    });
+
+    testWidgets('fo07/us04/fr02/e09: inserts no KeyboardVisibilityScope '
+        'under a scope or a second application', (tester) async {
+      await tester.pumpWidget(
+        KeyboardVisibilityScope(child: app(app(const SizedBox()))),
+      );
+
+      expect(find.byType(KeyboardVisibilityScope), findsOneWidget);
+    });
+
+    testWidgets('fo07/us04/fr02/e09: the inserted scope publishes a forced '
+        'value', (tester) async {
+      addTearDown(() => KeyboardVisibilityScope.setVisibleForTesting(false));
+      bool? seen;
+      await tester.pumpWidget(
+        app(
+          Builder(
+            builder: (context) {
+              seen = KeyboardVisibilityScope.of(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      KeyboardVisibilityScope.setVisibleForTesting(true);
+      await tester.pump();
+
+      expect(seen, isTrue);
+    });
+
+    testWidgets('fo07/us04/fr02/e09: an application remounted in one frame '
+        'keeps the inserted scope live', (tester) async {
+      addTearDown(() => KeyboardVisibilityScope.setVisibleForTesting(false));
+      bool? seen;
+      final reader = Builder(
+        builder: (context) {
+          seen = KeyboardVisibilityScope.of(context);
+          return const SizedBox();
+        },
+      );
+      await tester.pumpWidget(app(reader));
+      await tester.pump();
+
+      await tester.pumpWidget(
+        KeyedSubtree(key: UniqueKey(), child: app(reader)),
+      );
+      await tester.pump();
+
+      KeyboardVisibilityScope.setVisibleForTesting(true);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(KeyboardVisibilityScope), findsOneWidget);
+      expect(seen, isTrue);
+    });
+
+    testWidgets('fo07/us04/fr02/e09: two nested applications with no outer '
+        'scope yield one KeyboardVisibilityScope', (tester) async {
+      await tester.pumpWidget(app(app(const SizedBox())));
+
+      expect(find.byType(KeyboardVisibilityScope), findsOneWidget);
+    });
   });
 
   group('fo03/us02/fr01: StratumThemeApplication.controlled', () {

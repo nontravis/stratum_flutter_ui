@@ -331,7 +331,8 @@ beside `style`, which draws the box.
   floating or split keyboard mode and with a hardware keyboard. On web, macOS, Windows, Linux, and in `flutter test`
   it is always false and asks the OS nothing. A reader rebuilds only on open or close. To get the screen area the
   keyboard covers, read `keyboardHeight`.
-- Setup: wrap the app once, `MaterialApp(builder: (context, child) => KeyboardVisibilityScope(child: child!))`. A
+- Under `StratumThemeApplication`, and so under `StratumApplication`, the app writes no setup for the scope. An app
+  with neither wraps itself: `MaterialApp(builder: (context, child) => KeyboardVisibilityScope(child: child!))`. A
   read with no scope throws "No KeyboardVisibilityScope found in context".
 - Tests need no setup: under `flutter test` the scope reads false and opens no platform channel. To drive it, call
   `KeyboardVisibilityScope.setVisibleForTesting(true)`, then `await tester.pump()`. The value wins on every platform
