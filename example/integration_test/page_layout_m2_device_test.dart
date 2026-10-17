@@ -51,6 +51,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
 
+import 'support/key_simulation.dart';
 import 'support/os_major_version.dart';
 import 'support/pump_until.dart';
 
@@ -181,7 +182,7 @@ void main() {
       reason: 'the dimmed, blurred page sits behind the sheet',
     );
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await sendKey(tester, LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
 
     tester.view.physicalSize = const Size(900, 1200);
@@ -224,7 +225,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(ModalLayout), findsOneWidget);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await sendKey(tester, LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
 
       expect(find.byType(ModalLayout), findsNothing);

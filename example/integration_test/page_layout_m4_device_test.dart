@@ -39,6 +39,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
 
+import 'support/key_simulation.dart';
+
 bool get _appleShortcut =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.iOS ||
@@ -90,15 +92,19 @@ void main() {
       await tester.pumpAndSettle();
       field.requestFocus();
       await tester.pump();
-      await tester.enterText(find.byType(TextField), 'hi');
+      // Sets the field's text through its controller, not the IME round
+      // trip: the client id `-1` that round trip sends is accepted only
+      // inside an `assert`, so profile mode drops it silently
+      // (`text_input.dart:2240-2256`).
+      fieldText.text = 'hi';
       await tester.pump();
 
       if (_appleShortcut) {
-        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
-        await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
-        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+        await sendKeyDown(tester, LogicalKeyboardKey.altLeft);
+        await sendKey(tester, LogicalKeyboardKey.keyT);
+        await sendKeyUp(tester, LogicalKeyboardKey.altLeft);
       } else {
-        await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+        await sendKey(tester, LogicalKeyboardKey.f8);
       }
       await tester.pumpAndSettle();
 

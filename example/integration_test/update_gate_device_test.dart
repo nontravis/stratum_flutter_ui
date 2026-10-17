@@ -19,6 +19,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
 
+import 'support/key_simulation.dart';
+
 /// An update check whose one ask the test answers by hand.
 class _Checker implements UpdateChecker {
   final List<Completer<UpdateStatus>> _asks = [];
@@ -260,7 +262,7 @@ void main() {
     await _dialogFrames(tester);
     expect(find.text('Update'), findsOneWidget);
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await sendKey(tester, LogicalKeyboardKey.escape);
     await tester.pump();
 
     expect(find.text('Update'), findsNothing);
@@ -278,7 +280,7 @@ void main() {
         Focus.of(tester.element(find.text(label))).hasFocus;
 
     for (final label in ['Later', 'Update', 'Later', 'Update']) {
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await sendKey(tester, LogicalKeyboardKey.tab);
       await tester.pump();
       expect(focused(label), isTrue);
     }

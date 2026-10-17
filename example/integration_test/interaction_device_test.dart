@@ -13,6 +13,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
 import 'package:stratum_ui_example/interaction_demo.dart';
 
+import 'support/key_simulation.dart';
 import 'support/pump_until.dart';
 
 Future<void> _pumpDemo(WidgetTester tester) async {
@@ -68,7 +69,7 @@ Future<void> _tabUntil(
   int maxTabs = 8,
 }) async {
   for (var i = 0; i < maxTabs && target.evaluate().isEmpty; i++) {
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await sendKey(tester, LogicalKeyboardKey.tab);
     await tester.pumpAndSettle();
   }
 }
@@ -285,7 +286,7 @@ void main() {
       expect(find.text('Group: focus inside'), findsOneWidget);
       expect(find.text('Log: Group onFocusChange(true)'), findsOneWidget);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await sendKey(tester, LogicalKeyboardKey.tab);
       await _pumpFocusMove(tester);
       expect(
         find.text('Group: focus inside'),
@@ -309,7 +310,7 @@ void main() {
           kIsWeb || defaultTargetPlatform != TargetPlatform.macOS;
 
       if (tabLeavesTextField) {
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await sendKey(tester, LogicalKeyboardKey.tab);
         await _pumpFocusMove(tester);
         expect(find.text('Group: no focus'), findsOneWidget);
         expect(
