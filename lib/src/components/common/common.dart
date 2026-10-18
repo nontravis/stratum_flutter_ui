@@ -1,6 +1,8 @@
 export 'base/base.dart';
 export 'ink_well.dart'
     hide
+        ItemRootPassSemantics,
+        ReorderItemRoot,
         interactionNeedsTapSurface,
         semanticsWithoutHeading,
         tapSurfaceHeadingLevel,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:stratum_ui/src/components/common/ink_well.dart'
+    show ItemRootPassSemantics;
 import 'package:stratum_ui/src/themes/theme_application.dart';
 
 /// The disabled look and behavior the component bases wrap around every
@@ -10,7 +12,10 @@ import 'package:stratum_ui/src/themes/theme_application.dart';
 /// reports the component disabled on one container node of its own; it
 /// forms no node while either is false. It decides that node from these
 /// two values alone, never from what the component builds, so the node
-/// is right in every frame.
+/// is right in every frame, outside a reorder item root. At a
+/// `ReorderableListViewLayout` item root the item's marker joins this
+/// node to the item's node instead, whether or not a `StratumInkWell`
+/// sits below it (layout s03 invariant 81).
 ///
 /// It extends no component base, so the bases never wrap it in itself.
 ///
@@ -48,19 +53,19 @@ class StratumDisabled extends StatelessWidget {
 
   final Widget child;
 
-  /// The same layers in every build: the `Semantics` layer, which while it
-  /// reports is a container node with `enabled` false and otherwise adds
-  /// no node and no flag (US-07 FR-03 E01, E02), then the cursor, pointer,
-  /// disabled scope, focus, and opacity layers. It reads the theme only
-  /// while it dims, so a widget on either base with no theme above it
-  /// builds while enabled.
+  /// The same layers in every build: the pass node ([ItemRootPassSemantics],
+  /// a `Semantics` subclass), which while it reports is a container node
+  /// with `enabled` false and otherwise adds no node and no flag (US-07
+  /// FR-03 E01, E02), then the cursor, pointer, disabled scope, focus, and
+  /// opacity layers. It reads the theme only while it dims, so a widget on
+  /// either base with no theme above it builds while enabled.
   @override
   Widget build(BuildContext context) {
     final reports = disabled && contributesSemantics;
     final opacity = disabled && dims
         ? StratumThemeApplication.of(context).opacity.disabled
         : 1.0;
-    return Semantics(
+    return ItemRootPassSemantics(
       container: reports,
       enabled: reports ? !disabled : null,
       // A non-opaque region reports no hit to its ancestors

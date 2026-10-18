@@ -5,6 +5,8 @@ import 'package:flutter/rendering.dart'
         RenderSliverMultiBoxAdaptor,
         ScrollCacheExtent;
 import 'package:flutter/scheduler.dart' show Ticker, TickerCallback;
+import 'package:stratum_ui/src/components/common/ink_well.dart'
+    show ReorderItemRoot;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
@@ -3079,11 +3081,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     ]);
   }
 
-  /// [item] with its long-press listener and its reorder keys. A leaving
-  /// item keeps the same widgets, so its State stays, but takes no
-  /// long-press drag and registers no node.
+  /// [item] with its long-press listener and its reorder keys. It wraps
+  /// the item first in the item root marker, which a leaving item keeps,
+  /// inactive (layout s03 invariant 81). A leaving item keeps the same
+  /// widgets, so its State stays, but takes no long-press drag and
+  /// registers no node.
   Widget _wrapItem(Widget item, {required int index, required bool exiting}) {
-    var current = item;
+    Widget current = ReorderItemRoot(active: !exiting, child: item);
     if (_layout.longPressDrag) {
       current = ReorderableDelayedDragStartListener(
         index: index,

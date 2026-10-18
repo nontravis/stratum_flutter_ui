@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/base/disabled.dart';
+import 'package:stratum_ui/src/components/common/ink_well.dart'
+    show ItemRootPassSemantics;
 import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
@@ -307,7 +309,7 @@ void main() {
       final element = tester.element(find.byType(_Kept));
       final state = tester.state(find.byType(_Kept));
       final chain = _chain(tester);
-      expect(chain, contains(Semantics));
+      expect(chain, contains(ItemRootPassSemantics));
 
       await tester.pumpWidget(build(disabled: true));
       expect(tester.element(find.byType(_Kept)), same(element));
@@ -478,7 +480,7 @@ void main() {
       expect(
         chain,
         containsAll(<Type>[
-          Semantics,
+          ItemRootPassSemantics,
           MouseRegion,
           IgnorePointer,
           ExcludeFocus,

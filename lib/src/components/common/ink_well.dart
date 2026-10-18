@@ -4,7 +4,12 @@ import 'package:flutter/rendering.dart'
         BoxParentData,
         ChildLayoutHelper,
         ChildLayouter,
+        ContainerRenderObjectMixin,
+        PipelineOwner,
         RenderBox,
+        RenderObject,
+        RenderObjectWithChildMixin,
+        RenderProxyBox,
         RenderSemanticsAnnotations,
         RenderShiftedBox;
 import 'package:stratum_ui/src/components/common/base/disabled.dart'
@@ -790,6 +795,252 @@ class _RenderSemanticsWithoutHeading extends RenderSemanticsAnnotations {
     // Skips the write when the level is already 0, so a config with no
     // level stays unannotated; otherwise it clears the copied level.
     config.headingLevel = 0;
+  }
+}
+
+/// Marks a reorder item's root, so a flagged node below, such as the pass
+/// node `StratumDisabled` builds, can seed its [_ItemRootFlag.role] from
+/// this marker (layout s03 invariant 81).
+///
+/// `_wrapItem` wraps every item in this first, [active] false for a
+/// leaving item, which keeps the marker, inactive, so the item keeps its
+/// widgets and its `State` across the leave.
+class ReorderItemRoot extends StatelessWidget {
+  const new({super.key, required this.active, required this.child});
+
+  /// False for a leaving item.
+  final bool active;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => _ItemRootScope(
+    child: _ItemRootMarker(active: active, child: child),
+  );
+}
+
+/// Tells a flagged widget below, at build, that a [ReorderItemRoot] sits
+/// above it, so a widget outside any reorder item never seeds.
+class _ItemRootScope extends InheritedWidget {
+  const new({required super.child});
+
+  @override
+  bool updateShouldNotify(_ItemRootScope oldWidget) => false;
+}
+
+/// Whether [context] sits inside a [ReorderItemRoot]; the one inherited
+/// lookup a flagged widget pays per build, refreshed by a reparent through
+/// `didChangeDependencies`.
+bool _insideItemRoot(BuildContext context) =>
+    context.dependOnInheritedWidgetOfExactType<_ItemRootScope>() != null;
+
+/// How a flagged node describes its semantics config at a reorder item
+/// root (layout s03 invariant 81; base s03 invariant 15).
+enum _ItemRootRole {
+  /// Outside any reorder item root: describes as [Semantics] does.
+  none,
+
+  /// Merges into the item's node: the config is never a semantics
+  /// boundary.
+  join,
+
+  /// Describes nothing, a pass node above a root surface (M1-T2).
+  hidden,
+}
+
+/// The role a reorder item root's marker sets on a flagged render object,
+/// and the seed-and-mark and describe-bookkeeping sequences every flagged
+/// render object shares.
+mixin _ItemRootFlag on RenderObject {
+  _ItemRootRole role = _ItemRootRole.none;
+
+  /// The role the last [describeSemanticsConfiguration] call used; null
+  /// before the first.
+  _ItemRootRole? describedRole;
+
+  /// Whether a [_ItemRootScope] sat above this object's widget at build.
+  bool inItem = false;
+
+  /// Seeds [role] by walking this object's parents to an active marker
+  /// through [_RenderItemRoot._seedFrom], and tells the marker found to
+  /// flag every node in [passes], which starts as `this` alone, so the
+  /// walk's ancestors land in front of it, top first. Sets [role] to
+  /// [_ItemRootRole.none] when the walk finds no marker.
+  void _seedAndMark(List<_RenderPassSemantics> passes) {
+    final marker = _RenderItemRoot._seedFrom(this, passes);
+    if (marker == null) {
+      role = _ItemRootRole.none;
+      return;
+    }
+    for (final node in marker._flag(passes: passes)) {
+      node.markNeedsSemanticsUpdate();
+    }
+  }
+
+  /// Records [role] as the answer this description used.
+  void _recordDescribedRole() => describedRole = role;
+}
+
+class _ItemRootMarker extends SingleChildRenderObjectWidget {
+  const new({required this.active, super.child});
+
+  final bool active;
+
+  @override
+  _RenderItemRoot createRenderObject(BuildContext context) =>
+      _RenderItemRoot(active);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderItemRoot renderObject) {
+    renderObject.active = active;
+  }
+}
+
+/// The render object [ReorderItemRoot] builds: opens no semantics node of
+/// its own, and flags every pass node a seed finds below it `join`
+/// (layout s03 invariant 81).
+class _RenderItemRoot extends RenderProxyBox {
+  new(this._active);
+
+  bool _active;
+
+  bool get active => _active;
+
+  set active(bool value) {
+    if (_active == value) return;
+    _active = value;
+    markNeedsSemanticsUpdate();
+  }
+
+  /// The pass nodes this marker last flagged, top first; `const []`
+  /// before any seed registers.
+  List<_RenderPassSemantics> _passes = const [];
+
+  /// Flags every node in [passes] `join`, flags every previously
+  /// registered node [passes] drops back to `none`, registers [passes],
+  /// and returns every attached touched node whose last description used
+  /// a role other than its new one.
+  Set<_ItemRootFlag> _flag({required List<_RenderPassSemantics> passes}) {
+    final kept = passes.toSet();
+    final dropped = _passes.where((node) => !kept.contains(node));
+    for (final node in dropped) {
+      node.role = _ItemRootRole.none;
+    }
+    for (final node in passes) {
+      node.role = _ItemRootRole.join;
+    }
+    _passes = passes;
+    return {
+      for (final node in <_ItemRootFlag>[...dropped, ...passes])
+        if (node.attached &&
+            node.describedRole != null &&
+            node.describedRole != node.role)
+          node,
+    };
+  }
+
+  /// Walks up from [from]'s parent, keeping `below` as the one child a
+  /// chain holds: at a [_RenderItemRoot], returns it when [active], else
+  /// null; when [_onlyLinkedChild] is false, returns null; at a
+  /// [_RenderPassSemantics], inserts it at the front of [passes], top
+  /// first; at any other node that [_opensNode], returns null.
+  static _RenderItemRoot? _seedFrom(
+    RenderObject from,
+    List<_RenderPassSemantics> passes,
+  ) {
+    var below = from;
+    for (var node = from.parent; node != null; node = node.parent) {
+      if (node is _RenderItemRoot) return node.active ? node : null;
+      if (!_onlyLinkedChild(node, below)) return null;
+      if (node is _RenderPassSemantics) {
+        passes.insert(0, node);
+      } else if (_opensNode(node)) {
+        return null;
+      }
+      below = node;
+    }
+    return null;
+  }
+
+  /// Whether a fresh [SemanticsConfiguration] [node] describes is a
+  /// semantics boundary or has `explicitChildNodes`.
+  static bool _opensNode(RenderObject node) {
+    final config = SemanticsConfiguration();
+    node.describeSemanticsConfiguration(config);
+    return config.isSemanticBoundary || config.explicitChildNodes;
+  }
+
+  /// Whether [below] is [parent]'s one linked child; a container links a
+  /// child only after attaching it, so mid-insert this is false
+  /// (`rendering/object.dart:4515`, `:4522@3.47.7`).
+  static bool _onlyLinkedChild(RenderObject parent, RenderObject below) =>
+      switch (parent) {
+        RenderObjectWithChildMixin(:final child) => identical(child, below),
+        ContainerRenderObjectMixin(:final childCount, :final firstChild) =>
+          childCount == 1 && identical(firstChild, below),
+        _ => false,
+      };
+}
+
+/// The `Semantics` layer `StratumDisabled` builds in place of [Semantics]:
+/// joins the item's node while a reorder item root's marker flags it
+/// `join`, and describes nothing while flagged `hidden`, a pass node
+/// above a root surface (M1-T2). Kept out of the barrel (layout s03
+/// invariant 81; base s03 invariant 15).
+class ItemRootPassSemantics extends Semantics {
+  new({super.key, super.container, super.enabled, super.child});
+
+  @override
+  RenderSemanticsAnnotations createRenderObject(BuildContext context) {
+    final renderObject = _RenderPassSemantics(
+      container: container,
+      explicitChildNodes: explicitChildNodes,
+      excludeSemantics: excludeSemantics,
+      blockUserActions: blockUserActions,
+      properties: properties,
+      localeForSubtree: localeForSubtree,
+    );
+    updateRenderObject(context, renderObject);
+    return renderObject;
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderSemanticsAnnotations renderObject,
+  ) {
+    super.updateRenderObject(context, renderObject);
+    (renderObject as _RenderPassSemantics).inItem = _insideItemRoot(context);
+  }
+}
+
+class _RenderPassSemantics extends RenderSemanticsAnnotations
+    with _ItemRootFlag {
+  new({
+    required super.properties,
+    super.container,
+    super.explicitChildNodes,
+    super.excludeSemantics,
+    super.blockUserActions,
+    super.localeForSubtree,
+  });
+
+  // Attach describes the config at once
+  // (`rendering/object.dart:2507-2509@3.47.7`), before any marker visit
+  // exists (M1-T3 adds the flush re-walk), so seed from the parents
+  // already in place.
+  @override
+  void attach(PipelineOwner owner) {
+    if (inItem) _seedAndMark(<_RenderPassSemantics>[this]);
+    super.attach(owner);
+  }
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    _recordDescribedRole();
+    if (role == _ItemRootRole.hidden) return;
+    super.describeSemanticsConfiguration(config);
+    if (role == _ItemRootRole.join) config.isSemanticBoundary = false;
   }
 }
 

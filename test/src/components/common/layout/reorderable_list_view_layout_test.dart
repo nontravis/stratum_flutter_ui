@@ -788,6 +788,105 @@ Widget _semanticsContainerBoundary(Widget child) =>
 Widget _inkWellBoundary(Widget child) =>
     StratumInkWell(onTap: () {}, child: child);
 
+/// The move labels the item-root pins count, in either axis.
+const _moveLabels = {
+  'Move to the start',
+  'Move up',
+  'Move down',
+  'Move left',
+  'Move right',
+  'Move to the end',
+};
+
+/// What the item-root pins' row and delete taps ran, in order.
+final _rootLog = <String>[];
+
+/// Records a tap on the item-root pins' delete button.
+void _tapDelete() => _rootLog.add('delete');
+
+/// Whether R11's item 2 is disabled.
+final _tileDisabled = ValueNotifier<bool>(true);
+
+/// [child], 300 by 600, in an app with an overlay, under the Stratum theme.
+Widget _rootApp(Widget child) => MaterialApp(
+  home: Material(
+    child: themedHost(SizedBox(width: 300, height: 600, child: child)),
+  ),
+);
+
+/// The move labels on [data], in [_moveLabels]'s words.
+List<String> _rootMoves(SemanticsData data) => [
+  for (final id in data.customSemanticsActionIds ?? const <int>[])
+    if (_moveLabels.contains(CustomSemanticsAction.getAction(id)!.label))
+      CustomSemanticsAction.getAction(id)!.label!,
+];
+
+/// [node] as one line, the spike's vocabulary.
+String _shape(SemanticsNode node) {
+  final data = node.getSemanticsData();
+  return 'label=${data.label.replaceAll('\n', '|')} '
+      'tap=${data.hasAction(SemanticsAction.tap)} '
+      'button=${data.flagsCollection.isButton} '
+      'enabled=${data.flagsCollection.isEnabled.name} '
+      'moves=${_rootMoves(data).length}';
+}
+
+/// [text]'s own semantics node, the item-root pins' vocabulary.
+SemanticsNode _rootNode(WidgetTester tester, String text) =>
+    tester.getSemantics(find.text(text));
+
+/// Runs the move action [label] names on [node].
+void _rootMove(SemanticsNode node, String label) => node.owner!.performAction(
+  node.id,
+  SemanticsAction.customAction,
+  CustomSemanticsAction.getIdentifier(CustomSemanticsAction(label: label)),
+);
+
+/// The item-root pins' list ids, in their current order.
+List<int> _rootIds(WidgetTester tester) => _RootListState.ids;
+
+/// R4's row for item [id]: its label and a delete button beside it.
+Widget _row(int id) => RowLayout(
+  children: [
+    Text('Item $id'),
+    StratumInkWell(onTap: _tapDelete, child: Text('Delete $id')),
+  ],
+);
+
+/// A reorderable list of five items the item-root pins reorder, each item
+/// built by [item].
+class _RootList extends StatefulWidget {
+  const new({required this.item});
+
+  final Widget Function(int id) item;
+
+  @override
+  State<_RootList> createState() => _RootListState();
+}
+
+class _RootListState extends State<_RootList> {
+  static List<int> ids = [0, 1, 2, 3, 4];
+
+  @override
+  Widget build(BuildContext context) => ReorderableListViewLayout.builder(
+    itemCount: ids.length,
+    onReorderItem: (from, to) =>
+        setState(() => ids.insert(to, ids.removeAt(from))),
+    itemBuilder: (context, index) =>
+        KeyedSubtree(key: ValueKey(ids[index]), child: widget.item(ids[index])),
+  );
+}
+
+/// A test-only component on the FO-08 base, so a toggle on it pins R11b.
+class _Tile extends StratumStatelessWidget {
+  const new({required this.child, super.disabled});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
 void main() {
   void pointerTests() {
     testWidgets(
@@ -12052,6 +12151,70 @@ void main() {
         expect(tester.getCenter(lifted), start + const Offset(0, 30));
         await gesture.up();
         await tester.pumpAndSettle();
+      },
+    );
+  });
+
+  group('ReorderableListViewLayout item root (s03/inv81)', () {
+    tearDown(() {
+      _rootLog.clear();
+      _tileDisabled.value = true;
+    });
+
+    testWidgets(
+      'fo06/us04/fr02/e11, fo06/us11/fr03/e03, fo08/us07/fr03/e04, s03/inv81: '
+      'R11b a disabled base component with no tap surface at the item root '
+      'joins the item node in every frame of a toggle',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        const off =
+            'label=Item 2 tap=false button=false enabled=isFalse moves=4';
+        const on = 'label=Item 2 tap=false button=false enabled=none moves=4';
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => id == 2
+                  ? ValueListenableBuilder<bool>(
+                      valueListenable: _tileDisabled,
+                      builder: (context, disabled, _) =>
+                          _Tile(disabled: disabled, child: _row(id)),
+                    )
+                  : _row(id),
+            ),
+          ),
+        );
+        expect(_shape(_rootNode(tester, 'Item 2')), off);
+        expect(
+          _shape(_rootNode(tester, 'Delete 2')),
+          'label=Delete 2 tap=false button=true enabled=isFalse moves=0',
+        );
+        // FR-03 E04: the flag sits on the item's node, never on the list's.
+        for (
+          var node = _rootNode(tester, 'Item 2').parent;
+          node != null;
+          node = node.parent
+        ) {
+          expect(
+            node.getSemanticsData().flagsCollection.isEnabled.name,
+            'none',
+          );
+        }
+
+        _tileDisabled.value = false;
+        await tester.pump();
+        expect(_shape(_rootNode(tester, 'Item 2')), on);
+        expect(
+          _shape(_rootNode(tester, 'Delete 2')),
+          'label=Delete 2 tap=true button=true enabled=isTrue moves=0',
+        );
+
+        _tileDisabled.value = true;
+        await tester.pump();
+        expect(_shape(_rootNode(tester, 'Item 2')), off);
+        _rootMove(_rootNode(tester, 'Item 2'), 'Move up');
+        await tester.pumpAndSettle();
+        expect(_rootIds(tester), [0, 2, 1, 3, 4]);
+        handle.dispose();
       },
     );
   });

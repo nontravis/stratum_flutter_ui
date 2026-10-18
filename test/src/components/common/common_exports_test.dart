@@ -127,4 +127,19 @@ void main() {
     expect(source, isNot(contains('setting_key_codec')));
     expect(source, isNot(contains('setting_binding')));
   });
+
+  test(
+    's03/inv81: the barrel hides the item root marker and the pass node',
+    () {
+      final source = File('lib/src/components/common/common.dart')
+          .readAsStringSync();
+      final hidden = RegExp(r"export 'ink_well\.dart'\s+hide([^;]*);")
+          .firstMatch(source)!
+          .group(1)!;
+      expect(
+        hidden,
+        allOf(contains('ItemRootPassSemantics'), contains('ReorderItemRoot')),
+      );
+    },
+  );
 }
