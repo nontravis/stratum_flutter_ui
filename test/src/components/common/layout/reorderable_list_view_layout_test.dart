@@ -882,6 +882,26 @@ String _shape(SemanticsNode node) {
 SemanticsNode _rootNode(WidgetTester tester, String text) =>
     tester.getSemantics(find.text(text));
 
+/// [text]'s own semantics node, walked from the live tree's root, the way
+/// [_liveSemanticsLabel] does: [WidgetTester.getSemantics] climbs
+/// `RenderObject.debugSemantics` instead, which still names a node a
+/// config-only merge conflict (I1, `ui/semantics.dart:1633@3.47.7`) split
+/// off a frame or more after the conflict clears and the live tree has
+/// merged it back (final review M2's re-flag pin).
+SemanticsNode _liveRootNode(WidgetTester tester, String text) {
+  SemanticsNode? found;
+  bool visit(SemanticsNode node) {
+    if (node.label == text) found = node;
+    node.visitChildren(visit);
+    return true;
+  }
+
+  visit(
+    tester.binding.renderViews.first.owner!.semanticsOwner!.rootSemanticsNode!,
+  );
+  return found ?? (throw StateError('No semantics node labeled "$text".'));
+}
+
 /// Runs the move action [label] names on [node].
 void _rootMove(SemanticsNode node, String label) => node.owner!.performAction(
   node.id,
@@ -13639,8 +13659,63 @@ void main() {
           _shape(_rootNode(tester, 'Moving')),
           'label=Moving tap=true button=true enabled=isTrue moves=4',
         );
+        // The flip the marker scheduled lands one frame later (D4, D6(e)).
+        await tester.pump();
+        expect(
+          _shape(_rootNode(tester, 'Moving')),
+          'label=Moving tap=true button=true enabled=isTrue moves=4',
+        );
         handle.dispose();
       },
     );
+
+    testWidgets('fo06/us04/fr02/e11, s03/inv81: final review M2 a run-time '
+        'activation toggle under a disabled base component re-flags the '
+        'pass node', (tester) async {
+      final handle = tester.ensureSemantics();
+      final tap = ValueNotifier<bool>(false);
+      await tester.pumpWidget(
+        _rootApp(
+          _RootList(
+            item: (id) => id == 2
+                ? _Tile(
+                    disabled: true,
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: tap,
+                      builder: (context, canTap, _) => ContainerLayout(
+                        interaction: Interaction(
+                          onHover: (_) {},
+                          onTap: canTap ? _tapRow : null,
+                        ),
+                        child: const Text('Item 2'),
+                      ),
+                    ),
+                  )
+                : _Tile(child: Text('Item $id')),
+          ),
+        ),
+      );
+      expect(
+        _shape(_rootNode(tester, 'Item 2')),
+        'label=Item 2 tap=false button=false enabled=isFalse moves=4',
+      );
+
+      tap.value = true;
+      await tester.pump();
+      await tester.pump();
+      expect(
+        _shape(_liveRootNode(tester, 'Item 2')),
+        'label=Item 2 tap=false button=true enabled=isFalse moves=4',
+      );
+
+      tap.value = false;
+      await tester.pump();
+      await tester.pump();
+      expect(
+        _shape(_liveRootNode(tester, 'Item 2')),
+        'label=Item 2 tap=false button=false enabled=isFalse moves=4',
+      );
+      handle.dispose();
+    });
   });
 }

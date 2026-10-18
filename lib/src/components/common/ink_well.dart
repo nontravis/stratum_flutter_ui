@@ -1083,15 +1083,28 @@ class _RenderItemRoot extends RenderProxyBox {
   // Re-walks this marker's subtree on every semantics flush (D4): a
   // reparent, a sibling add or remove, or any other change that moves the
   // surface or a pass node without re-running its own attach-time seed.
-  // When the answer differs from the registered one, `_flag` moves the
-  // flags and this defers `markNeedsSemanticsUpdate` on each touched,
-  // still-attached node to one post-frame callback
-  // (`rendering/object.dart:3923@3.47.7`: that call asserts outside the
-  // flush).
+  // Also re-flags when the found surface or a found pass node's own `role`
+  // field no longer matches what `_flag` would newly give it, which, with
+  // [_surface] and [_passes] both still matching, means something other
+  // than this marker moved it: a run-time flip of the found surface's
+  // `setsEnabledTristate` (M2, for example `Interaction.onTap` going from
+  // null to set, never moves [_surface] or [_passes]), or a losing item's
+  // own re-walk clobbering a role this marker's attach-time seed already
+  // set on a surface a [GlobalKey] just moved in (M1). When the answer
+  // differs, `_flag` moves the flags and this defers
+  // `markNeedsSemanticsUpdate` on each touched, still-attached node to one
+  // post-frame callback (`rendering/object.dart:3923@3.47.7`: that call
+  // asserts outside the flush).
   @override
   void visitChildrenForSemantics(RenderObjectVisitor visitor) {
     final found = _findRoot();
-    if (found.surface != _surface || !_samePasses(found.passes)) {
+    final passRole = found.surface != null && found.surface!.setsEnabledTristate
+        ? _ItemRootRole.hidden
+        : _ItemRootRole.join;
+    final stale =
+        (found.surface != null && found.surface!.role != _ItemRootRole.join) ||
+        found.passes.any((node) => node.role != passRole);
+    if (found.surface != _surface || !_samePasses(found.passes) || stale) {
       final flipped = _flag(surface: found.surface, passes: found.passes);
       if (flipped.isNotEmpty) {
         SchedulerBinding.instance.addPostFrameCallback((_) {
