@@ -20,6 +20,10 @@ const pageLoadingHold = Duration(seconds: 5);
 /// How long the splash check holds, below (F-01 US-13).
 const splashReplayHold = Duration(seconds: 5);
 
+/// Check 1's one disabled row, last, so the steps on "Item 1" and "Item 3"
+/// are unchanged.
+const _disabledItem = 'Item 6';
+
 /// [log] plus [action], cut to the last six, as the demo's own log keeps.
 List<String> appendToLog(List<String> log, String action) {
   final next = [...log, action];
@@ -33,7 +37,7 @@ class _DemoChecks extends ChangeNotifier {
   final log = ValueNotifier<List<String>>(const []);
 
   /// Check 1's reorderable items, moved by [moveItem].
-  final items = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5'];
+  final items = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5', 'Item 6'];
 
   /// Bumped to replay the splash check with a fresh key.
   var splashRun = 0;
@@ -316,17 +320,20 @@ class _ScreenReaderDemoPage extends StatelessWidget {
             const Text(
               '1. Reorder. Move to each row of the list below and open its '
               'actions in the screen reader\'s actions menu: each row offers '
-              'only the moves it can make. Run "Move down" on "Item 3". '
-              'Then, with a hardware keyboard (macOS, or a device with a '
-              'keyboard attached), focus "Item 1" and press Alt+Up '
-              '(Option+Up on a Mac).',
+              'only the moves it can make. Activate "Item 2". Run "Move '
+              'down" on "Item 3". Then, with a hardware keyboard (macOS, or '
+              'a device with a keyboard attached), focus "Item 1" and press '
+              'Alt+Up (Option+Up on a Mac).',
             ),
             const Text(
-              'Expected speech: only the valid move actions on each row; '
-              'moving "Item 3" down: "Moved to position 4 of 5"; the '
+              'Expected speech: one stop per row, "Item N, button", with '
+              'only that row\'s valid move actions; "Item 6", the disabled '
+              'row, a dimmed button with its valid move actions and no '
+              'tap; moving "Item 3" down: "Moved to position 4 of 6"; the '
               'move-up key on the first row: "Already at the start of the '
-              'list" (Stratum UI FO-06 US-11 FR-03 E03; FR-06, Scenarios 16 '
-              'and 17).',
+              'list"; activating "Item 2" adds "Item 2 tapped" to the log '
+              '(Stratum UI FO-06 US-04 FR-02 E11; US-11 FR-03 E03; FR-06, '
+              'Scenarios 16 and 17).',
             ),
             ReorderableListViewLayout.builder(
               shrinkWrap: true,
@@ -343,11 +350,11 @@ class _ScreenReaderDemoPage extends StatelessWidget {
                     padding: EdgeInsetsDirectional.symmetric(horizontal: 12),
                     alignment: AlignmentDirectional.centerStart,
                   ),
-                  // A plain Focus, not Interaction: the row needs a
-                  // keyboard stop for the reorder keys (FR-01 E07) but no
-                  // tap surface, whose own Semantics boundary would split
-                  // this label from SliverReorderableList's move actions.
-                  child: Focus(child: Text(name)),
+                  interaction: Interaction(
+                    onTap: () => checks.record('$name tapped'),
+                    disabled: name == _disabledItem,
+                  ),
+                  child: Text(name),
                 );
               },
             ),

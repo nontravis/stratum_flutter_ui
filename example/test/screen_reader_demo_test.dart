@@ -42,7 +42,8 @@ Future<void> _pumpDemo(WidgetTester tester) async {
 const _checks = [
   (
     '1. Reorder.',
-    'Stratum UI FO-06 US-11 FR-03 E03; FR-06, Scenarios 16 and 17',
+    'Stratum UI FO-06 US-04 FR-02 E11; US-11 FR-03 E03; FR-06, Scenarios 16 '
+        'and 17',
   ),
   ('2. Modal.', 'Stratum UI FO-06 US-20 FR-02; FR-06 E04'),
   ('3. Drawer.', 'Stratum UI FO-06 US-19 FR-05'),
@@ -55,9 +56,9 @@ const _checks = [
 /// Returns the labels of the custom semantics actions on the semantics
 /// node of the item keyed [item] (check 1's move-up, move-down, and jump
 /// actions). Asserts that node also carries [item]'s own label, so a row
-/// that splits its label and its moves onto two nodes (an `Interaction`
-/// wrapper's own `Semantics` boundary) fails here instead of passing
-/// silently with an empty move set read from the wrong node.
+/// that splits its label and its moves onto two nodes (a tap surface that
+/// keeps a node of its own) fails here instead of passing silently with an
+/// empty move set read from the wrong node.
 Set<String> _moves(WidgetTester tester, String item) {
   final data = tester
       .getSemantics(find.byKey(ValueKey(item)))
@@ -162,24 +163,26 @@ void main() {
 
   testWidgets(
     'f01/us13/s1, f01/us13/fr01: each row offers only its valid moves, and '
-    'moving Item 3 down speaks Moved to position 4 of 5',
+    'moving Item 3 down speaks Moved to position 4 of 6',
     (tester) async {
       final handle = tester.ensureSemantics();
       await _pumpDemo(tester);
       expect(_moves(tester, 'Item 1'), {'Move down', 'Move to the end'});
-      expect(_moves(tester, 'Item 3'), {
-        'Move to the start',
-        'Move up',
-        'Move down',
-        'Move to the end',
-      });
-      expect(_moves(tester, 'Item 5'), {'Move to the start', 'Move up'});
+      for (final item in ['Item 3', 'Item 5']) {
+        expect(_moves(tester, item), {
+          'Move to the start',
+          'Move up',
+          'Move down',
+          'Move to the end',
+        });
+      }
+      expect(_moves(tester, 'Item 6'), {'Move to the start', 'Move up'});
 
       _moveAction(tester, 'Item 3', 'Move down');
       await tester.pumpAndSettle();
 
       expect(
-        find.semantics.byLabel('Moved to position 4 of 5').evaluate().single,
+        find.semantics.byLabel('Moved to position 4 of 6').evaluate().single,
         isSemantics(isLiveRegion: true),
       );
       expect(
@@ -193,13 +196,60 @@ void main() {
   );
 
   testWidgets(
+    'f01/us13/s1, f01/us13/fr01: a row that takes a tap reads at one stop as '
+    'a button with its moves, and activating Item 2 logs it',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpDemo(tester);
+      final node = tester.getSemantics(find.byKey(const ValueKey('Item 2')));
+      expect(
+        node,
+        isSemantics(
+          label: 'Item 2',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+      expect(_moves(tester, 'Item 2'), hasLength(4));
+
+      node.owner!.performAction(node.id, SemanticsAction.tap);
+      await tester.pumpAndSettle();
+      expect(find.text('Log: Item 2 tapped'), findsOneWidget);
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'f01/us13/s1, f01/us13/fr01: the disabled row reads at one stop as a '
+    'dimmed button with its valid moves and no tap',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpDemo(tester);
+      expect(
+        tester.getSemantics(find.byKey(const ValueKey('Item 6'))),
+        isSemantics(
+          label: 'Item 6',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+          hasTapAction: false,
+        ),
+      );
+      expect(_moves(tester, 'Item 6'), {'Move to the start', 'Move up'});
+      handle.dispose();
+    },
+  );
+
+  testWidgets(
     'f01/us13/s1, f01/us13/fr01/e07: Alt+Up on the first row speaks Already '
     'at the start of the list and moves nothing',
     (tester) async {
       final handle = tester.ensureSemantics();
       await _pumpDemo(tester);
       // The test host is Android, where a scrolling box is no Tab stop, so
-      // the first Tab stop on the page is Item 1's row Focus.
+      // the first Tab stop on the page is Item 1's tap surface.
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
       expect(Focus.of(tester.element(find.text('Item 1'))).hasFocus, isTrue);
