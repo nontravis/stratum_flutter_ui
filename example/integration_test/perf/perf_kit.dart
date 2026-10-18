@@ -72,11 +72,11 @@ class CurrentKit implements PerfKit {
 
 /// The layouts of the frozen baseline (spec section 9.3).
 ///
-/// The focus border's baseline is the commit its branch starts from, which
-/// each frozen file's header names: a tappable row is a
-/// `BaselineRowLayout` on `BaselineFlexLayout`, whose tap surface is
-/// `BaselineStratumInkWell` with its `BaselineFocusSpread` ring, and the
-/// shared `Interaction`, which the focus border does not change.
+/// The baseline is the pre-batch commit `7a50510`; the comparison covers
+/// the perf batch, InkWell `280d77c`, BoxLayout R4 `8a0d26d`, and the
+/// item-root fixes up to this HEAD. A tappable row is a `BaselineRowLayout`
+/// on `BaselineFlexLayout`, whose tap surface is `BaselineStratumInkWell`
+/// with the live `StratumFocusBorder` ring, and the shared `Interaction`.
 class BaselineKit implements PerfKit {
   const new();
 

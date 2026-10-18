@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from e71c090:lib/src/components/common/layout/column_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 7a50510:lib/src/components/common/layout/column_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
