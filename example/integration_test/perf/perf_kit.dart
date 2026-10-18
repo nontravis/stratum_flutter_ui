@@ -91,12 +91,11 @@ class CurrentKit implements PerfKit {
 
 /// The layouts of the frozen baseline (spec section 9.3).
 ///
-/// The baseline is the commit the branch under test starts from, which
-/// each frozen file's header names: a tappable row is a
+/// The baseline is the commit the branch under test starts from, `c0d459a`,
+/// which each frozen file's header names: a tappable row is a
 /// `BaselineRowLayout` on `BaselineFlexLayout` with its
 /// `BaselineStratumInkWell` tap surface and the shared `Interaction`, and
-/// the reorder list throws until a freeze adds
-/// `BaselineReorderableListViewLayout` (R59, R64).
+/// the reorder list is a `BaselineReorderableListViewLayout`.
 class BaselineKit implements PerfKit {
   const new();
 
@@ -139,8 +138,11 @@ class BaselineKit implements PerfKit {
   Widget reorderList({
     required int itemCount,
     required IndexedWidgetBuilder itemBuilder,
-  }) => throw StateError(
-    'S7 has no frozen baseline: freeze the reorder layout with '
-    'tool/perf_freeze.dart first (R59, R64)',
-  );
+  }) {
+    return BaselineReorderableListViewLayout.builder(
+      itemCount: itemCount,
+      onReorderItem: (from, to) {},
+      itemBuilder: itemBuilder,
+    );
+  }
 }

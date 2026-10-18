@@ -1,8 +1,6 @@
-// Frozen by tool/perf_freeze.dart from e71c090:lib/src/components/common/layout/box_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from c0d459a:lib/src/components/common/layout/box_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
-// The live names StratumInteraction and StratumScroll are patched to
-// Interaction and Scroll; everything else stays verbatim from e71c090.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
 import 'baseline.dart';
 
@@ -181,7 +179,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
 
   BaselineStyledBoxBuilder? get _boxBuilder {
     final interaction = this.interaction;
-    if (interaction != null && _needsTapSurface(interaction)) {
+    if (interaction != null && interactionNeedsTapSurface(interaction)) {
       return (style, box) => _buildInkWell(interaction, style, box);
     }
     if (semantics != null) return _buildSemantics;
@@ -221,25 +219,11 @@ abstract class BaselineBoxLayout extends StatelessWidget {
     );
   }
 
-  static bool _needsTapSurface(Interaction interaction) =>
-      interaction.onTap != null ||
-      interaction.onDoubleTap != null ||
-      interaction.onLongPress != null ||
-      interaction.onSecondaryTap != null ||
-      interaction.onHover != null ||
-      interaction.onHighlightChanged != null ||
-      interaction.onFocusChange != null ||
-      interaction.shortcuts.isNotEmpty;
-
   Widget _buildSemantics(WidgetStyle style, Widget box) {
     return Semantics.fromProperties(properties: semantics!, child: box);
   }
 
-  Widget _buildInkWell(
-    Interaction interaction,
-    WidgetStyle style,
-    Widget box,
-  ) {
+  Widget _buildInkWell(Interaction interaction, WidgetStyle style, Widget box) {
     return BaselineStratumInkWell(
       borderRadius: style.borderRadius,
       onTap: interaction.onTap,
@@ -250,6 +234,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
       onHighlightChanged: interaction.onHighlightChanged,
       mouseCursor: interaction.mouseCursor,
       enableFeedback: interaction.enableFeedback,
+      tapTargetSize: interaction.tapTargetSize,
       disabledPressAnimation: interaction.disabledPressAnimation,
       focusNode: interaction.focusNode,
       focusType: interaction.focusType,
@@ -272,11 +257,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
   /// from the [ScrollFocus] that [_focusBuilder] builds, and is one
   /// traversal group, so its items follow the box's Tab stop (see
   /// [ScrollFocus]).
-  Widget _buildScroll(
-    Scroll scroll,
-    Widget content, {
-    required bool linked,
-  }) {
+  Widget _buildScroll(Scroll scroll, Widget content, {required bool linked}) {
     final view = ScrollFrame(
       showScrollbar: scroll.showScrollbar,
       child: _BoxScrollView(

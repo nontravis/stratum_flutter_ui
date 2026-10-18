@@ -63,9 +63,6 @@ void main() {
 
     for (final kit in const <PerfKit>[CurrentKit(), BaselineKit()]) {
       for (final scene in perfScenes) {
-        // S7 has no frozen baseline yet (R59, R64): only CurrentKit builds
-        // it here; the tripwire test below pins BaselineKit's throw.
-        if (scene.key == 'S7' && kit is BaselineKit) continue;
         testWidgets('${scene.key} builds and passes its check with '
             '${kit.runtimeType}', (tester) async {
           await tester.pumpWidget(perfHost(scene.build(kit)));
@@ -76,20 +73,6 @@ void main() {
         });
       }
     }
-
-    test('S7 throws on BaselineKit until the reorder layout is frozen '
-        '(R59, R64)', () {
-      expect(
-        () => perfScene('S7').build(const BaselineKit()),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            contains('freeze'),
-          ),
-        ),
-      );
-    });
 
     testWidgets('S2-plain never calls the kit', (tester) async {
       await tester.pumpWidget(
