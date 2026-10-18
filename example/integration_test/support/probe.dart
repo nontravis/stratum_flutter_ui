@@ -36,6 +36,15 @@ bool get _hasProbeCapture {
   }
 }
 
+/// The ack directory a device-test host script writes into (`probe_ack/`
+/// under the app's own support dir): shared by [probe] and
+/// `host_action.dart`'s `hostAction`/`attend` (host-action contract, device
+/// side, item 1).
+Future<Directory> probeAckDir() async {
+  final supportDir = await getApplicationSupportDirectory();
+  return Directory('${supportDir.path}/probe_ack');
+}
+
 /// Marks probe [name] (device-test probe contract item 1) and, on a target
 /// the capture script watches, holds until that script acks the capture
 /// (item 1b) instead of on a fixed timer.
@@ -50,9 +59,8 @@ Future<void> probe(String name) async {
     return;
   }
 
-  final supportDir = await getApplicationSupportDirectory();
   await awaitProbeAck(
-    ackDir: Directory('${supportDir.path}/probe_ack'),
+    ackDir: await probeAckDir(),
     name: name,
     pollInterval: _pollInterval,
     timeout: _ackTimeout,
