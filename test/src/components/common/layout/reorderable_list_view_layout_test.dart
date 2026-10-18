@@ -13096,6 +13096,8 @@ void main() {
       final handle = tester.ensureSemantics();
       Widget item(int id) =>
           id == 2 ? const _Sibling(surface: _constSurface) : Text('Item $id');
+      // F12: each shape still holds a frame later than R6c reads it, with
+      // no further flip back.
       await expectFlips(tester, item, frames: 2);
       handle.dispose();
     });
@@ -13173,6 +13175,9 @@ void main() {
       expect(_shape(itemNode), _own);
       final extraNode = itemNode.parent!;
       expect(identical(extraNode, itemNode), isFalse);
+      // Self-verifying: the lookup must land on the node that actually
+      // merged Extra's label, never pass on another ancestor.
+      expect(extraNode.getSemanticsData().label, contains('Extra'));
       expect(_rootMoves(extraNode.getSemanticsData()), hasLength(4));
       _rootLog.clear();
       extraNode.owner!.performAction(extraNode.id, SemanticsAction.tap);
@@ -13217,12 +13222,11 @@ void main() {
         await gesture.up();
         await tester.pumpAndSettle();
         await tester.pump();
-        // Measured, not the spec's inferred rest read (D2, D6(e)): this
-        // Dismissible's dismissed-status handler calls only
-        // `updateKeepAlive()` (`widgets/dismissible.dart:539-545@3.47.7`),
-        // so its `Stack` keeps the background child mounted past the
-        // slide's return, holding the row apart, until something else
-        // rebuilds it (`:653-669`); open question for the ruling queue.
+        // Limit tripwire, not a loosened pin: a Dismissible keeps its
+        // background child after a snap-back
+        // (`widgets/dismissible.dart:539-545@3.47.7`), so the row stays
+        // split at rest; flips to `_joined` if Flutter rebuilds it; owner
+        // ruling pending (D2, D6(e)).
         expect(_shape(_rootNode(tester, 'Item 2')), _own);
         handle.dispose();
       },
