@@ -692,6 +692,10 @@ class _StratumInkWellState extends State<StratumInkWell>
                 CustomSemanticsAction(label: _secondaryTapLabel(context)):
                     secondary,
               },
+        // Whether this surface's own node (or a caller's own `enabled` it
+        // merges) ever sets the enabled tristate; a pass node above it
+        // flags `hidden` only then, else `join` (I1).
+        setsEnabledTristate: hasActivation || properties?.enabled != null,
         child: result,
       );
     }
@@ -936,11 +940,13 @@ class _RenderItemRoot extends RenderProxyBox {
   _RenderSurfaceSemantics? _surface;
 
   /// Flags [surface] `join` and every node in [passes] `hidden` when
-  /// [surface] is given, or `join` when it is null; flags every
-  /// previously registered pass node or surface that [passes] or
-  /// [surface] drops back to `none`, registers both, and returns every
-  /// attached touched node whose last description used a role other than
-  /// its new one.
+  /// [surface] is given and sets the enabled tristate
+  /// ([_RenderSurfaceSemantics.setsEnabledTristate]), or `join` otherwise,
+  /// so a surface with no activation callback never hides the disabled
+  /// state a pass node above it describes (I1); flags every previously
+  /// registered pass node or surface that [passes] or [surface] drops
+  /// back to `none`, registers both, and returns every attached touched
+  /// node whose last description used a role other than its new one.
   Set<_ItemRootFlag> _flag({
     _RenderSurfaceSemantics? surface,
     required List<_RenderPassSemantics> passes,
@@ -950,9 +956,9 @@ class _RenderItemRoot extends RenderProxyBox {
     for (final node in dropped) {
       node.role = _ItemRootRole.none;
     }
-    final passRole = surface == null
-        ? _ItemRootRole.join
-        : _ItemRootRole.hidden;
+    final passRole = surface != null && surface.setsEnabledTristate
+        ? _ItemRootRole.hidden
+        : _ItemRootRole.join;
     for (final node in passes) {
       node.role = passRole;
     }
@@ -1175,8 +1181,13 @@ class _SurfaceSemantics extends Semantics {
     super.enabled,
     super.button,
     super.customSemanticsActions,
+    required this.setsEnabledTristate,
     super.child,
   });
+
+  /// Whether this surface's own node, or a caller's own `enabled` it
+  /// merges, ever sets the enabled tristate (I1).
+  final bool setsEnabledTristate;
 
   @override
   RenderSemanticsAnnotations createRenderObject(BuildContext context) {
@@ -1187,6 +1198,7 @@ class _SurfaceSemantics extends Semantics {
       blockUserActions: blockUserActions,
       properties: properties,
       localeForSubtree: localeForSubtree,
+      setsEnabledTristate: setsEnabledTristate,
     );
     updateRenderObject(context, renderObject);
     return renderObject;
@@ -1198,7 +1210,9 @@ class _SurfaceSemantics extends Semantics {
     RenderSemanticsAnnotations renderObject,
   ) {
     super.updateRenderObject(context, renderObject);
-    (renderObject as _RenderSurfaceSemantics).inItem = _insideItemRoot(context);
+    (renderObject as _RenderSurfaceSemantics)
+      ..inItem = _insideItemRoot(context)
+      ..setsEnabledTristate = setsEnabledTristate;
   }
 }
 
@@ -1209,12 +1223,17 @@ class _RenderSurfaceSemantics extends RenderSemanticsAnnotations
     with _ItemRootFlag {
   new({
     required super.properties,
+    required this.setsEnabledTristate,
     super.container,
     super.explicitChildNodes,
     super.excludeSemantics,
     super.blockUserActions,
     super.localeForSubtree,
   });
+
+  /// [_SurfaceSemantics.setsEnabledTristate], passed through; `_flag`
+  /// reads this to decide a pass node's role (I1).
+  bool setsEnabledTristate;
 
   // Attach describes the config at once
   // (`rendering/object.dart:2507-2509@3.47.7`), before any marker visit

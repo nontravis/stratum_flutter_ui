@@ -13491,5 +13491,156 @@ void main() {
       expect(_rootLog, ['row']);
       handle.dispose();
     });
+
+    testWidgets('fo08/us07/fr03, s03/inv81: final review I1 a disabled base '
+        'component over a root surface with only onHover reads disabled '
+        'in every frame of a toggle', (tester) async {
+      final handle = tester.ensureSemantics();
+      const off = 'label=Item 2 tap=false button=false enabled=isFalse moves=4';
+      const on = 'label=Item 2 tap=false button=false enabled=none moves=4';
+      await tester.pumpWidget(
+        _rootApp(
+          _RootList(
+            item: (id) => id == 2
+                ? ValueListenableBuilder<bool>(
+                    valueListenable: _tileDisabled,
+                    builder: (context, disabled, _) => _Tile(
+                      disabled: disabled,
+                      child: ContainerLayout(
+                        interaction: Interaction(onHover: (_) {}),
+                        child: const Text('Item 2'),
+                      ),
+                    ),
+                  )
+                : _Tile(child: Text('Item $id')),
+          ),
+        ),
+      );
+      expect(_shape(_rootNode(tester, 'Item 2')), off);
+
+      _tileDisabled.value = false;
+      await tester.pump();
+      expect(_shape(_rootNode(tester, 'Item 2')), on);
+
+      _tileDisabled.value = true;
+      await tester.pump();
+      expect(_shape(_rootNode(tester, 'Item 2')), off);
+      handle.dispose();
+    });
+
+    testWidgets('fo08/us07/fr03, s03/inv81: final review I1 a disabled base '
+        'component over a root surface with only onFocusChange still reads '
+        'disabled', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _rootApp(
+          _RootList(
+            item: (id) => id == 2
+                ? _Tile(
+                    disabled: true,
+                    child: ContainerLayout(
+                      interaction: Interaction(onFocusChange: (_) {}),
+                      child: const Text('Item 2'),
+                    ),
+                  )
+                : _Tile(child: Text('Item $id')),
+          ),
+        ),
+      );
+      expect(
+        _shape(_rootNode(tester, 'Item 2')),
+        'label=Item 2 tap=false button=false enabled=isFalse moves=4',
+      );
+      handle.dispose();
+    });
+
+    testWidgets(
+      'fo08/us07/fr03, s03/inv81: final review I3 R11a mounted before the '
+      'screen reader turns on reads disabled once semantics turns on',
+      (tester) async {
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => id == 2
+                  ? const _Tile(
+                      disabled: true,
+                      child: StratumInkWell(
+                        onTap: _tapRow,
+                        child: Text('Item 2'),
+                      ),
+                    )
+                  : _Tile(
+                      child: StratumInkWell(
+                        onTap: _tapRow,
+                        child: Text('Item $id'),
+                      ),
+                    ),
+            ),
+          ),
+        );
+        final handle = tester.ensureSemantics();
+        await tester.pump();
+        await tester.pump();
+        expect(
+          _shape(_rootNode(tester, 'Item 2')),
+          'label=Item 2 tap=false button=true enabled=isFalse moves=4',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: final review I3 R1 mounted before '
+      'the screen reader turns on still joins once semantics turns on',
+      (tester) async {
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) =>
+                  StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+            ),
+          ),
+        );
+        final handle = tester.ensureSemantics();
+        await tester.pump();
+        await tester.pump();
+        expect(_shape(_rootNode(tester, 'Item 2')), _joined);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: final review M1 an app GlobalKey '
+      'moving a root surface from one live item to another still joins',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final target = ValueNotifier<int>(2);
+        final movingKey = GlobalKey(debugLabel: 'm1 moving surface');
+        Widget moving() => KeyedSubtree(
+          key: movingKey,
+          child: const StratumInkWell(onTap: _tapRow, child: Text('Moving')),
+        );
+        Widget item(int id) => (id == 2 || id == 3)
+            ? ValueListenableBuilder<int>(
+                valueListenable: target,
+                builder: (context, current, _) =>
+                    id == current ? moving() : Text('Item $id'),
+              )
+            : Text('Item $id');
+        await tester.pumpWidget(_rootApp(_RootList(item: item)));
+        expect(
+          _shape(_rootNode(tester, 'Moving')),
+          'label=Moving tap=true button=true enabled=isTrue moves=4',
+        );
+
+        target.value = 3;
+        await tester.pump();
+        expect(
+          _shape(_rootNode(tester, 'Moving')),
+          'label=Moving tap=true button=true enabled=isTrue moves=4',
+        );
+        handle.dispose();
+      },
+    );
   });
 }
