@@ -865,6 +865,8 @@ class _RootList extends StatefulWidget {
 }
 
 class _RootListState extends State<_RootList> {
+  /// The list's ids, in their current order; the item-root group's
+  /// `tearDown` resets this to `[0, 1, 2, 3, 4]` after every test.
   static List<int> ids = [0, 1, 2, 3, 4];
 
   @override
@@ -881,6 +883,7 @@ class _RootListState extends State<_RootList> {
 class _Tile extends StratumStatelessWidget {
   const new({required this.child, super.disabled});
 
+  /// What the base wraps in its disabled look.
   final Widget child;
 
   @override
@@ -12159,6 +12162,7 @@ void main() {
     tearDown(() {
       _rootLog.clear();
       _tileDisabled.value = true;
+      _RootListState.ids = [0, 1, 2, 3, 4];
     });
 
     testWidgets(

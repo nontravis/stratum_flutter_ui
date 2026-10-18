@@ -811,6 +811,7 @@ class ReorderItemRoot extends StatelessWidget {
   /// False for a leaving item.
   final bool active;
 
+  /// The item this marks the root of.
   final Widget child;
 
   @override
@@ -852,6 +853,8 @@ enum _ItemRootRole {
 /// and the seed-and-mark and describe-bookkeeping sequences every flagged
 /// render object shares.
 mixin _ItemRootFlag on RenderObject {
+  /// The role the last seed set; [describeSemanticsConfiguration] reads
+  /// this to decide what it describes.
   _ItemRootRole role = _ItemRootRole.none;
 
   /// The role the last [describeSemanticsConfiguration] call used; null
@@ -881,9 +884,12 @@ mixin _ItemRootFlag on RenderObject {
   void _recordDescribedRole() => describedRole = role;
 }
 
+/// The widget [ReorderItemRoot] builds: [SingleChildRenderObjectWidget]
+/// over [_RenderItemRoot].
 class _ItemRootMarker extends SingleChildRenderObjectWidget {
   const new({required this.active, super.child});
 
+  /// [ReorderItemRoot.active] passed through.
   final bool active;
 
   @override
@@ -902,8 +908,11 @@ class _ItemRootMarker extends SingleChildRenderObjectWidget {
 class _RenderItemRoot extends RenderProxyBox {
   new(this._active);
 
+  /// Backs [active].
   bool _active;
 
+  /// Whether the item this marks the root of is live; false lets
+  /// [_seedFrom] skip a leaving item.
   bool get active => _active;
 
   set active(bool value) {
@@ -1014,6 +1023,8 @@ class ItemRootPassSemantics extends Semantics {
   }
 }
 
+/// The render object [ItemRootPassSemantics] builds: seeds [_ItemRootFlag]
+/// at attach, and merges into or hides from the item's node by [role].
 class _RenderPassSemantics extends RenderSemanticsAnnotations
     with _ItemRootFlag {
   new({
