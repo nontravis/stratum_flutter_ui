@@ -1047,6 +1047,15 @@ class _Tile extends StratumStatelessWidget {
   Widget build(BuildContext context) => child;
 }
 
+/// Records a tap on the I1 nested-list pin's inner row.
+void _tapInner() => _rootLog.add('inner');
+
+/// Which widget the M3 type-swap pin builds for item 2's root: 0 and 2 a
+/// `StratumInkWell`, 1 a bare `Text`, so the swap forces an attach and
+/// detach cycle rather than `updateRenderObject`; reset in the item-root
+/// group's `tearDown`.
+final ValueNotifier<int> _rootShape = ValueNotifier<int>(0);
+
 void main() {
   void pointerTests() {
     testWidgets(
@@ -12611,6 +12620,7 @@ void main() {
       _rowDisabled.value = false;
       _rowLabel.value = 'Item 2';
       _extra.value = false;
+      _rootShape.value = 0;
       _RootListState.ids = [0, 1, 2, 3, 4];
     });
 
@@ -13299,5 +13309,187 @@ void main() {
         handle.dispose();
       },
     );
+
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: I1 a '
+        'ReorderableListViewLayout nested inside a row of another one keeps '
+        'the outer and inner rows each joined to their own item root', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final innerIds = [0, 1];
+      Widget inner() => SizedBox(
+        height: 60,
+        child: ReorderableListViewLayout.builder(
+          itemExtent: 24,
+          itemCount: innerIds.length,
+          onReorderItem: (from, to) =>
+              innerIds.insert(to, innerIds.removeAt(from)),
+          itemBuilder: (context, index) => KeyedSubtree(
+            key: ValueKey('inner${innerIds[index]}'),
+            child: StratumInkWell(
+              onTap: _tapInner,
+              child: Text('Inner ${innerIds[index]}'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        _rootApp(
+          _RootList(
+            item: (id) => id == 2
+                ? StratumInkWell(
+                    onTap: _tapRow,
+                    child: ColumnLayout(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [const Text('Item 2'), inner()],
+                    ),
+                  )
+                : Text('Item $id'),
+          ),
+        ),
+      );
+      expect(_shape(_rootNode(tester, 'Item 2')), _joined);
+      expect(
+        _rootNode(tester, 'Inner 0'),
+        isSemantics(label: 'Inner 0', isButton: true, hasTapAction: true),
+      );
+      expect(
+        _rootNode(tester, 'Inner 1'),
+        isSemantics(label: 'Inner 1', isButton: true, hasTapAction: true),
+      );
+      _rootLog.clear();
+      await tester.tap(find.text('Inner 0'));
+      await tester.pump();
+      expect(_rootLog, ['inner']);
+      final rowNode = _rootNode(tester, 'Item 2');
+      rowNode.owner!.performAction(rowNode.id, SemanticsAction.tap);
+      await tester.pump();
+      expect(_rootLog, ['inner', 'row']);
+      handle.dispose();
+    });
+
+    testWidgets('fo08/us07/fr03, fo06/us04/fr02/e11, s03/inv81: M1 two stacked '
+        'disabled layers over a root surface both hide and the outer '
+        "layer's toggle still flips the surface", (tester) async {
+      final handle = tester.ensureSemantics();
+      const off = 'label=Item 2 tap=false button=true enabled=isFalse moves=4';
+      await tester.pumpWidget(
+        _rootApp(
+          _RootList(
+            item: (id) => id == 2
+                ? ValueListenableBuilder<bool>(
+                    valueListenable: _tileDisabled,
+                    builder: (context, disabled, _) => _Tile(
+                      disabled: disabled,
+                      child: const _Tile(
+                        disabled: false,
+                        child: StratumInkWell(
+                          onTap: _tapRow,
+                          child: Text('Item 2'),
+                        ),
+                      ),
+                    ),
+                  )
+                : _Tile(
+                    child: StratumInkWell(
+                      onTap: _tapRow,
+                      child: Text('Item $id'),
+                    ),
+                  ),
+          ),
+        ),
+      );
+      expect(_shape(_rootNode(tester, 'Item 2')), off);
+
+      _tileDisabled.value = false;
+      await tester.pump();
+      expect(_shape(_rootNode(tester, 'Item 2')), _joined);
+      final enabledNode = _rootNode(tester, 'Item 2');
+      _rootLog.clear();
+      enabledNode.owner!.performAction(enabledNode.id, SemanticsAction.tap);
+      await tester.pump();
+      expect(_rootLog, ['row']);
+
+      _tileDisabled.value = true;
+      await tester.pump();
+      expect(_shape(_rootNode(tester, 'Item 2')), off);
+      _rootMove(_rootNode(tester, 'Item 2'), 'Move up');
+      await tester.pumpAndSettle();
+      expect(_rootIds(tester), [0, 2, 1, 3, 4]);
+      handle.dispose();
+    });
+
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: M2 removing a root row while its '
+      'flip is still pending from the same frame throws no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final itemsController = ReorderableItemsController();
+        Widget item(int id) => id == 2
+            ? const _Sibling(surface: _constSurface)
+            : StratumInkWell(onTap: _tapRow, child: Text('Item $id'));
+        await tester.pumpWidget(
+          _rootApp(_RootList(itemsController: itemsController, item: item)),
+        );
+        // _Sibling's ValueListenableBuilder settles one frame after mount,
+        // as expectFlips's own settle() already accounts for.
+        await tester.pump();
+        expect(_shape(_rootNode(tester, 'Item 2')), _joined);
+
+        _extra.value = true;
+        tester.state<_RootListState>(find.byType(_RootList)).remove(2);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('Item 2'), findsNothing);
+        expect(
+          _shape(_rootNode(tester, 'Item 3')),
+          'label=Item 3 tap=true button=true enabled=isTrue moves=4',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: M3 a root '
+        'surface that swaps widget type across a rebuild still joins once a '
+        'surface is back', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _rootApp(
+          _RootList(
+            item: (id) => id == 2
+                ? ValueListenableBuilder<int>(
+                    valueListenable: _rootShape,
+                    builder: (context, shape, _) => shape == 1
+                        ? const Text('Item 2')
+                        : const StratumInkWell(
+                            onTap: _tapRow,
+                            child: Text('Item 2'),
+                          ),
+                  )
+                : Text('Item $id'),
+          ),
+        ),
+      );
+      expect(_shape(_rootNode(tester, 'Item 2')), _joined);
+
+      _rootShape.value = 1;
+      await tester.pump();
+      expect(
+        _shape(_rootNode(tester, 'Item 2')),
+        'label=Item 2 tap=false button=false enabled=none moves=4',
+      );
+
+      _rootShape.value = 2;
+      await tester.pump();
+      expect(_shape(_rootNode(tester, 'Item 2')), _joined);
+      final node = _rootNode(tester, 'Item 2');
+      _rootLog.clear();
+      node.owner!.performAction(node.id, SemanticsAction.tap);
+      await tester.pump();
+      expect(_rootLog, ['row']);
+      handle.dispose();
+    });
   });
 }

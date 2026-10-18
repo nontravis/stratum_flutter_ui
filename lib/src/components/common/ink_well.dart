@@ -1021,12 +1021,15 @@ class _RenderItemRoot extends RenderProxyBox {
       };
 
   /// Walks down from [child]: at a [_RenderSurfaceSemantics], returns it
-  /// with the pass nodes collected on the way down; at a
-  /// [_RenderPassSemantics], appends it and goes on; at any other object
-  /// that [_opensNode], stops. The next object is [_onlySemanticsChild];
-  /// null stops the walk too. A stop short of a surface returns the pass
-  /// nodes the chain reached, so they join on their own (R11b). Gives
-  /// nothing while inactive. Runs only inside the flush (M1-T3).
+  /// with the pass nodes collected on the way down; at a nested
+  /// [_RenderItemRoot], stops, so a reorder item's own marker never walks
+  /// into a different list's item sitting below it (I1, mirrors
+  /// [_seedFrom]'s own stop at any marker); at a [_RenderPassSemantics],
+  /// appends it and goes on; at any other object that [_opensNode], stops.
+  /// The next object is [_onlySemanticsChild]; null stops the walk too. A
+  /// stop short of a surface returns the pass nodes the chain reached, so
+  /// they join on their own (R11b). Gives nothing while inactive. Runs
+  /// only inside the flush (M1-T3).
   ({_RenderSurfaceSemantics? surface, List<_RenderPassSemantics> passes})
   _findRoot() {
     if (!active) return (surface: null, passes: const []);
@@ -1036,6 +1039,7 @@ class _RenderItemRoot extends RenderProxyBox {
       if (node is _RenderSurfaceSemantics) {
         return (surface: node, passes: passes);
       }
+      if (node is _RenderItemRoot) break;
       if (node is _RenderPassSemantics) {
         passes.add(node);
       } else if (_opensNode(node)) {
