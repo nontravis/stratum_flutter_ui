@@ -8,10 +8,12 @@ import 'package:flutter/rendering.dart'
         PipelineOwner,
         RenderBox,
         RenderObject,
+        RenderObjectVisitor,
         RenderObjectWithChildMixin,
         RenderProxyBox,
         RenderSemanticsAnnotations,
         RenderShiftedBox;
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:stratum_ui/src/components/common/base/disabled.dart'
     show StratumDisabledScope;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
@@ -678,7 +680,7 @@ class _StratumInkWellState extends State<StratumInkWell>
     if (!widget.excludeFromSemantics) {
       final hasActivation = _hasActivation;
       final secondary = widget.onSecondaryTap;
-      result = Semantics(
+      result = _SurfaceSemantics(
         container: true,
         enabled: hasActivation && properties?.enabled == null
             ? !disabled
@@ -866,16 +868,20 @@ mixin _ItemRootFlag on RenderObject {
 
   /// Seeds [role] by walking this object's parents to an active marker
   /// through [_RenderItemRoot._seedFrom], and tells the marker found to
-  /// flag every node in [passes], which starts as `this` alone, so the
-  /// walk's ancestors land in front of it, top first. Sets [role] to
-  /// [_ItemRootRole.none] when the walk finds no marker.
-  void _seedAndMark(List<_RenderPassSemantics> passes) {
+  /// flag every node in [passes], which starts as `this` alone for a pass
+  /// node, or empty for [surface], so the walk's ancestors land in front
+  /// of it, top first. Sets [role] to [_ItemRootRole.none] when the walk
+  /// finds no marker.
+  void _seedAndMark(
+    List<_RenderPassSemantics> passes, {
+    _RenderSurfaceSemantics? surface,
+  }) {
     final marker = _RenderItemRoot._seedFrom(this, passes);
     if (marker == null) {
       role = _ItemRootRole.none;
       return;
     }
-    for (final node in marker._flag(passes: passes)) {
+    for (final node in marker._flag(surface: surface, passes: passes)) {
       node.markNeedsSemanticsUpdate();
     }
   }
@@ -925,22 +931,43 @@ class _RenderItemRoot extends RenderProxyBox {
   /// before any seed registers.
   List<_RenderPassSemantics> _passes = const [];
 
-  /// Flags every node in [passes] `join`, flags every previously
-  /// registered node [passes] drops back to `none`, registers [passes],
-  /// and returns every attached touched node whose last description used
-  /// a role other than its new one.
-  Set<_ItemRootFlag> _flag({required List<_RenderPassSemantics> passes}) {
+  /// The surface this marker last flagged `join`; null before any seed
+  /// registers one.
+  _RenderSurfaceSemantics? _surface;
+
+  /// Flags [surface] `join` and every node in [passes] `hidden` when
+  /// [surface] is given, or `join` when it is null; flags every
+  /// previously registered pass node or surface that [passes] or
+  /// [surface] drops back to `none`, registers both, and returns every
+  /// attached touched node whose last description used a role other than
+  /// its new one.
+  Set<_ItemRootFlag> _flag({
+    _RenderSurfaceSemantics? surface,
+    required List<_RenderPassSemantics> passes,
+  }) {
     final kept = passes.toSet();
     final dropped = _passes.where((node) => !kept.contains(node));
     for (final node in dropped) {
       node.role = _ItemRootRole.none;
     }
+    final passRole = surface == null
+        ? _ItemRootRole.join
+        : _ItemRootRole.hidden;
     for (final node in passes) {
-      node.role = _ItemRootRole.join;
+      node.role = passRole;
     }
+    final droppedSurface = _surface != surface ? _surface : null;
+    droppedSurface?.role = _ItemRootRole.none;
+    surface?.role = _ItemRootRole.join;
     _passes = passes;
+    _surface = surface;
     return {
-      for (final node in <_ItemRootFlag>[...dropped, ...passes])
+      for (final node in <_ItemRootFlag>[
+        ...dropped,
+        ...passes,
+        ?droppedSurface,
+        ?surface,
+      ])
         if (node.attached &&
             node.describedRole != null &&
             node.describedRole != node.role)
@@ -950,9 +977,11 @@ class _RenderItemRoot extends RenderProxyBox {
 
   /// Walks up from [from]'s parent, keeping `below` as the one child a
   /// chain holds: at a [_RenderItemRoot], returns it when [active], else
-  /// null; when [_onlyLinkedChild] is false, returns null; at a
-  /// [_RenderPassSemantics], inserts it at the front of [passes], top
-  /// first; at any other node that [_opensNode], returns null.
+  /// null; at a [_RenderSurfaceSemantics], returns null, because the walk
+  /// stops at the first surface above [from] (M1-T2); when
+  /// [_onlyLinkedChild] is false, returns null; at a [_RenderPassSemantics],
+  /// inserts it at the front of [passes], top first; at any other node
+  /// that [_opensNode], returns null.
   static _RenderItemRoot? _seedFrom(
     RenderObject from,
     List<_RenderPassSemantics> passes,
@@ -960,6 +989,7 @@ class _RenderItemRoot extends RenderProxyBox {
     var below = from;
     for (var node = from.parent; node != null; node = node.parent) {
       if (node is _RenderItemRoot) return node.active ? node : null;
+      if (node is _RenderSurfaceSemantics) return null;
       if (!_onlyLinkedChild(node, below)) return null;
       if (node is _RenderPassSemantics) {
         passes.insert(0, node);
@@ -989,6 +1019,80 @@ class _RenderItemRoot extends RenderProxyBox {
           childCount == 1 && identical(firstChild, below),
         _ => false,
       };
+
+  /// Walks down from [child]: at a [_RenderSurfaceSemantics], returns it
+  /// with the pass nodes collected on the way down; at a
+  /// [_RenderPassSemantics], appends it and goes on; at any other object
+  /// that [_opensNode], stops. The next object is [_onlySemanticsChild];
+  /// null stops the walk too. A stop short of a surface returns the pass
+  /// nodes the chain reached, so they join on their own (R11b). Gives
+  /// nothing while inactive. Runs only inside the flush (M1-T3).
+  ({_RenderSurfaceSemantics? surface, List<_RenderPassSemantics> passes})
+  _findRoot() {
+    if (!active) return (surface: null, passes: const []);
+    final passes = <_RenderPassSemantics>[];
+    RenderObject? node = child;
+    while (node != null) {
+      if (node is _RenderSurfaceSemantics) {
+        return (surface: node, passes: passes);
+      }
+      if (node is _RenderPassSemantics) {
+        passes.add(node);
+      } else if (_opensNode(node)) {
+        break;
+      }
+      node = _onlySemanticsChild(node);
+    }
+    return (surface: null, passes: passes);
+  }
+
+  /// The only object [node]'s own [RenderObject.visitChildrenForSemantics]
+  /// visits, or null when it visits none or more than one. Runs only
+  /// inside the flush, [_findRoot]'s one caller.
+  static RenderObject? _onlySemanticsChild(RenderObject node) {
+    RenderObject? only;
+    var count = 0;
+    node.visitChildrenForSemantics((child) {
+      count += 1;
+      only = child;
+    });
+    return count == 1 ? only : null;
+  }
+
+  /// Whether [passes] holds the same nodes, in the same order, as
+  /// [_passes]; identity, not `==`, since a pass node carries no value
+  /// equality.
+  bool _samePasses(List<_RenderPassSemantics> passes) {
+    if (passes.length != _passes.length) return false;
+    for (var i = 0; i < passes.length; i += 1) {
+      if (!identical(passes[i], _passes[i])) return false;
+    }
+    return true;
+  }
+
+  // Re-walks this marker's subtree on every semantics flush (D4): a
+  // reparent, a sibling add or remove, or any other change that moves the
+  // surface or a pass node without re-running its own attach-time seed.
+  // When the answer differs from the registered one, `_flag` moves the
+  // flags and this defers `markNeedsSemanticsUpdate` on each touched,
+  // still-attached node to one post-frame callback
+  // (`rendering/object.dart:3923@3.47.7`: that call asserts outside the
+  // flush).
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    final found = _findRoot();
+    if (found.surface != _surface || !_samePasses(found.passes)) {
+      final flipped = _flag(surface: found.surface, passes: found.passes);
+      if (flipped.isNotEmpty) {
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          for (final node in flipped) {
+            if (node.attached) node.markNeedsSemanticsUpdate();
+          }
+        });
+      }
+    }
+    super.visitChildrenForSemantics(visitor);
+  }
 }
 
 /// The `Semantics` layer `StratumDisabled` builds in place of [Semantics]:
@@ -1051,6 +1155,78 @@ class _RenderPassSemantics extends RenderSemanticsAnnotations
     _recordDescribedRole();
     if (role == _ItemRootRole.hidden) return;
     super.describeSemanticsConfiguration(config);
+    if (role == _ItemRootRole.join) config.isSemanticBoundary = false;
+  }
+}
+
+/// The `Semantics` layer `_StratumInkWellState.build` builds in place of
+/// [Semantics] for its outer node: joins the whole reorder item's node
+/// while a marker flags it `join`, so the surface's label, button role,
+/// enabled state, and tap sit beside the item's move actions on one node
+/// (layout s03 invariant 81). `ContainerLayout(interaction:)` reaches this
+/// too, since it builds a [StratumInkWell] (`box_layout.dart:219`).
+class _SurfaceSemantics extends Semantics {
+  new({
+    super.container,
+    super.enabled,
+    super.button,
+    super.customSemanticsActions,
+    super.child,
+  });
+
+  @override
+  RenderSemanticsAnnotations createRenderObject(BuildContext context) {
+    final renderObject = _RenderSurfaceSemantics(
+      container: container,
+      explicitChildNodes: explicitChildNodes,
+      excludeSemantics: excludeSemantics,
+      blockUserActions: blockUserActions,
+      properties: properties,
+      localeForSubtree: localeForSubtree,
+    );
+    updateRenderObject(context, renderObject);
+    return renderObject;
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderSemanticsAnnotations renderObject,
+  ) {
+    super.updateRenderObject(context, renderObject);
+    (renderObject as _RenderSurfaceSemantics).inItem = _insideItemRoot(context);
+  }
+}
+
+/// The render object [_SurfaceSemantics] builds: seeds [_ItemRootFlag] at
+/// attach as the item's own surface, and merges into the item's node while
+/// flagged `join`.
+class _RenderSurfaceSemantics extends RenderSemanticsAnnotations
+    with _ItemRootFlag {
+  new({
+    required super.properties,
+    super.container,
+    super.explicitChildNodes,
+    super.excludeSemantics,
+    super.blockUserActions,
+    super.localeForSubtree,
+  });
+
+  // Attach describes the config at once
+  // (`rendering/object.dart:2507-2509@3.47.7`), before any marker visit
+  // exists (M1-T3 adds the flush re-walk), so seed from the parents
+  // already in place; the walk starts with no pass node of its own, since
+  // the surface flags itself through `surface:`, not through `passes`.
+  @override
+  void attach(PipelineOwner owner) {
+    if (inItem) _seedAndMark(<_RenderPassSemantics>[], surface: this);
+    super.attach(owner);
+  }
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    _recordDescribedRole();
     if (role == _ItemRootRole.join) config.isSemanticBoundary = false;
   }
 }

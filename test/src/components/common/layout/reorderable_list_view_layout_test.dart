@@ -397,8 +397,9 @@ class _ItemState extends State<_Item> with AutomaticKeepAliveClientMixin {
     // A plain RenderObject between the moved subtree's reparenting key and
     // its semantics boundary, as the RCA probe's own SizedBox(key: id) ...
     // boundary wrapper sits: `Semantics(container: true)` and
-    // `StratumInkWell` repro R1's bug only with one above them (fr05/e04,
-    // fr04/e05); a nested ListView's own RenderObjects stand in for it.
+    // `_innerInkWellBoundary`'s surface repro R1's bug only with one above
+    // them (fr05/e04, fr04/e05); a nested ListView's own RenderObjects
+    // stand in for it.
     if (boundary != null) {
       item = SizedBox(height: widget.height, child: boundary(item));
     }
@@ -783,10 +784,21 @@ Widget _nestedListBoundary(Widget child) => SizedBox(
 Widget _semanticsContainerBoundary(Widget child) =>
     Semantics(container: true, child: child);
 
-/// Wraps [child] in a tappable [StratumInkWell], which builds its own
-/// `Semantics(container: true)` (`ink_well.dart:575`).
+/// Wraps [child] in a tappable [StratumInkWell] that holds the whole item,
+/// so the surface is item 100's root and joins the item's node, not its
+/// own (s03 invariant 81).
 Widget _inkWellBoundary(Widget child) =>
     StratumInkWell(onTap: () {}, child: child);
+
+/// Wraps [child] in a tappable [StratumInkWell] beside a spacer, so the
+/// surface does not hold the whole item and keeps its own container node
+/// (s03 invariant 81).
+Widget _innerInkWellBoundary(Widget child) => RowLayout(
+  children: [
+    const SizedBox(width: 4, height: 4),
+    StratumInkWell(onTap: () {}, child: child),
+  ],
+);
 
 /// The move labels the item-root pins count, in either axis.
 const _moveLabels = {
@@ -853,12 +865,61 @@ Widget _row(int id) => RowLayout(
   ],
 );
 
+/// Records a tap on the item-root pins' root row.
+void _tapRow() => _rootLog.add('row');
+
+/// What a joined root row's node reads: label, tap, button, enabled, and
+/// the item's 4 move actions (s03/inv81).
+const String _joined =
+    'label=Item 2 tap=true button=true enabled=isTrue moves=4';
+
+/// What a root row's own, still-split node reads, with none of the item's
+/// moves: the target every D6 limit keeps split.
+const String _own = 'label=Item 2 tap=true button=true enabled=isTrue moves=0';
+
+/// Whether the run-time disable pin's root is disabled; reset in the
+/// item-root group's `tearDown`.
+final ValueNotifier<bool> _rowDisabled = ValueNotifier(false);
+
+/// The label the run-time relabel pin sets; reset in the item-root
+/// group's `tearDown`.
+final ValueNotifier<String> _rowLabel = ValueNotifier('Item 2');
+
+/// Pumps a five-item [_RootList] of [item], expects item 2's node to read
+/// [expected] in the mount frame, and, when that node holds 4 moves,
+/// "Move up" on it, settled, gives `_rootIds` `[0, 2, 1, 3, 4]`; when the
+/// node, read again, holds a tap action, a tap on it, after clearing
+/// `_rootLog`, leaves it `['row']`.
+Future<void> _expectJoined(
+  WidgetTester tester,
+  Widget Function(int id) item, {
+  String expected = _joined,
+}) async {
+  await tester.pumpWidget(_rootApp(_RootList(item: item)));
+  expect(_shape(_rootNode(tester, 'Item 2')), expected);
+  if (_rootMoves(_rootNode(tester, 'Item 2').getSemanticsData()).length == 4) {
+    _rootMove(_rootNode(tester, 'Item 2'), 'Move up');
+    await tester.pumpAndSettle();
+    expect(_rootIds(tester), [0, 2, 1, 3, 4]);
+  }
+  final node = _rootNode(tester, 'Item 2');
+  if (node.getSemanticsData().hasAction(SemanticsAction.tap)) {
+    _rootLog.clear();
+    node.owner!.performAction(node.id, SemanticsAction.tap);
+    await tester.pump();
+    expect(_rootLog, ['row']);
+  }
+}
+
 /// A reorderable list of five items the item-root pins reorder, each item
 /// built by [item].
 class _RootList extends StatefulWidget {
-  const new({required this.item});
+  const new({required this.item, this.scrollDirection = Axis.vertical});
 
   final Widget Function(int id) item;
+
+  /// The list's scroll axis; horizontal names its moves left and right.
+  final Axis scrollDirection;
 
   @override
   State<_RootList> createState() => _RootListState();
@@ -871,6 +932,7 @@ class _RootListState extends State<_RootList> {
 
   @override
   Widget build(BuildContext context) => ReorderableListViewLayout.builder(
+    scrollDirection: widget.scrollDirection,
     itemCount: ids.length,
     onReorderItem: (from, to) =>
         setState(() => ids.insert(to, ids.removeAt(from))),
@@ -9456,8 +9518,9 @@ void main() {
     });
 
     testWidgets(
-      'fo06/us11/fr05/e04: a far move of an item under a nested StratumInkWell '
-      'lands in semantics with no assert',
+      'fo06/us11/fr05/e04, fo06/us04/fr02/e11: a far move of an item under '
+      'a root StratumInkWell lands in semantics with no assert, split by '
+      "the item's own Focus",
       (tester) async {
         final handle = tester.ensureSemantics();
         await pumpBoundary(tester, boundary: _inkWellBoundary);
@@ -9467,16 +9530,76 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
+        // s03/inv81: the root StratumInkWell joins at its new slot, but
+        // `_Item`'s own per-item Focus and the surface's Focus both set the
+        // focused tristate, which Flutter refuses to merge
+        // (hasConflictingFlags, ui/semantics.dart:1630-1633@3.47.7): the row
+        // still reads split, label and tap below the conflict, button and
+        // the moves above it on the node's parent.
+        final node = tester.getSemantics(find.text('100'));
+        final data = node.getSemanticsData();
+        expect(data.label, '100');
+        expect(data.hasAction(SemanticsAction.tap), isTrue);
+        expect(_rootMoves(node.parent!.getSemanticsData()), hasLength(4));
         handle.dispose();
       },
     );
 
     testWidgets(
-      'fo06/us11/fr04/e05: removeItem of an item under a nested StratumInkWell '
-      'exits with no assert',
+      'fo06/us11/fr04/e05, fo06/us04/fr02/e11: removeItem of an item under '
+      'a root StratumInkWell exits with no assert',
       (tester) async {
         final handle = tester.ensureSemantics();
         await pumpBoundary(tester, boundary: _inkWellBoundary, focus: false);
+
+        _harness(tester).remove(100);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us11/fr05/e04, fo06/us04/fr02/e11: a far move of an item whose '
+      'StratumInkWell sits inside the row lands in semantics with no '
+      "assert, on the surface's own node",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(tester, boundary: _innerInkWellBoundary);
+
+        _harness(tester).move(100, 150);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        final node = tester.getSemantics(find.text('100'));
+        final data = node.getSemanticsData();
+        expect(data.hasAction(SemanticsAction.tap), isTrue);
+        expect(_rootMoves(data), isEmpty);
+        // `_Item`'s own per-item Focus and the surface's Focus both set the
+        // focused tristate, which Flutter refuses to merge
+        // (hasConflictingFlags, ui/semantics.dart:1630-1633@3.47.7), so the
+        // moves land two ancestors up, not on the surface's own parent.
+        expect(
+          _rootMoves(node.parent!.parent!.getSemanticsData()),
+          hasLength(4),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us11/fr04/e05, fo06/us04/fr02/e11: removeItem of an item whose '
+      'StratumInkWell sits inside the row exits with no assert',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpBoundary(
+          tester,
+          boundary: _innerInkWellBoundary,
+          focus: false,
+        );
 
         _harness(tester).remove(100);
         await tester.pump();
@@ -12156,14 +12279,642 @@ void main() {
         await tester.pumpAndSettle();
       },
     );
+
+    group('item root (s03/inv81)', () {
+      // Item root Build Gate rows: NFR-U02, NFR-U05, NFR-U06, NFR-U08, and
+      // NFR-U09 below. NFR-U01 and NFR-U07 n/a: the join paints nothing; the
+      // surface's overlay and ring tokens are US-04 FR-01's and FR-03's,
+      // unchanged. NFR-U03 n/a: the join runs no animation; it moves semantics
+      // flags between nodes only. NFR-U04 n/a: the join adds and resizes no
+      // text; the row's text is the caller's child. NFR-E01 and NFR-E02 n/a:
+      // semantics-only change, no look or style changes.
+
+      tearDown(() {
+        _rootLog.clear();
+        _RootListState.ids = [0, 1, 2, 3, 4];
+      });
+
+      testWidgets(
+        'NFR-U06, fo06/us04/fr02/e11, fo06/us11/fr03/e03: a root row reads '
+        'its label, button role, enabled state, tap, and moves on one node',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          await tester.pumpWidget(
+            _rootApp(
+              _RootList(
+                item: (id) => ContainerLayout(
+                  interaction: const Interaction(onTap: _tapRow),
+                  child: Text('Item $id'),
+                ),
+              ),
+            ),
+          );
+          final node = _rootNode(tester, 'Item 2');
+          expect(
+            node,
+            isSemantics(
+              label: 'Item 2',
+              value: '',
+              isButton: true,
+              hasEnabledState: true,
+              isEnabled: true,
+              isFocusable: true,
+              hasTapAction: true,
+            ),
+          );
+          expect(_rootMoves(node.getSemanticsData()).toSet(), {
+            'Move to the start',
+            'Move up',
+            'Move down',
+            'Move to the end',
+          });
+          handle.dispose();
+        },
+      );
+
+      testWidgets(
+        'NFR-U02, fo06/us04/fr02/e11: Tab reaches a root row, its ring '
+        'shows, Enter taps it, and Alt+Up moves it with focus on its one '
+        'node',
+        (tester) async {
+          useTraditionalHighlight();
+          final handle = tester.ensureSemantics();
+          await tester.pumpWidget(
+            _rootApp(
+              _RootList(
+                item: (id) => ContainerLayout(
+                  interaction: const Interaction(onTap: _tapRow),
+                  child: Text('Item $id'),
+                ),
+              ),
+            ),
+          );
+          for (var i = 0; i < 8; i++) {
+            if (Focus.of(tester.element(find.text('Item 2'))).hasPrimaryFocus) {
+              break;
+            }
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.pump();
+          }
+          expect(
+            Focus.of(tester.element(find.text('Item 2'))).hasPrimaryFocus,
+            isTrue,
+          );
+          expect(
+            tester
+                .widget<StratumFocusBorder>(
+                  find.descendant(
+                    of: find.byKey(const ValueKey(2)),
+                    matching: find.byType(StratumFocusBorder),
+                  ),
+                )
+                .state,
+            FullWidgetState.focused,
+          );
+          expect(
+            _rootNode(tester, 'Item 2'),
+            isSemantics(label: 'Item 2', isFocused: true),
+          );
+          expect(
+            _rootMoves(_rootNode(tester, 'Item 2').getSemanticsData()),
+            hasLength(4),
+          );
+
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump();
+          expect(_rootLog, ['row']);
+          // F14: Space, not only Enter, runs the row's tap.
+          _rootLog.clear();
+          await tester.sendKeyEvent(LogicalKeyboardKey.space);
+          await tester.pump();
+          expect(_rootLog, ['row']);
+
+          expect(await _alt(tester, LogicalKeyboardKey.arrowUp), isTrue);
+          expect(_rootIds(tester), [0, 2, 1, 3, 4]);
+          expect(
+            _rootNode(tester, 'Item 2'),
+            isSemantics(label: 'Item 2', isFocused: true),
+          );
+          expect(
+            _rootMoves(_rootNode(tester, 'Item 2').getSemanticsData()),
+            hasLength(4),
+          );
+          handle.dispose();
+        },
+      );
+
+      testWidgets(
+        "NFR-U09, fo06/us11/fr03/e03: the move actions on a root row's "
+        'labeled node move it with no drag',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          await tester.pumpWidget(
+            _rootApp(
+              _RootList(
+                item: (id) => ContainerLayout(
+                  interaction: const Interaction(onTap: _tapRow),
+                  child: Text('Item $id'),
+                ),
+              ),
+            ),
+          );
+          _rootMove(_rootNode(tester, 'Item 2'), 'Move down');
+          await tester.pumpAndSettle();
+          expect(_rootIds(tester), [0, 1, 3, 2, 4]);
+          _rootMove(_rootNode(tester, 'Item 2'), 'Move to the start');
+          await tester.pumpAndSettle();
+          expect(_rootIds(tester), [2, 0, 1, 3, 4]);
+          handle.dispose();
+        },
+      );
+
+      testWidgets(
+        'NFR-U05, fo06/us04/fr02/e11: joining moves no hit area: root rows '
+        'meet the platform tap target and a tap at a row runs it',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          await tester.pumpWidget(
+            _rootApp(
+              _RootList(
+                item: (id) => ContainerLayout(
+                  interaction: const Interaction(onTap: _tapRow),
+                  child: Text('Item $id'),
+                ),
+              ),
+            ),
+          );
+          await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+          await tester.tap(find.text('Item 2'));
+          await tester.pump();
+          expect(_rootLog, ['row']);
+          handle.dispose();
+        },
+      );
+
+      testWidgets(
+        'NFR-U08, fo06/us04/fr02/e11, fo08/us07/fr03: under high contrast a '
+        'disabled root reads dimmed on the item node and keeps its named '
+        'moves',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          await tester.pumpWidget(
+            highContrastHost(
+              SizedBox(
+                width: 300,
+                height: 600,
+                child: _RootList(
+                  item: (id) => switch (id) {
+                    2 => StratumInkWell(
+                      onTap: _tapRow,
+                      disabled: true,
+                      child: Text('Item $id'),
+                    ),
+                    3 => _Tile(
+                      disabled: true,
+                      child: StratumInkWell(
+                        onTap: _tapRow,
+                        child: Text('Item $id'),
+                      ),
+                    ),
+                    _ => StratumInkWell(
+                      onTap: _tapRow,
+                      child: Text('Item $id'),
+                    ),
+                  },
+                ),
+              ),
+            ),
+          );
+          for (final label in ['Item 2', 'Item 3']) {
+            final node = _rootNode(tester, label);
+            expect(
+              node,
+              isSemantics(
+                label: label,
+                isButton: true,
+                hasEnabledState: true,
+                isEnabled: false,
+              ),
+            );
+            expect(_rootMoves(node.getSemanticsData()).toSet(), {
+              'Move to the start',
+              'Move up',
+              'Move down',
+              'Move to the end',
+            });
+          }
+          handle.dispose();
+        },
+      );
+    });
   });
 
   group('ReorderableListViewLayout item root (s03/inv81)', () {
     tearDown(() {
       _rootLog.clear();
       _tileDisabled.value = true;
+      _rowDisabled.value = false;
+      _rowLabel.value = 'Item 2';
       _RootListState.ids = [0, 1, 2, 3, 4];
     });
+
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R1 a root '
+        'StratumInkWell joins the item node', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _expectJoined(
+        tester,
+        (id) => StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R2 a root '
+        'ContainerLayout interaction joins', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _expectJoined(
+        tester,
+        (id) => ContainerLayout(
+          interaction: const Interaction(onTap: _tapRow),
+          child: Text('Item $id'),
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets(
+      'fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R3 a root row '
+      'joins and its delete keeps its own node',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _expectJoined(
+          tester,
+          (id) => ContainerLayout(
+            interaction: const Interaction(onTap: _tapRow),
+            child: _row(id),
+          ),
+        );
+        final item2 = _rootNode(tester, 'Item 2');
+        final delete2 = _rootNode(tester, 'Delete 2');
+        expect(identical(item2, delete2), isFalse);
+        expect(
+          _shape(delete2),
+          'label=Delete 2 tap=true button=true enabled=isTrue moves=0',
+        );
+        // F5: the delete tap never sees the row's own tap in its log.
+        _rootLog.clear();
+        await tester.tap(find.text('Delete 2'));
+        await tester.pump();
+        expect(_rootLog, ['delete']);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R4 a row with no '
+      'root tap keeps its moves on its label',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _expectJoined(
+          tester,
+          _row,
+          expected:
+              'label=Item 2 tap=false button=false enabled=none '
+              'moves=4',
+        );
+        expect(
+          _shape(_rootNode(tester, 'Delete 2')),
+          'label=Delete 2 tap=true button=true enabled=isTrue moves=0',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R5a a root '
+        'inside a Dismissible at rest joins', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _expectJoined(
+        tester,
+        (id) => Dismissible(
+          key: ValueKey('d$id'),
+          child: StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R5b a root '
+        'inside Padding joins', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _expectJoined(
+        tester,
+        (id) => Padding(
+          padding: const EdgeInsets.all(4),
+          child: StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets(
+      'fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R6i a sibling '
+      'from the first build keeps the surface apart',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _expectJoined(
+          tester,
+          (id) => id == 2
+              ? const ColumnLayout(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    StratumInkWell(onTap: _tapRow, child: Text('Item 2')),
+                    Text('Extra'),
+                  ],
+                )
+              : Text('Item $id'),
+          expected: _own,
+        );
+        expect(
+          _rootMoves(_rootNode(tester, 'Extra').getSemanticsData()),
+          hasLength(4),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R7 a disabled '
+      'root reads dimmed with its moves and no tap',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _expectJoined(
+          tester,
+          (id) => StratumInkWell(
+            onTap: _tapRow,
+            disabled: true,
+            child: Text('Item $id'),
+          ),
+          expected:
+              'label=Item 2 tap=false button=true enabled=isFalse '
+              'moves=4',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R8 an app '
+        'container node keeps the root apart', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _expectJoined(
+        tester,
+        (id) => Semantics(
+          container: true,
+          child: StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+        ),
+        expected: _own,
+      );
+      final parent = _rootNode(tester, 'Item 2').parent!;
+      expect(
+        _shape(parent),
+        'label= tap=false button=false enabled=none moves=0',
+      );
+      expect(_rootMoves(parent.parent!.getSemanticsData()), hasLength(4));
+      handle.dispose();
+    });
+
+    testWidgets(
+      'fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R9 a surface '
+      'outside any reorder list keeps its own node',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _rootApp(
+            Semantics(
+              container: true,
+              label: 'Host',
+              child: const StratumInkWell(onTap: _tapRow, child: Text('Solo')),
+            ),
+          ),
+        );
+        final solo = _rootNode(tester, 'Solo');
+        expect(
+          _shape(solo),
+          'label=Solo tap=true button=true enabled=isTrue moves=0',
+        );
+        expect(solo.parent!.getSemanticsData().label, 'Host');
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R10 a root with '
+      'onSecondaryTap keeps its own node (D6(a))',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _expectJoined(
+          tester,
+          (id) => StratumInkWell(
+            onTap: _tapRow,
+            onSecondaryTap: () {},
+            child: Text('Item $id'),
+          ),
+          expected: _own,
+        );
+        expect(
+          _rootMoves(_rootNode(tester, 'Item 2').parent!.getSemanticsData()),
+          hasLength(4),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      "fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: in Flutter's own "
+      'ReorderableListView a root keeps its own node (D6(c))',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _rootApp(
+            ReorderableListView(
+              onReorderItem: (_, _) {},
+              children: [
+                for (var id = 0; id < 5; id += 1)
+                  StratumInkWell(
+                    key: ValueKey(id),
+                    onTap: _tapRow,
+                    child: Text('Item $id'),
+                  ),
+              ],
+            ),
+          ),
+        );
+        expect(_shape(_rootNode(tester, 'Item 2')), _own);
+        expect(
+          _rootMoves(_rootNode(tester, 'Item 2').parent!.getSemanticsData()),
+          hasLength(4),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo08/us07/fr03, fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: '
+      'R11a a disabled base component over a root surface joins in every '
+      'frame of a toggle',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        const off =
+            'label=Item 2 tap=false button=true enabled=isFalse '
+            'moves=4';
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => id == 2
+                  ? ValueListenableBuilder<bool>(
+                      valueListenable: _tileDisabled,
+                      builder: (context, disabled, _) => _Tile(
+                        disabled: disabled,
+                        child: const StratumInkWell(
+                          onTap: _tapRow,
+                          child: Text('Item 2'),
+                        ),
+                      ),
+                    )
+                  : _Tile(
+                      child: StratumInkWell(
+                        onTap: _tapRow,
+                        child: Text('Item $id'),
+                      ),
+                    ),
+            ),
+          ),
+        );
+        expect(_shape(_rootNode(tester, 'Item 2')), off);
+
+        _tileDisabled.value = false;
+        await tester.pump();
+        expect(_shape(_rootNode(tester, 'Item 2')), _joined);
+        // F13: the enabled frame's joined node still runs the row's tap.
+        final enabledNode = _rootNode(tester, 'Item 2');
+        _rootLog.clear();
+        enabledNode.owner!.performAction(enabledNode.id, SemanticsAction.tap);
+        await tester.pump();
+        expect(_rootLog, ['row']);
+
+        _tileDisabled.value = true;
+        await tester.pump();
+        expect(_shape(_rootNode(tester, 'Item 2')), off);
+        _rootMove(_rootNode(tester, 'Item 2'), 'Move up');
+        await tester.pumpAndSettle();
+        expect(_rootIds(tester), [0, 2, 1, 3, 4]);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: a caller '
+        'semantics label reads on the joined node', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _rootApp(
+          _RootList(
+            item: (id) => id == 2
+                ? const ContainerLayout(
+                    semantics: SemanticsProperties(label: 'Row 2'),
+                    interaction: Interaction(onTap: _tapRow),
+                    child: SizedBox(width: 20, height: 20),
+                  )
+                : Text('Item $id'),
+          ),
+        ),
+      );
+      final node = tester.getSemantics(find.byKey(const ValueKey(2)));
+      expect(
+        node,
+        isSemantics(label: 'Row 2', isButton: true, hasTapAction: true),
+      );
+      expect(_rootMoves(node.getSemanticsData()), hasLength(4));
+      handle.dispose();
+    });
+
+    testWidgets(
+      'fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: disable and '
+      'relabel a root row at run time',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await _expectJoined(
+          tester,
+          (id) => id == 2
+              ? ValueListenableBuilder<bool>(
+                  valueListenable: _rowDisabled,
+                  builder: (context, disabled, _) => ContainerLayout(
+                    interaction: Interaction(
+                      onTap: _tapRow,
+                      disabled: disabled,
+                    ),
+                    child: ValueListenableBuilder<String>(
+                      valueListenable: _rowLabel,
+                      builder: (context, label, _) => Text(label),
+                    ),
+                  ),
+                )
+              : ContainerLayout(
+                  interaction: const Interaction(onTap: _tapRow),
+                  child: Text('Item $id'),
+                ),
+        );
+
+        _rowLabel.value = 'Item 2b';
+        await tester.pump();
+        // F6: the relabel is read by its new text.
+        expect(
+          _shape(_rootNode(tester, 'Item 2b')),
+          'label=Item 2b tap=true button=true enabled=isTrue moves=4',
+        );
+
+        _rowDisabled.value = true;
+        await tester.pump();
+        expect(
+          _shape(_rootNode(tester, 'Item 2b')),
+          'label=Item 2b tap=false button=true enabled=isFalse moves=4',
+        );
+
+        _rowDisabled.value = false;
+        await tester.pump();
+        expect(
+          _shape(_rootNode(tester, 'Item 2b')),
+          'label=Item 2b tap=true button=true enabled=isTrue moves=4',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: a horizontal '
+      'list names the moves left and right',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              scrollDirection: Axis.horizontal,
+              item: (id) =>
+                  StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+            ),
+          ),
+        );
+        final node = _rootNode(tester, 'Item 2');
+        expect(
+          node,
+          isSemantics(label: 'Item 2', isButton: true, hasTapAction: true),
+        );
+        expect(_rootMoves(node.getSemanticsData()).toSet(), {
+          'Move to the start',
+          'Move left',
+          'Move right',
+          'Move to the end',
+        });
+        handle.dispose();
+      },
+    );
 
     testWidgets(
       'fo06/us04/fr02/e11, fo06/us11/fr03/e03, fo08/us07/fr03/e04, s03/inv81: '

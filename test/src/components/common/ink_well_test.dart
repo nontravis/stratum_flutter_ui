@@ -265,7 +265,7 @@ void _expectNoteKept(WidgetTester tester, State before) {
 /// (NFR-U05): an activation callback, empty shortcuts, and no
 /// onSecondaryTap.
 const _plainTapPathTypes = [
-  'Semantics',
+  '_SurfaceSemantics',
   'MouseRegion',
   '_TapTargetPadding',
   'StratumFocusBorder',
