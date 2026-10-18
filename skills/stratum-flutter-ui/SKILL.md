@@ -214,6 +214,16 @@ beside `style`, which draws the box.
   A screen reader hears each move by key, screen-reader action, or drop, and each reorder key past an end, in English
   or Thai; a held key speaks once, where the item ends, when it is let go. `moveAnnouncement`, `atStartAnnouncement`,
   and `atEndAnnouncement` replace the texts, and an empty one stays silent.
+  A tappable row: a root tap surface that holds the whole item, `ContainerLayout(interaction: Interaction(onTap: ...))`
+  or a `StratumInkWell`, with only `Padding`, `KeyedSubtree`, or a `Dismissible` at rest between the item and it, adds
+  no node of its own: a screen reader reads the row's label, button role, enabled or dimmed state, tap, and move
+  actions at one stop, and a disabled row reads as a dimmed button with no tap that keeps its moves. A control inside
+  the row, such as a delete button beside the label, keeps its own node and never takes the row's tap. The root keeps a
+  node of its own, apart from the moves, when it also takes `onSecondaryTap`, when the app wraps it in its own
+  `Semantics(container: true)`, on web when its `semantics` sets `header` or a `headingLevel`, and in Flutter's own
+  `ReorderableListView`; a `Dismissible` reads as two stops while it moves. A child added or removed between the item
+  and the root reads otherwise for one frame. A disabled component on the Stratum base that holds the whole item
+  joins the same way, with or without a tap surface below.
   An item that holds focus, on its own node or one inside it, stays alive with its State and focus when a scroll, the
   user's or the app's, takes it out of view, and the list scrolls nothing for it; Tab, Shift+Tab, or an arrow key from
   it brings it back into view first, then moves focus; an app's own `nextFocus()`, `previousFocus()`, or
@@ -253,8 +263,8 @@ beside `style`, which draws the box.
   keeps it fading in its own look. The leaving item keeps its State and rebuilds: an item reading data through `context`
   (`watch` or `select` by id or index, a provider family) needs a `builder` capturing that data. Under reduced motion,
   or with `itemExtent`, `itemExtentBuilder`, or `prototypeItem`, the size jumps and the fade plays.
-  Until flutter/flutter#193710 ships, an item with its own semantics boundary (nested scroll view, tappable
-  `StratumInkWell`, `Semantics(container: true)`) asserts at `object.dart:6723` in debug with semantics on (every
+  Until flutter/flutter#193710 ships, an item with its own semantics boundary (nested scroll view, a tappable `StratumInkWell` inside the row,
+  `Semantics(container: true)`) asserts at `object.dart:6723` in debug with semantics on (every
   `testWidgets`) when an `itemTransitionBuilder` fades it through opacity 0 or a focused far `moveItem` lands where the
   frame does not lay it out (uneven heights, app-held scroll). Check a removed item's semantics after its exit, or walk
   the live semantics tree: `find.bySemanticsLabel` reads a stale debug cache for excluded subtrees.
