@@ -42,10 +42,25 @@ const _settle = Duration(seconds: 2);
 /// The URL tab prints a failed load as `<type>: <description>`.
 final _errorLine = RegExp(r'^(network|http): ');
 
+/// Chrome's `URL` tab page: the static page the example's web build serves
+/// at the app's own port under the other loopback host name (`localhost`
+/// and `127.0.0.1` swap), so the page is cross-origin and no public address
+/// loads (F-01 US-08 FR-01 E02).
+Uri _webCrossOriginPage() {
+  final app = Uri.base;
+  return Uri(
+    scheme: app.scheme,
+    host: app.host == 'localhost' ? '127.0.0.1' : 'localhost',
+    port: app.port,
+    path: '/web_view_device_page.html',
+  );
+}
+
 /// Walks the web view demo on every target (group A), with the `URL` tab
-/// pointed at a local page server on Android, iOS, and macOS, and, on those
-/// same native targets, drives StratumWebView against that server directly
-/// (group B). F-01 US-08 FR-01 of `example/docs/`.
+/// pointed at a local page server on Android, iOS, macOS, and Linux, and at
+/// the web build's own page on Chrome; on those same native targets, group B
+/// drives StratumWebView against that server directly. F-01 US-08 FR-01 of
+/// `example/docs/`.
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized()
     ..framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
@@ -55,7 +70,8 @@ void main() {
   // this same server instead of starting a second one, except the
   // `us08/s17` case, which starts a second server, on another ephemeral
   // port, for page B's origin. On the web, where there is no dart:io, this
-  // never runs and group A keeps https://flutter.dev.
+  // never runs, and group A's `URL` tab loads the web build's own page
+  // under the other loopback name instead.
   late _PageServer server;
 
   setUpAll(() async {
@@ -86,9 +102,17 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           StratumWebViewExampleApp(
-            urlAddress: kIsWeb ? null : server.page('/ok'),
+            urlAddress: kIsWeb ? _webCrossOriginPage() : server.page('/ok'),
           ),
         );
+
+        if (kIsWeb) {
+          expect(
+            _webCrossOriginPage().origin,
+            isNot(Uri.base.origin),
+            reason: 'the URL tab page must be cross-origin to the app',
+          );
+        }
 
         // `started` and `loaded` read `recorder`, filled through the
         // platform hook above, not the spinner: the spinner stays below as
