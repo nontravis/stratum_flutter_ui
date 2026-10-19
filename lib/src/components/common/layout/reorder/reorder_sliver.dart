@@ -756,8 +756,11 @@ class _ReorderSliverState extends SliverReorderableListState {
   }
 
   Widget _wrapWithSemantics(Widget child, int index, {required bool exiting}) {
-    // A leaving item has no screen-reader node (E05).
-    if (exiting) return Semantics(child: child);
+    // A leaving item has no screen-reader node (E05); it keeps the item
+    // node's widget, so its element stays across the leave.
+    if (exiting) {
+      return ReorderItemRoot.itemNode(container: false, child: child);
+    }
     final semanticsActions = <CustomSemanticsAction, VoidCallback>{};
 
     void moveToStart() => _handleReorderItem(index, 0);
@@ -811,7 +814,7 @@ class _ReorderSliverState extends SliverReorderableListState {
           )] =
           moveToEnd;
     }
-    return Semantics(
+    return ReorderItemRoot.itemNode(
       container: true,
       customSemanticsActions: semanticsActions,
       child: child,

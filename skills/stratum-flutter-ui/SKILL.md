@@ -225,8 +225,8 @@ beside `style`, which draws the box.
   at one stop, and a disabled row reads as a dimmed button with no tap that keeps its moves. A control inside the row,
   such as a delete button beside the label, keeps its own node and never takes the row's tap. A row splits whenever a
   configuration between the item and the root surface, or on the surface itself, cannot merge into the item's node, such
-  as overlapping actions or conflicting flags, for example the surface's own `onSecondaryTap` or an app's own `Focus`
-  with semantics around the row. A row in a `Dismissible` that snaps back after a partial swipe stays split until it
+  as overlapping actions or conflicting flags, for example an app's own `Focus` with semantics around the row; the
+  surface's own `onSecondaryTap` action joins the row's stop. A row in a `Dismissible` that snaps back after a partial swipe stays split until it
   rebuilds, a Flutter limit. A child added or removed between the item and the root reads otherwise for one frame. A
   disabled component on the Stratum base that holds the whole item joins the same way, with or without a tap surface
   below.

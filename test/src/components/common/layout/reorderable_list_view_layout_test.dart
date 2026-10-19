@@ -1012,7 +1012,8 @@ SemanticsNode _liveRootNode(WidgetTester tester, String text) {
   return found ?? (throw StateError('No semantics node labeled "$text".'));
 }
 
-/// Runs the move action [label] names on [node].
+/// Runs the custom action [label] names on [node]: a move, or the root's
+/// secondary tap.
 void _rootMove(SemanticsNode node, String label) => node.owner!.performAction(
   node.id,
   SemanticsAction.customAction,
@@ -1049,6 +1050,54 @@ final ValueNotifier<bool> _rowDisabled = ValueNotifier(false);
 /// The label the run-time relabel pin sets; reset in the item-root
 /// group's `tearDown`.
 final ValueNotifier<String> _rowLabel = ValueNotifier('Item 2');
+
+/// Whether the run-time secondary-tap pin's root has `onSecondaryTap`;
+/// reset in the item-root group's `tearDown`.
+final ValueNotifier<bool> _rowSecondary = ValueNotifier(false);
+
+/// The label a root surface's secondary-tap action reads under
+/// [_rootApp]'s Material localizations (`showMenuTooltip`).
+const String _secondaryLabel = 'Show menu';
+
+/// Records a secondary tap on the item-root pins' root row.
+void _secondaryTapRow() => _rootLog.add('secondary');
+
+/// Every node of the live semantics tree whose custom actions include
+/// [label], walked from the root as [_liveRootNode] does.
+List<SemanticsNode> _liveNodesWithAction(WidgetTester tester, String label) {
+  final found = <SemanticsNode>[];
+  bool visit(SemanticsNode node) {
+    final ids =
+        node.getSemanticsData().customSemanticsActionIds ?? const <int>[];
+    if (ids.any((id) => CustomSemanticsAction.getAction(id)?.label == label)) {
+      found.add(node);
+    }
+    node.visitChildren(visit);
+    return true;
+  }
+
+  visit(
+    tester.binding.renderViews.first.owner!.semanticsOwner!.rootSemanticsNode!,
+  );
+  return found;
+}
+
+/// Expects item 2 to read [shape] at one stop that also holds the root's
+/// secondary-tap action, one of the [carriers] nodes in the live tree
+/// that carry it, one per item with a secondary tap (D6(a),
+/// identity-sliver obligation (a)).
+void _expectSecondaryJoined(
+  WidgetTester tester, {
+  String shape = _joined,
+  int carriers = 1,
+  String? reason,
+}) {
+  final node = _liveRootNode(tester, 'Item 2');
+  expect(_shape(node), shape, reason: reason);
+  final carrying = _liveNodesWithAction(tester, _secondaryLabel);
+  expect(carrying, contains(node), reason: reason);
+  expect(carrying, hasLength(carriers), reason: reason);
+}
 
 /// Pumps a five-item [_RootList] of [item], expects item 2's node to read
 /// [expected] in the mount frame, and, when that node holds 4 moves,
@@ -17937,6 +17986,7 @@ void main() {
       _tileDisabled.value = true;
       _rowDisabled.value = false;
       _rowLabel.value = 'Item 2';
+      _rowSecondary.value = false;
       _extra.value = false;
       _rootShape.value = 0;
       _RootListState.ids = [0, 1, 2, 3, 4];
@@ -18131,7 +18181,8 @@ void main() {
 
     testWidgets(
       'fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R10 a root with '
-      'onSecondaryTap keeps its own node (D6(a))',
+      'onSecondaryTap joins the item node with its secondary-tap action '
+      '(D6(a))',
       (tester) async {
         final handle = tester.ensureSemantics();
         await _expectJoined(
@@ -18141,12 +18192,214 @@ void main() {
             onSecondaryTap: () {},
             child: Text('Item $id'),
           ),
-          expected: _own,
         );
+        _expectSecondaryJoined(tester, carriers: 5);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: the secondary-tap action on the '
+      "item's stop runs the root's onSecondaryTap",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => StratumInkWell(
+                onTap: _tapRow,
+                onSecondaryTap: _secondaryTapRow,
+                child: Text('Item $id'),
+              ),
+            ),
+          ),
+        );
+        final stop = _liveRootNode(tester, 'Item 2');
+        expect(_rootMoves(stop.getSemanticsData()), hasLength(4));
+        _rootMove(stop, _secondaryLabel);
+        expect(_rootLog, ['secondary']);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: a root whose onSecondaryTap turns on '
+      'and off at run time stays one stop in every frame',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => id == 2
+                  ? ValueListenableBuilder<bool>(
+                      valueListenable: _rowSecondary,
+                      builder: (context, on, _) => StratumInkWell(
+                        onTap: _tapRow,
+                        onSecondaryTap: on ? _secondaryTapRow : null,
+                        child: const Text('Item 2'),
+                      ),
+                    )
+                  : StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+            ),
+          ),
+        );
+        expect(_shape(_liveRootNode(tester, 'Item 2')), _joined);
+        expect(_liveNodesWithAction(tester, _secondaryLabel), isEmpty);
+
+        _rowSecondary.value = true;
+        await tester.pump();
+        _expectSecondaryJoined(tester, reason: 'turned on');
+        _rootMove(_liveRootNode(tester, 'Item 2'), _secondaryLabel);
+        expect(_rootLog, ['secondary']);
+
+        _rowSecondary.value = false;
+        await tester.pump();
         expect(
-          _rootMoves(_rootNode(tester, 'Item 2').parent!.getSemanticsData()),
-          hasLength(4),
+          _shape(_liveRootNode(tester, 'Item 2')),
+          _joined,
+          reason: 'turned off',
         );
+        expect(_liveNodesWithAction(tester, _secondaryLabel), isEmpty);
+
+        _rowSecondary.value = true;
+        await tester.pump();
+        _expectSecondaryJoined(tester, reason: 'turned on again');
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo08/us07/fr03, fo06/us04/fr02/e11, s03/inv81: a disabled base '
+      'component over a root with onSecondaryTap reads no secondary-tap '
+      'action and joins in every frame of a toggle (I1)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        const off =
+            'label=Item 2 tap=false button=true enabled=isFalse '
+            'moves=4';
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => id == 2
+                  ? ValueListenableBuilder<bool>(
+                      valueListenable: _tileDisabled,
+                      builder: (context, disabled, _) => _Tile(
+                        disabled: disabled,
+                        child: const StratumInkWell(
+                          onTap: _tapRow,
+                          onSecondaryTap: _secondaryTapRow,
+                          child: Text('Item 2'),
+                        ),
+                      ),
+                    )
+                  : StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+            ),
+          ),
+        );
+        expect(_shape(_liveRootNode(tester, 'Item 2')), off);
+        expect(_liveNodesWithAction(tester, _secondaryLabel), isEmpty);
+
+        _tileDisabled.value = false;
+        await tester.pump();
+        _expectSecondaryJoined(tester, reason: 'enabled');
+
+        _tileDisabled.value = true;
+        await tester.pump();
+        expect(
+          _shape(_liveRootNode(tester, 'Item 2')),
+          off,
+          reason: 'disabled again',
+        );
+        expect(_liveNodesWithAction(tester, _secondaryLabel), isEmpty);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: an app GlobalKey moving a root with '
+      'onSecondaryTap to another live item moves its secondary-tap action '
+      "to that item's stop",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        const moved =
+            'label=Moving tap=true button=true enabled=isTrue moves=4';
+        final target = ValueNotifier<int>(2);
+        final movingKey = GlobalKey(debugLabel: 'moving secondary surface');
+        Widget moving() => KeyedSubtree(
+          key: movingKey,
+          child: const StratumInkWell(
+            onTap: _tapRow,
+            onSecondaryTap: _secondaryTapRow,
+            child: Text('Moving'),
+          ),
+        );
+        Widget item(int id) => (id == 2 || id == 3)
+            ? ValueListenableBuilder<int>(
+                valueListenable: target,
+                builder: (context, current, _) =>
+                    id == current ? moving() : Text('Item $id'),
+              )
+            : Text('Item $id');
+        await tester.pumpWidget(_rootApp(_RootList(item: item)));
+        expect(_liveNodesWithAction(tester, _secondaryLabel), [
+          _liveRootNode(tester, 'Moving'),
+        ]);
+
+        target.value = 3;
+        await tester.pump();
+        expect(_liveNodesWithAction(tester, _secondaryLabel), [
+          _liveRootNode(tester, 'Moving'),
+        ], reason: 'the frame of the move');
+        expect(_shape(_liveRootNode(tester, 'Moving')), moved);
+        // The flip the losing item's marker scheduled lands one frame later
+        // (D4, D6(e)).
+        await tester.pump();
+        final carrying = _liveNodesWithAction(tester, _secondaryLabel);
+        expect(carrying, [_liveRootNode(tester, 'Moving')]);
+        expect(_shape(carrying.single), moved);
+        _rootMove(carrying.single, _secondaryLabel);
+        expect(_rootLog, ['secondary']);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: a root with onSecondaryTap swapped '
+      "for a plain row takes its secondary-tap action off the item's stop "
+      'in the same frame',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => id == 2
+                  ? ValueListenableBuilder<int>(
+                      valueListenable: _rootShape,
+                      builder: (context, shape, _) => shape == 1
+                          ? const Text('Item 2')
+                          : const StratumInkWell(
+                              onTap: _tapRow,
+                              onSecondaryTap: _secondaryTapRow,
+                              child: Text('Item 2'),
+                            ),
+                    )
+                  : Text('Item $id'),
+            ),
+          ),
+        );
+        _expectSecondaryJoined(tester, reason: 'mount');
+
+        _rootShape.value = 1;
+        await tester.pump();
+        expect(
+          _shape(_liveRootNode(tester, 'Item 2')),
+          'label=Item 2 tap=false button=false enabled=none moves=4',
+        );
+        expect(_liveNodesWithAction(tester, _secondaryLabel), isEmpty);
+
+        _rootShape.value = 2;
+        await tester.pump();
+        _expectSecondaryJoined(tester, reason: 'back');
         handle.dispose();
       },
     );
