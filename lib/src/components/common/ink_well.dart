@@ -952,8 +952,30 @@ class _RenderItemRoot extends RenderProxyBox {
     markNeedsSemanticsUpdate();
     // Runs in build, outside the flush, so a leaving item's node drops the
     // root's actions in its first exit frame (E05), before the item node's
-    // own walk could see the inactive marker.
-    if (!value) _surface?._unlink();
+    // own walk could see the inactive marker. Unlinks only from this
+    // marker's own item node: [_surface] goes stale while the sliver keeps
+    // this item alive off screen and skips its walk, and a [GlobalKey] may
+    // have moved that surface into another item's node by then.
+    if (!value) {
+      final surface = _surface;
+      final node = _ownItemNode();
+      if (surface != null &&
+          node != null &&
+          identical(surface._linkedCarrier, node)) {
+        surface._unlink();
+      }
+    }
+  }
+
+  /// This marker's own item node: the nearest [_RenderItemNode] above it,
+  /// or null when another marker comes first. Reads parents only, so it
+  /// is safe in build.
+  _RenderItemNode? _ownItemNode() {
+    for (var node = parent; node != null; node = node.parent) {
+      if (node is _RenderItemNode) return node;
+      if (node is _RenderItemRoot) return null;
+    }
+    return null;
   }
 
   /// The pass nodes this marker last flagged, top first; `const []`

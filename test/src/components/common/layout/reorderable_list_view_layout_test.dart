@@ -1282,6 +1282,29 @@ class _RootListState extends State<_RootList> {
   );
 }
 
+/// [child], keeping the list item it sits in alive off screen, wherever
+/// a [GlobalKey] moves it.
+class _KeptAlive extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeptAlive> createState() => _KeptAliveState();
+}
+
+class _KeptAliveState extends State<_KeptAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 /// A render object that counts how often anything describes its
 /// semantics config, so a pin can tell whether a walk passed it.
 class _DescribeCounter extends SingleChildRenderObjectWidget {
@@ -18611,6 +18634,74 @@ void main() {
         expect(_shape(carrying.single), moved);
         _rootMove(carrying.single, _secondaryLabel);
         expect(_rootLog, ['secondary']);
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: removing a kept-alive item off screen '
+      'whose root an app GlobalKey moved into another item leaves that item '
+      'joined with its secondary-tap action',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        _RootListState.ids = [for (var id = 0; id < 30; id += 1) id];
+        final target = ValueNotifier<int>(2);
+        final movingKey = GlobalKey(debugLabel: 'kept-alive moving surface');
+        Widget moving() => KeyedSubtree(
+          key: movingKey,
+          child: const StratumInkWell(
+            onTap: _tapRow,
+            onSecondaryTap: _secondaryTapRow,
+            child: _KeptAlive(child: Text('Moving')),
+          ),
+        );
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              itemsController: ReorderableItemsController(),
+              item: (id) => (id == 2 || id == 20)
+                  ? ValueListenableBuilder<int>(
+                      valueListenable: target,
+                      builder: (context, current, _) => id == current
+                          ? moving()
+                          : _KeptAlive(child: Text('Item $id')),
+                    )
+                  : StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(_liveNodesWithAction(tester, _secondaryLabel), [
+          _liveRootNode(tester, 'Moving'),
+        ]);
+
+        // Item 2 leaves the view; its root keeps it alive, so its marker's
+        // own walk stops running.
+        tester
+            .state<ScrollableState>(find.byType(Scrollable))
+            .position
+            .jumpTo(16 * 48);
+        await tester.pump();
+        expect(find.text('Moving', skipOffstage: false), findsOneWidget);
+
+        target.value = 20;
+        await tester.pump();
+        await tester.pump();
+        var carrying = _liveNodesWithAction(tester, _secondaryLabel);
+        expect(carrying.map((node) => node.label), ['Moving']);
+        expect(_rootMoves(carrying.single.getSemanticsData()), hasLength(4));
+
+        tester.state<_RootListState>(find.byType(_RootList)).remove(2);
+        await tester.pump();
+        carrying = _liveNodesWithAction(tester, _secondaryLabel);
+        expect(carrying.map((node) => node.label), [
+          'Moving',
+        ], reason: 'the frame item 2 leaves');
+        expect(
+          _rootMoves(carrying.single.getSemanticsData()),
+          hasLength(4),
+          reason: 'the frame item 2 leaves',
+        );
         handle.dispose();
       },
     );
