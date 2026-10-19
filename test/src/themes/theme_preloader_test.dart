@@ -38,7 +38,7 @@ void main() {
   LeakTesting.enable();
   setUp(ThemeFontLoader.reset);
 
-  testWidgets('us01/fr03/e03: the loading screen shows until the start '
+  testWidgets('fo03/us01/fr03/e03: the loading screen shows until the start '
       'theme is active, then the builder', (tester) async {
     await tester.pumpWidget(
       _preloader(
@@ -53,7 +53,7 @@ void main() {
     expect(find.text('ready brand'), findsOneWidget);
   });
 
-  testWidgets('us01/fr03/e01: a start theme that fails to parse shows the '
+  testWidgets('fo03/us01/fr03/e01: a start theme that fails to parse shows the '
       'error screen', (tester) async {
     await tester.pumpWidget(
       _preloader(
@@ -81,23 +81,26 @@ void main() {
     expect(tester.takeException(), isA<StratumThemeFormatException>());
   });
 
-  testWidgets('us03/fr01/e02, us01/fr03/e02: a saved id that names no theme '
-      'starts on default and reports it', (tester) async {
-    final changes = <String>[];
-    await tester.pumpWidget(
-      _preloader(
-        FakeThemeBundle(),
-        initialThemeId: 'gone',
-        onThemeChanged: changes.add,
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'fo03/us03/fr01/e02, fo03/us01/fr03/e02: a saved id that names no theme '
+    'starts on default and reports it',
+    (tester) async {
+      final changes = <String>[];
+      await tester.pumpWidget(
+        _preloader(
+          FakeThemeBundle(),
+          initialThemeId: 'gone',
+          onThemeChanged: changes.add,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('ready default'), findsOneWidget);
-    expect(changes, ['default']);
-  });
+      expect(find.text('ready default'), findsOneWidget);
+      expect(changes, ['default']);
+    },
+  );
 
-  testWidgets('us02/s1: the builder hands over a controller the app '
+  testWidgets('fo03/us02/s1: the builder hands over a controller the app '
       'switches through', (tester) async {
     await tester.pumpWidget(
       _preloader(

@@ -49,7 +49,7 @@ Finder _fill(String message) => find
 
 void main() {
   testWidgets(
-    'us01/fr02/e05: a solid bottom notice sits directly above the page '
+    'co05_07/us01/fr02/e05: a solid bottom notice sits directly above the page '
     'footer',
     (tester) async {
       _view(tester, _phone);
@@ -78,33 +78,30 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/fr02/e05: a solid bottom notice sits above the page bottom bar '
-    'with no footer',
-    (tester) async {
-      _view(tester, _phone);
-      await tester.pumpWidget(
-        _app(
-          PageLayout(
-            body: _button(
-              'go',
-              (c) => c.showToast(
-                message: 'Bot',
-                placement: const StratumToastPlacement.solid(
-                  StratumToastEdge.bottom,
-                ),
+  testWidgets('co05_07/us01/fr02/e05: a solid bottom notice sits above the page bottom bar '
+      'with no footer', (tester) async {
+    _view(tester, _phone);
+    await tester.pumpWidget(
+      _app(
+        PageLayout(
+          body: _button(
+            'go',
+            (c) => c.showToast(
+              message: 'Bot',
+              placement: const StratumToastPlacement.solid(
+                StratumToastEdge.bottom,
               ),
             ),
-            bottom: const SizedBox(height: 40, child: Text('bottombar')),
           ),
+          bottom: const SizedBox(height: 40, child: Text('bottombar')),
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      final bottomTop = tester.getRect(find.text('bottombar')).top;
-      expect(tester.getRect(_fill('Bot')).bottom, closeTo(bottomTop, 1));
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    final bottomTop = tester.getRect(find.text('bottombar')).top;
+    expect(tester.getRect(_fill('Bot')).bottom, closeTo(bottomTop, 1));
+  });
 
   testWidgets('n15: a solid bottom notice sits above the higher of footer and '
       'keyboard', (tester) async {
@@ -165,7 +162,7 @@ void main() {
   );
 
   testWidgets(
-    'r26: us01/fr02/e10: a bottom float sits above the footer on mobile',
+    'r26: co05_07/us01/fr02/e10: a bottom float sits above the footer on mobile',
     (tester) async {
       _view(tester, _phone);
       await tester.pumpWidget(
@@ -197,38 +194,35 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/fr02/e07: a desktop float stays inside the body, never over the '
-    'left pane',
-    (tester) async {
-      _view(tester, _desktop);
-      await tester.pumpWidget(
-        _app(
-          PageLayout(
-            left: const SizedBox(width: 300, child: Text('left')),
-            body: _button(
-              'go',
-              (c) => c.showToast(
-                message: 'Inside',
-                placement: const StratumToastPlacement.float(
-                  StratumToastCorner.bottomStart,
-                ),
+  testWidgets('co05_07/us01/fr02/e07: a desktop float stays inside the body, never over the '
+      'left pane', (tester) async {
+    _view(tester, _desktop);
+    await tester.pumpWidget(
+      _app(
+        PageLayout(
+          left: const SizedBox(width: 300, child: Text('left')),
+          body: _button(
+            'go',
+            (c) => c.showToast(
+              message: 'Inside',
+              placement: const StratumToastPlacement.float(
+                StratumToastCorner.bottomStart,
               ),
             ),
           ),
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      // N9: assert against the pane's real rect, not the child's width:
-      // the pane opens at its Figma width (260 at desktop), not 300.
-      final paneRight = tester.getRect(find.text('left')).right;
-      expect(
-        tester.getRect(_fill('Inside')).left,
-        greaterThanOrEqualTo(paneRight),
-      );
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    // N9: assert against the pane's real rect, not the child's width:
+    // the pane opens at its Figma width (260 at desktop), not 300.
+    final paneRight = tester.getRect(find.text('left')).right;
+    expect(
+      tester.getRect(_fill('Inside')).left,
+      greaterThanOrEqualTo(paneRight),
+    );
+  });
 
   testWidgets('n12: a pane widened after the show moves a float with no page '
       'rebuild', (tester) async {
@@ -416,28 +410,25 @@ void main() {
     expect(tester.getRect(_fill('Outer show')).bottom, closeTo(outerTop, 1));
   });
 
-  testWidgets(
-    'us01/fr06: the page snack style sits between the app-wide layer and '
-    'the call',
-    (tester) async {
-      _view(tester, _phone);
-      const page = Color(0xFF00FF00);
-      await tester.pumpWidget(
-        _app(
-          PageLayout(
-            customStyle: const PageLayoutStyle(
-              snack: WidgetStyle(backgroundColor: page),
-            ),
-            body: _button('go', (c) => c.showToast(message: 'Snack')),
+  testWidgets('co05_07/us01/fr06: the page snack style sits between the app-wide layer and '
+      'the call', (tester) async {
+    _view(tester, _phone);
+    const page = Color(0xFF00FF00);
+    await tester.pumpWidget(
+      _app(
+        PageLayout(
+          customStyle: const PageLayoutStyle(
+            snack: WidgetStyle(backgroundColor: page),
           ),
+          body: _button('go', (c) => c.showToast(message: 'Snack')),
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      final style = tester.widget<ContainerLayout>(_fill('Snack')).style!;
-      expect(style.backgroundColor, page);
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    final style = tester.widget<ContainerLayout>(_fill('Snack')).style!;
+    expect(style.backgroundColor, page);
+  });
 
   testWidgets(
     's03 invariant 16: a call customStyle still wins over the page snack '
@@ -685,7 +676,7 @@ void main() {
   );
 
   testWidgets(
-    'r26: us01/fr02/e10: a bottom float sits above the footer on tablet',
+    'r26: co05_07/us01/fr02/e10: a bottom float sits above the footer on tablet',
     (tester) async {
       _view(tester, _tablet);
       await tester.pumpWidget(
@@ -715,71 +706,65 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/fr02/e07: a desktop float mirrors the left-pane clearance under '
-    'rtl',
-    (tester) async {
-      _view(tester, _desktop);
-      await tester.pumpWidget(
-        _app(
-          PageLayout(
-            left: const SizedBox(width: 300, child: Text('left')),
-            body: _button(
-              'go',
-              (c) => c.showToast(
-                message: 'InsideRtl',
-                placement: const StratumToastPlacement.float(
-                  StratumToastCorner.bottomStart,
-                ),
+  testWidgets('co05_07/us01/fr02/e07: a desktop float mirrors the left-pane clearance under '
+      'rtl', (tester) async {
+    _view(tester, _desktop);
+    await tester.pumpWidget(
+      _app(
+        PageLayout(
+          left: const SizedBox(width: 300, child: Text('left')),
+          body: _button(
+            'go',
+            (c) => c.showToast(
+              message: 'InsideRtl',
+              placement: const StratumToastPlacement.float(
+                StratumToastCorner.bottomStart,
               ),
             ),
           ),
-          direction: TextDirection.rtl,
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      // Under rtl the `left` slot renders at the physically right edge,
-      // and `bottomStart` mirrors to that same corner: the float still
-      // clears the pane, now measured from the right (E07).
-      final paneLeft = tester.getRect(find.text('left')).left;
-      expect(
-        tester.getRect(_fill('InsideRtl')).right,
-        lessThanOrEqualTo(paneLeft),
-      );
-    },
-  );
+        direction: TextDirection.rtl,
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    // Under rtl the `left` slot renders at the physically right edge,
+    // and `bottomStart` mirrors to that same corner: the float still
+    // clears the pane, now measured from the right (E07).
+    final paneLeft = tester.getRect(find.text('left')).left;
+    expect(
+      tester.getRect(_fill('InsideRtl')).right,
+      lessThanOrEqualTo(paneLeft),
+    );
+  });
 
-  testWidgets(
-    'us01/fr02/e07: a desktop float stays inside the body, never over the '
-    'right pane',
-    (tester) async {
-      _view(tester, _desktop);
-      await tester.pumpWidget(
-        _app(
-          PageLayout(
-            right: const SizedBox(width: 300, child: Text('right')),
-            body: _button(
-              'go',
-              (c) => c.showToast(
-                message: 'InsideEnd',
-                placement: const StratumToastPlacement.float(
-                  StratumToastCorner.bottomEnd,
-                ),
+  testWidgets('co05_07/us01/fr02/e07: a desktop float stays inside the body, never over the '
+      'right pane', (tester) async {
+    _view(tester, _desktop);
+    await tester.pumpWidget(
+      _app(
+        PageLayout(
+          right: const SizedBox(width: 300, child: Text('right')),
+          body: _button(
+            'go',
+            (c) => c.showToast(
+              message: 'InsideEnd',
+              placement: const StratumToastPlacement.float(
+                StratumToastCorner.bottomEnd,
               ),
             ),
           ),
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      final paneLeft = tester.getRect(find.text('right')).left;
-      expect(
-        tester.getRect(_fill('InsideEnd')).right,
-        lessThanOrEqualTo(paneLeft),
-      );
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    final paneLeft = tester.getRect(find.text('right')).left;
+    expect(
+      tester.getRect(_fill('InsideEnd')).right,
+      lessThanOrEqualTo(paneLeft),
+    );
+  });
 
   testWidgets(
     'desktop float at bottomCenter centers in the body, never over the '
@@ -1057,47 +1042,44 @@ void main() {
   );
 
   for (final direction in TextDirection.values) {
-    testWidgets(
-      'correctness 4, edge I11: us01/fr02/e07: a desktop top float stays '
-      'inside the body, beside the left pane and below the header, under '
-      '${direction.name}',
-      (tester) async {
-        _view(tester, _desktop);
-        await tester.pumpWidget(
-          _app(
-            PageLayout(
-              header: const SizedBox(height: 64, child: Text('header')),
-              left: const SizedBox(width: 300, child: Text('left')),
-              body: _button(
-                'go',
-                (c) => c.showToast(
-                  message: 'TopInside',
-                  placement: const StratumToastPlacement.float(
-                    StratumToastCorner.topStart,
-                  ),
+    testWidgets('correctness 4, edge I11: co05_07/us01/fr02/e07: a desktop top float stays '
+        'inside the body, beside the left pane and below the header, under '
+        '${direction.name}', (tester) async {
+      _view(tester, _desktop);
+      await tester.pumpWidget(
+        _app(
+          PageLayout(
+            header: const SizedBox(height: 64, child: Text('header')),
+            left: const SizedBox(width: 300, child: Text('left')),
+            body: _button(
+              'go',
+              (c) => c.showToast(
+                message: 'TopInside',
+                placement: const StratumToastPlacement.float(
+                  StratumToastCorner.topStart,
                 ),
               ),
             ),
-            direction: direction,
           ),
-        );
-        await tester.tap(find.text('go'));
-        await tester.pumpAndSettle();
-        final pane = tester.getRect(find.text('left'));
-        final notice = tester.getRect(_fill('TopInside'));
-        // `topStart` mirrors with the pane: the float clears it from the
-        // pane's side under either direction.
-        if (direction == TextDirection.ltr) {
-          expect(notice.left, greaterThanOrEqualTo(pane.right));
-        } else {
-          expect(notice.right, lessThanOrEqualTo(pane.left));
-        }
-        expect(
-          notice.top,
-          greaterThanOrEqualTo(tester.getRect(find.text('header')).bottom),
-        );
-      },
-    );
+          direction: direction,
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      final pane = tester.getRect(find.text('left'));
+      final notice = tester.getRect(_fill('TopInside'));
+      // `topStart` mirrors with the pane: the float clears it from the
+      // pane's side under either direction.
+      if (direction == TextDirection.ltr) {
+        expect(notice.left, greaterThanOrEqualTo(pane.right));
+      } else {
+        expect(notice.right, lessThanOrEqualTo(pane.left));
+      }
+      expect(
+        notice.top,
+        greaterThanOrEqualTo(tester.getRect(find.text('header')).bottom),
+      );
+    });
   }
 
   testWidgets(

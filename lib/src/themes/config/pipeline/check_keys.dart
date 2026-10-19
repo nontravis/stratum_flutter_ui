@@ -35,9 +35,9 @@ final class ThemeSchema {
     'blur',
   };
 
-  /// The groups that hold one map per color set: `color`, and `system`,
-  /// whose sets mirror it (config s03 invariant 16).
-  static const setGroups = {'color', 'system'};
+  /// The groups that hold one map per color set: `color`, and `system` and
+  /// `focus`, whose sets mirror it (config s03 invariants 16, 19).
+  static const setGroups = {'color', 'system', 'focus'};
 
   /// Each color set, and the set whose keys it takes.
   static const colorSets = {

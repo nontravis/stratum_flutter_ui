@@ -5,6 +5,7 @@ import 'package:stratum_ui/src/themes/config/pipeline/load.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/merge.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/read_values.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
+import 'package:stratum_ui/src/themes/config/plain_theme_config.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/config/system_names.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
@@ -14,7 +15,7 @@ import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 import '../theme_fixtures.dart';
 
 /// Runs stages 1 to 5 on [base] and [layers].
-(StratumThemeConfig, ThemeErrors) _read(
+(PlainThemeConfig, ThemeErrors) _plain(
   List<String> layers, {
   String base = baseYaml,
 }) {
@@ -26,17 +27,24 @@ import '../theme_fixtures.dart';
   final merged = mergeThemes(checked, errors);
   final resolved = resolveThemeAliases(merged, checked.schema, errors);
   return (
-    convertThemeConfig(
-      readThemeValues(
-        resolved,
-        checked.schema,
-        all,
-        errors,
-        googleFontExists: (name) => GoogleFontsLookup.exists(name),
-      ),
+    readThemeValues(
+      resolved,
+      checked.schema,
+      all,
+      errors,
+      googleFontExists: (name) => GoogleFontsLookup.exists(name),
     ),
     errors,
   );
+}
+
+/// Runs stages 1 to 5 on [base] and [layers] and converts the result.
+(StratumThemeConfig, ThemeErrors) _read(
+  List<String> layers, {
+  String base = baseYaml,
+}) {
+  final (plain, errors) = _plain(layers, base: base);
+  return (convertThemeConfig(plain), errors);
 }
 
 /// The errors stages 1 to 5 report for one layer of [body].
@@ -127,6 +135,13 @@ color:
       );
     });
 
+    test('fo01/us01/s5: an unquoted hex color reads as a yaml comment, so '
+        'the value is empty and the color path is reported required', () {
+      expect(_problems('color:\n  light:\n    brand:\n      normal: #FFFFFF'), [
+        'layer1 color.light.brand.normal: required [required]',
+      ]);
+    });
+
     test('checks the kind after resolution, at the holder, naming the '
         'alias', () {
       const expected =
@@ -138,7 +153,7 @@ color:
       );
     });
 
-    test('reports a failed target once, at the target', () {
+    test('fo01/us02/fr01/e07: reports a failed target once, at the target', () {
       expect(_problems('palette:\n  brand:\n    500: "#XYZ"'), [
         'layer1 palette.brand.500: $_hex "#XYZ" [expected_color]',
       ]);
@@ -209,7 +224,7 @@ color:
   });
 
   group('readThemeValues dimensions', () {
-    test('reads a scalar for every window size and a map per window size', () {
+    test('fo01/us05/s1, fo01/us05/fr01: reads a scalar for every window size and a map per window size', () {
       final (config, _) = _read([]);
 
       expect(
@@ -585,31 +600,29 @@ color:
   });
 
   group('readThemeValues extensions and typography', () {
-    test(
-      'extensions read as plain values, brace strings kept, unmodifiable',
-      () {
-        final (config, errors) = _read([
-          layer('''
+    test('fo01/us01/s2, fo01/us01/fr02: extensions read as plain values, '
+        'brace strings kept, unmodifiable', () {
+      final (config, errors) = _read([
+        layer('''
 extensions:
   1: one
   link: "{palette.brand.500}"
   list: [a, { b: 2 }]
   flag: true'''),
-        ]);
+      ]);
 
-        expect(problems(errors), isEmpty);
-        expect(config.extensions, {
-          '1': 'one',
-          'link': '{palette.brand.500}',
-          'list': [
-            'a',
-            {'b': 2},
-          ],
-          'flag': true,
-        });
-        expect(() => config.extensions['x'] = 1, throwsUnsupportedError);
-      },
-    );
+      expect(problems(errors), isEmpty);
+      expect(config.extensions, {
+        '1': 'one',
+        'link': '{palette.brand.500}',
+        'list': [
+          'a',
+          {'b': 2},
+        ],
+        'flag': true,
+      });
+      expect(() => config.extensions['x'] = 1, throwsUnsupportedError);
+    });
 
     test("typography errors join the list, each at its layer's position", () {
       final (_, errors) = _read([
@@ -951,7 +964,7 @@ typography:
       ),
     ];
     for (final (name, body, expected) in transitionCases) {
-      test('us01/fr01/e11: reports $name', () {
+      test('fo01/us01/fr01/e11: reports $name', () {
         expect(_problems(body), [expected]);
       });
     }
@@ -1651,6 +1664,185 @@ shadow:
       expect(systemBarIconNames, [
         for (final icons in SystemBarIcons.values) icons.name,
       ]);
+    });
+  });
+
+  group('readThemeValues focus', () {
+    const light = <String, Object>{
+      'outside.color': 0xFF3B82F6,
+      'outside.width': 3.0,
+      'outside.gap': 2.0,
+      'inside.color': 0xFF2563EB,
+      'inside.width.hovered': 3.0,
+      'inside.width.focused': 2.0,
+    };
+    const dark = <String, Object>{
+      'outside.color': 0xFF2563EB,
+      'outside.width': 3.0,
+      'outside.gap': 2.0,
+      'inside.color': 0xFF1D4ED8,
+      'inside.width.hovered': 3.0,
+      'inside.width.focused': 2.0,
+    };
+
+    test('fo01/us01/fr01: reads the four focus sets of the base, each alias '
+        'resolved', () {
+      final (plain, errors) = _plain([]);
+
+      expect(problems(errors), isEmpty);
+      expect(plain.focus, {
+        'light': light,
+        'dark': dark,
+        'highContrastLight': light,
+        'highContrastDark': dark,
+      });
+    });
+
+    test('fo01/us01/fr01: a layer sets one focus value and keeps the rest', () {
+      final (plain, errors) = _plain([
+        layer('focus:\n  light:\n    outside:\n      width: 4'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(plain.focus['light'], {...light, 'outside.width': 4.0});
+      expect(plain.focus['highContrastLight'], {
+        ...light,
+        'outside.width': 4.0,
+      });
+      expect(plain.focus['dark'], dark);
+    });
+
+    test('fo01/us01/fr01: config s03 invariant 19, a high-contrast focus '
+        'set reads its color aliases in its own color set', () {
+      final (plain, errors) = _plain([
+        layer(
+          'color:\n  highContrastLight:\n    brand:\n'
+          '      normal: "#000001"',
+        ),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(plain.focus['highContrastLight']!['outside.color'], 0xFF000001);
+      expect(plain.focus['light']!['outside.color'], 0xFF3B82F6);
+    });
+
+    test('fo01/us01/fr01: a file that leaves the group out takes the base '
+        'values, so an older file still loads', () {
+      const older =
+          r'$schema: stratum-theme/v1.4.0'
+          '\nname: older';
+      final (plain, errors) = _plain([older]);
+
+      expect(problems(errors), isEmpty);
+      expect(plain.focus['light'], light);
+    });
+
+    test('fo01/us01/fr01: a v1.5.0 file loads', () {
+      const newer =
+          r'$schema: stratum-theme/v1.5.0'
+          '\nfocus:\n  dark:\n    inside:\n      width:\n        focused: 1.5';
+      final (plain, errors) = _plain([newer]);
+
+      expect(problems(errors), isEmpty);
+      expect(plain.focus['dark']!['inside.width.focused'], 1.5);
+    });
+
+    test('fo01/us01/fr01/e20: a color that a high-contrast overlay makes '
+        'fully transparent fails once, at the color token', () {
+      final (plain, errors) = _plain([
+        layer(
+          'color:\n  highContrastLight:\n    brand:\n'
+          '      normal: "#00000000"',
+        ),
+      ]);
+
+      const clearedHighContrast =
+          'layer1 color.highContrastLight.brand.normal: expected a color '
+          'with an alpha above 0, since '
+          'focus.highContrastLight.outside.color names it and a fully '
+          'transparent color hides the focus ring, got "#00000000" '
+          '[expected_color]';
+      expect(problems(errors), [clearedHighContrast]);
+      expect(plain.focus['highContrastLight']!['outside.color'], isNull);
+    });
+
+    test('fo01/us01/fr01: a transparent base color fails once, not '
+        'again at its high-contrast inherited copy', () {
+      final (plain, errors) = _plain([
+        layer('color:\n  light:\n    brand:\n      normal: "#00000000"'),
+      ]);
+
+      const clearedBase =
+          'base focus.light.outside.color: expected a color with an alpha '
+          'above 0, since a fully transparent color hides the focus ring, '
+          'got "#00000000" (from "{color.light.brand.normal}") '
+          '[expected_color]';
+      expect(problems(errors), [clearedBase]);
+      expect(plain.focus['light']!['outside.color'], isNull);
+      expect(plain.focus['highContrastLight']!['outside.color'], isNull);
+    });
+
+    final cases = <(String, String, String)>[
+      (
+        'fo01/us01/fr01/e20: a width of 0',
+        'focus:\n  light:\n    outside:\n      width: 0',
+        'layer1 focus.light.outside.width: expected a number above 0 up to '
+            '10000, since a width of 0 hides the focus ring, got 0 '
+            '[expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e20: a negative inside width',
+        'focus:\n  dark:\n    inside:\n      width:\n        focused: -1',
+        'layer1 focus.dark.inside.width.focused: expected a number above 0 '
+            'up to 10000, since a width of 0 hides the focus ring, got -1 '
+            '[expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e20: a width past the length bound',
+        'focus:\n  light:\n    inside:\n      width:\n        hovered: 10001',
+        'layer1 focus.light.inside.width.hovered: expected a number above 0 '
+            'up to 10000, since a width of 0 hides the focus ring, got 10001 '
+            '[expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e20: a negative gap',
+        'focus:\n  light:\n    outside:\n      gap: -1',
+        'layer1 focus.light.outside.gap: expected a number from 0 to 10000, '
+            'got -1 [expected_dimension]',
+      ),
+      (
+        'fo01/us01/fr01/e20: a fully transparent color',
+        'focus:\n  light:\n    outside:\n      color: "#00000000"',
+        'layer1 focus.light.outside.color: expected a color with an alpha '
+            'above 0, since a fully transparent color hides the focus ring, '
+            'got "#00000000" [expected_color]',
+      ),
+      (
+        'fo01/us01/fr01/e20: an alias to a fully transparent step',
+        'focus:\n  dark:\n    inside:\n      color: "{transparent.black.0}"',
+        'layer1 focus.dark.inside.color: expected a color with an alpha above '
+            '0, since a fully transparent color hides the focus ring, got '
+            '"#00000000" (from "{transparent.black.0}") [expected_color]',
+      ),
+      (
+        'fo01/us01/fr01/e20: a number for a color',
+        'focus:\n  light:\n    inside:\n      color: 12',
+        'layer1 focus.light.inside.color: $_hex 12 [expected_color]',
+      ),
+    ];
+    for (final (name, body, problem) in cases) {
+      test(name, () {
+        expect(_problems(body), [problem]);
+      });
+    }
+
+    test('fo01/us01/fr01: a gap of 0 loads', () {
+      final (plain, errors) = _plain([
+        layer('focus:\n  light:\n    outside:\n      gap: 0'),
+      ]);
+
+      expect(problems(errors), isEmpty);
+      expect(plain.focus['light']!['outside.gap'], 0.0);
     });
   });
 }

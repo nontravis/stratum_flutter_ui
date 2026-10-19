@@ -38,6 +38,7 @@ class ListViewLayout extends StatelessWidget {
     this.clipBehavior = Clip.hardEdge,
     this.focusable,
     this.semanticsLabel,
+    this.scrollFocusStyle,
   }) : assert(
          gap == null ||
              (itemCount != null &&
@@ -85,6 +86,10 @@ class ListViewLayout extends StatelessWidget {
   /// Names the focusable list for a screen reader.
   final String? semanticsLabel;
 
+  /// The view's focus ring style, level 3 (FO-06 US-07 FR-03), beside
+  /// `style`, which draws the box.
+  final ScrollFocusStyle? scrollFocusStyle;
+
   @override
   Widget build(BuildContext context) {
     return ScrollViewBox(
@@ -95,6 +100,7 @@ class ListViewLayout extends StatelessWidget {
       primary: primary,
       semanticsLabel: semanticsLabel,
       showScrollbar: showScrollbar,
+      scrollFocusStyle: scrollFocusStyle,
       builder: (context, controller, padding) =>
           _buildList(controller, padding),
     );

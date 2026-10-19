@@ -1,27 +1,21 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
+
+part 'generated/animation.freezed.dart';
 
 /// The six duration levels of `animation.duration` (spec G5).
 enum StratumMotionLevel { micro, veryFast, fast, normal, slow, verySlow }
 
 /// One animation style per [StratumMotionLevel].
-@immutable
-class StratumMotionLevels {
-  const new({
-    required this.micro,
-    required this.veryFast,
-    required this.fast,
-    required this.normal,
-    required this.slow,
-    required this.verySlow,
-  });
-
-  final AnimationStyle micro;
-  final AnimationStyle veryFast;
-  final AnimationStyle fast;
-  final AnimationStyle normal;
-  final AnimationStyle slow;
-  final AnimationStyle verySlow;
-
+@valueModel
+class const StratumMotionLevels({
+  required final AnimationStyle micro,
+  required final AnimationStyle veryFast,
+  required final AnimationStyle fast,
+  required final AnimationStyle normal,
+  required final AnimationStyle slow,
+  required final AnimationStyle verySlow,
+}) with _$StratumMotionLevels {
   AnimationStyle operator [](StratumMotionLevel level) => switch (level) {
     StratumMotionLevel.micro => micro,
     StratumMotionLevel.veryFast => veryFast,
@@ -30,40 +24,31 @@ class StratumMotionLevels {
     StratumMotionLevel.slow => slow,
     StratumMotionLevel.verySlow => verySlow,
   };
-
-  @override
-  bool operator ==(Object other) =>
-      other.runtimeType == runtimeType &&
-      other is StratumMotionLevels &&
-      other.micro == micro &&
-      other.veryFast == veryFast &&
-      other.fast == fast &&
-      other.normal == normal &&
-      other.slow == slow &&
-      other.verySlow == verySlow;
-
-  @override
-  int get hashCode =>
-      Object.hash(micro, veryFast, fast, normal, slow, verySlow);
 }
 
 /// A theme's motion: the `animation` group of its `theme.yaml` (spec
 /// section 7.8). Reduced motion changes none of these values (C1): each
 /// animating widget applies its own reduced-motion rule.
-@immutable
-class StratumAnimation extends StratumMotionLevels {
-  const new({
-    required super.micro,
-    required super.veryFast,
-    required super.fast,
-    required super.normal,
-    required super.slow,
-    required super.verySlow,
-    required this.appear,
-    required this.defaultLevel,
-    this.transition = StratumThemeTransitions.platform,
-  });
+@valueModel
+class const StratumAnimation({
+  required super.micro,
+  required super.veryFast,
+  required super.fast,
+  required super.normal,
+  required super.slow,
+  required super.verySlow,
 
+  /// For things that appear and leave, such as dialogs and popups.
+  required final StratumMotionLevels appear,
+
+  /// The level `duration.default` names.
+  required final StratumMotionLevel defaultLevel,
+
+  /// The page transition type the theme names for each window size,
+  /// `animation.transition` (FO-05 US-05 FR-04): `platform` for every
+  /// window size in the package default.
+  final StratumThemeTransitions transition = StratumThemeTransitions.platform,
+}) extends StratumMotionLevels with _$StratumAnimation {
   /// Each level: forward the level's duration, reverse that duration times
   /// `reverseRatio` rounded to whole microseconds, both on the `standard`
   /// curve. [appear]: the same durations, forward on `enter`, reverse on
@@ -239,29 +224,6 @@ class StratumAnimation extends StratumMotionLevels {
   static StratumAnimation of(BuildContext context) =>
       StratumTheme.of(context).animation;
 
-  /// For things that appear and leave, such as dialogs and popups.
-  final StratumMotionLevels appear;
-
-  /// The level `duration.default` names.
-  final StratumMotionLevel defaultLevel;
-
-  /// The page transition type the theme names for each window size,
-  /// `animation.transition` (FO-05 US-05 FR-04): `platform` for every
-  /// window size in the package default.
-  final StratumThemeTransitions transition;
-
   /// The `default` level: `fast` in the package default.
   AnimationStyle get defaultStyle => this[defaultLevel];
-
-  @override
-  bool operator ==(Object other) =>
-      super == other &&
-      other is StratumAnimation &&
-      other.appear == appear &&
-      other.defaultLevel == defaultLevel &&
-      other.transition == transition;
-
-  @override
-  int get hashCode =>
-      Object.hash(super.hashCode, appear, defaultLevel, transition);
 }

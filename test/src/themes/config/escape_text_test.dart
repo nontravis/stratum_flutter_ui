@@ -8,7 +8,7 @@ final _whole = RegExp(r'^(?:[\x20\x21\x23-\x5b\x5d-\x7e]|\\u[0-9a-f]{4})*$');
 final _marker = RegExp(r'\\\[cut (\d+) chars, id ([0-9a-f]{32})\]$');
 
 void main() {
-  group('us01/fr02/e12, fo01 us02/fr01/e05, minor7: escapeZipText', () {
+  group('fo04/us01/fr02/e12, fo01/us02/fr01/e05, minor7: escapeZipText', () {
     test('escapes each unit outside printable ASCII, each quote, and each '
         'backslash', () {
       expect(

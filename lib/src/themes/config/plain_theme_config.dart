@@ -25,6 +25,7 @@ final class PlainThemeConfig {
     required this.shadow,
     required this.blur,
     required this.system,
+    required this.focus,
     required this.extensions,
   });
 
@@ -57,6 +58,11 @@ final class PlainThemeConfig {
   /// The four `system` sets by set name, each key to its plain value: an
   /// icons name, a boolean, or a color as `0xAARRGGBB`.
   final Map<String, Map<String, Object>> system;
+
+  /// The four `focus` sets by set name, each key of `focusKeys` to its plain
+  /// value: a color as `0xAARRGGBB` or a width or gap in logical pixels; a
+  /// key whose value failed is missing.
+  final Map<String, Map<String, Object>> focus;
 
   /// The merged `extensions` group as plain, unmodifiable Dart values.
   final Map<String, Object?> extensions;

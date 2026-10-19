@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/page_layout_style.freezed.dart';
 
@@ -11,7 +12,7 @@ part 'generated/page_layout_style.freezed.dart';
 /// componentPartDefaults: (theme) => {PageLayout: PageLayoutStyle(...)})`;
 /// it has value equality, so an equal map from a new builder call rebuilds
 /// no page layout (FO-03 US-06 FR-01).
-@freezed
+@valueModel
 class PageLayoutStyle with _$PageLayoutStyle {
   const new({
     this.outer,

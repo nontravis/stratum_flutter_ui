@@ -6,8 +6,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 // Same import as lib/main.dart, the demo this test walks.
 // ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.dart';
+// ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+// ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
+// ignore: implementation_imports
 import 'package:stratum_ui/src/components/common/web_view/web_view.dart';
 import 'package:stratum_ui_example/main.dart';
+
+import 'support/pump_until.dart';
 
 /// Turns on the screenshot checkpoints (F-01 US-08 FR-01 input
 /// `checkpoints`): `--dart-define=WEB_VIEW_CHECKPOINTS=true`.
@@ -47,78 +55,75 @@ void main() {
   });
 
   group('group A, the demo tabs', () {
-    testWidgets(
-      'us08/s1, us08/s8, us08/fr01, us08/fr01/e06: the URL, HTML, and '
-      'Bridge tabs show their content',
-      (tester) async {
-        await tester.pumpWidget(
-          StratumWebViewExampleApp(
-            urlAddress: kIsWeb ? null : server.page('/ok'),
-          ),
-        );
+    testWidgets('f01/us08/s1, f01/us08/s8, f01/us08/fr01, f01/us08/fr01/e06: the URL, HTML, and '
+        'Bridge tabs show their content', (tester) async {
+      await tester.pumpWidget(
+        StratumWebViewExampleApp(
+          urlAddress: kIsWeb ? null : server.page('/ok'),
+        ),
+      );
 
-        // The URL tab shows a spinner from onPageStarted to onPageFinished,
-        // and an error line from onError. On the web the page starts at
-        // once and a refused frame finishes within a few frames, so this
-        // polls every frame from the first one on.
-        final spinner = find.byType(CircularProgressIndicator);
-        final started = await _pumpUntil(
-          tester,
-          () =>
-              spinner.evaluate().isNotEmpty ||
-              find.textContaining(_errorLine).evaluate().isNotEmpty,
-          timeout: const Duration(seconds: 45),
-          interval: const Duration(milliseconds: 16),
-        );
-        final loaded =
-            started &&
-            await _pumpUntil(
-              tester,
-              () => spinner.evaluate().isEmpty,
-              timeout: const Duration(seconds: 45),
-            );
-        await _checkpoint(binding, tester, 'a_url');
-        expect(
-          started,
-          isTrue,
-          reason: 'the URL tab never started loading its address',
-        );
-        expect(
-          loaded,
-          isTrue,
-          reason: 'the URL tab never finished loading its address',
-        );
-        expect(find.textContaining(_errorLine), findsNothing);
-        expect(find.byType(StratumWebView), findsOneWidget);
+      // The URL tab shows a spinner from onPageStarted to onPageFinished,
+      // and an error line from onError. On the web the page starts at
+      // once and a refused frame finishes within a few frames, so this
+      // polls every frame from the first one on.
+      final spinner = find.byType(CircularProgressIndicator);
+      final started = await pumpUntil(
+        tester,
+        () =>
+            spinner.evaluate().isNotEmpty ||
+            find.textContaining(_errorLine).evaluate().isNotEmpty,
+        timeout: const Duration(seconds: 45),
+        interval: const Duration(milliseconds: 16),
+      );
+      final loaded =
+          started &&
+          await pumpUntil(
+            tester,
+            () => spinner.evaluate().isEmpty,
+            timeout: const Duration(seconds: 45),
+          );
+      await _checkpoint(binding, tester, 'a_url');
+      expect(
+        started,
+        isTrue,
+        reason: 'the URL tab never started loading its address',
+      );
+      expect(
+        loaded,
+        isTrue,
+        reason: 'the URL tab never finished loading its address',
+      );
+      expect(find.textContaining(_errorLine), findsNothing);
+      expect(find.byType(StratumWebView), findsOneWidget);
 
-        await tester.tap(find.text('HTML'));
-        await tester.pump(const Duration(seconds: 2));
-        await _checkpoint(binding, tester, 'a_html');
-        expect(find.byType(StratumWebView), findsOneWidget);
+      await tester.tap(find.text('HTML'));
+      await tester.pump(const Duration(seconds: 2));
+      await _checkpoint(binding, tester, 'a_html');
+      expect(find.byType(StratumWebView), findsOneWidget);
 
-        await tester.tap(find.text('Bridge'));
-        await tester.pump(const Duration(seconds: 3));
-        expect(find.text('No messages yet'), findsOneWidget);
-        await tester.tap(find.text('Send to page'));
-        await tester.pump(const Duration(seconds: 1));
-        await _checkpoint(binding, tester, 'a_bridge');
-        expect(
-          find.byType(SnackBar),
-          findsNothing,
-          reason: 'postMessage threw a StateError: the HTML bridge is closed',
-        );
-      },
-    );
+      await tester.tap(find.text('Bridge'));
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.text('No messages yet'), findsOneWidget);
+      await tester.tap(find.text('Send to page'));
+      await tester.pump(const Duration(seconds: 1));
+      await _checkpoint(binding, tester, 'a_bridge');
+      expect(
+        find.byType(SnackBar),
+        findsNothing,
+        reason: 'postMessage threw a StateError: the HTML bridge is closed',
+      );
+    });
   });
 
-  group('us08/s7, us08/fr01/e01, us08/fr01/e02, us08/fr01/e03, '
-      'us08/fr01/e05: group B, native only', () {
+  group('f01/us08/s7, f01/us08/fr01/e01, f01/us08/fr01/e02, f01/us08/fr01/e03, '
+      'f01/us08/fr01/e05: group B, native only', () {
     testWidgets(
-      'us08/s2, us08/fr01: a 200 page starts and finishes with no error',
+      'f01/us08/s2, f01/us08/fr01: a 200 page starts and finishes with no error',
       (tester) async {
         final page = server.page('/ok');
         final recorder = await _showPage(tester, page);
-        final finished = await _pumpUntil(
+        final finished = await pumpUntil(
           tester,
           () => recorder.finishes.isNotEmpty,
         );
@@ -133,90 +138,86 @@ void main() {
       },
     );
 
-    testWidgets('us08/s4, us08/fr01: a plain 404 reports one http error', (
-      tester,
-    ) async {
-      final page = server.page('/missing');
-      final recorder = await _showPage(tester, page);
-      final reported = await _pumpUntil(
-        tester,
-        () => recorder.errors.isNotEmpty,
-      );
-      await tester.pump(_settle);
-      recorder.logOrder('plain 404');
-      await _checkpoint(binding, tester, 'b_404');
-      expect(reported, isTrue, reason: 'no onError for $page');
-      expect(recorder.errors, hasLength(1));
-      expect(recorder.errors.single.type, StratumWebViewErrorType.http);
-      expect(recorder.errors.single.code, HttpStatus.notFound);
-      expect(recorder.errors.single.url, page);
-    });
-
     testWidgets(
-      'us08/s5, us08/fr01/e04: a 302 then 404 reports one http error that '
-      'names the redirect target',
+      'f01/us08/s4, f01/us08/fr01: a plain 404 reports one http error',
       (tester) async {
-        // CO-01-02 US-01 FR-02 E07 of the package docs.
-        final page = server.page('/redirect');
-        final target = server.page('/gone');
+        final page = server.page('/missing');
         final recorder = await _showPage(tester, page);
-        final reported = await _pumpUntil(
+        final reported = await pumpUntil(
           tester,
           () => recorder.errors.isNotEmpty,
         );
         await tester.pump(_settle);
-        recorder.logOrder('302 then 404');
-        await _checkpoint(binding, tester, 'b_redirect');
+        recorder.logOrder('plain 404');
+        await _checkpoint(binding, tester, 'b_404');
         expect(reported, isTrue, reason: 'no onError for $page');
         expect(recorder.errors, hasLength(1));
         expect(recorder.errors.single.type, StratumWebViewErrorType.http);
         expect(recorder.errors.single.code, HttpStatus.notFound);
-        expect(recorder.errors.single.url, target);
-        expect(recorder.kindsSince(0), ['started', 'error', 'finished']);
+        expect(recorder.errors.single.url, page);
       },
     );
 
-    testWidgets(
-      'us08/s9, us08/fr01/e05: a 302 then 200 starts once, finishes once, '
-      'and reports no error',
-      (tester) async {
-        // CO-01-02 US-01 FR-01 E05 of the package docs: Android's finish for
-        // the redirect target before it starts never reaches the app.
-        final page = server.page('/redirect-ok');
-        final recorder = await _showPage(tester, page);
-        final finished = await _pumpUntil(
-          tester,
-          () => recorder.finishes.isNotEmpty,
-        );
-        await tester.pump(_settle);
-        recorder.logOrder('302 then 200');
-        await _checkpoint(binding, tester, 'b_redirect_ok');
-        expect(finished, isTrue, reason: 'no onPageFinished for $page');
-        expect(recorder.kindsSince(0), ['started', 'finished']);
-        // The /ok page's missing image answers 404: FR-02 E02 drops it.
-        expect(recorder.errors, isEmpty);
-      },
-    );
-
-    testWidgets('us08/s6, us08/fr01: a closed port reports one network error', (
-      tester,
-    ) async {
-      final page = await _closedPortPage();
+    testWidgets('f01/us08/s5, f01/us08/fr01/e04: a 302 then 404 reports one http error that '
+        'names the redirect target', (tester) async {
+      // CO-01-02 US-01 FR-02 E07 of the package docs.
+      final page = server.page('/redirect');
+      final target = server.page('/gone');
       final recorder = await _showPage(tester, page);
-      final reported = await _pumpUntil(
+      final reported = await pumpUntil(
         tester,
         () => recorder.errors.isNotEmpty,
       );
       await tester.pump(_settle);
-      recorder.logOrder('closed port');
-      await _checkpoint(binding, tester, 'b_closed');
+      recorder.logOrder('302 then 404');
+      await _checkpoint(binding, tester, 'b_redirect');
       expect(reported, isTrue, reason: 'no onError for $page');
       expect(recorder.errors, hasLength(1));
-      expect(recorder.errors.single.type, StratumWebViewErrorType.network);
+      expect(recorder.errors.single.type, StratumWebViewErrorType.http);
+      expect(recorder.errors.single.code, HttpStatus.notFound);
+      expect(recorder.errors.single.url, target);
+      expect(recorder.kindsSince(0), ['started', 'error', 'finished']);
+    });
+
+    testWidgets('f01/us08/s9, f01/us08/fr01/e05: a 302 then 200 starts once, finishes once, '
+        'and reports no error', (tester) async {
+      // CO-01-02 US-01 FR-01 E05 of the package docs: Android's finish for
+      // the redirect target before it starts never reaches the app.
+      final page = server.page('/redirect-ok');
+      final recorder = await _showPage(tester, page);
+      final finished = await pumpUntil(
+        tester,
+        () => recorder.finishes.isNotEmpty,
+      );
+      await tester.pump(_settle);
+      recorder.logOrder('302 then 200');
+      await _checkpoint(binding, tester, 'b_redirect_ok');
+      expect(finished, isTrue, reason: 'no onPageFinished for $page');
+      expect(recorder.kindsSince(0), ['started', 'finished']);
+      // The /ok page's missing image answers 404: FR-02 E02 drops it.
+      expect(recorder.errors, isEmpty);
     });
 
     testWidgets(
-      'us08/s10, us08/s11, us08/fr01/e05: going back to a no-store page '
+      'f01/us08/s6, f01/us08/fr01: a closed port reports one network error',
+      (tester) async {
+        final page = await _closedPortPage();
+        final recorder = await _showPage(tester, page);
+        final reported = await pumpUntil(
+          tester,
+          () => recorder.errors.isNotEmpty,
+        );
+        await tester.pump(_settle);
+        recorder.logOrder('closed port');
+        await _checkpoint(binding, tester, 'b_closed');
+        expect(reported, isTrue, reason: 'no onError for $page');
+        expect(recorder.errors, hasLength(1));
+        expect(recorder.errors.single.type, StratumWebViewErrorType.network);
+      },
+    );
+
+    testWidgets(
+      'f01/us08/s10, f01/us08/s11, f01/us08/fr01/e05: going back to a no-store page '
       'that now answers 404 reports start, one http error, finish on '
       'Android, and start, finish with no error on iOS and macOS',
       (tester) async {
@@ -224,7 +225,7 @@ void main() {
         final controller = StratumWebViewController();
         final flip = server.page('/flip-nostore', query: 'case=back');
         final recorder = await _showPage(tester, flip, controller: controller);
-        final shown = await _pumpUntil(
+        final shown = await pumpUntil(
           tester,
           () => recorder.finishes.isNotEmpty,
         );
@@ -259,69 +260,63 @@ void main() {
       },
     );
 
-    testWidgets(
-      'us08/s10, us08/s11, us08/fr01/e05: going forward to an entry that '
-      'answered 404 reports start, one http error, finish on Android, and '
-      'start, finish with no error on iOS and macOS',
-      (tester) async {
-        // CO-01-02 US-01 FR-02 E08: Android replays the 404 from its HTTP
-        // cache without a request; WebKit either restores the entry from
-        // its back-forward cache, leaving the load's own error the last
-        // one, or requests the page again (US-08 scenario 11).
-        final controller = StratumWebViewController();
-        final first = server.page('/ok');
-        final missing = server.page('/missing', query: 'case=forward');
-        final recorder = await _showPage(tester, first, controller: controller);
-        final shown = await _pumpUntil(
-          tester,
-          () => recorder.finishes.isNotEmpty,
-        );
-        await tester.pump(_settle);
-        final failed =
-            shown &&
-            await _finishAfter(
-                  tester,
-                  recorder,
-                  () => controller.loadUrl(missing),
-                ) !=
-                null;
-        final back =
-            failed &&
-            await _finishAfter(tester, recorder, controller.goBack) != null;
-        final mark = back
-            ? await _finishAfter(tester, recorder, controller.goForward)
-            : null;
-        recorder.logOrder('forward to 404');
-        await _checkpoint(binding, tester, 'b_forward');
-        await tester.pumpWidget(const SizedBox());
-        controller.dispose();
-        expect(shown, isTrue, reason: 'no onPageFinished for $first');
-        expect(failed, isTrue, reason: 'no onPageFinished for $missing');
-        expect(back, isTrue, reason: 'no onPageFinished after goBack');
-        expect(mark, isNotNull, reason: 'no onPageFinished after goForward');
-        if (_isWebKit()) {
-          _expectWebKitHistoryMove(recorder, mark!, missing);
-        } else {
-          // One error for the load of the 404 entry, plus one for the
-          // replay from Android's HTTP cache.
-          expect(recorder.errors, hasLength(2));
-          expect(recorder.errors.last.type, StratumWebViewErrorType.http);
-          expect(recorder.errors.last.code, HttpStatus.notFound);
-          expect(recorder.errors.last.url, missing);
-          expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
-        }
-      },
-    );
+    testWidgets('f01/us08/s10, f01/us08/s11, f01/us08/fr01/e05: going forward to an entry that '
+        'answered 404 reports start, one http error, finish on Android, and '
+        'start, finish with no error on iOS and macOS', (tester) async {
+      // CO-01-02 US-01 FR-02 E08: Android replays the 404 from its HTTP
+      // cache without a request; WebKit either restores the entry from
+      // its back-forward cache, leaving the load's own error the last
+      // one, or requests the page again (US-08 scenario 11).
+      final controller = StratumWebViewController();
+      final first = server.page('/ok');
+      final missing = server.page('/missing', query: 'case=forward');
+      final recorder = await _showPage(tester, first, controller: controller);
+      final shown = await pumpUntil(tester, () => recorder.finishes.isNotEmpty);
+      await tester.pump(_settle);
+      final failed =
+          shown &&
+          await _finishAfter(
+                tester,
+                recorder,
+                () => controller.loadUrl(missing),
+              ) !=
+              null;
+      final back =
+          failed &&
+          await _finishAfter(tester, recorder, controller.goBack) != null;
+      final mark = back
+          ? await _finishAfter(tester, recorder, controller.goForward)
+          : null;
+      recorder.logOrder('forward to 404');
+      await _checkpoint(binding, tester, 'b_forward');
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+      expect(shown, isTrue, reason: 'no onPageFinished for $first');
+      expect(failed, isTrue, reason: 'no onPageFinished for $missing');
+      expect(back, isTrue, reason: 'no onPageFinished after goBack');
+      expect(mark, isNotNull, reason: 'no onPageFinished after goForward');
+      if (_isWebKit()) {
+        _expectWebKitHistoryMove(recorder, mark!, missing);
+      } else {
+        // One error for the load of the 404 entry, plus one for the
+        // replay from Android's HTTP cache.
+        expect(recorder.errors, hasLength(2));
+        expect(recorder.errors.last.type, StratumWebViewErrorType.http);
+        expect(recorder.errors.last.code, HttpStatus.notFound);
+        expect(recorder.errors.last.url, missing);
+        expect(recorder.kindsSince(mark!), ['started', 'error', 'finished']);
+      }
+    });
 
     testWidgets(
-      'us08/s12, us08/fr01/e05: reloading a page that now answers 404 '
+      'f01/us08/s12, f01/us08/fr01/e05: reloading a page that now answers 404 '
       'reports start, one http error, finish',
       (tester) async {
         // CO-01-02 US-01 FR-02 E08 and US-04 FR-01 E07 of the package docs.
         final controller = StratumWebViewController();
         final flip = server.page('/flip', query: 'case=reload');
         final recorder = await _showPage(tester, flip, controller: controller);
-        final shown = await _pumpUntil(
+        final shown = await pumpUntil(
           tester,
           () => recorder.finishes.isNotEmpty,
         );
@@ -344,7 +339,7 @@ void main() {
     );
 
     testWidgets(
-      'us08/s12, us08/fr01/e05: reloading after a 302 then 404 reports '
+      'f01/us08/s12, f01/us08/fr01/e05: reloading after a 302 then 404 reports '
       'start, one http error naming the target, finish',
       (tester) async {
         // CO-01-02 US-01 FR-02 E07 and E08: Android reloads the redirect
@@ -353,7 +348,7 @@ void main() {
         final page = server.page('/redirect');
         final target = server.page('/gone');
         final recorder = await _showPage(tester, page, controller: controller);
-        final failed = await _pumpUntil(
+        final failed = await pumpUntil(
           tester,
           () => recorder.errors.isNotEmpty,
         );
@@ -376,38 +371,41 @@ void main() {
       },
     );
 
-    testWidgets('us08/s3, us08/fr01: a page on the allowlist and the app trade '
-        'messages both ways', (tester) async {
-      final controller = StratumWebViewController();
-      final page = server.page('/bridge');
-      final recorder = await _showPage(
-        tester,
-        page,
-        controller: controller,
-        allowedOrigins: {server.origin},
-      );
-      final ready = await _pumpUntil(
-        tester,
-        () => recorder.messages.contains('ready'),
-      );
-      if (ready) await controller.postMessage('ping');
-      final echoed =
-          ready &&
-          await _pumpUntil(
-            tester,
-            () => recorder.messages.contains('echo:ping'),
-          );
-      recorder.logOrder('bridge round trip');
-      await _checkpoint(binding, tester, 'b_bridge');
-      await tester.pumpWidget(const SizedBox());
-      controller.dispose();
-      expect(ready, isTrue, reason: 'the page message "ready" never came');
-      expect(echoed, isTrue, reason: 'the page never echoed "ping"');
-      expect(recorder.errors, isEmpty);
-    });
+    testWidgets(
+      'f01/us08/s3, f01/us08/fr01: a page on the allowlist and the app trade '
+      'messages both ways',
+      (tester) async {
+        final controller = StratumWebViewController();
+        final page = server.page('/bridge');
+        final recorder = await _showPage(
+          tester,
+          page,
+          controller: controller,
+          allowedOrigins: {server.origin},
+        );
+        final ready = await pumpUntil(
+          tester,
+          () => recorder.messages.contains('ready'),
+        );
+        if (ready) await controller.postMessage('ping');
+        final echoed =
+            ready &&
+            await pumpUntil(
+              tester,
+              () => recorder.messages.contains('echo:ping'),
+            );
+        recorder.logOrder('bridge round trip');
+        await _checkpoint(binding, tester, 'b_bridge');
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        expect(ready, isTrue, reason: 'the page message "ready" never came');
+        expect(echoed, isTrue, reason: 'the page never echoed "ping"');
+        expect(recorder.errors, isEmpty);
+      },
+    );
 
     testWidgets(
-      'us08/s13: the app HTML document and the app trade messages both '
+      'f01/us08/s13: the app HTML document and the app trade messages both '
       'ways, the document in standards mode',
       (tester) async {
         // CO-01-02 US-03 FR-04 of the package docs: the document proves the
@@ -421,14 +419,14 @@ void main() {
           controller: controller,
           allowedOrigins: {server.origin},
         );
-        final ready = await _pumpUntil(
+        final ready = await pumpUntil(
           tester,
           () => recorder.messages.contains('ready:CSS1Compat'),
         );
         if (ready) await controller.postMessage('ping');
         final echoed =
             ready &&
-            await _pumpUntil(
+            await pumpUntil(
               tester,
               () => recorder.messages.contains('echo:ping'),
             );
@@ -438,7 +436,7 @@ void main() {
         if (echoed) await controller.reply(recorder.received.first, 'pong');
         final replied =
             echoed &&
-            await _pumpUntil(
+            await pumpUntil(
               tester,
               () => recorder.messages.contains('echo:pong'),
             );
@@ -459,178 +457,162 @@ void main() {
       },
     );
 
-    testWidgets(
-      'us08/s14: a reload keeps the app HTML document connected on Android; '
-      'on iOS and macOS the reloaded page is empty and the bridge stays '
-      'closed',
-      (tester) async {
-        // CO-01-02 US-03 FR-04 E04 of the package docs: Android parses the
-        // same HTML string again, so the reloaded document carries the same
-        // nonce; WebKit reloads an empty page, which carries none, so it
-        // never says ready and a send throws.
-        final controller = StratumWebViewController();
-        final recorder = await _show(
-          tester,
-          const StratumWebViewSource.html(_htmlBridgePage),
-          controller: controller,
-          allowedOrigins: {server.origin},
-        );
-        int readyCount() =>
-            recorder.messages.where((data) => data.startsWith('ready:')).length;
-        final first = await _pumpUntil(tester, () => readyCount() == 1);
-        final mark = first
-            ? await _finishAfter(tester, recorder, controller.reload)
-            : null;
-        final keepsHtml = _reloadKeepsHtml();
-        var again = false;
-        var echoed = false;
-        if (keepsHtml) {
-          again =
-              mark != null && await _pumpUntil(tester, () => readyCount() == 2);
-          if (again) await controller.postMessage('pong');
-          echoed =
-              again &&
-              await _pumpUntil(
-                tester,
-                () => recorder.messages.contains('echo:pong'),
-              );
-        } else if (mark != null) {
-          await expectLater(controller.postMessage('pong'), throwsStateError);
-        }
-        recorder.logOrder('html reload');
-        await _checkpoint(binding, tester, 'b_html_reload');
-        await tester.pumpWidget(const SizedBox());
-        controller.dispose();
-        expect(first, isTrue, reason: 'the HTML message "ready" never came');
-        expect(mark, isNotNull, reason: 'no onPageFinished after reload');
-        if (keepsHtml) {
-          expect(
-            again,
-            isTrue,
-            reason:
-                'the reloaded HTML never sent "ready": this engine did '
-                'not keep the nonce on reload (UV-1)',
-          );
-          expect(echoed, isTrue, reason: 'the reloaded HTML never echoed');
-        } else {
-          expect(readyCount(), 1, reason: 'the empty reloaded page spoke');
-          expect(recorder.messages, isNot(contains('echo:pong')));
-        }
-      },
-    );
-
-    testWidgets(
-      'us08/s15, us08/fr01/e09: the app HTML document follows a link off the '
-      'allowlist, and the next send is refused',
-      (tester) async {
-        // CO-01-02 US-03 FR-04 E10 of the package docs: the document posts
-        // bye on pagehide, so the app withholds the token (FR-02 E10).
-        await _expectLinkAwayRefused(
-          binding,
-          tester,
-          away: server.page('/token-copy'),
-          html: _htmlLinkAwayPage,
-          caseName: 'html link away',
-          checkpoint: 'b_html_link_away',
-        );
-      },
-    );
-
-    testWidgets(
-      'us08/s16, us08/fr01/e10: the app HTML document reopens itself, puts '
-      'its root back, follows a link off the allowlist, and the next send is '
-      'refused',
-      (tester) async {
-        // CO-01-02 US-03 FR-04 E14 of the package docs: document.open() erases
-        // the pagehide hook, but the bootstrap's observer sees the root
-        // removed, even though the page puts it back, and posts bye at once.
-        await _expectLinkAwayRefused(
-          binding,
-          tester,
-          away: server.page('/token-copy'),
-          html: _htmlReopenLinkAwayPage,
-          caseName: 'html reopen link away',
-          checkpoint: 'b_html_reopen_link_away',
-        );
-      },
-    );
-
-    testWidgets(
-      'us08/s17, us08/fr01/e11: a reply after the web view moves from page '
-      'A to page B of another allowed origin throws, and page B receives '
-      'nothing',
-      (tester) async {
-        // CO-01-02 US-03 FR-05 E03 of the package docs: a reply reaches only
-        // the message's sender, by origin for a URL page.
-        final partner = await _PageServer.start();
-        addTearDown(partner.close);
-        final controller = StratumWebViewController();
-        final recorder = await _showPage(
-          tester,
-          server.page('/bridge'),
-          controller: controller,
-          allowedOrigins: {server.origin, partner.origin},
-        );
-        StratumWebViewMessage? readyFrom(_PageServer from) {
-          for (final message in recorder.received) {
-            if (message.data == 'ready' &&
-                message.origin?.port == from.origin.port) {
-              return message;
-            }
-          }
-          return null;
-        }
-
-        final readyA = await _pumpUntil(
-          tester,
-          () => readyFrom(server) != null,
-        );
-        if (readyA) await controller.loadUrl(partner.page('/bridge'));
-        final readyB =
-            readyA &&
-            await _pumpUntil(tester, () => readyFrom(partner) != null);
-        Object? refusal;
-        if (readyB) {
-          try {
-            await controller.reply(readyFrom(server)!, 'late');
-          } on StateError catch (error) {
-            refusal = error;
-          }
-        }
-        if (readyB) await controller.reply(readyFrom(partner)!, 'control');
-        final controlled =
-            readyB &&
-            await _pumpUntil(
+    testWidgets('f01/us08/s14: a reload keeps the app HTML document connected on Android; '
+        'on iOS and macOS the reloaded page is empty and the bridge stays '
+        'closed', (tester) async {
+      // CO-01-02 US-03 FR-04 E04 of the package docs: Android parses the
+      // same HTML string again, so the reloaded document carries the same
+      // nonce; WebKit reloads an empty page, which carries none, so it
+      // never says ready and a send throws.
+      final controller = StratumWebViewController();
+      final recorder = await _show(
+        tester,
+        const StratumWebViewSource.html(_htmlBridgePage),
+        controller: controller,
+        allowedOrigins: {server.origin},
+      );
+      int readyCount() =>
+          recorder.messages.where((data) => data.startsWith('ready:')).length;
+      final first = await pumpUntil(tester, () => readyCount() == 1);
+      final mark = first
+          ? await _finishAfter(tester, recorder, controller.reload)
+          : null;
+      final keepsHtml = _reloadKeepsHtml();
+      var again = false;
+      var echoed = false;
+      if (keepsHtml) {
+        again =
+            mark != null && await pumpUntil(tester, () => readyCount() == 2);
+        if (again) await controller.postMessage('pong');
+        echoed =
+            again &&
+            await pumpUntil(
               tester,
-              () => recorder.messages.contains('echo:control'),
+              () => recorder.messages.contains('echo:pong'),
             );
-        await tester.pump(_settle);
-        recorder.logOrder('reply after a move');
-        await _checkpoint(binding, tester, 'b_reply_after_move');
-        await tester.pumpWidget(const SizedBox());
-        controller.dispose();
-        expect(readyA, isTrue, reason: 'page A never said "ready"');
-        expect(readyB, isTrue, reason: 'page B never said "ready"');
+      } else if (mark != null) {
+        await expectLater(controller.postMessage('pong'), throwsStateError);
+      }
+      recorder.logOrder('html reload');
+      await _checkpoint(binding, tester, 'b_html_reload');
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+      expect(first, isTrue, reason: 'the HTML message "ready" never came');
+      expect(mark, isNotNull, reason: 'no onPageFinished after reload');
+      if (keepsHtml) {
         expect(
-          refusal,
-          isA<StateError>(),
-          reason: 'the reply to page A reached somewhere after the move',
-        );
-        expect(
-          controlled,
+          again,
           isTrue,
           reason:
-              'page B never echoed "control": it was not listening, so its '
-              'silence below proves nothing',
+              'the reloaded HTML never sent "ready": this engine did '
+              'not keep the nonce on reload (UV-1)',
         );
-        expect(
-          recorder.messages,
-          isNot(contains('echo:late')),
-          reason: 'page B echoed the refused reply to page A',
-        );
-        expect(recorder.errors, isEmpty);
-      },
-    );
+        expect(echoed, isTrue, reason: 'the reloaded HTML never echoed');
+      } else {
+        expect(readyCount(), 1, reason: 'the empty reloaded page spoke');
+        expect(recorder.messages, isNot(contains('echo:pong')));
+      }
+    });
+
+    testWidgets('f01/us08/s15, f01/us08/fr01/e09: the app HTML document follows a link off the '
+        'allowlist, and the next send is refused', (tester) async {
+      // CO-01-02 US-03 FR-04 E10 of the package docs: the document posts
+      // bye on pagehide, so the app withholds the token (FR-02 E10).
+      await _expectLinkAwayRefused(
+        binding,
+        tester,
+        away: server.page('/token-copy'),
+        html: _htmlLinkAwayPage,
+        caseName: 'html link away',
+        checkpoint: 'b_html_link_away',
+      );
+    });
+
+    testWidgets('f01/us08/s16, f01/us08/fr01/e10: the app HTML document reopens itself, puts '
+        'its root back, follows a link off the allowlist, and the next send is '
+        'refused', (tester) async {
+      // CO-01-02 US-03 FR-04 E14 of the package docs: document.open() erases
+      // the pagehide hook, but the bootstrap's observer sees the root
+      // removed, even though the page puts it back, and posts bye at once.
+      await _expectLinkAwayRefused(
+        binding,
+        tester,
+        away: server.page('/token-copy'),
+        html: _htmlReopenLinkAwayPage,
+        caseName: 'html reopen link away',
+        checkpoint: 'b_html_reopen_link_away',
+      );
+    });
+
+    testWidgets('f01/us08/s17, f01/us08/fr01/e11: a reply after the web view moves from page '
+        'A to page B of another allowed origin throws, and page B receives '
+        'nothing', (tester) async {
+      // CO-01-02 US-03 FR-05 E03 of the package docs: a reply reaches only
+      // the message's sender, by origin for a URL page.
+      final partner = await _PageServer.start();
+      addTearDown(partner.close);
+      final controller = StratumWebViewController();
+      final recorder = await _showPage(
+        tester,
+        server.page('/bridge'),
+        controller: controller,
+        allowedOrigins: {server.origin, partner.origin},
+      );
+      StratumWebViewMessage? readyFrom(_PageServer from) {
+        for (final message in recorder.received) {
+          if (message.data == 'ready' &&
+              message.origin?.port == from.origin.port) {
+            return message;
+          }
+        }
+        return null;
+      }
+
+      final readyA = await pumpUntil(tester, () => readyFrom(server) != null);
+      if (readyA) await controller.loadUrl(partner.page('/bridge'));
+      final readyB =
+          readyA && await pumpUntil(tester, () => readyFrom(partner) != null);
+      Object? refusal;
+      if (readyB) {
+        try {
+          await controller.reply(readyFrom(server)!, 'late');
+        } on StateError catch (error) {
+          refusal = error;
+        }
+      }
+      if (readyB) await controller.reply(readyFrom(partner)!, 'control');
+      final controlled =
+          readyB &&
+          await pumpUntil(
+            tester,
+            () => recorder.messages.contains('echo:control'),
+          );
+      await tester.pump(_settle);
+      recorder.logOrder('reply after a move');
+      await _checkpoint(binding, tester, 'b_reply_after_move');
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+      expect(readyA, isTrue, reason: 'page A never said "ready"');
+      expect(readyB, isTrue, reason: 'page B never said "ready"');
+      expect(
+        refusal,
+        isA<StateError>(),
+        reason: 'the reply to page A reached somewhere after the move',
+      );
+      expect(
+        controlled,
+        isTrue,
+        reason:
+            'page B never echoed "control": it was not listening, so its '
+            'silence below proves nothing',
+      );
+      expect(
+        recorder.messages,
+        isNot(contains('echo:late')),
+        reason: 'page B echoed the refused reply to page A',
+      );
+      expect(recorder.errors, isEmpty);
+    });
   }, skip: kIsWeb);
 }
 
@@ -656,14 +638,14 @@ Future<void> _expectLinkAwayRefused(
     controller: controller,
     allowedOrigins: {Uri.parse('https://allowed.example')},
   );
-  final ready = await _pumpUntil(
+  final ready = await pumpUntil(
     tester,
     () => recorder.messages.contains('ready:CSS1Compat'),
   );
   if (ready) await controller.postMessage('go:$away');
   final arrived =
       ready &&
-      await _pumpUntil(
+      await pumpUntil(
         tester,
         () => recorder.finishes.any((url) => url?.path == away.path),
       );
@@ -729,25 +711,6 @@ void _expectWebKitHistoryMove(_Recorder recorder, int mark, Uri entry) {
     expect(kinds, ['started', 'finished']);
     expect(errors, isEmpty);
   }
-}
-
-/// Pumps a frame every [interval] until [done] holds; returns `false` once
-/// [timeout] passes.
-///
-/// It never fails on its own, so a case can log what it saw before it
-/// asserts.
-Future<bool> _pumpUntil(
-  WidgetTester tester,
-  bool Function() done, {
-  Duration timeout = const Duration(seconds: 30),
-  Duration interval = const Duration(milliseconds: 100),
-}) async {
-  final deadline = DateTime.now().add(timeout);
-  while (!done()) {
-    if (DateTime.now().isAfter(deadline)) return false;
-    await tester.pump(interval);
-  }
-  return true;
 }
 
 /// Marks the checkpoint [name] (US-08 scenario 8) when checkpoints are on.
@@ -1056,7 +1019,7 @@ Future<int?> _finishAfter(
 ) async {
   final mark = recorder.mark;
   await action();
-  final finished = await _pumpUntil(
+  final finished = await pumpUntil(
     tester,
     () => recorder.kindsSince(mark).contains('finished'),
   );

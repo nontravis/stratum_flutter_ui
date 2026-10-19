@@ -122,23 +122,26 @@ Color? _overlayColor(WidgetTester tester) {
 
 void main() {
   group('ContainerLayout.builder hover and press', () {
-    testWidgets('us17/s1, us17/fr01: a pointer over a tappable card builds '
-        'the hovered content', (tester) async {
-      final seen = _Seen();
-      await tester.pumpWidget(
-        themedHost(_card(seen, interaction: const Interaction(onTap: _noop))),
-      );
-      expect(find.text('idle'), findsOneWidget);
+    testWidgets(
+      'fo06/us17/s1, fo06/us17/fr01: a pointer over a tappable card builds '
+      'the hovered content',
+      (tester) async {
+        final seen = _Seen();
+        await tester.pumpWidget(
+          themedHost(_card(seen, interaction: const Interaction(onTap: _noop))),
+        );
+        expect(find.text('idle'), findsOneWidget);
 
-      final mouse = await _mouseOver(tester);
-      expect(find.text('hovered'), findsOneWidget);
+        final mouse = await _mouseOver(tester);
+        expect(find.text('hovered'), findsOneWidget);
 
-      await mouse.moveTo(Offset.zero);
-      await tester.pump();
-      expect(find.text('idle'), findsOneWidget);
-    });
+        await mouse.moveTo(Offset.zero);
+        await tester.pump();
+        expect(find.text('idle'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us17/fr01/e01, BP5: a pointer move inside the card that '
+    testWidgets('fo06/us17/fr01/e01, BP5: a pointer move inside the card that '
         'changes no value builds nothing', (tester) async {
       final seen = _Seen();
       await tester.pumpWidget(
@@ -155,63 +158,72 @@ void main() {
       expect(seen.states, hasLength(calls));
     });
 
-    testWidgets('us17/s2: pressing and holding the card builds the pressed '
-        'content while it is held', (tester) async {
-      final seen = _Seen();
-      await tester.pumpWidget(
-        themedHost(_card(seen, interaction: const Interaction(onTap: _noop))),
-      );
+    testWidgets(
+      'fo06/us17/s2: pressing and holding the card builds the pressed '
+      'content while it is held',
+      (tester) async {
+        final seen = _Seen();
+        await tester.pumpWidget(
+          themedHost(_card(seen, interaction: const Interaction(onTap: _noop))),
+        );
 
-      final press = await tester.startGesture(
-        tester.getCenter(find.byType(ContainerLayout)),
-      );
-      await tester.pump(kPressTimeout);
-      expect(find.text('pressed'), findsOneWidget);
+        final press = await tester.startGesture(
+          tester.getCenter(find.byType(ContainerLayout)),
+        );
+        await tester.pump(kPressTimeout);
+        expect(find.text('pressed'), findsOneWidget);
 
-      await press.up();
-      await tester.pumpAndSettle();
-      expect(find.text('idle'), findsOneWidget);
-    });
+        await press.up();
+        await tester.pumpAndSettle();
+        expect(find.text('idle'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us17/s3, us17/fr01/e05: a preview that sets hovered shows '
-        'the hovered content and the hover overlay', (tester) async {
-      final seen = _Seen();
-      await tester.pumpWidget(
-        themedHost(
-          _card(
-            seen,
-            interaction: Interaction(
-              onTap: _noop,
-              statesController: _states({WidgetState.hovered}),
+    testWidgets(
+      'fo06/us17/s3, fo06/us17/fr01/e05: a preview that sets hovered shows '
+      'the hovered content and the hover overlay',
+      (tester) async {
+        final seen = _Seen();
+        await tester.pumpWidget(
+          themedHost(
+            _card(
+              seen,
+              interaction: Interaction(
+                onTap: _noop,
+                statesController: _states({WidgetState.hovered}),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('hovered'), findsOneWidget);
-      expect(_overlayColor(tester), fakeHover);
-    });
+        expect(find.text('hovered'), findsOneWidget);
+        expect(_overlayColor(tester), fakeHover);
+      },
+    );
 
-    testWidgets('us17/s4, us17/fr01/e06, us04/fr04/e03: a container with only '
-        'a hover listener builds the hovered content and paints no overlay', (
-      tester,
-    ) async {
-      final seen = _Seen();
-      final hovers = <bool>[];
-      await tester.pumpWidget(
-        themedHost(_card(seen, interaction: Interaction(onHover: hovers.add))),
-      );
+    testWidgets(
+      'fo06/us17/s4, fo06/us17/fr01/e06, fo06/us04/fr04/e03: a container with only '
+      'a hover listener builds the hovered content and paints no overlay',
+      (tester) async {
+        final seen = _Seen();
+        final hovers = <bool>[];
+        await tester.pumpWidget(
+          themedHost(
+            _card(seen, interaction: Interaction(onHover: hovers.add)),
+          ),
+        );
 
-      await _mouseOver(tester);
-      await tester.pumpAndSettle();
+        await _mouseOver(tester);
+        await tester.pumpAndSettle();
 
-      expect(find.text('hovered'), findsOneWidget);
-      expect(hovers, [true]);
-      expect(_overlayColor(tester), isNull);
-    });
+        expect(find.text('hovered'), findsOneWidget);
+        expect(hovers, [true]);
+        expect(_overlayColor(tester), isNull);
+      },
+    );
 
-    testWidgets('us17/fr01/e06: adding and removing onTap while hovered '
+    testWidgets('fo06/us17/fr01/e06: adding and removing onTap while hovered '
         'keeps hovered true', (tester) async {
       final seen = _Seen();
       Widget build({required bool tappable}) => themedHost(
@@ -236,114 +248,132 @@ void main() {
       expect(seen.last.hovered, isTrue);
     });
 
-    testWidgets('us17/fr01/e02: with fit the built content fits the box as '
-        'a child does', (tester) async {
-      await tester.pumpWidget(
-        themedHost(
-          ContainerLayout(
-            style: const WidgetStyle(width: 100, height: 50),
-            fit: BoxFit.fill,
-            interaction: const Interaction(
-              onTap: _noop,
-              tapTargetSize: TapTargetSize.shrinkWrap,
+    testWidgets(
+      'fo06/us17/fr01/e02: with fit the built content fits the box as '
+      'a child does',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            ContainerLayout(
+              style: const WidgetStyle(width: 100, height: 50),
+              fit: BoxFit.fill,
+              interaction: const Interaction(
+                onTap: _noop,
+                tapTargetSize: TapTargetSize.shrinkWrap,
+              ),
+              builder: (context, state) =>
+                  const SizedBox(key: _contentKey, width: 20, height: 10),
             ),
-            builder: (context, state) =>
-                const SizedBox(key: _contentKey, width: 20, height: 10),
           ),
-        ),
-      );
+        );
 
-      expect(tester.getRect(find.byKey(_contentKey)).size, const Size(100, 50));
-    });
+        expect(
+          tester.getRect(find.byKey(_contentKey)).size,
+          const Size(100, 50),
+        );
+      },
+    );
   });
 
   group('ContainerLayout.builder focus', () {
-    testWidgets('us17/s5, us17/fr02/e01, NFR-U02: Tab builds the focused '
-        'content with the ring', (tester) async {
-      final seen = _Seen();
-      await tester.pumpWidget(
-        _keyboardHost(
-          _card(seen, interaction: const Interaction(onTap: _noop)),
-        ),
-      );
-      expect(_ring(tester), isFalse);
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pumpAndSettle();
-
-      expect(find.text('focused'), findsOneWidget);
-      expect(_ring(tester), isTrue);
-    });
-
-    testWidgets('us17/s6, us17/fr02/e02: a mouse click under the default '
-        'focus type builds no focused content', (tester) async {
-      final seen = _Seen();
-      await tester.pumpWidget(
-        themedHost(_card(seen, interaction: const Interaction(onTap: _noop))),
-      );
-
-      await tester.tap(
-        find.byType(ContainerLayout),
-        kind: PointerDeviceKind.mouse,
-      );
-      await tester.pumpAndSettle();
-
-      expect(seen.last.focused, isFalse);
-      expect(_ring(tester), isFalse);
-    });
-
-    testWidgets('us17/s7, us17/fr02/e03: under FocusType.focused a click '
-        'builds the focused content with the ring', (tester) async {
-      final seen = _Seen();
-      await tester.pumpWidget(
-        themedHost(
-          _card(
-            seen,
-            interaction: const Interaction(
-              onTap: _noop,
-              focusType: FocusType.focused,
-            ),
-          ),
-        ),
-      );
-
-      await tester.tap(
-        find.byType(ContainerLayout),
-        kind: PointerDeviceKind.mouse,
-      );
-      await tester.pumpAndSettle();
-
-      expect(seen.last.focused, isTrue);
-      expect(_ring(tester), isTrue);
-    });
-
-    for (final type in [FocusType.none, FocusType.invisible]) {
-      testWidgets('us17/fr02/e04: under FocusType.${type.name} Tab builds no '
-          'focused content', (tester) async {
+    testWidgets(
+      'fo06/us17/s5, fo06/us17/fr02/e01, NFR-U02: Tab builds the focused '
+      'content with the ring',
+      (tester) async {
         final seen = _Seen();
-        final node = _node();
         await tester.pumpWidget(
           _keyboardHost(
+            _card(seen, interaction: const Interaction(onTap: _noop)),
+          ),
+        );
+        expect(_ring(tester), isFalse);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+
+        expect(find.text('focused'), findsOneWidget);
+        expect(_ring(tester), isTrue);
+      },
+    );
+
+    testWidgets(
+      'fo06/us17/s6, fo06/us17/fr02/e02: a mouse click under the default '
+      'focus type builds no focused content',
+      (tester) async {
+        final seen = _Seen();
+        await tester.pumpWidget(
+          themedHost(_card(seen, interaction: const Interaction(onTap: _noop))),
+        );
+
+        await tester.tap(
+          find.byType(ContainerLayout),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pumpAndSettle();
+
+        expect(seen.last.focused, isFalse);
+        expect(_ring(tester), isFalse);
+      },
+    );
+
+    testWidgets(
+      'fo06/us17/s7, fo06/us17/fr02/e03: under FocusType.focused a click '
+      'builds the focused content with the ring',
+      (tester) async {
+        final seen = _Seen();
+        await tester.pumpWidget(
+          themedHost(
             _card(
               seen,
-              interaction: Interaction(
+              interaction: const Interaction(
                 onTap: _noop,
-                focusType: type,
-                focusNode: node,
+                focusType: FocusType.focused,
               ),
             ),
           ),
         );
 
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.tap(
+          find.byType(ContainerLayout),
+          kind: PointerDeviceKind.mouse,
+        );
         await tester.pumpAndSettle();
 
-        expect(node.hasPrimaryFocus, type == FocusType.invisible);
-        expect(seen.last.focused, isFalse);
-      });
+        expect(seen.last.focused, isTrue);
+        expect(_ring(tester), isTrue);
+      },
+    );
+
+    for (final type in [FocusType.none, FocusType.invisible]) {
+      testWidgets(
+        'fo06/us17/fr02/e04: under FocusType.${type.name} Tab builds no '
+        'focused content',
+        (tester) async {
+          final seen = _Seen();
+          final node = _node();
+          await tester.pumpWidget(
+            _keyboardHost(
+              _card(
+                seen,
+                interaction: Interaction(
+                  onTap: _noop,
+                  focusType: type,
+                  focusNode: node,
+                ),
+              ),
+            ),
+          );
+
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pumpAndSettle();
+
+          expect(node.hasPrimaryFocus, type == FocusType.invisible);
+          expect(seen.last.focused, isFalse);
+        },
+      );
     }
 
-    testWidgets('us17/fr02/e05: a focused card that turns disabled builds '
+    testWidgets('fo06/us17/fr02/e05: a focused card that turns disabled builds '
         'focused false', (tester) async {
       final seen = _Seen();
       final node = _node();
@@ -371,7 +401,7 @@ void main() {
   });
 
   group('ContainerLayout.builder disabled', () {
-    testWidgets("us17/fr03/e01: the interaction's own disabled builds the "
+    testWidgets("fo06/us17/fr03/e01: the interaction's own disabled builds the "
         'disabled content', (tester) async {
       final seen = _Seen();
       await tester.pumpWidget(
@@ -386,152 +416,173 @@ void main() {
       expect(find.text('disabled'), findsOneWidget);
     });
 
-    testWidgets('us17/s8, us17/fr03/e02: a card inside a component that turns '
-        'disabled builds the disabled content', (tester) async {
-      final seen = _Seen();
-      final card = _card(seen, interaction: const Interaction(onTap: _noop));
-      await tester.pumpWidget(
-        themedHost(_Component(disabled: false, child: card)),
-      );
-      expect(find.text('idle'), findsOneWidget);
+    testWidgets(
+      'fo06/us17/s8, fo06/us17/fr03/e02: a card inside a component that turns '
+      'disabled builds the disabled content',
+      (tester) async {
+        final seen = _Seen();
+        final card = _card(seen, interaction: const Interaction(onTap: _noop));
+        await tester.pumpWidget(
+          themedHost(_Component(disabled: false, child: card)),
+        );
+        expect(find.text('idle'), findsOneWidget);
 
-      await tester.pumpWidget(
-        themedHost(_Component(disabled: true, child: card)),
-      );
+        await tester.pumpWidget(
+          themedHost(_Component(disabled: true, child: card)),
+        );
 
-      expect(find.text('disabled'), findsOneWidget);
-    });
+        expect(find.text('disabled'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us17/s9, us17/fr03/e04: a disabled card that a preview sets '
-        'hovered builds the disabled content and no hovered content', (
-      tester,
-    ) async {
-      final seen = _Seen();
-      await tester.pumpWidget(
-        themedHost(
+    testWidgets(
+      'fo06/us17/s9, fo06/us17/fr03/e04: a disabled card that a preview sets '
+      'hovered builds the disabled content and no hovered content',
+      (tester) async {
+        final seen = _Seen();
+        await tester.pumpWidget(
+          themedHost(
+            _card(
+              seen,
+              interaction: Interaction(
+                onTap: _noop,
+                disabled: true,
+                statesController: _states({WidgetState.hovered}),
+              ),
+            ),
+          ),
+        );
+
+        expect(find.text('disabled'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'fo06/us17/fr03/e05: a hovered and held card that turns disabled '
+      'builds hovered and pressed false',
+      (tester) async {
+        final seen = _Seen();
+        Widget build({required bool disabled}) => themedHost(
+          _card(
+            seen,
+            interaction: Interaction(onTap: _noop, disabled: disabled),
+          ),
+        );
+        await tester.pumpWidget(build(disabled: false));
+        final mouse = await _mouseOver(tester);
+        await mouse.down(tester.getCenter(find.byType(ContainerLayout)));
+        await tester.pump(kPressTimeout);
+        expect(find.text('hovered pressed'), findsOneWidget);
+
+        await tester.pumpWidget(build(disabled: true));
+
+        expect(find.text('disabled'), findsOneWidget);
+        await mouse.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      "fo06/us04/fr04/e05, fo06/us04/fr04/e06: a flip of the card's own "
+      'disabled under a still pointer turns hovered within one frame of '
+      'onHover, here in the same frame',
+      (tester) async {
+        final seen = _Seen();
+        final hovers = <bool>[];
+        Widget build({required bool disabled}) => themedHost(
           _card(
             seen,
             interaction: Interaction(
               onTap: _noop,
-              disabled: true,
-              statesController: _states({WidgetState.hovered}),
+              onHover: hovers.add,
+              disabled: disabled,
             ),
           ),
-        ),
-      );
+        );
+        await tester.pumpWidget(build(disabled: false));
+        await _mouseOver(tester);
+        expect(hovers, [true]);
+        expect(seen.last.hovered, isTrue);
 
-      expect(find.text('disabled'), findsOneWidget);
-    });
+        await tester.pumpWidget(build(disabled: true));
+        expect(hovers, [true, false]);
+        expect(seen.last.hovered, isFalse);
 
-    testWidgets('us17/fr03/e05: a hovered and held card that turns disabled '
-        'builds hovered and pressed false', (tester) async {
-      final seen = _Seen();
-      Widget build({required bool disabled}) => themedHost(
-        _card(
+        await tester.pumpWidget(build(disabled: false));
+        expect(hovers, [true, false, true]);
+        expect(seen.last.hovered, isTrue);
+      },
+    );
+
+    testWidgets(
+      'fo06/us04/fr04/e06, PD3: a component enabled again under a still '
+      'pointer calls onHover(true) once, and hovered turns true within one '
+      'frame',
+      (tester) async {
+        final seen = _Seen();
+        final hovers = <bool>[];
+        final card = _card(
           seen,
-          interaction: Interaction(onTap: _noop, disabled: disabled),
-        ),
-      );
-      await tester.pumpWidget(build(disabled: false));
-      final mouse = await _mouseOver(tester);
-      await mouse.down(tester.getCenter(find.byType(ContainerLayout)));
-      await tester.pump(kPressTimeout);
-      expect(find.text('hovered pressed'), findsOneWidget);
+          interaction: Interaction(onTap: _noop, onHover: hovers.add),
+        );
+        Widget build({required bool disabled}) =>
+            themedHost(_Component(disabled: disabled, child: card));
+        await tester.pumpWidget(build(disabled: false));
+        await _mouseOver(tester);
 
-      await tester.pumpWidget(build(disabled: true));
+        await tester.pumpWidget(build(disabled: true));
+        expect(hovers, [true, false]);
+        expect(seen.last.hovered, isFalse);
+        expect(seen.last.disabled, isTrue);
 
-      expect(find.text('disabled'), findsOneWidget);
-      await mouse.up();
-      await tester.pumpAndSettle();
-    });
+        await tester.pumpWidget(build(disabled: false));
+        expect(hovers, [true, false, true]);
+        // One frame: the one the pointer report schedules when the mouse
+        // tracker finds the pointer over the surface again.
+        await tester.pump();
 
-    testWidgets("us04/fr04/e05, us04/fr04/e06: a flip of the card's own "
-        'disabled under a still pointer turns hovered within one frame of '
-        'onHover, here in the same frame', (tester) async {
-      final seen = _Seen();
-      final hovers = <bool>[];
-      Widget build({required bool disabled}) => themedHost(
-        _card(
-          seen,
-          interaction: Interaction(
-            onTap: _noop,
-            onHover: hovers.add,
-            disabled: disabled,
-          ),
-        ),
-      );
-      await tester.pumpWidget(build(disabled: false));
-      await _mouseOver(tester);
-      expect(hovers, [true]);
-      expect(seen.last.hovered, isTrue);
-
-      await tester.pumpWidget(build(disabled: true));
-      expect(hovers, [true, false]);
-      expect(seen.last.hovered, isFalse);
-
-      await tester.pumpWidget(build(disabled: false));
-      expect(hovers, [true, false, true]);
-      expect(seen.last.hovered, isTrue);
-    });
-
-    testWidgets('us04/fr04/e06, PD3: a component enabled again under a still '
-        'pointer calls onHover(true) once, and hovered turns true within one '
-        'frame', (tester) async {
-      final seen = _Seen();
-      final hovers = <bool>[];
-      final card = _card(
-        seen,
-        interaction: Interaction(onTap: _noop, onHover: hovers.add),
-      );
-      Widget build({required bool disabled}) =>
-          themedHost(_Component(disabled: disabled, child: card));
-      await tester.pumpWidget(build(disabled: false));
-      await _mouseOver(tester);
-
-      await tester.pumpWidget(build(disabled: true));
-      expect(hovers, [true, false]);
-      expect(seen.last.hovered, isFalse);
-      expect(seen.last.disabled, isTrue);
-
-      await tester.pumpWidget(build(disabled: false));
-      expect(hovers, [true, false, true]);
-      // One frame: the one the pointer report schedules when the mouse
-      // tracker finds the pointer over the surface again.
-      await tester.pump();
-
-      expect(seen.last.hovered, isTrue);
-      expect(hovers, [true, false, true]);
-    });
+        expect(seen.last.hovered, isTrue);
+        expect(hovers, [true, false, true]);
+      },
+    );
   });
 
   group('ContainerLayout.builder with no tap surface', () {
-    testWidgets('us17/s10, us17/fr04/e01: a builder with no interaction '
-        'builds every value false and adds no tap surface', (tester) async {
-      final seen = _Seen();
-      await tester.pumpWidget(themedHost(_card(seen)));
+    testWidgets(
+      'fo06/us17/s10, fo06/us17/fr04/e01: a builder with no interaction '
+      'builds every value false and adds no tap surface',
+      (tester) async {
+        final seen = _Seen();
+        await tester.pumpWidget(themedHost(_card(seen)));
 
-      await _mouseOver(tester);
+        await _mouseOver(tester);
 
-      expect(seen.last, const InteractionState());
-      expect(find.byType(StratumInkWell), findsNothing);
-    });
+        expect(seen.last, const InteractionState());
+        expect(find.byType(StratumInkWell), findsNothing);
+      },
+    );
 
-    testWidgets('us17/fr04/e02: an interaction with only disabled builds no '
-        'tap surface and every value false', (tester) async {
-      final seen = _Seen();
-      await tester.pumpWidget(
-        themedHost(_card(seen, interaction: const Interaction(disabled: true))),
-      );
+    testWidgets(
+      'fo06/us17/fr04/e02: an interaction with only disabled builds no '
+      'tap surface and every value false',
+      (tester) async {
+        final seen = _Seen();
+        await tester.pumpWidget(
+          themedHost(
+            _card(seen, interaction: const Interaction(disabled: true)),
+          ),
+        );
 
-      expect(seen.last, const InteractionState());
-      expect(find.byType(StratumInkWell), findsNothing);
-    });
+        expect(seen.last, const InteractionState());
+        expect(find.byType(StratumInkWell), findsNothing);
+      },
+    );
 
     for (final (name, interaction) in [
       ('no interaction', null),
       ('an empty interaction', const Interaction()),
     ]) {
-      testWidgets('us17/fr03/e03, us17/fr04/e03: with $name inside a '
+      testWidgets('fo06/us17/fr03/e03, fo06/us17/fr04/e03: with $name inside a '
           'disabled component every value is false', (tester) async {
         final seen = _Seen();
         await tester.pumpWidget(
@@ -547,7 +598,7 @@ void main() {
       });
     }
 
-    testWidgets('us17/fr04/e01: a builder inside a hovered tappable card, '
+    testWidgets('fo06/us17/fr04/e01: a builder inside a hovered tappable card, '
         'with no tap surface of its own, builds every value false', (
       tester,
     ) async {
@@ -570,27 +621,30 @@ void main() {
   });
 
   group('ContainerLayout.builder content source', () {
-    testWidgets('us17/s11, us17/fr05/e01: child and builder together fail a '
-        'debug assertion that names the fix', (tester) async {
-      expect(
-        () => ContainerLayout(
-          builder: (context, state) => const SizedBox(),
-          child: const SizedBox(),
-        ),
-        throwsA(
-          isA<AssertionError>().having(
-            (error) => '${error.message}',
-            'message',
-            allOf(
-              contains('Cannot provide both a child and a builder.'),
-              contains('not both'),
+    testWidgets(
+      'fo06/us17/s11, fo06/us17/fr05/e01: child and builder together fail a '
+      'debug assertion that names the fix',
+      (tester) async {
+        expect(
+          () => ContainerLayout(
+            builder: (context, state) => const SizedBox(),
+            child: const SizedBox(),
+          ),
+          throwsA(
+            isA<AssertionError>().having(
+              (error) => '${error.message}',
+              'message',
+              allOf(
+                contains('Cannot provide both a child and a builder.'),
+                contains('not both'),
+              ),
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    testWidgets('us17/fr05/e02: neither child nor builder builds an empty '
+    testWidgets('fo06/us17/fr05/e02: neither child nor builder builds an empty '
         'box', (tester) async {
       await tester.pumpWidget(themedHost(const ContainerLayout()));
 
@@ -695,11 +749,11 @@ void main() {
       expect(_ring(tester), isTrue);
     });
 
-    test('us17/fr01, BP6, PD12: the builder and its state warn against '
+    test('fo06/us17/fr01, BP6, PD12: the builder and its state warn against '
         'color-only state (WCAG 1.4.1)', () {
       for (final path in [
         'lib/src/components/common/layout/container_layout.dart',
-        'lib/src/components/common/model/interaction.dart',
+        'lib/src/components/common/model/interaction_state.dart',
       ]) {
         expect(
           File(path).readAsStringSync(),

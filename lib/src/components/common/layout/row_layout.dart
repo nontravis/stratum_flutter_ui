@@ -16,7 +16,6 @@ class RowLayout extends FlexLayout {
     super.transformAlignment,
     super.keepAlive,
     super.repaintBoundary,
-    super.debug,
     super.semantics,
     super.onEndAnimate,
     super.interaction,

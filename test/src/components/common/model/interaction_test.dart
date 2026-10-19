@@ -259,48 +259,44 @@ void main() {
     }
   });
 
-  group('renames', () {
-    testWidgets('renames: a StratumInteraction still builds the tap '
-        'surface', (tester) async {
-      var taps = 0;
-      await tester.pumpWidget(
-        themedHost(
-          ContainerLayout(
-            // Testing the deprecated alias itself, so ignore the
-            // deprecation warning.
-            // ignore: deprecated_member_use_from_same_package
-            interaction: StratumInteraction(onTap: () => taps++),
-            child: _child,
-          ),
-        ),
+  group('R1: Interaction as a freezed value', () {
+    void tap() {}
+
+    test('R1: equal fields and the same callbacks are equal', () {
+      // Built at run time from a parameter, so the checks read `==`.
+      Interaction make({required bool disabled}) => Interaction(
+        onTap: tap,
+        disabled: disabled,
+        shortcuts: {const SingleActivator(LogicalKeyboardKey.enter): tap},
       );
 
-      await tester.tap(find.byType(StratumInkWell));
-      await tester.pump(kDoubleTapTimeout);
-
-      expect(taps, 1);
-    });
-  });
-
-  group('InteractionState', () {
-    InteractionState state({required bool hovered}) =>
-        InteractionState(hovered: hovered, focused: true);
-
-    test('us17/fr04: a default state has every value false', () {
-      const value = InteractionState();
-
-      expect(value.hovered, isFalse);
-      expect(value.pressed, isFalse);
-      expect(value.focused, isFalse);
-      expect(value.disabled, isFalse);
+      expect(make(disabled: false), make(disabled: false));
+      expect(make(disabled: false).hashCode, make(disabled: false).hashCode);
+      expect(make(disabled: false), isNot(make(disabled: true)));
     });
 
-    test('us17/fr01, PD11: states with the same values are equal and hash '
-        'alike; one different value is not equal', () {
-      expect(state(hovered: true), state(hovered: true));
-      expect(state(hovered: true), isNot(same(state(hovered: true))));
-      expect(state(hovered: true).hashCode, state(hovered: true).hashCode);
-      expect(state(hovered: true), isNot(state(hovered: false)));
+    test('R1: callbacks compare by identity', () {
+      expect(Interaction(onTap: () {}), isNot(Interaction(onTap: () {})));
+    });
+
+    test('R1: copyWith changes one field and keeps the callbacks', () {
+      final copy = Interaction(onTap: tap).copyWith(autofocus: true);
+
+      expect(copy.autofocus, isTrue);
+      expect(copy.onTap, tap);
+      expect(copy.tapTargetSize, TapTargetSize.platform);
+    });
+
+    test('5.3: copyWith(onTap: null) clears onTap and keeps the rest', () {
+      final set = Interaction(onTap: tap, autofocus: true);
+      final copy = set.copyWith(onTap: null);
+
+      expect(copy.onTap, isNull);
+      expect(copy.autofocus, isTrue);
+    });
+
+    test("R4 Q2: takes freezed's toString", () {
+      expect(const Interaction().toString(), startsWith('Interaction('));
     });
   });
 }

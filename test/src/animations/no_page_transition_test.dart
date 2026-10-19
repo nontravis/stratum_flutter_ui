@@ -31,7 +31,7 @@ Future<NoPageTransition> _push(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('us05/fr02/e02: the durations stay zero under a theme that '
+  testWidgets('fo05/us05/fr02/e02: the durations stay zero under a theme that '
       'names a transition', (tester) async {
     final route = await _push(tester);
 
@@ -39,7 +39,7 @@ void main() {
     expect(route.reverseTransitionDuration, Duration.zero);
   });
 
-  testWidgets('us05/s3: the page shows in the next frame with no '
+  testWidgets('fo05/us05/s3: the page shows in the next frame with no '
       'transition', (tester) async {
     await _push(tester);
 
@@ -50,7 +50,9 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr02/e01: a pop leaves with no transition', (tester) async {
+  testWidgets('fo05/us05/fr02/e01: a pop leaves with no transition', (
+    tester,
+  ) async {
     final route = await _push(tester);
     route.navigator!.pop();
     await tester.pump();

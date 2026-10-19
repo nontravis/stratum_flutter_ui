@@ -10,7 +10,7 @@ import '../../bin/stratum_theme.dart';
 
 void main() {
   for (final id in ['ocean', 'sunset']) {
-    test('us02/fr01/e08, f01 us09/fr01/e03: packing '
+    test('us02/fr01/e08, f01/us09/fr01/e03: packing '
         'example/assets/remote_themes/$id gives the committed $id.zip byte '
         'for byte', () async {
       final out = Directory.systemTemp.createTempSync('stratum_theme_ex_');

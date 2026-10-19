@@ -28,6 +28,8 @@ import 'package:flutter/rendering.dart'
         applyGrowthDirectionToAxisDirection;
 import 'package:flutter/scheduler.dart'
     show SchedulerPhase, Ticker, TickerCallback;
+import 'package:stratum_ui/src/components/common/ink_well.dart'
+    show ReorderItemRoot;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
@@ -120,6 +122,7 @@ class ReorderableListViewLayout extends StatelessWidget {
     this.autoScrollerVelocityScalar,
     this.focusable,
     this.semanticsLabel,
+    this.scrollFocusStyle,
     this.findChildIndexCallback,
     this.moveAnnouncement,
     this.atStartAnnouncement,
@@ -198,6 +201,10 @@ class ReorderableListViewLayout extends StatelessWidget {
   /// Names the focusable list for a screen reader.
   final String? semanticsLabel;
 
+  /// The view's focus ring style, level 3 (FO-06 US-07 FR-03), beside
+  /// `style`, which draws the box.
+  final ScrollFocusStyle? scrollFocusStyle;
+
   /// Returns the index in the app's current data of the item whose key is
   /// [key], the key [itemBuilder] gave it; null when the app does not know
   /// it. An answer outside `0` to `itemCount - 1` counts as null.
@@ -240,6 +247,7 @@ class ReorderableListViewLayout extends StatelessWidget {
       primary: primary,
       semanticsLabel: semanticsLabel,
       showScrollbar: showScrollbar,
+      scrollFocusStyle: scrollFocusStyle,
       builder: (context, controller, padding) => _ReorderableBody(
         layout: this,
         controller: controller,
@@ -321,15 +329,6 @@ class ReorderableItemsController {
     if (_body == body) _body = null;
   }
 }
-
-/// [ReorderableItemsController]'s name before naming rule R2, kept one
-/// minor version.
-@Deprecated(
-  'Use ReorderableItemsController instead. '
-  'StratumReorderableItemsController will be removed after one minor '
-  'version.',
-)
-typedef StratumReorderableItemsController = ReorderableItemsController;
 
 /// The reorderable list, a [SliverReorderableList] in its own scroll view,
 /// with the per-item wrappers and the reorder keys.
@@ -3992,11 +3991,13 @@ class _ReorderableBodyState extends State<_ReorderableBody>
     );
   }
 
-  /// [item] with its long-press listener and its reorder keys. A leaving
-  /// item keeps the same widgets, so its State stays, but takes no
-  /// long-press drag and registers no node.
+  /// [item] with its long-press listener and its reorder keys. It wraps
+  /// the item first in the item root marker, which a leaving item keeps,
+  /// inactive (layout s03 invariant 81). A leaving item keeps the same
+  /// widgets, so its State stays, but takes no long-press drag and
+  /// registers no node.
   Widget _wrapItem(Widget item, {required int index, required bool exiting}) {
-    var current = item;
+    Widget current = ReorderItemRoot(active: !exiting, child: item);
     if (_layout.longPressDrag) {
       current = ReorderableDelayedDragStartListener(
         index: index,

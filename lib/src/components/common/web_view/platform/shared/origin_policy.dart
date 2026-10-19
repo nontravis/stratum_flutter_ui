@@ -1,3 +1,5 @@
+import 'package:stratum_ui/src/components/common/model/web_view/redacted_url.dart';
+
 /// Returns the origin of [url]: lowercase scheme and host, plus the port.
 ///
 /// Returns `null` when [url] is `null` or has no host, for example
@@ -23,19 +25,25 @@ bool isAllowedOrigin(Uri? origin, Set<Uri> allowed) {
   return allowed.any((entry) => originOf(entry) == candidate);
 }
 
-/// Describes why [entry] can never match a page origin, or returns `null`
-/// when it works as an allowlist entry.
+/// Describes why the 1-based [position] entry [entry] can never match a
+/// page origin, or returns `null` when it works as an allowlist entry.
 ///
 /// Pages report http or https origins with an ASCII (punycode) host. An entry
 /// without a scheme, with another scheme, or with a Unicode host (which
 /// [Uri] percent-encodes instead of converting to punycode) never matches.
-String? allowedOriginProblem(Uri entry) {
+/// Names [entry] by [position] plus [redactedUrl] (NFR-Sec06): a debug
+/// assert never prints an entry's user info, path, query, or fragment.
+String? allowedOriginProblem(int position, Uri entry) {
   if (!entry.isScheme('http') && !entry.isScheme('https')) {
-    return '$entry needs an http or https scheme';
+    return 'entry $position (${redactedUrl(entry)}) needs an http or '
+        'https scheme';
   }
-  if (entry.host.isEmpty) return '$entry has no host';
+  if (entry.host.isEmpty) {
+    return 'entry $position (${redactedUrl(entry)}) has no host';
+  }
   if (entry.host.contains('%')) {
-    return '$entry has a non-ASCII host; use its punycode form (xn--…)';
+    return 'entry $position (${redactedUrl(entry)}) has a non-ASCII host; '
+        'use its punycode form (xn--…)';
   }
   return null;
 }

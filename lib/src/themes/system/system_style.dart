@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/system_style.freezed.dart';
 
@@ -52,7 +52,7 @@ enum SystemBarMode {
 /// [appSwitcherLabel] come from Dart only. Set it app-wide with
 /// `StratumThemeApplication(systemStyle:)` and per page with
 /// `SystemStyleScope`.
-@themeModel
+@valueModel
 class SystemStyle with _$SystemStyle {
   const new({
     this.statusBarIcons,

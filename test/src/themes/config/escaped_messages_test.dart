@@ -17,7 +17,7 @@ StratumThemeFormatException _report(String body) {
 }
 
 void main() {
-  group('fo01 us02/fr01/e05, minor8, r8: yaml-supplied text is escaped', () {
+  group('fo01/us02/fr01/e05, minor8, r8: yaml-supplied text is escaped', () {
     test('a key with control and Thai characters: message and both texts '
         'escaped, the path field raw', () {
       final report = _report('space:\n  "md\\aไทย": 4');

@@ -1,6 +1,6 @@
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
 import 'package:stratum_ui/src/components/common/utility/focus_border.dart'
-    show focusBorderOutsideReach;
+    show focusBorderOutsideReach, focusStyleOver;
 import 'package:stratum_ui/src/src.dart';
 
 /// The scroll behavior for a layout scroll view at [context].
@@ -231,6 +231,9 @@ enum ScrollFocusMode {
 /// the body to its end and collapses the header. When the inner controller
 /// holds several positions, as during a tab swipe, the keys move the one
 /// of the scroll view below this widget.
+///
+/// Exported from `layout/layout.dart`, so an app names it as the key of
+/// every scrolling area's app-wide `ScrollFocusStyle`.
 class ScrollFocus extends StatefulWidget {
   const new({
     super.key,
@@ -243,6 +246,7 @@ class ScrollFocus extends StatefulWidget {
     this.semanticsLabel,
     this.borderRadius,
     this.ownsFocus = true,
+    this.customStyle,
     required this.child,
   });
 
@@ -273,6 +277,12 @@ class ScrollFocus extends StatefulWidget {
   /// cannot take focus, such as a disabled or hover-only one, leaves it
   /// true.
   final bool ownsFocus;
+
+  /// This area's own style: its `focus` field restyles this area's focus
+  /// ring, level 3, over the app-wide `ScrollFocusStyle` under `ScrollFocus`
+  /// in `componentPartDefaults`, level 2 (FO-06 US-07 FR-03); every field of
+  /// it takes effect (NFR-E02).
+  final ScrollFocusStyle? customStyle;
   final Widget child;
 
   /// The controller that the scroll view below the nearest [ScrollFocus]
@@ -397,6 +407,10 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
   void didUpdateWidget(ScrollFocus oldWidget) {
     super.didUpdateWidget(oldWidget);
     assert(oldWidget.mode == widget.mode, 'ScrollFocus.mode cannot change');
+    if (widget.customStyle != oldWidget.customStyle &&
+        (_node?.hasPrimaryFocus ?? false)) {
+      _placeRingAfterLayout();
+    }
     final owned = oldWidget.ownsFocus;
     final owns = widget.ownsFocus;
     if (!oldWidget.focusable || !widget.focusable || owned == owns) return;
@@ -452,15 +466,28 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
     });
   }
 
-  /// Whether the box grown by the ring's resolved gap and width,
-  /// [focusBorderOutsideReach], lies wholly inside the window (R8).
+  /// Levels 2 and 3 of this area's ring, laid together (PD4).
+  StratumFocusBorderStyle? _ringStyle(BuildContext context) => focusStyleOver(
+    StratumComponentDefaults.partsOf<ScrollFocusStyle>(
+      context,
+      ScrollFocus,
+    )?.focus,
+    widget.customStyle?.focus,
+  );
+
+  /// Whether the box grown by the ring's resolved gap and width, and a
+  /// second ring's width when one is set, [focusBorderOutsideReach], lies
+  /// wholly inside the window (FO-06 US-07 FR-03 E01).
   bool _outerRingFits() {
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return true;
-    final ring = MatrixUtils.transformRect(
-      box.getTransformTo(null),
-      Offset.zero & box.size,
-    ).inflate(focusBorderOutsideReach(context));
+    final ring =
+        MatrixUtils.transformRect(
+          box.getTransformTo(null),
+          Offset.zero & box.size,
+        ).inflate(
+          focusBorderOutsideReach(context, customStyle: _ringStyle(context)),
+        );
     final view = View.of(context);
     final window = view.physicalSize / view.devicePixelRatio;
     return ring.left >= 0 &&
@@ -775,6 +802,7 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
         state: _ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
         insideEdge: _ringInside,
         borderRadius: widget.borderRadius,
+        customStyle: _ringStyle(context),
         child: result,
       );
     }
@@ -1245,6 +1273,7 @@ class ScrollViewBox extends StatelessWidget {
     this.pageCount,
     this.semanticsLabel,
     this.showScrollbar,
+    this.scrollFocusStyle,
     this.scrollsPadding = true,
     required this.builder,
   });
@@ -1267,6 +1296,10 @@ class ScrollViewBox extends StatelessWidget {
 
   /// Null keeps the scroll behavior's choice: a scrollbar on desktop.
   final bool? showScrollbar;
+
+  /// The view's ring style, level 3, beside [style], which draws the box;
+  /// handed to [ScrollFocus] as its `customStyle` (FO-06 US-07 FR-03).
+  final ScrollFocusStyle? scrollFocusStyle;
 
   /// Whether `style.padding` scrolls with the content, handed to [builder];
   /// false keeps it on the box, where it insets the viewport.
@@ -1305,6 +1338,7 @@ class ScrollViewBox extends StatelessWidget {
       pageCount: pageCount,
       semanticsLabel: semanticsLabel,
       borderRadius: style?.borderRadius,
+      customStyle: scrollFocusStyle,
       child: view,
     );
   }

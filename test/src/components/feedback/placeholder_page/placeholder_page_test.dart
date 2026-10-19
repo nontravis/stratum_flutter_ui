@@ -57,8 +57,8 @@ Color? _color(WidgetTester tester, String text) =>
     tester.widget<Text>(find.text(text)).style?.color;
 
 void main() {
-  group('us01/fr01: the placeholder content', () {
-    testWidgets('us01/fr01/e01: with no message and no icon the title '
+  group('co05_08/us01/fr01: the placeholder content', () {
+    testWidgets('co05_08/us01/fr01/e01: with no message and no icon the title '
         'shows alone', (tester) async {
       await tester.pumpWidget(themedHost(_widget(title: _title, icon: false)));
       expect(find.text(_title), findsOneWidget);
@@ -66,7 +66,7 @@ void main() {
       expect(find.byType(Icon), findsNothing);
     });
 
-    testWidgets('us01/fr01/e02: the icon shows above the title and the '
+    testWidgets('co05_08/us01/fr01/e02: the icon shows above the title and the '
         'message below it, spaced by the theme', (tester) async {
       await tester.pumpWidget(
         themedHost(_widget(title: _title, message: _message)),
@@ -78,7 +78,7 @@ void main() {
       expect(message.top - title.bottom, _theme(tester).space.sm);
     });
 
-    testWidgets('us01/fr01: the page fills its parent and centers its '
+    testWidgets('co05_08/us01/fr01: the page fills its parent and centers its '
         'content', (tester) async {
       await tester.pumpWidget(
         themedHost(
@@ -100,7 +100,7 @@ void main() {
       );
     });
 
-    testWidgets('us01/fr01/e03: the page adds no app bar and no back '
+    testWidgets('co05_08/us01/fr01/e03: the page adds no app bar and no back '
         'action', (tester) async {
       await tester.pumpWidget(themedHost(_widget(message: _message)));
       for (final type in [AppBar, BackButton, Scaffold]) {
@@ -111,74 +111,81 @@ void main() {
       }
     });
 
-    testWidgets('us01/fr01: the icon is 48 in the secondary icon color', (
-      tester,
-    ) async {
-      await tester.pumpWidget(themedHost(_widget()));
-      final icon = find.byType(Icon);
-      final iconTheme = IconTheme.of(tester.element(icon));
-      expect(iconTheme.size, StratumPlaceholderPage.iconSize);
-      expect(StratumPlaceholderPage.iconSize, 48);
-      expect(
-        iconTheme.color,
-        isSameColorAs(fakeTheme.color.icon.defaults.secondary),
-      );
-      expect(tester.getSize(icon), const Size(48, 48));
-    });
-
-    testWidgets('us01/fr01: the title is a 20 header and the message 16 '
-        'body text, both in the primary text color', (tester) async {
-      await tester.pumpWidget(
-        themedHost(_widget(title: _title, message: _message)),
-      );
-      final context = tester.element(_page);
-      expect(
-        tester.widget<Text>(find.text(_title)).style,
-        StratumTextStyle.header.s20.colorPrimary.build(context),
-      );
-      expect(
-        tester.widget<Text>(find.text(_message)).style,
-        StratumTextStyle.body.s16.colorPrimary.build(context),
-      );
-      for (final text in [_title, _message]) {
+    testWidgets(
+      'co05_08/us01/fr01: the icon is 48 in the secondary icon color',
+      (tester) async {
+        await tester.pumpWidget(themedHost(_widget()));
+        final icon = find.byType(Icon);
+        final iconTheme = IconTheme.of(tester.element(icon));
+        expect(iconTheme.size, StratumPlaceholderPage.iconSize);
+        expect(StratumPlaceholderPage.iconSize, 48);
         expect(
-          _color(tester, text),
-          isSameColorAs(fakeTextColors[FontColor.primary]!),
+          iconTheme.color,
+          isSameColorAs(fakeTheme.color.icon.defaults.secondary),
+        );
+        expect(tester.getSize(icon), const Size(48, 48));
+      },
+    );
+
+    testWidgets(
+      'co05_08/us01/fr01: the title is a 20 header and the message 16 '
+      'body text, both in the primary text color',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(_widget(title: _title, message: _message)),
+        );
+        final context = tester.element(_page);
+        expect(
+          tester.widget<Text>(find.text(_title)).style,
+          StratumTextStyle.header.s20.colorPrimary.build(context),
         );
         expect(
-          tester.widget<Text>(find.text(text)).textAlign,
-          TextAlign.center,
+          tester.widget<Text>(find.text(_message)).style,
+          StratumTextStyle.body.s16.colorPrimary.build(context),
         );
-      }
-    });
+        for (final text in [_title, _message]) {
+          expect(
+            _color(tester, text),
+            isSameColorAs(fakeTextColors[FontColor.primary]!),
+          );
+          expect(
+            tester.widget<Text>(find.text(text)).textAlign,
+            TextAlign.center,
+          );
+        }
+      },
+    );
 
-    testWidgets('us01/fr01/e04: at twice the text size the text wraps, the '
-        'page scrolls, and the icon stays 48', (tester) async {
-      await tester.pumpWidget(
-        MediaQuery(
-          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-          child: themedHost(
-            SizedBox(
-              width: 200,
-              height: 150,
-              child: _widget(title: _title, message: _message * 3),
+    testWidgets(
+      'co05_08/us01/fr01/e04: at twice the text size the text wraps, the '
+      'page scrolls, and the icon stays 48',
+      (tester) async {
+        await tester.pumpWidget(
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: themedHost(
+              SizedBox(
+                width: 200,
+                height: 150,
+                child: _widget(title: _title, message: _message * 3),
+              ),
             ),
           ),
-        ),
-      );
-      expect(tester.takeException(), isNull);
-      expect(
-        tester.getSize(find.text(_message * 3)).width,
-        lessThanOrEqualTo(200),
-      );
-      final scroll = tester.state<ScrollableState>(
-        find.descendant(of: _page, matching: find.byType(Scrollable)),
-      );
-      expect(scroll.position.maxScrollExtent, greaterThan(0));
-      expect(tester.getSize(find.byType(Icon)), const Size(48, 48));
-    });
+        );
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getSize(find.text(_message * 3)).width,
+          lessThanOrEqualTo(200),
+        );
+        final scroll = tester.state<ScrollableState>(
+          find.descendant(of: _page, matching: find.byType(Scrollable)),
+        );
+        expect(scroll.position.maxScrollExtent, greaterThan(0));
+        expect(tester.getSize(find.byType(Icon)), const Size(48, 48));
+      },
+    );
 
-    testWidgets('us01/fr01/e05: a screen reader reads the title as a '
+    testWidgets('co05_08/us01/fr01/e05: a screen reader reads the title as a '
         'heading, the message as text, and skips the icon', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -193,75 +200,94 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us01/fr01/s03-6: a caller icon with its own size still '
-        'lays out at 48', (tester) async {
-      await tester.pumpWidget(
-        themedHost(
-          const StratumPlaceholderPage(
-            title: _title,
-            icon: Icon(Icons.construction, size: 96, semanticLabel: _iconLabel),
-          ),
-        ),
-      );
-      expect(tester.getRect(find.byType(Icon)).size, const Size(48, 48));
-    });
-
-    testWidgets('us01/fr01/e04: an unbroken token at twice the text size '
-        'wraps with no exception and the page scrolls', (tester) async {
-      final token = 'x' * 200;
-      await tester.pumpWidget(
-        MediaQuery(
-          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-          child: themedHost(
-            SizedBox(
-              width: 200,
-              height: 150,
-              child: _widget(title: _title, message: token),
+    testWidgets(
+      'co05_08/us01/fr01/s03-6: a caller icon with its own size still '
+      'lays out at 48',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const StratumPlaceholderPage(
+              title: _title,
+              icon: Icon(
+                Icons.construction,
+                size: 96,
+                semanticLabel: _iconLabel,
+              ),
             ),
           ),
-        ),
-      );
-      expect(tester.takeException(), isNull);
-      final scroll = tester.state<ScrollableState>(
-        find.descendant(of: _page, matching: find.byType(Scrollable)),
-      );
-      expect(scroll.position.maxScrollExtent, greaterThan(0));
-    });
+        );
+        expect(tester.getRect(find.byType(Icon)).size, const Size(48, 48));
+      },
+    );
+
+    testWidgets(
+      'co05_08/us01/fr01/e04: an unbroken token at twice the text size '
+      'wraps with no exception and the page scrolls',
+      (tester) async {
+        final token = 'x' * 200;
+        await tester.pumpWidget(
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: themedHost(
+              SizedBox(
+                width: 200,
+                height: 150,
+                child: _widget(title: _title, message: token),
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        final scroll = tester.state<ScrollableState>(
+          find.descendant(of: _page, matching: find.byType(Scrollable)),
+        );
+        expect(scroll.position.maxScrollExtent, greaterThan(0));
+      },
+    );
   });
 
-  group('us01/fr02: a default title in English or Thai', () {
-    testWidgets('us01/fr02/e01: a Thai locale with no title shows the Thai '
-        'title', (tester) async {
-      await tester.pumpWidget(
-        _localeHost(const Locale('th'), _widget(icon: false)),
-      );
-      expect(find.text('เร็วๆ นี้'), findsOneWidget);
-    });
+  group('co05_08/us01/fr02: a default title in English or Thai', () {
+    testWidgets(
+      'co05_08/us01/fr02/e01: a Thai locale with no title shows the Thai '
+      'title',
+      (tester) async {
+        await tester.pumpWidget(
+          _localeHost(const Locale('th'), _widget(icon: false)),
+        );
+        expect(find.text('เร็วๆ นี้'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us01/fr02/e02: a Japanese locale with no title shows the '
-        'English title', (tester) async {
-      await tester.pumpWidget(
-        _localeHost(const Locale('ja'), _widget(icon: false)),
-      );
-      expect(find.text('Coming soon'), findsOneWidget);
-    });
+    testWidgets(
+      'co05_08/us01/fr02/e02: a Japanese locale with no title shows the '
+      'English title',
+      (tester) async {
+        await tester.pumpWidget(
+          _localeHost(const Locale('ja'), _widget(icon: false)),
+        );
+        expect(find.text('Coming soon'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us01/fr02/e03: a passed title replaces the built-in one, '
-        'for a screen reader too', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        _localeHost(const Locale('th'), _widget(title: _title)),
-      );
-      expect(find.text('เร็วๆ นี้'), findsNothing);
-      expect(find.bySemanticsLabel('เร็วๆ นี้'), findsNothing);
-      expect(
-        tester.getSemantics(find.text(_title)),
-        isSemantics(label: _title, isHeader: true),
-      );
-      handle.dispose();
-    });
+    testWidgets(
+      'co05_08/us01/fr02/e03: a passed title replaces the built-in one, '
+      'for a screen reader too',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _localeHost(const Locale('th'), _widget(title: _title)),
+        );
+        expect(find.text('เร็วๆ นี้'), findsNothing);
+        expect(find.bySemanticsLabel('เร็วๆ นี้'), findsNothing);
+        expect(
+          tester.getSemantics(find.text(_title)),
+          isSemantics(label: _title, isHeader: true),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us01/fr02/e04: no message passed shows no message', (
+    testWidgets('co05_08/us01/fr02/e04: no message passed shows no message', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -272,21 +298,24 @@ void main() {
   });
 
   group('us01: mark a screen not built yet', () {
-    testWidgets('us01/s1: a Thai app that passes no text shows the Thai '
-        'title alone, centered', (tester) async {
-      await tester.pumpWidget(
-        _localeHost(const Locale('th'), const StratumPlaceholderPage()),
-      );
-      expect(find.text('เร็วๆ นี้'), findsOneWidget);
-      expect(_texts, findsOneWidget);
-      expect(find.byType(Icon), findsNothing);
-      expect(
-        tester.getCenter(find.text('เร็วๆ นี้')),
-        offsetMoreOrLessEquals(tester.getCenter(_page), epsilon: 0.5),
-      );
-    });
+    testWidgets(
+      'co05_08/us01/s1: a Thai app that passes no text shows the Thai '
+      'title alone, centered',
+      (tester) async {
+        await tester.pumpWidget(
+          _localeHost(const Locale('th'), const StratumPlaceholderPage()),
+        );
+        expect(find.text('เร็วๆ นี้'), findsOneWidget);
+        expect(_texts, findsOneWidget);
+        expect(find.byType(Icon), findsNothing);
+        expect(
+          tester.getCenter(find.text('เร็วๆ นี้')),
+          offsetMoreOrLessEquals(tester.getCenter(_page), epsilon: 0.5),
+        );
+      },
+    );
 
-    testWidgets('us01/s2: an English app shows the English title', (
+    testWidgets('co05_08/us01/s2: an English app shows the English title', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -295,7 +324,7 @@ void main() {
       expect(find.text('Coming soon'), findsOneWidget);
     });
 
-    testWidgets('us01/s3: a Japanese app shows the English title', (
+    testWidgets('co05_08/us01/s3: a Japanese app shows the English title', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -304,91 +333,104 @@ void main() {
       expect(find.text('Coming soon'), findsOneWidget);
     });
 
-    testWidgets("us01/s4: the app's own title replaces the built-in one", (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _localeHost(
-          const Locale('th'),
-          const StratumPlaceholderPage(title: _title),
-        ),
-      );
-      expect(find.text(_title), findsOneWidget);
-      expect(find.text('เร็วๆ นี้'), findsNothing);
-    });
+    testWidgets(
+      "co05_08/us01/s4: the app's own title replaces the built-in one",
+      (tester) async {
+        await tester.pumpWidget(
+          _localeHost(
+            const Locale('th'),
+            const StratumPlaceholderPage(title: _title),
+          ),
+        );
+        expect(find.text(_title), findsOneWidget);
+        expect(find.text('เร็วๆ นี้'), findsNothing);
+      },
+    );
 
-    testWidgets('us01/s5: the icon shows above the title and the message '
-        'below it', (tester) async {
-      await tester.pumpWidget(
-        themedHost(_widget(title: _title, message: _message)),
-      );
-      final title = tester.getRect(find.text(_title));
-      expect(tester.getRect(find.byType(Icon)).bottom, lessThan(title.top));
-      expect(
-        tester.getRect(find.text(_message)).top,
-        greaterThan(title.bottom),
-      );
-    });
+    testWidgets(
+      'co05_08/us01/s5: the icon shows above the title and the message '
+      'below it',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(_widget(title: _title, message: _message)),
+        );
+        final title = tester.getRect(find.text(_title));
+        expect(tester.getRect(find.byType(Icon)).bottom, lessThan(title.top));
+        expect(
+          tester.getRect(find.text(_message)).top,
+          greaterThan(title.bottom),
+        );
+      },
+    );
 
-    testWidgets("us01/s6: inside the app's page only the app's app bar and "
-        'back button show above it', (tester) async {
-      await tester.pumpWidget(
-        themedHost(
-          MaterialApp(
-            home: Scaffold(
-              appBar: AppBar(
-                leading: const BackButton(),
-                title: const Text('Reports'),
+    testWidgets(
+      "co05_08/us01/s6: inside the app's page only the app's app bar and "
+      'back button show above it',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            MaterialApp(
+              home: Scaffold(
+                appBar: AppBar(
+                  leading: const BackButton(),
+                  title: const Text('Reports'),
+                ),
+                body: _widget(message: _message),
               ),
-              body: _widget(message: _message),
             ),
           ),
-        ),
-      );
-      expect(find.byType(AppBar), findsOneWidget);
-      expect(find.byType(BackButton), findsOneWidget);
-      expect(
-        tester.getRect(_page).top,
-        greaterThanOrEqualTo(tester.getRect(find.byType(AppBar)).bottom),
-      );
-    });
+        );
+        expect(find.byType(AppBar), findsOneWidget);
+        expect(find.byType(BackButton), findsOneWidget);
+        expect(
+          tester.getRect(_page).top,
+          greaterThanOrEqualTo(tester.getRect(find.byType(AppBar)).bottom),
+        );
+      },
+    );
 
-    testWidgets('us01/s7: a screen reader reads the Thai built-in title as a '
-        'heading and skips the icon', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(_localeHost(const Locale('th'), _widget()));
-      expect(
-        tester.getSemantics(find.text('เร็วๆ นี้')),
-        isSemantics(label: 'เร็วๆ นี้', isHeader: true),
-      );
-      expect(find.semantics.byLabel(_iconLabel), findsNothing);
-      handle.dispose();
-    });
+    testWidgets(
+      'co05_08/us01/s7: a screen reader reads the Thai built-in title as a '
+      'heading and skips the icon',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(_localeHost(const Locale('th'), _widget()));
+        expect(
+          tester.getSemantics(find.text('เร็วๆ นี้')),
+          isSemantics(label: 'เร็วๆ นี้', isHeader: true),
+        );
+        expect(find.semantics.byLabel(_iconLabel), findsNothing);
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us01/s8: at twice the text size a long message wraps and '
-        'the page scrolls to show it all', (tester) async {
-      await tester.pumpWidget(
-        MediaQuery(
-          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-          child: themedHost(
-            SizedBox(
-              width: 200,
-              height: 150,
-              child: _widget(title: _title, message: _message * 3),
+    testWidgets(
+      'co05_08/us01/s8: at twice the text size a long message wraps and '
+      'the page scrolls to show it all',
+      (tester) async {
+        await tester.pumpWidget(
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: themedHost(
+              SizedBox(
+                width: 200,
+                height: 150,
+                child: _widget(title: _title, message: _message * 3),
+              ),
             ),
           ),
-        ),
-      );
-      expect(tester.takeException(), isNull);
-      expect(
-        tester.getSize(find.text(_message * 3)).width,
-        lessThanOrEqualTo(200),
-      );
-      final scroll = tester.state<ScrollableState>(
-        find.descendant(of: _page, matching: find.byType(Scrollable)),
-      );
-      expect(scroll.position.maxScrollExtent, greaterThan(0));
-    });
+        );
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getSize(find.text(_message * 3)).width,
+          lessThanOrEqualTo(200),
+        );
+        final scroll = tester.state<ScrollableState>(
+          find.descendant(of: _page, matching: find.byType(Scrollable)),
+        );
+        expect(scroll.position.maxScrollExtent, greaterThan(0));
+      },
+    );
   });
 
   group('StratumPlaceholderPage accessibility gate', () {

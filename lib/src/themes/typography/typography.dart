@@ -1,9 +1,9 @@
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 import 'package:stratum_ui/src/themes/typography/typography_parser.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 export 'typography_models.dart';
 
@@ -11,7 +11,7 @@ part 'generated/typography.freezed.dart';
 
 /// One entry of `typography.types`. There is no `table` entry: `table`
 /// reads `body`'s style in code and always draws tabular figures.
-@themeModel
+@valueModel
 abstract class StratumTypeStyle with _$StratumTypeStyle {
   const factory({
     /// The weight when the text style sets none.
@@ -33,7 +33,7 @@ abstract class StratumTypeStyle with _$StratumTypeStyle {
 }
 
 /// The typography of a theme: the `typography:` subtree of `theme.yaml`.
-@themeModel
+@valueModel
 abstract class StratumTypography with _$StratumTypography {
   const factory({
     /// Each font by its key.
@@ -47,14 +47,12 @@ abstract class StratumTypography with _$StratumTypography {
     /// its style is `body`'s, read in code.
     required Map<FontType, StratumTypeStyle> types,
 
-    /// The size each window size adds. A window size the yaml map omits
-    /// takes the value of the nearest smaller window size it names, else
-    /// of the smallest one it names; a theme without the map adds 0
-    /// everywhere.
-    @Default(
-      StratumByWindowSize<StratumDimension>.all(StratumDimension.fixed(0)),
-    )
-    StratumByWindowSize<StratumDimension> scaleByWindowSize,
+    /// The size each window size adds, or null when the theme names no
+    /// window size. A window size the yaml map omits takes the value of
+    /// the nearest smaller window size it names, else of the smallest one
+    /// it names; with neither this map nor a type's own map set, the
+    /// scale adds 0.
+    StratumByWindowSize<StratumDimension>? scaleByWindowSize,
   }) = _StratumTypography;
 
   /// Parses the `typography:` node of one `theme.yaml` file.

@@ -36,9 +36,8 @@ bool isDrawableSize(double value) => value.isFinite && value > 0;
 /// of steps 5, 6, and 8).
 ///
 /// [window] names the window size, or is null when none is known. The window
-/// scale is [ownScale]'s entry at [window], the type's own; else
-/// [themeScale]'s entry at [window], at the nearest smaller window size it
-/// names, or at the smallest one it names (`windowSizeEntryIndex`); else
+/// scale is the entry `windowScaleSource` picks over [ownScale] and
+/// [themeScale], the type's own winning at the window size found; else
 /// none. Both maps key by the names of `windowSizeNames`. [scale] is the
 /// text scaler; the default is text scale 1.
 ///
@@ -70,6 +69,33 @@ TextSize textSizeOf({
   );
 }
 
+/// The window size whose window scale a text reads at [window] (FO-02
+/// US-04 FR-01 and FR-02): [window] itself when either map sets it, else
+/// the nearest smaller window size either map sets, else the smallest one
+/// either sets, in `windowSizeNames` order. `own` is whether the type's
+/// own map sets the window size found, and wins there. Null when [window]
+/// is null or neither map sets any window size.
+///
+/// [ownSets] and [themeSets] say whether the type's own and the theme-wide
+/// `scaleByWindowSize` set a window size name, so `textSizeOf` asks the
+/// parsed maps and `readTypography`'s draw-size check asks the keys the
+/// raw yaml declares; both pick one entry (FO-02 typography s01 Shared
+/// size function).
+({String name, bool own})? windowScaleSource(
+  String? window, {
+  required bool Function(String name) ownSets,
+  required bool Function(String name) themeSets,
+}) {
+  if (window == null) return null;
+  final index = windowSizeEntryIndex(windowSizeNames.indexOf(window), (index) {
+    final name = windowSizeNames[index];
+    return ownSets(name) || themeSets(name);
+  });
+  if (index == null) return null;
+  final name = windowSizeNames[index];
+  return (name: name, own: ownSets(name));
+}
+
 /// The size of [defined] closest to [target], the smaller one on a tie
 /// (FO-02 US-02 FR-02); null when [defined] is empty.
 FontSize? nearestFontSize(Iterable<FontSize> defined, double target) {
@@ -89,18 +115,14 @@ WindowScaleEntry? _windowScaleEntry(
   Map<String, StratumDimension>? ownScale,
   Map<String, StratumDimension>? themeScale,
 ) {
-  if (window == null) return null;
-  if (ownScale?[window] case final value?) {
-    return (name: window, own: true, value: value);
-  }
-  if (themeScale == null) return null;
-  final index = windowSizeEntryIndex(
-    windowSizeNames.indexOf(window),
-    (index) => themeScale.containsKey(windowSizeNames[index]),
+  final source = windowScaleSource(
+    window,
+    ownSets: (name) => ownScale?.containsKey(name) ?? false,
+    themeSets: (name) => themeScale?.containsKey(name) ?? false,
   );
-  if (index == null) return null;
-  final name = windowSizeNames[index];
-  return (name: name, own: false, value: themeScale[name]!);
+  if (source == null) return null;
+  final (:name, :own) = source;
+  return (name: name, own: own, value: (own ? ownScale : themeScale)![name]!);
 }
 
 double _unscaled(double size) => size;

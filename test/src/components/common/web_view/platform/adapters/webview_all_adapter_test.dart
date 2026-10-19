@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/adapters/webview_all_adapter.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 import 'package:webview_platform_interface/webview_platform_interface.dart';
 
 import '../../fakes/fake_webview_all_platform.dart';
@@ -17,7 +17,7 @@ void main() {
     (TargetPlatform.linux, true),
   ]) {
     test(
-      'us01/fr02/e04: a resource error with code 14 on ${platform.name} '
+      'co01_02/us01/fr02/e04: a resource error with code 14 on ${platform.name} '
       'is ${reported ? 'reported' : 'dropped as a cancelled navigation'}',
       () async {
         debugDefaultTargetPlatformOverride = platform;
@@ -57,18 +57,21 @@ void main() {
       expect(harness.channelNames, {'StratumBridge'});
     });
 
-    test('us03/fr01/e07: a message is judged by the last main-frame page '
-        'start at receipt, because the platform names no sender', () {
-      harness
-        ..sendBridgeMessage('before', senderUrl: appPage.toString())
-        ..startPage(appPage.toString())
-        ..sendBridgeMessage('after', senderUrl: 'https://evil.example.net/');
-      expect(listener.messages, [
-        StratumWebViewMessage(data: 'after', origin: appOrigin),
-      ]);
-    });
+    test(
+      'co01_02/us03/fr01/e07: a message is judged by the last main-frame page '
+      'start at receipt, because the platform names no sender',
+      () {
+        harness
+          ..sendBridgeMessage('before', senderUrl: appPage.toString())
+          ..startPage(appPage.toString())
+          ..sendBridgeMessage('after', senderUrl: 'https://evil.example.net/');
+        expect(listener.messages, [
+          StratumWebViewMessage(data: 'after', origin: appOrigin),
+        ]);
+      },
+    );
 
-    test('us03/fr01/e06: a sub-frame message arrives stamped with the '
+    test('co01_02/us03/fr01/e06: a sub-frame message arrives stamped with the '
         'top-level origin', () {
       harness
         ..startPage(appPage.toString())

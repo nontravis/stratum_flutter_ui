@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/stratum_toast_placement.freezed.dart';
 
@@ -17,7 +18,7 @@ enum StratumToastCorner {
 enum StratumToastEdge { top, bottom }
 
 /// Where a notice shows: a float corner, or a solid edge (US-01 FR-02).
-@freezed
+@valueModel
 sealed class StratumToastPlacement with _$StratumToastPlacement {
   /// A float notice in [corner], no wider than the theme's notice width and
   /// the window less the float margin (US-01 FR-02).

@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from c0d459a. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 7a50510. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 
@@ -9,5 +9,4 @@ export 'column_layout.dart';
 export 'row_layout.dart';
 export 'container_layout.dart';
 export 'animated_styled_box.dart';
-export 'focus_spread.dart';
 export 'reorderable_list_view_layout.dart';

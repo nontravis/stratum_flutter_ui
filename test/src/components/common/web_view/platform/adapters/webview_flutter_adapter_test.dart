@@ -4,12 +4,13 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/adapters/native_sender_channel.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/adapters/webview_flutter_adapter.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 // The internal pigeon-generated file, not the public barrel: its
 // `PigeonOverrides` is the package's own seam for standing in for the
 // native WebView, WebChromeClient, and WebSettings in a host-side test
@@ -51,29 +52,35 @@ void main() {
       expect(harness.sender.detached, harness.sender.attached);
     });
 
-    test('us03/fr01/e10: a message that beats its page start arrives with '
-        'its sender origin', () async {
-      await adapter.load(StratumWebViewSource.url(appPage));
-      harness
-        ..sendBridgeMessage('ready', senderUrl: appPage.toString())
-        ..startPage(appPage.toString());
-      expect(listener.messages, [
-        StratumWebViewMessage(data: 'ready', origin: appOrigin),
-      ]);
-    });
+    test(
+      'co01_02/us03/fr01/e10: a message that beats its page start arrives with '
+      'its sender origin',
+      () async {
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness
+          ..sendBridgeMessage('ready', senderUrl: appPage.toString())
+          ..startPage(appPage.toString());
+        expect(listener.messages, [
+          StratumWebViewMessage(data: 'ready', origin: appOrigin),
+        ]);
+      },
+    );
 
-    test('us03/fr01/e10: the sender decides, never the last page start', () {
-      harness
-        ..startPage(appPage.toString())
-        ..sendBridgeMessage('late', senderUrl: 'https://evil.example.net/')
-        ..startPage('https://evil.example.net/')
-        ..sendBridgeMessage('early', senderUrl: appPage.toString());
-      expect(listener.messages, [
-        StratumWebViewMessage(data: 'early', origin: appOrigin),
-      ]);
-    });
+    test(
+      'co01_02/us03/fr01/e10: the sender decides, never the last page start',
+      () {
+        harness
+          ..startPage(appPage.toString())
+          ..sendBridgeMessage('late', senderUrl: 'https://evil.example.net/')
+          ..startPage('https://evil.example.net/')
+          ..sendBridgeMessage('early', senderUrl: appPage.toString());
+        expect(listener.messages, [
+          StratumWebViewMessage(data: 'early', origin: appOrigin),
+        ]);
+      },
+    );
 
-    test('us03/fr01/e06, us03/fr04/e09: a sub-frame message is dropped, an '
+    test('co01_02/us03/fr01/e06, co01_02/us03/fr04/e09: a sub-frame message is dropped, an '
         'own-HTML envelope with the current nonce included', () async {
       harness
         ..startPage(appPage.toString())
@@ -91,7 +98,7 @@ void main() {
       expect(listener.messages, isEmpty);
     });
 
-    test('us03/fr01/e11, us03/fr02/e11: without WEB_MESSAGE_LISTENER or '
+    test('co01_02/us03/fr01/e11, co01_02/us03/fr02/e11: without WEB_MESSAGE_LISTENER or '
         'JS_INJECTION_IN_FRAME_AND_WORLD no message arrives and every send '
         'throws naming the limit', () async {
       final limited = _Harness()..sender.supported = false;
@@ -161,7 +168,7 @@ void main() {
       await proveOwnHtml(harness, adapter);
     });
 
-    test('us03/fr02/e13: the page shown gets the allowlist-only script, then '
+    test('co01_02/us03/fr02/e13: the page shown gets the allowlist-only script, then '
         "the token check runs through the proving hello's reply proxy, and "
         'its true delivers', () async {
       await adapter.postMessage('ping');
@@ -177,7 +184,7 @@ void main() {
       ]);
     });
 
-    test('us03/fr02/e13: false, FRAME_DESTROYED, or another error from the '
+    test('co01_02/us03/fr02/e13: false, FRAME_DESTROYED, or another error from the '
         'reply proxy throws the StateError of an unallowed page', () async {
       for (final answer in <Future<bool> Function()>[
         () async => false,
@@ -191,31 +198,34 @@ void main() {
       expect(harness.sender.proxyRuns, hasLength(4));
     });
 
-    test('us03/fr02/e13: no answer from the reply proxy within 5 seconds '
-        'throws the StateError of an unallowed page', () {
-      fakeAsync((async) {
-        // Built inside the fake zone, so every await of the adapter runs on
-        // fake time.
-        final zonedHarness = _Harness();
-        final zonedAdapter = zonedHarness.createAdapter(listener);
-        unawaited(proveOwnHtml(zonedHarness, zonedAdapter));
-        async.flushMicrotasks();
-        zonedHarness.sender.proxyAnswer = () => Completer<bool>().future;
-        Object? failure;
-        unawaited(
-          zonedAdapter
-              .postMessage('ping')
-              .then((_) {}, onError: (Object error) => failure = error),
-        );
-        async.elapse(const Duration(milliseconds: 4999));
-        expect(zonedHarness.sender.proxyRuns, hasLength(1));
-        expect(failure, isNull);
-        async.elapse(const Duration(milliseconds: 1));
-        expect(failure, unallowedPage);
-      });
-    });
+    test(
+      'co01_02/us03/fr02/e13: no answer from the reply proxy within 5 seconds '
+      'throws the StateError of an unallowed page',
+      () {
+        fakeAsync((async) {
+          // Built inside the fake zone, so every await of the adapter runs on
+          // fake time.
+          final zonedHarness = _Harness();
+          final zonedAdapter = zonedHarness.createAdapter(listener);
+          unawaited(proveOwnHtml(zonedHarness, zonedAdapter));
+          async.flushMicrotasks();
+          zonedHarness.sender.proxyAnswer = () => Completer<bool>().future;
+          Object? failure;
+          unawaited(
+            zonedAdapter
+                .postMessage('ping')
+                .then((_) {}, onError: (Object error) => failure = error),
+          );
+          async.elapse(const Duration(milliseconds: 4999));
+          expect(zonedHarness.sender.proxyRuns, hasLength(1));
+          expect(failure, isNull);
+          async.elapse(const Duration(milliseconds: 1));
+          expect(failure, unallowedPage);
+        });
+      },
+    );
 
-    test('us03/fr02/e13, us03/fr02/e12: a first script that fails ends the '
+    test('co01_02/us03/fr02/e13, co01_02/us03/fr02/e12: a first script that fails ends the '
         'send with no run through the reply proxy', () async {
       harness.scriptAnswer = () =>
           Future<Object>.error(PlatformException(code: 'evaluateJavaScript'));
@@ -223,7 +233,7 @@ void main() {
       expect(harness.sender.proxyRuns, isEmpty);
     });
 
-    test('us03/fr02/e13, us03/fr02/e12: a first script with no answer within '
+    test('co01_02/us03/fr02/e13, co01_02/us03/fr02/e12: a first script with no answer within '
         '5 seconds ends the send with no run through the reply proxy', () {
       fakeAsync((async) {
         final zonedHarness = _Harness();
@@ -243,14 +253,14 @@ void main() {
       });
     });
 
-    test('us03/fr02/e10, us03/fr02/e13: an allowed page shown answers true '
+    test('co01_02/us03/fr02/e10, co01_02/us03/fr02/e13: an allowed page shown answers true '
         'and gets the message with no run through the reply proxy', () async {
       harness.scriptResult = true;
       await adapter.postMessage('ping');
       expect(harness.sender.proxyRuns, isEmpty);
     });
 
-    test("us03/fr04/e10, us03/fr02/e13: after the proving document's bye, a "
+    test("co01_02/us03/fr04/e10, co01_02/us03/fr02/e13: after the proving document's bye, a "
         'refused send runs nothing through the reply proxy', () async {
       harness.sender.send(
         envelope(nonceIn(html), 'bye', documentA),
@@ -261,21 +271,24 @@ void main() {
       expect(harness.sender.proxyRuns, isEmpty);
     });
 
-    test('us03/fr02/e13: a bye that arrives while the first script runs '
-        'stops the run through the reply proxy', () async {
-      harness.scriptAnswer = () async {
-        harness.sender.send(
-          envelope(nonceIn(html), 'bye', documentA),
-          senderUrl: 'about:blank',
-          replyProxy: proxy,
-        );
-        return false;
-      };
-      await expectLater(adapter.postMessage('ping'), throwsA(unallowedPage));
-      expect(harness.sender.proxyRuns, isEmpty);
-    });
+    test(
+      'co01_02/us03/fr02/e13: a bye that arrives while the first script runs '
+      'stops the run through the reply proxy',
+      () async {
+        harness.scriptAnswer = () async {
+          harness.sender.send(
+            envelope(nonceIn(html), 'bye', documentA),
+            senderUrl: 'about:blank',
+            replyProxy: proxy,
+          );
+          return false;
+        };
+        await expectLater(adapter.postMessage('ping'), throwsA(unallowedPage));
+        expect(harness.sender.proxyRuns, isEmpty);
+      },
+    );
 
-    test('us03/fr02/e17, us03/fr02/e16: a named send the page shown '
+    test('co01_02/us03/fr02/e17, co01_02/us03/fr02/e16: a named send the page shown '
         'refuses runs nothing through the reply proxy and throws', () async {
       await expectLater(
         adapter.postMessage('ping', targetOrigin: appOrigin),
@@ -291,7 +304,7 @@ void main() {
       expect(harness.sender.proxyRuns, isEmpty);
     });
 
-    test('us03/fr05/e08, us03/fr04/e15: a reply to own HTML runs only '
+    test('co01_02/us03/fr05/e08, co01_02/us03/fr04/e15: a reply to own HTML runs only '
         "through the reply proxy of the sending document's hello", () async {
       harness.sender.send(
         messageEnvelope(nonceIn(html), 'm'),
@@ -314,40 +327,46 @@ void main() {
       ]);
     });
 
-    test('us03/fr05/e08: FRAME_DESTROYED or another error from that reply '
-        'proxy throws', () async {
-      harness.sender.send(
-        messageEnvelope(nonceIn(html), 'm'),
-        senderUrl: 'about:blank',
-        replyProxy: proxy,
-      );
-      final sender = listener.senders.last as PlatformHtmlDocumentSender;
-      harness.sender.proxyAnswer = () =>
-          Future.error(PlatformException(code: 'frame-destroyed'));
-      await expectLater(
-        adapter.replyToDocument(sender, 'pong'),
-        throwsA(unallowedPage),
-      );
-    });
-
-    test('B1 us03/fr02/e13: a later loadHtml that proves while the first '
-        "script is pending does not get the earlier load's send through "
-        'the reply proxy', () async {
-      const laterProxy = BridgeReplyProxy(9);
-      harness.scriptAnswer = () async {
-        await adapter.load(const StratumWebViewSource.html('<p>Later</p>'));
+    test(
+      'co01_02/us03/fr05/e08: FRAME_DESTROYED or another error from that reply '
+      'proxy throws',
+      () async {
         harness.sender.send(
-          envelope(nonceIn(harness.loadedHtml.last), 'hello', documentB),
+          messageEnvelope(nonceIn(html), 'm'),
           senderUrl: 'about:blank',
-          replyProxy: laterProxy,
+          replyProxy: proxy,
         );
-        return false;
-      };
-      await expectLater(adapter.postMessage('ping'), throwsA(unallowedPage));
-      expect(harness.sender.proxyRuns, isEmpty);
-    });
+        final sender = listener.senders.last as PlatformHtmlDocumentSender;
+        harness.sender.proxyAnswer = () =>
+            Future.error(PlatformException(code: 'frame-destroyed'));
+        await expectLater(
+          adapter.replyToDocument(sender, 'pong'),
+          throwsA(unallowedPage),
+        );
+      },
+    );
 
-    test('G3 us03/fr05/e09: a later loadHtml that proves while a reply '
+    test(
+      'B1 co01_02/us03/fr02/e13: a later loadHtml that proves while the first '
+      "script is pending does not get the earlier load's send through "
+      'the reply proxy',
+      () async {
+        const laterProxy = BridgeReplyProxy(9);
+        harness.scriptAnswer = () async {
+          await adapter.load(const StratumWebViewSource.html('<p>Later</p>'));
+          harness.sender.send(
+            envelope(nonceIn(harness.loadedHtml.last), 'hello', documentB),
+            senderUrl: 'about:blank',
+            replyProxy: laterProxy,
+          );
+          return false;
+        };
+        await expectLater(adapter.postMessage('ping'), throwsA(unallowedPage));
+        expect(harness.sender.proxyRuns, isEmpty);
+      },
+    );
+
+    test('G3 co01_02/us03/fr05/e09: a later loadHtml that proves while a reply '
         'script is pending does not move the reply off its original '
         'document', () async {
       harness.sender.send(
@@ -443,7 +462,7 @@ void main() {
     (TargetPlatform.android, true),
   ]) {
     test(
-      'us01/fr02/e04: a -999 resource error on ${platform.name} is '
+      'co01_02/us01/fr02/e04: a -999 resource error on ${platform.name} is '
       '${reported ? 'reported' : 'dropped as a cancelled navigation'}',
       () async {
         debugDefaultTargetPlatformOverride = platform;

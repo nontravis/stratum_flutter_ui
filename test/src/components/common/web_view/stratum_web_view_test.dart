@@ -1,8 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_controller.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 import 'fakes/fake_platform_stratum_web_view.dart';
 
@@ -14,15 +15,18 @@ void main() {
 
   setUp(() => platforms = installFakePlatform());
 
-  testWidgets('creates a controller, loads the source, shows the view', (
+  testWidgets(
+    'co01_02/us01/s1: creates a controller, loads the source, shows the view',
+    (tester) async {
+      await tester.pumpWidget(StratumWebView(source: urlA));
+      expect(platforms.single.loads, [urlA]);
+      expect(find.byKey(fakePlatformViewKey), findsOneWidget);
+    },
+  );
+
+  testWidgets('co01_02/us01/fr03: disposes the controller it created', (
     tester,
   ) async {
-    await tester.pumpWidget(StratumWebView(source: urlA));
-    expect(platforms.single.loads, [urlA]);
-    expect(find.byKey(fakePlatformViewKey), findsOneWidget);
-  });
-
-  testWidgets('disposes the controller it created', (tester) async {
     await tester.pumpWidget(StratumWebView(source: urlA));
     await tester.pumpWidget(const SizedBox());
     expect(platforms.single.disposed, isTrue);
@@ -171,4 +175,48 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(platforms.last.loads, [urlA]);
   });
+
+  testWidgets(
+    'co01_02/us01/fr01/e01: never reaches the javascript url a hostile '
+    'source returns on a later read',
+    (tester) async {
+      final hostile = _HostileUrlSource(
+        Uri.parse('https://safe.example'),
+        Uri.parse('javascript:alert(1)'),
+      );
+      final reported = <FlutterErrorDetails>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = reported.add;
+      addTearDown(() => FlutterError.onError = previous);
+
+      // `StratumWebView._load` destructures `url` through its pattern
+      // match exactly once per load; a rebuild with the same source skips
+      // `_load` entirely because `oldWidget.source != widget.source` is
+      // `false` by identity, so the widget never performs the second read
+      // that would return the hostile scheme (F2's residual risk).
+      await tester.pumpWidget(StratumWebView(source: hostile));
+      await tester.pumpWidget(StratumWebView(source: hostile));
+      await tester.pump();
+
+      expect(platforms.single.loads, [
+        StratumWebViewSource.url(Uri.parse('https://safe.example')),
+      ]);
+      expect(reported, isEmpty);
+    },
+  );
+}
+
+/// A `StratumWebViewUrlSource` subclass that returns [_first] on the first
+/// read of [url] and [_second] on every later read, to prove
+/// `StratumWebView` trusts no source's url getter past a single read
+/// (F2, F3).
+class _HostileUrlSource extends StratumWebViewUrlSource {
+  new(this._first, this._second) : super(_first);
+
+  final Uri _first;
+  final Uri _second;
+  var _reads = 0;
+
+  @override
+  Uri get url => _reads++ == 0 ? _first : _second;
 }

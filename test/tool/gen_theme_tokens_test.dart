@@ -114,7 +114,7 @@ void main() {
       });
     }
 
-    test('us10/fr01: a digits-only key outside a ramp or step gives '
+    test('fo03/us10/fr01: a digits-only key outside a ramp or step gives '
         'level<N>; another digit-led key stops the generator', () {
       expect(dartName('3', path: 'space.3'), 'level3');
       expect(
@@ -148,7 +148,7 @@ void main() {
       );
     });
 
-    test('us10/fr01: a digits-only space key gives level3', () {
+    test('fo03/us10/fr01: a digits-only space key gives level3', () {
       expect(
         generateThemeTokens(_yaml('  3: 1')),
         contains("  double get level3 => _read('3');\n"),
@@ -188,7 +188,7 @@ void main() {
   });
 
   group('ColorEnum lookup', () {
-    test('us10/fr01/e04, s03/inv33: the output imports ColorEnum and '
+    test('fo03/us10/fr01/e04, s03/inv33: the output imports ColorEnum and '
         'declares StratumColorEnumTokens', () {
       final generated = generateThemeTokens(_iconColorYaml(['blue']));
 
@@ -209,7 +209,7 @@ void main() {
       );
     });
 
-    test('us10/fr01/e03, us10/fr01/e04, s03/inv33: a <group>.color class '
+    test('fo03/us10/fr01/e03, fo03/us10/fr01/e04, s03/inv33: a <group>.color class '
         'answers the ColorEnum names it holds, in ColorEnum order, and null '
         'for the rest; semantic keys stay out', () {
       final generated = generateThemeTokens(
@@ -244,7 +244,7 @@ void main() {
       expect(generated, isNot(contains('=> negative')));
     });
 
-    test('us10/fr01/e04: a group that holds all twenty names has no null '
+    test('fo03/us10/fr01/e04: a group that holds all twenty names has no null '
         'case', () {
       final generated = generateThemeTokens(
         _iconColorYaml(ColorEnum.values.map(_keyOf)),
@@ -259,17 +259,20 @@ void main() {
       expect(generated, isNot(contains('_ => null')));
     });
 
-    test('us10/fr01/e03: a group that holds no ColorEnum name answers null '
-        'for every name', () {
-      final generated = generateThemeTokens(
-        _iconColorYaml(['negative', 'warning']),
-      );
+    test(
+      'fo03/us10/fr01/e03: a group that holds no ColorEnum name answers null '
+      'for every name',
+      () {
+        final generated = generateThemeTokens(
+          _iconColorYaml(['negative', 'warning']),
+        );
 
-      expect(
-        generated,
-        contains('  Color? operator [](ColorEnum color) => null;\n'),
-      );
-    });
+        expect(
+          generated,
+          contains('  Color? operator [](ColorEnum color) => null;\n'),
+        );
+      },
+    );
 
     test('s03/inv33: in the package default exactly the four <group>.color '
         'classes implement StratumColorEnumTokens', () {
@@ -287,7 +290,7 @@ void main() {
       ]);
     });
 
-    test('us10/fr01/e03, us10/s5: each package default group gives its own '
+    test('fo03/us10/fr01/e03, fo03/us10/s5: each package default group gives its own '
         'token for a name it holds and null for every other name', () {
       final colors = defaultThemeSet.light.color;
       final background = colors.background.color;
@@ -343,24 +346,28 @@ void main() {
     });
   });
 
-  test('StratumTransparentTokens.builtIn equals transparentColors', () {
-    const builtIn = StratumTransparentTokens.builtIn;
-    final generated = File(tokensPath).readAsStringSync();
+  test(
+    'fo03/us10/fr02: StratumTransparentTokens.builtIn equals transparentColors',
+    () {
+      const builtIn = StratumTransparentTokens.builtIn;
+      final generated = File(tokensPath).readAsStringSync();
 
-    for (final MapEntry(key: ramp, value: steps) in transparentColors.entries) {
-      for (final MapEntry(key: step, value: hex) in steps.entries) {
-        final argb = _color(hex).toARGB32().toRadixString(16).toUpperCase();
-        expect(
-          generated,
-          contains('p$step: Color(0x${argb.padLeft(8, '0')}),'),
-          reason: 'transparent.$ramp.$step',
-        );
+      for (final MapEntry(key: ramp, value: steps)
+          in transparentColors.entries) {
+        for (final MapEntry(key: step, value: hex) in steps.entries) {
+          final argb = _color(hex).toARGB32().toRadixString(16).toUpperCase();
+          expect(
+            generated,
+            contains('p$step: Color(0x${argb.padLeft(8, '0')}),'),
+            reason: 'transparent.$ramp.$step',
+          );
+        }
       }
-    }
-    expect(builtIn.black.p3, _color('#00000008'));
-    expect(builtIn.white.p100, _color('#FFFFFFFF'));
-    expect(builtIn.black.p0, const Color(0x00000000));
-  });
+      expect(builtIn.black.p3, _color('#00000008'));
+      expect(builtIn.white.p100, _color('#FFFFFFFF'));
+      expect(builtIn.black.p0, const Color(0x00000000));
+    },
+  );
 
   test('fo01/us01/fr01: StratumOpacityTokens reads opacity.disabled and '
       'scrim', () {
@@ -401,7 +408,7 @@ void main() {
     expect(generated, contains('  final double disabled;'));
   });
 
-  test('us10/fr01: the border, shadow, and blur classes take their keys '
+  test('fo03/us10/fr01: the border, shadow, and blur classes take their keys '
       'from the yaml', () {
     final generated = generateThemeTokens(_yaml('  md: 1'));
 
@@ -433,7 +440,7 @@ void main() {
     );
   });
 
-  test('us10/fr01: the border, shadow, and blur classes read their maps '
+  test('fo03/us10/fr01: the border, shadow, and blur classes read their maps '
       'and name a key the map lacks', () {
     const levels = ['1', '2', '3', '4', '5', '6'];
     const layer = BoxShadow(offset: Offset(0, 1), blurRadius: 2);

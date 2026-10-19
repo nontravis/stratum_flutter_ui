@@ -1,0 +1,31 @@
+ACTIVITY MANAGER ACTIVITIES (dumpsys activity activities)
+Display #0 (activities from top to bottom):
+  TaskFragment{9f8e7d6c pid=987 TaskFragment with no running activity}
+    Task{9f8e7d6c #6 type=home A=10001:com.android.launcher3 U=0 visible=false}
+      Hist  #0: ActivityRecord{9f8e7d6c u0 com.android.launcher3/.Launcher t6}
+          packageName=com.android.launcher3 processName=com.android.launcher3
+          launchedFromUid=10001 launchedFromPackage=null userId=0
+          app=ProcessRecord{1a2b3c4d 987:com.android.launcher3/u0a1}
+          Intent { act=android.intent.action.MAIN cat=[android.intent.category.HOME] cmp=com.android.launcher3/.Launcher }
+          frontOfTask=true task=Task{9f8e7d6c #6}
+          realActivity=com.android.launcher3/.Launcher
+          state=STOPPED
+
+  TaskFragment{a1b2c3d4 pid=12345 TaskFragment with running activity}
+    Task{a1b2c3d4 #5 type=standard A=10123:dev.stratum.stratum_ui_example U=0 visible=true}
+      Hist  #0: ActivityRecord{a1b2c3d4 u0 dev.stratum.stratum_ui_example/.MainActivity t5}
+          packageName=dev.stratum.stratum_ui_example processName=dev.stratum.stratum_ui_example
+          launchedFromUid=10123 launchedFromPackage=null userId=0
+          app=ProcessRecord{b2c3d4e5 12345:dev.stratum.stratum_ui_example/u0a123}
+          Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=dev.stratum.stratum_ui_example/.MainActivity }
+          frontOfTask=true task=Task{a1b2c3d4 #5}
+          realActivity=dev.stratum.stratum_ui_example/.MainActivity
+          baseDir=/data/app/dev.stratum.stratum_ui_example-1/base.apk
+          dataDir=/data/user/0/dev.stratum.stratum_ui_example
+          stateNotNeeded=false componentSpecified=true mActivityType=standard
+          taskDescription: label="Video" icon=null iconResource=dev.stratum.stratum_ui_example/0 iconFilename=null primaryColor=ffffffff
+            backgroundColor=ff000000
+            statusBarColor=ff000000
+            navigationBarColor=ff000000
+          mActivityComponent=dev.stratum.stratum_ui_example/.MainActivity
+          state=RESUMED

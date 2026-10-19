@@ -38,9 +38,9 @@ final class ResolvedTheme {
 }
 
 /// Stage 4 (spec section 7.3): resolves every alias in the token groups of
-/// [merged] and in the `system` group, which no alias may name (config s03
-/// invariant 16), then each shadow layer's color alias (config s03
-/// invariant 13). Every problem goes to [errors].
+/// [merged] and in the `system` and `focus` groups, which no alias may name
+/// (config s03 invariants 16, 19), then each shadow layer's color alias
+/// (config s03 invariant 13). Every problem goes to [errors].
 ResolvedTheme resolveThemeAliases(
   MergedTheme merged,
   ThemeSchema schema,
@@ -75,6 +75,7 @@ final class _Resolve {
       _collect(_merged.tree[group], [group]);
     }
     _collect(_merged.tree['system'], const ['system']);
+    _collect(_merged.tree['focus'], const ['focus']);
     _holders.keys.forEach(_resolve);
     final chains = <String, List<String>>{};
     final failed = <String>{};

@@ -62,3 +62,27 @@ class StratumComponentDefaults extends InheritedWidget {
       !mapEquals(styles, oldWidget.styles) ||
       !mapEquals(parts, oldWidget.parts);
 }
+
+/// Throws a [FlutterError] when the `componentDefaults` styles map above
+/// [context] holds an entry under [component], a package component whose
+/// `customStyle` is the narrower [styleType] and which reads no entry of
+/// that map (FO-03 US-06 FR-01 E05; base s03 invariant 21). Returns true,
+/// so a caller wraps it in an `assert`. It reads the map without a
+/// dependency, so it adds no rebuild.
+///
+/// Not exported: `themes.dart` hides it.
+bool debugCheckNoComponentStyle(
+  BuildContext context,
+  Type component,
+  Type styleType,
+) {
+  final style = context
+      .getInheritedWidgetOfExactType<StratumComponentDefaults>()
+      ?.styles[component];
+  if (style == null) return true;
+  throw FlutterError(
+    'StratumComponentDefaults.styles holds a WidgetStyle under $component, '
+    'which reads no styles-map entry: its style is $styleType. Register a '
+    '$styleType under $component in componentPartDefaults instead.',
+  );
+}

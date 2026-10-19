@@ -12,6 +12,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
 
+import 'support/pump_until.dart';
+
 /// The app's asset bundle with the package default theme file held until
 /// [release] completes, so the splash's preload stays open.
 class _HeldBundle extends CachingAssetBundle {
@@ -38,11 +40,11 @@ void main() {
       'start theme is active; then the splash shows', (tester) async {
     final release = Completer<void>();
     // Held so `postload` cannot finish before the loading-app assertion
-    // below runs: the live binding flushes every microtask ahead of its
-    // own warm-up frame (`dart:ui` `Timer.run`, unlike the widget-test
-    // binding, which draws it synchronously inside `allowFirstFrame`), so
-    // an unheld `postload` would race past `StratumSplashLoadingApp`
-    // before this test ever reads `states`.
+    // below runs: after `release` completes, the preload still runs a
+    // `compute` isolate parse of the theme plus real font I/O, and no
+    // frame is scheduled while that runs. An unheld `postload` could
+    // finish during that same window and let `_show` move past
+    // `StratumSplashLoadingApp` before this test ever reads `states`.
     final postload = Completer<void>();
     final states = <String>[];
     binding.resetFirstFrameSent();
@@ -63,7 +65,18 @@ void main() {
     expect(states, isEmpty);
 
     release.complete();
-    await tester.pumpAndSettle();
+    final arrived = await pumpUntil(
+      tester,
+      () => states.isNotEmpty,
+      timeout: const Duration(seconds: 10),
+    );
+    expect(
+      arrived,
+      isTrue,
+      reason:
+          'the splash preload (isolate theme parse + font load) did '
+          'not reach its first state within 10s',
+    );
 
     expect(binding.sendFramesToEngine, isTrue);
     expect(states.first, startsWith('StratumSplashLoadingApp'));

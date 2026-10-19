@@ -10,16 +10,16 @@ import 'package:stratum_ui/src/src.dart';
 /// A subclass declares its own parameters and overrides [buildContent].
 /// When [style], [ratio], [rotate], [transform], [interaction], and
 /// [scroll] are null, the layout builds the bare tier: the content with
-/// only the [semantics], [repaintBoundary], [debug], and [keepAlive]
-/// wrappers, and no [AnimatedStyledBox]. Otherwise it builds the box tier
-/// around an [AnimatedStyledBox].
+/// only the [semantics], [repaintBoundary], and [keepAlive] wrappers, and
+/// no [AnimatedStyledBox]. Otherwise it builds the box tier around an
+/// [AnimatedStyledBox].
 ///
 /// The tier depends on whether a parameter is null, never on its content.
 /// Content remounts when the tier changes (switching [scroll] between null
 /// and a value on an otherwise bare layout counts), when [rotate] switches
-/// between null and a value, when [repaintBoundary], [debug], or
-/// [keepAlive] changes, or, on a bare layout, when [semantics] switches
-/// between null and a value. Pass `const WidgetStyle()` or
+/// between null and a value, when [repaintBoundary] or [keepAlive] changes,
+/// or, on a bare layout, when [semantics] switches between null and a
+/// value. Pass `const WidgetStyle()` or
 /// `const Interaction()` up front when a value can appear later; a
 /// layout that toggles [scroll] passes `const WidgetStyle()` so the toggle
 /// stays inside the box tier.
@@ -38,7 +38,6 @@ abstract class BoxLayout extends StatelessWidget {
     this.transformAlignment,
     this.keepAlive = false,
     this.repaintBoundary = false,
-    this.debug = false,
     this.semantics,
     this.onEndAnimate,
     this.interaction,
@@ -62,7 +61,6 @@ abstract class BoxLayout extends StatelessWidget {
   /// Keeps this layout alive when a lazy list scrolls it away.
   final bool keepAlive;
   final bool repaintBoundary;
-  final bool debug;
 
   /// Semantics of the box, inside its margin. With a tap surface they keep
   /// the surface's button role unless they set `button` or a field naming
@@ -89,7 +87,6 @@ abstract class BoxLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     var current = _isBare ? _buildBare(context) : _buildBox(context);
     if (repaintBoundary) current = RepaintBoundary(child: current);
-    if (debug) current = WidgetPerformanceMonitor(child: current);
     if (keepAlive) current = _KeepAlive(child: current);
     return current;
   }
@@ -209,6 +206,7 @@ abstract class BoxLayout extends StatelessWidget {
       primary: scroll.primary,
       borderRadius: style.borderRadius,
       ownsFocus: !surfaceFocus,
+      customStyle: scroll.scrollFocusStyle,
       child: inner == null ? box : inner(style, box),
     );
   }
@@ -241,6 +239,7 @@ abstract class BoxLayout extends StatelessWidget {
       excludeFromSemantics: interaction.excludeFromSemantics,
       secondaryTapSemanticsLabel: interaction.secondaryTapSemanticsLabel,
       shortcuts: interaction.shortcuts,
+      customStyle: interaction.customStyle,
       semantics: semantics,
       child: box,
     );

@@ -86,7 +86,7 @@ void main() {
     expect(styles.single.fontFamily, 'Font A');
   });
 
-  testWidgets('us01/s1: body 16 in medium weight draws in the theme body '
+  testWidgets('fo05/us01/s1: body 16 in medium weight draws in the theme body '
       'font at the body 16 line height, in medium, or, for a Google body '
       'font the theme loads in no medium weight, in the nearest loaded '
       'weight', (tester) async {
@@ -162,7 +162,7 @@ void main() {
   });
 
   testWidgets(
-    'us01/s4: without a StratumThemeApplication it throws a FlutterError',
+    'fo05/us01/s4: without a StratumThemeApplication it throws a FlutterError',
     (tester) async {
       await tester.pumpWidget(_probe(<TextStyle>[]));
 

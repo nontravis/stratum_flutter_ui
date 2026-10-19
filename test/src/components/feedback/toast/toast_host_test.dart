@@ -103,7 +103,7 @@ Future<void> _show(
 }
 
 void main() {
-  test('us01/fr01/e04: default placement by window size', () {
+  test('co05_07/us01/fr01/e04: default placement by window size', () {
     expect(
       defaultToastPlacement(WindowSize.mobile),
       isA<StratumToastFloat>().having(
@@ -131,7 +131,7 @@ void main() {
   });
 
   testWidgets(
-    'us01/s1: a float notice shows in its corner and closes after 4 s',
+    'co05_07/us01/s1: a float notice shows in its corner and closes after 4 s',
     (tester) async {
       _view(tester, _phone);
       await _show(
@@ -151,32 +151,33 @@ void main() {
     },
   );
 
-  testWidgets('us01/fr01/e05: no host above throws a FlutterError naming it', (
-    tester,
-  ) async {
-    late BuildContext context;
-    await tester.pumpWidget(
-      Builder(
-        builder: (c) {
-          context = c;
-          return const SizedBox();
-        },
-      ),
-    );
-    expect(
-      () => context.showToast(message: 'x'),
-      throwsA(
-        isA<FlutterError>().having(
-          (e) => e.message,
-          'message',
-          contains('StratumToastHost'),
+  testWidgets(
+    'co05_07/us01/fr01/e05: no host above throws a FlutterError naming it',
+    (tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(
+        Builder(
+          builder: (c) {
+            context = c;
+            return const SizedBox();
+          },
         ),
-      ),
-    );
-  });
+      );
+      expect(
+        () => context.showToast(message: 'x'),
+        throwsA(
+          isA<FlutterError>().having(
+            (e) => e.message,
+            'message',
+            contains('StratumToastHost'),
+          ),
+        ),
+      );
+    },
+  );
 
   testWidgets(
-    'us01/fr01/e02: review focus 3: a call from a modal route shows above it',
+    'co05_07/us01/fr01/e02: review focus 3: a call from a modal route shows above it',
     (tester) async {
       _view(tester, _phone);
       await tester.pumpWidget(
@@ -218,7 +219,7 @@ void main() {
   );
 
   testWidgets(
-    'us01/s4: us01/fr03/e01: a second solid notice waits for the first',
+    'co05_07/us01/s4: co05_07/us01/fr03/e01: a second solid notice waits for the first',
     (tester) async {
       _view(tester, _phone);
       await _show(tester, [
@@ -234,7 +235,7 @@ void main() {
   );
 
   testWidgets(
-    'us01/s5: us01/fr03/e04: a corner stacks 3; a 4th drops the oldest',
+    'co05_07/us01/s5: co05_07/us01/fr03/e04: a corner stacks 3; a 4th drops the oldest',
     (tester) async {
       _view(tester, _phone);
       await tester.pumpWidget(
@@ -256,7 +257,7 @@ void main() {
   );
 
   testWidgets(
-    'us01/fr03/e05 r25: the newest bottom-corner notice sits nearest the edge',
+    'co05_07/us01/fr03/e05 r25: the newest bottom-corner notice sits nearest the edge',
     (tester) async {
       _view(tester, _phone);
       await _show(tester, ['old', 'new']);
@@ -268,7 +269,7 @@ void main() {
   );
 
   testWidgets(
-    'us01/s3: us01/fr02/e04: a solid top notice runs under the status bar, its text below',
+    'co05_07/us01/s3: co05_07/us01/fr02/e04: a solid top notice runs under the status bar, its text below',
     (tester) async {
       _view(tester, _phone);
       _bars(tester, const FakeViewPadding(top: 44));
@@ -282,7 +283,7 @@ void main() {
   );
 
   testWidgets(
-    'us01/s14: us01/fr02/e06: a bottom notice rides above the keyboard',
+    'co05_07/us01/s14: co05_07/us01/fr02/e06: a bottom notice rides above the keyboard',
     (tester) async {
       _view(tester, _phone);
       tester.view.viewInsets = const FakeViewPadding(bottom: 300);
@@ -294,31 +295,32 @@ void main() {
     },
   );
 
-  testWidgets('us01/s16: us01/fr02/e01: RTL puts bottom start on the right', (
-    tester,
-  ) async {
-    _view(tester, _phone);
-    await tester.pumpWidget(
-      _app(
-        _button(
-          'go',
-          (c) => c.showToast(
-            message: 'Start',
-            placement: const StratumToastPlacement.float(
-              StratumToastCorner.bottomStart,
+  testWidgets(
+    'co05_07/us01/s16: co05_07/us01/fr02/e01: RTL puts bottom start on the right',
+    (tester) async {
+      _view(tester, _phone);
+      await tester.pumpWidget(
+        _app(
+          _button(
+            'go',
+            (c) => c.showToast(
+              message: 'Start',
+              placement: const StratumToastPlacement.float(
+                StratumToastCorner.bottomStart,
+              ),
             ),
           ),
+          direction: TextDirection.rtl,
         ),
-        direction: TextDirection.rtl,
-      ),
-    );
-    await tester.tap(find.text('go'));
-    await tester.pumpAndSettle();
-    // Exact edge (N4): bottom start under RTL is the bottom right
-    // corner, the float margin off the right edge.
-    expect(tester.getRect(_fill('Start')).right, closeTo(390 - 20, 0.5));
-    expect(tester.getRect(_fill('Start')).left, closeTo(20, 0.5));
-  });
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      // Exact edge (N4): bottom start under RTL is the bottom right
+      // corner, the float margin off the right edge.
+      expect(tester.getRect(_fill('Start')).right, closeTo(390 - 20, 0.5));
+      expect(tester.getRect(_fill('Start')).left, closeTo(20, 0.5));
+    },
+  );
 
   testWidgets('n1: a remounted host shows again at the same corner', (
     tester,
@@ -366,19 +368,20 @@ void main() {
     );
   });
 
-  testWidgets('us01/fr02/e06: a solid bottom notice rides above the keyboard', (
-    tester,
-  ) async {
-    _view(tester, _phone);
-    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
-    await _show(tester, [
-      'Up solid',
-    ], placement: const StratumToastPlacement.solid(StratumToastEdge.bottom));
-    expect(
-      tester.getRect(_fill('Up solid')).bottom,
-      lessThanOrEqualTo(844 - 300),
-    );
-  });
+  testWidgets(
+    'co05_07/us01/fr02/e06: a solid bottom notice rides above the keyboard',
+    (tester) async {
+      _view(tester, _phone);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await _show(tester, [
+        'Up solid',
+      ], placement: const StratumToastPlacement.solid(StratumToastEdge.bottom));
+      expect(
+        tester.getRect(_fill('Up solid')).bottom,
+        lessThanOrEqualTo(844 - 300),
+      );
+    },
+  );
 
   testWidgets(
     'edge i2: a float notice width follows a window widened while it shows',
@@ -485,44 +488,41 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/fr04: a manual close runs the same bookkeeping as the timer, so '
-    'a queued solid notice can show',
-    (tester) async {
-      _view(tester, _phone);
-      final handle = tester.ensureSemantics();
-      const solidBottom = StratumToastPlacement.solid(StratumToastEdge.bottom);
-      await tester.pumpWidget(
-        _app(
-          ColumnLayout(
-            children: [
-              _button(
-                'go',
-                (c) => c.showToast(message: 'one', placement: solidBottom),
-              ),
-              _button(
-                'go2',
-                (c) => c.showToast(message: 'two', placement: solidBottom),
-              ),
-            ],
-          ),
+  testWidgets('co05_07/us01/fr04: a manual close runs the same bookkeeping as the timer, so '
+      'a queued solid notice can show', (tester) async {
+    _view(tester, _phone);
+    final handle = tester.ensureSemantics();
+    const solidBottom = StratumToastPlacement.solid(StratumToastEdge.bottom);
+    await tester.pumpWidget(
+      _app(
+        ColumnLayout(
+          children: [
+            _button(
+              'go',
+              (c) => c.showToast(message: 'one', placement: solidBottom),
+            ),
+            _button(
+              'go2',
+              (c) => c.showToast(message: 'two', placement: solidBottom),
+            ),
+          ],
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(find.text('one'), findsOneWidget);
-      // A manual close (the close button) must run the same bookkeeping
-      // the timer close does, clearing `_solidShowing`, or a queued and a
-      // freshly-called solid notice both wait behind it forever.
-      await tester.tap(find.bySemanticsLabel('Close'));
-      await tester.pumpAndSettle();
-      expect(find.text('one'), findsNothing);
-      await tester.tap(find.text('go2'));
-      await tester.pumpAndSettle();
-      expect(find.text('two'), findsOneWidget);
-      handle.dispose();
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('one'), findsOneWidget);
+    // A manual close (the close button) must run the same bookkeeping
+    // the timer close does, clearing `_solidShowing`, or a queued and a
+    // freshly-called solid notice both wait behind it forever.
+    await tester.tap(find.bySemanticsLabel('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('one'), findsNothing);
+    await tester.tap(find.text('go2'));
+    await tester.pumpAndSettle();
+    expect(find.text('two'), findsOneWidget);
+    handle.dispose();
+  });
 
   testWidgets('fr03: a manual close frees its corner, so a later show needs no '
       'extra eviction', (tester) async {
@@ -668,7 +668,7 @@ void main() {
   // performance 2, 4, 5; security S1.
 
   testWidgets(
-    'us01/fr03/e01: performance 2: a manual close shows the queued solid '
+    'co05_07/us01/fr03/e01: performance 2: a manual close shows the queued solid '
     'notice even when the 50 ms overlay teardown lands between its frames',
     (tester) async {
       _view(tester, _phone);
@@ -688,153 +688,136 @@ void main() {
     },
   );
 
-  testWidgets(
-    'us01/fr03/e02: performance 2: under reduced motion a timer close shows '
-    'the queued solid notice, stepped frame by frame',
-    (tester) async {
-      _view(tester, _phone);
-      tester.platformDispatcher.accessibilityFeaturesTestValue =
-          const FakeAccessibilityFeatures(disableAnimations: true);
-      addTearDown(
-        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-      );
-      await tester.pumpWidget(
-        _app(
-          _button('go', (c) {
-            for (final m in ['one', 'two']) {
-              c.showToast(message: m, placement: _solidBottom);
-            }
-          }),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pump();
-      await tester.pump();
-      expect(find.text('one'), findsOneWidget);
-      // The close timer fires at the end of this step; under reduced motion
-      // the overlay teardown follows 50 ms later.
-      await tester.pump(const Duration(seconds: 4));
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.pumpAndSettle();
-      expect(find.text('one'), findsNothing);
-      expect(find.text('two'), findsOneWidget);
-    },
-  );
+  testWidgets('co05_07/us01/fr03/e02: performance 2: under reduced motion a timer close shows '
+      'the queued solid notice, stepped frame by frame', (tester) async {
+    _view(tester, _phone);
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await tester.pumpWidget(
+      _app(
+        _button('go', (c) {
+          for (final m in ['one', 'two']) {
+            c.showToast(message: m, placement: _solidBottom);
+          }
+        }),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('one'), findsOneWidget);
+    // The close timer fires at the end of this step; under reduced motion
+    // the overlay teardown follows 50 ms later.
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
+    expect(find.text('one'), findsNothing);
+    expect(find.text('two'), findsOneWidget);
+  });
 
-  testWidgets(
-    'us01/fr03/e02: correctness 7, edge M3: a second close of one notice '
-    'never shows two solid notices at once',
-    (tester) async {
-      _view(tester, _phone);
-      await tester.pumpWidget(
-        _app(
-          _button('go', (c) {
-            for (final m in ['one', 'two', 'three']) {
-              c.showToast(message: m, placement: _solidBottom);
-            }
-          }),
-          // An app look that closes twice, as a late async call can.
-          builder: (context, notice) => TextButton(
-            onPressed: () {
-              notice
-                ..close()
-                ..close();
-            },
-            child: Text(notice.message),
-          ),
+  testWidgets('co05_07/us01/fr03/e02: correctness 7, edge M3: a second close of one notice '
+      'never shows two solid notices at once', (tester) async {
+    _view(tester, _phone);
+    await tester.pumpWidget(
+      _app(
+        _button('go', (c) {
+          for (final m in ['one', 'two', 'three']) {
+            c.showToast(message: m, placement: _solidBottom);
+          }
+        }),
+        // An app look that closes twice, as a late async call can.
+        builder: (context, notice) => TextButton(
+          onPressed: () {
+            notice
+              ..close()
+              ..close();
+          },
+          child: Text(notice.message),
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(find.text('one'), findsOneWidget);
-      await tester.tap(find.text('one'));
-      await tester.pumpAndSettle();
-      expect(find.text('one'), findsNothing);
-      expect(find.text('two'), findsOneWidget);
-      expect(find.text('three'), findsNothing);
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('one'), findsOneWidget);
+    await tester.tap(find.text('one'));
+    await tester.pumpAndSettle();
+    expect(find.text('one'), findsNothing);
+    expect(find.text('two'), findsOneWidget);
+    expect(find.text('three'), findsNothing);
+  });
 
-  testWidgets(
-    'us01/fr01: correctness 1, edge I3: a show from a post-frame callback '
-    'requests the frame that lands it',
-    (tester) async {
-      _view(tester, _phone);
-      late BuildContext ctx;
-      await tester.pumpWidget(
-        _app(
-          Builder(
-            builder: (c) {
-              ctx = c;
-              return const SizedBox();
-            },
-          ),
+  testWidgets('co05_07/us01/fr01: correctness 1, edge I3: a show from a post-frame callback '
+      'requests the frame that lands it', (tester) async {
+    _view(tester, _phone);
+    late BuildContext ctx;
+    await tester.pumpWidget(
+      _app(
+        Builder(
+          builder: (c) {
+            ctx = c;
+            return const SizedBox();
+          },
         ),
-      );
-      await tester.pumpAndSettle();
-      expect(tester.binding.hasScheduledFrame, isFalse);
-      // An idle screen: one frame runs, and its post-frame callback shows.
-      tester.binding
-        ..addPostFrameCallback((_) => ctx.showToast(message: 'PostFrame'))
-        ..scheduleFrame();
-      await tester.pump();
-      expect(tester.binding.hasScheduledFrame, isTrue);
-      await tester.pumpAndSettle();
-      expect(find.text('PostFrame'), findsOneWidget);
-    },
-  );
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    // An idle screen: one frame runs, and its post-frame callback shows.
+    tester.binding
+      ..addPostFrameCallback((_) => ctx.showToast(message: 'PostFrame'))
+      ..scheduleFrame();
+    await tester.pump();
+    expect(tester.binding.hasScheduledFrame, isTrue);
+    await tester.pumpAndSettle();
+    expect(find.text('PostFrame'), findsOneWidget);
+  });
 
-  testWidgets(
-    'us01/fr01/e04: performance 5: the default placement leaves the caller '
-    'independent of the window size',
-    (tester) async {
-      _view(tester, _phone);
-      var builds = 0;
-      await tester.pumpWidget(
-        _app(
-          Builder(
-            builder: (c) {
-              builds++;
-              return TextButton(
-                onPressed: () => c.showToast(message: 'Default'),
-                child: const Text('go'),
-              );
-            },
-          ),
+  testWidgets('co05_07/us01/fr01/e04: performance 5: the default placement leaves the caller '
+      'independent of the window size', (tester) async {
+    _view(tester, _phone);
+    var builds = 0;
+    await tester.pumpWidget(
+      _app(
+        Builder(
+          builder: (c) {
+            builds++;
+            return TextButton(
+              onPressed: () => c.showToast(message: 'Default'),
+              child: const Text('go'),
+            );
+          },
         ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      expect(find.text('Default'), findsOneWidget);
-      final before = builds;
-      // Phone to desktop crosses two breakpoints.
-      _view(tester, const Size(1400, 900));
-      await tester.pumpAndSettle();
-      expect(builds, before);
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    expect(find.text('Default'), findsOneWidget);
+    final before = builds;
+    // Phone to desktop crosses two breakpoints.
+    _view(tester, const Size(1400, 900));
+    await tester.pumpAndSettle();
+    expect(builds, before);
+  });
 
-  testWidgets(
-    'us01/fr02: performance 4: a keyboard change rebuilds no host builder '
-    'while a float notice shows',
-    (tester) async {
-      _view(tester, _phone);
-      await _show(tester, ['Float']);
-      var hostRebuilds = 0;
-      debugOnRebuildDirtyWidget = (element, builtOnce) {
-        if ('${element.widget.key}'.contains('StratumToastHost.solid')) {
-          hostRebuilds++;
-        }
-      };
-      try {
-        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
-        await tester.pump();
-      } finally {
-        debugOnRebuildDirtyWidget = null;
+  testWidgets('co05_07/us01/fr02: performance 4: a keyboard change rebuilds no host builder '
+      'while a float notice shows', (tester) async {
+    _view(tester, _phone);
+    await _show(tester, ['Float']);
+    var hostRebuilds = 0;
+    debugOnRebuildDirtyWidget = (element, builtOnce) {
+      if ('${element.widget.key}'.contains('StratumToastHost.solid')) {
+        hostRebuilds++;
       }
-      expect(hostRebuilds, 0);
-    },
-  );
+    };
+    try {
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+    } finally {
+      debugOnRebuildDirtyWidget = null;
+    }
+    expect(hostRebuilds, 0);
+  });
 
   testWidgets(
     'security S1: a second root host beside the first fails in debug, since '
@@ -864,58 +847,55 @@ void main() {
     },
   );
 
-  testWidgets(
-    'correctness 2: us01/fr06/e04: an app builder look takes the width cap '
-    'and the corner of every float placement',
-    (tester) async {
-      const window = Size(1400, 900);
-      _view(tester, window);
-      await tester.pumpWidget(
-        _app(
-          _button('go', (c) {
-            for (final corner in StratumToastCorner.values) {
-              c.showToast(
-                message: corner.name,
-                placement: StratumToastPlacement.float(corner),
-              );
-            }
-          }),
-          // A look with no width of its own: the host alone places it.
-          builder: (context, notice) => SizedBox(
-            key: ValueKey(notice.message),
-            height: 40,
-            child: Text(notice.message),
-          ),
+  testWidgets('correctness 2: co05_07/us01/fr06/e04: an app builder look takes the width cap '
+      'and the corner of every float placement', (tester) async {
+    const window = Size(1400, 900);
+    _view(tester, window);
+    await tester.pumpWidget(
+      _app(
+        _button('go', (c) {
+          for (final corner in StratumToastCorner.values) {
+            c.showToast(
+              message: corner.name,
+              placement: StratumToastPlacement.float(corner),
+            );
+          }
+        }),
+        // A look with no width of its own: the host alone places it.
+        builder: (context, notice) => SizedBox(
+          key: ValueKey(notice.message),
+          height: 40,
+          child: Text(notice.message),
         ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    final theme = tester.element(find.text('go')).theme;
+    final lg = theme.space.lg;
+    for (final corner in StratumToastCorner.values) {
+      final name = corner.name;
+      final look = tester.getRect(find.byKey(ValueKey(name)));
+      expect(
+        look.width,
+        closeTo(theme.layouts.maxWidthMobile, 0.5),
+        reason: name,
       );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-      final theme = tester.element(find.text('go')).theme;
-      final lg = theme.space.lg;
-      for (final corner in StratumToastCorner.values) {
-        final name = corner.name;
-        final look = tester.getRect(find.byKey(ValueKey(name)));
-        expect(
-          look.width,
-          closeTo(theme.layouts.maxWidthMobile, 0.5),
-          reason: name,
-        );
-        final x = switch (corner) {
-          StratumToastCorner.topStart ||
-          StratumToastCorner.bottomStart => look.left - lg,
-          StratumToastCorner.topCenter ||
-          StratumToastCorner.bottomCenter => look.center.dx - window.width / 2,
-          StratumToastCorner.topEnd ||
-          StratumToastCorner.bottomEnd => window.width - lg - look.right,
-        };
-        expect(x, closeTo(0, 0.5), reason: name);
-        final y = name.startsWith('top')
-            ? look.top - lg
-            : window.height - lg - look.bottom;
-        expect(y, closeTo(0, 0.5), reason: name);
-      }
-    },
-  );
+      final x = switch (corner) {
+        StratumToastCorner.topStart ||
+        StratumToastCorner.bottomStart => look.left - lg,
+        StratumToastCorner.topCenter ||
+        StratumToastCorner.bottomCenter => look.center.dx - window.width / 2,
+        StratumToastCorner.topEnd ||
+        StratumToastCorner.bottomEnd => window.width - lg - look.right,
+      };
+      expect(x, closeTo(0, 0.5), reason: name);
+      final y = name.startsWith('top')
+          ? look.top - lg
+          : window.height - lg - look.bottom;
+      expect(y, closeTo(0, 0.5), reason: name);
+    }
+  });
 
   testWidgets(
     'edge M1: a bottom float above the keyboard counts the home indicator '

@@ -12,6 +12,177 @@ void main() {
     dropShadow: [BoxShadow(blurRadius: 2)],
   );
 
+  group('equals', () {
+    test('fo05/us01/fr01: two instances built with equal field values compare '
+        '== and share hashCode; the style holds every visual field (fill, '
+        'border, radius, shadow, blur, padding, animation) as one immutable '
+        'value', () {
+      final build = base.copyWith(
+        border: const Border.fromBorderSide(BorderSide(width: 2)),
+        animationStyle: const AnimationStyle(
+          duration: Duration(milliseconds: 100),
+        ),
+      );
+      final sameValues = base.copyWith(
+        border: const Border.fromBorderSide(BorderSide(width: 2)),
+        animationStyle: const AnimationStyle(
+          duration: Duration(milliseconds: 100),
+        ),
+      );
+      final unequal = base.copyWith(
+        border: const Border.fromBorderSide(BorderSide(width: 3)),
+      );
+
+      expect(identical(build, sameValues), isFalse);
+      expect(build, sameValues);
+      expect(build.hashCode, sameValues.hashCode);
+      expect(build, isNot(unequal));
+    });
+  });
+
+  group('copyWith(field: null)', () {
+    const full = WidgetStyle(
+      opacity: 0.5,
+      width: 100,
+      height: 200,
+      minWidth: 10,
+      maxWidth: 300,
+      minHeight: 20,
+      maxHeight: 400,
+    );
+
+    test('5.3: copyWith(opacity: null) clears opacity and keeps the rest', () {
+      final cleared = full.copyWith(opacity: null);
+
+      expect(cleared.opacity, isNull);
+      expect(
+        cleared,
+        const WidgetStyle(
+          width: 100,
+          height: 200,
+          minWidth: 10,
+          maxWidth: 300,
+          minHeight: 20,
+          maxHeight: 400,
+        ),
+      );
+    });
+
+    test('5.3: copyWith(width: null) clears width and keeps the rest', () {
+      final cleared = full.copyWith(width: null);
+
+      expect(cleared.width, isNull);
+      expect(
+        cleared,
+        const WidgetStyle(
+          opacity: 0.5,
+          height: 200,
+          minWidth: 10,
+          maxWidth: 300,
+          minHeight: 20,
+          maxHeight: 400,
+        ),
+      );
+    });
+
+    test('5.3: copyWith(height: null) clears height and keeps the rest', () {
+      final cleared = full.copyWith(height: null);
+
+      expect(cleared.height, isNull);
+      expect(
+        cleared,
+        const WidgetStyle(
+          opacity: 0.5,
+          width: 100,
+          minWidth: 10,
+          maxWidth: 300,
+          minHeight: 20,
+          maxHeight: 400,
+        ),
+      );
+    });
+
+    test(
+      '5.3: copyWith(minWidth: null) clears minWidth and keeps the rest',
+      () {
+        final cleared = full.copyWith(minWidth: null);
+
+        expect(cleared.minWidth, isNull);
+        expect(
+          cleared,
+          const WidgetStyle(
+            opacity: 0.5,
+            width: 100,
+            height: 200,
+            maxWidth: 300,
+            minHeight: 20,
+            maxHeight: 400,
+          ),
+        );
+      },
+    );
+
+    test(
+      '5.3: copyWith(maxWidth: null) clears maxWidth and keeps the rest',
+      () {
+        final cleared = full.copyWith(maxWidth: null);
+
+        expect(cleared.maxWidth, isNull);
+        expect(
+          cleared,
+          const WidgetStyle(
+            opacity: 0.5,
+            width: 100,
+            height: 200,
+            minWidth: 10,
+            minHeight: 20,
+            maxHeight: 400,
+          ),
+        );
+      },
+    );
+
+    test(
+      '5.3: copyWith(minHeight: null) clears minHeight and keeps the rest',
+      () {
+        final cleared = full.copyWith(minHeight: null);
+
+        expect(cleared.minHeight, isNull);
+        expect(
+          cleared,
+          const WidgetStyle(
+            opacity: 0.5,
+            width: 100,
+            height: 200,
+            minWidth: 10,
+            maxWidth: 300,
+            maxHeight: 400,
+          ),
+        );
+      },
+    );
+
+    test(
+      '5.3: copyWith(maxHeight: null) clears maxHeight and keeps the rest',
+      () {
+        final cleared = full.copyWith(maxHeight: null);
+
+        expect(cleared.maxHeight, isNull);
+        expect(
+          cleared,
+          const WidgetStyle(
+            opacity: 0.5,
+            width: 100,
+            height: 200,
+            minWidth: 10,
+            maxWidth: 300,
+            minHeight: 20,
+          ),
+        );
+      },
+    );
+  });
+
   group('merge', () {
     test('returns the same instance when other is null', () {
       expect(identical(base.merge(null), base), isTrue);
@@ -110,7 +281,7 @@ void main() {
       animationStyle: AnimationStyle(duration: Duration(milliseconds: 300)),
     );
 
-    test('returns a at t = 0 and b at t = 1', () {
+    test('fo05/us03/fr01: returns a at t = 0 and b at t = 1', () {
       expect(identical(WidgetStyle.lerp(a, b, 0), a), isTrue);
       expect(identical(WidgetStyle.lerp(a, b, 1), b), isTrue);
     });
@@ -127,12 +298,14 @@ void main() {
       );
     });
 
-    test('switches clipBehavior at t = 0.5 and takes animationStyle from b',
-        () {
-      expect(WidgetStyle.lerp(a, b, 0.4)!.clipBehavior, Clip.none);
-      expect(WidgetStyle.lerp(a, b, 0.6)!.clipBehavior, Clip.antiAlias);
-      expect(WidgetStyle.lerp(a, b, 0.1)!.animationStyle, b.animationStyle);
-    });
+    test(
+      'switches clipBehavior at t = 0.5 and takes animationStyle from b',
+      () {
+        expect(WidgetStyle.lerp(a, b, 0.4)!.clipBehavior, Clip.none);
+        expect(WidgetStyle.lerp(a, b, 0.6)!.clipBehavior, Clip.antiAlias);
+        expect(WidgetStyle.lerp(a, b, 0.1)!.animationStyle, b.animationStyle);
+      },
+    );
 
     test('switches a size at t = 0.5 when one side is null', () {
       const unsized = WidgetStyle();

@@ -1,80 +1,50 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/system/system_style.dart';
 import 'package:stratum_ui/src/themes/system/system_style_region.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
+
+part 'generated/system_bars.freezed.dart';
 
 /// What the resolver applies to the platform for one frame (FO-03 US-14
 /// FR-02 to FR-04). Internal: not exported.
-@immutable
-final class SystemBars {
-  const new({
-    required this.overlay,
-    required this.barMode,
-    required this.orientations,
-    required this.appSwitcherLabel,
-    required this.appSwitcherColor,
-    required this.statusBarColor,
-    required this.navigationBarColor,
-    required this.navigationBarDividerColor,
-  });
+@valueModel
+abstract class SystemBars with _$SystemBars {
+  const factory({
+    /// The status bar fields, and the navigation bar fields when the
+    /// navigation bar's point was read; every bar color in it is
+    /// transparent, since the root paints the bar colors itself (themes s03
+    /// invariant 45).
+    required SystemUiOverlayStyle overlay,
 
-  /// The status bar fields, and the navigation bar fields when the
-  /// navigation bar's point was read; every bar color in it is
-  /// transparent, since the root paints the bar colors itself (themes s03
-  /// invariant 45).
-  final SystemUiOverlayStyle overlay;
+    /// Null when no layer sets one this frame; the resolver falls back to
+    /// `edgeToEdge` only once some layer has set it during its life, and
+    /// before that leaves the platform's own bar mode untouched (R11).
+    required SystemBarMode? barMode,
 
-  /// Null when no layer sets one this frame; the resolver falls back to
-  /// `edgeToEdge` only once some layer has set it during its life, and
-  /// before that leaves the platform's own bar mode untouched (R11).
-  final SystemBarMode? barMode;
+    /// Null when no layer sets one this frame; the resolver falls back to
+    /// no lock only once some layer has set it during its life, and before
+    /// that leaves the platform's own rotation lock untouched (R11).
+    required List<DeviceOrientation>? orientations,
 
-  /// Null when no layer sets one this frame; the resolver falls back to
-  /// no lock only once some layer has set it during its life, and before
-  /// that leaves the platform's own rotation lock untouched (R11).
-  final List<DeviceOrientation>? orientations;
+    /// Null when no layer sets one.
+    required String? appSwitcherLabel,
 
-  /// Null when no layer sets one.
-  final String? appSwitcherLabel;
+    /// The merged `appSwitcherColor`.
+    required Color? appSwitcherColor,
 
-  /// The merged `appSwitcherColor`.
-  final Color? appSwitcherColor;
+    /// The merged `statusBarColor`, which the root paints under the status
+    /// bar.
+    required Color? statusBarColor,
 
-  /// The merged `statusBarColor`, which the root paints under the status
-  /// bar.
-  final Color? statusBarColor;
+    /// The merged `navigationBarColor`, which the root paints under the
+    /// navigation bar; null when its point was not read.
+    required Color? navigationBarColor,
 
-  /// The merged `navigationBarColor`, which the root paints under the
-  /// navigation bar; null when its point was not read.
-  final Color? navigationBarColor;
-
-  /// The merged `navigationBarDividerColor`, which the root paints as the
-  /// navigation bar's edge line; null when its point was not read.
-  final Color? navigationBarDividerColor;
-
-  @override
-  bool operator ==(Object other) =>
-      other is SystemBars &&
-      other.overlay == overlay &&
-      other.barMode == barMode &&
-      listEquals(other.orientations, orientations) &&
-      other.appSwitcherLabel == appSwitcherLabel &&
-      other.appSwitcherColor == appSwitcherColor &&
-      other.statusBarColor == statusBarColor &&
-      other.navigationBarColor == navigationBarColor &&
-      other.navigationBarDividerColor == navigationBarDividerColor;
-
-  @override
-  int get hashCode => Object.hash(
-    overlay,
-    barMode,
-    orientations == null ? null : Object.hashAll(orientations!),
-    appSwitcherLabel,
-    appSwitcherColor,
-    statusBarColor,
-    navigationBarColor,
-    navigationBarDividerColor,
-  );
+    /// The merged `navigationBarDividerColor`, which the root paints as the
+    /// navigation bar's edge line; null when its point was not read.
+    required Color? navigationBarDividerColor,
+  }) = _SystemBars;
 }
 
 /// The bars of one frame from [status], every annotation at the status

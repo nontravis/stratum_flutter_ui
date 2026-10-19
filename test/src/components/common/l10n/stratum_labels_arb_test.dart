@@ -68,33 +68,39 @@ void main() {
   final en = _messages('stratum_labels_en.arb');
   final th = _messages('stratum_labels_th.arb');
 
-  test('us01/fr01: the table holds exactly the 22 built-in string kinds', () {
-    expect(en.keys.toSet(), _getters.keys.toSet());
-    expect(_getters, hasLength(22));
-  });
+  test(
+    'fo09/us01/fr01: the table holds exactly the 22 built-in string kinds',
+    () {
+      expect(en.keys.toSet(), _getters.keys.toSet());
+      expect(_getters, hasLength(22));
+    },
+  );
 
-  test('us01/fr01/e05: the retry label stays in both tables', () {
+  test('fo09/us01/fr01/e05: the retry label stays in both tables', () {
     expect(en, contains('retryLabel'));
     expect(th, contains('retryLabel'));
   });
 
-  test('us01/fr01/e02: every English entry is non-empty', () {
+  test('fo09/us01/fr01/e02: every English entry is non-empty', () {
     for (final MapEntry(:key, :value) in en.entries) {
       expect(value, isA<String>().having((s) => s, key, isNotEmpty));
     }
   });
 
-  test('us01/fr01/e02: every English key has a non-empty Thai entry', () {
+  test('fo09/us01/fr01/e02: every English key has a non-empty Thai entry', () {
     for (final key in en.keys) {
       expect(th[key], isA<String>().having((s) => s, key, isNotEmpty));
     }
   });
 
-  test('us01/fr01/e02: the Thai file holds no key the English file lacks', () {
-    expect(th.keys.toSet().difference(en.keys.toSet()), isEmpty);
-  });
+  test(
+    'fo09/us01/fr01/e02: the Thai file holds no key the English file lacks',
+    () {
+      expect(th.keys.toSet().difference(en.keys.toSet()), isEmpty);
+    },
+  );
 
-  test('us01/fr01: the generated table supports exactly en and th', () {
+  test('fo09/us01/fr01: the generated table supports exactly en and th', () {
     expect(
       StratumLabels.supportedLocales.map((locale) => locale.languageCode),
       unorderedEquals(['en', 'th']),
@@ -102,11 +108,14 @@ void main() {
   });
 
   for (final (language, entries) in [('en', en), ('th', th)]) {
-    test('us01/fr01: the generated $language table matches its ARB file', () {
-      final labels = lookupStratumLabels(Locale(language));
-      for (final MapEntry(:key, value: read) in _getters.entries) {
-        expect(read(labels), _filled(entries[key]), reason: key);
-      }
-    });
+    test(
+      'fo09/us01/fr01: the generated $language table matches its ARB file',
+      () {
+        final labels = lookupStratumLabels(Locale(language));
+        for (final MapEntry(:key, value: read) in _getters.entries) {
+          expect(read(labels), _filled(entries[key]), reason: key);
+        }
+      },
+    );
   }
 }

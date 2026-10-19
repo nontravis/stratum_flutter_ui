@@ -4,7 +4,7 @@ import 'package:stratum_ui/src/themes/config/pipeline/check_keys.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
 
 /// The tree after stage 3: every layer merged over the package default, and
-/// the four color sets and the four `system` sets full.
+/// the four color sets and the four `system` and `focus` sets full.
 final class MergedTheme {
   new({required this.tree, required this.origins, required this.inherited});
 
@@ -22,8 +22,8 @@ final class MergedTheme {
 
 /// Stage 3 (spec section 7.1): merges the files of [checked] in order,
 /// checks the app colors, and derives the high-contrast sets of `color`
-/// (section 7.2) and of `system` (config s03 invariant 16). Every problem
-/// goes to [errors].
+/// (section 7.2) and of the four `system` and `focus` sets (config s03
+/// invariants 16, 19). Every problem goes to [errors].
 MergedTheme mergeThemes(CheckedThemes checked, ThemeErrors errors) =>
     _Merge(checked.schema, errors).run(checked.files);
 
@@ -57,6 +57,11 @@ final class _Merge {
     if (tree['system'] case final Map<String, Object?> system) {
       for (final pair in _pairs) {
         _derive(system, 'system', pair.overlay, pair.base);
+      }
+    }
+    if (tree['focus'] case final Map<String, Object?> focus) {
+      for (final pair in _pairs) {
+        _derive(focus, 'focus', pair.overlay, pair.base);
       }
     }
     return MergedTheme(tree: tree, origins: _origins, inherited: _inherited);

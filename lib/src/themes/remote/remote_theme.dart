@@ -3,6 +3,9 @@ import 'dart:typed_data';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
 import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
+
+part 'generated/remote_theme.freezed.dart';
 
 /// A theme zip the app downloaded, with the checksum it fetched from its
 /// own API, never from a file beside the zip (FO-04 US-01 FR-01, FR-02).
@@ -10,38 +13,34 @@ import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 /// Hand it to `StratumThemeController.install`, or to `preload` and
 /// `StratumThemePreloader` as `remoteThemes`. Ask the server for the zip of
 /// `StratumSchemaVersion.current`: a zip of a newer schema is refused.
-@immutable
-class StratumRemoteTheme {
-  const new({
-    required this.id,
-    required this.bytes,
-    required this.checksum,
-    this.maxBytes = defaultMaxBytes,
-    this.maxEntries = defaultMaxEntries,
-  });
+@valueModel
+abstract class StratumRemoteTheme with _$StratumRemoteTheme {
+  const factory({
+    /// The `<id>` of `<id>.zip`: only `a-z`, `0-9`, `-`, and `_`, and never
+    /// `default`. The theme registers under it, replacing an earlier install
+    /// of that id, or a bundled theme of that id, for the app's run.
+    required String id,
+
+    /// The whole zip as the app downloaded and kept it.
+    required Uint8List bytes,
+
+    /// The expected checksum: `sha256:` followed by 64 hex digits.
+    required String checksum,
+
+    /// The cap on the total extracted size, in bytes.
+    @Default(StratumRemoteTheme.defaultMaxBytes) int maxBytes,
+
+    /// The cap on the entry count.
+    @Default(StratumRemoteTheme.defaultMaxEntries) int maxEntries,
+  }) = _StratumRemoteTheme;
+
+  const new _();
 
   /// The default cap on the total extracted size: 20 MB.
   static const int defaultMaxBytes = 20 * 1024 * 1024;
 
   /// The default cap on the entry count.
   static const defaultMaxEntries = 200;
-
-  /// The `<id>` of `<id>.zip`: only `a-z`, `0-9`, `-`, and `_`, and never
-  /// `default`. The theme registers under it, replacing an earlier install
-  /// of that id, or a bundled theme of that id, for the app's run.
-  final String id;
-
-  /// The whole zip as the app downloaded and kept it.
-  final Uint8List bytes;
-
-  /// The expected checksum: `sha256:` followed by 64 hex digits.
-  final String checksum;
-
-  /// The cap on the total extracted size, in bytes.
-  final int maxBytes;
-
-  /// The cap on the entry count.
-  final int maxEntries;
 
   @override
   String toString() => 'StratumRemoteTheme($id, ${bytes.length} bytes)';

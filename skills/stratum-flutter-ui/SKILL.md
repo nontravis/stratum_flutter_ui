@@ -1,6 +1,6 @@
 ---
 name: stratum-flutter-ui
-description: Use when building or changing a Flutter app on Stratum UI (screen, layout, taps, hover, keyboard and focus, theme, app start, or any Stratum* widget). Layout triggers are *Layout primitives (ColumnLayout, ContainerLayout.builder), showModalLayout, reorderable lists, and Space spacing. Interaction triggers are Interaction, HoverBuilder, FocusBuilder, and focus rings (StratumFocusBorder). Theme triggers are StratumThemeController install and switching, StratumThemeApplication, remote and preloaded themes, StratumSplashScreen, theme.yaml tokens (border, shadow, blur), and context.* reads (context.themeData). Widget triggers are StratumWebView, StratumWebZoom, page transitions (StratumTransitionPage), StratumCaret, named colors (ColorEnum), Thai labels and supportedLocales, Show and disabled dimming, StratumPlaceholderPage, and update prompts (StratumUpdateGate, UpdateChecker).
+description: Use when building or changing a Flutter app on Stratum UI (screen, layout, taps, hover, keyboard and focus, theme, app start, or any Stratum* widget). Layout triggers are *Layout primitives (ColumnLayout, ContainerLayout.builder), showModalLayout, reorderable lists, and Space spacing. Interaction triggers are Interaction, HoverBuilder, FocusBuilder, and focus rings (StratumFocusBorder). Theme triggers are StratumThemeController install and switching, StratumThemeApplication, remote and preloaded themes, StratumSplashScreen, theme.yaml tokens (border, shadow, blur), and context.* reads (context.themeData, KeyboardVisibilityScope.setVisibleForTesting). Widget triggers are StratumWebView, StratumWebZoom, page transitions (StratumTransitionPage), StratumCaret, named colors (ColorEnum), Thai labels and supportedLocales, Show and disabled dimming, StratumPlaceholderPage, and update prompts (StratumUpdateGate, UpdateChecker).
 ---
 
 # Stratum Flutter UI
@@ -14,8 +14,26 @@ Names: screen-building blocks carry no `Stratum` prefix (`Interaction`, `Scroll`
 `ReorderableItemsController`, `Show`, `ShowTransition`, `ShowSlideDirection`), while design-drawn components and theme
 or app-setup types keep it (`StratumSlot`, `StratumHighContrastMode`). The old names `StratumInteraction`,
 `StratumScroll`, `StratumTapTargetSize`, `StratumFocusGroup`, `StratumReorderableItemsController`, `StratumShow`,
-`StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` still compile for one minor version
-as deprecated aliases; write the new names.
+`StratumShowTransition`, `StratumShowSlideDirection`, `Slot`, and `HighContrastMode` are gone: write the new names.
+`FocusSpread` (use `StratumFocusBorder`, its color as `customStyle: StratumFocusBorderStyle(color: ...)`) and
+`resolveSize` (use `resolveDefaultSize`) are gone too.
+
+Values: every Stratum value model compares by value, field by field, and derives a variant with `copyWith`:
+`StratumThemeData`, `StratumThemeSet`, `StratumAppPalette`, `StratumMotionLevels`, `StratumAnimation`,
+`StratumRemoteTheme`, `StratumFontData`, `StratumThemeTransitions`, `StratumTextStyle`, `WidgetStyle`, `Interaction`,
+`InteractionState`, `Scroll`, `FocusGroup`, `StratumFocusTokens`, `StratumFocusBorderStyle`, `StratumInkWellStyle`,
+`ScrollFocusStyle`, `StratumCaretStyle`, the page, split, modal, and toast values, and the web view values. A
+`StratumFocusBorderStyle` compares by value for its `.all` and `.fromMap` properties, by identity for a
+`resolveWith` one. A theme data's `*Tokens` groups compare by identity and carry no `copyWith` (`StratumColorTokens`
+and the rest), except `StratumFocusTokens`, which compares by value like the list above, so two parses of one theme
+compare unequal only outside `focus`. `StratumByWindowSize` has no `copyWith`; its `==` compares the value of each
+window size. A sealed family's `copyWith` lives on each case, not on the base type: `StratumWebViewSource` itself has
+none, only `StratumWebViewUrlSource` and `StratumWebViewHtmlSource` do. Callbacks, focus nodes, states controllers,
+and scroll controllers inside a value compare by identity, and a remote theme's `bytes` and a recipe's shadows
+compare by content. `StratumThemeData.copyWith` takes each field's own non-nullable type: pass a field only to
+change it. `StratumTextStyle.copyWith(fontSize:` or `colorRole:)` keeps `customSize`/`customColor`, which win when
+the recipe resolves; use the fluent getters (`size`, `color*`) instead to change one. No value carries `map` or
+`when`: read a sealed one, such as `StratumToastPlacement` or `StratumWebViewSource`, with a Dart `switch`.
 
 ## Install
 
@@ -117,6 +135,11 @@ reading order on every platform: an app's `FocusTraversalOrder` on the items doe
 `OrderedTraversalPolicy` around the view; only a `FocusTraversalGroup` inside an item keeps its own order.
 Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible name for a screen reader to read
 (WCAG 4.1.2).
+`ScrollFocus` is the scrolling area's focus host: `componentPartDefaults: (theme) => {ScrollFocus:
+ScrollFocusStyle(focus: StratumFocusBorderStyle(...))}` restyles every scrolling area's ring, and each scroll
+view's `scrollFocusStyle` one area's; the window check counts a second ring's width.
+Every scroll view but `NestedScrollViewLayout`, and `Scroll`, take `scrollFocusStyle: ScrollFocusStyle(focus: ...)`
+beside `style`, which draws the box.
 
 - **`ListViewLayout`**, **`GridViewLayout`**, **`CustomScrollViewLayout`** — lazy list, grid, and sliver view inside
   a `WidgetStyle` box; `style.padding` becomes the scroll padding, so it scrolls with the content.
@@ -196,6 +219,17 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   Thai; a held key speaks once, where the item ends, when it is let go. `moveAnnouncement`, `atStartAnnouncement`, and
   `atEndAnnouncement` replace the texts, and an empty one stays silent. A screen-reader move treats its item as focused
   while focus stays put, moving no focus.
+  A tappable row: a root tap surface that holds the whole item, `ContainerLayout(interaction: Interaction(onTap: ...))`
+  or a `StratumInkWell`, with only `Padding`, `KeyedSubtree`, or a `Dismissible` at rest between the item and it, adds
+  no node of its own: a screen reader reads the row's label, button role, enabled or dimmed state, tap, and move actions
+  at one stop, and a disabled row reads as a dimmed button with no tap that keeps its moves. A control inside the row,
+  such as a delete button beside the label, keeps its own node and never takes the row's tap. A row splits whenever a
+  configuration between the item and the root surface, or on the surface itself, cannot merge into the item's node, such
+  as overlapping actions or conflicting flags, for example the surface's own `onSecondaryTap` or an app's own `Focus`
+  with semantics around the row. A row in a `Dismissible` that snaps back after a partial swipe stays split until it
+  rebuilds, a Flutter limit. A child added or removed between the item and the root reads otherwise for one frame. A
+  disabled component on the Stratum base that holds the whole item joins the same way, with or without a tap surface
+  below.
   An item that holds focus, on its own node or one inside it, stays alive with its State and focus when a scroll, the
   user's or the app's, takes it out of view, and the list scrolls nothing for it; Tab, Shift+Tab, or an arrow key from
   it brings it back into view first, then moves focus; an app's own `nextFocus()`, `previousFocus()`, or
@@ -308,20 +342,49 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `context.deviceWindow.radius ?? BorderRadius.zero`. A reader rebuilds only when the radius changes. The app writes
   no setup code for it.
 
+## Keyboard visibility
+
+- `context.deviceWindow.isKeyboardVisible` is true while the OS of an Android or iOS device reports the on-screen
+  keyboard shown, even while `keyboardHeight` reads 0, as it does inside a `Scaffold` body. It is false in Android's
+  floating or split keyboard mode and with a hardware keyboard. On web, macOS, Windows, Linux, and in `flutter test`
+  it is always false and asks the OS nothing. A reader rebuilds only on open or close. To get the screen area the
+  keyboard covers, read `keyboardHeight`.
+- Under `StratumThemeApplication`, and so under `StratumApplication`, the app writes no setup for the scope. An app
+  with neither wraps itself: `MaterialApp(builder: (context, child) => KeyboardVisibilityScope(child: child!))`. A
+  read with no scope throws "No KeyboardVisibilityScope found in context".
+- Tests need no setup: under `flutter test` the scope reads false and opens no platform channel. To drive it, call
+  `KeyboardVisibilityScope.setVisibleForTesting(true)`, then `await tester.pump()`. The value wins on every platform
+  and holds across tests, so add `addTearDown(() => KeyboardVisibilityScope.setVisibleForTesting(false))`. Never
+  import `flutter_keyboard_visibility`.
+
 ## Focus ring
 
 - **`StratumFocusBorder`** — the Figma `FocusBorder` ring around one `child`. `StratumInkWell`, and so every
-  `interaction`, and every focusable scroll view already draw it; wrap a widget yourself only when it takes focus or
-  hover without them. Key parameters: `style` (`StratumFocusBorderStyle.outside`, the default, for every interaction
-  the user does not type into; `.inside` for form fields), `state` (`FullWidgetState.focused`, `.hovered`, or
+  `interaction`, every focusable scroll view, and every `SplitLayout` divider already draw it; wrap a widget yourself
+  only when it takes focus or hover without them. Parameters: `state` (`FullWidgetState.focused`, `.hovered`, or
   `.normal`, resolved from focus and hover alone: a field in error that holds focus still passes `focused`, and any
   other value shows no ring), `borderRadius` (the child's own radius), `insideEdge` (an outside ring on the child's
-  inner edge, for a box whose ring around it would leave the window), and per-ring `customColor`, `width`, and `gap`.
-  Look: outside, 3 px in `border.subtle.blue` after a 2 px gap, only when focused; inside, `border.default.normal`
-  on the inner edge, 3 px when hovered and 2 px when focused. It fades over the theme's `fast` level, shows at once
-  under reduced motion, and never changes the child's layout size. Its colors stay below 3:1 by design in the light
-  and dark themes (WCAG 1.4.11), and both high-contrast themes give the outside ring 3:1 or more; pass `customColor`
-  where an app needs that ratio in light or dark.
+  inner edge, for a box whose ring around it would leave the window), and `customStyle`, a
+  `StratumFocusBorderStyle`. Every look value comes from that focus style, field by field over four levels, low to
+  high: the theme's `focus` group; `componentPartDefaults: (theme) => {StratumFocusBorder:
+  StratumFocusBorderStyle(...)}` for every ring; the host type's style (`StratumInkWellStyle`, `ScrollFocusStyle`,
+  `SplitLayoutStyle`) and its `focus` field; and one instance. The style's fields: `color`, `width`, `gap`,
+  `radius`, `placement` (`StratumFocusBorderPlacement.outside`, the default, for every interaction the user does
+  not type into; `.inside` for form fields), `motion` (an `AnimationStyle`), `secondRing` (`(color: c, width:
+  null)`, a two-tone ring touching the first on the side away from the child's edge, outward for an outside ring and
+  inward for an inside or `insideEdge` one, at the first ring's width unless set), and `glow` (a
+  `List<BoxShadow>`). Every field but `placement` takes `WidgetStateProperty.all(v)` or
+  `WidgetStateProperty.fromMap({WidgetState.hovered: a, WidgetState.focused: b})`; a `.fromMap` value must be
+  `WidgetStateProperty<T?>` (a nullable `T`) or carry a `WidgetState.any` entry, since an inside ring resolves
+  `hovered` and an outside ring resolves `focused` even in the normal look, and a non-nullable map with no `any`
+  entry throws Flutter's own `ArgumentError` for a state it was never given. A width of 0 or a fully
+  transparent color fails a debug assert, and no field draws a dashed ring. The every-ring style lives only in
+  `componentPartDefaults`: a `componentDefaults` entry under `StratumFocusBorder` fails a debug assert. Default look: outside, 3 px in
+  `border.subtle.blue` after a 2 px gap, only when focused; inside, `border.default.normal` on the inner edge, 3 px
+  when hovered and 2 px when focused. It fades over the style's motion, shows at once under reduced motion, second
+  ring and glow included, and never changes the child's layout size. Its default colors stay below 3:1 in the light
+  and dark themes (WCAG 1.4.11), and both high-contrast themes give the outside ring 3:1 or more; set a focus style
+  color, from the theme's `focus` group up to one ring, where an app needs that ratio in light or dark.
 - **`StratumInkWell`** — the tap surface every `interaction` builds on. Its own hover and press overlay fades over
   the theme's `fast` level and snaps straight to its target color under reduced motion, same as the ring above it.
   `tapTargetSize` (default `TapTargetSize.platform`) grows its layout and hit area to the platform minimum
@@ -330,14 +393,10 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   `RowLayout`, `StackLayout`, `WrapLayout`) with a tap surface, so a dense `BoxLayout` opts out the same way.
   `onHover` reports a pointer over the surface while it is enabled: turning disabled under a still pointer, by its own
   `disabled` or a disabled component around it, calls `onHover(false)` once, and turning enabled again under it calls
-  `onHover(true)` once.
-- **`FocusSpread`** — deprecated in 1.1.0, and removed after one minor version: it builds `StratumFocusBorder`, so
-  it already draws the new look. Its `color` now colors only the ring, as `customColor`, and no longer fills the
-  box; a box that needs a fill takes it from its own style. Replace `FocusSpread(focus: f, color: c, inside: i,
-  borderRadius: r, child: x)` with `StratumFocusBorder(state: f ? FullWidgetState.focused : FullWidgetState.normal,
-  customColor: c, insideEdge: i ?? false, borderRadius: r, child: x)`; its `spread` has no counterpart and never
-  took effect.
-
+  `onHover(true)` once. `customStyle: StratumInkWellStyle(focus: StratumFocusBorderStyle(...))` restyles this
+  surface's focus ring, over `componentPartDefaults: (theme) => {StratumInkWell: StratumInkWellStyle(focus: ...)}`
+  for every tap surface, which sits over the every-ring `StratumFocusBorder` style; `Interaction.customStyle`
+  carries it to every `BoxLayout` with a tap surface.
 ## Disabled components
 
 - **`disabled: true`** — on any component built on `StratumStatelessWidget` or `StratumStatefulWidget`, the
@@ -364,16 +423,21 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 - **`StratumCaret`** — the Figma `Caret` glyph that marks a disclosure, select, or dropdown as open or closed; for
   navigation between pages or sections, use a dedicated arrow or chevron icon instead. Key parameters: `direction`
   (`StratumCaretDirection.down`, the default, `.up`, `.start`, `.end`: `start` and `end` follow the text direction,
-  so `end` points right in a left-to-right app and left in a right-to-left app), `style`
-  (`StratumCaretStyle.regular`, the default, a 1.5 px round chevron; `.light`, 1.0 px; `.fill`, a solid triangle),
+  so `end` points right in a left-to-right app and left in a right-to-left app), `style` (a `StratumCaretGlyph`:
+  `StratumCaretGlyph.regular`, the default, a 1.5 px round chevron; `.light`, 1.0 px; `.fill`, a solid triangle),
   `size` (a `WidgetSize`: `tiny` 10 px to `huge` 32 px, `medium` 16 px; null takes the theme's `defaultWidgetSize`)
   or `customSize` (any side in logical pixels, must be finite and >= 0), and `color` (a `ColorEnum`: the theme's
   `icon.color.<name>` token, else `icon.default.primary`) or `customColor` (any color, as given). The line width
   stays the same at every size, and the glyph sits centered in its square box and never stretches. Change
   `direction` to turn it: it turns the short way over the theme's `fast` level, a half turn back the way the last
   half turn came, and shows the new direction at once under reduced motion or when the text direction flips. It
-  adds nothing to the semantics tree: announce expanded or collapsed on the component that holds it. `customStyle`
-  styles the box, never the glyph, and `state`, `feedbackState`, and `loading` leave its look as it is.
+  adds nothing to the semantics tree: announce expanded or collapsed on the component that holds it. It takes no
+  `state`, `feedbackState`, `loading`, or `windowSize`; `customStyle` takes a `StratumCaretStyle`, the 16
+  `WidgetStyle` fields its childless box shows (no `padding`, `alignment`, `clipBehavior`, `foregroundBlur`, or min
+  and max sizes), and styles the box, never the glyph: a `width` or `height` grows the box past its side, the glyph
+  keeps its size and sits centered, and the box never shrinks below the glyph. `componentPartDefaults: (theme) =>
+  {StratumCaret: StratumCaretStyle(...)}` restyles every caret's box; a `componentDefaults` entry under
+  `StratumCaret` fails a debug assert.
 - **Named colors** — a component of your own on `StratumStatelessWidget` or `StratumStatefulWidget` maps its `color`
   prop with `resolveColor(context, (colors) => colors.icon.color, fallback)`: the token of that name in the group
   you pick (`background.color`, `border.color`, `icon.color`, or `text.color`), else `fallback` when `color` is null
@@ -383,7 +447,6 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   restyle the names the package already has.
 - A component's size hook is `resolveDefaultSize(context)`: the widget's `size` when set, else
   `resolveTheme(context).defaultWidgetSize`, so a subclass that overrides `resolveTheme` sets its own default size.
-  `resolveSize` is its deprecated old name, kept one minor version.
 
 ## Built-in labels
 
@@ -570,8 +633,8 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   default sets 0.5 for both, and an app theme may leave the group out. Read them as
   `StratumThemeApplication.of(context).opacity.disabled` and `.opacity.scrim`. A value outside 0 to 1 throws
   `StratumThemeFormatException` with `expected_opacity` at its path, and a third key under `opacity` is
-  `unknown_key`. The package default reads `$schema: stratum-theme/v1.4.0`; this package reads every `v1.0` to
-  `v1.4` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
+  `unknown_key`. The package default reads `$schema: stratum-theme/v1.5.0`; this package reads every `v1.0` to
+  `v1.5` theme, while a package build that reads only up to `v1.2` refuses a `v1.3` theme as
   `unsupported_schema`, so a theme that must load on every build writes `v1.0.0` and leaves `opacity` out; one that
   must load on every build from `v1.1` on writes `v1.1.0` and keeps `disabled` but leaves `scrim` out.
 - **Border, shadow, and blur tokens** — `border`, `shadow`, and `blur` in `theme.yaml` (format
@@ -610,15 +673,25 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   (see System bars): a `system` set holding `barMode`, `orientations`, or `appSwitcherLabel` throws
   `StratumThemeFormatException` with `unknown_key`, a bad icons value `expected_bar_icons`, and a bad flag
   `expected_boolean`. A package build that reads only up to `v1.3` refuses a `v1.4` theme as `unsupported_schema`.
+- **Focus ring look** — `focus` in `theme.yaml` (format `stratum-theme/v1.5.0`) sets the focus ring's theme look:
+  `light`, `dark`, and the optional partial overlays `highContrastLight` and `highContrastDark`, each with `outside`
+  (`color`, `width`, `gap`) and `inside` (`color`, and a `width` of `hovered` and `focused`). Each color is a quoted
+  hex color or an alias to a color token; a color whose alpha is 0 is `expected_color`, and a width of 0 is
+  `expected_dimension`, since either hides the ring; a gap of 0 loads. A file that leaves the group out keeps the
+  Figma `FocusBorder` look. A package build that reads only up to `v1.4` refuses a `v1.5` theme as
+  `unsupported_schema`. Read it in code as `StratumTheme.of(context).focus`, a `StratumFocusTokens` of the six
+  values for the active light, dark, or high-contrast data.
 - Read the theme data, its default widget size, and the window size where a widget sits:
   `context.themeData()` (or `context.themeData(ThemeMode.dark)`), `context.defaultWidgetSize()`, and
   `context.windowSize`. Each throws a `FlutterError`: `themeData` and `defaultWidgetSize` name the missing
   `StratumThemeApplication`; the window-size error says how to wrap the app.
 - **App-wide component defaults** — `StratumThemeApplication(componentDefaults: (theme) => {MyWidget:
   WidgetStyle(...)}, ...)` restyles every instance of a component type from one place; read it in a component's
-  `build` through `StratumWidgetProps.resolveStyle`, never directly. A component drawn in several parts, such as a
-  page layout, a modal layout, or a notice, instead takes `componentPartDefaults: (theme) => {ModalLayout:
-  ModalLayoutStyle(...)}`, one parts style per component type; read it through
+  `build` through `StratumWidgetProps.resolveStyle(context, defaults, customStyle)`, never directly; the component
+  base declares no `customStyle`, so a component of your own that takes one declares its own field, of its own type,
+  and passes it as the third argument. A component drawn in several parts, such as a page layout, a modal layout, or
+  a notice, instead takes `componentPartDefaults: (theme) => {ModalLayout: ModalLayoutStyle(...)}`, one parts style
+  per component type; read it through
   `StratumComponentDefaults.partsOf<ModalLayoutStyle>(context, ModalLayout)`, null when none is registered, and a
   thrown `FlutterError` naming both types when the registered value is not a `ModalLayoutStyle`. Both builders run
   again whenever the active theme changes, and `StratumThemeApplication.wrap` copies both to a nested application.
@@ -655,7 +728,13 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   theme application inside its builder keeps the wrapper's `themeMode` (default `ThemeMode.system`) on every route.
 - `controller:` hands in a `StratumThemeController` you hold, which the wrapper never disposes. With one, the preload
   inputs (`initialThemeId`, `onThemeChanged`, `googleFontsTimeout`, `remoteThemes`, `onRemoteThemeError`, `error`,
-  `loadingBuilder`) are ignored; with none, the wrapper reads the first five once, at its first build.
+  `loadingBuilder`) are ignored; with none, the wrapper reads the first five once, at its first build. One
+  exception: a rebuild that flips `controller:` from null to one while the widget settings load the null branch
+  started is still pending shows `loadingBuilder`, else the background, until that load ends.
+- `widgetSettings:` hands in a `StratumWidgetSettingsController` you hold, read once at the first build; with none,
+  the wrapper reads the scope above, else makes its own over the default store and places a scope around the app
+  for `setting:` on a `PageLayout` or `SplitLayout` below to read (see Widget settings). With `controller:` set, a
+  settings controller this app uses must already be loaded.
 - `loadingBuilder:` replaces the theme's background color shown until the start theme is active. `error:` is the
   frame for a start theme that fails to load, and the failure reaches only it, so log it there; with none, the failure
   goes to `FlutterError.reportError` and the background stays. Both build above the app widget, with no
@@ -669,6 +748,60 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 - `systemStyle:` forwards the app-wide system bar style to the theme application; see System bars.
 - `componentPartDefaults:` forwards the app-wide parts style per component type to the theme application; see
   Themes, App-wide component defaults.
+
+## Widget settings
+
+- **Opt in per instance** — pass `setting: WidgetSettingKey.global()` to a `PageLayout` or `SplitLayout` to have
+  Stratum remember that type's own sizes across every instance, or `setting: WidgetSettingKey.id('mail')` for the
+  instances that share that id; with no `setting:` Stratum persists nothing. A stored value wins over a passed
+  controller's, each value judged on its own; the controller's own value is the default only where the store holds
+  none. The restore at the first build notifies no listener of a passed controller: read it after the first frame,
+  not during it.
+- **Load before the first frame** — `StratumSplashScreen` and `StratumApplication` load the settings beside the
+  start theme, under the same held first frame, so a mounted `setting:` reads the loaded cache at its own first
+  build. Pass `widgetSettings:` a `StratumWidgetSettingsController` of your own to call `switchUser` from
+  `postload`, or preload it yourself ahead of either wrapper:
+
+  ```dart
+  // Without a Stratum wrapper: preload the device box before runApp.
+  final settings = await StratumWidgetSettingsController.preload();
+  runApp(StratumWidgetSettings(controller: settings, child: const MyApp()));
+
+  // After sign-in, and at sign-out.
+  await settings.switchUser('user-42');
+  await settings.switchUser(null);
+  ```
+
+- **A box per widget type** — a plain app widget reads and writes its own settings through
+  `StratumWidgetSettings.of(context, namespace: 'acme.inbox_filter')`, a declared, package-prefixed namespace that
+  returns a `StratumWidgetSettingBox`: `box.global` is the part every instance of that widget type shares, and
+  `box.id('mail')` the part shared only by instances carrying that id; `global` and an `id` never mix values, and
+  neither leaks into another widget type's box. Each part has `getBool`/`setBool`, `getInt`/`setInt`,
+  `getDouble`/`setDouble`, `getString`/`setString`, and `getStringList`/`setStringList`, plus `remove`; a write
+  rebuilds only the readers of that value.
+
+  ```dart
+  final box = StratumWidgetSettings.of(context, namespace: 'acme.inbox_filter');
+  final unreadOnly = box.global.getBool('unread_only') ?? false;
+  ```
+
+- **Per signed-in user** — `controller.switchUser('user-42')` loads that user's values, then swaps every reader at
+  once, so no default frame shows under the new user; `switchUser(null)` returns to the device box at sign-out.
+  `controller.clearUser('user-42')` clears only that user's Stratum keys, such as at account deletion.
+- **Reset** — `controller.resetId(namespace, id)`, `controller.resetType(namespace)`, and `controller.resetAll()`
+  reset by id, by type, or every Stratum setting of the current user; reset never touches the host app's own
+  keys or another user's.
+- **Swap the store** — the default store is `StratumSharedPreferencesSettingStore`, over `shared_preferences`.
+  `StratumMemorySettingStore` is the in-memory one for tests; pass it to your own
+  `StratumWidgetSettingsController(store: StratumMemorySettingStore())`.
+- **Theme persistence stays the app's** — widget settings are their own store, separate from the theme id the app
+  saves through `onThemeChanged`; this feature adds no persistence to the theme runtime.
+- **Widget tests** — install `SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty()` in
+  `setUp` (for example in `flutter_test_config.dart`) so every wrapper's own default store loads an empty box, or
+  pass `widgetSettings:` a controller preloaded over `StratumMemorySettingStore`; with neither, a `StateError` about
+  the missing platform instance reports once through `FlutterError.reportError`, which fails a `testWidgets` test
+  that pumps `StratumSplashScreen` or `StratumApplication` with no theme controller, so add one of the two setups
+  before pumping either.
 
 ## System bars
 
@@ -728,9 +861,10 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
 - **One page's own type** — `PageTransition(type:, child:)` for `Navigator.push`, and
   `StratumTransitionPage(key: state.pageKey, type:, child:)` for go_router's `pageBuilder` or a Navigator 2.0 page
   list; either shows its own type, never the theme's. `PageTransition` also takes `curve`, `duration`,
-  `reverseDuration`, `alignment` (required by `scale`, `rotate`, `size`), `childCurrent` (the current page, required
-  by the joined types), and `inheritTheme` with `ctx`. In the theme and in `StratumTransitionPage`, which have neither,
-  `scale`, `rotate`, and `size` grow from the center and a joined type slides the page below out in its own route.
+  `reverseDuration`, `alignment` (the point `scale`, `rotate`, and `size` grow from; the center by default),
+  `childCurrent` (the current page, required by the joined types), and `inheritTheme` with `ctx`. In the theme and in
+  `StratumTransitionPage`, which have neither, `scale`, `rotate`, and `size` grow from the center and a joined type
+  slides the page below out in its own route.
   `NoPageTransition(builder:)` shows its page with no animation and zero push and pop durations, whatever the theme
   names. The page below moves only under an opaque route, or under a route that hands its own delegated
   transition, such as `showCupertinoSheet`: `PageTransition` is translucent by default, so pass `opaque: true`
@@ -814,20 +948,26 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   divider off. The split needs a bounded width (or height, vertical).
 - **Resize** — the EndUser drags a divider, steps it by the arrow keys along the axis (16 px, 64 with Shift), jumps
   by Home and End to the start pane's min and max, or uses a screen reader's increase and decrease actions; every
-  move stays within both panes' `min` and `max`. Each divider is a Tab stop with the focus ring and reads as a slider
-  valued by the start pane's percent; `dividerLabel:` replaces the built-in "Resize panes" label.
+  move stays within both panes' `min` and `max`. Each divider is a Tab stop with the focus ring; `customStyle:
+  SplitLayoutStyle(focus: StratumFocusBorderStyle(...))` restyles that ring for one split, over
+  `componentPartDefaults: (theme) => {SplitLayout: SplitLayoutStyle(focus: ...)}` for every split. Each divider reads
+  as a slider valued by the start pane's percent; `dividerLabel:` replaces the built-in "Resize panes" label.
 - **Divider look** — nothing paints by default and the divider takes no space, so the panes stay flush; its hit area
   is the platform's minimum target size centered on the seam, with a resize cursor on hover; a tap, a scroll, or a
   drag across the axis that starts there still reaches the pane content under it. Paint one with
   `dividerBuilder: (context, state) => ...`, where `state.hovered`, `state.dragging`, and `state.focused` pick the
   look; the widget fills the hit area, so center a thin line in it and read its color from a theme token.
-- **Keep widths** — Stratum stores nothing. Pass a `SplitLayoutController(fractions: saved)` to restore kept
-  fractions (one per pane in `panes`, a null pane included; a null entry is a pane with no choice yet, which opens
-  at its own `size` or `flex`), listen to it to save `controller.fractions`, and set
+- **Keep widths** — pass `setting: WidgetSettingKey.global()` (every instance) or `setting:
+  WidgetSettingKey.id('mail')` (instances sharing that id) to have Stratum remember and restore the split's
+  fractions itself under the `StratumWidgetSettings` above (see Widget settings); with no `setting:`, Stratum
+  persists nothing. Pass a `SplitLayoutController(fractions: saved)` to restore kept
+  fractions yourself instead (one per pane in `panes`, a null pane included; a null entry is a pane with no choice
+  yet, which opens at its own `size` or `flex`), listen to it to save `controller.fractions`, and set
   `controller.fractions = [...]` from code. It notifies once per settled move (a drag's end, one key step, a slider
   action, or a code set), never per drag frame and never when a narrow window only squeezes the panes. A saved entry
   that is NaN, infinite, or negative reads as null, so a corrupt value opens the pane at its own size. With no
-  controller the split makes and disposes its own; it never disposes one you pass.
+  controller the split makes and disposes its own; it never disposes one you pass. With both, a stored value wins
+  over the controller's, which becomes the default only where the store holds none.
 
 ## Page layout
 
@@ -878,6 +1018,11 @@ Pass `semanticsLabel` to a focusable view: its Tab stop has no other accessible 
   a key step, or a code set), never per drag frame and never when a narrow window only squeezes a pane. A saved
   width that is NaN, infinite, or negative reads as null, so a corrupt value opens Figma's width. The page disposes
   only the one it makes.
+- **Keep widths** — pass `setting: WidgetSettingKey.global()` (every instance) or `setting:
+  WidgetSettingKey.id('mail')` (instances sharing that id) to have Stratum remember and restore `leftWidth` and
+  `rightWidth` itself under the `StratumWidgetSettings` above (see Widget settings), judged each on its own; with
+  no `setting:`, Stratum persists nothing. With a passed controller too, a stored width wins, and the controller's
+  width becomes the default only where the store holds none.
 
 ## Hover and focus observers
 

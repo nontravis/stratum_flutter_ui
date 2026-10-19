@@ -11,7 +11,14 @@ import 'package:stratum_ui/src/components/common/layout/page_drawer.dart'
         resolveDrawerType;
 import 'package:stratum_ui/src/components/common/model/page_layout/page_areas.dart';
 import 'package:stratum_ui/src/components/common/model/solid_fill.dart';
+import 'package:stratum_ui/src/components/common/widget_settings/setting_binding.dart';
 import 'package:stratum_ui/src/src.dart';
+
+/// The settings namespace and the value names a page remembers its side
+/// pane widths under (PD11).
+const String _settingNamespace = 'stratum.page_layout';
+const String _leftWidthName = 'left_width';
+const String _rightWidthName = 'right_width';
 
 /// Opens and closes a [PageLayout]'s drawers and holds the chosen widths of
 /// its inline side panes; [PageLayout.of] returns it (US-19 FR-03, FR-06;
@@ -79,6 +86,18 @@ class PageLayoutController extends ChangeNotifier {
   /// Closes the open drawer and reports it closed once it is gone; does
   /// nothing and reports nothing while no drawer is open (US-19 FR-03 E02).
   void close() => _layout?._close();
+
+  /// Sets [leftWidth] and [rightWidth] as the setters do, without a notify,
+  /// so a page can seed it inside the build phase (PD7); a null argument,
+  /// or one that is not a finite number of at least 0, keeps that width as
+  /// it is.
+  @internal
+  void restore({double? leftWidth, double? rightWidth}) {
+    final checkedLeft = _checked(leftWidth);
+    final checkedRight = _checked(rightWidth);
+    if (checkedLeft != null) _leftWidth = checkedLeft;
+    if (checkedRight != null) _rightWidth = checkedRight;
+  }
 
   /// [width] when it is a finite number of at least 0, else null.
   static double? _checked(double? width) =>
@@ -178,6 +197,7 @@ class PageLayout extends StatefulWidget {
     this.onDrawerChanged,
     this.customStyle,
     this.systemStyle,
+    this.setting,
   });
 
   /// The slot across the full width on top.
@@ -273,6 +293,18 @@ class PageLayout extends StatefulWidget {
   /// The system bar style of this page, an inner scope over the app-wide
   /// style; null adds no scope (US-18 FR-07).
   final SystemStyle? systemStyle;
+
+  /// The settings key the page remembers [controller]'s side pane widths
+  /// under, in the `StratumWidgetSettings` above; null remembers nothing
+  /// (FO-10 US-01).
+  ///
+  /// - A stored width wins over [controller]'s, each on its own; a settled
+  ///   resize of either saves.
+  /// - The restore at the first build notifies no listener of [controller]:
+  ///   read the controller after the first frame.
+  /// - A later store change moves the pane through [controller], which
+  ///   notifies.
+  final WidgetSettingKey? setting;
 
   /// The controller of the nearest [PageLayout] above [context].
   ///
@@ -375,6 +407,23 @@ class _PageLayoutState extends State<PageLayout>
   final _leftSplit = SplitLayoutController();
   final _rightSplit = SplitLayoutController();
 
+  /// Remembers the side pane widths under [PageLayout.setting] (PD7).
+  late final _binding = WidgetSettingBinding(
+    namespace: _settingNamespace,
+    names: const [_leftWidthName, _rightWidthName],
+    onStored: _onStored,
+  );
+
+  /// The controller's widths when the page first met it, before any
+  /// restore; null for the page's own controller (PD18).
+  double? _appDefaultLeft;
+  double? _appDefaultRight;
+
+  /// The controller's widths as this page last saw them; a settled change
+  /// saves only a width that differs (PD7).
+  double? _seenLeft;
+  double? _seenRight;
+
   /// The page's own published areas; the host above reads the innermost
   /// handle on stage, which the [PageAreasProbe] at the root of [build]
   /// tracks, so no route read subscribes this State (s03 toast invariant
@@ -404,7 +453,11 @@ class _PageLayoutState extends State<PageLayout>
   @override
   void initState() {
     super.initState();
-    _controller._layout = this;
+    _appDefaultLeft = widget.controller?.leftWidth;
+    _appDefaultRight = widget.controller?.rightWidth;
+    _controller
+      .._layout = this
+      ..addListener(_onControllerChanged);
     _leftSplit.addListener(() => _onSettled(PageDrawerSide.left));
     _rightSplit.addListener(() => _onSettled(PageDrawerSide.right));
   }
@@ -413,6 +466,7 @@ class _PageLayoutState extends State<PageLayout>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _register();
+    _restore(_binding.attach(context, widget.setting));
     final motion = context.theme.animation.normal;
     final duration = motion.duration ?? Duration.zero;
     _drawer
@@ -427,14 +481,19 @@ class _PageLayoutState extends State<PageLayout>
   @override
   void didUpdateWidget(PageLayout oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final swapped = widget.controller != oldWidget.controller;
     _swapController(oldWidget.controller);
     if (widget.loading != oldWidget.loading) _moveFocusForLoading();
     _closeDrawerGoneInline();
     _rebuildDrawerPage();
+    // A swapped-in controller takes the stored widths as at a first build.
+    final stored = _binding.rekey(widget.setting);
+    _restore(stored ?? (swapped ? _binding.stored() : null));
   }
 
   @override
   void dispose() {
+    _binding.dispose();
     _registryDispose();
     _handle.dispose();
     _detach(_controller);
@@ -566,11 +625,18 @@ class _PageLayoutState extends State<PageLayout>
     }
     _controller
       .._layout = this
-      .._openSide = openSide;
+      .._openSide = openSide
+      ..addListener(_onControllerChanged);
+    _appDefaultLeft = widget.controller?.leftWidth;
+    _appDefaultRight = widget.controller?.rightWidth;
   }
 
-  /// Lets [controller] go of this page, while it holds this page.
+  /// Lets [controller] go of this page: always drops this page's own
+  /// listener, whatever [controller] holds, so a controller a later page
+  /// took over never keeps a gone page's listener attached (a route swap
+  /// on one shared app controller).
   void _detach(PageLayoutController controller) {
+    controller.removeListener(_onControllerChanged);
     if (controller._layout != this) return;
     controller
       .._layout = null
@@ -1381,6 +1447,40 @@ class _PageLayoutState extends State<PageLayout>
     }
   }
 
+  /// Seeds the controller with [stored]'s widths without a notify, as the
+  /// build phase needs; none leaves the controller as it is (PD7, RF2).
+  void _restore(Map<String, Object?>? stored) {
+    _controller.restore(
+      leftWidth: _decodeWidth(stored?[_leftWidthName]),
+      rightWidth: _decodeWidth(stored?[_rightWidthName]),
+    );
+    _seenLeft = _controller.leftWidth;
+    _seenRight = _controller.rightWidth;
+  }
+
+  /// Saves a width that differs from the last one this page saw, left and
+  /// right each on their own (PD7).
+  void _onControllerChanged() {
+    final left = _controller.leftWidth;
+    if (left != _seenLeft) {
+      _seenLeft = left;
+      _binding.save(_leftWidthName, left);
+    }
+    final right = _controller.rightWidth;
+    if (right != _seenRight) {
+      _seenRight = right;
+      _binding.save(_rightWidthName, right);
+    }
+  }
+
+  /// Moves the panes to a store change's widths through the controller,
+  /// which notifies, else back to the app default (PD18).
+  void _onStored(Map<String, Object?> stored) {
+    _controller
+      ..leftWidth = _decodeWidth(stored[_leftWidthName]) ?? _appDefaultLeft
+      ..rightWidth = _decodeWidth(stored[_rightWidthName]) ?? _appDefaultRight;
+  }
+
   /// [PageLayout.snack] at the bottom center, above the bottom inset and
   /// the keyboard the page makes room for and within the side insets;
   /// null when there is none.
@@ -1695,3 +1795,9 @@ class _LoadingLayerState extends State<_LoadingLayer>
     );
   }
 }
+
+/// [stored] as a kept width: any `num` through [PageLayoutController._checked]
+/// (RF2 reads a stored whole number back as an `int` on the web); anything
+/// else reads as none (PD3).
+double? _decodeWidth(Object? stored) =>
+    stored is num ? PageLayoutController._checked(stored.toDouble()) : null;

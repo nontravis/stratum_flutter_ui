@@ -4,6 +4,7 @@ import 'package:stratum_ui/src/components/common/model/toast/stratum_toast_actio
 import 'package:stratum_ui/src/components/common/model/toast/stratum_toast_placement.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/themes/constant/feedback_state.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/stratum_toast_notice.freezed.dart';
 
@@ -11,7 +12,7 @@ part 'generated/stratum_toast_notice.freezed.dart';
 /// kind, action, placement, the edge inset its solid edge pads by, and the
 /// page `snack` style layer the host resolved, plus the [close] call that
 /// closes it (US-01 FR-06 E04; s03 invariants 4, 16).
-@freezed
+@valueModel
 class StratumToastNotice with _$StratumToastNotice {
   const new({
     required this.message,

@@ -91,21 +91,24 @@ void main() {
   setUp(() => _app = Directory.systemTemp.createTempSync('stratum_theme_'));
   tearDown(() => _app.deleteSync(recursive: true));
 
-  group('us02/fr01: pack', () {
-    test('us02/s1, us02/fr01, r9: pack writes <id>.zip in the working '
-        'folder and prints its checksum alone', () async {
-      _folder('brand', _theme());
+  group('fo04/us02/fr01: pack', () {
+    test(
+      'fo04/us02/s1, fo04/us02/fr01, r9: pack writes <id>.zip in the working '
+      'folder and prints its checksum alone',
+      () async {
+        _folder('brand', _theme());
 
-      final run = await _run(['pack', 'brand']);
-      final zip = File(p.join(_app.path, 'brand.zip')).readAsBytesSync();
+        final run = await _run(['pack', 'brand']);
+        final zip = File(p.join(_app.path, 'brand.zip')).readAsBytesSync();
 
-      expect(run.code, exitPass);
-      expect(run.out, '${_sha(zip)}\n');
-      expect(run.err.first, startsWith('defaults: '));
-      expect(run.err.first, isNot(contains('(app)')));
-    });
+        expect(run.code, exitPass);
+        expect(run.out, '${_sha(zip)}\n');
+        expect(run.err.first, startsWith('defaults: '));
+        expect(run.err.first, isNot(contains('(app)')));
+      },
+    );
 
-    test('us02/s2, us02/fr01/e05: the same folder packs to the same bytes, '
+    test('fo04/us02/s2, fo04/us02/fr01/e05: the same folder packs to the same bytes, '
         'whatever the file times or creation order', () async {
       _folder('brand', _theme());
       await _run(['pack', 'brand', '--out', _folder('one', {})]);
@@ -127,7 +130,7 @@ void main() {
     });
 
     test(
-      'us02/s4, us02/fr01/e02: hidden names and __MACOSX stay out',
+      'fo04/us02/s4, fo04/us02/fr01/e02: hidden names and __MACOSX stay out',
       () async {
         _folder('brand', {
           ..._theme(),
@@ -150,7 +153,7 @@ void main() {
       },
     );
 
-    test('us02/s5, us02/fr01/e04, us02/fr03/e04, us02/fr03/e05: a file the '
+    test('fo04/us02/s5, fo04/us02/fr01/e04, fo04/us02/fr03/e04, fo04/us02/fr03/e05: a file the '
         'theme does not name ships and is a warning, and stdout holds the '
         'checksum alone', () async {
       _folder('brand', {..._theme(), 'anim/data.json': '{}'});
@@ -171,7 +174,7 @@ void main() {
       );
     });
 
-    test('us02/s8, us02/fr01/e06, us02/fr03/e03: theme problems fail the '
+    test('fo04/us02/s8, fo04/us02/fr01/e06, fo04/us02/fr03/e03: theme problems fail the '
         'pack, one line each, and nothing is written', () async {
       _folder('brand', _theme('space:\n  a: 1\nradius:\n  b: 2'));
 
@@ -208,7 +211,7 @@ void main() {
       expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
     });
 
-    test('us02/s10, us02/fr01/e01, us02/fr03/e14: a folder named default fails '
+    test('fo04/us02/s10, fo04/us02/fr01/e01, fo04/us02/fr03/e14: a folder named default fails '
         'as invalid_id before the check, and nothing is written', () async {
       _folder('default', _theme());
 
@@ -220,19 +223,22 @@ void main() {
       expect(File(p.join(_app.path, 'default.zip')).existsSync(), isFalse);
     });
 
-    test('us02/fr01/e01: a folder name with a character outside the id rule '
-        'fails as invalid_id, and nothing is written', () async {
-      _folder('Brand', _theme());
+    test(
+      'fo04/us02/fr01/e01: a folder name with a character outside the id rule '
+      'fails as invalid_id, and nothing is written',
+      () async {
+        _folder('Brand', _theme());
 
-      final run = await _run(['pack', 'Brand']);
+        final run = await _run(['pack', 'Brand']);
 
-      expect(run.code, exitFailed);
-      expect(run.out, isEmpty);
-      expect(run.err.single, startsWith('invalid_id: '));
-      expect(File(p.join(_app.path, 'Brand.zip')).existsSync(), isFalse);
-    });
+        expect(run.code, exitFailed);
+        expect(run.out, isEmpty);
+        expect(run.err.single, startsWith('invalid_id: '));
+        expect(File(p.join(_app.path, 'Brand.zip')).existsSync(), isFalse);
+      },
+    );
 
-    test('us02/s11, us02/fr01/e03, us02/fr03, r10: a symbolic link fails as '
+    test('fo04/us02/s11, fo04/us02/fr01/e03, fo04/us02/fr03, r10: a symbolic link fails as '
         'unsafe_entry_path naming it, with exit 1', () async {
       final root = _folder('brand', _theme());
       Link(p.join(root, 'images', 'link.svg'))
@@ -260,7 +266,7 @@ void main() {
     });
 
     test(
-      'us02/fr01/e03, review focus 3, d-d: a FIFO is refused unread',
+      'fo04/us02/fr01/e03, review focus 3, d-d: a FIFO is refused unread',
       () async {
         final root = _folder('brand', _theme());
         Process.runSync('mkfifo', [p.join(root, 'images', 'pipe')]);
@@ -298,27 +304,30 @@ void main() {
       );
     });
 
-    test('us02/fr03/e11, d-l: a write that fails after the check exits 66, '
-        'leaves no partial file, and prints no checksum', () async {
-      _folder('brand', _theme());
-      Directory(p.join(_app.path, 'brand.zip')).createSync();
+    test(
+      'fo04/us02/fr03/e11, d-l: a write that fails after the check exits 66, '
+      'leaves no partial file, and prints no checksum',
+      () async {
+        _folder('brand', _theme());
+        Directory(p.join(_app.path, 'brand.zip')).createSync();
 
-      final run = await _run(['pack', 'brand']);
+        final run = await _run(['pack', 'brand']);
 
-      expect(run.code, exitNoInput);
-      expect(run.out, isEmpty);
-      expect(run.err.last, startsWith('cannot write '));
-      expect(
-        FileSystemEntity.isDirectorySync(p.join(_app.path, 'brand.zip')),
-        isTrue,
-      );
-      expect(
-        _app.listSync().map((entity) => p.basename(entity.path)),
-        isNot(contains(startsWith('.stratum_theme_'))),
-      );
-    });
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+        expect(run.err.last, startsWith('cannot write '));
+        expect(
+          FileSystemEntity.isDirectorySync(p.join(_app.path, 'brand.zip')),
+          isTrue,
+        );
+        expect(
+          _app.listSync().map((entity) => p.basename(entity.path)),
+          isNot(contains(startsWith('.stratum_theme_'))),
+        );
+      },
+    );
 
-    test('us02/fr01/e07, us02/fr02/e06: --max-entries below the entry count '
+    test('fo04/us02/fr01/e07, fo04/us02/fr02/e06: --max-entries below the entry count '
         'fails as archive_too_large', () async {
       _folder('brand', _theme());
 
@@ -328,7 +337,7 @@ void main() {
       expect(run.err.last, startsWith('archive_too_large: '));
     });
 
-    test('r9, us02/fr03/e10, d-l: --out names the folder, and an --out '
+    test('r9, fo04/us02/fr03/e10, d-l: --out names the folder, and an --out '
         'that is not a folder exits 66 before any check', () async {
       _folder('brand', _theme());
       _folder('out', {});
@@ -358,7 +367,7 @@ void main() {
     }
 
     test(
-      'us02/fr01/e10, us02/fr03/e14, r14, fix-1 sec f2: a POSIX file name '
+      'fo04/us02/fr01/e10, fo04/us02/fr03/e14, r14, fix-1 sec f2: a POSIX file name '
       'holding a backslash fails as '
       'unsafe_entry_path from the writer, not left as a stack trace',
       () async {
@@ -380,7 +389,7 @@ void main() {
           : false,
     );
 
-    test('edge i1, us02/fr01/e10, rz2 (c-2): a POSIX file name holding a '
+    test('edge i1, fo04/us02/fr01/e10, rz2 (c-2): a POSIX file name holding a '
         'control character fails as unsafe_entry_path with the '
         'printable-ASCII message, not left as a stack trace', () async {
       final root = _folder('brand', _theme());
@@ -397,28 +406,25 @@ void main() {
       );
     });
 
-    test(
-      'us02/fr01/e09, r14, fix-1 edge important: --out the same folder being '
-      'packed excludes its own last zip, so repeated packs give the same '
-      'bytes',
-      () async {
-        _folder('brand', _theme());
+    test('fo04/us02/fr01/e09, r14, fix-1 edge important: --out the same folder being '
+        'packed excludes its own last zip, so repeated packs give the same '
+        'bytes', () async {
+      _folder('brand', _theme());
 
-        final first = await _run(['pack', 'brand', '--out', 'brand']);
-        final second = await _run(['pack', 'brand', '--out', 'brand']);
+      final first = await _run(['pack', 'brand', '--out', 'brand']);
+      final second = await _run(['pack', 'brand', '--out', 'brand']);
 
-        expect(first.code, exitPass);
-        expect(second.code, exitPass);
-        expect(second.out, first.out);
-        expect(
-          File(p.join(_app.path, 'brand', 'brand.zip')).readAsBytesSync(),
-          writeRemoteZip({
-            for (final MapEntry(:key, :value) in _theme().entries)
-              key: utf8.encode(value),
-          }),
-        );
-      },
-    );
+      expect(first.code, exitPass);
+      expect(second.code, exitPass);
+      expect(second.out, first.out);
+      expect(
+        File(p.join(_app.path, 'brand', 'brand.zip')).readAsBytesSync(),
+        writeRemoteZip({
+          for (final MapEntry(:key, :value) in _theme().entries)
+            key: utf8.encode(value),
+        }),
+      );
+    });
 
     test('fix-1 sec f1: a planted link at the old predictable temp name is '
         'never opened, so the victim it points to is unchanged', () async {
@@ -481,20 +487,23 @@ void main() {
       ('a file name', 'images/é.png'),
       ('a folder name', 'imagés/logo.png'),
     ]) {
-      test('us02/fr01/e10, us02/fr03/e14, rz2: $label outside printable '
-          'ASCII fails the pack with one unsafe_entry_path line, no '
-          'defaults line, and no zip', () async {
-        _folder('brand', {..._theme(), file: _svg});
+      test(
+        'fo04/us02/fr01/e10, fo04/us02/fr03/e14, rz2: $label outside printable '
+        'ASCII fails the pack with one unsafe_entry_path line, no '
+        'defaults line, and no zip',
+        () async {
+          _folder('brand', {..._theme(), file: _svg});
 
-        final run = await _run(['pack', 'brand']);
+          final run = await _run(['pack', 'brand']);
 
-        expect(run.code, exitFailed);
-        expect(run.out, isEmpty);
-        expect(run.err, hasLength(1));
-        expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
-        expect(run.err.single, contains('outside printable ASCII'));
-        expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
-      });
+          expect(run.code, exitFailed);
+          expect(run.out, isEmpty);
+          expect(run.err, hasLength(1));
+          expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
+          expect(run.err.single, contains('outside printable ASCII'));
+          expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
+        },
+      );
     }
 
     for (final (label, file, why) in [
@@ -536,7 +545,7 @@ void main() {
       ),
     ]) {
       test(
-        'us02/fr01/e10, us02/fr03/e14, rzf3, rzf9: $label fails the pack '
+        'fo04/us02/fr01/e10, fo04/us02/fr03/e14, rzf3, rzf9: $label fails the pack '
         'with one unsafe_entry_path line, no defaults line, and no zip',
         () async {
           _folder('brand', {..._theme(), file: _svg});
@@ -554,37 +563,40 @@ void main() {
       );
     }
 
-    test('us02/fr01/e10, us02/fr03/e14, rz2: a folder holding an emoji '
-        'name and a DEL (0x7F) name fails the pack with one '
-        'unsafe_entry_path line naming the first offending path, before '
-        'any write', () async {
-      const emoji = 'images/😀.png';
-      const del = 'images/a\u007Fb.png';
-      try {
-        _folder('brand', {..._theme(), emoji: _svg, del: _svg});
-      } on FileSystemException {
-        // This file system refuses to create a file name holding an
-        // emoji or a DEL byte; nothing to pin here.
-        markTestSkipped('no emoji or DEL file name on this file system');
-        return;
-      }
+    test(
+      'fo04/us02/fr01/e10, fo04/us02/fr03/e14, rz2: a folder holding an emoji '
+      'name and a DEL (0x7F) name fails the pack with one '
+      'unsafe_entry_path line naming the first offending path, before '
+      'any write',
+      () async {
+        const emoji = 'images/😀.png';
+        const del = 'images/a\u007Fb.png';
+        try {
+          _folder('brand', {..._theme(), emoji: _svg, del: _svg});
+        } on FileSystemException {
+          // This file system refuses to create a file name holding an
+          // emoji or a DEL byte; nothing to pin here.
+          markTestSkipped('no emoji or DEL file name on this file system');
+          return;
+        }
 
-      final run = await _run(['pack', 'brand']);
+        final run = await _run(['pack', 'brand']);
 
-      expect(run.code, exitFailed);
-      expect(run.out, isEmpty);
-      expect(run.err, hasLength(1));
-      expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
-      expect(run.err.single, contains('outside printable ASCII'));
-      expect(
-        run.err.single,
-        anyOf(
-          contains(r'images/\ud83d\ude00.png'),
-          contains(r'images/a\u007fb.png'),
-        ),
-      );
-      expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
-    });
+        expect(run.code, exitFailed);
+        expect(run.out, isEmpty);
+        expect(run.err, hasLength(1));
+        expect(run.err.single, startsWith('unsafe_entry_path: entry "'));
+        expect(run.err.single, contains('outside printable ASCII'));
+        expect(
+          run.err.single,
+          anyOf(
+            contains(r'images/\ud83d\ude00.png'),
+            contains(r'images/a\u007fb.png'),
+          ),
+        );
+        expect(File(p.join(_app.path, 'brand.zip')).existsSync(), isFalse);
+      },
+    );
 
     test('coverage: on-disk case twins warn, through the real walk, not only '
         'the writer', () async {
@@ -606,8 +618,8 @@ void main() {
     });
   });
 
-  group('us02/fr02: check', () {
-    test('us02/s3, us02/fr02/e05: check passes a zip the app installs and '
+  group('fo04/us02/fr02: check', () {
+    test('fo04/us02/s3, fo04/us02/fr02/e05: check passes a zip the app installs and '
         'prints its checksum alone', () async {
       _folder('brand', _theme());
       await _run(['pack', 'brand']);
@@ -621,7 +633,7 @@ void main() {
       );
     });
 
-    test('us02/s9, us02/fr02/e04, us02/fr03/e08: a zip that lacks a named '
+    test('fo04/us02/s9, fo04/us02/fr02/e04, fo04/us02/fr03/e08: a zip that lacks a named '
         'file fails as missing_entry and prints no checksum', () async {
       _zip('brand.zip', {'theme.yaml': _theme()['theme.yaml']!});
 
@@ -636,22 +648,25 @@ void main() {
       );
     });
 
-    test("us02/s7, us02/fr02/e01, r13: the app project's listed default "
-        'theme is read too, and the defaults line names both', () async {
-      _folder('assets/themes/default', {
-        'theme.yaml': '$_schema\nspace:\n  nope: 4',
-      });
-      _pubspec(['assets/themes/default/']);
-      _zip('brand.zip', _theme());
+    test(
+      "fo04/us02/s7, fo04/us02/fr02/e01, r13: the app project's listed default "
+      'theme is read too, and the defaults line names both',
+      () async {
+        _folder('assets/themes/default', {
+          'theme.yaml': '$_schema\nspace:\n  nope: 4',
+        });
+        _pubspec(['assets/themes/default/']);
+        _zip('brand.zip', _theme());
 
-      final run = await _run(['check', 'brand.zip']);
+        final run = await _run(['check', 'brand.zip']);
 
-      expect(run.code, exitFailed);
-      expect(run.err.first, contains('(app)'));
-      expect(run.err, contains(startsWith('theme_format: default:')));
-    });
+        expect(run.code, exitFailed);
+        expect(run.err.first, contains('(app)'));
+        expect(run.err, contains(startsWith('theme_format: default:')));
+      },
+    );
 
-    test('us02/fr02/e03: --app-default names a file in place of the '
+    test('fo04/us02/fr02/e03: --app-default names a file in place of the '
         "project's", () async {
       _folder('assets/themes/default', {
         'theme.yaml': '$_schema\nspace:\n  nope: 4',
@@ -670,7 +685,7 @@ void main() {
       expect(run.err.first, contains(p.join(good, 'theme.yaml')));
     });
 
-    test('us02/fr02/e02: a project with no default theme is read over the '
+    test('fo04/us02/fr02/e02: a project with no default theme is read over the '
         'package default only', () async {
       _zip('brand.zip', _theme());
 
@@ -680,26 +695,29 @@ void main() {
       expect(run.err.first, endsWith('(package)'));
     });
 
-    test('us02/fr02/e01, r13: a file item of flutter: assets: lists the app '
-        'default too', () async {
-      _folder('assets/themes/default', {
-        'theme.yaml': '$_schema\nspace:\n  nope: 4',
-      });
-      _pubspec(['assets/themes/default/theme.yaml']);
-      _zip('brand.zip', _theme());
+    test(
+      'fo04/us02/fr02/e01, r13: a file item of flutter: assets: lists the app '
+      'default too',
+      () async {
+        _folder('assets/themes/default', {
+          'theme.yaml': '$_schema\nspace:\n  nope: 4',
+        });
+        _pubspec(['assets/themes/default/theme.yaml']);
+        _zip('brand.zip', _theme());
 
-      final run = await _run(['check', 'brand.zip']);
+        final run = await _run(['check', 'brand.zip']);
 
-      expect(run.code, exitFailed);
-      expect(run.err.first, contains('(app)'));
-      expect(run.err, isNot(contains(appDefaultUnlistedWarning)));
-    });
+        expect(run.code, exitFailed);
+        expect(run.err.first, contains('(app)'));
+        expect(run.err, isNot(contains(appDefaultUnlistedWarning)));
+      },
+    );
 
     for (final (label, assets) in [
       ('a parent folder item', ['assets/themes/']),
       ('no item', <String>[]),
     ]) {
-      test('us02/s13, us02/fr02/e10, us02/fr03/e12, r13: an app default '
+      test('fo04/us02/s13, fo04/us02/fr02/e10, fo04/us02/fr03/e12, r13: an app default '
           'under $label is not read, and a warning follows the defaults '
           'line', () async {
         _folder('assets/themes/default', {
@@ -716,7 +734,7 @@ void main() {
       });
     }
 
-    test('us02/fr02/e10, us02/fr03/e12, r13: a project with no pubspec.yaml '
+    test('fo04/us02/fr02/e10, fo04/us02/fr03/e12, r13: a project with no pubspec.yaml '
         'lists nothing, and the warning prints on a failing check '
         'too', () async {
       _folder('assets/themes/default', {'theme.yaml': _schema});
@@ -742,44 +760,72 @@ void main() {
         () => Directory(p.join(_app.path, 'pubspec.yaml')).createSync(),
       ),
     ]) {
-      test('us02/fr03/e09, r13: a pubspec.yaml that is $label exits 66 when '
-          'the project holds its own default theme', () async {
+      test(
+        'fo04/us02/fr03/e09, r13: a pubspec.yaml that is $label exits 66 when '
+        'the project holds its own default theme',
+        () async {
+          _folder('assets/themes/default', {'theme.yaml': _schema});
+          makePubspec();
+          _zip('brand.zip', _theme());
+
+          final run = await _run(['check', 'brand.zip']);
+
+          expect(run.code, exitNoInput);
+          expect(run.out, isEmpty);
+          expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
+        },
+      );
+    }
+
+    test(
+      'fo04/us02/fr03/e09, fix-a minor3: a pubspec.yaml holding a yaml syntax '
+      'error names the line and column',
+      () async {
         _folder('assets/themes/default', {'theme.yaml': _schema});
-        makePubspec();
+        File(p.join(_app.path, 'pubspec.yaml'))
+            .writeAsStringSync('a: 1\nb: [\n');
         _zip('brand.zip', _theme());
 
         final run = await _run(['check', 'brand.zip']);
 
         expect(run.code, exitNoInput);
         expect(run.out, isEmpty);
-        expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
-      });
-    }
-
-    test('us02/fr03/e09, fix-a minor3: a pubspec.yaml holding a yaml syntax '
-        'error names the line and column', () async {
-      _folder('assets/themes/default', {'theme.yaml': _schema});
-      File(p.join(_app.path, 'pubspec.yaml')).writeAsStringSync('a: 1\nb: [\n');
-      _zip('brand.zip', _theme());
-
-      final run = await _run(['check', 'brand.zip']);
-
-      expect(run.code, exitNoInput);
-      expect(run.out, isEmpty);
-      expect(
-        run.err.last,
-        'cannot read "pubspec.yaml":3:1: Expected node content.',
-      );
-    });
+        expect(
+          run.err.last,
+          'cannot read "pubspec.yaml":3:1: Expected node content.',
+        );
+      },
+    );
 
     for (final (label, body) in [
       ('a malformed percent escape in a tag', 'x: !<%ZZ> y'),
       ('a percent escape that decodes to invalid utf-8', 'x: !<%FF> y'),
     ]) {
-      test('sec f1, us02/fr03/e09: a pubspec.yaml holding $label exits 66, '
-          'not an unhandled exception', () async {
+      test(
+        'sec f1, fo04/us02/fr03/e09: a pubspec.yaml holding $label exits 66, '
+        'not an unhandled exception',
+        () async {
+          _folder('assets/themes/default', {'theme.yaml': _schema});
+          File(p.join(_app.path, 'pubspec.yaml')).writeAsStringSync(body);
+          _zip('brand.zip', _theme());
+
+          final run = await _run(['check', 'brand.zip']);
+
+          expect(run.code, exitNoInput);
+          expect(run.out, isEmpty);
+          expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
+          expect(run.err, isNot(contains(contains('Unhandled exception'))));
+        },
+      );
+    }
+
+    test(
+      'sec f1, fo04/us02/fr03/e09: a pubspec.yaml whose tag forges a control '
+      'sequence exits 66 with printable-only stderr',
+      () async {
         _folder('assets/themes/default', {'theme.yaml': _schema});
-        File(p.join(_app.path, 'pubspec.yaml')).writeAsStringSync(body);
+        File(p.join(_app.path, 'pubspec.yaml'))
+            .writeAsStringSync('x: !!foo%1B%5D0%3Bpwned%07 y');
         _zip('brand.zip', _theme());
 
         final run = await _run(['check', 'brand.zip']);
@@ -787,26 +833,11 @@ void main() {
         expect(run.code, exitNoInput);
         expect(run.out, isEmpty);
         expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
-        expect(run.err, isNot(contains(contains('Unhandled exception'))));
-      });
-    }
-
-    test('sec f1, us02/fr03/e09: a pubspec.yaml whose tag forges a control '
-        'sequence exits 66 with printable-only stderr', () async {
-      _folder('assets/themes/default', {'theme.yaml': _schema});
-      File(p.join(_app.path, 'pubspec.yaml'))
-          .writeAsStringSync('x: !!foo%1B%5D0%3Bpwned%07 y');
-      _zip('brand.zip', _theme());
-
-      final run = await _run(['check', 'brand.zip']);
-
-      expect(run.code, exitNoInput);
-      expect(run.out, isEmpty);
-      expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
-      for (final line in run.err) {
-        expect(line, matches(_printable));
-      }
-    });
+        for (final line in run.err) {
+          expect(line, matches(_printable));
+        }
+      },
+    );
 
     group('r16 (t25), rz1: hostile pubspec.yaml files', () {
       setUp(() {
@@ -816,7 +847,7 @@ void main() {
 
       String pubspecPath() => p.join(_app.path, 'pubspec.yaml');
 
-      test('us02/fr03/e09: flow nesting 100,000 deep exits 66 at line 1, '
+      test('fo04/us02/fr03/e09: flow nesting 100,000 deep exits 66 at line 1, '
           'column 65', () async {
         File(pubspecPath()).writeAsStringSync('[' * 100000);
 
@@ -830,41 +861,48 @@ void main() {
         );
       });
 
-      test('us02/fr03/e09: a mapping key built from aliases 40 deep exits 66 '
-          'at its first anchor', () async {
-        File(pubspecPath()).writeAsStringSync(
-          [
-            'a0: &a0 [x, x]',
-            for (var d = 1; d <= 40; d++) 'a$d: &a$d [*a${d - 1}, *a${d - 1}]',
-            '? *a40',
-            ': v',
-          ].join('\n'),
-        );
+      test(
+        'fo04/us02/fr03/e09: a mapping key built from aliases 40 deep exits 66 '
+        'at its first anchor',
+        () async {
+          File(pubspecPath()).writeAsStringSync(
+            [
+              'a0: &a0 [x, x]',
+              for (var d = 1; d <= 40; d++)
+                'a$d: &a$d [*a${d - 1}, *a${d - 1}]',
+              '? *a40',
+              ': v',
+            ].join('\n'),
+          );
 
-        final run = await _run(['check', 'brand.zip']);
+          final run = await _run(['check', 'brand.zip']);
 
-        expect(run.code, exitNoInput);
-        expect(
-          run.err.last,
-          'cannot read "pubspec.yaml":1:5: no anchor, alias, or tag; refer '
-          'to a token with "{path}" instead',
-        );
-      });
+          expect(run.code, exitNoInput);
+          expect(
+            run.err.last,
+            'cannot read "pubspec.yaml":1:5: no anchor, alias, or tag; refer '
+            'to a token with "{path}" instead',
+          );
+        },
+      );
 
-      test('us02/fr03/e09: a 200 MB pubspec.yaml exits 66 after reading at '
-          'most 1,048,577 bytes', () async {
-        File(pubspecPath()).openSync(mode: FileMode.write)
-          ..truncateSync(200 * 1024 * 1024)
-          ..closeSync();
+      test(
+        'fo04/us02/fr03/e09: a 200 MB pubspec.yaml exits 66 after reading at '
+        'most 1,048,577 bytes',
+        () async {
+          File(pubspecPath()).openSync(mode: FileMode.write)
+            ..truncateSync(200 * 1024 * 1024)
+            ..closeSync();
 
-        final run = await _run(['check', 'brand.zip']);
+          final run = await _run(['check', 'brand.zip']);
 
-        expect(run.code, exitNoInput);
-        expect(
-          run.err.last,
-          'cannot read "pubspec.yaml": text longer than 1 MiB',
-        );
-      });
+          expect(run.code, exitNoInput);
+          expect(
+            run.err.last,
+            'cannot read "pubspec.yaml": text longer than 1 MiB',
+          );
+        },
+      );
 
       String padded(int bytes) {
         const head =
@@ -872,7 +910,7 @@ void main() {
         return '$head#${'x' * (bytes - head.length - 2)}\n';
       }
 
-      test('us02/fr03/e09, g1: bytes past 1 MiB that are not valid utf-8 '
+      test('fo04/us02/fr03/e09, g1: bytes past 1 MiB that are not valid utf-8 '
           'still exit 66 by length, never decoded', () async {
         File(pubspecPath()).writeAsBytesSync([
           ...utf8.encode(padded(1048576)),
@@ -888,25 +926,28 @@ void main() {
         );
       });
 
-      test('us02/fr03/e09, g1: a pubspec.yaml of exactly 1,048,576 bytes is '
-          'read, and one more byte exits 66', () async {
-        File(pubspecPath()).writeAsStringSync(padded(1048576));
-        final read = await _run(['check', 'brand.zip']);
+      test(
+        'fo04/us02/fr03/e09, g1: a pubspec.yaml of exactly 1,048,576 bytes is '
+        'read, and one more byte exits 66',
+        () async {
+          File(pubspecPath()).writeAsStringSync(padded(1048576));
+          final read = await _run(['check', 'brand.zip']);
 
-        expect(read.code, exitPass);
-        expect(read.err.first, contains('(app)'));
+          expect(read.code, exitPass);
+          expect(read.err.first, contains('(app)'));
 
-        File(pubspecPath()).writeAsStringSync(padded(1048577));
-        final refused = await _run(['check', 'brand.zip']);
+          File(pubspecPath()).writeAsStringSync(padded(1048577));
+          final refused = await _run(['check', 'brand.zip']);
 
-        expect(refused.code, exitNoInput);
-        expect(
-          refused.err.last,
-          'cannot read "pubspec.yaml": text longer than 1 MiB',
-        );
-      });
+          expect(refused.code, exitNoInput);
+          expect(
+            refused.err.last,
+            'cannot read "pubspec.yaml": text longer than 1 MiB',
+          );
+        },
+      );
 
-      test('us02/fr03/e09: a pubspec.yaml under 1 MiB holding byte 0xe9 '
+      test('fo04/us02/fr03/e09: a pubspec.yaml under 1 MiB holding byte 0xe9 '
           'exits 66, not an unhandled exception', () async {
         File(pubspecPath()).writeAsBytesSync([
           ...utf8.encode('name: app\n# caf'),
@@ -926,19 +967,22 @@ void main() {
       });
     });
 
-    test('sec f3, us02/fr03/e09: a pubspec.yaml that is a dangling symbolic '
-        'link exits 66 when the project holds its own default theme', () async {
-      _folder('assets/themes/default', {'theme.yaml': _schema});
-      Link(p.join(_app.path, 'pubspec.yaml'))
-          .createSync(p.join(_app.path, 'nowhere.yaml'));
-      _zip('brand.zip', _theme());
+    test(
+      'sec f3, fo04/us02/fr03/e09: a pubspec.yaml that is a dangling symbolic '
+      'link exits 66 when the project holds its own default theme',
+      () async {
+        _folder('assets/themes/default', {'theme.yaml': _schema});
+        Link(p.join(_app.path, 'pubspec.yaml'))
+            .createSync(p.join(_app.path, 'nowhere.yaml'));
+        _zip('brand.zip', _theme());
 
-      final run = await _run(['check', 'brand.zip']);
+        final run = await _run(['check', 'brand.zip']);
 
-      expect(run.code, exitNoInput);
-      expect(run.out, isEmpty);
-      expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
-    });
+        expect(run.code, exitNoInput);
+        expect(run.out, isEmpty);
+        expect(run.err.last, startsWith('cannot read "pubspec.yaml"'));
+      },
+    );
 
     test('r13: a project with no default theme never reads its '
         'pubspec.yaml', () async {
@@ -951,7 +995,7 @@ void main() {
       expect(run.err, isNot(contains(appDefaultUnlistedWarning)));
     });
 
-    test('us02/s6, us02/fr02/e08, us02/fr03/e06: twin names pass with one '
+    test('fo04/us02/s6, fo04/us02/fr02/e08, fo04/us02/fr03/e06: twin names pass with one '
         'warning per pair', () async {
       _zip('brand.zip', {..._theme(), 'images/Logo.svg': _svg});
 
@@ -967,31 +1011,34 @@ void main() {
       );
     });
 
-    test('us02/s14, us02/fr03/e13, r15: check warns on every entry the '
-        'install never reads, and passes', () async {
-      _zip('brand.zip', {
-        for (final MapEntry(:key, :value) in _theme().entries)
-          'brand/$key': value,
-        'README.html': 'x',
-        '__MACOSX/brand/._theme.yaml': 'x',
-        'brand/.DS_Store': 'x',
-      });
+    test(
+      'fo04/us02/s14, fo04/us02/fr03/e13, r15: check warns on every entry the '
+      'install never reads, and passes',
+      () async {
+        _zip('brand.zip', {
+          for (final MapEntry(:key, :value) in _theme().entries)
+            'brand/$key': value,
+          'README.html': 'x',
+          '__MACOSX/brand/._theme.yaml': 'x',
+          'brand/.DS_Store': 'x',
+        });
 
-      final run = await _run(['check', 'brand.zip']);
+        final run = await _run(['check', 'brand.zip']);
 
-      const unread = 'is in the zip, but the app install never reads it';
-      expect(run.code, exitPass);
-      expect(
-        run.err,
-        containsAllInOrder([
-          'warning: "README.html" $unread',
-          'warning: "__MACOSX/brand/._theme.yaml" $unread',
-          'warning: "brand/.DS_Store" $unread',
-        ]),
-      );
-    });
+        const unread = 'is in the zip, but the app install never reads it';
+        expect(run.code, exitPass);
+        expect(
+          run.err,
+          containsAllInOrder([
+            'warning: "README.html" $unread',
+            'warning: "__MACOSX/brand/._theme.yaml" $unread',
+            'warning: "brand/.DS_Store" $unread',
+          ]),
+        );
+      },
+    );
 
-    test('us02/fr03/e02, fo01 us02/fr01/e05: a problem holding theme text '
+    test('fo04/us02/fr03/e02, fo01/us02/fr01/e05: a problem holding theme text '
         'prints escaped, with no raw control or non-ASCII byte', () async {
       _zip('brand.zip', {
         ..._theme(),
@@ -1041,37 +1088,30 @@ void main() {
       },
     );
 
-    test(
-      'us02/fr03/e09, r14, fix-1 sec f4 (type half): check of a folder, not a '
-      'file, exits '
-      '66 before any read',
-      () async {
-        final folder = _folder('brand', {});
+    test('fo04/us02/fr03/e09, r14, fix-1 sec f4 (type half): check of a folder, not a '
+        'file, exits '
+        '66 before any read', () async {
+      final folder = _folder('brand', {});
 
-        final run = await _run(['check', folder]);
+      final run = await _run(['check', folder]);
 
-        expect(run.code, exitNoInput);
-        expect(run.out, isEmpty);
-      },
-    );
+      expect(run.code, exitNoInput);
+      expect(run.out, isEmpty);
+    });
 
-    test(
-      'us02/fr03/e09, r14, fix-1 sec f4 (type half): check of a FIFO exits 66 '
-      'without blocking',
-      () async {
-        final fifo = p.join(_app.path, 'pipe');
-        expect(Process.runSync('mkfifo', [fifo]).exitCode, 0);
-        expect(FileSystemEntity.typeSync(fifo), FileSystemEntityType.pipe);
+    test('fo04/us02/fr03/e09, r14, fix-1 sec f4 (type half): check of a FIFO exits 66 '
+        'without blocking', () async {
+      final fifo = p.join(_app.path, 'pipe');
+      expect(Process.runSync('mkfifo', [fifo]).exitCode, 0);
+      expect(FileSystemEntity.typeSync(fifo), FileSystemEntityType.pipe);
 
-        final run = await _run(['check', fifo]);
+      final run = await _run(['check', fifo]);
 
-        expect(run.code, exitNoInput);
-        expect(run.out, isEmpty);
-      },
-      skip: Platform.isWindows ? 'no FIFO on Windows' : false,
-    );
+      expect(run.code, exitNoInput);
+      expect(run.out, isEmpty);
+    }, skip: Platform.isWindows ? 'no FIFO on Windows' : false);
 
-    test('us02/fr03/e09, r14, fix-5 sec f4 (type half, --app-default): a FIFO '
+    test('fo04/us02/fr03/e09, r14, fix-5 sec f4 (type half, --app-default): a FIFO '
         '--app-default exits '
         '66 without blocking', () async {
       _zip('brand.zip', _theme());
@@ -1086,7 +1126,7 @@ void main() {
     }, skip: Platform.isWindows ? 'no FIFO on Windows' : false);
   });
 
-  group('us02/fr03: usage errors and unreadable inputs', () {
+  group('fo04/us02/fr03: usage errors and unreadable inputs', () {
     for (final (args, message) in [
       (<String>[], 'no command'),
       (['zip'], 'unknown command "zip"'),
@@ -1100,23 +1140,26 @@ void main() {
         '--max-bytes needs a whole number above 0',
       ),
     ]) {
-      test('us02/s12, us02/fr03/e01: "$message" exits 64, checks nothing, '
-          'and writes nothing', () async {
-        _folder('brand', _theme());
+      test(
+        'fo04/us02/s12, fo04/us02/fr03/e01: "$message" exits 64, checks nothing, '
+        'and writes nothing',
+        () async {
+          _folder('brand', _theme());
 
-        final run = await _run(args);
+          final run = await _run(args);
 
-        expect(run.code, exitUsage);
-        expect(run.out, isEmpty);
-        expect(run.err.first, 'usage error: $message');
-        expect(_app.listSync().map((entity) => p.basename(entity.path)), [
-          'brand',
-        ]);
-      });
+          expect(run.code, exitUsage);
+          expect(run.out, isEmpty);
+          expect(run.err.first, 'usage error: $message');
+          expect(_app.listSync().map((entity) => p.basename(entity.path)), [
+            'brand',
+          ]);
+        },
+      );
     }
 
     test(
-      'us02/fr03/e09: a missing folder, zip, or --app-default exits 66',
+      'fo04/us02/fr03/e09: a missing folder, zip, or --app-default exits 66',
       () async {
         _zip('brand.zip', _theme());
 
@@ -1133,24 +1176,27 @@ void main() {
       },
     );
 
-    test('us02/fr03/e09, r14: a stratum_ui package that cannot be found, or '
-        'whose default theme cannot be read, exits 66', () async {
-      _zip('brand.zip', _theme());
-      final empty = _folder('nopackage', {});
+    test(
+      'fo04/us02/fr03/e09, r14: a stratum_ui package that cannot be found, or '
+      'whose default theme cannot be read, exits 66',
+      () async {
+        _zip('brand.zip', _theme());
+        final empty = _folder('nopackage', {});
 
-      for (final root in [null, empty]) {
-        final err = StringBuffer();
-        final code = await runStratumTheme(
-          ['check', 'brand.zip'],
-          out: StringBuffer(),
-          err: err,
-          workingDirectory: _app.path,
-          packageRoot: root,
-        );
+        for (final root in [null, empty]) {
+          final err = StringBuffer();
+          final code = await runStratumTheme(
+            ['check', 'brand.zip'],
+            out: StringBuffer(),
+            err: err,
+            workingDirectory: _app.path,
+            packageRoot: root,
+          );
 
-        expect(code, exitNoInput, reason: '$root');
-        expect(err.toString(), startsWith('cannot '), reason: '$root');
-      }
-    });
+          expect(code, exitNoInput, reason: '$root');
+          expect(err.toString(), startsWith('cannot '), reason: '$root');
+        }
+      },
+    );
   });
 }

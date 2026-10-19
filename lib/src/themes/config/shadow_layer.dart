@@ -1,5 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/shadow_layer.freezed.dart';
 
@@ -8,7 +8,7 @@ part 'generated/shadow_layer.freezed.dart';
 /// with no Flutter type, so stage 5 builds it in the Dart VM. FO-03 turns
 /// it into a `BoxShadow` for each color set.
 @immutable
-@themeModel
+@valueModel
 class StratumShadowLayer with _$StratumShadowLayer {
   const new({
     required this.x,
@@ -46,7 +46,7 @@ sealed class StratumLayerColor {
 }
 
 /// A color the yaml fixed.
-@themeModel
+@valueModel
 final class StratumFixedLayerColor extends StratumLayerColor
     with _$StratumFixedLayerColor {
   const new(this.argb);
@@ -57,7 +57,7 @@ final class StratumFixedLayerColor extends StratumLayerColor
 
 /// A token of the current color set, by its path inside the set:
 /// `shadow.primary` for `"{color.shadow.primary}"`.
-@themeModel
+@valueModel
 final class StratumSetLayerColor extends StratumLayerColor
     with _$StratumSetLayerColor {
   const new(this.path);

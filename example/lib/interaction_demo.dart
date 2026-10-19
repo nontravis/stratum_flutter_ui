@@ -200,9 +200,13 @@ class _InteractionDemoPageState extends State<_InteractionDemoPage> {
           ),
           _Section(
             disabled: _sectionDisabled,
-            child: RowLayout(
-              mainAxisSize: MainAxisSize.min,
+            // Wraps to its own line below the width the two fixed-size
+            // cards need side by side, instead of overflowing a narrow
+            // phone body; a wide body still lays them out in one run,
+            // identical to the row this replaces.
+            child: WrapLayout(
               gap: 16,
+              runGap: 16,
               children: [
                 _stateCard(
                   'Card A',
@@ -222,9 +226,13 @@ class _InteractionDemoPageState extends State<_InteractionDemoPage> {
             'shows onHover(true) once. The section button disables both '
             'cards, as a disabled component does.',
           ),
-          RowLayout(
-            mainAxisSize: MainAxisSize.min,
+          // Wraps to its own line below the width the two buttons need
+          // side by side, instead of overflowing a narrow phone body; a
+          // wide body still lays them out in one run, identical to the
+          // row this replaces.
+          WrapLayout(
             gap: 8,
+            runGap: 8,
             children: [
               OutlinedButton(
                 onPressed: () =>

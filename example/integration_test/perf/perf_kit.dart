@@ -91,11 +91,13 @@ class CurrentKit implements PerfKit {
 
 /// The layouts of the frozen baseline (spec section 9.3).
 ///
-/// The baseline is the commit the branch under test starts from, `c0d459a`,
-/// which each frozen file's header names: a tappable row is a
-/// `BaselineRowLayout` on `BaselineFlexLayout` with its
-/// `BaselineStratumInkWell` tap surface and the shared `Interaction`, and
-/// the reorder list is a `BaselineReorderableListViewLayout`.
+/// The baseline is the pre-batch commit `7a50510`; the comparison covers
+/// the perf batch, InkWell `280d77c`, BoxLayout R4 `8a0d26d`, and the
+/// item-root fixes up to this HEAD. A tappable row is a `BaselineRowLayout`
+/// on `BaselineFlexLayout`, whose tap surface is `BaselineStratumInkWell`
+/// with the live `StratumFocusBorder` ring, and the shared `Interaction`.
+/// The reorder list is a `BaselineReorderableListViewLayout`, the list as
+/// of `7a50510`, so S7 covers every reorder change since that commit.
 class BaselineKit implements PerfKit {
   const new();
 

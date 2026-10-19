@@ -33,8 +33,11 @@ extension type DeviceWindow._(BuildContext _context) {
   /// the layout must follow the keyboard.
   double get keyboardHeight => MediaQuery.viewInsetsOf(_context).bottom;
 
-  /// Whether the keyboard is open anywhere in the window, from the nearest
-  /// [KeyboardVisibilityScope]. Rebuilds only when the keyboard opens or
+  /// Whether the OS of an Android or iOS host reports the on-screen keyboard
+  /// shown, read from the nearest [KeyboardVisibilityScope].
+  ///
+  /// False on every other host unless a test forces it, and true even while
+  /// [keyboardHeight] reads 0. Rebuilds only when the keyboard opens or
   /// closes.
   bool get isKeyboardVisible => KeyboardVisibilityScope.of(_context);
 

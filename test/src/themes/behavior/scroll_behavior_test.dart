@@ -19,7 +19,9 @@ final Finder _indicator = find.byWidgetPredicate(
 
 void main() {
   group('StratumScrollBehavior', () {
-    testWidgets('builds no overscroll indicator', (tester) async {
+    testWidgets('fo06/us03/fr03: builds no overscroll indicator', (
+      tester,
+    ) async {
       await tester.pumpWidget(_list(const StratumScrollBehavior()));
 
       expect(_indicator, findsNothing);

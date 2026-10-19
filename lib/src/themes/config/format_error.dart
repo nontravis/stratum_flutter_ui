@@ -1,6 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/config/escape_text.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/format_error.freezed.dart';
 
@@ -54,7 +54,7 @@ enum StratumThemeErrorCode {
 
 /// One problem in a `theme.yaml` file.
 @immutable
-@themeModel
+@valueModel
 class StratumThemeFormatError with _$StratumThemeFormatError {
   const new({
     required this.code,

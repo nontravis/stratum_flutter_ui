@@ -27,7 +27,7 @@ Object? _pageOf(WidgetTester tester, Finder finder) =>
 
 void main() {
   testWidgets(
-    "us10/fr01, us10/fr01/e04: the page shows the tab bar, the theme's "
+    "f01/us10/fr01, f01/us10/fr01/e04: the page shows the tab bar, the theme's "
     'transition and the nineteen types to pick, and checks 1 to 3, each '
     'naming its step and its result',
     (tester) async {
@@ -57,7 +57,7 @@ void main() {
     },
   );
 
-  testWidgets("us10/fr01: the tabs switch the shell's pages while the tab "
+  testWidgets("f01/us10/fr01: the tabs switch the shell's pages while the tab "
       'bar stays where it is', (tester) async {
     await _start(tester);
     final bar = tester.getTopLeft(_tabBar);
@@ -72,50 +72,56 @@ void main() {
     expect(tester.getTopLeft(_tabBar), bar);
   });
 
-  testWidgets("us10/s1, us10/fr01/e01, us10/fr01/e03: with the theme's "
-      'transition the page opens inside the shell as a plain Material page '
-      'while the tab bar stays where it is', (tester) async {
-    await _start(tester);
-    final bar = tester.getTopLeft(_tabBar);
+  testWidgets(
+    "f01/us10/s1, f01/us10/fr01/e01, f01/us10/fr01/e03: with the theme's "
+    'transition the page opens inside the shell as a plain Material page '
+    'while the tab bar stays where it is',
+    (tester) async {
+      await _start(tester);
+      final bar = tester.getTopLeft(_tabBar);
 
-    await _tap(tester, 'openInside');
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      await _tap(tester, 'openInside');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    expect(_pageOf(tester, _inside), isA<MaterialPage<void>>());
-    expect(tester.getTopLeft(_tabBar), bar);
+      expect(_pageOf(tester, _inside), isA<MaterialPage<void>>());
+      expect(tester.getTopLeft(_tabBar), bar);
 
-    await tester.pumpAndSettle();
-    expect(_inside, findsOneWidget);
-    expect(tester.getTopLeft(_tabBar), bar);
-  });
+      await tester.pumpAndSettle();
+      expect(_inside, findsOneWidget);
+      expect(tester.getTopLeft(_tabBar), bar);
+    },
+  );
 
-  testWidgets('us10/s2, us10/fr01/e02: a picked transition opens the page '
-      'inside the shell as a StratumTransitionPage of that type while the '
-      'tab bar stays where it is', (tester) async {
-    await _start(tester);
-    await _tap(tester, 'pick-rightToLeftJoined');
-    await tester.pumpAndSettle();
-    final bar = tester.getTopLeft(_tabBar);
+  testWidgets(
+    'f01/us10/s2, f01/us10/fr01/e02: a picked transition opens the page '
+    'inside the shell as a StratumTransitionPage of that type while the '
+    'tab bar stays where it is',
+    (tester) async {
+      await _start(tester);
+      await _tap(tester, 'pick-rightToLeftJoined');
+      await tester.pumpAndSettle();
+      final bar = tester.getTopLeft(_tabBar);
 
-    await _tap(tester, 'openInside');
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      await _tap(tester, 'openInside');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    expect(
-      _pageOf(tester, _inside),
-      isA<StratumTransitionPage<void>>().having(
-        (page) => page.type,
-        'type',
-        ScreenTransitionType.rightToLeftJoined,
-      ),
-    );
-    expect(tester.getTopLeft(_tabBar), bar);
-    await tester.pumpAndSettle();
-    expect(tester.getTopLeft(_tabBar), bar);
-  });
+      expect(
+        _pageOf(tester, _inside),
+        isA<StratumTransitionPage<void>>().having(
+          (page) => page.type,
+          'type',
+          ScreenTransitionType.rightToLeftJoined,
+        ),
+      );
+      expect(tester.getTopLeft(_tabBar), bar);
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(_tabBar), bar);
+    },
+  );
 
-  testWidgets('us10/s3: the full-screen page covers the shell, its tab bar '
+  testWidgets('f01/us10/s3: the full-screen page covers the shell, its tab bar '
       'included, and the page inside the shell moves only with the shell', (
     tester,
   ) async {
@@ -138,7 +144,7 @@ void main() {
     expect(_inside, findsNothing);
   });
 
-  testWidgets('us10/s4: back closes the opened page with its transition, '
+  testWidgets('f01/us10/s4: back closes the opened page with its transition, '
       'and the page under it shows again', (tester) async {
     await _start(tester);
     await _tap(tester, 'openInside');

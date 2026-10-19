@@ -2,37 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/redacted_url.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_configuration.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 /// Replaces the platform implementation for new controllers in tests.
 @visibleForTesting
 PlatformStratumWebViewFactory? debugStratumWebViewPlatformFactory;
-
-/// Settings and callbacks that `StratumWebView` hands to its controller.
-@internal
-@immutable
-final class StratumWebViewConfiguration {
-  const new({
-    this.allowedOrigins = const <Uri>{},
-    this.javaScriptEnabled = true,
-    this.onMessage,
-    this.onNavigationRequest,
-    this.onPageStarted,
-    this.onPageFinished,
-    this.onError,
-  });
-
-  final Set<Uri> allowedOrigins;
-  final bool javaScriptEnabled;
-  final ValueChanged<StratumWebViewMessage>? onMessage;
-  final StratumNavigationDecision Function(Uri url)? onNavigationRequest;
-  final ValueChanged<Uri?>? onPageStarted;
-  final ValueChanged<Uri?>? onPageFinished;
-  final ValueChanged<StratumWebViewError>? onError;
-}
 
 /// Loads content into a `StratumWebView`, controls its navigation, and sends
 /// messages to the page.
@@ -67,7 +49,7 @@ final class StratumWebViewController {
     _ensureActive();
     if (!url.isScheme('http') && !url.isScheme('https')) {
       throw ArgumentError.value(
-        url,
+        redactedUrl(url),
         'url',
         'must use the http or https scheme',
       );
@@ -245,17 +227,20 @@ final class StratumWebViewController {
     );
   }
 
+  // Each entry that can never match, named by its 1-based position.
+  static Iterable<String> _allowlistProblems(Set<Uri> allowed) => allowed
+      .indexed
+      .map((entry) => allowedOriginProblem(entry.$1 + 1, entry.$2))
+      .nonNulls;
+
   /// Applies the settings of the `StratumWebView` that shows this controller.
   @internal
   void configure(StratumWebViewConfiguration configuration) {
     _ensureActive();
     // An entry that can never match would silently disable the bridge.
     assert(
-      configuration.allowedOrigins.every(
-        (origin) => allowedOriginProblem(origin) == null,
-      ),
-      'allowedOrigins: '
-      '${configuration.allowedOrigins.map(allowedOriginProblem).nonNulls}',
+      _allowlistProblems(configuration.allowedOrigins).isEmpty,
+      'allowedOrigins: ${_allowlistProblems(configuration.allowedOrigins)}',
     );
     final javaScriptChanged =
         configuration.javaScriptEnabled != _configuration.javaScriptEnabled;

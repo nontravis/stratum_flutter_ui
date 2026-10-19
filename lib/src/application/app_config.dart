@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/app_config.freezed.dart';
 
@@ -16,7 +17,7 @@ typedef StratumAppBuilder = Widget Function(
 /// US-13 FR-02), built again on each `StratumApplication` rebuild and
 /// when the active theme, the window size class, the text scale, or the
 /// platform locale changes (themes s03 invariant 35).
-@freezed
+@valueModel
 class StratumAppConfig with _$StratumAppConfig {
   const new({
     required this.theme,

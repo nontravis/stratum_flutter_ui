@@ -13,17 +13,18 @@
 // The round also checks by eye on each Android and iOS target: the status
 // bar shows the app's dark color, which Stratum paints, with light icons
 // (design R7); the status bar icons read light over the dark header and
-// dark over the white page; both bars hide on the video page and show
-// again over it, except on pixel_8, whose Android 16 ignores the immersive
-// modes of an app that targets API 36, so the bars stay with no error, as
-// Flutter's `SystemChrome.setEnabledSystemUIMode` documents (design R8);
-// the recent-apps entry names the page. On the web it checks that the tab
-// title reads the page label and returns to the app label on back. The
+// dark over the white page; both bars hide on the video page, on every
+// Android API level this round targets, including pixel_8's Android 16,
+// and show again over it; the recent-apps entry names the page. On the
+// web it checks that the tab title reads the page label and returns to
+// the app label on back. The
 // `reportData` of each run records the view padding before and after the
 // bars hide.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:stratum_ui/stratum_ui.dart';
+
+import 'support/probe.dart';
 
 const _appWide = SystemStyle(appSwitcherLabel: 'Stratum');
 
@@ -42,6 +43,7 @@ Widget _app(
   SystemStyle systemStyle = _appWide,
 }) => MaterialApp(
   title: 'Stratum',
+  debugShowCheckedModeBanner: false,
   navigatorKey: navigator,
   builder: (context, child) => StratumThemeApplication.controlled(
     controller: controller,
@@ -64,6 +66,30 @@ Widget _header(Color color) => ColumnLayout(
     ),
     const Expanded(child: SizedBox()),
   ],
+);
+
+/// The key of [_whitePage]'s fill, read back by the widget-level check
+/// that the fill [_whitePage] built still exists and holds
+/// [_whitePageExpectedFill].
+const _whitePageFillKey = Key('whitePageFill');
+
+/// The light theme's `background.default.normal` token, read as a literal
+/// instead of through `controller.themes.light...` so the check at
+/// [_whitePageFillKey] has an oracle independent of [_whitePage]'s own
+/// lookup: `assets/themes/default/theme.yaml:192` points
+/// `background.default.normal` at `{transparent.white.100}`, and
+/// `lib/src/themes/config/transparent.dart:73` fixes that alias at
+/// `#FFFFFFFF`, byte for byte, with no formula and no theme override.
+const _whitePageExpectedFill = Color(0xFFFFFFFF);
+
+/// A page that paints [controller]'s own light-mode page background
+/// (US-14 FR-02 E03, Scenario 5) under the status bar, with no fill
+/// declared to Stratum, so the by-eye and automated checks see the same
+/// color the system style resolver picked icons against instead of an
+/// unpainted, transparent page.
+Widget _whitePage(StratumThemeController controller) => ColoredBox(
+  key: _whitePageFillKey,
+  color: controller.themes.light.color.background.defaults.normal,
 );
 
 void main() {
@@ -91,6 +117,25 @@ void main() {
         Brightness.light,
       );
     }
+    await probe('dark_header');
+
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(builder: (context) => _whitePage(controller)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    if (!kIsWeb) {
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
+    }
+    expect(
+      tester.widget<ColoredBox>(find.byKey(_whitePageFillKey)).color,
+      _whitePageExpectedFill,
+    );
+    await probe('white_page');
   });
 
   testWidgets('us14/s16, us14/fr01/e06, us14/fr02/e07: the app status bar '
@@ -116,6 +161,7 @@ void main() {
         Brightness.light,
       );
     }
+    await probe('dark_statusbar');
   });
 
   testWidgets('us14/s7, us14/s8, us14/s9, us14/s12, us14/s13, us14/s14: the '
@@ -136,6 +182,8 @@ void main() {
     final hidden = tester.view.viewPadding;
     expect(find.text('Video'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await probe('video_bars_hidden');
+    await probe('recents_label');
 
     navigator.currentState!.push(
       MaterialPageRoute<void>(builder: (context) => const Text('Over')),
@@ -143,11 +191,13 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
     final shown = tester.view.viewPadding;
     expect(tester.takeException(), isNull);
+    await probe('video_bars_shown');
 
     navigator.currentState!.pop();
     await tester.pumpAndSettle(const Duration(seconds: 1));
     expect(find.text('Video'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await probe('video_back');
 
     binding.reportData = {
       'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,

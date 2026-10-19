@@ -1,0 +1,351 @@
+
+WINDOW MANAGER LAST ANR (dumpsys window lastanr)
+  <no ANR has occurred since boot>
+
+WINDOW MANAGER POLICY STATE (dumpsys window policy)
+    mSafeMode=false mSystemReady=true mSystemBooted=true
+    mLidState=LID_ABSENT mLidOpenRotation=-1
+    mCameraLensCoverState=CAMERA_LENS_COVER_ABSENT mHdmiPlugged=false
+    mLastSystemUiFlags=0x8518 mResettingSystemUiFlags=0x0 mForceClearedSystemUiFlags=0x0
+    mWakeGestureEnabledSetting=true
+    mSupportAutoRotation=true mOrientationSensorEnabled=true
+    mUiMode=UI_MODE_TYPE_NORMAL mDockMode=EXTRA_DOCK_STATE_UNDOCKED
+    mEnableCarDockHomeCapture=true mCarDockRotation=-1 mDeskDockRotation=-1
+    mUserRotationMode=USER_ROTATION_FREE mUserRotation=ROTATION_0 mAllowAllRotations=false
+    mCurrentAppOrientation=SCREEN_ORIENTATION_UNSPECIFIED
+    mCarDockEnablesAccelerometer=true mDeskDockEnablesAccelerometer=true
+    mLidKeyboardAccessibility=0 mLidNavigationAccessibility=0 mLidControlsScreenLock=false
+    mLidControlsSleep=false
+    mLongPressOnBackBehavior=LONG_PRESS_BACK_NOTHING
+    mLongPressOnHomeBehavior=LONG_PRESS_HOME_NOTHING
+    mDoubleTapOnHomeBehavior=DOUBLE_TAP_HOME_NOTHING
+    mShortPressOnPowerBehavior=SHORT_PRESS_POWER_GO_TO_SLEEP
+    mLongPressOnPowerBehavior=LONG_PRESS_POWER_GLOBAL_ACTIONS
+    mVeryLongPressOnPowerBehavior=VERY_LONG_PRESS_POWER_NOTHING
+    mDoublePressOnPowerBehavior=MULTI_PRESS_POWER_NOTHING
+    mTriplePressOnPowerBehavior=MULTI_PRESS_POWER_NOTHING
+    mShortPressOnSleepBehavior=SHORT_PRESS_SLEEP_GO_TO_SLEEP
+    mShortPressOnWindowBehavior=SHORT_PRESS_WINDOW_PICTURE_IN_PICTURE
+    mAllowStartActivityForLongPressOnPowerDuringSetup=false
+    mHasSoftInput=true mDismissImeOnBackKeyPressed=false
+    mIncallPowerBehavior=sleep mIncallBackBehavior=<nothing> mEndcallBehavior=sleep
+    mHomePressed=false
+    mAwake=truemScreenOnEarly=true mScreenOnFully=true
+    mKeyguardDrawComplete=true mWindowManagerDrawComplete=true
+    mDockLayer=268435456 mStatusBarLayer=0
+    mShowingDream=false mDreamingLockscreen=false mDreamingSleepToken=null
+    mStatusBar=Window{21eabb3 u0 StatusBar} isStatusBarKeyguard=false
+    mNavigationBar=Window{19db899 u0 NavigationBar}
+    mFocusedWindow=Window{f70b31c u0 dev.stratum.stratum_ui_example/dev.stratum.stratum_ui_example.MainActivity}
+    mFocusedApp=Token{ca64073 ActivityRecord{453a4e2 u0 dev.stratum.stratum_ui_example/.MainActivity t126}}
+    mTopFullscreenOpaqueWindowState=Window{f70b31c u0 dev.stratum.stratum_ui_example/dev.stratum.stratum_ui_example.MainActivity}
+    mTopFullscreenOpaqueOrDimmingWindowState=Window{f70b31c u0 dev.stratum.stratum_ui_example/dev.stratum.stratum_ui_example.MainActivity}
+    mTopIsFullscreen=false mKeyguardOccluded=false
+    mKeyguardOccludedChanged=false mPendingKeyguardOccluded=false
+    mForceStatusBar=false mForceStatusBarFromKeyguard=false
+    mAllowLockscreenWhenOn=false mLockScreenTimeout=2147483647 mLockScreenTimerActive=false
+    mLandscapeRotation=ROTATION_90 mSeascapeRotation=ROTATION_270
+    mPortraitRotation=ROTATION_0 mUpsideDownRotation=ROTATION_180
+    mDemoHdmiRotation=ROTATION_90 mDemoHdmiRotationLock=false
+    mUndockedHdmiRotation=-1
+    mKeyMapping.size=0
+    BarController.StatusBar
+      mState=WINDOW_STATE_SHOWING
+      mTransientBar=TRANSIENT_BAR_NONE
+      mContentFrame=Rect(0, 0 - 1080, 63)
+    BarController.NavigationBar
+      mState=WINDOW_STATE_SHOWING
+      mTransientBar=TRANSIENT_BAR_NONE
+      mContentFrame=Rect(0, 1794 - 1080, 1920)
+    PolicyControl.sImmersiveStatusFilter=null
+    PolicyControl.sImmersiveNavigationFilter=null
+    PolicyControl.sImmersivePreconfirmationsFilter=null
+    WakeGestureListener
+      mTriggerRequested=false
+      mSensor=null
+    WindowOrientationListener
+      mEnabled=true
+      mCurrentRotation=ROTATION_0
+      mSensorType=null
+      mSensor={Sensor name="Goldfish 3-axis Accelerometer", vendor="The Android Open Source Project", version=1, type=1, maxRange=2.8, resolution=2.480159E-4, power=3.0, minDelay=10000}
+      mRate=2
+      AccelSensorJudge
+        mProposedRotation=0
+        mPredictedRotation=0
+        mLastFilteredX=0.0
+        mLastFilteredY=9.77631
+        mLastFilteredZ=0.812349
+        mLastFilteredTimestampNanos=194752333508 (37.285915ms ago)
+        mTiltHistory={last: 5.0}
+        mFlat=false
+        mSwinging=false
+        mAccelerating=false
+        mOverhead=false
+        mTouched=false
+        mTiltToleranceConfig=[[-25, 70], [-25, 65], [-25, 60], [-25, 65]]
+    KeyguardServiceDelegate
+      showing=false
+      showingAndNotOccluded=true
+      inputRestricted=false
+      occluded=false
+      secure=false
+      dreaming=false
+      systemIsReady=true
+      deviceHasKeyguard=true
+      enabled=true
+      offReason=0
+      currentUser=-10000
+      bootCompleted=true
+      screenState=SCREEN_STATE_ON
+      interactiveState=INTERACTIVE_STATE_WAKING
+      KeyguardStateMonitor
+        mIsShowing=false
+        mSimSecure=false
+        mInputRestricted=false
+        mTrusted=false
+        mCurrentUserId=0
+    Looper state:
+      Looper (android.ui, tid 18) {6ea4467}
+        (Total messages: 0, polling=true, quitting=false)
+
+WINDOW MANAGER ANIMATOR STATE (dumpsys window animator)
+    DisplayContentsAnimator #0:
+      Window #0: WindowStateAnimator{140b214 com.android.systemui.ImageWallpaper}
+      Window #1: WindowStateAnimator{e461abd com.android.launcher3/com.android.launcher3.Launcher}
+      Window #2: WindowStateAnimator{b2d28b2 dev.stratum.stratum_ui_example/dev.stratum.stratum_ui_example.MainActivity}
+      Window #3: WindowStateAnimator{4cc003 DockedStackDivider}
+      Window #4: WindowStateAnimator{880db80 AssistPreviewPanel}
+      Window #5: WindowStateAnimator{6bea5b9 StatusBar}
+      Window #6: WindowStateAnimator{bc11dfe NavigationBar}
+      Window #7: WindowStateAnimator{8d1595f InputMethod}
+
+
+    mBulkUpdateParams=0x8 ORIENTATION_CHANGE_COMPLETE
+
+WINDOW MANAGER SESSIONS (dumpsys window sessions)
+  Session Session{a6424b 1752:u0a10073}:
+    mNumWindow=1 mCanAddInternalSystemWindow=false mAppOverlaySurfaces=[] mAlertWindowSurfaces=[] mClientDead=false mSurfaceSession=android.view.SurfaceSession@8d82fac
+    mPackageName=com.google.android.inputmethod.latin
+  Session Session{8b740f9 2285:u0a10037}:
+    mNumWindow=1 mCanAddInternalSystemWindow=false mAppOverlaySurfaces=[] mAlertWindowSurfaces=[] mClientDead=false mSurfaceSession=android.view.SurfaceSession@d9ae475
+    mPackageName=com.android.launcher3
+  Session Session{cf1bf32 1777:u0a10020}:
+    mNumWindow=5 mCanAddInternalSystemWindow=true mAppOverlaySurfaces=[] mAlertWindowSurfaces=[] mClientDead=false mSurfaceSession=android.view.SurfaceSession@40d1c0a
+    mPackageName=com.android.systemui
+  Session Session{d7db169 5230:u0a10103}:
+    mNumWindow=1 mCanAddInternalSystemWindow=false mAppOverlaySurfaces=[] mAlertWindowSurfaces=[] mClientDead=false mSurfaceSession=android.view.SurfaceSession@1dc2c7b
+    mPackageName=dev.stratum.stratum_ui_example
+  Session Session{f514d08 1608:1000}:
+    mNumWindow=0 mCanAddInternalSystemWindow=true mAppOverlaySurfaces=[] mAlertWindowSurfaces=[] mClientDead=false mSurfaceSession=android.view.SurfaceSession@26e9a98
+    mPackageName=dev.stratum.stratum_ui_example
+
+WINDOW MANAGER DISPLAY CONTENTS (dumpsys window displays)
+  Display: mDisplayId=0
+    init=1080x1920 420dpi cur=1080x1920 app=1080x1794 rng=1080x1017-1794x1731
+    deferred=false mLayoutNeeded=false mTouchExcludeRegion=SkRegion((0,0,1080,1920))
+
+  mLayoutSeq=169
+
+  Application tokens in top down Z order:
+    mStackId=3
+    mDeferRemoval=false
+    mBounds=[0,0][1080,1920]
+      taskId=126
+        mBounds=[0,0][1080,1920]
+        mdr=false
+        appTokens=[AppWindowToken{65eab30 token=Token{ca64073 ActivityRecord{453a4e2 u0 dev.stratum.stratum_ui_example/.MainActivity t126}}}]
+        mTempInsetBounds=[0,0][0,0]
+          Activity #0 AppWindowToken{65eab30 token=Token{ca64073 ActivityRecord{453a4e2 u0 dev.stratum.stratum_ui_example/.MainActivity t126}}}
+            windows=[Window{f70b31c u0 dev.stratum.stratum_ui_example/dev.stratum.stratum_ui_example.MainActivity}]
+            windowType=2 hidden=false hasVisible=true
+            app=true mVoiceInteraction=false
+            task={taskId=126 appTokens=[AppWindowToken{65eab30 token=Token{ca64073 ActivityRecord{453a4e2 u0 dev.stratum.stratum_ui_example/.MainActivity t126}}}] mdr=false}
+             mFillsParent=true mOrientation=-1
+            hiddenRequested=false mClientHidden=false reportedDrawn=true reportedVisible=true
+            mNumInterestingWindows=1 mNumDrawnWindows=1 inPendingTransaction=false allDrawn=true lastAllDrawn=true)
+            startingData=null removed=false firstWindowDrawn=true mIsExiting=false
+            controller=AppWindowContainerController{ token=Token{ca64073 ActivityRecord{453a4e2 u0 dev.stratum.stratum_ui_example/.MainActivity t126}} mContainer=AppWindowToken{65eab30 token=Token{ca64073 ActivityRecord{453a4e2 u0 dev.stratum.stratum_ui_example/.MainActivity t126}}} mListener=ActivityRecord{453a4e2 u0 dev.stratum.stratum_ui_example/.MainActivity t126}}
+    mStackId=0
+    mDeferRemoval=false
+    mBounds=[0,0][1080,1920]
+      taskId=2
+        mBounds=[0,0][1080,1920]
+        mdr=false
+        appTokens=[AppWindowToken{c1ebb97 token=Token{cea4616 ActivityRecord{2d9cfd8 u0 com.android.launcher3/.Launcher t2}}}]
+        mTempInsetBounds=[0,0][0,0]
+          Activity #0 AppWindowToken{c1ebb97 token=Token{cea4616 ActivityRecord{2d9cfd8 u0 com.android.launcher3/.Launcher t2}}}
+            windows=[Window{a89e46d u0 com.android.launcher3/com.android.launcher3.Launcher}]
+            windowType=2 hidden=true hasVisible=true
+            app=true mVoiceInteraction=false
+            task={taskId=2 appTokens=[AppWindowToken{c1ebb97 token=Token{cea4616 ActivityRecord{2d9cfd8 u0 com.android.launcher3/.Launcher t2}}}] mdr=false}
+             mFillsParent=true mOrientation=5
+            hiddenRequested=true mClientHidden=true reportedDrawn=false reportedVisible=false
+            mAppStopped=true
+            mNumInterestingWindows=1 mNumDrawnWindows=1 inPendingTransaction=false allDrawn=true lastAllDrawn=true)
+            startingData=null removed=false firstWindowDrawn=true mIsExiting=false
+            controller=AppWindowContainerController{ token=Token{cea4616 ActivityRecord{2d9cfd8 u0 com.android.launcher3/.Launcher t2}} mContainer=AppWindowToken{c1ebb97 token=Token{cea4616 ActivityRecord{2d9cfd8 u0 com.android.launcher3/.Launcher t2}}} mListener=ActivityRecord{2d9cfd8 u0 com.android.launcher3/.Launcher t2}}
+
+
+  homeStack=Stack=0
+
+  DockedStackDividerController
+    mLastVisibility=false
+    mMinimizedDock=false
+    mAdjustedForIme=false
+    mAdjustedForDivider=false
+
+  PinnedStackController
+    defaultBounds=[533,1468][1038,1752]
+    movementBounds=[42,105][1038,1752]
+    mIsImeShowing=false
+    mImeHeight=0
+    mIsShelfShowing=false
+    mShelfHeight=0
+    mReentrySnapFraction=-1.0
+    mIsMinimized=false
+    mActions=[]
+   mDisplayInfo=DisplayInfo{"Built-in Screen", uniqueId "local:0", app 1080 x 1794, real 1080 x 1920, largest app 1794 x 1731, smallest app 1080 x 1017, mode 1, defaultMode 1, modes [{id=1, width=1080, height=1920, fps=60.000004}], colorMode -1, supportedColorModes [-1], hdrCapabilities android.view.Display$HdrCapabilities@40f16308, rotation 0, density 420 (420.0 x 420.0) dpi, layerStack 0, appVsyncOff 1000000, presDeadline 16666666, type BUILT_IN, state ON, FLAG_SECURE, FLAG_SUPPORTS_PROTECTED_BUFFERS, removeMode 0}
+
+  DisplayFrames w=1080 h=1920 r=0
+    mStable=[0,63][1080,1794]
+    mStableFullscreen=[0,0][1080,1794]
+    mDock=[0,63][1080,1794]
+    mCurrent=[0,63][1080,1794]
+    mSystem=[0,0][1080,1920]
+    mContent=[0,63][1080,1794]
+    mVoiceContent=[0,63][1080,1794]
+    mOverscan=[0,0][1080,1920]
+    mRestrictedOverscan=[0,0][1080,1794]
+    mRestricted=[0,0][1080,1794]
+    mUnrestricted=[0,0][1080,1920]
+    mDisplayInfoOverscan=[0,0][0,0]
+    mRotatedDisplayInfoOverscan=[0,0][0,0]
+    mDisplayCutout=com.android.server.wm.utils.WmDisplayCutout@3c1
+
+WINDOW MANAGER TOKENS (dumpsys window tokens)
+  All tokens:
+  Display #0
+  WallpaperWindowToken{6d21fad token=android.os.Binder@a76f4c4}
+  WindowToken{415f0bb android.os.BinderProxy@e3e494a}
+  AppWindowToken{65eab30 token=Token{ca64073 ActivityRecord{453a4e2 u0 dev.stratum.stratum_ui_example/.MainActivity t126}}}
+  WindowToken{3e01fe3 android.os.BinderProxy@6349c12}
+  WindowToken{d0b51f1 android.os.Binder@b503598}
+  WindowToken{889b522 android.os.BinderProxy@5a452ed}
+  AppWindowToken{c1ebb97 token=Token{cea4616 ActivityRecord{2d9cfd8 u0 com.android.launcher3/.Launcher t2}}}
+  WindowToken{b82c890 android.os.BinderProxy@53cf753}
+
+WINDOW MANAGER WINDOWS (dumpsys window windows)
+  Window #0 Window{3df1ae6 u0 InputMethod}:
+    mDisplayId=0 stackId=0 mSession=Session{a6424b 1752:u0a10073} mClient=android.os.BinderProxy@5646541
+    mOwnerUid=10073 mShowToOwnerOnly=true package=com.google.android.inputmethod.latin appop=NONE
+    mAttrs={(0,0)(fillxfill) gr=BOTTOM CENTER_VERTICAL sim={adjust=pan} ty=INPUT_METHOD fmt=TRANSPARENT wanim=0x1030056
+      fl=NOT_FOCUSABLE LAYOUT_IN_SCREEN SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+      vsysui=LIGHT_NAVIGATION_BAR}
+    Requested w=1080 h=1857 mLayoutSeq=132
+    mIsImWindow=true mIsWallpaper=false mIsFloatingLayer=true mWallpaperVisible=false
+    mHasSurface=false isReadyForDisplay()=false mWindowRemovalAllowed=false
+    WindowStateAnimator{8d1595f InputMethod}:
+    isOnScreen=false
+    isVisible=false
+  Window #1 Window{19db899 u0 NavigationBar}:
+    mDisplayId=0 stackId=0 mSession=Session{cf1bf32 1777:u0a10020} mClient=android.os.BinderProxy@f7fbf9d
+    mOwnerUid=10020 mShowToOwnerOnly=false package=com.android.systemui appop=NONE
+    mAttrs={(0,0)(fillxfill) sim={adjust=pan} ty=NAVIGATION_BAR fmt=TRANSLUCENT
+      fl=NOT_FOCUSABLE NOT_TOUCH_MODAL TOUCHABLE_WHEN_WAKING WATCH_OUTSIDE_TOUCH SPLIT_TOUCH HARDWARE_ACCELERATED FLAG_SLIPPERY}
+    Requested w=1080 h=126 mLayoutSeq=169
+    mHasSurface=true isReadyForDisplay()=true mWindowRemovalAllowed=false
+    WindowStateAnimator{bc11dfe NavigationBar}:
+      Surface: shown=true layer=0 alpha=1.0 rect=(0.0,0.0) 1080 x 126 transform=(1.0, 0.0, 1.0, 0.0)
+    mLastFreezeDuration=+8s88ms
+    isOnScreen=true
+    isVisible=true
+  Window #2 Window{21eabb3 u0 StatusBar}:
+    mDisplayId=0 stackId=0 mSession=Session{cf1bf32 1777:u0a10020} mClient=android.os.BinderProxy@1b0ed04
+    mOwnerUid=10020 mShowToOwnerOnly=false package=com.android.systemui appop=NONE
+    mAttrs={(0,0)(fillx63) gr=TOP CENTER_VERTICAL sim={adjust=resize} layoutInDisplayCutoutMode=always ty=STATUS_BAR fmt=TRANSLUCENT
+      fl=NOT_FOCUSABLE TOUCHABLE_WHEN_WAKING WATCH_OUTSIDE_TOUCH SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS}
+    Requested w=1080 h=63 mLayoutSeq=169
+    mHasSurface=true isReadyForDisplay()=true mWindowRemovalAllowed=false
+    WindowStateAnimator{6bea5b9 StatusBar}:
+      Surface: shown=true layer=0 alpha=1.0 rect=(0.0,0.0) 1080 x 63 transform=(1.0, 0.0, 1.0, 0.0)
+    mLastFreezeDuration=+8s89ms
+    isOnScreen=true
+    isVisible=true
+  Window #3 Window{852a9d8 u0 AssistPreviewPanel}:
+    mDisplayId=0 stackId=0 mSession=Session{cf1bf32 1777:u0a10020} mClient=android.os.BinderProxy@acb7eb5
+    mOwnerUid=10020 mShowToOwnerOnly=true package=com.android.systemui appop=NONE
+    mAttrs={(0,0)(fillx656) gr=BOTTOM START CENTER sim={state=unchanged adjust=nothing} ty=VOICE_INTERACTION_STARTING fmt=TRANSLUCENT
+      fl=NOT_FOCUSABLE NOT_TOUCHABLE LAYOUT_IN_SCREEN HARDWARE_ACCELERATED
+      vsysui=LAYOUT_STABLE LAYOUT_HIDE_NAVIGATION LAYOUT_FULLSCREEN}
+    Requested w=0 h=0 mLayoutSeq=13
+    mHasSurface=false isReadyForDisplay()=false mWindowRemovalAllowed=false
+    WindowStateAnimator{880db80 AssistPreviewPanel}:
+      mShownAlpha=0.0 mAlpha=1.0 mLastAlpha=0.0
+    isOnScreen=false
+    isVisible=false
+  Window #4 Window{f2b7589 u0 DockedStackDivider}:
+    mDisplayId=0 stackId=0 mSession=Session{cf1bf32 1777:u0a10020} mClient=android.os.BinderProxy@9896b42
+    mOwnerUid=10020 mShowToOwnerOnly=false package=com.android.systemui appop=NONE
+    mAttrs={(0,0)(fillx126) sim={adjust=pan} layoutInDisplayCutoutMode=always ty=DOCK_DIVIDER fmt=TRANSLUCENT
+      fl=NOT_FOCUSABLE NOT_TOUCH_MODAL WATCH_OUTSIDE_TOUCH SPLIT_TOUCH HARDWARE_ACCELERATED FLAG_SLIPPERY
+      pfl=NO_MOVE_ANIMATION
+      vsysui=LAYOUT_STABLE LAYOUT_HIDE_NAVIGATION LAYOUT_FULLSCREEN}
+    Requested w=1080 h=126 mLayoutSeq=169
+    mPolicyVisibility=false mPolicyVisibilityAfterAnim=false mAppOpVisibility=true parentHidden=false mPermanentlyHidden=false mHiddenWhileSuspended=false mForceHideNonSystemOverlayWindow=false
+    mHasSurface=false isReadyForDisplay()=false mWindowRemovalAllowed=false
+    WindowStateAnimator{4cc003 DockedStackDivider}:
+      mShownAlpha=0.0 mAlpha=1.0 mLastAlpha=0.0
+    isOnScreen=false
+    isVisible=false
+  Window #5 Window{f70b31c u0 dev.stratum.stratum_ui_example/dev.stratum.stratum_ui_example.MainActivity}:
+    mDisplayId=0 stackId=3 mSession=Session{d7db169 5230:u0a10103} mClient=android.os.BinderProxy@f95048f
+    mOwnerUid=10103 mShowToOwnerOnly=true package=dev.stratum.stratum_ui_example appop=NONE
+    mAttrs={(0,0)(fillxfill) sim={adjust=resize} ty=BASE_APPLICATION fmt=TRANSLUCENT wanim=0x1030001
+      fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+      pfl=FORCE_DRAW_STATUS_BAR_BACKGROUND
+      vsysui=LAYOUT_STABLE LAYOUT_FULLSCREEN LIGHT_NAVIGATION_BAR}
+    Requested w=1080 h=1920 mLayoutSeq=169
+    mHasSurface=true isReadyForDisplay()=true mWindowRemovalAllowed=false
+    WindowStateAnimator{b2d28b2 dev.stratum.stratum_ui_example/dev.stratum.stratum_ui_example.MainActivity}:
+      Surface: shown=true layer=0 alpha=1.0 rect=(0.0,0.0) 1080 x 1920 transform=(1.0, 0.0, 1.0, 0.0)
+    isOnScreen=true
+    isVisible=true
+  Window #6 Window{a89e46d u0 com.android.launcher3/com.android.launcher3.Launcher}:
+    mDisplayId=0 stackId=0 mSession=Session{8b740f9 2285:u0a10037} mClient=android.os.BinderProxy@253d484
+    mOwnerUid=10037 mShowToOwnerOnly=true package=com.android.launcher3 appop=NONE
+    mAttrs={(0,0)(fillxfill) sim={adjust=pan forwardNavigation} ty=BASE_APPLICATION fmt=TRANSPARENT wanim=0x10302f8
+      fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SHOW_WALLPAPER SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+      vsysui=LAYOUT_STABLE LAYOUT_HIDE_NAVIGATION LAYOUT_FULLSCREEN}
+    Requested w=1080 h=1920 mLayoutSeq=149
+    mHasSurface=false isReadyForDisplay()=false mWindowRemovalAllowed=false
+    WindowStateAnimator{e461abd com.android.launcher3/com.android.launcher3.Launcher}:
+    mWallpaperX=0.0 mWallpaperY=0.5
+    mWallpaperXStep=0.33333334 mWallpaperYStep=1.0
+    isOnScreen=false
+    isVisible=false
+  Window #7 Window{15728f2 u0 com.android.systemui.ImageWallpaper}:
+    mDisplayId=0 stackId=0 mSession=Session{cf1bf32 1777:u0a10020} mClient=android.os.BinderProxy@952f3fd
+    mOwnerUid=10020 mShowToOwnerOnly=true package=com.android.systemui appop=NONE
+    mAttrs={(0,0)(1243x1920) gr=TOP START CENTER layoutInDisplayCutoutMode=always ty=WALLPAPER fmt=RGBX_8888 wanim=0x1030308
+      fl=NOT_FOCUSABLE NOT_TOUCHABLE LAYOUT_IN_SCREEN LAYOUT_NO_LIMITS LAYOUT_INSET_DECOR}
+    Requested w=1243 h=1920 mLayoutSeq=155
+    mIsImWindow=false mIsWallpaper=true mIsFloatingLayer=true mWallpaperVisible=false
+    mHasSurface=true isReadyForDisplay()=false mWindowRemovalAllowed=false
+    WindowStateAnimator{140b214 com.android.systemui.ImageWallpaper}:
+      Surface: shown=false layer=0 alpha=1.0 rect=(0.0,0.0) 1243 x 1920 transform=(1.0, 0.0, 1.0, 0.0)
+    mLastFreezeDuration=+8s134ms
+    mWallpaperX=0.0 mWallpaperY=0.5
+    mWallpaperXStep=0.33333334 mWallpaperYStep=1.0
+    isOnScreen=true
+    isVisible=false
+
+  mGlobalConfiguration={1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h659dp 420dpi nrml port finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 1794) mAppBounds=Rect(0, 0 - 1080, 1794) mWindowingMode=fullscreen mActivityType=undefined} s.6}
+  mHasPermanentDpad=false
+  mCurrentFocus=Window{f70b31c u0 dev.stratum.stratum_ui_example/dev.stratum.stratum_ui_example.MainActivity}
+  mFocusedApp=AppWindowToken{65eab30 token=Token{ca64073 ActivityRecord{453a4e2 u0 dev.stratum.stratum_ui_example/.MainActivity t126}}}
+  mInTouchMode=true
+  mLastDisplayFreezeDuration=0 due to Window{15728f2 u0 com.android.systemui.ImageWallpaper}
+  mLastWakeLockHoldingWindow=null mLastWakeLockObscuringWindow=Window{15728f2 u0 com.android.systemui.ImageWallpaper}
+  InputConsumers:
+    name=pip_input_consumer pid=1777 user=UserHandle{0}
+  SnapshotCache

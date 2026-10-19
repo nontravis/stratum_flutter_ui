@@ -53,26 +53,30 @@ StratumThemeData fakeStratumTheme({
   ScrollBehavior scrollBehavior = const StratumScrollBehavior(),
   ScrollPhysics physics = const ClampingScrollPhysics(),
   StratumTypography? typography,
-}) => defaultThemeSet.light.copyWith(
-  color: StratumColorTokens.fromMap({
-    ...defaultThemeConfig.color.light,
-    'state.hover': hover,
-    'state.press': active,
-    'border.color.brand': fakeRing,
-    'text.color.brand': fakeTextColors[FontColor.brandPrimary]!,
-    'text.default.primary': fakeTextColors[FontColor.primary]!,
-    'text.default.primary-inverse': fakeTextColors[FontColor.primaryInverse]!,
-    'text.default.primary-on-color': fakeTextColors[FontColor.primaryOnColor]!,
-    'text.default.secondary': fakeTextColors[FontColor.secondary]!,
-    'text.default.secondary-inverse':
-        fakeTextColors[FontColor.secondaryInverse]!,
-    'text.default.tertiary': fakeTextColors[FontColor.tertiary]!,
-    'text.default.tertiary-inverse': fakeTextColors[FontColor.tertiaryInverse]!,
-  }),
-  scrollBehavior: scrollBehavior,
-  physics: physics,
-  typography: typography,
-);
+}) {
+  final base = defaultThemeSet.light.copyWith(
+    color: StratumColorTokens.fromMap({
+      ...defaultThemeConfig.color.light,
+      'state.hover': hover,
+      'state.press': active,
+      'border.color.brand': fakeRing,
+      'text.color.brand': fakeTextColors[FontColor.brandPrimary]!,
+      'text.default.primary': fakeTextColors[FontColor.primary]!,
+      'text.default.primary-inverse': fakeTextColors[FontColor.primaryInverse]!,
+      'text.default.primary-on-color':
+          fakeTextColors[FontColor.primaryOnColor]!,
+      'text.default.secondary': fakeTextColors[FontColor.secondary]!,
+      'text.default.secondary-inverse':
+          fakeTextColors[FontColor.secondaryInverse]!,
+      'text.default.tertiary': fakeTextColors[FontColor.tertiary]!,
+      'text.default.tertiary-inverse':
+          fakeTextColors[FontColor.tertiaryInverse]!,
+    }),
+    scrollBehavior: scrollBehavior,
+    physics: physics,
+  );
+  return typography == null ? base : base.copyWith(typography: typography);
+}
 
 /// The default theme of [themedHost].
 final StratumThemeData fakeTheme = fakeStratumTheme();

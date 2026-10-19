@@ -9,12 +9,13 @@ class StratumThemeApplication
     extends InheritedNotifier<StratumThemeController> {
   /// Wraps [child] in a private body that inserts, top to bottom, a
   /// `ScreenRadiusScope` that publishes the native screen radius on iOS
-  /// and macOS and a [WindowSizeScope], each when none is above the
-  /// application, a Material [Theme] of the active data, the system bar
-  /// style of the active data with [systemStyle] merged over it, and
-  /// [StratumComponentDefaults] built by [componentDefaults] and
-  /// [componentPartDefaults] from the active theme (spec sections 7.3,
-  /// 7.9, and 10.1; FO-07 US-04 FR-03; FO-03 US-14 FR-01).
+  /// and macOS, a [WindowSizeScope], and a [KeyboardVisibilityScope], each
+  /// when none is above the application, a Material [Theme] of the active
+  /// data, the system bar style of the active data with [systemStyle]
+  /// merged over it, and [StratumComponentDefaults] built by
+  /// [componentDefaults] and [componentPartDefaults] from the active theme
+  /// (spec sections 7.3, 7.9, and 10.1; FO-07 US-04 FR-02 and FR-03;
+  /// FO-03 US-14 FR-01).
   new({
     super.key,
     required StratumThemeSet themes,
@@ -170,9 +171,11 @@ extension AppStratumThemeApplicationExtensions on ThemeMode {
 
 /// What the application inserts below itself, top to bottom: a
 /// [ScreenRadiusScope] when none is above it, so a tree publishes the
-/// screen radius once (FO-07 US-04 FR-03), a [WindowSizeScope]
-/// when none is above it, so a varying token always finds a window size
-/// (spec section 7.3, OQ11), then the Material theme.
+/// screen radius once (FO-07 US-04 FR-03), a [WindowSizeScope] when none is
+/// above it, so a varying token always finds a window size (spec section
+/// 7.3, OQ11), a [KeyboardVisibilityScope] when none is above it, so a
+/// screen reads the keyboard flag with no setup (FO-07 US-04 FR-02), then
+/// the Material theme.
 class _StratumThemeBody extends StatelessWidget {
   const new({required this.child});
 
@@ -181,9 +184,12 @@ class _StratumThemeBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themed = _StratumMaterialTheme(child: child);
-    final sized = WindowSizeScope.hasScope(context)
+    final keyboarded = KeyboardVisibilityScope.hasScope(context)
         ? themed
-        : WindowSizeScope(child: themed);
+        : KeyboardVisibilityScope(child: themed);
+    final sized = WindowSizeScope.hasScope(context)
+        ? keyboarded
+        : WindowSizeScope(child: keyboarded);
     return ScreenRadiusScope.hasScope(context)
         ? sized
         : ScreenRadiusScope(child: sized);

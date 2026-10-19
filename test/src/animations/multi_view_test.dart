@@ -82,23 +82,26 @@ ModalRoute<Object?> _routeOf(WidgetTester tester, String key) =>
     ModalRoute.of(tester.element(find.byKey(ValueKey(key))))!;
 
 void main() {
-  testWidgets('us05/fr04/e05: a page in a second window takes the type the '
-      "theme names for that window's size", (tester) async {
-    final (mainWindow, secondWindow) = await _twoWindows(
-      tester,
-      main: const Size(400, 800),
-      second: const Size(1300, 800),
-    );
+  testWidgets(
+    'fo05/us05/fr04/e05: a page in a second window takes the type the '
+    "theme names for that window's size",
+    (tester) async {
+      final (mainWindow, secondWindow) = await _twoWindows(
+        tester,
+        main: const Size(400, 800),
+        second: const Size(1300, 800),
+      );
 
-    await _push(tester, secondWindow, 'secondPage');
-    expect(_above('secondPage', CupertinoPageTransition), findsOneWidget);
+      await _push(tester, secondWindow, 'secondPage');
+      expect(_above('secondPage', CupertinoPageTransition), findsOneWidget);
 
-    await _push(tester, mainWindow, 'mainPage');
-    expect(_above('mainPage', FadeTransition), findsOneWidget);
-    expect(_above('mainPage', CupertinoPageTransition), findsNothing);
-  });
+      await _push(tester, mainWindow, 'mainPage');
+      expect(_above('mainPage', FadeTransition), findsOneWidget);
+      expect(_above('mainPage', CupertinoPageTransition), findsNothing);
+    },
+  );
 
-  testWidgets("us05/fr04/e05: a second window's route takes its durations "
+  testWidgets("fo05/us05/fr04/e05: a second window's route takes its durations "
       "from the main window's type", (tester) async {
     final (_, secondWindow) = await _twoWindows(
       tester,
@@ -117,7 +120,7 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr04/e05: a desktop main window times a mobile second '
+  testWidgets('fo05/us05/fr04/e05: a desktop main window times a mobile second '
       "window's route by the desktop type", (tester) async {
     final (_, secondWindow) = await _twoWindows(
       tester,

@@ -106,16 +106,26 @@ void main() {
         'scrim': 0.5,
       });
       const transparent = StratumTransparentTokens.builtIn;
-      const space = {'md': StratumByWindowSize.all(StratumDimension.fixed(1))};
-      const radius = {'md': StratumByWindowSize.all(StratumDimension.fixed(2))};
-      const layouts = {
-        'max': StratumByWindowSize.all(StratumDimension.fixed(3)),
-      };
-      const appColors = {'x': Color(0xFF000001)};
-      const appPalettes = {
-        'y': {'500': Color(0xFF000002)},
-      };
-      const extensions = <String, Object?>{'z': 1};
+      // Wrapped so the generated getter's `_space is EqualUnmodifiableMapView`
+      // check returns this exact view back unchanged, keeping the `same()`
+      // pins below true: freezed wraps an unwrapped Map in a fresh view on
+      // every read, which `same()` would never see as the one passed in.
+      final space = EqualUnmodifiableMapView({
+        'md': const StratumByWindowSize.all(StratumDimension.fixed(1)),
+      });
+      final radius = EqualUnmodifiableMapView({
+        'md': const StratumByWindowSize.all(StratumDimension.fixed(2)),
+      });
+      final layouts = EqualUnmodifiableMapView({
+        'max': const StratumByWindowSize.all(StratumDimension.fixed(3)),
+      });
+      final appColors = EqualUnmodifiableMapView({
+        'x': const Color(0xFF000001),
+      });
+      final appPalettes = EqualUnmodifiableMapView({
+        'y': {'500': const Color(0xFF000002)},
+      });
+      final extensions = EqualUnmodifiableMapView<String, Object?>({'z': 1});
       final border = StratumBorderTokens.fromMap(const {
         'sm': 2,
         'md': 3,
@@ -177,6 +187,40 @@ void main() {
       expect(copy.splashFactory, same(InkRipple.splashFactory));
       expect(copy.scrollBehavior, same(scrollBehavior));
       expect(copy.physics, same(physics));
+    });
+  });
+
+  group('D4: value equality', () {
+    test('D4: a copy with no change equals its source, with the same hash '
+        'code', () {
+      final data = fakeTheme;
+
+      expect(data.copyWith(), data);
+      expect(data.copyWith().hashCode, data.hashCode);
+    });
+
+    test('D4: a copy that changes one field differs', () {
+      final data = fakeTheme;
+
+      expect(
+        data.copyWith(physics: const BouncingScrollPhysics()),
+        isNot(data),
+      );
+      expect(data.copyWith(defaultWidgetSize: WidgetSize.small), isNot(data));
+    });
+
+    test('D4: StratumAppPalette compares by name and shade content', () {
+      StratumAppPalette make(String name) =>
+          StratumAppPalette(name, {'500': const Color(0xFF00FF88)});
+
+      expect(make('mint'), make('mint'));
+      expect(make('mint').hashCode, make('mint').hashCode);
+      expect(make('mint'), isNot(make('sea')));
+      expect(make('mint').copyWith(name: 'sea'), make('sea'));
+    });
+
+    test("R4 Q2: StratumThemeData takes freezed's toString", () {
+      expect(fakeTheme.toString(), startsWith('StratumThemeData('));
     });
   });
 }

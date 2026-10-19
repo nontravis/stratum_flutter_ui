@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/themes/config/animation_config.dart';
+import 'package:stratum_ui/src/themes/config/focus_names.dart';
 import 'package:stratum_ui/src/themes/config/format_error.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/check_keys.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/resolve_aliases.dart';
@@ -49,6 +50,10 @@ final class _Read {
   /// (spec section 7.4).
   final ThemeReader _quiet;
 
+  /// The paths a fully transparent focus color was reported at, so an
+  /// overlay that inherits it reports once.
+  final _reportedClear = <String>{};
+
   PlainThemeConfig run() {
     final tree = _theme.tree;
     return PlainThemeConfig(
@@ -71,6 +76,7 @@ final class _Read {
       shadow: frozenMap(_shadow(tree['shadow'])),
       blur: frozenMap(_effectNumbers(tree['blur'], 'blur')),
       system: _system(tree['system']),
+      focus: _focus(tree['focus']),
       extensions: _extensions(tree['extensions']),
     );
   }
@@ -712,6 +718,113 @@ final class _Read {
       StratumThemeErrorCode.expectedBoolean,
       path,
       'expected true or false, got ${ThemeReader.show(value)}',
+    );
+    return null;
+  }
+
+  /// The `focus` group (FO-01 US-01 FR-01 E20; config s03 invariant 19):
+  /// each of the four sets, which stage 3 made full.
+  Map<String, Map<String, Object>> _focus(Object? value) {
+    final node = _reader.map(value, 'focus');
+    if (node == null) return const {};
+    return frozenMap({
+      for (final name in ThemeSchema.colorSets.keys)
+        name: _focusSet(node[name], name),
+    });
+  }
+
+  /// The `focus` set [name], each key of [focusKeys] read by its kind: a
+  /// color with an alpha above 0, a width above 0 up to the length bound,
+  /// and a gap from 0 to it (config s03 invariant 15), since a fully
+  /// transparent color or a width of 0 hides the ring.
+  Map<String, Object> _focusSet(Object? value, String name) {
+    final values = <String, Object>{};
+    for (final key in focusKeys) {
+      final path = 'focus.$name.$key';
+      if (_theme.failed.contains(path)) continue;
+      final entry = _at(value, key.split('.'));
+      final reader = _readerFor(path, entry);
+      final read = switch (key) {
+        'outside.color' || 'inside.color' => _focusColor(reader, path, entry),
+        'outside.gap' => _atLeastZero(reader, path, entry),
+        _ => _aboveZero(reader, path, entry),
+      };
+      if (read != null) values[key] = read;
+    }
+    return frozenMap(values);
+  }
+
+  /// The value at [segments] below [node]; null when a step is no map.
+  static Object? _at(Object? node, List<String> segments) {
+    var current = node;
+    for (final segment in segments) {
+      if (current is! Map<String, Object?>) return null;
+      current = current[segment];
+    }
+    return current;
+  }
+
+  /// [value] at [path] as a focus color: a color, or an alias that stage 4
+  /// resolved to one, whose alpha is above 0 (FO-01 US-01 FR-01 E20). An
+  /// inherited high-contrast leaf reports nothing at its own path (spec
+  /// section 7.4), so a fully transparent color it inherits reports at the
+  /// color token its retargeted alias names (config s03 invariant 19).
+  int? _focusColor(ThemeReader reader, String path, Object? value) {
+    final alias = _theme.aliases[path];
+    final argb = reader.color(value, path, alias: alias);
+    if (argb == null || (argb >> 24) & 0xFF != 0) return argb;
+    if (_theme.inherited.contains(path)) {
+      // A copied literal alias (one `_retarget` left unchanged) names the
+      // same token the base set's own leaf does, which already reported at
+      // the base set (invariant 18); only a retargeted alias, which names a
+      // token inside the overlay set's own color set, can fail here. A
+      // retargeted token the overlay set itself never set is inherited too,
+      // so it holds the base set's own value, whose leaf already reported
+      // (invariant 18): skip it rather than report it a second time.
+      final overlay = path.split('.')[1];
+      final token = _theme.chains[path]?.first;
+      if (token != null &&
+          token.startsWith('color.$overlay.') &&
+          !_theme.inherited.contains(token) &&
+          _reportedClear.add(token)) {
+        _reader.report(
+          StratumThemeErrorCode.expectedColor,
+          token,
+          'expected a color with an alpha above 0, since $path names it and '
+          'a fully transparent color hides the focus ring, got '
+          '${ThemeReader.show(value)}',
+        );
+      }
+      return null;
+    }
+    final from = alias == null ? '' : ' (from ${ThemeReader.show(alias)})';
+    if (_reportedClear.add(path)) {
+      reader.report(
+        StratumThemeErrorCode.expectedColor,
+        path,
+        'expected a color with an alpha above 0, since a fully transparent '
+        'color hides the focus ring, got ${ThemeReader.show(value)}$from',
+      );
+    }
+    return null;
+  }
+
+  /// [value] at [path] as a focus width: a number above 0 up to the length
+  /// bound (FO-01 US-01 FR-01 E20), since a width of 0 hides the ring;
+  /// `required` for an empty value, else `expected_dimension`.
+  static double? _aboveZero(ThemeReader reader, String path, Object? value) {
+    if (value is num && ThemeReader.isLength(value) && value > 0) {
+      return value.toDouble();
+    }
+    if (value == null) {
+      reader.report(StratumThemeErrorCode.required, path, 'required');
+      return null;
+    }
+    reader.report(
+      StratumThemeErrorCode.expectedDimension,
+      path,
+      'expected a number above 0 up to ${ThemeReader.maxLength}, since a '
+      'width of 0 hides the focus ring, got ${ThemeReader.show(value)}',
     );
     return null;
   }

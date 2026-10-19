@@ -5,7 +5,7 @@ void main() {
   group('StratumSchemaVersion.tryParse', () {
     test('reads stratum-theme/v<major>.<minor>.<patch>', () {
       expect(
-        StratumSchemaVersion.tryParse('stratum-theme/v1.4.0'),
+        StratumSchemaVersion.tryParse('stratum-theme/v1.5.0'),
         StratumSchemaVersion.current,
       );
       expect(
@@ -27,7 +27,7 @@ void main() {
 
   group('StratumSchemaVersion.isSupported', () {
     test(
-      'fo01/us01/fr01: holds for every minor from v1.0 to v1.4 with any patch',
+      'fo01/us01/fr01: holds for every minor from v1.0 to v1.5 with any patch',
       () {
         expect(StratumSchemaVersion.current.isSupported, isTrue);
         expect(const StratumSchemaVersion(1, 0, 0).isSupported, isTrue);
@@ -36,18 +36,19 @@ void main() {
         expect(const StratumSchemaVersion(1, 2, 3).isSupported, isTrue);
         expect(const StratumSchemaVersion(1, 3, 3).isSupported, isTrue);
         expect(const StratumSchemaVersion(1, 4, 3).isSupported, isTrue);
+        expect(const StratumSchemaVersion(1, 5, 3).isSupported, isTrue);
       },
     );
 
     test('fo01/us01/fr01/e08: fails for a newer minor and for any other '
         'major', () {
-      expect(const StratumSchemaVersion(1, 5, 0).isSupported, isFalse);
+      expect(const StratumSchemaVersion(1, 6, 0).isSupported, isFalse);
       expect(const StratumSchemaVersion(2, 0, 0).isSupported, isFalse);
       expect(const StratumSchemaVersion(0, 9, 0).isSupported, isFalse);
     });
   });
 
-  test('the current version is stratum-theme/v1.4.0', () {
-    expect('${StratumSchemaVersion.current}', 'stratum-theme/v1.4.0');
+  test('fo01/us01/fr01: the current version is stratum-theme/v1.5.0', () {
+    expect('${StratumSchemaVersion.current}', 'stratum-theme/v1.5.0');
   });
 }

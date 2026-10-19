@@ -19,6 +19,7 @@ import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 
 import '../../themes/theme_runtime_fakes.dart';
+import 'widget_settings/support/counting_setting_store.dart';
 
 /// The text the test builder draws for [state], so a finder reads which
 /// state is on screen.
@@ -30,21 +31,27 @@ String _nameOf(StratumSplashState<Object?> state) => switch (state) {
 };
 
 /// A splash over [bundle] whose builder adds each state it gets to
-/// [states] and draws [_nameOf] it.
+/// [states] and draws [_nameOf] it, [probe] drawn instead at done.
 Widget _splash(
   AssetBundle bundle, {
   required Future<String> Function() postload,
   String? initialThemeId,
   List<StratumSplashState<String>>? states,
   Duration minimumDuration = Duration.zero,
+  StratumWidgetSettingsController? widgetSettings,
+  Widget Function(BuildContext context)? probe,
 }) => DefaultAssetBundle(
   bundle: bundle,
   child: StratumSplashScreen<String>(
     initialThemeId: initialThemeId,
     minimumDuration: minimumDuration,
+    widgetSettings: widgetSettings,
     postload: (context, controller) => postload(),
     builder: (context, state) {
       states?.add(state);
+      if (state is StratumSplashDone<String> && probe != null) {
+        return Builder(builder: probe);
+      }
       return Text(_nameOf(state), textDirection: TextDirection.ltr);
     },
   ),
@@ -145,162 +152,189 @@ void main() {
   setUp(ThemeFontLoader.reset);
 
   group('StratumSplashScreen preload and postload', () {
-    testWidgets('us12/fr01, us12/s1: the builder gets loading app, then '
-        'done with the result and the controller', (tester) async {
-      final states = <StratumSplashState<String>>[];
-      final work = Completer<String>();
-      await tester.pumpWidget(
-        _splash(FakeThemeBundle(), postload: () => work.future, states: states),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('loading app'), findsOneWidget);
+    testWidgets(
+      'fo03/us12/fr01, fo03/us12/s1: the builder gets loading app, then '
+      'done with the result and the controller',
+      (tester) async {
+        final states = <StratumSplashState<String>>[];
+        final work = Completer<String>();
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            postload: () => work.future,
+            states: states,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('loading app'), findsOneWidget);
 
-      work.complete('ready');
-      await tester.pump(Duration.zero);
+        work.complete('ready');
+        await tester.pump(Duration.zero);
 
-      expect(find.text('done ready'), findsOneWidget);
-      final loading = states.whereType<StratumSplashLoadingApp<String>>().first;
-      final done = _last(states) as StratumSplashDone<String>;
-      expect(done.controller, same(loading.controller));
-      expect(done.controller.activeId, 'default');
-    });
+        expect(find.text('done ready'), findsOneWidget);
+        final loading = states
+            .whereType<StratumSplashLoadingApp<String>>()
+            .first;
+        final done = _last(states) as StratumSplashDone<String>;
+        expect(done.controller, same(loading.controller));
+        expect(done.controller.activeId, 'default');
+      },
+    );
 
-    testWidgets('us12/fr01: postload runs once, with the controller of the '
-        'start theme', (tester) async {
-      final controllers = <StratumThemeController>[];
-      await tester.pumpWidget(
-        DefaultAssetBundle(
-          bundle: FakeThemeBundle(themes: {'brand': appTheme()}),
-          child: StratumSplashScreen<int>(
+    testWidgets(
+      'fo03/us12/fr01: postload runs once, with the controller of the '
+      'start theme',
+      (tester) async {
+        final controllers = <StratumThemeController>[];
+        await tester.pumpWidget(
+          DefaultAssetBundle(
+            bundle: FakeThemeBundle(themes: {'brand': appTheme()}),
+            child: StratumSplashScreen<int>(
+              initialThemeId: 'brand',
+              postload: (context, controller) async {
+                controllers.add(controller);
+                return 1;
+              },
+              builder: (context, state) =>
+                  const SizedBox.shrink(key: ValueKey('frame')),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(controllers, hasLength(1));
+        expect(controllers.single.activeId, 'brand');
+      },
+    );
+
+    testWidgets(
+      'fo03/us12/fr01/e01, fo03/us12/s11: a start theme that fails to load '
+      'shows failed with the theme step and the format report',
+      (tester) async {
+        final states = <StratumSplashState<String>>[];
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(themes: {'brand': brokenTheme()}),
             initialThemeId: 'brand',
-            postload: (context, controller) async {
-              controllers.add(controller);
-              return 1;
-            },
-            builder: (context, state) =>
-                const SizedBox.shrink(key: ValueKey('frame')),
+            postload: () async => 'never',
+            states: states,
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(controllers, hasLength(1));
-      expect(controllers.single.activeId, 'brand');
-    });
+        expect(find.text('failed theme'), findsOneWidget);
+        expect(
+          (_last(states) as StratumSplashFailed<String>).error,
+          isA<StratumThemeFormatException>(),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
 
-    testWidgets('us12/fr01/e01, us12/s11: a start theme that fails to load '
-        'shows failed with the theme step and the format report', (
-      tester,
-    ) async {
-      final states = <StratumSplashState<String>>[];
-      await tester.pumpWidget(
-        _splash(
-          FakeThemeBundle(themes: {'brand': brokenTheme()}),
-          initialThemeId: 'brand',
-          postload: () async => 'never',
-          states: states,
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('failed theme'), findsOneWidget);
-      expect(
-        (_last(states) as StratumSplashFailed<String>).error,
-        isA<StratumThemeFormatException>(),
-      );
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('us12/fr01/e02, us12/s9: postload that throws shows failed '
-        'with the postload step and the thrown error', (tester) async {
-      final states = <StratumSplashState<String>>[];
-      final thrown = StateError('offline');
-      await tester.pumpWidget(
-        _splash(
-          FakeThemeBundle(),
-          postload: () async => throw thrown,
-          states: states,
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('failed postload'), findsOneWidget);
-      expect(
-        (_last(states) as StratumSplashFailed<String>).error,
-        same(thrown),
-      );
-    });
-
-    testWidgets('us12/fr01/e03: a result after the splash left the tree is '
-        'dropped and the controller is disposed', (tester) async {
-      final states = <StratumSplashState<String>>[];
-      final work = Completer<String>();
-      await tester.pumpWidget(
-        _splash(FakeThemeBundle(), postload: () => work.future, states: states),
-      );
-      await tester.pumpAndSettle();
-      final controller =
-          (_last(states) as StratumSplashLoadingApp<String>).controller;
-
-      await tester.pumpWidget(const SizedBox.shrink());
-      work.complete('late');
-      await tester.pumpAndSettle();
-
-      expect(states.whereType<StratumSplashDone<String>>(), isEmpty);
-      expect(() => controller.addListener(() {}), throwsFlutterError);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('us12/fr01/e04, us12/fr01/e05: done reaches the builder, '
-        'which returns the app itself; the splash pushes no route', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        DefaultAssetBundle(
-          bundle: FakeThemeBundle(),
-          child: StratumSplashScreen<String>(
-            postload: (context, controller) async => 'ready',
-            builder: (context, state) => switch (state) {
-              StratumSplashDone() => const MaterialApp(home: Text('home')),
-              _ => const SizedBox.shrink(),
-            },
+    testWidgets(
+      'fo03/us12/fr01/e02, fo03/us12/s9: postload that throws shows failed '
+      'with the postload step and the thrown error',
+      (tester) async {
+        final states = <StratumSplashState<String>>[];
+        final thrown = StateError('offline');
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            postload: () async => throw thrown,
+            states: states,
           ),
-        ),
-      );
-      expect(find.byType(Navigator), findsNothing);
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('home'), findsOneWidget);
-      expect(find.byType(Navigator), findsOneWidget);
-    });
+        expect(find.text('failed postload'), findsOneWidget);
+        expect(
+          (_last(states) as StratumSplashFailed<String>).error,
+          same(thrown),
+        );
+      },
+    );
+
+    testWidgets(
+      'fo03/us12/fr01/e03: a result after the splash left the tree is '
+      'dropped and the controller is disposed',
+      (tester) async {
+        final states = <StratumSplashState<String>>[];
+        final work = Completer<String>();
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            postload: () => work.future,
+            states: states,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final controller =
+            (_last(states) as StratumSplashLoadingApp<String>).controller;
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        work.complete('late');
+        await tester.pumpAndSettle();
+
+        expect(states.whereType<StratumSplashDone<String>>(), isEmpty);
+        expect(() => controller.addListener(() {}), throwsFlutterError);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'fo03/us12/fr01/e04, fo03/us12/fr01/e05: done reaches the builder, '
+      'which returns the app itself; the splash pushes no route',
+      (tester) async {
+        await tester.pumpWidget(
+          DefaultAssetBundle(
+            bundle: FakeThemeBundle(),
+            child: StratumSplashScreen<String>(
+              postload: (context, controller) async => 'ready',
+              builder: (context, state) => switch (state) {
+                StratumSplashDone() => const MaterialApp(home: Text('home')),
+                _ => const SizedBox.shrink(),
+              },
+            ),
+          ),
+        );
+        expect(find.byType(Navigator), findsNothing);
+        await tester.pumpAndSettle();
+
+        expect(find.text('home'), findsOneWidget);
+        expect(find.byType(Navigator), findsOneWidget);
+      },
+    );
   });
 
   group('StratumSplashScreen first-frame hold', () {
-    testWidgets('us12/fr02, us12/s2: no frame reaches the engine until the '
-        'start theme is active; the builder first runs then', (tester) async {
-      final bundle = FakeThemeBundle();
-      final release = bundle.hold[packageDefaultKey] = Completer<void>();
-      final states = <StratumSplashState<String>>[];
-      tester.binding.resetFirstFrameSent();
-      await tester.pumpWidget(
-        _splash(
-          bundle,
-          postload: () => Completer<String>().future,
-          states: states,
-        ),
-      );
-      await tester.pump();
-      expect(tester.binding.sendFramesToEngine, isFalse);
-      expect(states, isEmpty);
+    testWidgets(
+      'fo03/us12/fr02, fo03/us12/s2: no frame reaches the engine until the '
+      'start theme is active; the builder first runs then',
+      (tester) async {
+        final bundle = FakeThemeBundle();
+        final release = bundle.hold[packageDefaultKey] = Completer<void>();
+        final states = <StratumSplashState<String>>[];
+        tester.binding.resetFirstFrameSent();
+        await tester.pumpWidget(
+          _splash(
+            bundle,
+            postload: () => Completer<String>().future,
+            states: states,
+          ),
+        );
+        await tester.pump();
+        expect(tester.binding.sendFramesToEngine, isFalse);
+        expect(states, isEmpty);
 
-      release.complete();
-      await tester.pumpAndSettle();
+        release.complete();
+        await tester.pumpAndSettle();
 
-      expect(tester.binding.sendFramesToEngine, isTrue);
-      expect(states.first, isA<StratumSplashLoadingApp<String>>());
-    });
+        expect(tester.binding.sendFramesToEngine, isTrue);
+        expect(states.first, isA<StratumSplashLoadingApp<String>>());
+      },
+    );
 
-    testWidgets('us12/fr02/e01: the builder never gets loading theme at '
+    testWidgets('fo03/us12/fr02/e01: the builder never gets loading theme at '
         'launch', (tester) async {
       final states = <StratumSplashState<String>>[];
       await tester.pumpWidget(
@@ -315,7 +349,7 @@ void main() {
       expect(states.whereType<StratumSplashLoadingTheme<String>>(), isEmpty);
     });
 
-    testWidgets('us12/fr02/e03: a start theme that fails ends the hold on '
+    testWidgets('fo03/us12/fr02/e03: a start theme that fails ends the hold on '
         'the failed state', (tester) async {
       final states = <StratumSplashState<String>>[];
       tester.binding.resetFirstFrameSent();
@@ -352,27 +386,30 @@ void main() {
   });
 
   group('StratumSplashScreen minimum display time', () {
-    testWidgets('us12/fr03, us12/s4: a 2 s minimum holds a 1 s postload until '
-        '2 s after the first frame', (tester) async {
-      await tester.pumpWidget(
-        _splash(
-          FakeThemeBundle(),
-          minimumDuration: const Duration(seconds: 2),
-          postload: () =>
-              Future.delayed(const Duration(seconds: 1), () => 'ready'),
-        ),
-      );
-      await tester.pump();
-      expect(find.text('loading app'), findsOneWidget);
+    testWidgets(
+      'fo03/us12/fr03, fo03/us12/s4: a 2 s minimum holds a 1 s postload until '
+      '2 s after the first frame',
+      (tester) async {
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            minimumDuration: const Duration(seconds: 2),
+            postload: () =>
+                Future.delayed(const Duration(seconds: 1), () => 'ready'),
+          ),
+        );
+        await tester.pump();
+        expect(find.text('loading app'), findsOneWidget);
 
-      await tester.pump(const Duration(milliseconds: 1999));
-      expect(find.text('loading app'), findsOneWidget);
+        await tester.pump(const Duration(milliseconds: 1999));
+        expect(find.text('loading app'), findsOneWidget);
 
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(find.text('done ready'), findsOneWidget);
-    });
+        await tester.pump(const Duration(milliseconds: 1));
+        expect(find.text('done ready'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us12/fr03/e01: with no minimum, done shows when postload '
+    testWidgets('fo03/us12/fr03/e01: with no minimum, done shows when postload '
         'returns', (tester) async {
       await tester.pumpWidget(
         _splash(
@@ -389,82 +426,91 @@ void main() {
       expect(find.text('done ready'), findsOneWidget);
     });
 
-    testWidgets('us12/fr03/e03: postload that outlasts the minimum ends the '
-        'splash when it returns', (tester) async {
-      await tester.pumpWidget(
-        _splash(
-          FakeThemeBundle(),
-          minimumDuration: const Duration(seconds: 1),
-          postload: () =>
-              Future.delayed(const Duration(seconds: 3), () => 'ready'),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 2999));
-      expect(find.text('loading app'), findsOneWidget);
+    testWidgets(
+      'fo03/us12/fr03/e03: postload that outlasts the minimum ends the '
+      'splash when it returns',
+      (tester) async {
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            minimumDuration: const Duration(seconds: 1),
+            postload: () =>
+                Future.delayed(const Duration(seconds: 3), () => 'ready'),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 2999));
+        expect(find.text('loading app'), findsOneWidget);
 
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(find.text('done ready'), findsOneWidget);
-    });
+        await tester.pump(const Duration(milliseconds: 1));
+        expect(find.text('done ready'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us12/fr03/e02, us12/fr06/e04: a retry does not restart the '
-        'minimum', (tester) async {
-      final states = <StratumSplashState<String>>[];
-      var calls = 0;
-      await tester.pumpWidget(
-        _splash(
-          FakeThemeBundle(),
-          minimumDuration: const Duration(seconds: 2),
-          states: states,
-          postload: () async {
-            calls += 1;
-            if (calls == 1) throw StateError('offline');
-            return 'ready';
-          },
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1500));
-      (_last(states) as StratumSplashFailed<String>).retry();
-      await tester.pump();
-      expect(find.text('loading app'), findsOneWidget);
+    testWidgets(
+      'fo03/us12/fr03/e02, fo03/us12/fr06/e04: a retry does not restart the '
+      'minimum',
+      (tester) async {
+        final states = <StratumSplashState<String>>[];
+        var calls = 0;
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            minimumDuration: const Duration(seconds: 2),
+            states: states,
+            postload: () async {
+              calls += 1;
+              if (calls == 1) throw StateError('offline');
+              return 'ready';
+            },
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 1500));
+        (_last(states) as StratumSplashFailed<String>).retry();
+        await tester.pump();
+        expect(find.text('loading app'), findsOneWidget);
 
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text('done ready'), findsOneWidget);
-    });
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.text('done ready'), findsOneWidget);
+      },
+    );
   });
 
   group('StratumSplashScreen retry', () {
-    testWidgets('us12/fr06, us12/s10: retry after a postload failure shows '
-        'loading app, runs postload again, then done', (tester) async {
-      final states = <StratumSplashState<String>>[];
-      var calls = 0;
-      final second = Completer<String>();
-      await tester.pumpWidget(
-        _splash(
-          FakeThemeBundle(),
-          states: states,
-          postload: () {
-            calls += 1;
-            if (calls == 1) return Future.error(StateError('offline'));
-            return second.future;
-          },
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('failed postload'), findsOneWidget);
+    testWidgets(
+      'fo03/us12/fr06, fo03/us12/s10: retry after a postload failure shows '
+      'loading app, runs postload again, then done',
+      (tester) async {
+        final states = <StratumSplashState<String>>[];
+        var calls = 0;
+        final second = Completer<String>();
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            states: states,
+            postload: () {
+              calls += 1;
+              if (calls == 1) return Future.error(StateError('offline'));
+              return second.future;
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('failed postload'), findsOneWidget);
 
-      (_last(states) as StratumSplashFailed<String>).retry();
-      await tester.pump();
-      expect(find.text('loading app'), findsOneWidget);
-      expect(calls, 2);
+        (_last(states) as StratumSplashFailed<String>).retry();
+        await tester.pump();
+        expect(find.text('loading app'), findsOneWidget);
+        expect(calls, 2);
 
-      second.complete('ready');
-      await tester.pump(Duration.zero);
-      expect(find.text('done ready'), findsOneWidget);
-    });
+        second.complete('ready');
+        await tester.pump(Duration.zero);
+        expect(find.text('done ready'), findsOneWidget);
+      },
+    );
 
-    testWidgets('us12/fr06/e01: retry after a theme format failure shows '
+    testWidgets('fo03/us12/fr06/e01: retry after a theme format failure shows '
         'loading theme and fails again with the same report', (tester) async {
       final bundle = FakeThemeBundle(themes: {'brand': brokenTheme()});
       final states = <StratumSplashState<String>>[];
@@ -492,7 +538,7 @@ void main() {
       expect(bundle.reads[themeKey('brand')], 2);
     });
 
-    testWidgets('us12/fr06/e03: the package retries nothing by itself', (
+    testWidgets('fo03/us12/fr06/e03: the package retries nothing by itself', (
       tester,
     ) async {
       var calls = 0;
@@ -574,7 +620,7 @@ void main() {
       },
     );
 
-    testWidgets('us12/fr06: a postload failure keeps its stack trace', (
+    testWidgets('fo03/us12/fr06: a postload failure keeps its stack trace', (
       tester,
     ) async {
       final states = <StratumSplashState<String>>[];
@@ -596,7 +642,7 @@ void main() {
     });
 
     testWidgets(
-      'us12/fr06/e01: a theme format failure keeps its stack trace too',
+      'fo03/us12/fr06/e01: a theme format failure keeps its stack trace too',
       (tester) async {
         final states = <StratumSplashState<String>>[];
         await tester.pumpWidget(
@@ -649,7 +695,7 @@ void main() {
       ),
     );
 
-    testWidgets('us12/fr07: a frame reads the start theme, the window '
+    testWidgets('fo03/us12/fr07: a frame reads the start theme, the window '
         'metrics, and a text direction', (tester) async {
       final seen = <Type, BuildContext>{};
       await tester.pumpWidget(host(FakeThemeBundle(), seen));
@@ -665,94 +711,106 @@ void main() {
       expect(Directionality.of(context), TextDirection.ltr);
     });
 
-    testWidgets('us12/fr07, us12/s7: the theme mode and high-contrast mode '
-        'the app passes pick the data', (tester) async {
-      final seen = <Type, BuildContext>{};
-      await tester.pumpWidget(
-        host(
-          FakeThemeBundle(),
-          seen,
-          themeMode: ThemeMode.dark,
-          highContrast: StratumHighContrastMode.on,
-        ),
-      );
-      await tester.pumpAndSettle();
-      final context = seen[StratumSplashLoadingApp<String>]!;
-
-      expect(
-        StratumThemeApplication.of(context),
-        same(
-          StratumThemeController.of(context).themes
-              .pick(dark: true, highContrast: true),
-        ),
-      );
-    });
-
-    testWidgets('us12/fr07/e02: the splash and the app it returns draw the '
-        'same data', (tester) async {
-      final seen = <Type, BuildContext>{};
-      late StratumThemeData appData;
-      final work = Completer<String>();
-      await tester.pumpWidget(
-        host(
-          FakeThemeBundle(),
-          seen,
-          themeMode: ThemeMode.dark,
-          postload: () => work.future,
-          app: (done) => StratumThemeApplication.controlled(
-            controller: done.controller,
+    testWidgets(
+      'fo03/us12/fr07, fo03/us12/s7: the theme mode and high-contrast mode '
+      'the app passes pick the data',
+      (tester) async {
+        final seen = <Type, BuildContext>{};
+        await tester.pumpWidget(
+          host(
+            FakeThemeBundle(),
+            seen,
             themeMode: ThemeMode.dark,
-            child: Builder(
-              builder: (context) {
-                appData = StratumThemeApplication.of(context);
-                return const SizedBox.shrink();
-              },
+            highContrast: StratumHighContrastMode.on,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final context = seen[StratumSplashLoadingApp<String>]!;
+
+        expect(
+          StratumThemeApplication.of(context),
+          same(
+            StratumThemeController.of(context).themes
+                .pick(dark: true, highContrast: true),
+          ),
+        );
+      },
+    );
+
+    testWidgets(
+      'fo03/us12/fr07/e02: the splash and the app it returns draw the '
+      'same data',
+      (tester) async {
+        final seen = <Type, BuildContext>{};
+        late StratumThemeData appData;
+        final work = Completer<String>();
+        await tester.pumpWidget(
+          host(
+            FakeThemeBundle(),
+            seen,
+            themeMode: ThemeMode.dark,
+            postload: () => work.future,
+            app: (done) => StratumThemeApplication.controlled(
+              controller: done.controller,
+              themeMode: ThemeMode.dark,
+              child: Builder(
+                builder: (context) {
+                  appData = StratumThemeApplication.of(context);
+                  return const SizedBox.shrink();
+                },
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      final splashData = StratumThemeApplication.of(
-        seen[StratumSplashLoadingApp<String>]!,
-      );
+        );
+        await tester.pumpAndSettle();
+        final splashData = StratumThemeApplication.of(
+          seen[StratumSplashLoadingApp<String>]!,
+        );
 
-      work.complete('ready');
-      await tester.pumpAndSettle();
+        work.complete('ready');
+        await tester.pumpAndSettle();
 
-      expect(appData, same(splashData));
-    });
+        expect(appData, same(splashData));
+      },
+    );
 
-    testWidgets('us12/fr07/e01: after a theme failure, the failed frame and '
-        'the loading theme frames of its retry read the package default '
-        'alone', (tester) async {
-      final bundle = FakeThemeBundle(
-        themes: {'default': markTheme('app-mark'), 'brand': brokenTheme()},
-      );
-      final seen = <Type, BuildContext>{};
-      final states = <StratumSplashState<String>>[];
-      await tester.pumpWidget(
-        host(bundle, seen, initialThemeId: 'brand', states: states),
-      );
-      await tester.pumpAndSettle();
-      Iterable<String> fontsOf(Type state) =>
-          StratumThemeApplication.of(seen[state]!).typography.fonts.keys;
-      expect(fontsOf(StratumSplashFailed<String>), contains('inter'));
-      expect(fontsOf(StratumSplashFailed<String>), isNot(contains('app-mark')));
+    testWidgets(
+      'fo03/us12/fr07/e01: after a theme failure, the failed frame and '
+      'the loading theme frames of its retry read the package default '
+      'alone',
+      (tester) async {
+        final bundle = FakeThemeBundle(
+          themes: {'default': markTheme('app-mark'), 'brand': brokenTheme()},
+        );
+        final seen = <Type, BuildContext>{};
+        final states = <StratumSplashState<String>>[];
+        await tester.pumpWidget(
+          host(bundle, seen, initialThemeId: 'brand', states: states),
+        );
+        await tester.pumpAndSettle();
+        Iterable<String> fontsOf(Type state) =>
+            StratumThemeApplication.of(seen[state]!).typography.fonts.keys;
+        expect(fontsOf(StratumSplashFailed<String>), contains('inter'));
+        expect(
+          fontsOf(StratumSplashFailed<String>),
+          isNot(contains('app-mark')),
+        );
 
-      final release = bundle.hold[themeKey('brand')] = Completer<void>();
-      (states.last as StratumSplashFailed<String>).retry();
-      await tester.pump();
+        final release = bundle.hold[themeKey('brand')] = Completer<void>();
+        (states.last as StratumSplashFailed<String>).retry();
+        await tester.pump();
 
-      expect(fontsOf(StratumSplashLoadingTheme<String>), contains('inter'));
-      expect(
-        fontsOf(StratumSplashLoadingTheme<String>),
-        isNot(contains('app-mark')),
-      );
-      release.complete();
-      await tester.pumpAndSettle();
-    });
+        expect(fontsOf(StratumSplashLoadingTheme<String>), contains('inter'));
+        expect(
+          fontsOf(StratumSplashLoadingTheme<String>),
+          isNot(contains('app-mark')),
+        );
+        release.complete();
+        await tester.pumpAndSettle();
+      },
+    );
 
-    testWidgets('us12/fr07/e03, nfr-l02: the text direction follows the '
+    testWidgets('fo03/us12/fr07/e03, nfr-l02: the text direction follows the '
         'platform locale', (tester) async {
       addTearDown(tester.platformDispatcher.clearLocaleTestValue);
       for (final (language, direction) in [
@@ -773,110 +831,114 @@ void main() {
       }
     });
 
-    testWidgets('us12/fr07/e05: a package default theme that cannot be read '
-        'is reported, and the hold still ends on the failed state', (
-      tester,
-    ) async {
-      final states = <StratumSplashState<String>>[];
-      tester.binding.resetFirstFrameSent();
-      await tester.pumpWidget(
-        _splash(
-          FakeThemeBundle(packageDefault: 'spcae:\n  md: 12'),
-          postload: () async => 'never',
-          states: states,
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isA<StratumThemeFormatException>());
-      expect(tester.binding.sendFramesToEngine, isTrue);
-      expect(_last(states), isA<StratumSplashFailed<String>>());
-    });
-
     testWidgets(
-      "NFR-U02, us12/fr07/e04: Tab reaches a failed frame's retry button, and "
-      'Enter activates it',
+      'fo03/us12/fr07/e05: a package default theme that cannot be read '
+      'is reported, and the hold still ends on the failed state',
       (tester) async {
-        var calls = 0;
+        final states = <StratumSplashState<String>>[];
+        tester.binding.resetFirstFrameSent();
         await tester.pumpWidget(
-          DefaultAssetBundle(
-            bundle: FakeThemeBundle(),
-            child: StratumSplashScreen<String>(
-              postload: (context, controller) async {
-                calls += 1;
-                throw StateError('offline');
-              },
-              builder: (context, state) => switch (state) {
-                StratumSplashFailed(:final retry) => TextButton(
-                  onPressed: retry,
-                  child: const Text('Retry'),
-                ),
-                _ => const SizedBox.shrink(),
-              },
-            ),
+          _splash(
+            FakeThemeBundle(packageDefault: 'spcae:\n  md: 12'),
+            postload: () async => 'never',
+            states: states,
           ),
         );
         await tester.pumpAndSettle();
-        expect(calls, 1);
-        expect(Focus.of(tester.element(find.text('Retry'))).hasFocus, isFalse);
 
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-        await tester.pump();
-        expect(Focus.of(tester.element(find.text('Retry'))).hasFocus, isTrue);
-
-        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-        await tester.pumpAndSettle();
-
-        expect(calls, 2);
+        expect(tester.takeException(), isA<StratumThemeFormatException>());
+        expect(tester.binding.sendFramesToEngine, isTrue);
+        expect(_last(states), isA<StratumSplashFailed<String>>());
       },
     );
+
+    testWidgets("NFR-U02, fo03/us12/fr07/e04: Tab reaches a failed frame's retry button, and "
+        'Enter activates it', (tester) async {
+      var calls = 0;
+      await tester.pumpWidget(
+        DefaultAssetBundle(
+          bundle: FakeThemeBundle(),
+          child: StratumSplashScreen<String>(
+            postload: (context, controller) async {
+              calls += 1;
+              throw StateError('offline');
+            },
+            builder: (context, state) => switch (state) {
+              StratumSplashFailed(:final retry) => TextButton(
+                onPressed: retry,
+                child: const Text('Retry'),
+              ),
+              _ => const SizedBox.shrink(),
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+      expect(Focus.of(tester.element(find.text('Retry'))).hasFocus, isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(Focus.of(tester.element(find.text('Retry'))).hasFocus, isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(calls, 2);
+    });
   });
 
   group('StratumSplashScreen exit in place', () {
-    testWidgets('us12/fr04, us12/s1: by default the app fades through in '
-        'place over the theme slow level, 300 ms', (tester) async {
-      final work = Completer<String>();
-      await tester.pumpWidget(_exit(work));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'fo03/us12/fr04, fo03/us12/s1: by default the app fades through in '
+      'place over the theme slow level, 300 ms',
+      (tester) async {
+        final work = Completer<String>();
+        await tester.pumpWidget(_exit(work));
+        await tester.pumpAndSettle();
 
-      work.complete('ready');
-      await tester.pump(Duration.zero);
-      expect(find.byKey(_frame), findsOneWidget);
-      expect(find.byKey(_app), findsOneWidget);
+        work.complete('ready');
+        await tester.pump(Duration.zero);
+        expect(find.byKey(_frame), findsOneWidget);
+        expect(find.byKey(_app), findsOneWidget);
 
-      await tester.pump(const Duration(milliseconds: 299));
-      expect(find.byKey(_frame), findsOneWidget);
+        await tester.pump(const Duration(milliseconds: 299));
+        expect(find.byKey(_frame), findsOneWidget);
 
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(_seen(tester, _app), _screen);
-      // The exit ends on the first frame past its duration
-      // (`_InterpolationSimulation.isDone`), and the splash frame goes then.
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(find.byKey(_frame), findsNothing);
-      expect(find.byType(Navigator), findsNothing);
-    });
+        await tester.pump(const Duration(milliseconds: 1));
+        expect(_seen(tester, _app), _screen);
+        // The exit ends on the first frame past its duration
+        // (`_InterpolationSimulation.isDone`), and the splash frame goes then.
+        await tester.pump(const Duration(milliseconds: 1));
+        expect(find.byKey(_frame), findsNothing);
+        expect(find.byType(Navigator), findsNothing);
+      },
+    );
 
-    testWidgets('us12/fr04, us12/s5: a right-to-left exit slides the app in '
-        'from the right over the splash in 300 ms', (tester) async {
-      final work = Completer<String>();
-      await tester.pumpWidget(
-        _exit(work, type: ScreenTransitionType.rightToLeft),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'fo03/us12/fr04, fo03/us12/s5: a right-to-left exit slides the app in '
+      'from the right over the splash in 300 ms',
+      (tester) async {
+        final work = Completer<String>();
+        await tester.pumpWidget(
+          _exit(work, type: ScreenTransitionType.rightToLeft),
+        );
+        await tester.pumpAndSettle();
 
-      work.complete('ready');
-      await tester.pump(Duration.zero);
-      await tester.pump(const Duration(milliseconds: 150));
-      expect(_seen(tester, _app).left, inExclusiveRange(0, 800));
-      expect(_seen(tester, _frame), _screen);
+        work.complete('ready');
+        await tester.pump(Duration.zero);
+        await tester.pump(const Duration(milliseconds: 150));
+        expect(_seen(tester, _app).left, inExclusiveRange(0, 800));
+        expect(_seen(tester, _frame), _screen);
 
-      await tester.pump(const Duration(milliseconds: 150));
-      expect(_seen(tester, _app), _screen);
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(find.byKey(_frame), findsNothing);
-    });
+        await tester.pump(const Duration(milliseconds: 150));
+        expect(_seen(tester, _app), _screen);
+        await tester.pump(const Duration(milliseconds: 1));
+        expect(find.byKey(_frame), findsNothing);
+      },
+    );
 
-    testWidgets('us12/fr04/e04: an exit duration and curve replace the '
+    testWidgets('fo03/us12/fr04/e04: an exit duration and curve replace the '
         "theme's", (tester) async {
       final work = Completer<String>();
       await tester.pumpWidget(
@@ -1058,7 +1120,7 @@ void main() {
           ),
         ]) {
       testWidgets(
-        'us12/fr04, NFR-U02: focus enters $label at the exit, and one Tab '
+        'fo03/us12/fr04, NFR-U02: focus enters $label at the exit, and one Tab '
         'reaches its button',
         (tester) async {
           final buttonKey = UniqueKey();
@@ -1106,7 +1168,9 @@ void main() {
       );
     }
 
-    testWidgets('us12/fr04/e02: none shows the app at once', (tester) async {
+    testWidgets('fo03/us12/fr04/e02: none shows the app at once', (
+      tester,
+    ) async {
       final work = Completer<String>();
       await tester.pumpWidget(_exit(work, type: ScreenTransitionType.none));
       await tester.pumpAndSettle();
@@ -1123,7 +1187,7 @@ void main() {
       ScreenTransitionType.platform,
       ScreenTransitionType.cupertino,
     ]) {
-      testWidgets('us12/fr04/e01: $type fails an assertion that names the '
+      testWidgets('fo03/us12/fr04/e01: $type fails an assertion that names the '
           'types an exit takes', (tester) async {
         await tester.pumpWidget(_exit(Completer<String>(), type: type));
 
@@ -1154,36 +1218,39 @@ void main() {
         ('platform', false, true),
       ]) {
         final reduced = app || platform;
-        testWidgets('NFR-U03, us12/fr04/e03, us12/s6: with $source reduced '
-            'motion, one frame after done, a ${type.name} exit '
-            '${reduced ? 'shows' : 'still moves or scales'} the app where it '
-            'ends', (tester) async {
-          if (platform) {
-            tester.platformDispatcher.accessibilityFeaturesTestValue =
-                const FakeAccessibilityFeatures(reduceMotion: true);
-            addTearDown(
-              tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-            );
-          }
-          // The target: where the app ends once the exit has settled.
-          final settled = Completer<String>();
-          await tester.pumpWidget(_exit(settled, type: type, reduced: app));
-          await tester.pumpAndSettle();
-          settled.complete('ready');
-          await tester.pumpAndSettle();
-          final target = _seen(tester, _app);
-          // A fresh splash; then the same change and one frame. The zero
-          // duration flushes postload's result before the frame
-          // (flutter_test binding.dart:2249-2263) and lets no time pass.
-          await tester.pumpWidget(const SizedBox.shrink());
-          final work = Completer<String>();
-          await tester.pumpWidget(_exit(work, type: type, reduced: app));
-          await tester.pumpAndSettle();
-          work.complete('ready');
-          await tester.pump(Duration.zero);
+        testWidgets(
+          'NFR-U03, fo03/us12/fr04/e03, fo03/us12/s6: with $source reduced '
+          'motion, one frame after done, a ${type.name} exit '
+          '${reduced ? 'shows' : 'still moves or scales'} the app where it '
+          'ends',
+          (tester) async {
+            if (platform) {
+              tester.platformDispatcher.accessibilityFeaturesTestValue =
+                  const FakeAccessibilityFeatures(reduceMotion: true);
+              addTearDown(
+                tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+              );
+            }
+            // The target: where the app ends once the exit has settled.
+            final settled = Completer<String>();
+            await tester.pumpWidget(_exit(settled, type: type, reduced: app));
+            await tester.pumpAndSettle();
+            settled.complete('ready');
+            await tester.pumpAndSettle();
+            final target = _seen(tester, _app);
+            // A fresh splash; then the same change and one frame. The zero
+            // duration flushes postload's result before the frame
+            // (flutter_test binding.dart:2249-2263) and lets no time pass.
+            await tester.pumpWidget(const SizedBox.shrink());
+            final work = Completer<String>();
+            await tester.pumpWidget(_exit(work, type: type, reduced: app));
+            await tester.pumpAndSettle();
+            work.complete('ready');
+            await tester.pump(Duration.zero);
 
-          expect(_seen(tester, _app), reduced ? target : isNot(target));
-        });
+            expect(_seen(tester, _app), reduced ? target : isNot(target));
+          },
+        );
       }
     }
   });
@@ -1215,29 +1282,32 @@ void main() {
       ),
     );
 
-    testWidgets('NFR-U06, us12/fr08, us12/s8: a loading app frame sits '
-        "under a live region that reads Loading; the app's node reads "
-        'unchanged', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(announced(FakeThemeBundle()));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'NFR-U06, fo03/us12/fr08, fo03/us12/s8: a loading app frame sits '
+      "under a live region that reads Loading; the app's node reads "
+      'unchanged',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(announced(FakeThemeBundle()));
+        await tester.pumpAndSettle();
 
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('Loading')),
-        matchesSemantics(
-          label: 'Loading',
-          isLiveRegion: true,
-          role: SemanticsRole.none,
-        ),
-      );
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('app loading app')),
-        matchesSemantics(label: 'app loading app'),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('Loading')),
+          matchesSemantics(
+            label: 'Loading',
+            isLiveRegion: true,
+            role: SemanticsRole.none,
+          ),
+        );
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('app loading app')),
+          matchesSemantics(label: 'app loading app'),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us12/fr08/e01: a loading theme frame of a retry reads '
+    testWidgets('fo03/us12/fr08/e01: a loading theme frame of a retry reads '
         'Loading too', (tester) async {
       final handle = tester.ensureSemantics();
       final bundle = FakeThemeBundle(themes: {'brand': brokenTheme()});
@@ -1297,7 +1367,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us12/fr08/e02, nfr-l01: a loading label the app passes '
+    testWidgets('fo03/us12/fr08/e02, nfr-l01: a loading label the app passes '
         'replaces the built-in one', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -1317,24 +1387,27 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us12/s8, nfr-l01: on a Thai device the announcement reads '
-        'Thai', (tester) async {
-      final handle = tester.ensureSemantics();
-      tester.platformDispatcher.localeTestValue = const Locale('th');
-      addTearDown(tester.platformDispatcher.clearLocaleTestValue);
-      await tester.pumpWidget(announced(FakeThemeBundle()));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'fo03/us12/s8, nfr-l01: on a Thai device the announcement reads '
+      'Thai',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        tester.platformDispatcher.localeTestValue = const Locale('th');
+        addTearDown(tester.platformDispatcher.clearLocaleTestValue);
+        await tester.pumpWidget(announced(FakeThemeBundle()));
+        await tester.pumpAndSettle();
 
-      expect(
-        tester.getSemantics(find.bySemanticsLabel('กำลังโหลด')),
-        matchesSemantics(
-          label: 'กำลังโหลด',
-          isLiveRegion: true,
-          role: SemanticsRole.none,
-        ),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.bySemanticsLabel('กำลังโหลด')),
+          matchesSemantics(
+            label: 'กำลังโหลด',
+            isLiveRegion: true,
+            role: SemanticsRole.none,
+          ),
+        );
+        handle.dispose();
+      },
+    );
 
     testWidgets("the app's frame keeps its own state when loading turns "
         'failed', (tester) async {
@@ -1355,6 +1428,117 @@ void main() {
       await tester.pump(Duration.zero);
 
       expect(tester.state(find.byType(_Spinner)), same(before));
+    });
+  });
+
+  group('StratumSplashScreen widget settings', () {
+    testWidgets(
+      'fo10/us03/s1: fo10/us03/fr01/e01: the splash holds the first frame '
+      'until the settings load',
+      (tester) async {
+        final store = CountingSettingStore();
+        final hold = store.holdNextRead();
+        final settings = StratumWidgetSettingsController(store: store);
+        addTearDown(settings.dispose);
+        final states = <StratumSplashState<String>>[];
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            postload: () => Completer<String>().future,
+            widgetSettings: settings,
+            states: states,
+          ),
+        );
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(states, isEmpty);
+
+        hold.complete();
+        await tester.pumpAndSettle();
+
+        expect(_last(states), isA<StratumSplashLoadingApp<String>>());
+      },
+    );
+
+    testWidgets(
+      'fo10/us04/fr01/e03: a switch in postload shows the user value on '
+      'the first app frame',
+      (tester) async {
+        final store = CountingSettingStore({
+          'stratum/u/a/acme.probe/g/w': 400.0,
+          'stratum/d/acme.probe/g/w': 300.0,
+        });
+        final settings = StratumWidgetSettingsController(store: store);
+        addTearDown(settings.dispose);
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            widgetSettings: settings,
+            postload: () async {
+              await settings.switchUser('a');
+              return 'ok';
+            },
+            probe: (context) {
+              final box = StratumWidgetSettings.of(
+                context,
+                namespace: 'acme.probe',
+              );
+              return Text(
+                '${box.global.getDouble('w')}',
+                textDirection: TextDirection.ltr,
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('400.0'), findsOneWidget);
+        expect(find.text('300.0'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'fo10/us03/fr01: with no settings passed the splash places its own',
+      (tester) async {
+        StratumWidgetSettingsController? found;
+        await tester.pumpWidget(
+          _splash(
+            FakeThemeBundle(),
+            postload: () async => 'ok',
+            probe: (context) {
+              found = StratumWidgetSettings.maybeControllerOf(context);
+              return const SizedBox.shrink();
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(found, isNotNull);
+      },
+    );
+
+    testWidgets('fo10/us03/fr01: a scope above the splash is the one it '
+        'uses', (tester) async {
+      final above = StratumWidgetSettingsController();
+      addTearDown(above.dispose);
+      StratumWidgetSettingsController? found;
+      await tester.pumpWidget(
+        StratumWidgetSettings(
+          controller: above,
+          child: _splash(
+            FakeThemeBundle(),
+            postload: () async => 'ok',
+            probe: (context) {
+              found = StratumWidgetSettings.maybeControllerOf(context);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(identical(found, above), isTrue);
     });
   });
 }

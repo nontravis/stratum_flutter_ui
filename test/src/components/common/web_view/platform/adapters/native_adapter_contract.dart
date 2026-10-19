@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/message_script.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 import '../../fakes/native_bridge_envelope.dart';
 import '../../fakes/recording_listener.dart';
@@ -88,49 +91,55 @@ void runNativeAdapterContract(
       return (html, listener.senders.last as PlatformHtmlDocumentSender);
     }
 
-    test('us03/fr05/e08: a reply to own HTML runs the token-and-id script '
-        'on the page shown, and a refusal throws', () async {
-      final (html, sender) = await proveOwnHtml();
-      harness.scriptResult = true;
-      await adapter.replyToDocument(sender, 'pong');
-      expect(
-        harness.scripts.last,
-        buildMessageDispatchScript(
-          'pong',
-          token: tokenIn(html),
-          documentId: documentA,
-          allowedOrigins: const <Uri>[],
-        ),
-      );
-      harness.scriptResult = false;
-      await expectLater(
-        adapter.replyToDocument(sender, 'pong'),
-        throwsA(_unallowedPage),
-      );
-    });
-
-    test("us03/fr05/e08: a reply after the sending document's bye throws "
-        'and runs no script', () async {
-      final (html, sender) = await proveOwnHtml();
-      harness.sendBridgeMessage(
-        envelope(nonceIn(html), 'bye', documentA),
-        senderUrl: 'about:blank',
-      );
-      final before = harness.scripts.length;
-      await expectLater(
-        adapter.replyToDocument(sender, 'pong'),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            'The HTML document that sent the message is gone.',
+    test(
+      'co01_02/us03/fr05/e08: a reply to own HTML runs the token-and-id script '
+      'on the page shown, and a refusal throws',
+      () async {
+        final (html, sender) = await proveOwnHtml();
+        harness.scriptResult = true;
+        await adapter.replyToDocument(sender, 'pong');
+        expect(
+          harness.scripts.last,
+          buildMessageDispatchScript(
+            'pong',
+            token: tokenIn(html),
+            documentId: documentA,
+            allowedOrigins: const <Uri>[],
           ),
-        ),
-      );
-      expect(harness.scripts, hasLength(before));
-    });
+        );
+        harness.scriptResult = false;
+        await expectLater(
+          adapter.replyToDocument(sender, 'pong'),
+          throwsA(_unallowedPage),
+        );
+      },
+    );
 
-    test('us03/fr02/e16: a named send to own HTML throws, because own HTML '
+    test(
+      "co01_02/us03/fr05/e08: a reply after the sending document's bye throws "
+      'and runs no script',
+      () async {
+        final (html, sender) = await proveOwnHtml();
+        harness.sendBridgeMessage(
+          envelope(nonceIn(html), 'bye', documentA),
+          senderUrl: 'about:blank',
+        );
+        final before = harness.scripts.length;
+        await expectLater(
+          adapter.replyToDocument(sender, 'pong'),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'The HTML document that sent the message is gone.',
+            ),
+          ),
+        );
+        expect(harness.scripts, hasLength(before));
+      },
+    );
+
+    test('co01_02/us03/fr02/e16: a named send to own HTML throws, because own HTML '
         'has no origin and never matches a targetOrigin', () async {
       await proveOwnHtml();
       harness.scriptResult = false;
@@ -148,70 +157,76 @@ void runNativeAdapterContract(
       );
     });
 
-    test('us03/fr05/e11: a reply script with no answer within 5 seconds, '
-        'or a platform error, throws the StateError naming no origin', () {
-      fakeAsync((async) {
-        final zonedHarness = createHarness();
-        final zonedAdapter = zonedHarness.createAdapter(listener);
-        unawaited(
-          zonedAdapter.load(const StratumWebViewSource.html('<p>Hi</p>')),
-        );
-        async.flushMicrotasks();
-        final zonedHtml = zonedHarness.loadedHtml.single;
-        final zonedNonce = nonceIn(zonedHtml);
-        zonedHarness
-          ..sendBridgeMessage(
-            envelope(zonedNonce, 'hello', documentA),
-            senderUrl: 'about:blank',
-          )
-          ..sendBridgeMessage(
-            messageEnvelope(zonedNonce, 'm'),
-            senderUrl: 'about:blank',
+    test(
+      'co01_02/us03/fr05/e11: a reply script with no answer within 5 seconds, '
+      'or a platform error, throws the StateError naming no origin',
+      () {
+        fakeAsync((async) {
+          final zonedHarness = createHarness();
+          final zonedAdapter = zonedHarness.createAdapter(listener);
+          unawaited(
+            zonedAdapter.load(const StratumWebViewSource.html('<p>Hi</p>')),
           );
-        final zonedSender = listener.senders.last as PlatformHtmlDocumentSender;
-        zonedHarness.scriptAnswer = () => Completer<Object>().future;
-        Object? failure;
-        unawaited(
-          zonedAdapter
-              .replyToDocument(zonedSender, 'pong')
-              .then((_) {}, onError: (Object error) => failure = error),
-        );
-        async.elapse(const Duration(milliseconds: 4999));
-        expect(failure, isNull);
-        async.elapse(const Duration(milliseconds: 1));
-        expect(failure, _unallowedPage);
-      });
-      fakeAsync((async) {
-        final zonedHarness = createHarness();
-        final zonedAdapter = zonedHarness.createAdapter(listener);
-        unawaited(
-          zonedAdapter.load(const StratumWebViewSource.html('<p>Hi</p>')),
-        );
-        async.flushMicrotasks();
-        final zonedHtml = zonedHarness.loadedHtml.single;
-        final zonedNonce = nonceIn(zonedHtml);
-        zonedHarness
-          ..sendBridgeMessage(
-            envelope(zonedNonce, 'hello', documentA),
-            senderUrl: 'about:blank',
-          )
-          ..sendBridgeMessage(
-            messageEnvelope(zonedNonce, 'm'),
-            senderUrl: 'about:blank',
+          async.flushMicrotasks();
+          final zonedHtml = zonedHarness.loadedHtml.single;
+          final zonedNonce = nonceIn(zonedHtml);
+          zonedHarness
+            ..sendBridgeMessage(
+              envelope(zonedNonce, 'hello', documentA),
+              senderUrl: 'about:blank',
+            )
+            ..sendBridgeMessage(
+              messageEnvelope(zonedNonce, 'm'),
+              senderUrl: 'about:blank',
+            );
+          final zonedSender =
+              listener.senders.last as PlatformHtmlDocumentSender;
+          zonedHarness.scriptAnswer = () => Completer<Object>().future;
+          Object? failure;
+          unawaited(
+            zonedAdapter
+                .replyToDocument(zonedSender, 'pong')
+                .then((_) {}, onError: (Object error) => failure = error),
           );
-        final zonedSender = listener.senders.last as PlatformHtmlDocumentSender;
-        zonedHarness.scriptAnswer = () =>
-            Future<Object>.error(PlatformException(code: 'evaluateJavaScript'));
-        Object? failure;
-        unawaited(
-          zonedAdapter
-              .replyToDocument(zonedSender, 'pong')
-              .then((_) {}, onError: (Object error) => failure = error),
-        );
-        async.flushMicrotasks();
-        expect(failure, _unallowedPage);
-      });
-    });
+          async.elapse(const Duration(milliseconds: 4999));
+          expect(failure, isNull);
+          async.elapse(const Duration(milliseconds: 1));
+          expect(failure, _unallowedPage);
+        });
+        fakeAsync((async) {
+          final zonedHarness = createHarness();
+          final zonedAdapter = zonedHarness.createAdapter(listener);
+          unawaited(
+            zonedAdapter.load(const StratumWebViewSource.html('<p>Hi</p>')),
+          );
+          async.flushMicrotasks();
+          final zonedHtml = zonedHarness.loadedHtml.single;
+          final zonedNonce = nonceIn(zonedHtml);
+          zonedHarness
+            ..sendBridgeMessage(
+              envelope(zonedNonce, 'hello', documentA),
+              senderUrl: 'about:blank',
+            )
+            ..sendBridgeMessage(
+              messageEnvelope(zonedNonce, 'm'),
+              senderUrl: 'about:blank',
+            );
+          final zonedSender =
+              listener.senders.last as PlatformHtmlDocumentSender;
+          zonedHarness.scriptAnswer = () => Future<Object>.error(
+            PlatformException(code: 'evaluateJavaScript'),
+          );
+          Object? failure;
+          unawaited(
+            zonedAdapter
+                .replyToDocument(zonedSender, 'pong')
+                .then((_) {}, onError: (Object error) => failure = error),
+          );
+          async.flushMicrotasks();
+          expect(failure, _unallowedPage);
+        });
+      },
+    );
 
     test('enables JavaScript', () {
       expect(harness.javaScriptEnabledStates, [true]);
@@ -235,7 +250,7 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us03/fr05: every delivered message reaches the listener with its '
+    test('co01_02/us03/fr05: every delivered message reaches the listener with its '
         'sender', () async {
       await adapter.load(StratumWebViewSource.url(appPage));
       harness
@@ -287,7 +302,7 @@ void runNativeAdapterContract(
       expect(listener.messages, isEmpty);
     });
 
-    test('us03/fr04: loads HTML with the native bootstrap and delivers only '
+    test('co01_02/us03/fr04: loads HTML with the native bootstrap and delivers only '
         'messages that carry its proven nonce, whenever they arrive', () async {
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
       final html = harness.loadedHtml.single;
@@ -323,7 +338,7 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us03/fr04/e04: reloading HTML keeps its nonce; the reloaded '
+    test('co01_02/us03/fr04/e04: reloading HTML keeps its nonce; the reloaded '
         "document's hello proves it again", () async {
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
       final html = harness.loadedHtml.single;
@@ -357,7 +372,7 @@ void runNativeAdapterContract(
       expect(listener.messages, [const StratumWebViewMessage(data: 'after')]);
     });
 
-    test("us03/fr04/e10, us03/fr02/e10: after the proving document's bye, "
+    test("co01_02/us03/fr04/e10, co01_02/us03/fr02/e10: after the proving document's bye, "
         'a send runs the allowlist-only dispatch script', () async {
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
       final nonce = nonceIn(harness.loadedHtml.single);
@@ -381,7 +396,7 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us03/fr02/e04: a send to HTML before its hello throws and runs no '
+    test('co01_02/us03/fr02/e04: a send to HTML before its hello throws and runs no '
         'script', () async {
       await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
       harness.startPage('about:blank');
@@ -398,34 +413,40 @@ void runNativeAdapterContract(
       expect(harness.scripts, isEmpty);
     });
 
-    test('us03/fr02/e03: after its hello, HTML gets the dispatch script '
-        'with its outbound token', () async {
-      await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
-      final html = harness.loadedHtml.single;
-      harness.sendBridgeMessage(
-        envelope(nonceIn(html), 'hello', documentA),
-        senderUrl: 'about:blank',
-      );
-      await adapter.postMessage('ping');
-      expect(harness.scripts.single, contains("t==='${tokenIn(html)}'"));
-      expect(listener.messages, isEmpty);
-    });
-
-    test('us03/fr02/e10: posts the dispatch script to a URL page', () async {
-      await adapter.load(StratumWebViewSource.url(appPage));
-      harness.startPage(appPage.toString());
-      await adapter.postMessage('ping');
-      expect(harness.scripts, [
-        buildMessageDispatchScript(
-          'ping',
-          token: null,
-          allowedOrigins: {appOrigin},
-        ),
-      ]);
-    });
+    test(
+      'co01_02/us03/fr02/e03: after its hello, HTML gets the dispatch script '
+      'with its outbound token',
+      () async {
+        await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+        final html = harness.loadedHtml.single;
+        harness.sendBridgeMessage(
+          envelope(nonceIn(html), 'hello', documentA),
+          senderUrl: 'about:blank',
+        );
+        await adapter.postMessage('ping');
+        expect(harness.scripts.single, contains("t==='${tokenIn(html)}'"));
+        expect(listener.messages, isEmpty);
+      },
+    );
 
     test(
-      'us03/fr02/e17, nf01/NFR-Sec02: a named send runs the one-target '
+      'co01_02/us03/fr02/e10: posts the dispatch script to a URL page',
+      () async {
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness.startPage(appPage.toString());
+        await adapter.postMessage('ping');
+        expect(harness.scripts, [
+          buildMessageDispatchScript(
+            'ping',
+            token: null,
+            allowedOrigins: {appOrigin},
+          ),
+        ]);
+      },
+    );
+
+    test(
+      'co01_02/us03/fr02/e17, nf01/NFR-Sec02: a named send runs the one-target '
       'script, and a refusal throws the StateError naming no origin',
       () async {
         await adapter.load(StratumWebViewSource.url(appPage));
@@ -450,7 +471,7 @@ void runNativeAdapterContract(
     );
 
     test(
-      'us03/fr02/e18: a named send the page shown accepts resolves',
+      'co01_02/us03/fr02/e18: a named send the page shown accepts resolves',
       () async {
         await adapter.load(StratumWebViewSource.url(appPage));
         harness
@@ -460,26 +481,29 @@ void runNativeAdapterContract(
       },
     );
 
-    test('us03/fr02/e03: a send the page refuses throws a StateError that '
-        'names no origin', () async {
-      await adapter.load(StratumWebViewSource.url(appPage));
-      harness
-        ..startPage('https://evil.example.net/path?x=secret')
-        ..scriptResult = false;
-      await expectLater(
-        adapter.postMessage('ping'),
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            'The current page is not an allowed message destination.',
+    test(
+      'co01_02/us03/fr02/e03: a send the page refuses throws a StateError that '
+      'names no origin',
+      () async {
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness
+          ..startPage('https://evil.example.net/path?x=secret')
+          ..scriptResult = false;
+        await expectLater(
+          adapter.postMessage('ping'),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              'The current page is not an allowed message destination.',
+            ),
           ),
-        ),
-      );
-      expect(harness.scripts, hasLength(1));
-    });
+        );
+        expect(harness.scripts, hasLength(1));
+      },
+    );
 
-    test('us03/fr02/e12: a dispatch script with no answer within 5 seconds '
+    test('co01_02/us03/fr02/e12: a dispatch script with no answer within 5 seconds '
         'throws the StateError of an unallowed page', () {
       fakeAsync((async) {
         // Built inside the fake zone, so every await of the adapter runs on
@@ -509,24 +533,27 @@ void runNativeAdapterContract(
       });
     });
 
-    test('us03/fr02/e12: a platform error while the dispatch script runs '
-        'throws the StateError of an unallowed page', () async {
-      await adapter.load(StratumWebViewSource.url(appPage));
-      harness.startPage(appPage.toString());
-      for (final error in <Object>[
-        PlatformException(code: 'evaluateJavaScript', message: 'TypeError'),
-        ArgumentError('The JavaScript returned `null` or `undefined`.'),
-      ]) {
-        harness.scriptAnswer = () => Future<Object>.error(error);
-        await expectLater(
-          adapter.postMessage('ping'),
-          throwsA(_unallowedPage),
-          reason: '$error',
-        );
-      }
-    });
+    test(
+      'co01_02/us03/fr02/e12: a platform error while the dispatch script runs '
+      'throws the StateError of an unallowed page',
+      () async {
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness.startPage(appPage.toString());
+        for (final error in <Object>[
+          PlatformException(code: 'evaluateJavaScript', message: 'TypeError'),
+          ArgumentError('The JavaScript returned `null` or `undefined`.'),
+        ]) {
+          harness.scriptAnswer = () => Future<Object>.error(error);
+          await expectLater(
+            adapter.postMessage('ping'),
+            throwsA(_unallowedPage),
+            reason: '$error',
+          );
+        }
+      },
+    );
 
-    test('us03/fr02/e12: an error that is neither a timeout nor a platform '
+    test('co01_02/us03/fr02/e12: an error that is neither a timeout nor a platform '
         'error propagates unchanged', () async {
       await adapter.load(StratumWebViewSource.url(appPage));
       harness
@@ -627,7 +654,7 @@ void runNativeAdapterContract(
     });
 
     test(
-      'us01/fr02/e07: Android order, an HTTP error after a main-frame '
+      'co01_02/us01/fr02/e07: Android order, an HTTP error after a main-frame '
       'navigation request reaches onError once and names the target',
       () async {
         final target = Uri.parse('https://app.example.com/gone');
@@ -658,17 +685,20 @@ void runNativeAdapterContract(
       },
     );
 
-    test('us01/fr01/e05: a page finish with no open start never reaches '
-        'onPageFinished and releases no candidate', () async {
-      final page = Uri.parse('https://app.example.com/missing');
-      await adapter.load(StratumWebViewSource.url(page));
-      harness
-        ..failHttp(statusCode: 404, requestUrl: page)
-        ..finishPage(page.toString());
-      expect(listener.events, isEmpty);
-    });
+    test(
+      'co01_02/us01/fr01/e05: a page finish with no open start never reaches '
+      'onPageFinished and releases no candidate',
+      () async {
+        final page = Uri.parse('https://app.example.com/missing');
+        await adapter.load(StratumWebViewSource.url(page));
+        harness
+          ..failHttp(statusCode: 404, requestUrl: page)
+          ..finishPage(page.toString());
+        expect(listener.events, isEmpty);
+      },
+    );
 
-    test('us01/fr01/e05: Android order, a 302 then 200 reports one start and '
+    test('co01_02/us01/fr01/e05: Android order, a 302 then 200 reports one start and '
         'one finish', () async {
       final target = Uri.parse('https://app.example.com/ok');
       await adapter.load(
@@ -686,7 +716,7 @@ void runNativeAdapterContract(
       expect(listener.events, ['started $target', 'finished $target']);
     });
 
-    test('us01/fr02/e07, us01/fr02/e08: Android order, a reload after a 302 '
+    test('co01_02/us01/fr02/e07, co01_02/us01/fr02/e08: Android order, a reload after a 302 '
         'then 404 reports start, error, finish on the target', () async {
       final target = Uri.parse('https://app.example.com/gone');
       await adapter.load(
@@ -713,7 +743,7 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us01/fr02/e08, us04/fr01/e07: Android order, goBack to a page that '
+    test('co01_02/us01/fr02/e08, co01_02/us04/fr01/e07: Android order, goBack to a page that '
         'now answers 404 reports start, error, finish', () async {
       // Pin: P3, the no-store variant.
       final flip = Uri.parse('https://app.example.com/flip');
@@ -740,7 +770,7 @@ void runNativeAdapterContract(
       expect(listener.errors.single.code, 404);
     });
 
-    test('us01/fr02/e08, us01/fr01/e05: Android order, a reload while the '
+    test('co01_02/us01/fr02/e08, co01_02/us01/fr01/e05: Android order, a reload while the '
         "page still loads reports the replaced load's late finish, then "
         'start, error, finish for the reload', () async {
       // R14: the reload ends only the at-once error eligibility, so the
@@ -764,34 +794,40 @@ void runNativeAdapterContract(
       expect(listener.errors.single.code, 503);
     });
 
-    test('us04/fr01/e05: goBack with no entry while the page loads still '
-        'reports its finish', () async {
-      // R14: the fake's goBack loads no document, like a platform with no
-      // previous entry; the move ends no pairing.
-      await adapter.load(StratumWebViewSource.url(appPage));
-      harness.startPage(appPage.toString());
-      await adapter.goBack();
-      harness.finishPage(appPage.toString());
-      expect(listener.events, ['started $appPage', 'finished $appPage']);
-    });
+    test(
+      'co01_02/us04/fr01/e05: goBack with no entry while the page loads still '
+      'reports its finish',
+      () async {
+        // R14: the fake's goBack loads no document, like a platform with no
+        // previous entry; the move ends no pairing.
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness.startPage(appPage.toString());
+        await adapter.goBack();
+        harness.finishPage(appPage.toString());
+        expect(listener.events, ['started $appPage', 'finished $appPage']);
+      },
+    );
 
-    test('us04/fr01/e05: goBack to a same-document entry while the page '
-        'loads still reports its finish', () async {
-      // R14: a fragment traversal starts no document, so the loading page's
-      // own finish still pairs with its start.
-      await adapter.load(StratumWebViewSource.url(appPage));
-      harness.startPage(appPage.toString());
-      await adapter.goBack();
-      harness
-        ..changeUrl('https://app.example.com/home#section')
-        ..finishPage('https://app.example.com/home#section');
-      expect(listener.events, [
-        'started $appPage',
-        'finished https://app.example.com/home#section',
-      ]);
-    });
+    test(
+      'co01_02/us04/fr01/e05: goBack to a same-document entry while the page '
+      'loads still reports its finish',
+      () async {
+        // R14: a fragment traversal starts no document, so the loading page's
+        // own finish still pairs with its start.
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness.startPage(appPage.toString());
+        await adapter.goBack();
+        harness
+          ..changeUrl('https://app.example.com/home#section')
+          ..finishPage('https://app.example.com/home#section');
+        expect(listener.events, [
+          'started $appPage',
+          'finished https://app.example.com/home#section',
+        ]);
+      },
+    );
 
-    test('us01/fr01/e05, us01/fr02/e07: WebKit order, a server redirect asked '
+    test('co01_02/us01/fr01/e05, co01_02/us01/fr02/e07: WebKit order, a server redirect asked '
         'about after the page start keeps its finish', () async {
       // Pin, R10: an allowed main-frame request leaves the start open. The
       // harness's failHttp always carries a request URL, so the error names
@@ -813,7 +849,7 @@ void runNativeAdapterContract(
     });
 
     test(
-      'us01/fr02/e10: Android order, a redirecting navigation the page '
+      'co01_02/us01/fr02/e10: Android order, a redirecting navigation the page '
       'starts while it loads lets the stray finish pair with its start',
       () async {
         // Pin, R10 residue (b): the allowed request leaves the loading page's
@@ -837,28 +873,31 @@ void runNativeAdapterContract(
       },
     );
 
-    test('us04/fr01: Android order, goBack restored from the back-forward '
-        'cache reports start and finish with no error', () async {
-      // Pin: P3, the default variant: no request, no error.
-      final flip = Uri.parse('https://app.example.com/flip');
-      final other = Uri.parse('https://app.example.com/b');
-      await adapter.load(StratumWebViewSource.url(flip));
-      harness
-        ..startPage(flip.toString())
-        ..finishPage(flip.toString());
-      await adapter.load(StratumWebViewSource.url(other));
-      harness
-        ..startPage(other.toString())
-        ..finishPage(other.toString());
-      await adapter.goBack();
-      harness
-        ..startPage(flip.toString())
-        ..finishPage(flip.toString());
-      expect(listener.events.skip(4), ['started $flip', 'finished $flip']);
-      expect(listener.errors, isEmpty);
-    });
+    test(
+      'co01_02/us04/fr01: Android order, goBack restored from the back-forward '
+      'cache reports start and finish with no error',
+      () async {
+        // Pin: P3, the default variant: no request, no error.
+        final flip = Uri.parse('https://app.example.com/flip');
+        final other = Uri.parse('https://app.example.com/b');
+        await adapter.load(StratumWebViewSource.url(flip));
+        harness
+          ..startPage(flip.toString())
+          ..finishPage(flip.toString());
+        await adapter.load(StratumWebViewSource.url(other));
+        harness
+          ..startPage(other.toString())
+          ..finishPage(other.toString());
+        await adapter.goBack();
+        harness
+          ..startPage(flip.toString())
+          ..finishPage(flip.toString());
+        expect(listener.events.skip(4), ['started $flip', 'finished $flip']);
+        expect(listener.errors, isEmpty);
+      },
+    );
 
-    test('us01/fr02/e08, us04/fr01/e07: Android order, goForward to an entry '
+    test('co01_02/us01/fr02/e08, co01_02/us04/fr01/e07: Android order, goForward to an entry '
         'that answered 404 replays the error from the HTTP cache', () async {
       // Pin: P4.
       final first = Uri.parse('https://app.example.com/a');
@@ -889,7 +928,7 @@ void runNativeAdapterContract(
       expect(listener.errors, hasLength(2));
     });
 
-    test('us01/fr02/e08: Android order, a history move the page script '
+    test('co01_02/us01/fr02/e08: Android order, a history move the page script '
         'starts reports start, error, finish', () async {
       // Pin: history.back() in the page; no adapter call precedes it.
       final flip = Uri.parse('https://app.example.com/flip');
@@ -912,7 +951,7 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us01/fr02/e09: a sub-resource 404 on the URL a later page-script '
+    test('co01_02/us01/fr02/e09: a sub-resource 404 on the URL a later page-script '
         'history move lands on reaches onError as that page error', () async {
       // Pin: D1's stated residual.
       final page = Uri.parse('https://app.example.com/x');
@@ -933,27 +972,30 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us01/fr02: goBack, goForward, reload, and an allowed main-frame '
-        'navigation each discard every candidate', () async {
-      final image = Uri.parse('https://app.example.com/y');
-      Future<void> check(Future<void> Function() begin) async {
-        harness.failHttp(statusCode: 404, requestUrl: image);
-        await begin();
-        harness
-          ..startPage(image.toString())
-          ..finishPage(image.toString());
-      }
+    test(
+      'co01_02/us01/fr02: goBack, goForward, reload, and an allowed main-frame '
+      'navigation each discard every candidate',
+      () async {
+        final image = Uri.parse('https://app.example.com/y');
+        Future<void> check(Future<void> Function() begin) async {
+          harness.failHttp(statusCode: 404, requestUrl: image);
+          await begin();
+          harness
+            ..startPage(image.toString())
+            ..finishPage(image.toString());
+        }
 
-      await check(adapter.goBack);
-      await check(adapter.goForward);
-      await check(adapter.reload);
-      await check(
-        () => harness.requestNavigation(image.toString(), isMainFrame: true),
-      );
-      expect(listener.errors, isEmpty);
-    });
+        await check(adapter.goBack);
+        await check(adapter.goForward);
+        await check(adapter.reload);
+        await check(
+          () => harness.requestNavigation(image.toString(), isMainFrame: true),
+        );
+        expect(listener.errors, isEmpty);
+      },
+    );
 
-    test('us01/fr02, us01/fr02/e02: Android order, an HTTP error before its '
+    test('co01_02/us01/fr02, co01_02/us01/fr02/e02: Android order, an HTTP error before its '
         'page starts reaches onError once, after the start; a later favicon '
         '404 is dropped', () async {
       final page = Uri.parse('https://app.example.com/missing');
@@ -982,32 +1024,35 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us01/fr02: Android order, a load with an empty path matches the '
-        'error on its canonical URL', () async {
-      final page = Uri.parse('https://app.example.com/');
-      await adapter.load(
-        StratumWebViewSource.url(Uri.parse('https://app.example.com')),
-      );
-      harness
-        ..failHttp(statusCode: 404, requestUrl: page)
-        ..startPage(page.toString())
-        ..finishPage(page.toString());
-      expect(listener.errors, [
-        StratumWebViewError(
-          type: StratumWebViewErrorType.http,
-          description: 'HTTP error 404',
-          code: 404,
-          url: page,
-        ),
-      ]);
-      expect(listener.events, [
-        'started $page',
-        'error http $page',
-        'finished $page',
-      ]);
-    });
+    test(
+      'co01_02/us01/fr02: Android order, a load with an empty path matches the '
+      'error on its canonical URL',
+      () async {
+        final page = Uri.parse('https://app.example.com/');
+        await adapter.load(
+          StratumWebViewSource.url(Uri.parse('https://app.example.com')),
+        );
+        harness
+          ..failHttp(statusCode: 404, requestUrl: page)
+          ..startPage(page.toString())
+          ..finishPage(page.toString());
+        expect(listener.errors, [
+          StratumWebViewError(
+            type: StratumWebViewErrorType.http,
+            description: 'HTTP error 404',
+            code: 404,
+            url: page,
+          ),
+        ]);
+        expect(listener.events, [
+          'started $page',
+          'error http $page',
+          'finished $page',
+        ]);
+      },
+    );
 
-    test('us01/fr02: Android order, the late start of a replaced load does '
+    test('co01_02/us01/fr02: Android order, the late start of a replaced load does '
         'not take the error of the newer page', () async {
       final first = Uri.parse('https://app.example.com/first');
       final second = Uri.parse('https://app.example.com/second');
@@ -1034,34 +1079,37 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test('us01/fr02: a new load, an HTML load, or dispose discards every '
-        'candidate, even when the replaced page starts late', () async {
-      final page = Uri.parse('https://app.example.com/missing');
-      await adapter.load(StratumWebViewSource.url(page));
-      harness.failHttp(statusCode: 404, requestUrl: page);
-      await adapter.load(StratumWebViewSource.url(appPage));
-      harness
-        ..startPage(page.toString())
-        ..finishPage(page.toString());
+    test(
+      'co01_02/us01/fr02: a new load, an HTML load, or dispose discards every '
+      'candidate, even when the replaced page starts late',
+      () async {
+        final page = Uri.parse('https://app.example.com/missing');
+        await adapter.load(StratumWebViewSource.url(page));
+        harness.failHttp(statusCode: 404, requestUrl: page);
+        await adapter.load(StratumWebViewSource.url(appPage));
+        harness
+          ..startPage(page.toString())
+          ..finishPage(page.toString());
 
-      await adapter.load(StratumWebViewSource.url(page));
-      harness.failHttp(statusCode: 404, requestUrl: page);
-      await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
-      harness
-        ..startPage(page.toString())
-        ..finishPage(page.toString());
+        await adapter.load(StratumWebViewSource.url(page));
+        harness.failHttp(statusCode: 404, requestUrl: page);
+        await adapter.load(const StratumWebViewSource.html('<p>Hi</p>'));
+        harness
+          ..startPage(page.toString())
+          ..finishPage(page.toString());
 
-      await adapter.load(StratumWebViewSource.url(page));
-      harness.failHttp(statusCode: 404, requestUrl: page);
-      adapter.dispose();
-      harness
-        ..startPage(page.toString())
-        ..finishPage(page.toString());
+        await adapter.load(StratumWebViewSource.url(page));
+        harness.failHttp(statusCode: 404, requestUrl: page);
+        adapter.dispose();
+        harness
+          ..startPage(page.toString())
+          ..finishPage(page.toString());
 
-      expect(listener.errors, isEmpty);
-    });
+        expect(listener.errors, isEmpty);
+      },
+    );
 
-    test('us01/fr02/e08, us04/fr01/e07: Android order, an HTTP error before a '
+    test('co01_02/us01/fr02/e08, co01_02/us04/fr01/e07: Android order, an HTTP error before a '
         'reloaded page starts reaches onError once, after the start', () async {
       await adapter.load(StratumWebViewSource.url(appPage));
       harness
@@ -1089,16 +1137,13 @@ void runNativeAdapterContract(
       ]);
     });
 
-    test(
-      'us01/fr02/e02: an HTTP error on a prevented navigation is dropped',
-      () async {
-        final target = Uri.parse('https://evil.example.net/');
-        listener.decision = StratumNavigationDecision.prevent;
-        await harness.requestNavigation(target.toString(), isMainFrame: true);
-        harness.failHttp(statusCode: 404, requestUrl: target);
-        expect(listener.errors, isEmpty);
-      },
-    );
+    test('co01_02/us01/fr02/e02: an HTTP error on a prevented navigation is dropped', () async {
+      final target = Uri.parse('https://evil.example.net/');
+      listener.decision = StratumNavigationDecision.prevent;
+      await harness.requestNavigation(target.toString(), isMainFrame: true);
+      harness.failHttp(statusCode: 404, requestUrl: target);
+      expect(listener.errors, isEmpty);
+    });
 
     test('toggles JavaScript', () async {
       await adapter.setJavaScriptEnabled(false);

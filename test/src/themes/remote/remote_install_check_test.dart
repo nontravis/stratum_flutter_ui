@@ -47,34 +47,37 @@ void main() {
       expect(result.values.palette.values.first, isA<int>());
     });
 
-    test('us01/fr01/e01: a checksum mismatch throws before a generation is '
-        'taken', () async {
-      var generations = 0;
-      final good = remoteTheme('brand');
+    test(
+      'fo04/us01/fr01/e01: a checksum mismatch throws before a generation is '
+      'taken',
+      () async {
+        var generations = 0;
+        final good = remoteTheme('brand');
 
-      await expectLater(
-        checkRemoteInstall(
-          StratumRemoteTheme(
-            id: 'brand',
-            bytes: good.bytes,
-            checksum: checksumOf([0]),
+        await expectLater(
+          checkRemoteInstall(
+            StratumRemoteTheme(
+              id: 'brand',
+              bytes: good.bytes,
+              checksum: checksumOf([0]),
+            ),
+            packageDefault: remotePackageDefault,
+            parseValues: _inline,
+            nextGeneration: () => ++generations,
           ),
-          packageDefault: remotePackageDefault,
-          parseValues: _inline,
-          nextGeneration: () => ++generations,
-        ),
-        throwsA(
-          isA<StratumRemoteThemeException>().having(
-            (error) => error.code,
-            'code',
-            StratumRemoteThemeErrorCode.checksumMismatch,
+          throwsA(
+            isA<StratumRemoteThemeException>().having(
+              (error) => error.code,
+              'code',
+              StratumRemoteThemeErrorCode.checksumMismatch,
+            ),
           ),
-        ),
-      );
-      expect(generations, 0);
-    });
+        );
+        expect(generations, 0);
+      },
+    );
 
-    test('us01/fr03/e01: a theme problem is theme_format with the source '
+    test('fo04/us01/fr03/e01: a theme problem is theme_format with the source '
         '<id>@<generation>', () async {
       await expectLater(
         checkRemoteInstall(
@@ -99,7 +102,7 @@ void main() {
       );
     });
 
-    test('us01/fr03/e09: a named file the zip lacks is missing_entry with '
+    test('fo04/us01/fr03/e09: a named file the zip lacks is missing_entry with '
         'its path', () async {
       await expectLater(
         checkRemoteInstall(
@@ -121,57 +124,60 @@ void main() {
     });
   });
 
-  group('us01/fr03/e01, fo01 us01/fr01/e07, r16 (t25): hostile theme files '
-      'in a zip are theme_format', () {
-    /// Anchors a0 to a[depth], each a list of the one before twice, then a
-    /// mapping key built from the last.
-    String aliasKey(int depth) => [
-      'a0: &a0 [x, x]',
-      for (var d = 1; d <= depth; d++) 'a$d: &a$d [*a${d - 1}, *a${d - 1}]',
-      '? *a$depth',
-      ': v',
-    ].join('\n');
+  group(
+    'fo04/us01/fr03/e01, fo01/us01/fr01/e07, r16 (t25): hostile theme files '
+    'in a zip are theme_format',
+    () {
+      /// Anchors a0 to a[depth], each a list of the one before twice, then a
+      /// mapping key built from the last.
+      String aliasKey(int depth) => [
+        'a0: &a0 [x, x]',
+        for (var d = 1; d <= depth; d++) 'a$d: &a$d [*a${d - 1}, *a${d - 1}]',
+        '? *a$depth',
+        ': v',
+      ].join('\n');
 
-    for (final (label, text, at) in [
-      ('flow nesting 100,000 deep', '[' * 100000, (1, 65)),
-      ('a mapping key built from aliases', aliasKey(18), (1, 5)),
-      ('a tag whose %-escape is not UTF-8', 'x: !<%FF> y', (1, 4)),
-    ]) {
-      test('$label is theme_format holding yaml_syntax at the offending '
-          'character', () async {
-        final bytes = buildZip([
-          ZipEntryFixture('theme.yaml', utf8.encode(text)),
-        ]);
+      for (final (label, text, at) in [
+        ('flow nesting 100,000 deep', '[' * 100000, (1, 65)),
+        ('a mapping key built from aliases', aliasKey(18), (1, 5)),
+        ('a tag whose %-escape is not UTF-8', 'x: !<%FF> y', (1, 4)),
+      ]) {
+        test('$label is theme_format holding yaml_syntax at the offending '
+            'character', () async {
+          final bytes = buildZip([
+            ZipEntryFixture('theme.yaml', utf8.encode(text)),
+          ]);
 
-        await expectLater(
-          checkRemoteInstall(
-            StratumRemoteTheme(
-              id: 'brand',
-              bytes: bytes,
-              checksum: checksumOf(bytes),
+          await expectLater(
+            checkRemoteInstall(
+              StratumRemoteTheme(
+                id: 'brand',
+                bytes: bytes,
+                checksum: checksumOf(bytes),
+              ),
+              packageDefault: remotePackageDefault,
+              parseValues: _inline,
+              nextGeneration: () => 1,
             ),
-            packageDefault: remotePackageDefault,
-            parseValues: _inline,
-            nextGeneration: () => 1,
-          ),
-          throwsA(
-            isA<StratumRemoteThemeException>()
-                .having(
-                  (e) => e.code,
-                  'code',
-                  StratumRemoteThemeErrorCode.themeFormat,
-                )
-                .having(
-                  (e) => e.formatException!.errors
-                      .where((error) => error.source == 'brand@1')
-                      .map((error) => (error.code, error.line, error.column))
-                      .single,
-                  'zip error',
-                  (StratumThemeErrorCode.yamlSyntax, at.$1, at.$2),
-                ),
-          ),
-        );
-      });
-    }
-  });
+            throwsA(
+              isA<StratumRemoteThemeException>()
+                  .having(
+                    (e) => e.code,
+                    'code',
+                    StratumRemoteThemeErrorCode.themeFormat,
+                  )
+                  .having(
+                    (e) => e.formatException!.errors
+                        .where((error) => error.source == 'brand@1')
+                        .map((error) => (error.code, error.line, error.column))
+                        .single,
+                    'zip error',
+                    (StratumThemeErrorCode.yamlSyntax, at.$1, at.$2),
+                  ),
+            ),
+          );
+        });
+      }
+    },
+  );
 }

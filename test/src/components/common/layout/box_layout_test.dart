@@ -37,7 +37,6 @@ class _Layout extends BoxLayout {
     super.transformAlignment,
     super.keepAlive,
     super.repaintBoundary,
-    super.debug,
     super.semantics,
     super.onEndAnimate,
     super.interaction,
@@ -73,25 +72,24 @@ void main() {
       expect(tester.getSize(find.byType(_Layout)), const Size(40, 20));
     });
 
-    testWidgets('semantics, repaintBoundary, debug, and keepAlive stay bare', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const _Layout(
-            semantics: SemanticsProperties(label: 'box'),
-            repaintBoundary: true,
-            debug: true,
-            keepAlive: true,
+    testWidgets(
+      'fo06/us01/fr01: semantics, repaintBoundary, and keepAlive stay bare',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              semantics: SemanticsProperties(label: 'box'),
+              repaintBoundary: true,
+              keepAlive: true,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(find.byType(AnimatedStyledBox), findsNothing);
-      expect(_inLayout(find.byType(RepaintBoundary)), findsOneWidget);
-      expect(_inLayout(find.byType(WidgetPerformanceMonitor)), findsOneWidget);
-      expect(find.bySemanticsLabel('box'), findsOneWidget);
-    });
+        expect(find.byType(AnimatedStyledBox), findsNothing);
+        expect(_inLayout(find.byType(RepaintBoundary)), findsOneWidget);
+        expect(find.bySemanticsLabel('box'), findsOneWidget);
+      },
+    );
   });
 
   group('BoxLayout box tier', () {
@@ -145,51 +143,73 @@ void main() {
       );
     });
 
-    testWidgets('wraps from outside in: keepAlive, debug, repaint, rotate', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const _Layout(
-            style: WidgetStyle(),
-            rotate: 90,
-            repaintBoundary: true,
-            debug: true,
-            keepAlive: true,
+    testWidgets(
+      'fo06/us01/fr01: wraps from outside in: keepAlive, repaint, rotate',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              style: WidgetStyle(),
+              rotate: 90,
+              repaintBoundary: true,
+              keepAlive: true,
+            ),
           ),
-        ),
-      );
+        );
 
-      final box = find.byType(AnimatedStyledBox);
-      final rotate = find.ancestor(of: box, matching: find.byType(Transform));
-      final repaint = _inLayout(find.byType(RepaintBoundary));
-      final monitor = _inLayout(find.byType(WidgetPerformanceMonitor));
-      expect(rotate, findsOneWidget);
-      expect(repaint, findsOneWidget);
-      expect(find.ancestor(of: rotate, matching: repaint), findsOneWidget);
-      expect(find.ancestor(of: repaint, matching: monitor), findsOneWidget);
-    });
+        final box = find.byType(AnimatedStyledBox);
+        final rotate = find.ancestor(of: box, matching: find.byType(Transform));
+        final repaint = _inLayout(find.byType(RepaintBoundary));
+        expect(rotate, findsOneWidget);
+        expect(repaint, findsOneWidget);
+        expect(find.ancestor(of: rotate, matching: repaint), findsOneWidget);
+      },
+    );
 
-    testWidgets('the semantic rect equals the box and excludes the margin', (
+    testWidgets(
+      'fo06/us01/s3, fo06/us01/fr03/e02: the semantic rect equals the box '
+      'and excludes the margin',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              style: WidgetStyle(
+                width: 40,
+                height: 20,
+                margin: EdgeInsets.all(8),
+              ),
+              semantics: SemanticsProperties(label: 'box'),
+            ),
+          ),
+        );
+
+        expect(tester.getSize(find.byType(_Layout)), const Size(56, 36));
+        final node = tester.getSemantics(find.bySemanticsLabel('box'));
+        expect(node.rect.size, const Size(40, 20));
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us01/fr03: the semantic rect rotates with the box', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         themedHost(
           const _Layout(
-            style: WidgetStyle(
-              width: 40,
-              height: 20,
-              margin: EdgeInsets.all(8),
-            ),
+            style: WidgetStyle(width: 40, height: 20),
+            rotate: 90,
             semantics: SemanticsProperties(label: 'box'),
           ),
         ),
       );
 
-      expect(tester.getSize(find.byType(_Layout)), const Size(56, 36));
       final node = tester.getSemantics(find.bySemanticsLabel('box'));
-      expect(node.rect.size, const Size(40, 20));
+      final rotated = MatrixUtils.transformRect(node.transform!, node.rect);
+      // A 90-degree rotation swaps width and height; the ambient view scale
+      // cancels out of the ratio, so this holds whatever that scale is.
+      expect(rotated.width / rotated.height, closeTo(20 / 40, 1e-9));
       handle.dispose();
     });
 
@@ -237,7 +257,12 @@ void main() {
       void longPress() {}
       void secondaryTap() {}
       const label = SemanticsProperties(label: 'box');
-      const shortcuts = {SingleActivator(LogicalKeyboardKey.keyA): _noop};
+      // Wrapped so freezed's generated getter (`_shortcuts is
+      // EqualUnmodifiableMapView`) hands this exact view back unchanged,
+      // keeping the `same()` pin below true.
+      final shortcuts = EqualUnmodifiableMapView({
+        const SingleActivator(LogicalKeyboardKey.keyA): _noop,
+      });
       await tester.pumpWidget(
         themedHost(
           _Layout(
@@ -337,28 +362,51 @@ void main() {
       },
     );
 
-    testWidgets("us11/fr01: an interaction animates a style over the theme's "
-        'fast level by default', (tester) async {
+    testWidgets('fo06/us04/fr03/e16: interaction.customStyle forwards to the '
+        'tap surface', (tester) async {
+      const style = StratumInkWellStyle(
+        focus: StratumFocusBorderStyle(width: WidgetStatePropertyAll(4)),
+      );
       await tester.pumpWidget(
         themedHost(
-          const _Layout(
-            style: WidgetStyle(width: 40),
-            interaction: Interaction(),
+          const ContainerLayout(
+            interaction: Interaction(onTap: _noop, customStyle: style),
+            child: SizedBox(width: 40, height: 20),
           ),
-          theme: motionTheme(),
         ),
       );
 
-      final style = tester
-          .widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox))
-          .style
-          ?.animationStyle;
-      expect(style?.duration, const Duration(milliseconds: 77));
-      expect(style?.reverseDuration, const Duration(microseconds: 49280));
-      expect(style?.curve, Curves.easeInOutSine);
+      expect(
+        tester.widget<StratumInkWell>(find.byType(StratumInkWell)).customStyle,
+        style,
+      );
     });
 
-    testWidgets('us11/fr01: with no theme above it takes the package '
+    testWidgets(
+      "fo06/us11/fr01: an interaction animates a style over the theme's "
+      'fast level by default',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              style: WidgetStyle(width: 40),
+              interaction: Interaction(),
+            ),
+            theme: motionTheme(),
+          ),
+        );
+
+        final style = tester
+            .widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox))
+            .style
+            ?.animationStyle;
+        expect(style?.duration, const Duration(milliseconds: 77));
+        expect(style?.reverseDuration, const Duration(microseconds: 49280));
+        expect(style?.curve, Curves.easeInOutSine);
+      },
+    );
+
+    testWidgets('fo06/us11/fr01: with no theme above it takes the package '
         "default's fast level", (tester) async {
       await tester.pumpWidget(
         const Directionality(
@@ -474,7 +522,8 @@ void main() {
   });
 
   group('BoxLayout scroll', () {
-    testWidgets('scrolls inside the box along scrollDirection', (tester) async {
+    testWidgets('fo06/us02/fr01, fo06/us02/s4: scrolls inside the box along '
+        'scrollDirection', (tester) async {
       await tester.pumpWidget(
         themedHost(
           const _Layout(
@@ -639,32 +688,34 @@ void main() {
       });
     }
 
-    testWidgets('ratio with scroll shapes the frame and scrolls the content', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const SizedBox(
-            width: 320,
-            child: ColumnLayout(
-              ratio: 16 / 9,
-              style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
-              scroll: Scroll(),
-              children: [SizedBox(height: 600)],
+    testWidgets(
+      'fo06/us02/fr03: ratio with scroll shapes the frame and scrolls the '
+      'content',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const SizedBox(
+              width: 320,
+              child: ColumnLayout(
+                ratio: 16 / 9,
+                style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
+                scroll: Scroll(),
+                children: [SizedBox(height: 600)],
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(tester.getSize(find.byType(ColumnLayout)), const Size(320, 180));
-      expect(
-        tester
-            .state<ScrollableState>(find.byType(Scrollable))
-            .position
-            .maxScrollExtent,
-        420,
-      );
-    });
+        expect(tester.getSize(find.byType(ColumnLayout)), const Size(320, 180));
+        expect(
+          tester
+              .state<ScrollableState>(find.byType(Scrollable))
+              .position
+              .maxScrollExtent,
+          420,
+        );
+      },
+    );
 
     // The tap-surface focus rule (us04/fr03): not disabled, canRequestFocus,
     // a focus type other than none, and an activation callback or a

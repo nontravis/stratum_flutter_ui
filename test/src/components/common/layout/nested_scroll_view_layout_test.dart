@@ -173,25 +173,29 @@ class _PinnedHeader extends SliverPersistentHeaderDelegate {
 
 void main() {
   group('NestedScrollViewLayout keys', () {
-    testWidgets('Down collapses the header 50 px per press and then scrolls '
-        'the list', (tester) async {
-      final before = _node('before');
-      await tester.pumpWidget(_nested(before: before));
-      await _tabIn(tester, before);
+    testWidgets(
+      'fo06/us12/fr02, fo06/us12/s1: Down collapses the header 50 px per '
+      'press and then scrolls the list',
+      (tester) async {
+        final before = _node('before');
+        await tester.pumpWidget(_nested(before: before));
+        await _tabIn(tester, before);
 
-      for (var press = 1; press <= 4; press++) {
+        for (var press = 1; press <= 4; press++) {
+          await _key(tester, LogicalKeyboardKey.arrowDown);
+          expect(_outer(tester).pixels, 50.0 * press);
+          expect(_inner(tester).pixels, 0);
+        }
         await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(_outer(tester).pixels, 50.0 * press);
-        expect(_inner(tester).pixels, 0);
-      }
-      await _key(tester, LogicalKeyboardKey.arrowDown);
 
-      expect(_outer(tester).pixels, _header);
-      expect(_inner(tester).pixels, 50);
-    }, variant: _desktop);
+        expect(_outer(tester).pixels, _header);
+        expect(_inner(tester).pixels, 50);
+      },
+      variant: _desktop,
+    );
 
     testWidgets('under reduced motion Down jumps along the range '
-        '(us07/fr04)', (tester) async {
+        '(fo06/us07/fr04)', (tester) async {
       final before = _node('before');
       await tester.pumpWidget(
         MediaQuery(
@@ -300,27 +304,28 @@ void main() {
   });
 
   group('NestedScrollViewLayout focus', () {
-    testWidgets('the layout is not a Tab stop; its body list is', (
-      tester,
-    ) async {
-      final before = _node('before');
-      await tester.pumpWidget(_nested(before: before));
-      await _tabIn(tester, before);
+    testWidgets(
+      'fo06/us12/fr01: the layout is not a Tab stop; its body list is',
+      (tester) async {
+        final before = _node('before');
+        await tester.pumpWidget(_nested(before: before));
+        await _tabIn(tester, before);
 
-      final stops = FocusManager.instance.rootScope.traversalDescendants.where(
-        (node) => node.debugLabel == 'ScrollFocus',
-      );
-      expect(stops, hasLength(1));
-      expect(
-        FocusManager.instance.primaryFocus!.context!
-            .findAncestorWidgetOfExactType<ListViewLayout>(),
-        isNotNull,
-      );
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-      await _key(tester, LogicalKeyboardKey.tab);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-      expect(_focused(), 'before');
-    }, variant: _desktop);
+        final stops = FocusManager.instance.rootScope.traversalDescendants
+            .where((node) => node.debugLabel == 'ScrollFocus');
+        expect(stops, hasLength(1));
+        expect(
+          FocusManager.instance.primaryFocus!.context!
+              .findAncestorWidgetOfExactType<ListViewLayout>(),
+          isNotNull,
+        );
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await _key(tester, LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        expect(_focused(), 'before');
+      },
+      variant: _desktop,
+    );
 
     testWidgets('(pin) Tab into a row below the window reveals it', (
       tester,

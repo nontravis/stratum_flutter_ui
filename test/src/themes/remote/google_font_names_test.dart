@@ -76,22 +76,25 @@ String _source(List<String> names, String version) => [
 ].join('\n');
 
 void main() {
-  test('oq-c, us02/fr02/e07: googleFontNames is GoogleFonts.asMap() of the '
-      'google_fonts this package resolves', () {
-    final names = GoogleFonts.asMap().keys.toList()..sort();
-    if (_update) {
-      File(_path)
-          .writeAsStringSync(_source(names, _resolvedGoogleFontsVersion()));
-      return;
-    }
-    expect(
-      googleFontNames.toList()..sort(),
-      names,
-      reason: 'regenerate: see the header of $_path',
-    );
-  });
+  test(
+    'oq-c, fo04/us02/fr02/e07: googleFontNames is GoogleFonts.asMap() of the '
+    'google_fonts this package resolves',
+    () {
+      final names = GoogleFonts.asMap().keys.toList()..sort();
+      if (_update) {
+        File(_path)
+            .writeAsStringSync(_source(names, _resolvedGoogleFontsVersion()));
+        return;
+      }
+      expect(
+        googleFontNames.toList()..sort(),
+        names,
+        reason: 'regenerate: see the header of $_path',
+      );
+    },
+  );
 
-  test('r12, us02/fr02/e09, s03/inv17: the list records the google_fonts '
+  test('r12, fo04/us02/fr02/e09, s03/inv17: the list records the google_fonts '
       'version it came from, and the package resolves that version', () {
     expect(
       _resolvedGoogleFontsVersion(),

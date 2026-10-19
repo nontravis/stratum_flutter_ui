@@ -1,5 +1,7 @@
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 /// Records every event that a platform web view reports.
 final class RecordingListener implements PlatformStratumWebViewListener {

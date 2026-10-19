@@ -1,6 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/config/escape_text.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/dimension.freezed.dart';
 
@@ -43,7 +43,7 @@ sealed class StratumDimension {
 }
 
 /// A [StratumDimension] of [px] logical pixels.
-@themeModel
+@valueModel
 final class FixedDimension extends StratumDimension with _$FixedDimension {
   const new(this.px);
 
@@ -58,7 +58,7 @@ final class FixedDimension extends StratumDimension with _$FixedDimension {
 }
 
 /// A [StratumDimension] of [ratio] times the base it resolves against.
-@themeModel
+@valueModel
 final class PercentDimension extends StratumDimension with _$PercentDimension {
   const new(this.ratio);
 

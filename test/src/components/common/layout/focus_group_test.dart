@@ -238,10 +238,7 @@ Widget _scrollingCards(List<FocusNode> cards) {
       focusGroup: const FocusGroup(),
       children: [
         for (final card in cards)
-          Focus(
-            focusNode: card,
-            child: const SizedBox(width: 100, height: 50),
-          ),
+          Focus(focusNode: card, child: const SizedBox(width: 100, height: 50)),
       ],
     ),
   );
@@ -396,31 +393,32 @@ void main() {
   });
 
   group('FocusGroup arrows', () {
-    testWidgets('Left and Right move by screen position in a row', (
-      tester,
-    ) async {
-      final before = _node();
-      final items = _nodes();
-      await tester.pumpWidget(
-        _host(
-          RowLayout(
-            mainAxisSize: MainAxisSize.min,
-            focusGroup: const FocusGroup(),
-            children: [for (final node in items) _item(node)],
+    testWidgets(
+      'fo06/us06/s1: Left and Right move by screen position in a row',
+      (tester) async {
+        final before = _node();
+        final items = _nodes();
+        await tester.pumpWidget(
+          _host(
+            RowLayout(
+              mainAxisSize: MainAxisSize.min,
+              focusGroup: const FocusGroup(),
+              children: [for (final node in items) _item(node)],
+            ),
+            before: before,
           ),
-          before: before,
-        ),
-      );
-      await _focus(tester, items[0]);
+        );
+        await _focus(tester, items[0]);
 
-      expect(await _key(tester, LogicalKeyboardKey.arrowRight), isTrue);
-      expect(items[1].hasPrimaryFocus, isTrue);
-      await _key(tester, LogicalKeyboardKey.arrowRight);
-      await _key(tester, LogicalKeyboardKey.arrowRight);
-      expect(items[2].hasPrimaryFocus, isTrue);
-      await _key(tester, LogicalKeyboardKey.arrowLeft);
-      expect(items[1].hasPrimaryFocus, isTrue);
-    });
+        expect(await _key(tester, LogicalKeyboardKey.arrowRight), isTrue);
+        expect(items[1].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        expect(items[2].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowLeft);
+        expect(items[1].hasPrimaryFocus, isTrue);
+      },
+    );
 
     testWidgets('Left moves to the item on the left in a row under RTL', (
       tester,
@@ -605,7 +603,9 @@ void main() {
       expect(before.hasPrimaryFocus, isTrue);
     });
 
-    testWidgets('group keys are skipped inside a TextField', (tester) async {
+    testWidgets('fo06/us05/fr03: group keys are skipped inside a TextField', (
+      tester,
+    ) async {
       final field = _node();
       final items = _nodes(1);
       await tester.pumpWidget(
@@ -664,38 +664,35 @@ void main() {
       },
     );
 
-    testWidgets(
-      'Down in a column reaches the last item then after, without '
-      'bouncing on stale directional history',
-      (tester) async {
-        final before = _node();
-        final after = _node();
-        final items = _nodes();
-        await tester.pumpWidget(
-          _host(
-            ColumnLayout(
-              mainAxisSize: MainAxisSize.min,
-              focusGroup: const FocusGroup(),
-              children: [for (final node in items) _item(node)],
-            ),
-            before: before,
-            after: after,
+    testWidgets('Down in a column reaches the last item then after, without '
+        'bouncing on stale directional history', (tester) async {
+      final before = _node();
+      final after = _node();
+      final items = _nodes();
+      await tester.pumpWidget(
+        _host(
+          ColumnLayout(
+            mainAxisSize: MainAxisSize.min,
+            focusGroup: const FocusGroup(),
+            children: [for (final node in items) _item(node)],
           ),
-        );
-        await _focus(tester, items[0]);
+          before: before,
+          after: after,
+        ),
+      );
+      await _focus(tester, items[0]);
 
-        await _key(tester, LogicalKeyboardKey.arrowUp);
-        expect(before.hasPrimaryFocus, isTrue);
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(items[0].hasPrimaryFocus, isTrue);
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(items[1].hasPrimaryFocus, isTrue);
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(items[2].hasPrimaryFocus, isTrue);
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(after.hasPrimaryFocus, isTrue);
-      },
-    );
+      await _key(tester, LogicalKeyboardKey.arrowUp);
+      expect(before.hasPrimaryFocus, isTrue);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(items[0].hasPrimaryFocus, isTrue);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(items[1].hasPrimaryFocus, isTrue);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(items[2].hasPrimaryFocus, isTrue);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(after.hasPrimaryFocus, isTrue);
+    });
 
     testWidgets(
       'Up then Right then Down in a row reaches after, without bouncing '
@@ -728,34 +725,33 @@ void main() {
       },
     );
 
-    testWidgets(
-      'loop contains wrap Up and Down past the first and last run',
-      (tester) async {
-        final before = _node();
-        final items = _nodes(5);
-        await tester.pumpWidget(
-          _host(
-            SizedBox(
-              width: 100,
-              child: WrapLayout(
-                gap: 4,
-                focusGroup: const FocusGroup(loop: true),
-                children: [for (final node in items) _item(node)],
-              ),
+    testWidgets('loop contains wrap Up and Down past the first and last run', (
+      tester,
+    ) async {
+      final before = _node();
+      final items = _nodes(5);
+      await tester.pumpWidget(
+        _host(
+          SizedBox(
+            width: 100,
+            child: WrapLayout(
+              gap: 4,
+              focusGroup: const FocusGroup(loop: true),
+              children: [for (final node in items) _item(node)],
             ),
-            before: before,
           ),
-        );
-        // Runs: items 0 and 1, items 2 and 3, item 4.
-        await _focus(tester, items[1]);
-        await _key(tester, LogicalKeyboardKey.arrowUp);
-        expect(items[4].hasPrimaryFocus, isTrue);
+          before: before,
+        ),
+      );
+      // Runs: items 0 and 1, items 2 and 3, item 4.
+      await _focus(tester, items[1]);
+      await _key(tester, LogicalKeyboardKey.arrowUp);
+      expect(items[4].hasPrimaryFocus, isTrue);
 
-        await _focus(tester, items[4]);
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(items[0].hasPrimaryFocus, isTrue);
-      },
-    );
+      await _focus(tester, items[4]);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(items[0].hasPrimaryFocus, isTrue);
+    });
 
     testWidgets(
       'Down from the last item in a column without loop reaches after',
@@ -781,31 +777,28 @@ void main() {
       },
     );
 
-    testWidgets(
-      'Home and End in a row under RTL move to the rightmost and '
-      'leftmost item',
-      (tester) async {
-        final before = _node();
-        final items = _nodes();
-        await tester.pumpWidget(
-          _host(
-            RowLayout(
-              mainAxisSize: MainAxisSize.min,
-              textDirection: TextDirection.rtl,
-              focusGroup: const FocusGroup(),
-              children: [for (final node in items) _item(node)],
-            ),
-            before: before,
+    testWidgets('Home and End in a row under RTL move to the rightmost and '
+        'leftmost item', (tester) async {
+      final before = _node();
+      final items = _nodes();
+      await tester.pumpWidget(
+        _host(
+          RowLayout(
+            mainAxisSize: MainAxisSize.min,
+            textDirection: TextDirection.rtl,
+            focusGroup: const FocusGroup(),
+            children: [for (final node in items) _item(node)],
           ),
-        );
-        await _focus(tester, items[1]);
+          before: before,
+        ),
+      );
+      await _focus(tester, items[1]);
 
-        await _key(tester, LogicalKeyboardKey.home);
-        expect(items[0].hasPrimaryFocus, isTrue);
-        await _key(tester, LogicalKeyboardKey.end);
-        expect(items[2].hasPrimaryFocus, isTrue);
-      },
-    );
+      await _key(tester, LogicalKeyboardKey.home);
+      expect(items[0].hasPrimaryFocus, isTrue);
+      await _key(tester, LogicalKeyboardKey.end);
+      expect(items[2].hasPrimaryFocus, isTrue);
+    });
   });
 
   group('FocusGroup in a horizontal scroll', () {
@@ -989,61 +982,57 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
 
-    testWidgets(
-      'Left reveals the next card by the edge of each viewport under '
-      'right-to-left text: the end of the row and the start of the page',
-      (tester) async {
-        final controller = _controller();
-        final items = _nodes(10);
-        await tester.pumpWidget(
-          _belowAndAbove(
-            _scrollingCards(items),
-            controller,
-            textDirection: TextDirection.rtl,
-          ),
-        );
-        await _focus(tester, items[3]);
-        // The row shows cards 2 and 3 from its right edge, so card 4 lies
-        // past its end on the left; the page shows 320 to 520, so the row,
-        // at 300 to 350, extends past the page's top.
-        _rowPosition(tester).jumpTo(200);
-        controller.jumpTo(320);
-        await tester.pump();
+    testWidgets('Left reveals the next card by the edge of each viewport under '
+        'right-to-left text: the end of the row and the start of the page', (
+      tester,
+    ) async {
+      final controller = _controller();
+      final items = _nodes(10);
+      await tester.pumpWidget(
+        _belowAndAbove(
+          _scrollingCards(items),
+          controller,
+          textDirection: TextDirection.rtl,
+        ),
+      );
+      await _focus(tester, items[3]);
+      // The row shows cards 2 and 3 from its right edge, so card 4 lies
+      // past its end on the left; the page shows 320 to 520, so the row,
+      // at 300 to 350, extends past the page's top.
+      _rowPosition(tester).jumpTo(200);
+      controller.jumpTo(320);
+      await tester.pump();
 
-        await _key(tester, LogicalKeyboardKey.arrowLeft);
+      await _key(tester, LogicalKeyboardKey.arrowLeft);
 
-        expect(_rowPosition(tester).pixels, 300);
-        _expectInRow(tester, items[4]);
-        _expectInPage(tester, items[4], controller, 300);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(_rowPosition(tester).pixels, 300);
+      _expectInRow(tester, items[4]);
+      _expectInPage(tester, items[4], controller, 300);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets(
-      'Right reveals the next card by the edge of each viewport in a '
-      'reversed page: the end of the row and the top of the page',
-      (tester) async {
-        final controller = _controller();
-        final items = _nodes(10);
-        await tester.pumpWidget(
-          _belowAndAbove(_scrollingCards(items), controller, reverse: true),
-        );
-        await _focus(tester, items[3]);
-        // The reversed page counts from the bottom of its 650 px content:
-        // at 130 it shows 320 to 520, so the row, at 300 to 350, extends
-        // past the page's top.
-        _rowPosition(tester).jumpTo(200);
-        controller.jumpTo(130);
-        await tester.pump();
+    testWidgets('Right reveals the next card by the edge of each viewport in a '
+        'reversed page: the end of the row and the top of the page', (
+      tester,
+    ) async {
+      final controller = _controller();
+      final items = _nodes(10);
+      await tester.pumpWidget(
+        _belowAndAbove(_scrollingCards(items), controller, reverse: true),
+      );
+      await _focus(tester, items[3]);
+      // The reversed page counts from the bottom of its 650 px content:
+      // at 130 it shows 320 to 520, so the row, at 300 to 350, extends
+      // past the page's top.
+      _rowPosition(tester).jumpTo(200);
+      controller.jumpTo(130);
+      await tester.pump();
 
-        await _key(tester, LogicalKeyboardKey.arrowRight);
+      await _key(tester, LogicalKeyboardKey.arrowRight);
 
-        expect(_rowPosition(tester).pixels, 300);
-        _expectInRow(tester, items[4]);
-        _expectInPage(tester, items[4], controller, 650 - 200 - 300);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(_rowPosition(tester).pixels, 300);
+      _expectInRow(tester, items[4]);
+      _expectInPage(tester, items[4], controller, 650 - 200 - 300);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets(
       'Tab from a group item to the stop after the group reveals it by the '
@@ -1153,53 +1142,53 @@ void main() {
         variant: TargetPlatformVariant.desktop(),
       );
 
-      testWidgets(
-        'Tab from a member beside a $name member leaves the group',
-        (tester) async {
-          final toolbar = _Toolbar();
-          await toolbar.pump(tester, scroller);
-          await _focus(tester, toolbar.bold);
+      testWidgets('Tab from a member beside a $name member leaves the group', (
+        tester,
+      ) async {
+        final toolbar = _Toolbar();
+        await toolbar.pump(tester, scroller);
+        await _focus(tester, toolbar.bold);
 
-          final path = await toolbar.press(tester, [_tab]);
+        final path = await toolbar.press(tester, [_tab]);
 
-          expect(path, ['after']);
-        },
-        variant: TargetPlatformVariant.desktop(),
-      );
+        expect(path, ['after']);
+      }, variant: TargetPlatformVariant.desktop());
     }
   });
 
   group('FocusGroup role', () {
-    testWidgets('tabBar over items with role tab passes the debug check', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      final before = _node();
-      final items = _nodes(2);
-      await tester.pumpWidget(
-        _host(
-          RowLayout(
-            mainAxisSize: MainAxisSize.min,
-            focusGroup: const FocusGroup(role: SemanticsRole.tabBar),
-            children: [
-              for (var i = 0; i < items.length; i++)
-                _item(
-                  items[i],
-                  semantics: SemanticsProperties(
-                    role: SemanticsRole.tab,
-                    selected: i == 0,
-                    label: 'Tab $i',
+    testWidgets(
+      'fo06/us06/fr02: tabBar over items with role tab passes the debug '
+      'check',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final before = _node();
+        final items = _nodes(2);
+        await tester.pumpWidget(
+          _host(
+            RowLayout(
+              mainAxisSize: MainAxisSize.min,
+              focusGroup: const FocusGroup(role: SemanticsRole.tabBar),
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  _item(
+                    items[i],
+                    semantics: SemanticsProperties(
+                      role: SemanticsRole.tab,
+                      selected: i == 0,
+                      label: 'Tab $i',
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
+            before: before,
           ),
-          before: before,
-        ),
-      );
+        );
 
-      expect(tester.takeException(), isNull);
-      handle.dispose();
-    });
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
 
     testWidgets('tabBar over items without role tab fails the debug check', (
       tester,
@@ -1493,18 +1482,6 @@ void main() {
       // Box 103's leading edge: the least scroll from 20000 that shows it
       // whole.
       expect(position.pixels, 4120);
-    });
-  });
-
-  group('renames', () {
-    test('renames: a StratumFocusGroup is a FocusGroup', () {
-      // Testing the deprecated alias itself, so ignore the deprecation
-      // warning.
-      // ignore: deprecated_member_use_from_same_package
-      const focusGroup = StratumFocusGroup(loop: true);
-
-      expect(focusGroup, isA<FocusGroup>());
-      expect(focusGroup.loop, isTrue);
     });
   });
 }

@@ -180,10 +180,25 @@ void main() {
     textScaler: textScaler,
   );
 
+  group('StratumTextStyle recipe immutability', () {
+    test('fo02/us01/fr02: a recipe method returns a new instance, leaves the '
+        'original unchanged, and two recipes built apart with the same '
+        'fields are equal with equal hash codes', () {
+      final base = StratumTextStyle.body;
+      final medium = base.medium;
+
+      expect(identical(medium, base), isFalse);
+      expect(base.fontWeight, isNull);
+      expect(medium.fontWeight, FontWeight.w500);
+      expect(StratumTextStyle.body.medium, medium);
+      expect(StratumTextStyle.body.medium.hashCode, medium.hashCode);
+    });
+  });
+
   group('TypographyResolver, the spec section 7 example', () {
     final recipe = StratumTextStyle.body.s16.medium;
 
-    test('at a text scale of 2.0', () {
+    test('fo02/us03/s1: at a text scale of 2.0', () {
       final style = resolve(
         recipe,
         locale: _thTH,
@@ -334,8 +349,8 @@ void main() {
       );
     });
 
-    test("a type's own window scale wins over the theme-wide one, and table "
-        "takes body's own override", () {
+    test("fo02/us04/fr01: a type's own window scale wins over the theme-wide "
+        "one, and table takes body's own override", () {
       theme = _theme('''
 typography:
   fonts: { inter: { family: Inter } }
@@ -376,8 +391,9 @@ typography:
       );
     });
 
-    test('a window size the scale omits takes the nearest smaller one, else '
-        "the smallest one; a type's own map overrides it per window size", () {
+    test('fo02/us04/fr02/e04: a window size the scale omits takes the '
+        "nearest smaller one either map sets, the type's own winning "
+        'there', () {
       theme = _theme('''
 typography:
   fonts: { inter: { family: Inter } }
@@ -418,7 +434,142 @@ typography:
           StratumTextStyle.body,
           windowSize: WindowSize.bigDesktop,
         ).fontSize,
+        19,
+      );
+    });
+
+    test('fo02/us04/s4, fo02/us04/fr02/e01: a tablet window the theme '
+        'omits takes the growth of mobile', () {
+      theme = _theme('''
+typography:
+  fonts: { inter: { family: Inter } }
+  families:
+    default:
+      header: inter
+      paragraph: inter
+      number: inter
+      code: inter
+      body: inter
+      table: inter
+  scaleByWindowSize: { mobile: 0, desktop: 1 }
+  types:
+    header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+''');
+
+      expect(
+        resolve(StratumTextStyle.body, windowSize: WindowSize.tablet).fontSize,
+        16,
+      );
+      expect(
+        resolve(StratumTextStyle.body, windowSize: WindowSize.desktop).fontSize,
         17,
+      );
+    });
+
+    test('fo02/us04/fr02: a theme-wide scalar scale names every window '
+        'size, so no window reads the type map alone', () {
+      final theme = fakeStratumTheme(
+        typography: const StratumTypography(
+          fonts: {'inter': StratumFontData(family: 'Inter')},
+          families: {
+            'default': StratumFamilySet(
+              types: {FontType.body: StratumFontRef(font: 'inter')},
+            ),
+          },
+          types: {
+            FontType.body: StratumTypeStyle(
+              weight: FontWeight.w400,
+              sizes: {
+                FontSize.s16: StratumSizeMetrics(
+                  spaceHeight: StratumDimension.fixed(8),
+                ),
+              },
+            ),
+          },
+          scaleByWindowSize: StratumByWindowSize.all(StratumDimension.fixed(2)),
+        ),
+      );
+
+      expect(
+        TypographyResolver.resolve(
+          StratumTextStyle.body,
+          theme: theme,
+          locale: _en,
+          windowSize: WindowSize.watch,
+          textScaler: TextScaler.noScaling,
+        ).fontSize,
+        18,
+      );
+    });
+
+    test('fo02/us04/fr02: a theme without a theme-wide scaleByWindowSize '
+        "fills an omitted window size from the type's own map, built in "
+        'code', () {
+      final theme = fakeStratumTheme(
+        typography: const StratumTypography(
+          fonts: {'inter': StratumFontData(family: 'Inter')},
+          families: {
+            'default': StratumFamilySet(
+              types: {FontType.body: StratumFontRef(font: 'inter')},
+            ),
+          },
+          types: {
+            FontType.body: StratumTypeStyle(
+              weight: FontWeight.w400,
+              scaleByWindowSize: {WindowSize.mobile: StratumDimension.fixed(3)},
+              sizes: {
+                FontSize.s16: StratumSizeMetrics(
+                  spaceHeight: StratumDimension.fixed(8),
+                ),
+              },
+            ),
+          },
+        ),
+      );
+
+      expect(
+        TypographyResolver.resolve(
+          StratumTextStyle.body,
+          theme: theme,
+          locale: _en,
+          windowSize: WindowSize.tablet,
+          textScaler: TextScaler.noScaling,
+        ).fontSize,
+        19,
+      );
+    });
+
+    test('fo02/us04/fr02: the same, parsed from yaml with no '
+        'scaleByWindowSize key at all', () {
+      theme = _theme('''
+typography:
+  fonts: { inter: { family: Inter } }
+  families:
+    default:
+      header: inter
+      paragraph: inter
+      number: inter
+      code: inter
+      body: inter
+      table: inter
+  types:
+    header: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    paragraph: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    number: { weight: 600, sizes: { s16: { spaceHeight: 8 } } }
+    code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
+    body:
+      weight: 400
+      scaleByWindowSize: { mobile: 3 }
+      sizes: { s16: { spaceHeight: 8 } }
+''');
+
+      expect(
+        resolve(StratumTextStyle.body, windowSize: WindowSize.tablet).fontSize,
+        19,
       );
     });
   });
@@ -489,7 +640,7 @@ typography:
       ('infinite', const StratumDimension.fixed(double.infinity), null),
       ('NaN', const StratumDimension.fixed(double.nan), null),
     ]) {
-      test('us02/fr01/e04: a font size $name draws at the requested size, '
+      test('fo02/us02/fr01/e04: a font size $name draws at the requested size, '
           'with no window scale, no adjustSize, and no warning', () {
         final lines = printed();
 
@@ -504,57 +655,69 @@ typography:
       });
     }
 
-    test('us02/fr01/e05: a line box of 0 draws at the scaled requested size, '
-        'with no spaceHeight and no warning', () {
-      final lines = printed();
+    test(
+      'fo02/us02/fr01/e05: a line box of 0 draws at the scaled requested size, '
+      'with no spaceHeight and no warning',
+      () {
+        final lines = printed();
 
-      final style = resolveIn(
-        handBuilt(spaceHeight: const StratumDimension.fixed(-16)),
-      );
+        final style = resolveIn(
+          handBuilt(spaceHeight: const StratumDimension.fixed(-16)),
+        );
 
-      expect(style.fontSize, 16);
-      expect(style.height, 1);
-      expect(lines, isEmpty);
-    });
+        expect(style.fontSize, 16);
+        expect(style.height, 1);
+        expect(lines, isEmpty);
+      },
+    );
 
-    test('us02/fr01/e05: a fixed negative spaceHeight the load check passes '
-        'falls back at a text scale below 1', () {
-      theme = _theme(_yaml(bodyS16: '{ spaceHeight: -4 }'));
+    test(
+      'fo02/us02/fr01/e05: a fixed negative spaceHeight the load check passes '
+      'falls back at a text scale below 1',
+      () {
+        theme = _theme(_yaml(bodyS16: '{ spaceHeight: -4 }'));
 
-      final style = resolve(
-        StratumTextStyle.body,
-        textScaler: const TextScaler.linear(0.2),
-      );
+        final style = resolve(
+          StratumTextStyle.body,
+          textScaler: const TextScaler.linear(0.2),
+        );
 
-      expect(style.fontSize, 16);
-      expect(style.height, closeTo(1, 1e-9));
-    });
+        expect(style.fontSize, 16);
+        expect(style.height, closeTo(1, 1e-9));
+      },
+    );
 
-    test('us02/fr01/e06: a font size and a line box that both fail give the '
-        'requested size and a height of 1', () {
-      final style = resolveIn(
-        handBuilt(
-          adjustSize: const StratumDimension.percent(-1),
-          spaceHeight: const StratumDimension.fixed(-16),
-        ),
-      );
+    test(
+      'fo02/us02/fr01/e06: a font size and a line box that both fail give the '
+      'requested size and a height of 1',
+      () {
+        final style = resolveIn(
+          handBuilt(
+            adjustSize: const StratumDimension.percent(-1),
+            spaceHeight: const StratumDimension.fixed(-16),
+          ),
+        );
 
-      expect(style.fontSize, 16);
-      expect(style.height, 1);
-    });
+        expect(style.fontSize, 16);
+        expect(style.height, 1);
+      },
+    );
 
-    test('us02/fr01/e07: a font size that falls back keeps letter spacing on '
-        'the size with the window scale', () {
-      final style = resolveIn(
-        handBuilt(adjustSize: const StratumDimension.fixed(-20)),
-        windowSize: WindowSize.desktop,
-      );
+    test(
+      'fo02/us02/fr01/e07: a font size that falls back keeps letter spacing on '
+      'the size with the window scale',
+      () {
+        final style = resolveIn(
+          handBuilt(adjustSize: const StratumDimension.fixed(-20)),
+          windowSize: WindowSize.desktop,
+        );
 
-      expect(style.fontSize, 16);
-      expect(style.letterSpacing, closeTo(-0.17, 1e-9));
-    });
+        expect(style.fontSize, 16);
+        expect(style.letterSpacing, closeTo(-0.17, 1e-9));
+      },
+    );
 
-    test('us02/fr01/e07: a letter-spacing basis of -60 offset by an '
+    test('fo02/us02/fr01/e07: a letter-spacing basis of -60 offset by an '
         'adjustSize of 60 keeps letter spacing on the requested size, with '
         'no assertion', () {
       final style = resolveIn(
@@ -569,22 +732,25 @@ typography:
       expect(style.letterSpacing, closeTo(-0.16, 1e-9));
     });
 
-    test('us03/fr01: the height divides the line box by the scaled font size '
-        'after the fallback', () {
-      final style = resolveIn(
-        handBuilt(
-          adjustSize: const StratumDimension.fixed(-20),
-          spaceHeight: const StratumDimension.percent(0.5),
-        ),
-        windowSize: WindowSize.desktop,
-        textScaler: const TextScaler.linear(2),
-      );
+    test(
+      'fo02/us03/fr01: the height divides the line box by the scaled font size '
+      'after the fallback',
+      () {
+        final style = resolveIn(
+          handBuilt(
+            adjustSize: const StratumDimension.fixed(-20),
+            spaceHeight: const StratumDimension.percent(0.5),
+          ),
+          windowSize: WindowSize.desktop,
+          textScaler: const TextScaler.linear(2),
+        );
 
-      expect(style.fontSize, 16);
-      expect(style.height, 48 / 32);
-    });
+        expect(style.fontSize, 16);
+        expect(style.height, 48 / 32);
+      },
+    );
 
-    test('us02/s4: a theme that loads draws a small custom size under a '
+    test('fo02/us02/s4: a theme that loads draws a small custom size under a '
         'large negative font correction at the size the widget asked for', () {
       theme = _theme(
         _yaml().replaceFirst(
@@ -602,20 +768,26 @@ typography:
 
   group('TypographyResolver custom size', () {
     for (final size in [0.0, -1.0, double.infinity, double.nan]) {
-      test('us01/fr01/e07: a release build reads a custom size of $size as '
-          'unset: the text takes s16 for its size and its metrics', () {
-        final style = resolve(_ReleaseCustomSize(StratumTextStyle.body, size));
-        final named = resolve(StratumTextStyle.body);
+      test(
+        'fo02/us01/fr01/e07: a release build reads a custom size of $size as '
+        'unset: the text takes s16 for its size and its metrics',
+        () {
+          final style = resolve(
+            _ReleaseCustomSize(StratumTextStyle.body, size),
+          );
+          final named = resolve(StratumTextStyle.body);
 
-        expect(style.fontSize, named.fontSize);
-        expect(style.height, named.height);
-        expect(style.letterSpacing, named.letterSpacing);
-      });
+          expect(style.fontSize, named.fontSize);
+          expect(style.height, named.height);
+          expect(style.letterSpacing, named.letterSpacing);
+        },
+      );
     }
   });
 
   group('TypographyResolver fonts', () {
-    test('the locale tags run from th_TH to th to default', () {
+    test('fo02/us05/s1, fo02/us05/fr01: the locale tags run from th_TH to '
+        'th to default', () {
       expect(
         resolve(StratumTextStyle.header.s24, locale: _thTH).fontFamily,
         'packages/thai_fonts/Inter TH',
@@ -652,7 +824,8 @@ typography:
       );
     });
 
-    test('mono takes the type mono, then the tag mono, then warns', () {
+    test('fo02/us06/fr01, fo02/us06/s1: mono takes the type mono, then the tag '
+        'mono, then warns', () {
       expect(resolve(StratumTextStyle.number.mono).fontFamily, 'Geist Mono');
       expect(
         resolve(StratumTextStyle.number.mono, locale: _thTH).fontFamily,
@@ -705,7 +878,8 @@ typography:
       expect(warnings, ['Stratum theme: no mono font for body; using Inter']);
     });
 
-    test('the fallback lists the same type from every other tag', () {
+    test('fo02/us05/fr02: the fallback lists the same type from every '
+        'other tag', () {
       expect(resolve(StratumTextStyle.body).fontFamilyFallback, ['Font A']);
       expect(resolve(StratumTextStyle.header.s24).fontFamilyFallback, [
         'packages/thai_fonts/Inter TH',
@@ -770,7 +944,8 @@ typography:
       expect(resolve(StratumTextStyle.body.bold).fontWeight, FontWeight.w700);
     });
 
-    test("table resolves body's sizes and weight, with tabular figures", () {
+    test("fo02/us06/fr02: table resolves body's sizes and weight, with "
+        'tabular figures', () {
       final body = resolve(StratumTextStyle.body.s20);
       final table = resolve(StratumTextStyle.table.s20);
 
@@ -909,7 +1084,7 @@ typography:
       GoogleFontsLookup.family = defaultFamily;
     });
 
-    test('us08/fr02: asks the seam for the primary and fallback family, '
+    test('fo02/us08/fr02: asks the seam for the primary and fallback family, '
         "each at its own snapped weight and the recipe's style", () {
       final calls = <(String, FontWeight, FontStyle?)>[];
       GoogleFontsLookup.exists = (name) => true;
@@ -962,7 +1137,7 @@ typography:
     });
   });
 
-  group('us08/fr02: TypographyResolver Google font weights', () {
+  group('fo02/us08/fr02: TypographyResolver Google font weights', () {
     final defaultExists = GoogleFontsLookup.exists;
     final defaultFamily = GoogleFontsLookup.family;
     final calls = <(String, FontWeight, FontStyle?)>[];
@@ -991,15 +1166,18 @@ typography:
       return lines;
     }
 
-    test('us08/s1: a theme whose body font is Google/Inter draws body text '
-        'in the family the library registers for Inter', () {
-      theme = defaultThemeSet.light.copyWith();
+    test(
+      'fo02/us08/s1: a theme whose body font is Google/Inter draws body text '
+      'in the family the library registers for Inter',
+      () {
+        theme = defaultThemeSet.light.copyWith();
 
-      expect(resolve(StratumTextStyle.body).fontFamily, 'Inter');
-      expect(calls.first, ('Inter', FontWeight.w400, null));
-    });
+        expect(resolve(StratumTextStyle.body).fontFamily, 'Inter');
+        expect(calls.first, ('Inter', FontWeight.w400, null));
+      },
+    );
 
-    test('us08/fr02/e03: a weight the theme loads draws as asked, with no '
+    test('fo02/us08/fr02/e03: a weight the theme loads draws as asked, with no '
         'warning', () {
       final lines = printed();
       theme = _theme(_googleYaml('Semi Lato'));
@@ -1012,44 +1190,50 @@ typography:
       expect(lines, isEmpty);
     });
 
-    test('us08/fr02/e04: under the package default, body medium draws Inter '
-        '600, header bold Inter 600, body light Inter 400, and number '
-        'regular Geist 600', () {
-      theme = defaultThemeSet.light.copyWith();
+    test(
+      'fo02/us08/fr02/e04: under the package default, body medium draws Inter '
+      '600, header bold Inter 600, body light Inter 400, and number '
+      'regular Geist 600',
+      () {
+        theme = defaultThemeSet.light.copyWith();
 
-      expect(
-        [
-          resolve(StratumTextStyle.body.medium),
-          resolve(StratumTextStyle.header.s24.bold),
-          resolve(StratumTextStyle.body.light),
-          resolve(StratumTextStyle.number.regular),
-        ].map(_drawn),
-        [
-          ('Inter', FontWeight.w600),
-          ('Inter', FontWeight.w600),
-          ('Inter', FontWeight.w400),
-          ('Geist', FontWeight.w600),
-        ],
-      );
-    });
+        expect(
+          [
+            resolve(StratumTextStyle.body.medium),
+            resolve(StratumTextStyle.header.s24.bold),
+            resolve(StratumTextStyle.body.light),
+            resolve(StratumTextStyle.number.regular),
+          ].map(_drawn),
+          [
+            ('Inter', FontWeight.w600),
+            ('Inter', FontWeight.w600),
+            ('Inter', FontWeight.w400),
+            ('Geist', FontWeight.w600),
+          ],
+        );
+      },
+    );
 
-    test('us08/fr02/e04: a snap warns once per family and requested weight '
-        'per run', () {
-      final lines = printed();
-      const warning =
-          'Stratum theme: Google font "Warn Lato" is not loaded in weight '
-          '500; drawing 600';
+    test(
+      'fo02/us08/fr02/e04: a snap warns once per family and requested weight '
+      'per run',
+      () {
+        final lines = printed();
+        const warning =
+            'Stratum theme: Google font "Warn Lato" is not loaded in weight '
+            '500; drawing 600';
 
-      theme = _theme(_googleYaml('Warn Lato'));
-      resolve(StratumTextStyle.body.medium);
-      resolve(StratumTextStyle.body.s12.medium);
-      theme = _theme(_googleYaml('Warn Lato', header: 400, number: 400));
-      resolve(StratumTextStyle.body.medium);
+        theme = _theme(_googleYaml('Warn Lato'));
+        resolve(StratumTextStyle.body.medium);
+        resolve(StratumTextStyle.body.s12.medium);
+        theme = _theme(_googleYaml('Warn Lato', header: 400, number: 400));
+        resolve(StratumTextStyle.body.medium);
 
-      expect(lines, [warning]);
-    });
+        expect(lines, [warning]);
+      },
+    );
 
-    test('us08/fr02/e04: a weight off the hundreds, and w100 and w900, '
+    test('fo02/us08/fr02/e04: a weight off the hundreds, and w100 and w900, '
         'snap through the resolver as the pure rule says', () {
       theme = _theme(_googleYaml('Odd Lato'));
 
@@ -1088,7 +1272,7 @@ typography:
       );
     });
 
-    test('us08/fr02/e06: the primary and each Google font in the fallback '
+    test('fo02/us08/fr02/e06: the primary and each Google font in the fallback '
         'list snap against their own sets, ties to the heavier; an app '
         'font keeps the asked weight', () {
       theme = _theme('''
@@ -1133,7 +1317,7 @@ typography:
       expect(calls, [('Lato', FontWeight.w600, null)]);
     });
 
-    test('us08/fr02/e06: under the package default, number regular draws '
+    test('fo02/us08/fr02/e06: under the package default, number regular draws '
         'Geist 600 and its Inter and Kanit fallbacks name their 600 faces', () {
       theme = defaultThemeSet.light.copyWith();
 
@@ -1151,7 +1335,7 @@ typography:
       ]);
     });
 
-    test("us08/fr02/e06: a table font of its own snaps at body's weight, "
+    test("fo02/us08/fr02/e06: a table font of its own snaps at body's weight, "
         'differently from the fonts the other types name', () {
       // Body draws Inter (set {400, 600}); table draws Roboto Flex
       // (set {400}), so the two snap the same requested weight apart.
@@ -1225,10 +1409,12 @@ typography:
       expect(_drawn(thai), ('Kanit', FontWeight.w600));
     });
 
-    test('us08/fr02/e06: a theme-source primary with Google fallbacks keeps '
-        'the resolved weight, and each fallback snaps that weight into its '
-        'own set', () {
-      final brandFont = layer('''
+    test(
+      'fo02/us08/fr02/e06: a theme-source primary with Google fallbacks keeps '
+      'the resolved weight, and each fallback snaps that weight into its '
+      'own set',
+      () {
+        final brandFont = layer('''
 typography:
   fonts:
     brand: { family: DB Heavent, files: [fonts/DBHeavent-Regular.ttf] }
@@ -1251,43 +1437,44 @@ typography:
     code: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
     body: { weight: 400, sizes: { s16: { spaceHeight: 8 } } }
 ''');
-      theme = fakeStratumTheme(
-        typography: StratumThemeConfig.parse(
-          base: sources(const []).first,
-          layers: [
-            StratumThemeSource(
-              id: 'brand',
-              folder: 'assets/themes/brand',
-              yaml: brandFont,
-            ),
-          ],
-        ).typography,
-      );
+        theme = fakeStratumTheme(
+          typography: StratumThemeConfig.parse(
+            base: sources(const []).first,
+            layers: [
+              StratumThemeSource(
+                id: 'brand',
+                folder: 'assets/themes/brand',
+                yaml: brandFont,
+              ),
+            ],
+          ).typography,
+        );
 
-      // The theme font keeps the resolved weight; each Google fallback
-      // snaps it into its own set: Lato, the default body font, loads in
-      // every type's weight ({400, 600, 700}); Kanit, named only for th's
-      // header, in {700} — so bold passes through both, and medium draws
-      // Lato 600 but Kanit 700, each nearest in its own set.
-      final bold = resolve(StratumTextStyle.header.bold);
-      expect(_drawn(bold), ('brand/DB Heavent', FontWeight.w700));
-      expect(bold.fontFamilyFallback, ['Kanit', 'Lato']);
-      expect(calls, [
-        ('Kanit', FontWeight.w700, null),
-        ('Lato', FontWeight.w700, null),
-      ]);
+        // The theme font keeps the resolved weight; each Google fallback
+        // snaps it into its own set: Lato, the default body font, loads in
+        // every type's weight ({400, 600, 700}); Kanit, named only for th's
+        // header, in {700} — so bold passes through both, and medium draws
+        // Lato 600 but Kanit 700, each nearest in its own set.
+        final bold = resolve(StratumTextStyle.header.bold);
+        expect(_drawn(bold), ('brand/DB Heavent', FontWeight.w700));
+        expect(bold.fontFamilyFallback, ['Kanit', 'Lato']);
+        expect(calls, [
+          ('Kanit', FontWeight.w700, null),
+          ('Lato', FontWeight.w700, null),
+        ]);
 
-      calls.clear();
-      final medium = resolve(StratumTextStyle.header.medium);
-      expect(_drawn(medium), ('brand/DB Heavent', FontWeight.w500));
-      expect(medium.fontFamilyFallback, ['Kanit', 'Lato']);
-      expect(calls, [
-        ('Kanit', FontWeight.w700, null),
-        ('Lato', FontWeight.w600, null),
-      ]);
-    });
+        calls.clear();
+        final medium = resolve(StratumTextStyle.header.medium);
+        expect(_drawn(medium), ('brand/DB Heavent', FontWeight.w500));
+        expect(medium.fontFamilyFallback, ['Kanit', 'Lato']);
+        expect(calls, [
+          ('Kanit', FontWeight.w700, null),
+          ('Lato', FontWeight.w600, null),
+        ]);
+      },
+    );
 
-    test('us08/fr02/e07: an italic recipe snaps as a normal one and asks '
+    test('fo02/us08/fr02/e07: an italic recipe snaps as a normal one and asks '
         'for the italic face at the snapped weight', () {
       theme = defaultThemeSet.light.copyWith();
 
@@ -1299,28 +1486,31 @@ typography:
       expect(calls.map((call) => call.$2).toSet(), {FontWeight.w600});
     });
 
-    test('us08/fr02/e08: the library is never asked for a weight outside a '
-        "Google font's weight set", () {
-      theme = defaultThemeSet.light.copyWith();
-      final sets = GoogleFontWeights.of(theme.typography);
+    test(
+      'fo02/us08/fr02/e08: the library is never asked for a weight outside a '
+      "Google font's weight set",
+      () {
+        theme = defaultThemeSet.light.copyWith();
+        final sets = GoogleFontWeights.of(theme.typography);
 
-      for (final locale in const [Locale('en'), Locale('th')]) {
-        for (final type in FontType.values) {
-          for (final recipe in _weighted(StratumTextStyle.type(type))) {
-            resolve(recipe, locale: locale);
-            resolve(recipe.mono, locale: locale);
-            resolve(recipe.italic, locale: locale);
+        for (final locale in const [Locale('en'), Locale('th')]) {
+          for (final type in FontType.values) {
+            for (final recipe in _weighted(StratumTextStyle.type(type))) {
+              resolve(recipe, locale: locale);
+              resolve(recipe.mono, locale: locale);
+              resolve(recipe.italic, locale: locale);
+            }
           }
         }
-      }
 
-      expect(calls, isNotEmpty);
-      for (final (name, weight, _) in calls) {
-        expect(sets[name], contains(weight), reason: '$name $weight');
-      }
-    });
+        expect(calls, isNotEmpty);
+        for (final (name, weight, _) in calls) {
+          expect(sets[name], contains(weight), reason: '$name $weight');
+        }
+      },
+    );
 
-    test('us05/fr02/e05: a weight the yaml does not declare for a Google '
+    test('fo03/us05/fr02/e05: a weight the yaml does not declare for a Google '
         'font is never asked of the library', () {
       theme = defaultThemeSet.light.copyWith();
 
@@ -1330,7 +1520,7 @@ typography:
       expect(calls.where((call) => call.$2 == FontWeight.w500), isEmpty);
     });
 
-    test('us08/fr02/e08: run-time fetching on or off asks the library for '
+    test('fo02/us08/fr02/e08: run-time fetching on or off asks the library for '
         "the same weights, each inside its family's weight set", () {
       final fetching = GoogleFonts.config.allowRuntimeFetching;
       addTearDown(() => GoogleFonts.config.allowRuntimeFetching = fetching);
@@ -1361,7 +1551,7 @@ typography:
       }
     });
 
-    test('us08/fr02/e10: the weight set comes from the theme typography, '
+    test('fo02/us08/fr02/e10: the weight set comes from the theme typography, '
         'with no wait run', () {
       final pending = GoogleFontsLookup.pending;
       addTearDown(() => GoogleFontsLookup.pending = pending);
@@ -1371,7 +1561,7 @@ typography:
       expect(resolve(StratumTextStyle.body.medium).fontWeight, FontWeight.w600);
     });
 
-    test('us08/fr02/e11: a bold recipe on a font loaded only in 400 draws '
+    test('fo02/us08/fr02/e11: a bold recipe on a font loaded only in 400 draws '
         'with weight 400', () {
       theme = _theme(_googleYaml('Bold Lato', header: 400, number: 400));
 
@@ -1383,7 +1573,7 @@ typography:
     });
   });
 
-  group('us07/fr01: TypographyResolver theme font families', () {
+  group('fo02/us07/fr01: TypographyResolver theme font families', () {
     /// The data of the base fixture under [layers], each layer the app
     /// theme of its key, read from `assets/themes/<key>`.
     StratumThemeData themed(Map<String, String> layers) => fakeStratumTheme(
@@ -1404,7 +1594,7 @@ typography:
     default:
       body: brand''');
 
-    test('us05/s4: two themes that ship the same family name resolve '
+    test('fo03/us05/s4: two themes that ship the same family name resolve '
         'apart', () {
       theme = themed({'brand': brandFont});
       final brand = resolve(StratumTextStyle.body);
@@ -1415,24 +1605,27 @@ typography:
       expect(night.fontFamily, 'night/DB Heavent');
     });
 
-    test('us05/fr01/e05: a theme that inherits the font draws with its '
+    test('fo03/us05/fr01/e05: a theme that inherits the font draws with its '
         "source's registration", () {
       theme = themed({'default': brandFont, 'brand': layer('name: brand')});
 
       expect(resolve(StratumTextStyle.body).fontFamily, 'default/DB Heavent');
     });
 
-    test('us08/fr02/e02: a theme font never asks the Google Fonts seam', () {
-      final saved = GoogleFontsLookup.family;
-      addTearDown(() => GoogleFontsLookup.family = saved);
-      GoogleFontsLookup.family = (name, {required weight, required style}) =>
-          throw StateError('should not be called for $name');
-      theme = themed({'brand': brandFont});
+    test(
+      'fo02/us08/fr02/e02: a theme font never asks the Google Fonts seam',
+      () {
+        final saved = GoogleFontsLookup.family;
+        addTearDown(() => GoogleFontsLookup.family = saved);
+        GoogleFontsLookup.family = (name, {required weight, required style}) =>
+            throw StateError('should not be called for $name');
+        theme = themed({'brand': brandFont});
 
-      expect(resolve(StratumTextStyle.body).fontFamily, 'brand/DB Heavent');
-    });
+        expect(resolve(StratumTextStyle.body).fontFamily, 'brand/DB Heavent');
+      },
+    );
 
-    test('us05/fr01/e07: a theme font carries the resolved weight', () {
+    test('fo03/us05/fr01/e07: a theme font carries the resolved weight', () {
       theme = themed({'brand': brandFont});
 
       expect(resolve(StratumTextStyle.body).fontWeight, FontWeight.w400);
@@ -1449,11 +1642,14 @@ typography:
   });
 
   group('TypographyResolver cache', () {
-    test('us01/s3: a hit returns the identical instance', () {
-      final recipe = StratumTextStyle.body.s20;
+    test(
+      'fo02/us01/fr03, fo02/us01/s3: a hit returns the identical instance',
+      () {
+        final recipe = StratumTextStyle.body.s20;
 
-      expect(identical(resolve(recipe), resolve(recipe)), isTrue);
-    });
+        expect(identical(resolve(recipe), resolve(recipe)), isTrue);
+      },
+    );
 
     test('a different window size gives a different instance', () {
       final recipe = StratumTextStyle.body.s20;

@@ -19,50 +19,81 @@ List<String> _problems(String body) => problems(_check([layer(body)]).$2);
 
 void main() {
   group('checkThemeKeys unknown keys', () {
-    final cases = <(String, String, String)>[
-      ('at the root', 'spcae:\n  md: 12', 'spcae'),
-      ('in a group', 'space:\n  huge: 99', 'space.huge'),
+    final cases = <(String, String, String, String)>[
+      ('fo01/us01/s3', 'at the root', 'spcae:\n  md: 12', 'spcae'),
+      ('fo01/us01/s3', 'in a group', 'space:\n  huge: 99', 'space.huge'),
       (
+        'fo01/us01/s3',
         'in a color set',
         'color:\n  light:\n    brand:\n      pressed: "#000000"',
         'color.light.brand.pressed',
       ),
-      ('a ramp the default lacks', 'palette:\n  pink: {}', 'palette.pink'),
       (
+        'fo01/us01/s3',
+        'a ramp the default lacks',
+        'palette:\n  pink: {}',
+        'palette.pink',
+      ),
+      (
+        'fo01/us01/s3',
         'a shade the default lacks',
         'palette:\n  brand:\n    25: "#FFFFFF"',
         'palette.brand.25',
       ),
-      ('the Figma name layout', 'layout: {}', 'layout'),
-      ('the Figma name theme', 'theme: {}', 'theme'),
-      ('the Figma name base_color', 'base_color: {}', 'base_color'),
-      ('the Figma name font', 'font: {}', 'font'),
+      ('fo01/us01/s4', 'the Figma name layout', 'layout: {}', 'layout'),
+      ('fo01/us01/s4', 'the Figma name theme', 'theme: {}', 'theme'),
       (
+        'fo01/us01/s4',
+        'the Figma name base_color',
+        'base_color: {}',
+        'base_color',
+      ),
+      ('fo01/us01/s4', 'the Figma name font', 'font: {}', 'font'),
+      (
+        'fo01/us01/s3',
         'a root transparent',
         'transparent:\n  black:\n    3: "#00000008"',
         'transparent',
       ),
-      ('an asset slot', 'assets:\n  mascot: mascot.png', 'assets.mascot'),
-      ('an animation key', 'animation:\n  speed: 1', 'animation.speed'),
       (
+        'fo01/us01/s3',
+        'an asset slot',
+        'assets:\n  mascot: mascot.png',
+        'assets.mascot',
+      ),
+      (
+        'fo01/us01/s3',
+        'an animation key',
+        'animation:\n  speed: 1',
+        'animation.speed',
+      ),
+      (
+        'fo01/us01/s3',
         'an animation curve role',
         'animation:\n  curve:\n    bounce: bounceIn',
         'animation.curve.bounce',
       ),
       (
+        'fo01/us01/s3',
         'a high-contrast key that color.light lacks',
         'color:\n  highContrastLight:\n    brand:\n      pressed: "#000000"',
         'color.highContrastLight.brand.pressed',
       ),
       (
+        'fo01/us01/s3',
         'a sixth window size under animation.transition',
         'animation:\n  transition:\n    phablet: fade',
         'animation.transition.phablet',
       ),
-      ('a second key under opacity', 'opacity:\n  hover: 0.4', 'opacity.hover'),
+      (
+        'fo01/us01/s3',
+        'a second key under opacity',
+        'opacity:\n  hover: 0.4',
+        'opacity.hover',
+      ),
     ];
-    for (final (name, body, path) in cases) {
-      test('reports $name', () {
+    for (final (tag, name, body, path) in cases) {
+      test('$tag: reports $name', () {
         final key = path.split('.').last;
 
         expect(_problems(body), [
@@ -288,6 +319,37 @@ shadow:
           'highContrastLight': {'statusBarIcons': 'dark'},
         },
       });
+    });
+  });
+
+  group('checkThemeKeys focus', () {
+    for (final (body, path) in [
+      (
+        'focus:\n  light:\n    outside:\n      dash: true',
+        'focus.light.outside.dash',
+      ),
+      ('focus:\n  dark:\n    inside:\n      gap: 2', 'focus.dark.inside.gap'),
+      ('focus:\n  light:\n    hidden: true', 'focus.light.hidden'),
+      (
+        'focus:\n  highContrastLight:\n    outside:\n      dash: true',
+        'focus.highContrastLight.outside.dash',
+      ),
+    ]) {
+      test('fo01/us01/fr01: config s03 invariant 19, $path, a key the '
+          'default lacks, is unknown_key', () {
+        expect(_problems(body), [
+          'layer1 $path: unknown key "${path.split('.').last}" [unknown_key]',
+        ]);
+      });
+    }
+
+    test('fo01/us01/fr01: config s03 invariant 19, a high-contrast focus '
+        'set takes the keys of its base set', () {
+      final (_, errors) = _check([
+        layer('focus:\n  highContrastDark:\n    outside:\n      width: 4'),
+      ]);
+
+      expect(problems(errors), isEmpty);
     });
   });
 }

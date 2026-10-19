@@ -1,5 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/theme_asset.freezed.dart';
 
@@ -27,7 +27,7 @@ enum StratumAssetKind {
 
 /// One asset slot of a theme (`splash-screen`, `loading`).
 @immutable
-@themeModel
+@valueModel
 class StratumThemeAsset with _$StratumThemeAsset {
   const new({required this.kind, required this.path});
 

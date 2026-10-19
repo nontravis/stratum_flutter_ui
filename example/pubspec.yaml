@@ -34,6 +34,12 @@ dependencies:
   stratum_ui:
     path: ../
 
+  # Flutter's own labels in Thai for the screen reader checks page
+  # (lib/screen_reader_demo.dart, F-01 US-13), so Stratum's built-in labels
+  # follow a Thai device.
+  flutter_localizations:
+    sdk: flutter
+
   # The router of the page transition demo (lib/transition_demo.dart,
   # F-01 US-10) only; never a dependency of stratum_ui.
   go_router: ^18.0.2
@@ -49,6 +55,15 @@ dev_dependencies:
     sdk: flutter
   flutter_driver:
     sdk: flutter
+
+  # system_style_device_test.dart's support/probe.dart reads the device-test
+  # probe ack file (device-test probe contract item 1b) from the app's own
+  # data directory; previously only a transitive dependency.
+  path_provider: ^2.1.6
+
+  # screen_reader_demo_test.dart's setUp fakes the splash's shared_preferences
+  # platform (F-01 US-13); previously only a transitive dependency.
+  shared_preferences_platform_interface: ^2.4.2
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

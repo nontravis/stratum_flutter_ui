@@ -41,8 +41,8 @@ Matcher _failure(
 }
 
 void main() {
-  group('us02/fr01, s03 packed zip: writeRemoteZip', () {
-    test('us02/s2, us02/fr01/e05: the same files give the same bytes in any '
+  group('fo04/us02/fr01, s03 packed zip: writeRemoteZip', () {
+    test('fo04/us02/s2, fo04/us02/fr01/e05: the same files give the same bytes in any '
         'order', () {
       expect(
         writeRemoteZip(_files),
@@ -50,7 +50,7 @@ void main() {
       );
     });
 
-    test('us02/fr02/e05: the reader the app installs with gets every file '
+    test('fo04/us02/fr02/e05: the reader the app installs with gets every file '
         'back byte for byte', () {
       final read = readRemoteZip(
         writeRemoteZip(_files),
@@ -151,22 +151,25 @@ void main() {
       );
     });
 
-    test('us02/fr01/e10, rz2: a key outside printable ASCII, in a file or a '
-        'folder name, is unsafe_entry_path with the path', () {
-      for (final name in [
-        'é.txt',
-        'imagés/logo.svg',
-        'fonts/ไทย.ttf',
-        'images/😀.svg',
-        'a${String.fromCharCode(0xD800)}.txt',
-      ]) {
-        expect(
-          () => writeRemoteZip({'theme.yaml': <int>[], name: <int>[]}),
-          _failure(StratumRemoteThemeErrorCode.unsafeEntryPath, path: name),
-          reason: name,
-        );
-      }
-    });
+    test(
+      'fo04/us02/fr01/e10, rz2: a key outside printable ASCII, in a file or a '
+      'folder name, is unsafe_entry_path with the path',
+      () {
+        for (final name in [
+          'é.txt',
+          'imagés/logo.svg',
+          'fonts/ไทย.ttf',
+          'images/😀.svg',
+          'a${String.fromCharCode(0xD800)}.txt',
+        ]) {
+          expect(
+            () => writeRemoteZip({'theme.yaml': <int>[], name: <int>[]}),
+            _failure(StratumRemoteThemeErrorCode.unsafeEntryPath, path: name),
+            reason: name,
+          );
+        }
+      },
+    );
 
     test('a name that encodes past 0xFFFF UTF-8 bytes, as '
         'archive_too_large with the encoded length', () {
@@ -201,7 +204,7 @@ void main() {
       );
     });
 
-    test('us02/fr01/e10, r15: a key holding a control character, through '
+    test('fo04/us02/fr01/e10, r15: a key holding a control character, through '
         "checkEntryPath's own exception", () {
       const name = 'images/a\nb.svg';
       expect(

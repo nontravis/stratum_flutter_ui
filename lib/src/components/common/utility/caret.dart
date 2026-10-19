@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/component_defaults.dart'
+    show debugCheckNoComponentStyle;
 
 /// Which way a [StratumCaret] points.
 ///
@@ -24,8 +26,9 @@ enum StratumCaretDirection {
   end,
 }
 
-/// The glyph of a [StratumCaret], the Figma `🕶️ style` property.
-enum StratumCaretStyle {
+/// The glyph of a [StratumCaret], the Figma `🕶️ style` property, which
+/// the caret's `style` parameter takes (choice (i)).
+enum StratumCaretGlyph {
   /// A round-capped chevron line, 1.0 px wide at every size.
   light,
 
@@ -66,26 +69,23 @@ enum StratumCaretStyle {
 ///   direction** rather than expand/collapse
 ///
 /// The base `color` picks the theme's `icon.color.<name>` token through
-/// [resolveColor], else `icon.default.primary`. `state`, `feedbackState`,
-/// and `loading` leave the glyph's look unchanged, and `customStyle`
-/// styles the square box, never the glyph.
+/// [resolveColor], else `icon.default.primary`. The caret takes no
+/// `state`, `feedbackState`, `loading`, or `windowSize`, since none of
+/// them changes its look and no caret code reads a window size (FO-08
+/// US-01 FR-01 E03; R10(1)); its own `customStyle` styles the square box,
+/// never the glyph.
 class StratumCaret extends StratumStatefulWidget {
   const new({
     super.key,
-    this.style = StratumCaretStyle.regular,
+    this.style = StratumCaretGlyph.regular,
     this.direction = StratumCaretDirection.down,
     super.size,
     this.customSize,
     super.color,
     this.customColor,
     super.themeMode,
-    super.windowSize,
-    super.state,
-    super.feedbackState,
     super.disabled,
-    super.loading,
-    super.debug,
-    super.customStyle,
+    this.customStyle,
   }) : assert(
          // `customSize.isFinite` is not const-evaluable; comparisons are,
          // and a NaN comparison is false either way (IEEE 754), which
@@ -95,9 +95,9 @@ class StratumCaret extends StratumStatefulWidget {
          'StratumCaret.customSize must be null or a finite number >= 0',
        );
 
-  /// A [StratumCaretStyle.light] or [StratumCaretStyle.regular] chevron
-  /// line, or a [StratumCaretStyle.fill] triangle.
-  final StratumCaretStyle style;
+  /// A [StratumCaretGlyph.light] or [StratumCaretGlyph.regular] chevron
+  /// line, or a [StratumCaretGlyph.fill] triangle.
+  final StratumCaretGlyph style;
 
   /// Which way the caret points; a change turns it the short way.
   final StratumCaretDirection direction;
@@ -108,6 +108,11 @@ class StratumCaret extends StratumStatefulWidget {
 
   /// The glyph color, used as given; wins over `color`.
   final Color? customColor;
+
+  /// The caret's own box style, which styles its square box, never the
+  /// glyph (CO-01-03 US-01 FR-04); a type of its own, since the box shows
+  /// only the fields it holds (FO-08 US-02 FR-01 E04).
+  final StratumCaretStyle? customStyle;
 
   /// False: the caret is decorative and stays out of the semantics tree,
   /// so a disabled caret gets no disabled node (R11, D8).
@@ -188,10 +193,27 @@ class _StratumCaretState extends State<StratumCaret> {
     final side =
         widget.customSize ?? _sideOf(widget.resolveDefaultSize(context));
     final color = _color(context);
-    final style = widget.resolveStyle(
-      context,
-      WidgetStyle(width: side, height: side),
+    // The caret reads no entry of the componentDefaults styles map (choice
+    // (j)); one registered under StratumCaret is a mistake.
+    assert(
+      debugCheckNoComponentStyle(context, StratumCaret, StratumCaretStyle),
+      'unreachable: debugCheckNoComponentStyle either returns true or throws',
     );
+    // Its side x side default, then the app-wide box style under
+    // StratumCaret in componentPartDefaults, then its own, field by field
+    // (PD9; caret s03 invariant 14).
+    final appWide = StratumComponentDefaults.partsOf<StratumCaretStyle>(
+      context,
+      StratumCaret,
+    );
+    final style = WidgetStyle(width: side, height: side)
+        .merge(appWide?.toWidgetStyle())
+        .merge(widget.customStyle?.toWidgetStyle());
+    // A width or height grows the box past `side`, never below it; the
+    // glyph keeps `side` and sits centered (US-01 FR-04 E06, R7(3)).
+    final width = math.max(side, style.width ?? side);
+    final height = math.max(side, style.height ?? side);
+    final box = style.copyWith(width: width, height: height);
     // `customStyle`'s margin grows the box past `side`; resolved with the
     // ambient text direction so a directional margin (start/end) deflates
     // the right side under RTL.
@@ -204,8 +226,8 @@ class _StratumCaretState extends State<StratumCaret> {
       // a tighter one still shrinks it by clamping this down (US-01
       // FR-02 E03).
       child: SizedBox(
-        width: side + margin.horizontal,
-        height: side + margin.vertical,
+        width: width + margin.horizontal,
+        height: height + margin.vertical,
         // `Center` loosens whatever this got clamped to (including a
         // tighter ambient parent's clamp-up past a bigger one, the quirk
         // `BoxConstraints.enforce` has with two tight ranges) before it
@@ -232,17 +254,16 @@ class _StratumCaretState extends State<StratumCaret> {
                 ? Duration.zero
                 : motion.duration ?? Duration.zero,
             curve: motion.curve ?? Curves.easeInOutSine,
-            // The box, built once: `ContainerLayout` turns `side` and
-            // `customStyle` into the final size. Passed as this
-            // builder's `child` instead of being rebuilt inside it, so
-            // an animation frame repaints only the glyph. Unlike the
-            // `LayoutBuilder` this replaced, a `SizedBox` with a tight,
-            // bounded size answers an intrinsic query directly, with no
-            // need to ask anything below it (including this `CustomPaint`
-            // with a child), so the caret lays out inside an
-            // `IntrinsicWidth` or `IntrinsicHeight` ancestor (US-01
-            // FR-02).
-            child: ContainerLayout(style: style, debug: widget.debug),
+            // `ContainerLayout` turns the grown box and `customStyle`
+            // into the final size. Passed as this builder's `child`
+            // instead of being rebuilt inside it, so an animation frame
+            // repaints only the glyph. Unlike the `LayoutBuilder` this
+            // replaced, a `SizedBox` with a tight, bounded size answers
+            // an intrinsic query directly, with no need to ask anything
+            // below it (including this `CustomPaint` with a child), so
+            // the caret lays out inside an `IntrinsicWidth` or
+            // `IntrinsicHeight` ancestor (US-01 FR-02).
+            child: ContainerLayout(style: box),
             builder: (context, angle, child) => CustomPaint(
               // Foreground: painted after the box's own decoration, so a
               // `customStyle` background never hides the glyph. The
@@ -256,6 +277,7 @@ class _StratumCaretState extends State<StratumCaret> {
                 color: color,
                 angle: angle,
                 margin: margin,
+                side: side,
               ),
               child: child,
             ),
@@ -310,10 +332,11 @@ class CaretPainter extends CustomPainter {
     required this.color,
     required this.angle,
     this.margin = EdgeInsets.zero,
+    this.side = double.infinity,
   });
 
   /// The glyph: a chevron line or a triangle.
-  final StratumCaretStyle style;
+  final StratumCaretGlyph style;
 
   /// The glyph color.
   final Color color;
@@ -326,6 +349,11 @@ class CaretPainter extends CustomPainter {
   /// (US-01 FR-02 E03); resolved with the ambient text direction.
   final EdgeInsets margin;
 
+  /// The glyph's own side in logical pixels: the glyph never grows past
+  /// it in a larger box (US-01 FR-04 E06) and scales down to a tighter
+  /// canvas (US-01 FR-02 E06).
+  final double side;
+
   @override
   void paint(Canvas canvas, Size size) {
     final rect = margin.deflateRect(Offset.zero & size);
@@ -334,17 +362,17 @@ class CaretPainter extends CustomPainter {
     // (R8). The points scale with the laid-out canvas, which a tighter
     // ancestor can shrink below the requested side (US-01 FR-02 E03); the
     // line width never scales (R1).
-    final unit = rect.shortestSide / 16;
+    final unit = math.min(side, rect.shortestSide) / 16;
     final paint = Paint()..color = color;
     final path = Path();
     switch (style) {
-      case StratumCaretStyle.fill:
+      case StratumCaretGlyph.fill:
         path
           ..moveTo(-5.5 * unit, -3 * unit)
           ..lineTo(5.5 * unit, -3 * unit)
           ..lineTo(0, 3 * unit)
           ..close();
-      case StratumCaretStyle.light || StratumCaretStyle.regular:
+      case StratumCaretGlyph.light || StratumCaretGlyph.regular:
         path
           ..moveTo(-5 * unit, -2.5 * unit)
           ..lineTo(0, 2.5 * unit)
@@ -353,7 +381,7 @@ class CaretPainter extends CustomPainter {
         // 1.0 px and 11.5 x 6.5 at 1.5 px (R8).
         paint
           ..style = PaintingStyle.stroke
-          ..strokeWidth = style == StratumCaretStyle.light ? 1.0 : 1.5
+          ..strokeWidth = style == StratumCaretGlyph.light ? 1.0 : 1.5
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round;
     }
@@ -370,5 +398,6 @@ class CaretPainter extends CustomPainter {
       oldDelegate.style != style ||
       oldDelegate.color != color ||
       oldDelegate.angle != angle ||
-      oldDelegate.margin != margin;
+      oldDelegate.margin != margin ||
+      oldDelegate.side != side;
 }

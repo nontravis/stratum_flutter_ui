@@ -4,12 +4,21 @@ import 'package:flutter/rendering.dart'
         BoxParentData,
         ChildLayoutHelper,
         ChildLayouter,
+        ContainerRenderObjectMixin,
+        PipelineOwner,
         RenderBox,
+        RenderObject,
+        RenderObjectVisitor,
+        RenderObjectWithChildMixin,
+        RenderProxyBox,
         RenderSemanticsAnnotations,
         RenderShiftedBox;
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:stratum_ui/src/components/common/base/disabled.dart'
     show StratumDisabledScope;
 import 'package:stratum_ui/src/components/common/l10n/built_in_labels.dart';
+import 'package:stratum_ui/src/components/common/utility/focus_border.dart'
+    show focusStyleOver;
 import 'package:stratum_ui/src/src.dart';
 
 /// Whether a [StratumInkWell] with these settings takes focus: not
@@ -134,13 +143,6 @@ enum TapTargetSize {
   }
 }
 
-/// [TapTargetSize]'s name before naming rule R2, kept one minor version.
-@Deprecated(
-  'Use TapTargetSize instead. StratumTapTargetSize will be removed after '
-  'one minor version.',
-)
-typedef StratumTapTargetSize = TapTargetSize;
-
 /// The tap surface of the design system.
 ///
 /// Builds on [InkWell] for gestures, keyboard activation, focus, and hover,
@@ -148,8 +150,8 @@ typedef StratumTapTargetSize = TapTargetSize;
 ///
 /// * a flat overlay over [child]: the theme's `state.hover` color while
 ///   hovered and `state.press` while pressed;
-/// * a [StratumFocusBorder] ring in its outside style, shown per
-///   [focusType];
+/// * a [StratumFocusBorder] ring in its outside placement, shown per
+///   [focusType] and styled by [customStyle]'s `focus`;
 /// * a semantics node with a button role and a disabled flag;
 /// * the context-menu key and Shift+F10 for [onSecondaryTap], and a custom
 ///   semantics action for it, so keyboard and screen-reader users reach
@@ -188,6 +190,7 @@ class StratumInkWell extends StatefulWidget {
     this.enableFeedback = true,
     this.secondaryTapSemanticsLabel,
     this.shortcuts = const {},
+    this.customStyle,
   });
 
   final Widget child;
@@ -284,6 +287,12 @@ class StratumInkWell extends StatefulWidget {
   /// only to an enabled surface; the node then reports focusable and no
   /// button role. An empty map builds nothing.
   final Map<ShortcutActivator, VoidCallback> shortcuts;
+
+  /// This surface's own style: its `focus` field restyles this surface's
+  /// focus ring, level 3, over the app-wide `StratumInkWellStyle` under
+  /// `StratumInkWell` in `componentPartDefaults`, level 2 (FO-06 US-04
+  /// FR-03); every field of it takes effect (NFR-E02).
+  final StratumInkWellStyle? customStyle;
 
   @override
   State<StratumInkWell> createState() => _StratumInkWellState();
@@ -611,6 +620,13 @@ class _StratumInkWellState extends State<StratumInkWell>
       result = StratumFocusBorder(
         state: ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
         borderRadius: widget.borderRadius,
+        customStyle: focusStyleOver(
+          StratumComponentDefaults.partsOf<StratumInkWellStyle>(
+            context,
+            StratumInkWell,
+          )?.focus,
+          widget.customStyle?.focus,
+        ),
         child: result,
       );
     }
@@ -664,7 +680,7 @@ class _StratumInkWellState extends State<StratumInkWell>
     if (!widget.excludeFromSemantics) {
       final hasActivation = _hasActivation;
       final secondary = widget.onSecondaryTap;
-      result = Semantics(
+      result = _SurfaceSemantics(
         container: true,
         enabled: hasActivation && properties?.enabled == null
             ? !disabled
@@ -676,6 +692,10 @@ class _StratumInkWellState extends State<StratumInkWell>
                 CustomSemanticsAction(label: _secondaryTapLabel(context)):
                     secondary,
               },
+        // Whether this surface's own node (or a caller's own `enabled` it
+        // merges) ever sets the enabled tristate; a pass node above it
+        // flags `hidden` only then, else `join` (I1).
+        setsEnabledTristate: hasActivation || properties?.enabled != null,
         child: result,
       );
     }
@@ -781,6 +801,469 @@ class _RenderSemanticsWithoutHeading extends RenderSemanticsAnnotations {
     // Skips the write when the level is already 0, so a config with no
     // level stays unannotated; otherwise it clears the copied level.
     config.headingLevel = 0;
+  }
+}
+
+/// Marks a reorder item's root, so a flagged node below, such as the pass
+/// node `StratumDisabled` builds, can seed its [_ItemRootFlag.role] from
+/// this marker (layout s03 invariant 81).
+///
+/// `_wrapItem` wraps every item in this first, [active] false for a
+/// leaving item, which keeps the marker, inactive, so the item keeps its
+/// widgets and its `State` across the leave.
+class ReorderItemRoot extends StatelessWidget {
+  const new({super.key, required this.active, required this.child});
+
+  /// False for a leaving item.
+  final bool active;
+
+  /// The item this marks the root of.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => _ItemRootScope(
+    child: _ItemRootMarker(active: active, child: child),
+  );
+}
+
+/// Tells a flagged widget below, at build, that a [ReorderItemRoot] sits
+/// above it, so a widget outside any reorder item never seeds.
+class _ItemRootScope extends InheritedWidget {
+  const new({required super.child});
+
+  @override
+  bool updateShouldNotify(_ItemRootScope oldWidget) => false;
+}
+
+/// Whether [context] sits inside a [ReorderItemRoot]; the one inherited
+/// lookup a flagged widget pays per build, refreshed by a reparent through
+/// `didChangeDependencies`.
+bool _insideItemRoot(BuildContext context) =>
+    context.dependOnInheritedWidgetOfExactType<_ItemRootScope>() != null;
+
+/// How a flagged node describes its semantics config at a reorder item
+/// root (layout s03 invariant 81; base s03 invariant 15).
+enum _ItemRootRole {
+  /// Outside any reorder item root: describes as [Semantics] does.
+  none,
+
+  /// Merges into the item's node: the config is never a semantics
+  /// boundary.
+  join,
+
+  /// Describes nothing, a pass node above a root surface (M1-T2).
+  hidden,
+}
+
+/// The role a reorder item root's marker sets on a flagged render object,
+/// and the seed-and-mark and describe-bookkeeping sequences every flagged
+/// render object shares.
+mixin _ItemRootFlag on RenderObject {
+  /// The role the last seed set; [describeSemanticsConfiguration] reads
+  /// this to decide what it describes.
+  _ItemRootRole role = _ItemRootRole.none;
+
+  /// The role the last [describeSemanticsConfiguration] call used; null
+  /// before the first.
+  _ItemRootRole? describedRole;
+
+  /// Whether a [_ItemRootScope] sat above this object's widget at build.
+  bool inItem = false;
+
+  /// Seeds [role] by walking this object's parents to an active marker
+  /// through [_RenderItemRoot._seedFrom], and tells the marker found to
+  /// flag every node in [passes], which starts as `this` alone for a pass
+  /// node, or empty for [surface], so the walk's ancestors land in front
+  /// of it, top first. Sets [role] to [_ItemRootRole.none] when the walk
+  /// finds no marker.
+  void _seedAndMark(
+    List<_RenderPassSemantics> passes, {
+    _RenderSurfaceSemantics? surface,
+  }) {
+    final marker = _RenderItemRoot._seedFrom(this, passes);
+    if (marker == null) {
+      role = _ItemRootRole.none;
+      return;
+    }
+    for (final node in marker._flag(surface: surface, passes: passes)) {
+      node.markNeedsSemanticsUpdate();
+    }
+  }
+
+  /// Records [role] as the answer this description used.
+  void _recordDescribedRole() => describedRole = role;
+}
+
+/// The widget [ReorderItemRoot] builds: [SingleChildRenderObjectWidget]
+/// over [_RenderItemRoot].
+class _ItemRootMarker extends SingleChildRenderObjectWidget {
+  const new({required this.active, super.child});
+
+  /// [ReorderItemRoot.active] passed through.
+  final bool active;
+
+  @override
+  _RenderItemRoot createRenderObject(BuildContext context) =>
+      _RenderItemRoot(active);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderItemRoot renderObject) {
+    renderObject.active = active;
+  }
+}
+
+/// The render object [ReorderItemRoot] builds: opens no semantics node of
+/// its own, and flags every pass node a seed finds below it `join`
+/// (layout s03 invariant 81).
+class _RenderItemRoot extends RenderProxyBox {
+  new(this._active);
+
+  /// Backs [active].
+  bool _active;
+
+  /// Whether the item this marks the root of is live; false lets
+  /// [_seedFrom] skip a leaving item.
+  bool get active => _active;
+
+  set active(bool value) {
+    if (_active == value) return;
+    _active = value;
+    markNeedsSemanticsUpdate();
+  }
+
+  /// The pass nodes this marker last flagged, top first; `const []`
+  /// before any seed registers.
+  List<_RenderPassSemantics> _passes = const [];
+
+  /// The surface this marker last flagged `join`; null before any seed
+  /// registers one.
+  _RenderSurfaceSemantics? _surface;
+
+  /// Flags [surface] `join` and every node in [passes] `hidden` when
+  /// [surface] is given and sets the enabled tristate
+  /// ([_RenderSurfaceSemantics.setsEnabledTristate]), or `join` otherwise,
+  /// so a surface with no activation callback never hides the disabled
+  /// state a pass node above it describes (I1); flags every previously
+  /// registered pass node or surface that [passes] or [surface] drops
+  /// back to `none`, registers both, and returns every attached touched
+  /// node whose last description used a role other than its new one.
+  Set<_ItemRootFlag> _flag({
+    _RenderSurfaceSemantics? surface,
+    required List<_RenderPassSemantics> passes,
+  }) {
+    final kept = passes.toSet();
+    final dropped = _passes.where((node) => !kept.contains(node));
+    for (final node in dropped) {
+      node.role = _ItemRootRole.none;
+    }
+    final passRole = surface != null && surface.setsEnabledTristate
+        ? _ItemRootRole.hidden
+        : _ItemRootRole.join;
+    for (final node in passes) {
+      node.role = passRole;
+    }
+    final droppedSurface = _surface != surface ? _surface : null;
+    droppedSurface?.role = _ItemRootRole.none;
+    surface?.role = _ItemRootRole.join;
+    _passes = passes;
+    _surface = surface;
+    return {
+      for (final node in <_ItemRootFlag>[
+        ...dropped,
+        ...passes,
+        ?droppedSurface,
+        ?surface,
+      ])
+        if (node.attached &&
+            node.describedRole != null &&
+            node.describedRole != node.role)
+          node,
+    };
+  }
+
+  /// Walks up from [from]'s parent, keeping `below` as the one child a
+  /// chain holds: at a [_RenderItemRoot], returns it when [active], else
+  /// null; at a [_RenderSurfaceSemantics], returns null, because the walk
+  /// stops at the first surface above [from] (M1-T2); when
+  /// [_onlyLinkedChild] is false, returns null; at a [_RenderPassSemantics],
+  /// inserts it at the front of [passes], top first; at any other node
+  /// that [_opensNode], returns null.
+  static _RenderItemRoot? _seedFrom(
+    RenderObject from,
+    List<_RenderPassSemantics> passes,
+  ) {
+    var below = from;
+    for (var node = from.parent; node != null; node = node.parent) {
+      if (node is _RenderItemRoot) return node.active ? node : null;
+      if (node is _RenderSurfaceSemantics) return null;
+      if (!_onlyLinkedChild(node, below)) return null;
+      if (node is _RenderPassSemantics) {
+        passes.insert(0, node);
+      } else if (_opensNode(node)) {
+        return null;
+      }
+      below = node;
+    }
+    return null;
+  }
+
+  /// Whether a fresh [SemanticsConfiguration] [node] describes is a
+  /// semantics boundary or has `explicitChildNodes`.
+  static bool _opensNode(RenderObject node) {
+    final config = SemanticsConfiguration();
+    node.describeSemanticsConfiguration(config);
+    return config.isSemanticBoundary || config.explicitChildNodes;
+  }
+
+  /// Whether [below] is [parent]'s one linked child; a container links a
+  /// child only after attaching it, so mid-insert this is false
+  /// (`rendering/object.dart:4515`, `:4522@3.47.7`).
+  static bool _onlyLinkedChild(RenderObject parent, RenderObject below) =>
+      switch (parent) {
+        RenderObjectWithChildMixin(:final child) => identical(child, below),
+        ContainerRenderObjectMixin(:final childCount, :final firstChild) =>
+          childCount == 1 && identical(firstChild, below),
+        _ => false,
+      };
+
+  /// Walks down from [child]: at a [_RenderSurfaceSemantics], returns it
+  /// with the pass nodes collected on the way down; at a nested
+  /// [_RenderItemRoot], stops, so a reorder item's own marker never walks
+  /// into a different list's item sitting below it (I1, mirrors
+  /// [_seedFrom]'s own stop at any marker); at a [_RenderPassSemantics],
+  /// appends it and goes on; at any other object that [_opensNode], stops.
+  /// The next object is [_onlySemanticsChild]; null stops the walk too. A
+  /// stop short of a surface returns the pass nodes the chain reached, so
+  /// they join on their own (R11b). Gives nothing while inactive. Runs
+  /// only inside the flush (M1-T3).
+  ({_RenderSurfaceSemantics? surface, List<_RenderPassSemantics> passes})
+  _findRoot() {
+    if (!active) return (surface: null, passes: const []);
+    final passes = <_RenderPassSemantics>[];
+    RenderObject? node = child;
+    while (node != null) {
+      if (node is _RenderSurfaceSemantics) {
+        return (surface: node, passes: passes);
+      }
+      if (node is _RenderItemRoot) break;
+      if (node is _RenderPassSemantics) {
+        passes.add(node);
+      } else if (_opensNode(node)) {
+        break;
+      }
+      node = _onlySemanticsChild(node);
+    }
+    return (surface: null, passes: passes);
+  }
+
+  /// The only object [node]'s own [RenderObject.visitChildrenForSemantics]
+  /// visits, or null when it visits none or more than one. Runs only
+  /// inside the flush, [_findRoot]'s one caller.
+  static RenderObject? _onlySemanticsChild(RenderObject node) {
+    RenderObject? only;
+    var count = 0;
+    node.visitChildrenForSemantics((child) {
+      count += 1;
+      only = child;
+    });
+    return count == 1 ? only : null;
+  }
+
+  /// Whether [passes] holds the same nodes, in the same order, as
+  /// [_passes]; identity, not `==`, since a pass node carries no value
+  /// equality.
+  bool _samePasses(List<_RenderPassSemantics> passes) {
+    if (passes.length != _passes.length) return false;
+    for (var i = 0; i < passes.length; i += 1) {
+      if (!identical(passes[i], _passes[i])) return false;
+    }
+    return true;
+  }
+
+  // Re-walks this marker's subtree on every semantics flush (D4): a
+  // reparent, a sibling add or remove, or any other change that moves the
+  // surface or a pass node without re-running its own attach-time seed.
+  // Also re-flags when the found surface or a found pass node's own `role`
+  // field no longer matches what `_flag` would newly give it, which, with
+  // [_surface] and [_passes] both still matching, means something other
+  // than this marker moved it: a run-time flip of the found surface's
+  // `setsEnabledTristate` (M2, for example `Interaction.onTap` going from
+  // null to set, never moves [_surface] or [_passes]), or a losing item's
+  // own re-walk clobbering a role this marker's attach-time seed already
+  // set on a surface a [GlobalKey] just moved in (M1). When the answer
+  // differs, `_flag` moves the flags and this defers
+  // `markNeedsSemanticsUpdate` on each touched, still-attached node to one
+  // post-frame callback (`rendering/object.dart:3923@3.47.7`: that call
+  // asserts outside the flush).
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    final found = _findRoot();
+    final passRole = found.surface != null && found.surface!.setsEnabledTristate
+        ? _ItemRootRole.hidden
+        : _ItemRootRole.join;
+    final stale =
+        (found.surface != null && found.surface!.role != _ItemRootRole.join) ||
+        found.passes.any((node) => node.role != passRole);
+    if (found.surface != _surface || !_samePasses(found.passes) || stale) {
+      final flipped = _flag(surface: found.surface, passes: found.passes);
+      if (flipped.isNotEmpty) {
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          for (final node in flipped) {
+            if (node.attached) node.markNeedsSemanticsUpdate();
+          }
+        });
+      }
+    }
+    super.visitChildrenForSemantics(visitor);
+  }
+}
+
+/// The `Semantics` layer `StratumDisabled` builds in place of [Semantics]:
+/// joins the item's node while a reorder item root's marker flags it
+/// `join`, and describes nothing while flagged `hidden`, a pass node
+/// above a root surface (M1-T2). Kept out of the barrel (layout s03
+/// invariant 81; base s03 invariant 15).
+class ItemRootPassSemantics extends Semantics {
+  new({super.key, super.container, super.enabled, super.child});
+
+  @override
+  RenderSemanticsAnnotations createRenderObject(BuildContext context) {
+    final renderObject = _RenderPassSemantics(
+      container: container,
+      explicitChildNodes: explicitChildNodes,
+      excludeSemantics: excludeSemantics,
+      blockUserActions: blockUserActions,
+      properties: properties,
+      localeForSubtree: localeForSubtree,
+    );
+    updateRenderObject(context, renderObject);
+    return renderObject;
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderSemanticsAnnotations renderObject,
+  ) {
+    super.updateRenderObject(context, renderObject);
+    (renderObject as _RenderPassSemantics).inItem = _insideItemRoot(context);
+  }
+}
+
+/// The render object [ItemRootPassSemantics] builds: seeds [_ItemRootFlag]
+/// at attach, and merges into or hides from the item's node by [role].
+class _RenderPassSemantics extends RenderSemanticsAnnotations
+    with _ItemRootFlag {
+  new({
+    required super.properties,
+    super.container,
+    super.explicitChildNodes,
+    super.excludeSemantics,
+    super.blockUserActions,
+    super.localeForSubtree,
+  });
+
+  // Attach describes the config at once
+  // (`rendering/object.dart:2507-2509@3.47.7`), before any marker visit
+  // exists (M1-T3 adds the flush re-walk), so seed from the parents
+  // already in place.
+  @override
+  void attach(PipelineOwner owner) {
+    if (inItem) _seedAndMark(<_RenderPassSemantics>[this]);
+    super.attach(owner);
+  }
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    _recordDescribedRole();
+    if (role == _ItemRootRole.hidden) return;
+    super.describeSemanticsConfiguration(config);
+    if (role == _ItemRootRole.join) config.isSemanticBoundary = false;
+  }
+}
+
+/// The `Semantics` layer `_StratumInkWellState.build` builds in place of
+/// [Semantics] for its outer node: joins the whole reorder item's node
+/// while a marker flags it `join`, so the surface's label, button role,
+/// enabled state, and tap sit beside the item's move actions on one node
+/// (layout s03 invariant 81). `ContainerLayout(interaction:)` reaches this
+/// too, since it builds a [StratumInkWell] (`box_layout.dart:219`).
+class _SurfaceSemantics extends Semantics {
+  new({
+    super.container,
+    super.enabled,
+    super.button,
+    super.customSemanticsActions,
+    required this.setsEnabledTristate,
+    super.child,
+  });
+
+  /// Whether this surface's own node, or a caller's own `enabled` it
+  /// merges, ever sets the enabled tristate (I1).
+  final bool setsEnabledTristate;
+
+  @override
+  RenderSemanticsAnnotations createRenderObject(BuildContext context) {
+    final renderObject = _RenderSurfaceSemantics(
+      container: container,
+      explicitChildNodes: explicitChildNodes,
+      excludeSemantics: excludeSemantics,
+      blockUserActions: blockUserActions,
+      properties: properties,
+      localeForSubtree: localeForSubtree,
+      setsEnabledTristate: setsEnabledTristate,
+    );
+    updateRenderObject(context, renderObject);
+    return renderObject;
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderSemanticsAnnotations renderObject,
+  ) {
+    super.updateRenderObject(context, renderObject);
+    (renderObject as _RenderSurfaceSemantics)
+      ..inItem = _insideItemRoot(context)
+      ..setsEnabledTristate = setsEnabledTristate;
+  }
+}
+
+/// The render object [_SurfaceSemantics] builds: seeds [_ItemRootFlag] at
+/// attach as the item's own surface, and merges into the item's node while
+/// flagged `join`.
+class _RenderSurfaceSemantics extends RenderSemanticsAnnotations
+    with _ItemRootFlag {
+  new({
+    required super.properties,
+    required this.setsEnabledTristate,
+    super.container,
+    super.explicitChildNodes,
+    super.excludeSemantics,
+    super.blockUserActions,
+    super.localeForSubtree,
+  });
+
+  /// [_SurfaceSemantics.setsEnabledTristate], passed through; `_flag`
+  /// reads this to decide a pass node's role (I1).
+  bool setsEnabledTristate;
+
+  // Attach describes the config at once
+  // (`rendering/object.dart:2507-2509@3.47.7`), before any marker visit
+  // exists (M1-T3 adds the flush re-walk), so seed from the parents
+  // already in place; the walk starts with no pass node of its own, since
+  // the surface flags itself through `surface:`, not through `passes`.
+  @override
+  void attach(PipelineOwner owner) {
+    if (inItem) _seedAndMark(<_RenderPassSemantics>[], surface: this);
+    super.attach(owner);
+  }
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    _recordDescribedRole();
+    if (role == _ItemRootRole.join) config.isSemanticBoundary = false;
   }
 }
 

@@ -14,7 +14,7 @@ void main() {
     'pubspec.yaml',
     'example/pubspec.yaml',
   ]) {
-    test('fo01 us01/fr01/e07, g4, g10: the committed file $path passes the '
+    test('fo01/us01/fr01/e07, g4, g10: the committed file $path passes the '
         'gate', () {
       expect(
         () => checkYamlGate(File(path).readAsStringSync()),

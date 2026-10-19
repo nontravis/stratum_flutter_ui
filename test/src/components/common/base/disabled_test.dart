@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/base/disabled.dart';
+import 'package:stratum_ui/src/components/common/ink_well.dart'
+    show ItemRootPassSemantics;
 import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
@@ -38,31 +40,34 @@ List<Type> _chain(WidgetTester tester) {
 
 void main() {
   group('StratumDisabled semantics', () {
-    testWidgets('us07/fr03, us07/s5: a disabled component that declares '
-        'semantics reads as disabled on one node', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        _host(
-          StratumDisabled(
-            disabled: true,
-            child: Semantics(button: true, label: 'Save', child: _box),
+    testWidgets(
+      'fo08/us07/fr03, fo08/us07/s5: a disabled component that declares '
+      'semantics reads as disabled on one node',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _host(
+            StratumDisabled(
+              disabled: true,
+              child: Semantics(button: true, label: 'Save', child: _box),
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumDisabled)),
-        isSemantics(
-          label: 'Save',
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: false,
-        ),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.byType(StratumDisabled)),
+          isSemantics(
+            label: 'Save',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+          ),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us07/fr03: a disabled component inside another disabled '
+    testWidgets('fo08/us07/fr03: a disabled component inside another disabled '
         'one reports one node each, unmerged', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -99,7 +104,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us07/fr03: a component node of its own sits inside the '
+    testWidgets('fo08/us07/fr03: a component node of its own sits inside the '
         'disabled node', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -126,27 +131,30 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us07/fr03/e01, us07/s6: a disabled component that declares '
-        'no semantics adds no node and no flag', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        _host(
-          const StratumDisabled(
-            disabled: true,
-            contributesSemantics: false,
-            child: _box,
+    testWidgets(
+      'fo08/us07/fr03/e01, fo08/us07/s6: a disabled component that declares '
+      'no semantics adds no node and no flag',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _host(
+            const StratumDisabled(
+              disabled: true,
+              contributesSemantics: false,
+              child: _box,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumDisabled)),
-        isSemantics(label: 'host', hasEnabledState: false),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.byType(StratumDisabled)),
+          isSemantics(label: 'host', hasEnabledState: false),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us07/fr03/e02: an enabled component gets no node and no '
+    testWidgets('fo08/us07/fr03/e02: an enabled component gets no node and no '
         'flag from the wrapper', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -174,28 +182,29 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us07/fr03/e03: with dims off it still reads as disabled', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        _host(
-          StratumDisabled(
-            disabled: true,
-            dims: false,
-            child: Semantics(button: true, label: 'Save', child: _box),
+    testWidgets(
+      'fo08/us07/fr03/e03: with dims off it still reads as disabled',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _host(
+            StratumDisabled(
+              disabled: true,
+              dims: false,
+              child: Semantics(button: true, label: 'Save', child: _box),
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumDisabled)),
-        isSemantics(label: 'Save', hasEnabledState: true, isEnabled: false),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.byType(StratumDisabled)),
+          isSemantics(label: 'Save', hasEnabledState: true, isEnabled: false),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us07/fr03/e04: the flag stays on the component, never on '
+    testWidgets('fo08/us07/fr03/e04: the flag stays on the component, never on '
         'the card around it', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -225,66 +234,72 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us07/fr03: a first mount with a layer between the wrapper '
-        "and the component's node is right after one pump", (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(_host(_box));
+    testWidgets(
+      'fo08/us07/fr03: a first mount with a layer between the wrapper '
+      "and the component's node is right after one pump",
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(_host(_box));
 
-      await tester.pumpWidget(
-        _host(
-          StratumDisabled(
-            disabled: true,
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Semantics(button: true, label: 'Save', child: _box),
+        await tester.pumpWidget(
+          _host(
+            StratumDisabled(
+              disabled: true,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Semantics(button: true, label: 'Save', child: _box),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        tester.getSemantics(find.byType(StratumDisabled)),
-        isSemantics(
-          label: 'Save',
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: false,
-        ),
-      );
-      handle.dispose();
-    });
+        expect(
+          tester.getSemantics(find.byType(StratumDisabled)),
+          isSemantics(
+            label: 'Save',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+          ),
+        );
+        handle.dispose();
+      },
+    );
 
-    testWidgets('us07/fr03, base s03 invariant 15: a semantics-only change '
-        'under a disabled component is right after one pump', (tester) async {
-      final handle = tester.ensureSemantics();
-      final label = ValueNotifier<String?>(null);
-      addTearDown(label.dispose);
-      await tester.pumpWidget(
-        _host(
-          StratumDisabled(
-            disabled: true,
-            child: ValueListenableBuilder<String?>(
-              valueListenable: label,
-              builder: (_, value, _) => Semantics(label: value, child: _box),
+    testWidgets(
+      'fo08/us07/fr03, base s03 invariant 15: a semantics-only change '
+      'under a disabled component is right after one pump',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final label = ValueNotifier<String?>(null);
+        addTearDown(label.dispose);
+        await tester.pumpWidget(
+          _host(
+            StratumDisabled(
+              disabled: true,
+              child: ValueListenableBuilder<String?>(
+                valueListenable: label,
+                builder: (_, value, _) => Semantics(label: value, child: _box),
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      for (final value in ['Save', null, 'Send']) {
-        label.value = value;
-        await tester.pump();
+        for (final value in ['Save', null, 'Send']) {
+          label.value = value;
+          await tester.pump();
 
-        final node = tester.getSemantics(find.byType(StratumDisabled));
-        expect(node, isSemantics(hasEnabledState: true, isEnabled: false));
-        expect(node.label, value ?? '');
-      }
-      handle.dispose();
-    });
+          final node = tester.getSemantics(find.byType(StratumDisabled));
+          expect(node, isSemantics(hasEnabledState: true, isEnabled: false));
+          expect(node.label, value ?? '');
+        }
+        handle.dispose();
+      },
+    );
   });
 
   group('StratumDisabled structure', () {
-    testWidgets('us07/fr01/e01, base s03 invariant 13: a toggle changes '
+    testWidgets('fo08/us07/fr01/e01, base s03 invariant 13: a toggle changes '
         'values only; the semantics layer, the elements, and the State '
         'stay', (tester) async {
       final handle = tester.ensureSemantics();
@@ -294,7 +309,7 @@ void main() {
       final element = tester.element(find.byType(_Kept));
       final state = tester.state(find.byType(_Kept));
       final chain = _chain(tester);
-      expect(chain, contains(Semantics));
+      expect(chain, contains(ItemRootPassSemantics));
 
       await tester.pumpWidget(build(disabled: true));
       expect(tester.element(find.byType(_Kept)), same(element));
@@ -339,19 +354,22 @@ void main() {
       expect(scopeAt(tester), isTrue);
     });
 
-    testWidgets('us07/fr02/e07: an enabled component inside a disabled one '
-        'passes the disabled scope on', (tester) async {
-      await tester.pumpWidget(
-        themedHost(
-          const StratumDisabled(
-            disabled: true,
-            child: StratumDisabled(disabled: false, child: _Kept()),
+    testWidgets(
+      'fo08/us07/fr02/e07: an enabled component inside a disabled one '
+      'passes the disabled scope on',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const StratumDisabled(
+              disabled: true,
+              child: StratumDisabled(disabled: false, child: _Kept()),
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(scopeAt(tester), isTrue);
-    });
+        expect(scopeAt(tester), isTrue);
+      },
+    );
   });
 
   group('StratumDisabled look and input', () {
@@ -382,16 +400,19 @@ void main() {
     MouseCursor? cursor(WidgetTester tester) =>
         tester.binding.mouseTracker.debugDeviceActiveCursor(1);
 
-    testWidgets('us07/fr01, us07/s1: a disabled component paints at the '
-        "default theme's 0.5", (tester) async {
-      await tester.pumpWidget(
-        themedHost(const StratumDisabled(disabled: true, child: _box)),
-      );
+    testWidgets(
+      'fo08/us07/fr01, fo08/us07/s1: a disabled component paints at the '
+      "default theme's 0.5",
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(const StratumDisabled(disabled: true, child: _box)),
+        );
 
-      expect(opacityOf(tester), 0.5);
-    });
+        expect(opacityOf(tester), 0.5);
+      },
+    );
 
-    testWidgets('us07/fr01/e02, us07/s8: a theme dimming of 0.3', (
+    testWidgets('fo08/us07/fr01/e02, fo08/us07/s8: a theme dimming of 0.3', (
       tester,
     ) async {
       final theme = fakeTheme.copyWith(
@@ -443,7 +464,7 @@ void main() {
       expect(opacityOf(tester), 1.0);
     });
 
-    testWidgets('us07/fr01/e01: every layer stays across a toggle', (
+    testWidgets('fo08/us07/fr01/e01: every layer stays across a toggle', (
       tester,
     ) async {
       Widget build({required bool disabled}) =>
@@ -459,7 +480,7 @@ void main() {
       expect(
         chain,
         containsAll(<Type>[
-          Semantics,
+          ItemRootPassSemantics,
           MouseRegion,
           IgnorePointer,
           ExcludeFocus,
@@ -506,26 +527,29 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('us07/fr02/e02, us07/s2: a mouse over a disabled component '
-        'shows the forbidden cursor and no hover look', (tester) async {
-      var entered = 0;
-      await tester.pumpWidget(
-        themedHost(
-          StratumDisabled(
-            disabled: true,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              onEnter: (_) => entered++,
-              child: _box,
+    testWidgets(
+      'fo08/us07/fr02/e02, fo08/us07/s2: a mouse over a disabled component '
+      'shows the forbidden cursor and no hover look',
+      (tester) async {
+        var entered = 0;
+        await tester.pumpWidget(
+          themedHost(
+            StratumDisabled(
+              disabled: true,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) => entered++,
+                child: _box,
+              ),
             ),
           ),
-        ),
-      );
-      await hover(tester);
+        );
+        await hover(tester);
 
-      expect(cursor(tester), SystemMouseCursors.forbidden);
-      expect(entered, 0);
-    });
+        expect(cursor(tester), SystemMouseCursors.forbidden);
+        expect(entered, 0);
+      },
+    );
 
     testWidgets('an enabled component keeps its own cursor and hover', (
       tester,
@@ -590,36 +614,39 @@ void main() {
     );
 
     for (final dims in [true, false]) {
-      testWidgets('us07/fr02/e01, us07/s11, us07/fr02/e05: a tap, a long '
-          'press, or a drag runs nothing (dims $dims)', (tester) async {
-        var calls = 0;
-        await tester.pumpWidget(
-          target(
-            disabled: true,
-            dims: dims,
-            onTap: () => calls++,
-            onLongPress: () => calls++,
-            onDrag: () => calls++,
-          ),
-        );
+      testWidgets(
+        'fo08/us07/fr02/e01, fo08/us07/s11, fo08/us07/fr02/e05: a tap, a long '
+        'press, or a drag runs nothing (dims $dims)',
+        (tester) async {
+          var calls = 0;
+          await tester.pumpWidget(
+            target(
+              disabled: true,
+              dims: dims,
+              onTap: () => calls++,
+              onLongPress: () => calls++,
+              onDrag: () => calls++,
+            ),
+          );
 
-        await tester.tap(find.byType(StratumDisabled), warnIfMissed: false);
-        await tester.longPress(
-          find.byType(StratumDisabled),
-          warnIfMissed: false,
-        );
-        await tester.drag(
-          find.byType(StratumDisabled),
-          const Offset(40, 0),
-          warnIfMissed: false,
-        );
-        await tester.pumpAndSettle();
+          await tester.tap(find.byType(StratumDisabled), warnIfMissed: false);
+          await tester.longPress(
+            find.byType(StratumDisabled),
+            warnIfMissed: false,
+          );
+          await tester.drag(
+            find.byType(StratumDisabled),
+            const Offset(40, 0),
+            warnIfMissed: false,
+          );
+          await tester.pumpAndSettle();
 
-        expect(calls, 0);
-      });
+          expect(calls, 0);
+        },
+      );
     }
 
-    testWidgets('us07/fr02/e07: a drag that a gesture detector of the app '
+    testWidgets('fo08/us07/fr02/e07: a drag that a gesture detector of the app '
         'already runs finishes after the flip; a new one is refused', (
       tester,
     ) async {
@@ -655,53 +682,56 @@ void main() {
       expect(log, isEmpty);
     });
 
-    testWidgets('us07/fr02/e07, us07/s12: a scroll that already took the '
-        'finger on a tap surface inside keeps going after the flip', (
+    testWidgets(
+      'fo08/us07/fr02/e07, fo08/us07/s12: a scroll that already took the '
+      'finger on a tap surface inside keeps going after the flip',
+      (tester) async {
+        var taps = 0;
+        final controller = ScrollController();
+        addTearDown(controller.dispose);
+        Widget build({required bool disabled}) => themedHost(
+          SizedBox(
+            width: 200,
+            height: 200,
+            child: ListView(
+              controller: controller,
+              children: [
+                StratumDisabled(
+                  disabled: disabled,
+                  child: StratumInkWell(
+                    onTap: () => taps++,
+                    child: const SizedBox(height: 100),
+                  ),
+                ),
+                const SizedBox(height: 1000),
+              ],
+            ),
+          ),
+        );
+        await tester.pumpWidget(build(disabled: false));
+        final drag = await tester.startGesture(
+          tester.getCenter(find.byType(StratumInkWell)),
+        );
+        await drag.moveBy(const Offset(0, -30));
+        await drag.moveBy(const Offset(0, -10));
+        await tester.pump();
+        final before = controller.offset;
+        expect(before, greaterThan(0));
+
+        await tester.pumpWidget(build(disabled: true));
+        await drag.moveBy(const Offset(0, -20));
+        await tester.pump();
+        expect(controller.offset, before + 20);
+
+        await drag.up();
+        await tester.pumpAndSettle();
+        expect(taps, 0);
+      },
+    );
+
+    testWidgets('fo08/us07/fr02/e06: enabled again, it takes taps', (
       tester,
     ) async {
-      var taps = 0;
-      final controller = ScrollController();
-      addTearDown(controller.dispose);
-      Widget build({required bool disabled}) => themedHost(
-        SizedBox(
-          width: 200,
-          height: 200,
-          child: ListView(
-            controller: controller,
-            children: [
-              StratumDisabled(
-                disabled: disabled,
-                child: StratumInkWell(
-                  onTap: () => taps++,
-                  child: const SizedBox(height: 100),
-                ),
-              ),
-              const SizedBox(height: 1000),
-            ],
-          ),
-        ),
-      );
-      await tester.pumpWidget(build(disabled: false));
-      final drag = await tester.startGesture(
-        tester.getCenter(find.byType(StratumInkWell)),
-      );
-      await drag.moveBy(const Offset(0, -30));
-      await drag.moveBy(const Offset(0, -10));
-      await tester.pump();
-      final before = controller.offset;
-      expect(before, greaterThan(0));
-
-      await tester.pumpWidget(build(disabled: true));
-      await drag.moveBy(const Offset(0, -20));
-      await tester.pump();
-      expect(controller.offset, before + 20);
-
-      await drag.up();
-      await tester.pumpAndSettle();
-      expect(taps, 0);
-    });
-
-    testWidgets('us07/fr02/e06: enabled again, it takes taps', (tester) async {
       var taps = 0;
       await tester.pumpWidget(
         target(
@@ -754,7 +784,7 @@ void main() {
     );
 
     for (final dims in [true, false]) {
-      testWidgets('us07/fr02/e03, us07/s3, us07/fr02/e05: Tab passes over a '
+      testWidgets('fo08/us07/fr02/e03, fo08/us07/s3, fo08/us07/fr02/e05: Tab passes over a '
           'disabled component (dims $dims)', (tester) async {
         final first = FocusNode(debugLabel: 'first');
         final inner = FocusNode(debugLabel: 'inner');
@@ -776,30 +806,33 @@ void main() {
       });
     }
 
-    testWidgets('us07/fr02/e04, us07/s4: a focused component that turns '
-        'disabled loses focus; us07/fr02/e06: enabled, it is a Tab stop '
-        'again', (tester) async {
-      final first = FocusNode(debugLabel: 'first');
-      final inner = FocusNode(debugLabel: 'inner');
-      final third = FocusNode(debugLabel: 'third');
-      addTearDown(first.dispose);
-      addTearDown(inner.dispose);
-      addTearDown(third.dispose);
-      await tester.pumpWidget(form(first, inner, third, disabled: false));
-      inner.requestFocus();
-      await tester.pump();
-      expect(inner.hasPrimaryFocus, isTrue);
+    testWidgets(
+      'fo08/us07/fr02/e04, fo08/us07/s4: a focused component that turns '
+      'disabled loses focus; fo08/us07/fr02/e06: enabled, it is a Tab stop '
+      'again',
+      (tester) async {
+        final first = FocusNode(debugLabel: 'first');
+        final inner = FocusNode(debugLabel: 'inner');
+        final third = FocusNode(debugLabel: 'third');
+        addTearDown(first.dispose);
+        addTearDown(inner.dispose);
+        addTearDown(third.dispose);
+        await tester.pumpWidget(form(first, inner, third, disabled: false));
+        inner.requestFocus();
+        await tester.pump();
+        expect(inner.hasPrimaryFocus, isTrue);
 
-      await tester.pumpWidget(form(first, inner, third, disabled: true));
-      await tester.pump();
-      expect(inner.hasFocus, isFalse);
+        await tester.pumpWidget(form(first, inner, third, disabled: true));
+        await tester.pump();
+        expect(inner.hasFocus, isFalse);
 
-      await tester.pumpWidget(form(first, inner, third, disabled: false));
-      first.requestFocus();
-      await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
-      expect(inner.hasPrimaryFocus, isTrue);
-    });
+        await tester.pumpWidget(form(first, inner, third, disabled: false));
+        first.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(inner.hasPrimaryFocus, isTrue);
+      },
+    );
   });
 }

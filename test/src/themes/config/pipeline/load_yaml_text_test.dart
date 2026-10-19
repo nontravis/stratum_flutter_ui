@@ -80,7 +80,7 @@ void main() {
     });
   });
 
-  group('fo01 us01/fr01/e07, rz1, g1: the size cap', () {
+  group('fo01/us01/fr01/e07, rz1, g1: the size cap', () {
     test('a text of exactly 1,048,576 code units passes', () {
       expect(
         () => checkYamlGate('a: ${'x' * (yamlTextMaxUnits - 3)}'),
@@ -108,7 +108,7 @@ void main() {
     });
   });
 
-  group('fo01 us01/fr01/e07, rz1, g2: nesting', () {
+  group('fo01/us01/fr01/e07, rz1, g2: nesting', () {
     for (final (label, build, at) in [
       (
         'flow sequences',
@@ -149,7 +149,7 @@ void main() {
     });
   });
 
-  group('fo01 us01/fr01/e07, rz1, rz6 (1), g3, g7: anchors, aliases, and '
+  group('fo01/us01/fr01/e07, rz1, rz6 (1), g3, g7: anchors, aliases, and '
       'tags', () {
     for (final (text, at) in [
       ('a: &x 1', (line: 1, column: 4)),
@@ -217,7 +217,7 @@ void main() {
     }
   });
 
-  group('fo01 us01/fr01/e07, rz7, g9: mapping keys that are collections', () {
+  group('fo01/us01/fr01/e07, rz7, g9: mapping keys that are collections', () {
     for (final (text, at) in [
       ('[a]: x', (line: 1, column: 1)),
       ('{a: 1}: x', (line: 1, column: 1)),
@@ -310,7 +310,7 @@ void main() {
     });
   });
 
-  group('fo01 us01/fr01/e07, g4: a byte-order mark past the first '
+  group('fo01/us01/fr01/e07, g4: a byte-order mark past the first '
       'character', () {
     test(r'"{\n﻿{a}}" is refused at the byte-order mark on its '
         'second line, which package:yaml would otherwise let start a '
@@ -346,7 +346,7 @@ void main() {
     });
   });
 
-  group('fo01 us01/fr01/e07, g4: texts a theme file uses load', () {
+  group('fo01/us01/fr01/e07, g4: texts a theme file uses load', () {
     test('review focus: a block scalar, a folded scalar, a two-line quoted '
         'string, and a two-line plain scalar, then 200 quoted aliases', () {
       final text = [
@@ -406,7 +406,7 @@ void main() {
     expect(prints, isEmpty);
   });
 
-  group('fo01 us01/fr01/e07, rz10, g10: the key caps', () {
+  group('fo01/us01/fr01/e07, rz10, g10: the key caps', () {
     test('256 keys in one block mapping pass, and the 257th is refused at '
         'its first character', () {
       expect(() => checkYamlGate(_blockKeys(256)), returnsNormally);
@@ -523,7 +523,7 @@ void main() {
     }, testOn: 'vm');
   });
 
-  group('fo01 us01/fr01/e07, rz5, g5: the walk after package:yaml', () {
+  group('fo01/us01/fr01/e07, rz5, g5: the walk after package:yaml', () {
     test('a node reached twice, which only an alias makes, is refused', () {
       expect(
         () => checkYamlTree(loadYamlNode('a: &x [1]\nb: *x')),

@@ -1,0 +1,5 @@
+WINDOW MANAGER WINDOWS (dumpsys window windows)
+  Window #0 Window{1a2b3c4 u0 dev.stratum.stratum_ui_example/dev.stratum.stratum_ui_example.MainActivity}:
+    mSession=Session{...} mClient=android.os.BinderProxy@1
+    mOwnerUid=10123 mShowToOwnerOnly=true package=dev.stratum.stratum_ui_example appop=NONE
+    mAttrs={vsysui=FULLSCREEN LAYOUT_STABLE LAYOUT_FULLSCREEN}

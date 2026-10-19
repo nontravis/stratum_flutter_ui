@@ -1,0 +1,2 @@
+platform=ios
+os=26.2

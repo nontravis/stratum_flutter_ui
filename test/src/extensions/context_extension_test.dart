@@ -104,37 +104,42 @@ void main() {
   }
 
   group('context.themeData', () {
-    testWidgets('us10/fr06: reads the data of the app mode', (tester) async {
+    testWidgets('fo03/us10/fr06: reads the data of the app mode', (
+      tester,
+    ) async {
       final data = await readAt(tester, (c) => c.themeData());
       expect(data, same(light));
     });
 
-    testWidgets('us10/fr06/e03: reads the data of a given mode', (
+    testWidgets('fo03/us10/fr06/e03: reads the data of a given mode', (
       tester,
     ) async {
       final data = await readAt(tester, (c) => c.themeData(ThemeMode.dark));
       expect(data, same(dark));
     });
 
-    testWidgets('us10/fr06/e01: throws a FlutterError naming the application '
-        'with no theme above', (tester) async {
-      await readAt(tester, (c) => c, themed: false).then((context) {
-        expect(
-          () => context.themeData(),
-          throwsA(
-            isA<FlutterError>().having(
-              (e) => e.message,
-              'message',
-              contains('StratumThemeApplication'),
+    testWidgets(
+      'fo03/us10/fr06/e01: throws a FlutterError naming the application '
+      'with no theme above',
+      (tester) async {
+        await readAt(tester, (c) => c, themed: false).then((context) {
+          expect(
+            () => context.themeData(),
+            throwsA(
+              isA<FlutterError>().having(
+                (e) => e.message,
+                'message',
+                contains('StratumThemeApplication'),
+              ),
             ),
-          ),
-        );
-      });
-    });
+          );
+        });
+      },
+    );
   });
 
   group('context.defaultWidgetSize', () {
-    testWidgets('us10/s6: reads the default widget size of the app mode', (
+    testWidgets('fo03/us10/s6: reads the default widget size of the app mode', (
       tester,
     ) async {
       expect(
@@ -143,42 +148,45 @@ void main() {
       );
     });
 
-    testWidgets('us10/fr06/e03: reads the dark data size for the dark mode', (
-      tester,
-    ) async {
-      expect(
-        await readAt(tester, (c) => c.defaultWidgetSize(ThemeMode.dark)),
-        WidgetSize.large,
-      );
-    });
+    testWidgets(
+      'fo03/us10/fr06/e03: reads the dark data size for the dark mode',
+      (tester) async {
+        expect(
+          await readAt(tester, (c) => c.defaultWidgetSize(ThemeMode.dark)),
+          WidgetSize.large,
+        );
+      },
+    );
   });
 
   group('context.windowSize', () {
-    testWidgets('us10/s7: reads tablet from the nearest window size scope', (
-      tester,
-    ) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(800, 1000);
-      addTearDown(tester.view.reset);
-      late WindowSize size;
-      await tester.pumpWidget(
-        WindowSizeScope(
-          child: Builder(
-            builder: (context) {
-              size = context.windowSize;
-              return const SizedBox();
-            },
+    testWidgets(
+      'fo03/us10/s7: reads tablet from the nearest window size scope',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(800, 1000);
+        addTearDown(tester.view.reset);
+        late WindowSize size;
+        await tester.pumpWidget(
+          WindowSizeScope(
+            child: Builder(
+              builder: (context) {
+                size = context.windowSize;
+                return const SizedBox();
+              },
+            ),
           ),
-        ),
-      );
-      expect(size, WindowSize.tablet);
-    });
+        );
+        expect(size, WindowSize.tablet);
+      },
+    );
 
-    testWidgets('us10/fr06/e02: throws the scope error with no scope above', (
-      tester,
-    ) async {
-      final context = await readAt(tester, (c) => c, themed: false);
-      expect(() => context.windowSize, throwsA(isA<FlutterError>()));
-    });
+    testWidgets(
+      'fo03/us10/fr06/e02: throws the scope error with no scope above',
+      (tester) async {
+        final context = await readAt(tester, (c) => c, themed: false);
+        expect(() => context.windowSize, throwsA(isA<FlutterError>()));
+      },
+    );
   });
 }

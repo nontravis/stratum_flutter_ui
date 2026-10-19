@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/split_pane.freezed.dart';
 
@@ -10,7 +11,7 @@ part 'generated/split_pane.freezed.dart';
 /// proportion to [flex], 1 when both are null; [min] and [max] bound it
 /// whatever opens it, a drag, a key, or a narrower window, while the
 /// window leaves room for every pane's minimum.
-@freezed
+@valueModel
 class SplitPane with _$SplitPane {
   const new({required this.child, this.size, this.flex, this.min, this.max})
     : assert(

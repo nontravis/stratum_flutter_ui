@@ -23,7 +23,7 @@ const _base = SystemStyleBaseRegion(
 
 void main() {
   group('pickLightIcons', () {
-    test('us14/fr02, NFR-U07: light icons on a dark fill, dark icons on a '
+    test('fo03/us14/fr02, NFR-U07: light icons on a dark fill, dark icons on a '
         'light fill', () {
       expect(pickLightIcons(const Color(0xFF101010)), isTrue);
       expect(pickLightIcons(_white), isFalse);
@@ -31,7 +31,7 @@ void main() {
       expect(pickLightIcons(const Color(0xFF1565C0)), isTrue);
     });
 
-    test('us14/fr02, NFR-U07: the pick holds the higher contrast, so at '
+    test('fo03/us14/fr02, NFR-U07: the pick holds the higher contrast, so at '
         'least 3:1 on every opaque gray', () {
       for (var level = 0; level <= 255; level++) {
         final fill = Color.fromARGB(255, level, level, level);
@@ -57,7 +57,7 @@ void main() {
       expect(resolveSystemBars(const [SystemBarFillRegion(_black)]), isNull);
     });
 
-    test('us14/fr02/e03: no fill takes the page background', () {
+    test('fo03/us14/fr02/e03: no fill takes the page background', () {
       final bars = resolveSystemBars(const [_base], navigation: const [_base])!;
 
       expect(bars.overlay.statusBarIconBrightness, Brightness.dark);
@@ -78,7 +78,7 @@ void main() {
       expect(bars.orientations, isNull);
     });
 
-    test('us14/fr02/e01: a dark opaque fill under the status bar gives '
+    test('fo03/us14/fr02/e01: a dark opaque fill under the status bar gives '
         'light icons', () {
       final bars = resolveSystemBars(const [
         SystemBarFillRegion(Color(0xFF101010)),
@@ -89,7 +89,7 @@ void main() {
       expect(bars.overlay.statusBarBrightness, Brightness.dark);
     });
 
-    test('us14/fr02/e02: a translucent scrim blends over the fill beneath '
+    test('fo03/us14/fr02/e02: a translucent scrim blends over the fill beneath '
         'it', () {
       const header = SystemBarFillRegion(_white);
       const scrim = SystemBarFillRegion(Color(0x99000000));
@@ -116,7 +116,7 @@ void main() {
       );
     });
 
-    test('us14/fr02/e04: an explicit value stands whatever the fills', () {
+    test('fo03/us14/fr02/e04: an explicit value stands whatever the fills', () {
       final bars = resolveSystemBars(const [
         SystemStyleLayerRegion(
           SystemStyle(statusBarIcons: SystemBarIcons.dark),
@@ -129,7 +129,7 @@ void main() {
       expect(bars.overlay.statusBarIconBrightness, Brightness.dark);
     });
 
-    test('us14/fr02/e05: an app bar style counts as one fill by its own '
+    test('fo03/us14/fr02/e05: an app bar style counts as one fill by its own '
         'icons', () {
       const darkBar = SystemUiOverlayStyle(
         statusBarColor: Color(0x00000000),
@@ -162,20 +162,25 @@ void main() {
       );
     });
 
-    test('us14/fr02/e05: an app bar style with an opaque color counts that '
-        'color', () {
-      const bar = SystemUiOverlayStyle(
-        statusBarColor: Color(0xFF0D47A1),
-        statusBarIconBrightness: Brightness.dark,
-      );
+    test(
+      'fo03/us14/fr02/e05: an app bar style with an opaque color counts that '
+      'color',
+      () {
+        const bar = SystemUiOverlayStyle(
+          statusBarColor: Color(0xFF0D47A1),
+          statusBarIconBrightness: Brightness.dark,
+        );
 
-      expect(
-        resolveSystemBars(const [bar, _base])!.overlay.statusBarIconBrightness,
-        Brightness.light,
-      );
-    });
+        expect(
+          resolveSystemBars(const [bar, _base])!
+              .overlay
+              .statusBarIconBrightness,
+          Brightness.light,
+        );
+      },
+    );
 
-    test('us14/fr01/e02: an inner layer sets the icons, the outer one the '
+    test('fo03/us14/fr01/e02: an inner layer sets the icons, the outer one the '
         'bar mode', () {
       const entries = <SystemStyleRegion>[
         SystemStyleLayerRegion(
@@ -195,7 +200,7 @@ void main() {
       expect(bars.barMode, SystemBarMode.immersive);
     });
 
-    test('us14/fr01: the topmost base wins over an outer one, its page '
+    test('fo03/us14/fr01: the topmost base wins over an outer one, its page '
         'background included', () {
       const inner = SystemStyleBaseRegion(
         style: SystemStyle(
@@ -214,7 +219,7 @@ void main() {
       expect(bars.appSwitcherLabel, 'Inner');
     });
 
-    test('us14/fr01, us14/fr02: a fill beneath the topmost base is hidden '
+    test('fo03/us14/fr01, fo03/us14/fr02: a fill beneath the topmost base is hidden '
         'by its page background', () {
       const innerBase = SystemStyleBaseRegion(
         style: SystemStyle(statusBarIcons: SystemBarIcons.auto),
@@ -234,25 +239,28 @@ void main() {
       expect(bars.overlay.statusBarIconBrightness, Brightness.dark);
     });
 
-    test('us14/fr01, us14/fr02/e04: every base merges under every scope '
-        "layer, so a nested base above the page keeps the page's icons", () {
-      const nestedBase = SystemStyleBaseRegion(
-        style: SystemStyle(statusBarIcons: SystemBarIcons.auto),
-        background: _white,
-      );
+    test(
+      'fo03/us14/fr01, fo03/us14/fr02/e04: every base merges under every scope '
+      "layer, so a nested base above the page keeps the page's icons",
+      () {
+        const nestedBase = SystemStyleBaseRegion(
+          style: SystemStyle(statusBarIcons: SystemBarIcons.auto),
+          background: _white,
+        );
 
-      final bars = resolveSystemBars(const [
-        nestedBase,
-        SystemStyleLayerRegion(
-          SystemStyle(statusBarIcons: SystemBarIcons.light),
-        ),
-        _base,
-      ])!;
+        final bars = resolveSystemBars(const [
+          nestedBase,
+          SystemStyleLayerRegion(
+            SystemStyle(statusBarIcons: SystemBarIcons.light),
+          ),
+          _base,
+        ])!;
 
-      expect(bars.overlay.statusBarIconBrightness, Brightness.light);
-    });
+        expect(bars.overlay.statusBarIconBrightness, Brightness.light);
+      },
+    );
 
-    test('us14/fr02/e06: with no navigation point the navigation fields '
+    test('fo03/us14/fr02/e06: with no navigation point the navigation fields '
         'stay unset', () {
       final bars = resolveSystemBars(const [_base])!;
       final overlay = bars.overlay;
@@ -265,7 +273,7 @@ void main() {
       expect(bars.navigationBarDividerColor, isNull);
     });
 
-    test('us14/fr02: the navigation bar reads its own point', () {
+    test('fo03/us14/fr02: the navigation bar reads its own point', () {
       final bars = resolveSystemBars(
         const [_base],
         navigation: const [SystemBarFillRegion(Color(0xFF202020)), _base],
@@ -276,34 +284,37 @@ void main() {
       expect(bars.overlay.systemNavigationBarColor, const Color(0x00000000));
     });
 
-    test('us14/fr03: behavior merges top first over the app-wide style', () {
-      const appWide = SystemStyleBaseRegion(
-        style: SystemStyle(
-          appSwitcherColor: _white,
-          barMode: SystemBarMode.edgeToEdge,
-          orientations: [DeviceOrientation.portraitUp],
-          appSwitcherLabel: 'App',
-        ),
-        background: _white,
-      );
-      const entries = <SystemStyleRegion>[
-        SystemStyleLayerRegion(SystemStyle(appSwitcherLabel: 'Dialog')),
-        SystemStyleLayerRegion(
-          SystemStyle(
-            barMode: SystemBarMode.immersiveSticky,
-            orientations: [DeviceOrientation.landscapeLeft],
+    test(
+      'fo03/us14/fr03: behavior merges top first over the app-wide style',
+      () {
+        const appWide = SystemStyleBaseRegion(
+          style: SystemStyle(
+            appSwitcherColor: _white,
+            barMode: SystemBarMode.edgeToEdge,
+            orientations: [DeviceOrientation.portraitUp],
+            appSwitcherLabel: 'App',
           ),
-        ),
-        appWide,
-      ];
-      final bars = resolveSystemBars(entries, painted: entries)!;
+          background: _white,
+        );
+        const entries = <SystemStyleRegion>[
+          SystemStyleLayerRegion(SystemStyle(appSwitcherLabel: 'Dialog')),
+          SystemStyleLayerRegion(
+            SystemStyle(
+              barMode: SystemBarMode.immersiveSticky,
+              orientations: [DeviceOrientation.landscapeLeft],
+            ),
+          ),
+          appWide,
+        ];
+        final bars = resolveSystemBars(entries, painted: entries)!;
 
-      expect(bars.barMode, SystemBarMode.immersiveSticky);
-      expect(bars.orientations, [DeviceOrientation.landscapeLeft]);
-      expect(bars.appSwitcherLabel, 'Dialog');
-    });
+        expect(bars.barMode, SystemBarMode.immersiveSticky);
+        expect(bars.orientations, [DeviceOrientation.landscapeLeft]);
+        expect(bars.appSwitcherLabel, 'Dialog');
+      },
+    );
 
-    test('us14/fr03, us14/fr04: the behavior comes from every region '
+    test('fo03/us14/fr03, fo03/us14/fr04: the behavior comes from every region '
         "painted, not from the bar's point", () {
       const appWide = SystemStyleBaseRegion(
         style: SystemStyle(appSwitcherColor: _white, appSwitcherLabel: 'App'),
@@ -331,7 +342,7 @@ void main() {
     });
   });
 
-  group('us14/fr01/e06: the bar colors the root paints', () {
+  group('fo03/us14/fr01/e06: the bar colors the root paints', () {
     const painted = SystemStyleBaseRegion(
       style: SystemStyle(
         statusBarIcons: SystemBarIcons.auto,
@@ -346,27 +357,30 @@ void main() {
       background: _white,
     );
 
-    test('us14/fr01/e06: the platform gets transparent bar colors, and the '
-        'merged ones are left to paint', () {
-      final bars = resolveSystemBars(
-        const [painted],
-        navigation: const [painted],
-      )!;
+    test(
+      'fo03/us14/fr01/e06: the platform gets transparent bar colors, and the '
+      'merged ones are left to paint',
+      () {
+        final bars = resolveSystemBars(
+          const [painted],
+          navigation: const [painted],
+        )!;
 
-      expect(bars.overlay.statusBarColor, const Color(0x00000000));
-      expect(bars.overlay.systemNavigationBarColor, const Color(0x00000000));
-      expect(
-        bars.overlay.systemNavigationBarDividerColor,
-        const Color(0x00000000),
-      );
-      expect(bars.overlay.systemStatusBarContrastEnforced, isTrue);
-      expect(bars.overlay.systemNavigationBarContrastEnforced, isFalse);
-      expect(bars.statusBarColor, const Color(0xFF101828));
-      expect(bars.navigationBarColor, _white);
-      expect(bars.navigationBarDividerColor, const Color(0xFFFF0000));
-    });
+        expect(bars.overlay.statusBarColor, const Color(0x00000000));
+        expect(bars.overlay.systemNavigationBarColor, const Color(0x00000000));
+        expect(
+          bars.overlay.systemNavigationBarDividerColor,
+          const Color(0x00000000),
+        );
+        expect(bars.overlay.systemStatusBarContrastEnforced, isTrue);
+        expect(bars.overlay.systemNavigationBarContrastEnforced, isFalse);
+        expect(bars.statusBarColor, const Color(0xFF101828));
+        expect(bars.navigationBarColor, _white);
+        expect(bars.navigationBarDividerColor, const Color(0xFFFF0000));
+      },
+    );
 
-    test('us14/fr02/e07: an opaque bar color is the topmost fill at its '
+    test('fo03/us14/fr02/e07: an opaque bar color is the topmost fill at its '
         'point', () {
       final bars = resolveSystemBars(
         const [SystemBarFillRegion(_white), painted],
@@ -377,7 +391,7 @@ void main() {
       expect(bars.overlay.systemNavigationBarIconBrightness, Brightness.dark);
     });
 
-    test('us14/fr02/e07: a page bar color blends over the fills beneath '
+    test('fo03/us14/fr02/e07: a page bar color blends over the fills beneath '
         'it', () {
       Brightness? icons(Color color) => resolveSystemBars([
         SystemStyleLayerRegion(SystemStyle(statusBarColor: color)),
@@ -413,5 +427,32 @@ void main() {
       const SystemBarFillRegion(_black),
       isNot(const SystemUiOverlayStyle()),
     );
+  });
+
+  group('5.1: SystemBars as a freezed value', () {
+    // Built at run time from a parameter, so the checks read `==`.
+    SystemBars bars(Color status) => SystemBars(
+      overlay: const SystemUiOverlayStyle(),
+      barMode: null,
+      orientations: [DeviceOrientation.portraitUp],
+      appSwitcherLabel: null,
+      appSwitcherColor: null,
+      statusBarColor: status,
+      navigationBarColor: null,
+      navigationBarDividerColor: null,
+    );
+
+    test('5.1: compares by value, orientations by content', () {
+      expect(bars(_white), bars(_white));
+      expect(bars(_white).hashCode, bars(_white).hashCode);
+      expect(bars(_white), isNot(bars(_black)));
+    });
+
+    test('5.1: copyWith changes one field and keeps the rest', () {
+      final copy = bars(_white).copyWith(statusBarColor: _black);
+
+      expect(copy.statusBarColor, _black);
+      expect(copy.orientations, [DeviceOrientation.portraitUp]);
+    });
   });
 }

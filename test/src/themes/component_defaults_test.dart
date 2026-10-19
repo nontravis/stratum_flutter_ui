@@ -4,7 +4,9 @@ import 'package:stratum_ui/src/src.dart';
 import '../components/common/fakes/fake_stratum_theme.dart';
 
 class _Probe extends StratumStatelessWidget {
-  const new({super.customStyle});
+  const new({this.customStyle});
+
+  final WidgetStyle? customStyle;
 
   @override
   Widget build(BuildContext context) => const SizedBox();
@@ -38,13 +40,13 @@ const _own = WidgetStyle(
 /// Resolves [probe] against [_own] in a build under [wrap], when given.
 Future<WidgetStyle> _resolve(
   WidgetTester tester,
-  StratumWidgetProps probe, {
+  _Probe probe, {
   Widget Function(Widget child)? wrap,
 }) async {
   late WidgetStyle style;
   final reader = Builder(
     builder: (context) {
-      style = probe.resolveStyle(context, _own);
+      style = probe.resolveStyle(context, _own, probe.customStyle);
       return const SizedBox();
     },
   );
@@ -203,7 +205,7 @@ void main() {
     });
   });
 
-  group('us06/fr01: parts', () {
+  group('fo03/us06/fr01: parts', () {
     const headerStyle = WidgetStyle(opacity: 0.9);
     const bodyStyle = WidgetStyle(opacity: 0.8);
     const partsValue = (header: headerStyle, body: bodyStyle);
