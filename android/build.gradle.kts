@@ -39,10 +39,20 @@ android {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
         }
+        getByName("test") {
+            java.srcDirs("src/test/kotlin")
+        }
     }
 
     defaultConfig {
         minSdk = 24
+    }
+
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+            all { it.useJUnitPlatform() }
+        }
     }
 }
 
@@ -56,4 +66,8 @@ dependencies {
     // 1.16.0 adds JavaScriptReplyProxy.executeJavaScript; Gradle resolves
     // webview_flutter_android 4.14.1's 1.15.0 up to it.
     implementation("androidx.webkit:webkit:1.16.0")
+    testImplementation("org.jetbrains.kotlin:kotlin-test")
+    // Mockito 5's inline mock maker mocks the static WebViewCompat,
+    // WebViewFeature, and WebViewFlutterAndroidExternalApi calls.
+    testImplementation("org.mockito:mockito-core:5.0.0")
 }

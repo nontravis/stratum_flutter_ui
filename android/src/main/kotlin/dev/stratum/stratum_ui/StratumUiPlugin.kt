@@ -11,6 +11,7 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
+import java.lang.ref.WeakReference
 
 /**
  * The Android half of the native sender channel of `StratumWebView`.
@@ -25,6 +26,9 @@ import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
  * A main-frame message also carries the id of its sender's
  * [JavaScriptReplyProxy], and `runThroughReplyProxy` runs a script through
  * that proxy, which the platform runs only in the document that sent it.
+ *
+ * Engine detach removes the `StratumBridge` listener from every WebView still
+ * attached.
  */
 class StratumUiPlugin :
     FlutterPlugin,
@@ -40,6 +44,13 @@ class StratumUiPlugin :
     private val replyProxies = mutableMapOf<Long, ReplyProxy>()
     private var nextReplyProxyId = 0L
 
+    /**
+     * The WebView of each `webViewId` that `attach` installed the listener
+     * on. Weak so a view the app destroyed without a `detach` call does not
+     * live on here.
+     */
+    private val attached = mutableMapOf<Long, WeakReference<WebView>>()
+
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         this.binding = binding
         channel =
@@ -49,6 +60,8 @@ class StratumUiPlugin :
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        attached.values.mapNotNull { it.get() }.forEach(::detach)
+        attached.clear()
         channel?.setMethodCallHandler(null)
         channel = null
         this.binding = null
@@ -70,12 +83,14 @@ class StratumUiPlugin :
                 if (webView == null) {
                     result.error("no-web-view", "No WebView has id $id.", null)
                 } else {
-                    result.success(attach(webView, id))
+                    val didAttach = attach(webView, id)
+                    if (didAttach) attached[id] = WeakReference(webView)
+                    result.success(didAttach)
                 }
             }
             "detach" -> {
                 // A WebView that is already gone has nothing to detach.
-                webView(id)?.let(::detach)
+                (attached.remove(id)?.get() ?: webView(id))?.let(::detach)
                 replyProxies.remove(id)
                 result.success(null)
             }
