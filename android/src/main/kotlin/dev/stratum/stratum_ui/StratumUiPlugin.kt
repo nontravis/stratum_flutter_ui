@@ -89,7 +89,9 @@ class StratumUiPlugin :
                 }
             }
             "detach" -> {
-                // A WebView that is already gone has nothing to detach.
+                // Prefer the tracked weak reference over a fresh lookup; a
+                // WebView that is already gone, either way, has nothing to
+                // detach.
                 (attached.remove(id)?.get() ?: webView(id))?.let(::detach)
                 replyProxies.remove(id)
                 result.success(null)
