@@ -18,7 +18,7 @@ import WebKit
 public final class StratumUiPlugin: NSObject, FlutterPlugin {
   private static let channelName = "stratum_ui/web_view_bridge"
   private static let bridgeName = "StratumBridge"
-  private static let aliasSource =
+  static let aliasSource =
     "window.StratumBridge = webkit.messageHandlers.StratumBridge;"
 
   private let channel: FlutterMethodChannel
@@ -77,13 +77,17 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
     controller.removeScriptMessageHandler(forName: Self.bridgeName)
     let handler = BridgeMessageHandler(id: id, channel: channel)
     controller.add(handler, name: Self.bridgeName)
-    // The alias outlives detach, so a second attach adds no duplicate.
-    if !controller.userScripts.contains(where: { $0.source == Self.aliasSource }) {
-      controller.addUserScript(
-        WKUserScript(
-          source: Self.aliasSource, injectionTime: .atDocumentStart, forMainFrameOnly: false))
-    }
+    Self.installAlias(on: controller)
     handlers[id] = handler
+  }
+
+  /// Adds the document-start alias `window.StratumBridge` for every frame to
+  /// `controller`, once: the alias outlives detach, so a second attach adds
+  /// no duplicate.
+  static func installAlias(on controller: WKUserContentController) {
+    guard !controller.userScripts.contains(where: { $0.source == aliasSource }) else { return }
+    controller.addUserScript(
+      WKUserScript(source: aliasSource, injectionTime: .atDocumentStart, forMainFrameOnly: false))
   }
 
   /// Finds the `WKWebView` that `webview_flutter_wkwebview` created for
@@ -121,7 +125,7 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
   /// object and takes an `Int64` and an object after `self` and `_cmd`. A
   /// plugin release that changes the signature then fails closed as a
   /// missing web view instead of calling through a mismatched pointer.
-  private static func matchesLookup(_ method: Method) -> Bool {
+  static func matchesLookup(_ method: Method) -> Bool {
     func encoding(_ copy: UnsafeMutablePointer<CChar>?) -> String? {
       guard let copy else { return nil }
       defer { free(copy) }
@@ -149,7 +153,7 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
 }
 
 /// Forwards each string `StratumBridge` message of one web view.
-private final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
+final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
   private let id: Int64
   private weak var channel: FlutterMethodChannel?
 
@@ -173,14 +177,16 @@ private final class BridgeMessageHandler: NSObject, WKScriptMessageHandler {
       ])
   }
 
+  private static func origin(of origin: WKSecurityOrigin) -> String? {
+    Self.origin(scheme: origin.protocol, host: origin.host, port: origin.port)
+  }
+
   /// The serialized origin, as `location.origin` reads it, or `nil` for an
   /// opaque origin, which has no host. An IPv6 host gets its brackets only
-  /// when WebKit reports it without them.
-  private static func origin(of origin: WKSecurityOrigin) -> String? {
-    guard !origin.host.isEmpty else { return nil }
-    let host =
-      origin.host.contains(":") && !origin.host.hasPrefix("[") ? "[\(origin.host)]" : origin.host
-    return origin.port == 0
-      ? "\(origin.protocol)://\(host)" : "\(origin.protocol)://\(host):\(origin.port)"
+  /// when it arrives without them.
+  static func origin(scheme: String, host: String, port: Int) -> String? {
+    guard !host.isEmpty else { return nil }
+    let bracketed = host.contains(":") && !host.hasPrefix("[") ? "[\(host)]" : host
+    return port == 0 ? "\(scheme)://\(bracketed)" : "\(scheme)://\(bracketed):\(port)"
   }
 }
