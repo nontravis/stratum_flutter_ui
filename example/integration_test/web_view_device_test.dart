@@ -489,12 +489,13 @@ void main() {
     );
 
     testWidgets('f01/us08/s14: a reload keeps the app HTML document connected on Android; '
-        'on iOS and macOS the reloaded page is empty and the bridge stays '
-        'closed', (tester) async {
+        'on iOS, macOS, and Linux the reloaded page is empty and the bridge '
+        'stays closed', (tester) async {
       // CO-01-02 US-03 FR-04 E04 of the package docs: Android parses the
       // same HTML string again, so the reloaded document carries the same
-      // nonce; WebKit reloads an empty page, which carries none, so it
-      // never says ready and a send throws.
+      // nonce; WebKit on iOS and macOS, and WebKitGTK on Linux, reload an
+      // empty page, which carries none, so it never says ready and a send
+      // throws.
       final controller = StratumWebViewController();
       final recorder = await _show(
         tester,
@@ -722,13 +723,14 @@ bool _isWebKit() =>
         defaultTargetPlatform == TargetPlatform.linux);
 
 /// Whether a `reload` of the app's HTML keeps the document on this engine
-/// (US-08 scenario 14): Android, Windows, and Linux parse the same HTML
-/// string again; WebKit on iOS and macOS reloads an empty page.
+/// (US-08 scenario 14): Android and Windows parse the same HTML string
+/// again; WebKit on iOS and macOS and WebKitGTK on Linux reload an empty
+/// `about:blank` document that runs no bootstrap, so the bridge stays
+/// closed.
 bool _reloadKeepsHtml() =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux);
+        defaultTargetPlatform == TargetPlatform.windows);
 
 /// Asserts the either-outcome contract of one WebKit history move (US-08
 /// scenario 11): WebKit either restores [entry] from its back-forward

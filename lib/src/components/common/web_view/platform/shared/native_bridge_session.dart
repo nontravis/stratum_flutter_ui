@@ -211,8 +211,10 @@ final class NativeBridgeSession {
 
   /// Call right before the adapter reloads the current page.
   ///
-  /// The platform parses the same HTML string again, so the nonce stays;
-  /// the old document's `bye` and the new document's `hello` move the proof.
+  /// Android and Windows parse the same HTML string again, so the nonce
+  /// stays; the old document's `bye` and the new document's `hello` move
+  /// the proof. iOS, macOS, and Linux reload an empty page instead, so the
+  /// bridge stays closed until the next `loadHtml`.
   void willReload() => _beginNavigation();
 
   /// Call right before the adapter is disposed; every candidate is
