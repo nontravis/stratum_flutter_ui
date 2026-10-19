@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/adapters/native_sender_channel.dart';
@@ -90,6 +92,75 @@ void main() {
       'isMainFrame': true,
     });
     expect(received, isEmpty);
+  });
+
+  test('us03/fr01/e11: an overlapped attach reports success only for the '
+      'listener still installed when it resolves', () async {
+    final receivedOlder = <String>[];
+    final receivedNewer = <String>[];
+    final olderReply = Completer<bool>();
+    var attachCalls = 0;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method != 'attach') return null;
+      attachCalls += 1;
+      // The older call's platform round trip settles last.
+      return attachCalls == 1 ? olderReply.future : true;
+    });
+    final older = senders.attach(
+      controller,
+      (data, _) => receivedOlder.add(data),
+    );
+    final newer = senders.attach(
+      controller,
+      (data, _) => receivedNewer.add(data),
+    );
+    expect(await newer, isTrue);
+    olderReply.complete(true);
+    expect(await older, isFalse);
+    await platformSends({
+      'webViewId': 7,
+      'data': 'x',
+      'origin': null,
+      'isMainFrame': true,
+    });
+    expect(receivedOlder, isEmpty);
+    expect(receivedNewer, ['x']);
+  });
+
+  test("us03/fr01/e11: an older call's late failure leaves a newer call's "
+      'already-succeeded listener in place', () async {
+    final receivedOlder = <String>[];
+    final receivedNewer = <String>[];
+    final olderReply = Completer<bool>();
+    var attachCalls = 0;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method != 'attach') return null;
+      attachCalls += 1;
+      // The newer call's platform round trip settles first, with success;
+      // the older call's late answer is a failure.
+      return attachCalls == 1 ? olderReply.future : true;
+    });
+    final older = senders.attach(
+      controller,
+      (data, _) => receivedOlder.add(data),
+    );
+    final newer = senders.attach(
+      controller,
+      (data, _) => receivedNewer.add(data),
+    );
+    expect(await newer, isTrue);
+    olderReply.complete(false);
+    expect(await older, isFalse);
+    await platformSends({
+      'webViewId': 7,
+      'data': 'x',
+      'origin': null,
+      'isMainFrame': true,
+    });
+    expect(receivedOlder, isEmpty);
+    expect(receivedNewer, ['x']);
   });
 
   test('Q6: a message during a pending attach reaches the listener', () async {
