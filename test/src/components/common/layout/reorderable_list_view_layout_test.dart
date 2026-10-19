@@ -2817,6 +2817,66 @@ void main() {
       },
     );
 
+    // How the extent is fixed.
+    final shrinkWrapExtents = ValueVariant<String>({
+      'itemExtent',
+      'itemExtentBuilder',
+      'prototypeItem',
+    });
+    testWidgets(
+      'fo06/us11/fr04/e11: a shrink-wrapped list with a fixed item extent in '
+      'an unbounded scroll view lays out through a move, an insert, and a '
+      'remove',
+      (tester) async {
+        final shape = shrinkWrapExtents.currentValue!;
+        await tester.pumpWidget(
+          _app(
+            SingleChildScrollView(
+              child: _Harness(
+                count: 6,
+                shrinkWrap: true,
+                itemsController: ReorderableItemsController(),
+                itemExtent: shape == 'itemExtent' ? 40 : null,
+                itemExtentBuilder: shape == 'itemExtentBuilder'
+                    ? (index, dimensions) => 40
+                    : null,
+                prototypeItem: shape == 'prototypeItem'
+                    ? const SizedBox(height: 40)
+                    : null,
+              ),
+            ),
+            theme: _normalTheme(const Duration(milliseconds: 250)),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        final top = tester.getTopLeft(find.byKey(const ValueKey(0))).dy;
+        expect(tester.getTopLeft(find.byKey(const ValueKey(5))).dy - top, 200);
+
+        // The leaving item takes a slot of the plan while it leaves; under
+        // a fixed extent the move's old slot closes at once.
+        _harness(tester)
+          ..move(0, 3)
+          ..insert(1, 9)
+          ..remove(5);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(tester.takeException(), isNull);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        final ids = _harness(tester).ids;
+        expect(ids, [1, 9, 2, 3, 0, 5]);
+        for (var index = 0; index < ids.length; index += 1) {
+          expect(
+            tester.getTopLeft(find.byKey(ValueKey(ids[index]))).dy - top,
+            index * 40,
+          );
+        }
+      },
+      variant: shrinkWrapExtents,
+    );
+
     final fixedBy = ValueVariant<String>({
       'itemExtentBuilder',
       'prototypeItem',

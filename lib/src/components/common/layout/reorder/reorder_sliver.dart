@@ -726,8 +726,8 @@ class _ReorderSliverState extends SliverReorderableListState {
 
   /// The extent the plan gives [slot] under a fixed extent of
   /// [itemExtent], [itemExtentBuilder], or the measured prototype: none for
-  /// a leaving item, which fades over the item that takes its place (E11);
-  /// null past the last slot.
+  /// a leaving item, which fades over the item that takes its place (E11),
+  /// and none past the last slot.
   double? _slotExtent(
     int slot,
     SliverLayoutDimensions dimensions, {
@@ -735,7 +735,18 @@ class _ReorderSliverState extends SliverReorderableListState {
     required ItemExtentBuilder? itemExtentBuilder,
   }) {
     final plan = _body._plan;
-    if (slot < 0 || slot >= plan.childCount) return null;
+    if (slot < 0) return null;
+    // WORKAROUND: RenderSliverFixedExtentBoxAdaptor null-checks the
+    // builder's answer for the slot past the last child
+    // (sliver_fixed_extent_list.dart:268@3.47.7), which its performLayout
+    // asks before it learns no child is there whenever its target last
+    // index is null, as in a shrink-wrapped list in an unbounded viewport
+    // (:353, :417@3.47.7), though ItemExtentBuilder documents null past the
+    // end (sliver.dart:33@3.47.7); every other read of the builder stops at
+    // the child count first (:84, :230, :250@3.47.7); remove when the SDK's
+    // fixed-extent layout stops null-checking an out-of-range
+    // itemExtentBuilder answer.
+    if (slot >= plan.childCount) return 0;
     final (:data, :exit) = plan.at(slot);
     if (exit != null || data == null) return 0;
     return itemExtent ??
