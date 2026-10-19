@@ -294,8 +294,10 @@ void main() {
         'start, finish with no error on iOS, macOS, and Linux', (tester) async {
       // CO-01-02 US-01 FR-02 E08: Android replays the 404 from its HTTP
       // cache without a request; WebKit either restores the entry from
-      // its back-forward cache, leaving the load's own error the last
-      // one, or requests the page again (US-08 scenario 11).
+      // its back-forward cache with no request — no error, or, on Linux,
+      // that restored entry's kept 404 reported once — or requests the
+      // page again, leaving the load's own error the last one (US-08
+      // scenario 11).
       final controller = StratumWebViewController();
       final first = server.page('/ok');
       final missing = server.page('/missing', query: 'case=forward');
@@ -729,11 +731,12 @@ bool _reloadKeepsHtml() =>
         defaultTargetPlatform == TargetPlatform.linux);
 
 /// Asserts the either-outcome contract of one WebKit history move (US-08
-/// scenario 11): WebKit restores [entry] from its back-forward cache with
-/// no request. A restored entry that still answers 200 shows start,
-/// finish, and no new error; a restored entry that answered 404 reports
-/// that kept 404 once, the Android order, with exactly one new `http`
-/// error naming [entry], counted since [mark].
+/// scenario 11): WebKit either restores [entry] from its back-forward
+/// cache with no request — start, finish, and no new error, or, when the
+/// restored entry itself answered 404 (Linux), that kept 404 reported
+/// once — or requests [entry] again, and then the Android order holds
+/// with exactly one new `http` error naming [entry], counted since
+/// [mark].
 void _expectWebKitHistoryMove(_Recorder recorder, int mark, Uri entry) {
   final kinds = recorder.kindsSince(mark);
   final errors = recorder.errorsSince(mark);
