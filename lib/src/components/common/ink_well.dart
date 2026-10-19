@@ -950,6 +950,10 @@ class _RenderItemRoot extends RenderProxyBox {
     if (_active == value) return;
     _active = value;
     markNeedsSemanticsUpdate();
+    // Runs in build, outside the flush, so a leaving item's node drops the
+    // root's actions in its first exit frame (E05), before the item node's
+    // own walk could see the inactive marker.
+    if (!value) _surface?._unlink();
   }
 
   /// The pass nodes this marker last flagged, top first; `const []`
@@ -960,21 +964,15 @@ class _RenderItemRoot extends RenderProxyBox {
   /// registers one.
   _RenderSurfaceSemantics? _surface;
 
-  /// The item node this marker last linked [_surface] with; null while
-  /// none is linked.
-  _RenderItemNode? _node;
-
   /// Flags [surface] `join` and every node in [passes] `hidden` when
   /// [surface] is given and sets the enabled tristate
   /// ([_RenderSurfaceSemantics.setsEnabledTristate]), or `join` otherwise,
   /// so a surface with no activation callback never hides the disabled
   /// state a pass node above it describes (I1); flags every previously
   /// registered pass node or surface that [passes] or [surface] drops
-  /// back to `none`, registers both, links [surface] with the item node
-  /// above ([_link]), and returns every attached touched node whose last
-  /// description no longer matches, and every attached item node whose
-  /// linked surface changed.
-  Set<RenderObject> _flag({
+  /// back to `none`, registers both, and returns every attached touched
+  /// node whose last description no longer matches.
+  Set<_ItemRootFlag> _flag({
     _RenderSurfaceSemantics? surface,
     required List<_RenderPassSemantics> passes,
   }) {
@@ -992,7 +990,6 @@ class _RenderItemRoot extends RenderProxyBox {
     final droppedSurface = _surface != surface ? _surface : null;
     droppedSurface?.role = _ItemRootRole.none;
     surface?.role = _ItemRootRole.join;
-    final relinked = _link(surface);
     _passes = passes;
     _surface = surface;
     return {
@@ -1003,56 +1000,7 @@ class _RenderItemRoot extends RenderProxyBox {
         ?surface,
       ])
         if (node.attached && node.describedStale) node,
-      for (final node in relinked)
-        if (node.attached) node,
     };
-  }
-
-  /// Links [surface] with [_nodeAbove], so that item node describes
-  /// [surface]'s custom actions beside the item's moves and [surface]
-  /// describes none (D6(a)), after unlinking the pair this marker linked
-  /// last; leaves either side of that pair alone once another marker or a
-  /// detach has relinked it (M1). Returns every item node whose linked
-  /// surface changed. Reads [_surface] before `_flag` replaces it.
-  Set<_RenderItemNode> _link(_RenderSurfaceSemantics? surface) {
-    final node = surface == null ? null : _nodeAbove();
-    final previous = _surface;
-    final relinked = <_RenderItemNode>{};
-    if (previous != null &&
-        (!identical(previous, surface) || !identical(_node, node))) {
-      final previousNode = _node;
-      if (previousNode != null && identical(previousNode.joined, previous)) {
-        previousNode.joined = null;
-        relinked.add(previousNode);
-      }
-      if (identical(previous.carrier, previousNode)) previous.carrier = null;
-    }
-    if (surface != null) {
-      if (node != null && !identical(node.joined, surface)) {
-        node.joined = surface;
-        relinked.add(node);
-      }
-      surface.carrier = node;
-    }
-    _node = node;
-    return relinked;
-  }
-
-  /// The item node a root surface below this marker merges into: the
-  /// nearest [_RenderItemNode] above it, or null when any object between
-  /// them [_opensNode], is another marker, or is a flagged object, since
-  /// the surface then merges elsewhere and keeps its own custom actions.
-  /// Reads parents only, so it is safe at attach.
-  _RenderItemNode? _nodeAbove() {
-    for (var node = parent; node != null; node = node.parent) {
-      if (node is _RenderItemNode) return node;
-      if (node is _RenderItemRoot ||
-          node is _ItemRootFlag ||
-          _opensNode(node)) {
-        return null;
-      }
-    }
-    return null;
   }
 
   /// Walks up from [from]'s parent, keeping `below` as the one child a
@@ -1164,13 +1112,11 @@ class _RenderItemRoot extends RenderProxyBox {
   // `setsEnabledTristate` (M2, for example `Interaction.onTap` going from
   // null to set, never moves [_surface] or [_passes]), or a losing item's
   // own re-walk clobbering a role this marker's attach-time seed already
-  // set on a surface a [GlobalKey] just moved in (M1), or a found
-  // surface's link to the item node above no longer matching the one this
-  // marker made. When the answer differs, `_flag` moves the flags and the
-  // link, and this defers `markNeedsSemanticsUpdate` on each touched,
-  // still-attached node to one post-frame callback
-  // (`rendering/object.dart:3923@3.47.7`: that call asserts outside the
-  // flush).
+  // set on a surface a [GlobalKey] just moved in (M1). When the answer
+  // differs, `_flag` moves the flags and this defers
+  // `markNeedsSemanticsUpdate` on each touched, still-attached node to one
+  // post-frame callback (`rendering/object.dart:3923@3.47.7`: that call
+  // asserts outside the flush).
   @override
   void visitChildrenForSemantics(RenderObjectVisitor visitor) {
     final found = _findRoot();
@@ -1179,9 +1125,7 @@ class _RenderItemRoot extends RenderProxyBox {
         ? _ItemRootRole.hidden
         : _ItemRootRole.join;
     final stale =
-        (surface != null &&
-            (surface.role != _ItemRootRole.join ||
-                !identical(surface.carrier, _node))) ||
+        (surface != null && surface.role != _ItemRootRole.join) ||
         found.passes.any((node) => node.role != passRole);
     if (surface != _surface || !_samePasses(found.passes) || stale) {
       final flipped = _flag(surface: surface, passes: found.passes);
@@ -1348,9 +1292,9 @@ class _RenderSurfaceSemantics extends RenderSemanticsAnnotations
     _linkedCarrier?.markNeedsSemanticsUpdate();
   }
 
-  /// The item node a marker last linked this surface with; while that
-  /// node links this surface back ([_linkedCarrier]), it describes
-  /// [customActions] in place of this surface (D6(a)).
+  /// The item node that last linked this surface; while that node links
+  /// this surface back ([_linkedCarrier]), it describes [customActions]
+  /// in place of this surface (D6(a)).
   _RenderItemNode? carrier;
 
   /// [carrier] while it links this surface back, so it describes
@@ -1383,16 +1327,23 @@ class _RenderSurfaceSemantics extends RenderSemanticsAnnotations
 
   // Hands its actions back from the item node at once, so a node that
   // stays never describes a removed surface's actions; a surface a
-  // [GlobalKey] moves relinks at its own attach seed.
+  // [GlobalKey] moves relinks at its new item node's next flush walk.
   @override
   void detach() {
-    final node = _linkedCarrier;
-    if (node != null) {
-      node.joined = null;
-      if (node.attached) node.markNeedsSemanticsUpdate();
-    }
-    carrier = null;
     super.detach();
+    _unlink();
+  }
+
+  /// Hands [customActions] back from [_linkedCarrier] and marks both
+  /// still-attached sides, so each re-describes in this frame; runs only
+  /// outside the flush, from a detach or a marker turning inactive.
+  void _unlink() {
+    final node = _linkedCarrier;
+    carrier = null;
+    if (node == null) return;
+    node.joined = null;
+    if (node.attached) node.markNeedsSemanticsUpdate();
+    if (attached) markNeedsSemanticsUpdate();
   }
 
   @override
@@ -1427,10 +1378,13 @@ class _ItemNodeSemantics extends Semantics {
 }
 
 /// The render object of a reorder item's node: describes the item's
-/// moves from its properties and, while a marker links a joined root
-/// surface with it ([joined]), that surface's custom actions in the same
-/// config, since two configs that both carry custom actions never merge
+/// moves from its properties and, while it links a root surface
+/// ([joined]), that surface's custom actions in the same config, since
+/// two configs that both carry custom actions never merge
 /// (`semantics/semantics.dart:6755@3.47.7`; layout s03 invariant 81).
+/// It links the surface its own semantics walk exposes ([_exposedRoot]),
+/// so the actions sit here exactly when Flutter would expose them on the
+/// surface's own config.
 class _RenderItemNode extends RenderSemanticsAnnotations {
   new({
     required super.properties,
@@ -1443,8 +1397,98 @@ class _RenderItemNode extends RenderSemanticsAnnotations {
 
   /// The root surface whose custom actions this node describes, while
   /// that surface links this node back as its
-  /// [_RenderSurfaceSemantics.carrier]; set by the item's marker.
+  /// [_RenderSurfaceSemantics.carrier]; set by [_relink].
   _RenderSurfaceSemantics? joined;
+
+  // Re-decides the link on every semantics flush that rebuilds this node,
+  // which any change on the way down to the root surface triggers, since
+  // nothing on that way is a node of its own; the walk never runs while no
+  // semantics owner exists. A change here lands one frame later, the
+  // flags' own window (D6(e)), through one post-frame callback
+  // (`rendering/object.dart:3923@3.47.7`: that call asserts outside the
+  // flush).
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    _relink(_exposedRoot());
+    super.visitChildrenForSemantics(visitor);
+  }
+
+  /// The root surface Flutter's own semantics walk exposes from this node:
+  /// reached through exactly one active marker, where each object on the
+  /// way visits only that next object for semantics and describes no node
+  /// of its own, no `explicitChildNodes`, and no block on user actions;
+  /// null when none is. Asks each object through its own
+  /// `visitChildrenForSemantics` and a fresh config, so it runs only
+  /// inside the flush or once a frame is laid out, never at attach.
+  _RenderSurfaceSemantics? _exposedRoot() {
+    if (excludeSemantics) return null;
+    var marked = false;
+    RenderObject? node = child;
+    while (node != null) {
+      switch (node) {
+        case _RenderSurfaceSemantics():
+          return marked ? node : null;
+        case _RenderItemNode():
+          return null;
+        case _RenderItemRoot(:final active, :final child):
+          if (marked || !active) return null;
+          marked = true;
+          // Steps past the marker, whose own visit runs its role walk.
+          node = child;
+          continue;
+        case _RenderPassSemantics():
+          break;
+        default:
+          if (_hidesActions(node)) return null;
+      }
+      node = _RenderItemRoot._onlySemanticsChild(node);
+    }
+    return null;
+  }
+
+  /// Whether a fresh [SemanticsConfiguration] [node] describes would keep
+  /// a root's actions off this node: a node of its own, `explicitChildNodes`,
+  /// or a block on user actions, whose actions
+  /// [SemanticsConfiguration.absorb] drops
+  /// (`semantics/semantics.dart:6810@3.47.7`).
+  static bool _hidesActions(RenderObject node) {
+    final config = SemanticsConfiguration();
+    node.describeSemanticsConfiguration(config);
+    return config.isSemanticBoundary ||
+        config.explicitChildNodes ||
+        config.isBlockingUserActions;
+  }
+
+  /// Links [surface] in place of [joined], taking it from any other item
+  /// node that still links it, and defers `markNeedsSemanticsUpdate` on
+  /// every side whose link changed to one post-frame callback.
+  void _relink(_RenderSurfaceSemantics? surface) {
+    final previous = joined;
+    if (identical(previous, surface) &&
+        (surface == null || identical(surface.carrier, this))) {
+      return;
+    }
+    final touched = <RenderObject>{this};
+    if (previous != null && identical(previous.carrier, this)) {
+      previous.carrier = null;
+      touched.add(previous);
+    }
+    joined = surface;
+    if (surface != null) {
+      final other = surface.carrier;
+      if (other != null && identical(other.joined, surface)) {
+        other.joined = null;
+        touched.add(other);
+      }
+      surface.carrier = this;
+      touched.add(surface);
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      for (final node in touched) {
+        if (node.attached) node.markNeedsSemanticsUpdate();
+      }
+    });
+  }
 
   @override
   void describeSemanticsConfiguration(SemanticsConfiguration config) {
@@ -1455,7 +1499,12 @@ class _RenderItemNode extends RenderSemanticsAnnotations {
     if (actions == null) return;
     config.customSemanticsActions = {
       ...config.customSemanticsActions,
-      ...actions,
+      // A change that hides the root lands here a frame late; the action
+      // asks the walk again when it runs, so it never runs then.
+      for (final MapEntry(:key, :value) in actions.entries)
+        key: () {
+          if (identical(_exposedRoot(), surface)) value();
+        },
     };
   }
 }

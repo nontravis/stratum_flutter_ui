@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart'
         ContainerLayer,
         ItemExtentBuilder,
         Layer,
+        RenderProxyBox,
         RenderRepaintBoundary,
         RenderSliverMultiBoxAdaptor,
         ScrollCacheExtent,
@@ -1055,12 +1056,54 @@ final ValueNotifier<String> _rowLabel = ValueNotifier('Item 2');
 /// reset in the item-root group's `tearDown`.
 final ValueNotifier<bool> _rowSecondary = ValueNotifier(false);
 
+/// Whether the blocking pins' app wrapper blocks the root; reset in the
+/// item-root group's `tearDown`.
+final ValueNotifier<bool> _rowBlocked = ValueNotifier(true);
+
+/// The run-time `excludeFromSemantics` of the exclusion pin's root; reset
+/// in the item-root group's `tearDown`.
+final ValueNotifier<bool> _rowExcluded = ValueNotifier(false);
+
+/// The run-time `secondaryTapSemanticsLabel` of the relabel pin's root;
+/// reset in the item-root group's `tearDown`.
+final ValueNotifier<String> _rowMenuLabel = ValueNotifier('Row options');
+
+/// Every label in the live semantics tree, walked from the root as
+/// [_liveRootNode] does.
+List<String> _liveLabels(WidgetTester tester) {
+  final labels = <String>[];
+  bool visit(SemanticsNode node) {
+    labels.add(node.label);
+    node.visitChildren(visit);
+    return true;
+  }
+
+  visit(
+    tester.binding.renderViews.first.owner!.semanticsOwner!.rootSemanticsNode!,
+  );
+  return labels;
+}
+
 /// The label a root surface's secondary-tap action reads under
 /// [_rootApp]'s Material localizations (`showMenuTooltip`).
 const String _secondaryLabel = 'Show menu';
 
 /// Records a secondary tap on the item-root pins' root row.
 void _secondaryTapRow() => _rootLog.add('secondary');
+
+/// Expects the root labelled [label] to read as it did before the item
+/// node carried its actions: its own node holds the secondary-tap action,
+/// with none of the item's moves, the one node that carries it (the
+/// one-frame window, D6(e)).
+void _expectSecondarySplit(
+  WidgetTester tester, {
+  String label = 'Item 2',
+  String? reason,
+}) {
+  final carrying = _liveNodesWithAction(tester, _secondaryLabel);
+  expect(carrying.map((node) => node.label), [label], reason: reason);
+  expect(_rootMoves(carrying.single.getSemanticsData()), isEmpty);
+}
 
 /// Every node of the live semantics tree whose custom actions include
 /// [label], walked from the root as [_liveRootNode] does.
@@ -1100,7 +1143,8 @@ void _expectSecondaryJoined(
 }
 
 /// Pumps a five-item [_RootList] of [item], expects item 2's node to read
-/// [expected] in the mount frame, and, when that node holds 4 moves,
+/// [expected] in the mount frame, or [frames] frames after it, and, when
+/// that node holds 4 moves,
 /// "Move up" on it, settled, gives `_rootIds` `[0, 2, 1, 3, 4]`; when the
 /// node, read again, holds a tap action, a tap on it, after clearing
 /// `_rootLog`, leaves it `['row']`.
@@ -1108,8 +1152,12 @@ Future<void> _expectJoined(
   WidgetTester tester,
   Widget Function(int id) item, {
   String expected = _joined,
+  int frames = 0,
 }) async {
   await tester.pumpWidget(_rootApp(_RootList(item: item)));
+  for (var i = 0; i < frames; i += 1) {
+    await tester.pump();
+  }
   expect(_shape(_rootNode(tester, 'Item 2')), expected);
   if (_rootMoves(_rootNode(tester, 'Item 2').getSemanticsData()).length == 4) {
     _rootMove(_rootNode(tester, 'Item 2'), 'Move up');
@@ -1177,6 +1225,7 @@ class _RootList extends StatefulWidget {
     required this.item,
     this.scrollDirection = Axis.vertical,
     this.itemsController,
+    this.itemTransitionBuilder,
   });
 
   final Widget Function(int id) item;
@@ -1184,8 +1233,18 @@ class _RootList extends StatefulWidget {
   /// The list's scroll axis; horizontal names its moves left and right.
   final Axis scrollDirection;
 
-  /// Drives the removal pin's `remove`; null for every other pin.
+  /// Drives the removal pins' `remove` and the move pin's `move`; null for
+  /// every other pin.
   final ReorderableItemsController? itemsController;
+
+  /// The list's caller transition, which sits between the item's node and
+  /// its marker; null keeps the built-in one.
+  final Widget Function(
+    BuildContext context,
+    Animation<double> animation,
+    Widget child,
+  )?
+  itemTransitionBuilder;
 
   @override
   State<_RootList> createState() => _RootListState();
@@ -1203,16 +1262,47 @@ class _RootListState extends State<_RootList> {
     widget.itemsController!.removeItem(index);
   }
 
+  /// Moves `ids[from]` to [to] and tells [_RootList.itemsController] in
+  /// the same turn (the app-driven move pin).
+  void move(int from, int to) {
+    setState(() => ids.insert(to, ids.removeAt(from)));
+    widget.itemsController!.moveItem(from, to);
+  }
+
   @override
   Widget build(BuildContext context) => ReorderableListViewLayout.builder(
     scrollDirection: widget.scrollDirection,
     itemCount: ids.length,
     itemsController: widget.itemsController,
+    itemTransitionBuilder: widget.itemTransitionBuilder,
     onReorderItem: (from, to) =>
         setState(() => ids.insert(to, ids.removeAt(from))),
     itemBuilder: (context, index) =>
         KeyedSubtree(key: ValueKey(ids[index]), child: widget.item(ids[index])),
   );
+}
+
+/// A render object that counts how often anything describes its
+/// semantics config, so a pin can tell whether a walk passed it.
+class _DescribeCounter extends SingleChildRenderObjectWidget {
+  const new({super.child});
+
+  /// The describe calls every [_DescribeCounter] took since the last
+  /// reset; reset in the item-root group's `tearDown`.
+  static int describes = 0;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderDescribeCounter();
+}
+
+/// The render object [_DescribeCounter] builds.
+class _RenderDescribeCounter extends RenderProxyBox {
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    _DescribeCounter.describes += 1;
+  }
 }
 
 /// A test-only component on the FO-08 base, so a toggle on it pins R11b.
@@ -2919,6 +3009,156 @@ void main() {
         for (var index = 0; index < ids.length; index += 1) {
           expect(
             tester.getTopLeft(find.byKey(ValueKey(ids[index]))).dy - top,
+            index * 40,
+          );
+        }
+      },
+      variant: shrinkWrapExtents,
+    );
+
+    /// A shrink-wrapped [_Harness] of [count] items with the fixed extent
+    /// of 40 the current [shrinkWrapExtents] value names, laid along [axis]
+    /// in a scroll view unbounded on that axis.
+    Widget shrinkWrapped({
+      required int count,
+      Axis axis = Axis.vertical,
+      bool reverse = false,
+    }) {
+      final shape = shrinkWrapExtents.currentValue!;
+      return _app(
+        SingleChildScrollView(
+          scrollDirection: axis,
+          child: _Harness(
+            count: count,
+            axis: axis,
+            reverse: reverse,
+            shrinkWrap: true,
+            itemsController: ReorderableItemsController(),
+            itemExtent: shape == 'itemExtent' ? 40 : null,
+            itemExtentBuilder: shape == 'itemExtentBuilder'
+                ? (index, dimensions) => 40
+                : null,
+            prototypeItem: shape == 'prototypeItem'
+                ? (axis == Axis.vertical
+                      ? const SizedBox(height: 40)
+                      : const SizedBox(width: 40))
+                : null,
+          ),
+        ),
+        theme: _normalTheme(const Duration(milliseconds: 250)),
+      );
+    }
+
+    /// Pumps through an animated change to settled, failing on any
+    /// exception a frame of it throws.
+    Future<void> settleClean(WidgetTester tester) async {
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.takeException(), isNull);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    }
+
+    testWidgets(
+      'fo06/us11/fr04/e11: an empty shrink-wrapped list with a fixed item '
+      'extent in an unbounded scroll view lays out, and then takes an insert',
+      (tester) async {
+        await tester.pumpWidget(shrinkWrapped(count: 0));
+        expect(tester.takeException(), isNull);
+
+        _harness(tester).insert(0, 7);
+        await settleClean(tester);
+        expect(_harness(tester).ids, [7]);
+        expect(tester.getSize(find.byKey(const ValueKey(7))).height, 40);
+      },
+      variant: shrinkWrapExtents,
+    );
+
+    testWidgets(
+      'fo06/us11/fr04/e11: a shrink-wrapped list with a fixed item extent '
+      'of one item in an unbounded scroll view lays out through a remove '
+      'and an insert',
+      (tester) async {
+        await tester.pumpWidget(shrinkWrapped(count: 1));
+        expect(tester.takeException(), isNull);
+
+        _harness(tester).remove(0);
+        await settleClean(tester);
+        expect(_harness(tester).ids, isEmpty);
+        _harness(tester).insert(0, 9);
+        await settleClean(tester);
+        expect(_harness(tester).ids, [9]);
+      },
+      variant: shrinkWrapExtents,
+    );
+
+    testWidgets(
+      'fo06/us11/fr04/e11: a shrink-wrapped list with a fixed item extent '
+      'in an unbounded scroll view lays out while every item leaves at once',
+      (tester) async {
+        await tester.pumpWidget(shrinkWrapped(count: 3));
+        expect(tester.takeException(), isNull);
+
+        _harness(tester)
+          ..remove(2)
+          ..remove(1)
+          ..remove(0);
+        await settleClean(tester);
+        expect(_harness(tester).ids, isEmpty);
+        for (final id in const [0, 1, 2]) {
+          expect(find.byKey(ValueKey(id)), findsNothing);
+        }
+      },
+      variant: shrinkWrapExtents,
+    );
+
+    testWidgets(
+      'fo06/us11/fr04/e11: a reversed shrink-wrapped list with a fixed item '
+      'extent in an unbounded scroll view lays out through a move, an '
+      'insert, and a remove',
+      (tester) async {
+        await tester.pumpWidget(shrinkWrapped(count: 6, reverse: true));
+        expect(tester.takeException(), isNull);
+
+        _harness(tester)
+          ..move(0, 3)
+          ..insert(1, 9)
+          ..remove(5);
+        await settleClean(tester);
+        final ids = _harness(tester).ids;
+        expect(ids, [1, 9, 2, 3, 0, 5]);
+        // Index 0 sits at the bottom, each later index 40 above it.
+        for (var index = 1; index < ids.length; index += 1) {
+          expect(
+            tester.getTopLeft(find.byKey(ValueKey(ids[index - 1]))).dy -
+                tester.getTopLeft(find.byKey(ValueKey(ids[index]))).dy,
+            40,
+          );
+        }
+      },
+      variant: shrinkWrapExtents,
+    );
+
+    testWidgets(
+      'fo06/us11/fr04/e11: a horizontal shrink-wrapped list with a fixed '
+      'item extent in an unbounded scroll view lays out through a move, an '
+      'insert, and a remove',
+      (tester) async {
+        await tester.pumpWidget(shrinkWrapped(count: 6, axis: Axis.horizontal));
+        expect(tester.takeException(), isNull);
+        final start = tester.getTopLeft(find.byKey(const ValueKey(0))).dx;
+
+        _harness(tester)
+          ..move(0, 3)
+          ..insert(1, 9)
+          ..remove(5);
+        await settleClean(tester);
+        final ids = _harness(tester).ids;
+        expect(ids, [1, 9, 2, 3, 0, 5]);
+        for (var index = 0; index < ids.length; index += 1) {
+          expect(
+            tester.getTopLeft(find.byKey(ValueKey(ids[index]))).dx - start,
             index * 40,
           );
         }
@@ -17987,6 +18227,10 @@ void main() {
       _rowDisabled.value = false;
       _rowLabel.value = 'Item 2';
       _rowSecondary.value = false;
+      _rowBlocked.value = true;
+      _rowExcluded.value = false;
+      _rowMenuLabel.value = 'Row options';
+      _DescribeCounter.describes = 0;
       _extra.value = false;
       _rootShape.value = 0;
       _RootListState.ids = [0, 1, 2, 3, 4];
@@ -18182,7 +18426,7 @@ void main() {
     testWidgets(
       'fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R10 a root with '
       'onSecondaryTap joins the item node with its secondary-tap action '
-      '(D6(a))',
+      'from the frame after mount (D6(a), D6(e))',
       (tester) async {
         final handle = tester.ensureSemantics();
         await _expectJoined(
@@ -18192,6 +18436,7 @@ void main() {
             onSecondaryTap: () {},
             child: Text('Item $id'),
           ),
+          frames: 1,
         );
         _expectSecondaryJoined(tester, carriers: 5);
         handle.dispose();
@@ -18214,6 +18459,7 @@ void main() {
             ),
           ),
         );
+        await tester.pump();
         final stop = _liveRootNode(tester, 'Item 2');
         expect(_rootMoves(stop.getSemanticsData()), hasLength(4));
         _rootMove(stop, _secondaryLabel);
@@ -18271,7 +18517,7 @@ void main() {
     testWidgets(
       'fo08/us07/fr03, fo06/us04/fr02/e11, s03/inv81: a disabled base '
       'component over a root with onSecondaryTap reads no secondary-tap '
-      'action and joins in every frame of a toggle (I1)',
+      'action, and joins with it the frame after it enables (I1)',
       (tester) async {
         final handle = tester.ensureSemantics();
         const off =
@@ -18299,7 +18545,11 @@ void main() {
         expect(_shape(_liveRootNode(tester, 'Item 2')), off);
         expect(_liveNodesWithAction(tester, _secondaryLabel), isEmpty);
 
+        // The base's own IgnorePointer blocks the root while disabled, so
+        // the item node links it only once enabled.
         _tileDisabled.value = false;
+        await tester.pump();
+        _expectSecondarySplit(tester, reason: 'the frame it enables');
         await tester.pump();
         _expectSecondaryJoined(tester, reason: 'enabled');
 
@@ -18341,18 +18591,20 @@ void main() {
               )
             : Text('Item $id');
         await tester.pumpWidget(_rootApp(_RootList(item: item)));
+        await tester.pump();
         expect(_liveNodesWithAction(tester, _secondaryLabel), [
           _liveRootNode(tester, 'Moving'),
         ]);
 
         target.value = 3;
         await tester.pump();
-        expect(_liveNodesWithAction(tester, _secondaryLabel), [
-          _liveRootNode(tester, 'Moving'),
-        ], reason: 'the frame of the move');
-        expect(_shape(_liveRootNode(tester, 'Moving')), moved);
-        // The flip the losing item's marker scheduled lands one frame later
-        // (D4, D6(e)).
+        _expectSecondarySplit(
+          tester,
+          label: 'Moving',
+          reason: 'the frame of the move',
+        );
+        // The new item node links the root in that frame's flush, which
+        // lands one frame later (D4, D6(e)).
         await tester.pump();
         final carrying = _liveNodesWithAction(tester, _secondaryLabel);
         expect(carrying, [_liveRootNode(tester, 'Moving')]);
@@ -18387,6 +18639,7 @@ void main() {
             ),
           ),
         );
+        await tester.pump();
         _expectSecondaryJoined(tester, reason: 'mount');
 
         _rootShape.value = 1;
@@ -18399,7 +18652,386 @@ void main() {
 
         _rootShape.value = 2;
         await tester.pump();
+        _expectSecondarySplit(tester, reason: 'the frame it is back');
+        await tester.pump();
         _expectSecondaryJoined(tester, reason: 'back');
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
+      'fo06/us11/fr04/e05, s03/inv58, s03/inv81: removing a root with '
+      'onSecondaryTap leaves no node and no secondary-tap action in any '
+      'exit frame',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final itemsController = ReorderableItemsController();
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              itemsController: itemsController,
+              item: (id) => id == 2
+                  ? const StratumInkWell(
+                      onTap: _tapRow,
+                      onSecondaryTap: _secondaryTapRow,
+                      child: Text('Item 2'),
+                    )
+                  : StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+            ),
+          ),
+        );
+        await tester.pump();
+        _expectSecondaryJoined(tester, reason: 'before the remove');
+
+        tester.state<_RootListState>(find.byType(_RootList)).remove(2);
+        for (var frame = 0; frame < 20; frame += 1) {
+          await tester.pump(const Duration(milliseconds: 25));
+          expect(
+            _liveNodesWithAction(tester, _secondaryLabel),
+            isEmpty,
+            reason: 'exit frame $frame',
+          );
+          expect(
+            _liveLabels(tester).where((label) => label.contains('Item 2')),
+            isEmpty,
+            reason: 'exit frame $frame',
+          );
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('Item 2'), findsNothing);
+        expect(_rootLog, isEmpty);
+        handle.dispose();
+      },
+    );
+
+    // The app's wrapper that blocks the root's user actions.
+    final blockers = ValueVariant<String>({'AbsorbPointer', 'IgnorePointer'});
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: an app wrapper that blocks a root '
+      'with onSecondaryTap at run time keeps its secondary-tap action on '
+      "the root's own node as Flutter does, and the action never runs while "
+      'blocked',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final blocker = blockers.currentValue!;
+        Widget blocking(bool blocked, Widget child) =>
+            blocker == 'AbsorbPointer'
+            ? AbsorbPointer(absorbing: blocked, child: child)
+            : IgnorePointer(ignoring: blocked, child: child);
+        // Flutter's own blocked shape: the root's node lists the action
+        // and offers no custom action to run it.
+        void expectBlocked(String reason) {
+          _expectSecondarySplit(tester, reason: reason);
+          final root = _liveNodesWithAction(tester, _secondaryLabel).single;
+          expect(
+            root.getSemanticsData().hasAction(SemanticsAction.customAction),
+            isFalse,
+            reason: reason,
+          );
+        }
+
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => id == 2
+                  ? ValueListenableBuilder<bool>(
+                      valueListenable: _rowBlocked,
+                      builder: (context, blocked, _) => blocking(
+                        blocked,
+                        const StratumInkWell(
+                          onTap: _tapRow,
+                          onSecondaryTap: _secondaryTapRow,
+                          child: Text('Item 2'),
+                        ),
+                      ),
+                    )
+                  : StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+            ),
+          ),
+        );
+        // Blocked, Flutter keeps the root's action ids on its own node and
+        // masks the custom action, so the item's moves stay on the item's
+        // node apart from it (`semantics/semantics.dart:3969@3.47.7`).
+        for (var frame = 0; frame < 3; frame += 1) {
+          expectBlocked('blocked, frame $frame');
+          await tester.pump();
+        }
+
+        _rowBlocked.value = false;
+        await tester.pump();
+        _expectSecondarySplit(tester, reason: 'the frame it unblocks');
+        await tester.pump();
+        _expectSecondaryJoined(tester, reason: 'unblocked');
+
+        // The block reaches the item node one frame late (D6(e)); its
+        // action asks again when it runs, so it never runs then.
+        _rowBlocked.value = true;
+        await tester.pump();
+        for (final node in _liveNodesWithAction(tester, _secondaryLabel)) {
+          _rootMove(node, _secondaryLabel);
+        }
+        expect(_rootLog, isEmpty, reason: 'the frame it blocks');
+        await tester.pump();
+        expectBlocked('blocked again');
+        handle.dispose();
+      },
+      variant: blockers,
+    );
+
+    // The app's wrapper that leaves the root out of semantics.
+    final excluders = ValueVariant<String>({
+      'ExcludeSemantics',
+      'Offstage',
+      'Opacity 0',
+    });
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: a root with onSecondaryTap mounted '
+      'under an app wrapper that leaves it out of semantics puts no '
+      'secondary-tap action on any node, from the mount frame on',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final excluder = excluders.currentValue!;
+        const surface = StratumInkWell(
+          onTap: _tapRow,
+          onSecondaryTap: _secondaryTapRow,
+          child: Text('Item 2'),
+        );
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => id == 2
+                  ? switch (excluder) {
+                      'ExcludeSemantics' => const ExcludeSemantics(
+                        child: surface,
+                      ),
+                      'Offstage' => const Offstage(child: surface),
+                      _ => const Opacity(opacity: 0, child: surface),
+                    }
+                  : StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+            ),
+          ),
+        );
+        for (var frame = 0; frame < 3; frame += 1) {
+          expect(
+            _liveNodesWithAction(tester, _secondaryLabel),
+            isEmpty,
+            reason: 'frame $frame',
+          );
+          await tester.pump();
+        }
+        handle.dispose();
+      },
+      variant: excluders,
+    );
+
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: a root with onSecondaryTap mounted '
+      'before the screen reader turns on walks nothing above its marker '
+      'until then, and joins with its action once semantics turns on',
+      semanticsEnabled: false,
+      (tester) async {
+        expect(tester.binding.semanticsEnabled, isFalse);
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              itemTransitionBuilder: (context, animation, child) =>
+                  _DescribeCounter(child: child),
+              item: (id) => StratumInkWell(
+                onTap: _tapRow,
+                onSecondaryTap: _secondaryTapRow,
+                child: Text('Item $id'),
+              ),
+            ),
+          ),
+        );
+        // One describe each, the SDK's own at attach
+        // (`rendering/object.dart:2507@3.47.7`): no link walk ran.
+        expect(_DescribeCounter.describes, 5, reason: 'semantics off');
+
+        final handle = tester.ensureSemantics();
+        await tester.pump();
+        // The first flush links; the link lands one frame later (D6(e)).
+        await tester.pump();
+        _expectSecondaryJoined(tester, carriers: 5);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us04/fr02/e11, s03/inv81: a linked root whose '
+        'excludeFromSemantics turns on takes its secondary-tap action off '
+        "the item's stop in that frame, and joins again once it turns off", (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _rootApp(
+          _RootList(
+            item: (id) => id == 2
+                ? ValueListenableBuilder<bool>(
+                    valueListenable: _rowExcluded,
+                    builder: (context, excluded, _) => StratumInkWell(
+                      onTap: _tapRow,
+                      onSecondaryTap: _secondaryTapRow,
+                      excludeFromSemantics: excluded,
+                      child: const Text('Item 2'),
+                    ),
+                  )
+                : StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+          ),
+        ),
+      );
+      await tester.pump();
+      _expectSecondaryJoined(tester, reason: 'mount');
+
+      _rowExcluded.value = true;
+      await tester.pump();
+      expect(
+        _liveNodesWithAction(tester, _secondaryLabel),
+        isEmpty,
+        reason: 'the frame it is excluded',
+      );
+
+      _rowExcluded.value = false;
+      await tester.pump();
+      _expectSecondarySplit(tester, reason: 'the frame it is back');
+      await tester.pump();
+      _expectSecondaryJoined(tester, reason: 'back');
+      handle.dispose();
+    });
+
+    testWidgets(
+      'fo06/us04/fr02/e11, s03/inv81: of two surfaces with onSecondaryTap '
+      "in one row only the root's action joins the item's stop; the inner "
+      'one keeps its own node',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => id == 2
+                  ? const StratumInkWell(
+                      onTap: _tapRow,
+                      onSecondaryTap: _secondaryTapRow,
+                      child: RowLayout(
+                        children: [
+                          Text('Item 2'),
+                          StratumInkWell(
+                            onTap: _tapDelete,
+                            onSecondaryTap: _tapDelete,
+                            secondaryTapSemanticsLabel: 'Delete options',
+                            child: Text('Delete 2'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+            ),
+          ),
+        );
+        await tester.pump();
+        _expectSecondaryJoined(tester);
+        final inner = _liveNodesWithAction(tester, 'Delete options');
+        expect(inner.map((node) => node.label), ['Delete 2']);
+        expect(_rootMoves(inner.single.getSemanticsData()), isEmpty);
+        _rootMove(inner.single, 'Delete options');
+        _rootMove(_liveRootNode(tester, 'Item 2'), _secondaryLabel);
+        expect(_rootLog, ['delete', 'secondary']);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr01, s03/inv81: a root with '
+        'onSecondaryTap moved by a drag keeps its secondary-tap action on '
+        "the item's stop", (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _rootApp(
+          _RootList(
+            item: (id) => StratumInkWell(
+              onTap: _tapRow,
+              onSecondaryTap: _secondaryTapRow,
+              child: Text('Item $id'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Item 2')),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      for (var step = 0; step < 5; step += 1) {
+        await gesture.moveBy(const Offset(0, 10));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(_rootIds(tester), [0, 1, 3, 2, 4]);
+      _expectSecondaryJoined(tester, carriers: 5);
+      _rootMove(_liveRootNode(tester, 'Item 2'), _secondaryLabel);
+      expect(_rootLog, ['secondary']);
+      handle.dispose();
+    });
+
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr05, s03/inv81: a root with '
+        'onSecondaryTap moved by moveItem keeps its secondary-tap action on '
+        "the item's stop", (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _rootApp(
+          _RootList(
+            itemsController: ReorderableItemsController(),
+            item: (id) => StratumInkWell(
+              onTap: _tapRow,
+              onSecondaryTap: _secondaryTapRow,
+              child: Text('Item $id'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      tester.state<_RootListState>(find.byType(_RootList)).move(2, 3);
+      await tester.pumpAndSettle();
+      expect(_rootIds(tester), [0, 1, 3, 2, 4]);
+      _expectSecondaryJoined(tester, carriers: 5);
+      _rootMove(_liveRootNode(tester, 'Item 2'), _secondaryLabel);
+      expect(_rootLog, ['secondary']);
+      handle.dispose();
+    });
+
+    testWidgets(
+      'fo06/us04/fr02/e11, fo06/us05/fr04, s03/inv81: relabeling a linked '
+      "root's secondary tap at run time relabels the action on the item's "
+      'stop in that frame, with no copy under the old label',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _rootApp(
+            _RootList(
+              item: (id) => id == 2
+                  ? ValueListenableBuilder<String>(
+                      valueListenable: _rowMenuLabel,
+                      builder: (context, label, _) => StratumInkWell(
+                        onTap: _tapRow,
+                        onSecondaryTap: _secondaryTapRow,
+                        secondaryTapSemanticsLabel: label,
+                        child: const Text('Item 2'),
+                      ),
+                    )
+                  : StratumInkWell(onTap: _tapRow, child: Text('Item $id')),
+            ),
+          ),
+        );
+        await tester.pump();
+        final stop = _liveRootNode(tester, 'Item 2');
+        expect(_liveNodesWithAction(tester, 'Row options'), [stop]);
+
+        _rowMenuLabel.value = 'More';
+        await tester.pump();
+        final relabeled = _liveRootNode(tester, 'Item 2');
+        expect(_shape(relabeled), _joined);
+        expect(_liveNodesWithAction(tester, 'More'), [relabeled]);
+        expect(_liveNodesWithAction(tester, 'Row options'), isEmpty);
         handle.dispose();
       },
     );
