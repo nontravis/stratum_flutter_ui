@@ -248,7 +248,7 @@ void main() {
     testWidgets(
       'f01/us08/s10, f01/us08/s11, f01/us08/fr01/e05: going back to a no-store page '
       'that now answers 404 reports start, one http error, finish on '
-      'Android, and start, finish with no error on iOS and macOS',
+      'Android, and start, finish with no error on iOS, macOS, and Linux',
       (tester) async {
         // CO-01-02 US-01 FR-02 E08 and US-04 FR-01 E07 of the package docs.
         final controller = StratumWebViewController();
@@ -291,7 +291,7 @@ void main() {
 
     testWidgets('f01/us08/s10, f01/us08/s11, f01/us08/fr01/e05: going forward to an entry that '
         'answered 404 reports start, one http error, finish on Android, and '
-        'start, finish with no error on iOS and macOS', (tester) async {
+        'start, finish with no error on iOS, macOS, and Linux', (tester) async {
       // CO-01-02 US-01 FR-02 E08: Android replays the 404 from its HTTP
       // cache without a request; WebKit either restores the entry from
       // its back-forward cache, leaving the load's own error the last
@@ -706,27 +706,34 @@ Future<void> _expectLinkAwayRefused(
   expect(refused, isTrue, reason: 'the send reached the away page: no bye');
 }
 
-/// Whether this run's engine is WebKit (iOS, macOS), which restores a
-/// `goBack` or `goForward` entry from its back-forward cache with no
-/// request, so the back and forward cases assert one `onPageStarted`, one
-/// `onPageFinished`, and no error; every other native target reports the
-/// page's current HTTP status, the start, error, finish order (US-08
-/// scenarios 10 and 11).
+/// Whether this run's engine is WebKit: iOS and macOS WebKit, and, on
+/// Linux, WebKitGTK. Each restores a `goBack` or `goForward` entry from its
+/// back-forward cache with no request, so the back and forward cases assert
+/// one `onPageStarted`, one `onPageFinished`, and no error, or the start,
+/// error, finish order when the engine asks the server again; every other
+/// native target reports the page's current HTTP status (US-08 scenarios
+/// 10 and 11).
 bool _isWebKit() =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.macOS);
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux);
 
 /// Whether a `reload` of the app's HTML keeps the document on this engine
-/// (US-08 scenario 14): Android parses the same HTML string again; WebKit
-/// (iOS, macOS) reloads an empty page.
-bool _reloadKeepsHtml() => !_isWebKit();
+/// (US-08 scenario 14): Android, Windows, and Linux parse the same HTML
+/// string again; WebKit on iOS and macOS reloads an empty page.
+bool _reloadKeepsHtml() =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux);
 
 /// Asserts the either-outcome contract of one WebKit history move (US-08
-/// scenario 11): WebKit either restores the entry from its back-forward
-/// cache with no request — start, finish, and no new error — or requests
-/// [entry] again, and then the Android order holds with exactly one new
-/// `http` error naming [entry], counted since [mark].
+/// scenario 11): WebKit restores [entry] from its back-forward cache with
+/// no request. A restored entry that still answers 200 shows start,
+/// finish, and no new error; a restored entry that answered 404 reports
+/// that kept 404 once, the Android order, with exactly one new `http`
+/// error naming [entry], counted since [mark].
 void _expectWebKitHistoryMove(_Recorder recorder, int mark, Uri entry) {
   final kinds = recorder.kindsSince(mark);
   final errors = recorder.errorsSince(mark);
@@ -806,9 +813,10 @@ class _PageServer {
           ..headers.set(HttpHeaders.locationHeader, page('/ok').toString());
       case '/flip' || '/flip-nostore':
         // 200 on the first request of each address, 404 after it: the back
-        // and reload cases (CO-01-02 US-01 FR-02 E08). The no-store variant
-        // keeps the page out of the back-forward cache, so going back
-        // requests it again.
+        // and reload cases (CO-01-02 US-01 FR-02 E08). Android skips the
+        // back-forward cache for the no-store variant and requests it
+        // again; WebKit restores it from the cache the same as `/flip`, so
+        // going back there reports the kept status with no request.
         if (request.uri.path == '/flip-nostore') {
           response.headers.set(HttpHeaders.cacheControlHeader, 'no-store');
         }
