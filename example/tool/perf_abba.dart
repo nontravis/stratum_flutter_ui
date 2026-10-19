@@ -32,6 +32,7 @@ const catalog = [
   'S4',
   'S5',
   'S6-intrinsic',
+  'S7',
 ];
 
 /// Most runs one comparison holds: 24 blocks per scene (spec section 9.5).

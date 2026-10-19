@@ -99,32 +99,34 @@ void main() {
       expect(find.text('page 0'), findsOneWidget);
     });
 
-    testWidgets('style.padding insets the viewport and does not scroll', (
-      tester,
-    ) async {
-      final controller = PageController();
-      addTearDown(controller.dispose);
-      await tester.pumpWidget(
-        themedHost(
-          SizedBox(
-            width: 200,
-            height: 300,
-            child: PageViewLayout(
-              controller: controller,
-              style: const WidgetStyle(padding: EdgeInsets.all(10)),
-              children: const [Text('zero'), Text('one')],
+    testWidgets(
+      'fo06/us10/fr03: style.padding insets the viewport and does not '
+      'scroll',
+      (tester) async {
+        final controller = PageController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              width: 200,
+              height: 300,
+              child: PageViewLayout(
+                controller: controller,
+                style: const WidgetStyle(padding: EdgeInsets.all(10)),
+                children: const [Text('zero'), Text('one')],
+              ),
             ),
           ),
-        ),
-      );
-      final box = tester.getRect(find.byType(PageViewLayout));
+        );
+        final box = tester.getRect(find.byType(PageViewLayout));
 
-      expect(tester.getRect(find.byType(Scrollable)), box.deflate(10));
-      controller.jumpToPage(1);
-      await tester.pump();
-      expect(tester.getRect(find.byType(Scrollable)), box.deflate(10));
-      expect(tester.getTopLeft(find.text('one')), box.deflate(10).topLeft);
-    });
+        expect(tester.getRect(find.byType(Scrollable)), box.deflate(10));
+        controller.jumpToPage(1);
+        await tester.pump();
+        expect(tester.getRect(find.byType(Scrollable)), box.deflate(10));
+        expect(tester.getTopLeft(find.text('one')), box.deflate(10).topLeft);
+      },
+    );
 
     testWidgets("the caller's PageController drives the keys", (tester) async {
       final controller = PageController();
@@ -150,7 +152,8 @@ void main() {
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets(
-      "Page Down from an item moves focus to the new page's first node",
+      'fo06/us10/fr02, fo06/us10/s5: Page Down from an item moves focus to '
+      "the new page's first node",
       (tester) async {
         final before = _node('before');
         await tester.pumpWidget(
@@ -215,55 +218,51 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
 
-    testWidgets(
-      'End from an item jumps and moves focus to the last page',
-      (tester) async {
-        final before = _node('before');
-        await tester.pumpWidget(
-          _keyboardHost(
-            PageViewLayout(children: [_page(0), _page(1), _page(2)]),
-            before: before,
-          ),
-        );
-        before.requestFocus();
-        await tester.pump();
-        await _key(tester, LogicalKeyboardKey.tab);
-        await _key(tester, LogicalKeyboardKey.tab);
-        expect(_focused(), 'p0.0');
+    testWidgets('End from an item jumps and moves focus to the last page', (
+      tester,
+    ) async {
+      final before = _node('before');
+      await tester.pumpWidget(
+        _keyboardHost(
+          PageViewLayout(children: [_page(0), _page(1), _page(2)]),
+          before: before,
+        ),
+      );
+      before.requestFocus();
+      await tester.pump();
+      await _key(tester, LogicalKeyboardKey.tab);
+      await _key(tester, LogicalKeyboardKey.tab);
+      expect(_focused(), 'p0.0');
 
-        await tester.sendKeyEvent(LogicalKeyboardKey.end);
-        await tester.pump();
-        expect(_shown(tester), 2);
-        await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pump();
+      expect(_shown(tester), 2);
+      await tester.pump();
 
-        expect(_focused(), 'p2.0');
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(_focused(), 'p2.0');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets(
-      'focus moves to the page view when the new page has no node',
-      (tester) async {
-        final before = _node('before');
-        await tester.pumpWidget(
-          _keyboardHost(
-            PageViewLayout(children: [_page(0), const Text('empty')]),
-            before: before,
-          ),
-        );
-        before.requestFocus();
-        await tester.pump();
-        await _key(tester, LogicalKeyboardKey.tab);
-        await _key(tester, LogicalKeyboardKey.tab);
-        expect(_focused(), 'p0.0');
+    testWidgets('focus moves to the page view when the new page has no node', (
+      tester,
+    ) async {
+      final before = _node('before');
+      await tester.pumpWidget(
+        _keyboardHost(
+          PageViewLayout(children: [_page(0), const Text('empty')]),
+          before: before,
+        ),
+      );
+      before.requestFocus();
+      await tester.pump();
+      await _key(tester, LogicalKeyboardKey.tab);
+      await _key(tester, LogicalKeyboardKey.tab);
+      expect(_focused(), 'p0.0');
 
-        await _key(tester, LogicalKeyboardKey.pageDown);
+      await _key(tester, LogicalKeyboardKey.pageDown);
 
-        expect(_shown(tester), 1);
-        expect(_focused(), 'ScrollFocus');
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(_shown(tester), 1);
+      expect(_focused(), 'ScrollFocus');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets(
       'with allowImplicitScrolling, Tab visits every node of page 0 before '

@@ -1,0 +1,1274 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/system/system_style_resolver.dart';
+
+import '../../components/common/fakes/fake_stratum_theme.dart';
+import 'system_style_fakes.dart';
+
+/// The package default theme with the status bar and navigation bar
+/// colors set for light and dark mode.
+final StratumThemeSet _coloredBars = StratumThemeSet.fromConfig(
+  StratumThemeConfig.parse(
+    base: const StratumThemeSource(
+      id: 'stratum-default',
+      folder: 'packages/stratum_ui/assets/themes/default',
+      yaml: defaultThemeSource,
+    ),
+    layers: const [
+      StratumThemeSource(
+        id: 'bars',
+        folder: 'themes/bars',
+        yaml: r'''
+$schema: stratum-theme/v1.3.0
+system:
+  light:
+    statusBarColor: "#0000AA"
+    navigationBarColor: "#0000BB"
+  dark:
+    statusBarColor: "#0000CC"
+    navigationBarColor: "#0000DD"
+''',
+      ),
+    ],
+  ),
+);
+
+void main() {
+  group('us14: the theme and the app-wide style', () {
+    testWidgets("fo03/us14/s1: a page with no style shows the theme's dark "
+        'colors in dark mode', (tester) async {
+      systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(
+          themes: _coloredBars,
+          themeMode: ThemeMode.dark,
+          home: const SizedBox(),
+        ),
+      );
+
+      expect(
+        barStrips(tester),
+        paints
+          ..rect(rect: statusStrip, color: const Color(0xFF0000CC))
+          ..rect(rect: navigationStrip, color: const Color(0xFF0000DD)),
+      );
+    });
+
+    testWidgets(
+      'fo03/us14/s2, fo03/us14/fr01/e01: the app sets only the navigation bar '
+      'color',
+      (tester) async {
+        systemBarsView(tester);
+        await tester.pumpWidget(
+          systemStyleApp(
+            themes: _coloredBars,
+            systemStyle: const SystemStyle(
+              navigationBarColor: Color(0xFF00FF00),
+            ),
+            home: const SizedBox(),
+          ),
+        );
+
+        expect(
+          barStrips(tester),
+          paints
+            ..rect(rect: statusStrip, color: const Color(0xFF0000AA))
+            ..rect(rect: navigationStrip, color: const Color(0xFF00FF00)),
+        );
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/fr01/e03: a mode change takes the new set with no app '
+      'code',
+      (tester) async {
+        systemBarsView(tester);
+        await tester.pumpWidget(
+          systemStyleApp(themes: _coloredBars, home: const SizedBox()),
+        );
+        expect(
+          barStrips(tester),
+          paints..rect(rect: statusStrip, color: const Color(0xFF0000AA)),
+        );
+
+        await tester.pumpWidget(
+          systemStyleApp(
+            themes: _coloredBars,
+            themeMode: ThemeMode.dark,
+            home: const SizedBox(),
+          ),
+        );
+
+        expect(
+          barStrips(tester),
+          paints..rect(rect: statusStrip, color: const Color(0xFF0000CC)),
+        );
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/fr01/e05: a theme switch while the page shows takes the '
+      "new theme's look with no app code",
+      (tester) async {
+        final calls = systemBarsView(tester);
+        const appWide = SystemStyle(barMode: SystemBarMode.immersive);
+        await tester.pumpWidget(
+          systemStyleApp(
+            themes: _coloredBars,
+            systemStyle: appWide,
+            home: const SizedBox(),
+          ),
+        );
+        expect(
+          barStrips(tester),
+          paints..rect(rect: statusStrip, color: const Color(0xFF0000AA)),
+        );
+
+        await tester.pumpWidget(
+          systemStyleApp(systemStyle: appWide, home: const SizedBox()),
+        );
+
+        expect(barStrips(tester), paintsNothing);
+        expect(lastMode(calls), 'SystemUiMode.immersive');
+      },
+    );
+
+    testWidgets(
+      "fo03/us14/fr02/e05: Stratum turns Flutter's own overlay write off "
+      'while it is in the tree',
+      (tester) async {
+        systemBarsView(tester);
+        await tester.pumpWidget(systemStyleApp(home: const SizedBox()));
+
+        expect(
+          tester.binding.renderViews.single.automaticSystemUiAdjustment,
+          isFalse,
+        );
+
+        await tester.pumpWidget(const SizedBox());
+
+        expect(
+          tester.binding.renderViews.single.automaticSystemUiAdjustment,
+          isTrue,
+        );
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/s5, fo03/us14/fr02/e03: no fill takes the page background '
+      'of the mode',
+      (tester) async {
+        systemBarsView(tester);
+        await tester.pumpWidget(systemStyleApp(home: const SizedBox()));
+        expect(
+          SystemChrome.latestStyle?.statusBarIconBrightness,
+          Brightness.dark,
+        );
+
+        await tester.pumpWidget(
+          systemStyleApp(themeMode: ThemeMode.dark, home: const SizedBox()),
+        );
+
+        expect(
+          SystemChrome.latestStyle?.statusBarIconBrightness,
+          Brightness.light,
+        );
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/fr02/e05, fo03/us08/fr01/e05: a dark app bar under auto '
+      'icons gives light icons',
+      (tester) async {
+        systemBarsView(tester);
+        await tester.pumpWidget(
+          systemStyleApp(
+            home: Scaffold(
+              appBar: AppBar(
+                backgroundColor: const Color(0xFF000000),
+                title: const Text('Page'),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          SystemChrome.latestStyle?.statusBarIconBrightness,
+          Brightness.light,
+        );
+      },
+    );
+
+    testWidgets('fo03/us14/fr02/e06: off Android the navigation bar fields are '
+        'left unset', (tester) async {
+      systemBarsView(tester);
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      await tester.pumpWidget(systemStyleApp(home: const SizedBox()));
+      final overlay = SystemChrome.latestStyle;
+      debugDefaultTargetPlatformOverride = null;
+
+      expect(overlay?.systemNavigationBarColor, isNull);
+      expect(overlay?.systemNavigationBarIconBrightness, isNull);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('fo03/us14/fr03, R11: with no layer setting them, the platform '
+        'keeps its own bar mode and rotation lock; the app-wide style sets '
+        'them', (tester) async {
+      final calls = systemBarsView(tester);
+      await tester.pumpWidget(systemStyleApp(home: const SizedBox()));
+      expect(lastMode(calls), isNull);
+      expect(lastOrientations(calls), isNull);
+
+      await tester.pumpWidget(
+        systemStyleApp(
+          systemStyle: const SystemStyle(
+            barMode: SystemBarMode.leanBack,
+            orientations: [DeviceOrientation.landscapeLeft],
+          ),
+          home: const SizedBox(),
+        ),
+      );
+
+      expect(lastMode(calls), 'SystemUiMode.leanBack');
+      expect(lastOrientations(calls), ['DeviceOrientation.landscapeLeft']);
+    });
+  });
+
+  group('fo03/us14/fr01/e06: the bar colors the application paints', () {
+    testWidgets('fo03/us14/fr01/e06: the platform gets transparent bar colors '
+        'while the strips show the theme colors', (tester) async {
+      systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(themes: _coloredBars, home: const SizedBox()),
+      );
+
+      expect(SystemChrome.latestStyle?.statusBarColor, const Color(0x00000000));
+      expect(
+        SystemChrome.latestStyle?.systemNavigationBarColor,
+        const Color(0x00000000),
+      );
+      expect(
+        SystemChrome.latestStyle?.systemNavigationBarDividerColor,
+        const Color(0x00000000),
+      );
+      expect(
+        barStrips(tester),
+        paints
+          ..rect(rect: statusStrip, color: const Color(0xFF0000AA))
+          ..rect(rect: navigationStrip, color: const Color(0xFF0000BB)),
+      );
+    });
+
+    testWidgets(
+      'fo03/us14/s16, fo03/us14/fr02/e07: an opaque status bar color gives '
+      'icons against itself',
+      (tester) async {
+        systemBarsView(tester);
+        await tester.pumpWidget(
+          systemStyleApp(
+            systemStyle: const SystemStyle(statusBarColor: Color(0xFF101828)),
+            home: const SizedBox(),
+          ),
+        );
+
+        expect(
+          SystemChrome.latestStyle?.statusBarIconBrightness,
+          Brightness.light,
+        );
+        expect(
+          barStrips(tester),
+          paints..rect(rect: statusStrip, color: const Color(0xFF101828)),
+        );
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/fr01/e06: the divider is a one-pixel line on the edge '
+      'of the navigation strip that faces the page',
+      (tester) async {
+        systemBarsView(tester);
+        await tester.pumpWidget(
+          systemStyleApp(
+            systemStyle: const SystemStyle(
+              navigationBarColor: Color(0xFF0000BB),
+              navigationBarDividerColor: Color(0xFFFF0000),
+            ),
+            home: const SizedBox(),
+          ),
+        );
+
+        expect(
+          barStrips(tester),
+          paints
+            ..rect(
+              rect: Rect.fromLTWH(0, navigationStrip.top, 800, 1),
+              color: const Color(0xFFFF0000),
+            )
+            ..rect(
+              rect: Rect.fromLTRB(0, navigationStrip.top + 1, 800, 600),
+              color: const Color(0xFF0000BB),
+            ),
+        );
+      },
+    );
+
+    testWidgets('fo03/us14/fr02/e06: on iOS the status strip paints and the '
+        'navigation strip does not', (tester) async {
+      systemBarsView(tester);
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      await tester.pumpWidget(
+        systemStyleApp(themes: _coloredBars, home: const SizedBox()),
+      );
+      final strips = barStrips(tester);
+      debugDefaultTargetPlatformOverride = null;
+
+      expect(
+        strips,
+        paints..rect(rect: statusStrip, color: const Color(0xFF0000AA)),
+      );
+      expect(strips, paintsExactlyCountTimes(#drawRect, 1));
+    });
+
+    testWidgets(
+      'fo03/us14/fr01/e07: a navigation bar on a side gets no strip and '
+      "keeps the platform's contrast scrim",
+      (tester) async {
+        systemBarsView(tester);
+        tester.view.padding = const FakeViewPadding(top: 72, right: 144);
+        await tester.pumpWidget(
+          systemStyleApp(themes: _coloredBars, home: const SizedBox()),
+        );
+
+        expect(
+          barStrips(tester),
+          paints..rect(rect: statusStrip, color: const Color(0xFF0000AA)),
+        );
+        expect(barStrips(tester), paintsExactlyCountTimes(#drawRect, 1));
+        expect(
+          SystemChrome.latestStyle?.systemNavigationBarContrastEnforced,
+          isTrue,
+        );
+      },
+    );
+
+    testWidgets('only the outermost theme application on a view paints the '
+        'strips', (tester) async {
+      systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(
+          home: StratumThemeApplication(
+            themes: defaultThemeSet,
+            themeMode: ThemeMode.light,
+            systemStyle: const SystemStyle(statusBarColor: Color(0xFF00AA00)),
+            child: const SizedBox(),
+          ),
+        ),
+      );
+
+      expect(
+        barStrips(tester),
+        paints..rect(rect: statusStrip, color: const Color(0xFF00AA00)),
+      );
+      expect(barStrips(tester, index: 1), paintsNothing);
+    });
+
+    testWidgets('review minor 1, invariant 45: a root inset by a SafeArea '
+        "paints the strip under the real bar, not over the app's content", (
+      tester,
+    ) async {
+      systemBarsView(tester);
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => SafeArea(
+            child: StratumThemeApplication(
+              themes: defaultThemeSet,
+              themeMode: ThemeMode.light,
+              systemStyle: const SystemStyle(statusBarColor: Color(0xFFFF0000)),
+              child: child!,
+            ),
+          ),
+          home: const SizedBox(),
+        ),
+      );
+
+      expect(
+        barStrips(tester),
+        paints..rect(
+          rect: const Rect.fromLTWH(0, -statusBarHeight, 800, statusBarHeight),
+          color: const Color(0xFFFF0000),
+        ),
+      );
+    });
+  });
+
+  group('us14: one writer', () {
+    testWidgets('frames that change no style send no platform message '
+        'again', (tester) async {
+      final calls = systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(
+          systemStyle: const SystemStyle(
+            barMode: SystemBarMode.leanBack,
+            orientations: [DeviceOrientation.portraitUp],
+            appSwitcherLabel: 'Shop',
+          ),
+          home: const Center(child: CircularProgressIndicator()),
+        ),
+      );
+      await tester.pump();
+      final sent = calls.length;
+
+      for (var frame = 0; frame < 30; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      expect(calls, hasLength(sent));
+      expect(lastMode(calls), 'SystemUiMode.leanBack');
+    });
+
+    testWidgets('fo03/us14/fr04/e02: a nested theme application rebuilt every '
+        'frame sends the app switcher entry no more', (tester) async {
+      final calls = systemBarsView(tester);
+      final tick = ValueNotifier(0);
+      addTearDown(tick.dispose);
+      await tester.pumpWidget(
+        systemStyleApp(
+          home: ValueListenableBuilder<int>(
+            valueListenable: tick,
+            builder: (context, value, child) => StratumThemeApplication(
+              themes: defaultThemeSet,
+              themeMode: ThemeMode.light,
+              child: Text('$value'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      List<Object?> entries() =>
+          argumentsOf(calls, 'SystemChrome.setApplicationSwitcherDescription');
+      final sent = entries().length;
+
+      for (var frame = 0; frame < 30; frame++) {
+        tick.value++;
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      expect(find.text('30'), findsOneWidget);
+      expect(entries(), hasLength(sent));
+    });
+  });
+
+  group('fo03/us14/fr04: the app-wide label', () {
+    testWidgets(
+      'fo03/us14/fr04: the color is the merged appSwitcherColor, made '
+      'opaque',
+      (tester) async {
+        final calls = systemBarsView(tester);
+        await tester.pumpWidget(
+          systemStyleApp(
+            systemStyle: const SystemStyle(
+              appSwitcherLabel: 'Shop',
+              appSwitcherColor: Color(0x80123456),
+            ),
+            home: const SizedBox(),
+          ),
+        );
+
+        expect(lastSwitcherColor(calls), 0xFF123456);
+      },
+    );
+
+    testWidgets("fo03/us14/fr04/e05: with no label anywhere the app widget's "
+        'title shows with the appSwitcherColor', (tester) async {
+      final calls = systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(title: 'Stratum', home: const SizedBox()),
+      );
+
+      expect(lastLabel(calls), 'Stratum');
+      expect(
+        lastSwitcherColor(calls),
+        defaultThemeSet.light.systemStyle.appSwitcherColor!.toARGB32(),
+      );
+    });
+
+    testWidgets('fo03/us14/fr04/e04: on a desktop the entry is sent with no '
+        'error', (tester) async {
+      final calls = systemBarsView(tester);
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      await tester.pumpWidget(
+        systemStyleApp(
+          systemStyle: const SystemStyle(appSwitcherLabel: 'Shop'),
+          home: const SizedBox(),
+        ),
+      );
+      debugDefaultTargetPlatformOverride = null;
+
+      expect(tester.takeException(), isNull);
+      expect(lastLabel(calls), 'Shop');
+    });
+
+    testWidgets('review minor 3: with no merged appSwitcherColor, the label '
+        "still sends, with the app widget's Title color", (tester) async {
+      final calls = systemBarsView(tester);
+      final theme = StratumThemeSet(
+        light: fakeStratumTheme().copyWith(systemStyle: const SystemStyle()),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          color: const Color(0xFF123456),
+          builder: (context, child) => StratumThemeApplication(
+            themes: theme,
+            themeMode: ThemeMode.light,
+            child: child!,
+          ),
+          home: const SystemStyleScope(
+            style: SystemStyle(appSwitcherLabel: 'Shop'),
+            child: SizedBox(),
+          ),
+        ),
+      );
+
+      expect(lastLabel(calls), 'Shop');
+      expect(lastSwitcherColor(calls), 0xFF123456);
+    });
+  });
+
+  group('fo03/us14/fr02: icons against the fill', () {
+    testWidgets('fo03/us14/s3, fo03/us14/fr02/e01, fo03/us14/fr05/e03: a dark header gives '
+        'light icons on a screen with no page layout', (tester) async {
+      systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(home: headerPage(const Color(0xFF101828))),
+      );
+
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.light,
+      );
+      expect(SystemChrome.latestStyle?.statusBarBrightness, Brightness.dark);
+    });
+
+    testWidgets(
+      'fo03/us14/fr02/e05: a foreign translucent status color with no '
+      'brightness field adds no fill under auto',
+      (tester) async {
+        systemBarsView(tester);
+        await tester.pumpWidget(
+          systemStyleApp(
+            home: const AnnotatedRegion<SystemUiOverlayStyle>(
+              value: SystemUiOverlayStyle(statusBarColor: Color(0x80000000)),
+              child: SizedBox(),
+            ),
+          ),
+        );
+
+        expect(
+          SystemChrome.latestStyle?.statusBarIconBrightness,
+          Brightness.dark,
+        );
+      },
+    );
+
+    testWidgets('fo03/us14/s4, fo03/us14/fr02/e02, fo03/us14/fr05/e02: a translucent scrim '
+        'blends over the header', (tester) async {
+      systemBarsView(tester);
+      final scrim = ValueNotifier(false);
+      addTearDown(scrim.dispose);
+      await tester.pumpWidget(
+        systemStyleApp(
+          home: ValueListenableBuilder<bool>(
+            valueListenable: scrim,
+            builder: (context, shown, child) => StackLayout(
+              children: [
+                headerPage(const Color(0xFFFFFFFF)),
+                if (shown)
+                  const Positioned.fill(
+                    child: SystemBarFill(
+                      color: Color(0x99000000),
+                      child: ColoredBox(color: Color(0x99000000)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
+
+      scrim.value = true;
+      await tester.pump();
+
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.light,
+      );
+    });
+
+    testWidgets('fo03/us14/fr05/e01: a fill away from the status bar takes no '
+        'part in its icons', (tester) async {
+      systemBarsView(tester);
+      await tester.pumpWidget(
+        systemStyleApp(
+          home: const ColumnLayout(
+            children: [
+              Expanded(child: SizedBox()),
+              SystemBarFill(
+                color: Color(0xFF000000),
+                child: SizedBox(height: 80, width: double.infinity),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
+      expect(
+        SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
+        Brightness.light,
+      );
+    });
+
+    testWidgets(
+      "fo03/us14/s6, fo03/us14/fr02/e04: the page's own dark icons beat a "
+      'dark Material app bar',
+      (tester) async {
+        systemBarsView(tester);
+        await tester.pumpWidget(
+          systemStyleApp(
+            home: SystemStyleScope(
+              style: const SystemStyle(statusBarIcons: SystemBarIcons.dark),
+              child: Scaffold(
+                appBar: AppBar(
+                  backgroundColor: const Color(0xFF000000),
+                  title: const Text('Page'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          SystemChrome.latestStyle?.statusBarIconBrightness,
+          Brightness.dark,
+        );
+      },
+    );
+
+    testWidgets('fo03/us14/fr01/e06: a page bar color paints while the page '
+        'shows, and back removes it', (tester) async {
+      systemBarsView(tester);
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        systemStyleApp(navigatorKey: navigator, home: const SizedBox()),
+      );
+      expect(barStrips(tester), paintsNothing);
+
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (context) => const SystemStyleScope(
+            style: SystemStyle(statusBarColor: Color(0xFF101828)),
+            child: SizedBox(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        barStrips(tester),
+        paints..rect(rect: statusStrip, color: const Color(0xFF101828)),
+      );
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.light,
+      );
+
+      navigator.currentState!.pop();
+      await tester.pumpAndSettle();
+
+      expect(barStrips(tester), paintsNothing);
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
+    });
+
+    testWidgets(
+      'fo03/us14/fr01, fo03/us14/fr02/e04: a nested theme application away '
+      "from the bars keeps the page's icons and page background",
+      (tester) async {
+        final calls = systemBarsView(tester);
+        await tester.pumpWidget(
+          systemStyleApp(
+            themeMode: ThemeMode.dark,
+            home: SystemStyleScope(
+              style: const SystemStyle(statusBarIcons: SystemBarIcons.light),
+              child: Center(
+                child: StratumThemeApplication(
+                  themes: defaultThemeSet,
+                  themeMode: ThemeMode.light,
+                  child: const SizedBox(width: 200, height: 100),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          SystemChrome.latestStyle?.statusBarIconBrightness,
+          Brightness.light,
+        );
+        expect(
+          SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
+          Brightness.light,
+        );
+        expect(
+          lastSwitcherColor(calls),
+          defaultThemeSet
+              .pick(dark: true, highContrast: false)
+              .systemStyle
+              .appSwitcherColor!
+              .toARGB32(),
+        );
+      },
+    );
+  });
+
+  group('fo03/us14/fr03: the bar mode and the rotation lock', () {
+    testWidgets('fo03/us14/s7, fo03/us14/s8, fo03/us14/s9, fo03/us14/fr03/e02, fo03/us14/fr03/e03: '
+        'the video page hides the bars, a page over it shows them, and back '
+        'hides them again', (tester) async {
+      final calls = systemBarsView(tester);
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        systemStyleApp(navigatorKey: navigator, home: const SizedBox()),
+      );
+      expect(lastMode(calls), isNull);
+      expect(lastOrientations(calls), isNull);
+
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (context) =>
+              const SystemStyleScope(style: _immersive, child: SizedBox()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(lastMode(calls), 'SystemUiMode.immersiveSticky');
+      expect(lastOrientations(calls), ['DeviceOrientation.portraitUp']);
+
+      final sent = calls.length;
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(builder: (context) => const SizedBox()),
+      );
+      await tester.pumpAndSettle();
+      expect(lastMode(calls), 'SystemUiMode.edgeToEdge');
+      expect(lastOrientations(calls), isEmpty);
+      _expectEdgeToEdgeRestore(calls, sent);
+
+      navigator.currentState!.pop();
+      await tester.pumpAndSettle();
+      expect(lastMode(calls), 'SystemUiMode.immersiveSticky');
+      expect(lastOrientations(calls), ['DeviceOrientation.portraitUp']);
+    });
+
+    testWidgets(
+      'fo03/us14/fr03/e02, fo03/us14/fr03/e03: a mode requested while an '
+      "edgeToEdge restore's send is still in flight overtakes it, so the "
+      'window ends on the later mode, not a stale edgeToEdge',
+      (tester) async {
+        tester.view.padding = const FakeViewPadding(top: 72, bottom: 48);
+        addTearDown(tester.view.reset);
+        final calls = <MethodCall>[];
+        final overlaysGate = Completer<void>();
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            calls.add(call);
+            if (call.method == 'SystemChrome.setEnabledSystemUIOverlays') {
+              await overlaysGate.future;
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        addTearDown(() => debugSystemStyleIsWebOverride = null);
+
+        final tab = ValueNotifier(0);
+        addTearDown(tab.dispose);
+        await tester.pumpWidget(
+          systemStyleApp(
+            home: ValueListenableBuilder<int>(
+              valueListenable: tab,
+              builder: (context, index, child) => IndexedStackLayout(
+                index: index,
+                children: const [
+                  SystemStyleScope(style: _immersive, child: SizedBox()),
+                  SizedBox(),
+                ],
+              ),
+            ),
+          ),
+        );
+        expect(lastMode(calls), 'SystemUiMode.immersiveSticky');
+        calls.clear();
+
+        // Away from the immersive page: the restore's first send (the
+        // manual overlays request) blocks on `overlaysGate` before its
+        // second send (`edgeToEdge`).
+        tab.value = 1;
+        await tester.pump();
+        expect(
+          calls.map((call) => call.method),
+          contains('SystemChrome.setEnabledSystemUIOverlays'),
+        );
+
+        // Back to the immersive page while that restore is still
+        // mid-flight: a cheap single-call send that, unserialized, could
+        // land and complete before the stale `edgeToEdge` from the first
+        // request does.
+        tab.value = 0;
+        await tester.pump();
+
+        overlaysGate.complete();
+        await tester.pumpAndSettle();
+
+        expect(lastMode(calls), 'SystemUiMode.immersiveSticky');
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/fr03/e02: an error sending one mode is reported and does '
+      'not stall the queue for the next request',
+      (tester) async {
+        tester.view.padding = const FakeViewPadding(top: 72, bottom: 48);
+        addTearDown(tester.view.reset);
+        final calls = <MethodCall>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            calls.add(call);
+            if (call.method == 'SystemChrome.setEnabledSystemUIMode' &&
+                call.arguments == 'SystemUiMode.immersive') {
+              throw PlatformException(code: 'boom');
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        addTearDown(() => debugSystemStyleIsWebOverride = null);
+
+        final reported = <FlutterErrorDetails>[];
+        final previousOnError = FlutterError.onError;
+        FlutterError.onError = reported.add;
+        addTearDown(() => FlutterError.onError = previousOnError);
+
+        final tab = ValueNotifier(0);
+        addTearDown(tab.dispose);
+        await tester.pumpWidget(
+          systemStyleApp(
+            home: ValueListenableBuilder<int>(
+              valueListenable: tab,
+              builder: (context, index, child) => IndexedStackLayout(
+                index: index,
+                children: const [
+                  SizedBox(),
+                  SystemStyleScope(
+                    style: SystemStyle(barMode: SystemBarMode.immersive),
+                    child: SizedBox(),
+                  ),
+                  SystemStyleScope(
+                    style: SystemStyle(barMode: SystemBarMode.leanBack),
+                    child: SizedBox(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        expect(lastMode(calls), isNull);
+
+        // The immersive send throws; the error must reach FlutterError, not
+        // vanish, and must not leave the queue stuck.
+        tab.value = 1;
+        await tester.pump();
+        expect(reported, hasLength(1));
+        expect(reported.single.library, 'stratum_ui');
+
+        // A later, independent request must still reach the platform.
+        tab.value = 2;
+        await tester.pump();
+        expect(lastMode(calls), 'SystemUiMode.leanBack');
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/s10, fo03/us14/fr03/e01: a dialog over the page keeps its '
+      'bar mode and rotation lock',
+      (tester) async {
+        final calls = systemBarsView(tester);
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(
+          systemStyleApp(
+            navigatorKey: navigator,
+            home: const SystemStyleScope(
+              style: SystemStyle(
+                barMode: SystemBarMode.immersive,
+                orientations: [DeviceOrientation.portraitUp],
+              ),
+              child: SizedBox(),
+            ),
+          ),
+        );
+        expect(lastMode(calls), 'SystemUiMode.immersive');
+        final sent = calls.length;
+
+        unawaited(
+          showDialog<void>(
+            context: navigator.currentContext!,
+            builder: (context) => const Text('Dialog'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Dialog'), findsOneWidget);
+        expect(
+          argumentsOf(
+            calls.sublist(sent),
+            'SystemChrome.setEnabledSystemUIMode',
+          ),
+          isEmpty,
+        );
+        expect(
+          argumentsOf(
+            calls.sublist(sent),
+            'SystemChrome.setPreferredOrientations',
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/s11, fo03/us14/fr03/e04: the tab on screen sets the bars',
+      (tester) async {
+        final calls = systemBarsView(tester);
+        final tab = ValueNotifier(0);
+        addTearDown(tab.dispose);
+        await tester.pumpWidget(
+          systemStyleApp(
+            home: ValueListenableBuilder<int>(
+              valueListenable: tab,
+              builder: (context, index, child) => IndexedStackLayout(
+                index: index,
+                children: const [
+                  SystemStyleScope(style: _immersive, child: SizedBox()),
+                  SizedBox(),
+                ],
+              ),
+            ),
+          ),
+        );
+        expect(lastMode(calls), 'SystemUiMode.immersiveSticky');
+
+        final sent = calls.length;
+        tab.value = 1;
+        await tester.pump();
+
+        expect(lastMode(calls), 'SystemUiMode.edgeToEdge');
+        _expectEdgeToEdgeRestore(calls, sent);
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/s11, fo03/us14/fr03/e04, fo03/us14/fr04: a tab of a tab view '
+      'under an app bar sets the bar mode and the label',
+      (tester) async {
+        final calls = systemBarsView(tester);
+        await tester.pumpWidget(
+          systemStyleApp(
+            home: DefaultTabController(
+              length: 2,
+              child: Scaffold(
+                appBar: AppBar(
+                  bottom: const TabBar(
+                    tabs: [
+                      Tab(text: 'Videos'),
+                      Tab(text: 'Music'),
+                    ],
+                  ),
+                ),
+                body: const TabBarView(
+                  children: [
+                    SystemStyleScope(
+                      style: SystemStyle(
+                        barMode: SystemBarMode.immersive,
+                        appSwitcherLabel: 'Videos',
+                      ),
+                      child: SizedBox(),
+                    ),
+                    SizedBox(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(lastMode(calls), 'SystemUiMode.immersive');
+        expect(lastLabel(calls), 'Videos');
+
+        final sent = calls.length;
+        await tester.tap(find.text('Music'));
+        await tester.pumpAndSettle();
+
+        expect(lastMode(calls), 'SystemUiMode.edgeToEdge');
+        expect(lastLabel(calls), 'App');
+        _expectEdgeToEdgeRestore(calls, sent);
+      },
+    );
+
+    testWidgets('fo03/us14/fr03/e06: the bars follow what paints with no '
+        'navigator at all', (tester) async {
+      final calls = systemBarsView(tester);
+      await tester.pumpWidget(
+        StratumThemeApplication(
+          themes: defaultThemeSet,
+          themeMode: ThemeMode.light,
+          child: const SystemStyleScope(
+            style: SystemStyle(barMode: SystemBarMode.leanBack),
+            child: SizedBox(),
+          ),
+        ),
+      );
+
+      expect(lastMode(calls), 'SystemUiMode.leanBack');
+    });
+
+    testWidgets('fo03/us14/fr01: an empty orientation list on a page lifts the '
+        'app-wide lock while the page shows', (tester) async {
+      final calls = systemBarsView(tester);
+      const appWide = SystemStyle(orientations: [DeviceOrientation.portraitUp]);
+      await tester.pumpWidget(
+        systemStyleApp(systemStyle: appWide, home: const SizedBox()),
+      );
+      expect(lastOrientations(calls), ['DeviceOrientation.portraitUp']);
+
+      await tester.pumpWidget(
+        systemStyleApp(
+          systemStyle: appWide,
+          home: const SystemStyleScope(
+            style: SystemStyle(orientations: []),
+            child: SizedBox(),
+          ),
+        ),
+      );
+
+      expect(lastOrientations(calls), isEmpty);
+    });
+
+    testWidgets('d11: topOnly and bottomOnly show one bar each', (
+      tester,
+    ) async {
+      final calls = systemBarsView(tester);
+      final mode = ValueNotifier(SystemBarMode.topOnly);
+      addTearDown(mode.dispose);
+      await tester.pumpWidget(
+        systemStyleApp(
+          home: ValueListenableBuilder<SystemBarMode>(
+            valueListenable: mode,
+            builder: (context, value, child) => SystemStyleScope(
+              style: SystemStyle(barMode: value),
+              child: const SizedBox(),
+            ),
+          ),
+        ),
+      );
+      expect(lastOverlays(calls), ['SystemUiOverlay.top']);
+
+      mode.value = SystemBarMode.bottomOnly;
+      await tester.pump();
+
+      expect(lastOverlays(calls), ['SystemUiOverlay.bottom']);
+    });
+
+    for (final platform in [TargetPlatform.macOS, TargetPlatform.windows]) {
+      testWidgets(
+        'fo03/us14/s12, fo03/us14/fr03/e05: on ${platform.name} the lock is '
+        'ignored with no error',
+        (tester) async {
+          final calls = systemBarsView(tester);
+          debugDefaultTargetPlatformOverride = platform;
+          await tester.pumpWidget(
+            systemStyleApp(
+              home: const SystemStyleScope(
+                style: _immersive,
+                child: Text('Page'),
+              ),
+            ),
+          );
+          debugDefaultTargetPlatformOverride = null;
+
+          expect(find.text('Page'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          expect(lastOrientations(calls), isNull);
+          expect(lastMode(calls), isNull);
+        },
+      );
+    }
+
+    testWidgets(
+      'fo03/us14/fr03/e05, fo03/us14/fr04/e04: on macOS the bar mode and '
+      'orientations stay unset while the label still sends on the same '
+      'pump',
+      (tester) async {
+        final calls = systemBarsView(tester);
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+        await tester.pumpWidget(
+          systemStyleApp(
+            systemStyle: const SystemStyle(
+              barMode: SystemBarMode.immersive,
+              orientations: [DeviceOrientation.portraitUp],
+              appSwitcherLabel: 'Shop',
+            ),
+            home: const SizedBox(),
+          ),
+        );
+        debugDefaultTargetPlatformOverride = null;
+
+        expect(tester.takeException(), isNull);
+        expect(lastMode(calls), isNull);
+        expect(lastOrientations(calls), isNull);
+        expect(lastLabel(calls), 'Shop');
+      },
+    );
+
+    testWidgets(
+      'fo03/us14/s12, fo03/us14/fr03/e05: in a web browser the lock is '
+      'ignored with no error',
+      (tester) async {
+        final calls = systemBarsView(tester);
+        debugSystemStyleIsWebOverride = true;
+        await tester.pumpWidget(
+          systemStyleApp(
+            home: const SystemStyleScope(
+              style: _immersive,
+              child: Text('Page'),
+            ),
+          ),
+        );
+
+        expect(find.text('Page'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        expect(lastOrientations(calls), isNull);
+        expect(lastMode(calls), isNull);
+      },
+    );
+  });
+
+  group('fo03/us14/fr04: the page label', () {
+    testWidgets('fo03/us14/s13, fo03/us14/s14, fo03/us14/fr04/e01, fo03/us14/fr04/e03: on the '
+        'web the page label shows, back shows the app label, and no status '
+        'bar style is sent', (tester) async {
+      final calls = systemBarsView(tester);
+      debugSystemStyleIsWebOverride = true;
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        systemStyleApp(
+          navigatorKey: navigator,
+          systemStyle: const SystemStyle(
+            appSwitcherLabel: 'Shop',
+            statusBarColor: Color(0xFF0A0B0C),
+          ),
+          home: const SizedBox(),
+        ),
+      );
+      expect(lastLabel(calls), 'Shop');
+
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (context) => const SystemStyleScope(
+            style: SystemStyle(appSwitcherLabel: 'Settings'),
+            child: SizedBox(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(lastLabel(calls), 'Settings');
+
+      navigator.currentState!.pop();
+      await tester.pumpAndSettle();
+      expect(lastLabel(calls), 'Shop');
+      expect(
+        argumentsOf(calls, 'SystemChrome.setSystemUIOverlayStyle'),
+        isEmpty,
+      );
+    });
+
+    testWidgets('fo03/us14/fr04/e02: after the app widget rebuilds with a new '
+        'title, the page label is sent again', (tester) async {
+      final calls = systemBarsView(tester);
+      const page = SystemStyleScope(
+        style: SystemStyle(appSwitcherLabel: 'Settings'),
+        child: SizedBox(),
+      );
+      await tester.pumpWidget(systemStyleApp(home: page));
+      expect(lastLabel(calls), 'Settings');
+
+      await tester.pumpWidget(systemStyleApp(title: 'Renamed', home: page));
+
+      expect(lastLabel(calls), 'Settings');
+      expect(
+        argumentsOf(
+          calls,
+          'SystemChrome.setApplicationSwitcherDescription',
+        ).map((sent) => (sent! as Map<Object?, Object?>)['label']),
+        containsAllInOrder(<Object?>['Renamed', 'Settings']),
+      );
+    });
+  });
+}
+
+const _immersive = SystemStyle(
+  barMode: SystemBarMode.immersiveSticky,
+  orientations: [DeviceOrientation.portraitUp],
+);
+
+/// Asserts that, since index [from], [calls] restored edge-to-edge the way
+/// Android API below 29 needs (themes s03 `SystemBarMode` row): a manual
+/// overlays send of both bars, awaited, then `SystemUiMode.edgeToEdge`.
+void _expectEdgeToEdgeRestore(List<MethodCall> calls, int from) {
+  final restored = calls.sublist(from);
+  final overlays = restored.indexWhere(
+    (call) => call.method == 'SystemChrome.setEnabledSystemUIOverlays',
+  );
+  expect(overlays, isNonNegative, reason: 'no overlays send before edgeToEdge');
+  expect(restored[overlays].arguments, [
+    'SystemUiOverlay.top',
+    'SystemUiOverlay.bottom',
+  ]);
+  final mode = restored.indexWhere(
+    (call) => call.method == 'SystemChrome.setEnabledSystemUIMode',
+    overlays + 1,
+  );
+  expect(
+    mode,
+    greaterThan(overlays),
+    reason: 'edgeToEdge not sent after overlays',
+  );
+  expect(restored[mode].arguments, 'SystemUiMode.edgeToEdge');
+}

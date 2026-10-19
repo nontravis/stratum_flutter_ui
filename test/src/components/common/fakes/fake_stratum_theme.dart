@@ -1,6 +1,6 @@
-import 'dart:io';
-
 import 'package:stratum_ui/src/src.dart';
+
+import 'default_theme_yaml.g.dart';
 
 /// Hover overlay color of [fakeTheme].
 const fakeHover = Color(0x11000000);
@@ -26,13 +26,14 @@ const fakeTextColors = <FontColor, Color>{
   FontColor.tertiaryInverse: Color(0xFF000007),
 };
 
-/// The package default `theme.yaml`, read from disk.
-final String defaultThemeSource = File('assets/themes/default/theme.yaml')
-    .readAsStringSync();
+/// The package default `theme.yaml`, from the generated copy
+/// [defaultThemeYaml]; the `@TestOn('vm')` guard in
+/// `default_theme_yaml_test.dart` pins the copy equal to the file.
+const String defaultThemeSource = defaultThemeYaml;
 
 /// The package default theme, parsed once per test file.
 final StratumThemeConfig defaultThemeConfig = StratumThemeConfig.parse(
-  base: StratumThemeSource(
+  base: const StratumThemeSource(
     id: 'stratum-default',
     folder: 'packages/stratum_ui/assets/themes/default',
     yaml: defaultThemeSource,
@@ -52,26 +53,30 @@ StratumThemeData fakeStratumTheme({
   ScrollBehavior scrollBehavior = const StratumScrollBehavior(),
   ScrollPhysics physics = const ClampingScrollPhysics(),
   StratumTypography? typography,
-}) => defaultThemeSet.light.copyWith(
-  color: StratumColorTokens.fromMap({
-    ...defaultThemeConfig.color.light,
-    'state.hover': hover,
-    'state.press': active,
-    'border.color.brand': fakeRing,
-    'text.color.brand': fakeTextColors[FontColor.brandPrimary]!,
-    'text.default.primary': fakeTextColors[FontColor.primary]!,
-    'text.default.primary-inverse': fakeTextColors[FontColor.primaryInverse]!,
-    'text.default.primary-on-color': fakeTextColors[FontColor.primaryOnColor]!,
-    'text.default.secondary': fakeTextColors[FontColor.secondary]!,
-    'text.default.secondary-inverse':
-        fakeTextColors[FontColor.secondaryInverse]!,
-    'text.default.tertiary': fakeTextColors[FontColor.tertiary]!,
-    'text.default.tertiary-inverse': fakeTextColors[FontColor.tertiaryInverse]!,
-  }),
-  scrollBehavior: scrollBehavior,
-  physics: physics,
-  typography: typography,
-);
+}) {
+  final base = defaultThemeSet.light.copyWith(
+    color: StratumColorTokens.fromMap({
+      ...defaultThemeConfig.color.light,
+      'state.hover': hover,
+      'state.press': active,
+      'border.color.brand': fakeRing,
+      'text.color.brand': fakeTextColors[FontColor.brandPrimary]!,
+      'text.default.primary': fakeTextColors[FontColor.primary]!,
+      'text.default.primary-inverse': fakeTextColors[FontColor.primaryInverse]!,
+      'text.default.primary-on-color':
+          fakeTextColors[FontColor.primaryOnColor]!,
+      'text.default.secondary': fakeTextColors[FontColor.secondary]!,
+      'text.default.secondary-inverse':
+          fakeTextColors[FontColor.secondaryInverse]!,
+      'text.default.tertiary': fakeTextColors[FontColor.tertiary]!,
+      'text.default.tertiary-inverse':
+          fakeTextColors[FontColor.tertiaryInverse]!,
+    }),
+    scrollBehavior: scrollBehavior,
+    physics: physics,
+  );
+  return typography == null ? base : base.copyWith(typography: typography);
+}
 
 /// The default theme of [themedHost].
 final StratumThemeData fakeTheme = fakeStratumTheme();

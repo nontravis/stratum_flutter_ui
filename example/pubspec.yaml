@@ -34,6 +34,16 @@ dependencies:
   stratum_ui:
     path: ../
 
+  # Flutter's own labels in Thai for the screen reader checks page
+  # (lib/screen_reader_demo.dart, F-01 US-13), so Stratum's built-in labels
+  # follow a Thai device.
+  flutter_localizations:
+    sdk: flutter
+
+  # The router of the page transition demo (lib/transition_demo.dart,
+  # F-01 US-10) only; never a dependency of stratum_ui.
+  go_router: ^18.0.2
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
@@ -46,12 +56,28 @@ dev_dependencies:
   flutter_driver:
     sdk: flutter
 
+  # system_style_device_test.dart's support/probe.dart reads the device-test
+  # probe ack file (device-test probe contract item 1b) from the app's own
+  # data directory; previously only a transitive dependency.
+  path_provider: ^2.1.6
+
+  # screen_reader_demo_test.dart's setUp fakes the splash's shared_preferences
+  # platform (F-01 US-13); previously only a transitive dependency.
+  shared_preferences_platform_interface: ^2.4.2
+
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+dependency_overrides:
+  # WORKAROUND: toastification 3.2.0 pins equatable ^2.0.5 while dart_faltool
+  # (through flutter_falconx) needs ^3.0.0; toastification's source compiles
+  # unchanged on 3.0.0. remove when a toastification release accepts
+  # equatable 3 (upstream PR #249).
+  equatable: ^3.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -81,7 +81,7 @@ Object? copyTree(Object? value) => switch (value) {
 
 /// An [EqualUnmodifiableMapView] over an unmodifiable copy of [map].
 ///
-/// A `@themeModel` factory's generated getter wraps its stored map in a
+/// A `@valueModel` factory's generated getter wraps its stored map in a
 /// fresh [EqualUnmodifiableMapView] on every read, unless the stored map is
 /// already one, in which case it returns that exact instance instead. Every
 /// producer that hands a map to such a factory calls this, so the model's
@@ -155,6 +155,29 @@ final class ThemeReader {
 
   static final _hex = RegExp(r'^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$');
 
+  /// The largest magnitude of a theme length, in logical pixels (config s03
+  /// invariant 15). Every `space`, `radius`, and `layouts` number, the `N`
+  /// of a `layouts` `"N%"`, every `border` width and `blur` radius, a
+  /// shadow layer's `x`, `y`, `blur`, and `spread`, and every `typography`
+  /// length, the `N` of its `"N%"` included, keep within it, so no package
+  /// math on a length a theme file sets can overflow to infinity.
+  static const maxLength = 10000;
+
+  /// Whether [value] is a theme length: a finite number from -[maxLength]
+  /// to [maxLength].
+  static bool isLength(Object? value) =>
+      value is num &&
+      value.isFinite &&
+      value >= -maxLength &&
+      value <= maxLength;
+
+  /// Whether [dimension] keeps within [maxLength]: a fixed value's pixels,
+  /// or the `N` of a percent `"N%"`.
+  static bool fitsLength(StratumDimension dimension) => switch (dimension) {
+    FixedDimension(:final px) => isLength(px),
+    PercentDimension(:final ratio) => isLength(ratio * 100),
+  };
+
   /// Where every error goes.
   final ThemeErrors errors;
 
@@ -221,24 +244,45 @@ final class ThemeReader {
     return null;
   }
 
-  /// [value] read by [StratumDimension.parse]; reports `required` for null
-  /// when [required] is set, and `expected_dimension` for anything else
-  /// that does not parse.
+  /// [value] read by [StratumDimension.parse] and held to [maxLength]
+  /// (config s03 invariant 15). Reports `required` for null when [required]
+  /// is set; reports `expected_dimension`, in this order, for a value that
+  /// does not parse, for a percent when [percent] is not set, and for a
+  /// value that does not [fitsLength].
   StratumDimension? dimension(
     Object? value,
     String path, {
+    required bool percent,
     bool required = false,
   }) {
     if (value == null) {
       if (required) report(StratumThemeErrorCode.required, path, 'required');
       return null;
     }
+    final StratumDimension dimension;
     try {
-      return StratumDimension.parse(value);
+      dimension = StratumDimension.parse(value);
     } on FormatException catch (error) {
       report(StratumThemeErrorCode.expectedDimension, path, error.message);
       return null;
     }
+    if (!percent && dimension is PercentDimension) {
+      report(
+        StratumThemeErrorCode.expectedDimension,
+        path,
+        'expected a number, got ${show(value)}; a percent is allowed only in '
+        'layouts',
+      );
+      return null;
+    }
+    if (fitsLength(dimension)) return dimension;
+    final kind = percent ? 'a number or "N%"' : 'a number';
+    report(
+      StratumThemeErrorCode.expectedDimension,
+      path,
+      'expected $kind from -$maxLength to $maxLength, got ${show(value)}',
+    );
+    return null;
   }
 
   /// [value] read by [parseColor]; reports `required` for null and
@@ -272,11 +316,12 @@ final class ThemeReader {
     return alpha << 24 | rgb;
   }
 
-  /// [value] read by [StratumDimension.parse], or null when it does not
-  /// parse.
-  static StratumDimension? parseDimension(Object? value) {
+  /// [value] read by [StratumDimension.parse] when it [fitsLength], or null
+  /// when it does not parse or does not fit.
+  static StratumDimension? parseLength(Object? value) {
     try {
-      return StratumDimension.parse(value);
+      final dimension = StratumDimension.parse(value);
+      return fitsLength(dimension) ? dimension : null;
     } on FormatException {
       return null;
     }

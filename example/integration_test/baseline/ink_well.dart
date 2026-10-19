@@ -1,4 +1,4 @@
-// Frozen by tool/perf_freeze.dart from f64627d:lib/src/components/common/ink_well.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 7a50510:lib/src/components/common/ink_well.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
@@ -86,7 +86,8 @@ Widget semanticsWithoutHeading({
 ///
 /// * a flat overlay over [child]: the theme's `state.hover` color while
 ///   hovered and `state.press` while pressed;
-/// * a [BaselineFocusSpread] ring, shown per [focusType];
+/// * a [StratumFocusBorder] ring in its outside style, shown per
+///   [focusType];
 /// * a semantics node with a button role and a disabled flag;
 /// * the context-menu key and Shift+F10 for [onSecondaryTap], and a custom
 ///   semantics action for it, so keyboard and screen-reader users reach
@@ -491,8 +492,8 @@ class _StratumInkWellState extends State<BaselineStratumInkWell>
       child: result,
     );
     if (_hasRing) {
-      result = BaselineFocusSpread(
-        focus: _ringVisible,
+      result = StratumFocusBorder(
+        state: _ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
         borderRadius: widget.borderRadius,
         child: result,
       );

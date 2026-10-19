@@ -1,7 +1,16 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
+
+/// The WCAG 1.4.11 contrast ratio between [a] and [b].
+double _contrast(Color a, Color b) {
+  final luminanceA = a.computeLuminance();
+  final luminanceB = b.computeLuminance();
+  return (math.max(luminanceA, luminanceB) + 0.05) /
+      (math.min(luminanceA, luminanceB) + 0.05);
+}
 
 /// Counts the leaves of [node] outside `app` by kind: `alias` or `literal`,
 /// and each alias by its group: `palette`, `transparent`, or `color`.
@@ -46,8 +55,12 @@ void main() {
     expect(config.color.highContrastDark, hasLength(192));
     expect(config.palette, hasLength(88));
     expect(config.space, hasLength(27));
-    expect(config.radius, hasLength(17));
+    expect(config.radius, hasLength(18));
     expect(config.layouts, hasLength(7));
+    expect(
+      config.radius['sheet'],
+      const StratumByWindowSize.all(StratumDimension.fixed(40)),
+    );
   });
 
   test(
@@ -74,9 +87,60 @@ void main() {
     },
   );
 
-  test('the high-contrast sets equal light and dark', () {
-    expect(config.color.highContrastLight, config.color.light);
-    expect(config.color.highContrastDark, config.color.dark);
+  test('the high-contrast sets equal light and dark save the focus ring '
+      'token', () {
+    const ring = 'border.subtle.blue';
+
+    expect(
+      Map.of(config.color.highContrastLight)..remove(ring),
+      Map.of(config.color.light)..remove(ring),
+    );
+    expect(
+      Map.of(config.color.highContrastDark)..remove(ring),
+      Map.of(config.color.dark)..remove(ring),
+    );
+    expect(config.color.highContrastLight[ring], const Color(0xFF2563EB));
+    expect(config.color.highContrastDark[ring], const Color(0xFF60A5FA));
+  });
+
+  test('NFR-U07, us04/nf01, and us07/nf01: the focus ring holds 3:1 in both '
+      'high-contrast sets and keeps its exception in light and dark', () {
+    const ring = 'border.subtle.blue';
+
+    for (final contrastSet in [
+      config.color.highContrastLight,
+      config.color.highContrastDark,
+    ]) {
+      expect(
+        _contrast(
+          contrastSet[ring]!,
+          contrastSet['background.default.normal']!,
+        ),
+        greaterThanOrEqualTo(3),
+      );
+      expect(
+        _contrast(
+          contrastSet[ring]!,
+          contrastSet['background.default.surface']!,
+        ),
+        greaterThanOrEqualTo(3),
+      );
+    }
+
+    expect(
+      _contrast(
+        config.color.light[ring]!,
+        config.color.light['background.default.normal']!,
+      ),
+      closeTo(1.80, 0.01),
+    );
+    expect(
+      _contrast(
+        config.color.dark[ring]!,
+        config.color.dark['background.default.normal']!,
+      ),
+      closeTo(2.03, 0.01),
+    );
   });
 
   test('extensions and both asset slots are empty', () {
@@ -131,7 +195,8 @@ void main() {
       config.animation,
       const StratumAnimationConfig(
         durations: {
-          'veryFast': Duration(milliseconds: 50),
+          'micro': Duration(milliseconds: 30),
+          'veryFast': Duration(milliseconds: 75),
           'fast': Duration(milliseconds: 125),
           'normal': Duration(milliseconds: 200),
           'slow': Duration(milliseconds: 300),
@@ -153,6 +218,95 @@ void main() {
         },
       ),
     );
+  });
+
+  test('fo01/us01/fr01: the opacity group reads disabled and scrim 0.5', () {
+    expect(config.opacity, {'disabled': 0.5, 'scrim': 0.5});
+  });
+
+  test('fo01/us01/fr01: border, shadow, and blur read the Figma values, '
+      'each shadow level ambient then contact', () {
+    expect(config.border, {'sm': 0.5, 'md': 1.0, 'lg': 1.5});
+    expect(config.blur, {
+      '1': 4.0,
+      '2': 8.0,
+      '3': 16.0,
+      '4': 24.0,
+      '5': 40.0,
+      '6': 80.0,
+    });
+    const contact = StratumShadowLayer(
+      x: 0,
+      y: 0,
+      blur: 1,
+      spread: 0,
+      color: StratumSetLayerColor('shadow.primary'),
+    );
+    StratumShadowLayer ambient(double y, double blur) => StratumShadowLayer(
+      x: 0,
+      y: y,
+      blur: blur,
+      spread: 0,
+      color: const StratumSetLayerColor('shadow.secondary'),
+    );
+    expect(config.shadow, {
+      '1': [ambient(1, 2), contact],
+      '2': [ambient(4, 8), contact],
+      '3': [ambient(8, 16), contact],
+      '4': [ambient(12, 24), contact],
+      '5': [ambient(24, 32), contact],
+      '6': [ambient(40, 64), contact],
+    });
+  });
+
+  test('fo01/us01/fr01, us14/fr01: the system group reads auto icons, '
+      'transparent bars, the Android scrim defaults, and the page '
+      'background', () {
+    SystemStyle look(Color appSwitcherColor) => SystemStyle(
+      statusBarIcons: SystemBarIcons.auto,
+      statusBarColor: const Color(0x00000000),
+      statusBarContrast: false,
+      navigationBarIcons: SystemBarIcons.auto,
+      navigationBarColor: const Color(0x00000000),
+      navigationBarDividerColor: const Color(0x00000000),
+      navigationBarContrast: true,
+      appSwitcherColor: appSwitcherColor,
+    );
+    final light = config.color.light['background.default.normal']!;
+    final dark = config.color.dark['background.default.normal']!;
+
+    expect(light, const Color(0xFFFFFFFF));
+    expect(dark, const Color(0xFF111827));
+    expect(config.system, {
+      'light': look(light),
+      'dark': look(dark),
+      'highContrastLight': look(
+        config.color.highContrastLight['background.default.normal']!,
+      ),
+      'highContrastDark': look(
+        config.color.highContrastDark['background.default.normal']!,
+      ),
+    });
+  });
+
+  test('fo01/us01/fr01, fo06/us04/fr03: the focus group reads the Figma '
+      'FocusBorder look in each set, from its own colors', () {
+    StratumFocusTokens look(Map<String, Color> colors) => StratumFocusTokens(
+      outsideColor: colors['border.subtle.blue']!,
+      outsideWidth: 3,
+      outsideGap: 2,
+      insideColor: colors['border.default.normal']!,
+      insideHoveredWidth: 3,
+      insideFocusedWidth: 2,
+    );
+
+    expect(config.color.light['border.subtle.blue'], const Color(0xFF93C5FD));
+    expect(config.focus, {
+      'light': look(config.color.light),
+      'dark': look(config.color.dark),
+      'highContrastLight': look(config.color.highContrastLight),
+      'highContrastDark': look(config.color.highContrastDark),
+    });
   });
 
   final flutterRoot = Platform.environment['FLUTTER_ROOT'];

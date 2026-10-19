@@ -48,9 +48,9 @@ void main() {
         first: 1,
         count: 24,
       ).where((step) => step.traced).length;
-      // Nine scenes and two more S2-plain blocks per run, four traces
+      // Ten scenes and two more S2-plain blocks per run, four traces
       // each.
-      expect(traced, 1056);
+      expect(traced, 1152);
       expect(
         driverTimeout,
         greaterThan(const Duration(milliseconds: 2600) * traced * 1.5),

@@ -1,10 +1,10 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/animation_config.freezed.dart';
 
 /// The merged `animation` group of a theme (spec section 8.1).
-@themeModel
+@valueModel
 abstract class StratumAnimationConfig with _$StratumAnimationConfig {
   const factory({
     /// Level name to forward duration: the levels of `animation.duration`
@@ -59,7 +59,7 @@ sealed class StratumCurve {
 }
 
 /// One of the 43 `static const` curves of Flutter's `Curves` class.
-@themeModel
+@valueModel
 final class StratumNamedCurve extends StratumCurve with _$StratumNamedCurve {
   const new(this.name);
 
@@ -120,7 +120,7 @@ final class StratumNamedCurve extends StratumCurve with _$StratumNamedCurve {
 }
 
 /// `cubic(a, b, c, d)`, as Figma and CSS `cubic-bezier` write it.
-@themeModel
+@valueModel
 final class StratumCubicCurve extends StratumCurve with _$StratumCubicCurve {
   const new(this.a, this.b, this.c, this.d);
 

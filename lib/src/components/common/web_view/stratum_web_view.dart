@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_configuration.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_controller.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 /// Displays a web page or an HTML document on Android, iOS, macOS, Windows,
 /// Linux, and the web.

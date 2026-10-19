@@ -10,24 +10,24 @@ import 'package:stratum_ui/src/src.dart';
 /// A subclass declares its own parameters and overrides [buildContent].
 /// When [style], [ratio], [rotate], [transform], [interaction], and
 /// [scroll] are null, the layout builds the bare tier: the content with
-/// only the [semantics], [repaintBoundary], [debug], and [keepAlive]
-/// wrappers, and no [AnimatedStyledBox]. Otherwise it builds the box tier
-/// around an [AnimatedStyledBox].
+/// only the [semantics], [repaintBoundary], and [keepAlive] wrappers, and
+/// no [AnimatedStyledBox]. Otherwise it builds the box tier around an
+/// [AnimatedStyledBox].
 ///
 /// The tier depends on whether a parameter is null, never on its content.
 /// Content remounts when the tier changes (switching [scroll] between null
 /// and a value on an otherwise bare layout counts), when [rotate] switches
-/// between null and a value, when [repaintBoundary], [debug], or
-/// [keepAlive] changes, or, on a bare layout, when [semantics] switches
-/// between null and a value. Pass `const WidgetStyle()` or
-/// `const StratumInteraction()` up front when a value can appear later; a
+/// between null and a value, when [repaintBoundary] or [keepAlive] changes,
+/// or, on a bare layout, when [semantics] switches between null and a
+/// value. Pass `const WidgetStyle()` or
+/// `const Interaction()` up front when a value can appear later; a
 /// layout that toggles [scroll] passes `const WidgetStyle()` so the toggle
 /// stays inside the box tier.
 ///
 /// Inside the box tier, a scrolling layout's scroll position survives a
-/// [style], [interaction], [semantics], or [StratumScroll] field change;
-/// only a tier change, a new [StratumScroll.controller], or a flip of
-/// [StratumScroll.fillViewport] resets it.
+/// [style], [interaction], [semantics], or [Scroll] field change;
+/// only a tier change, a new [Scroll.controller], or a flip of
+/// [Scroll.fillViewport] resets it.
 abstract class BoxLayout extends StatelessWidget {
   const new({
     super.key,
@@ -38,7 +38,6 @@ abstract class BoxLayout extends StatelessWidget {
     this.transformAlignment,
     this.keepAlive = false,
     this.repaintBoundary = false,
-    this.debug = false,
     this.semantics,
     this.onEndAnimate,
     this.interaction,
@@ -62,7 +61,6 @@ abstract class BoxLayout extends StatelessWidget {
   /// Keeps this layout alive when a lazy list scrolls it away.
   final bool keepAlive;
   final bool repaintBoundary;
-  final bool debug;
 
   /// Semantics of the box, inside its margin. With a tap surface they keep
   /// the surface's button role unless they set `button` or a field naming
@@ -74,22 +72,21 @@ abstract class BoxLayout extends StatelessWidget {
   final VoidCallback? onEndAnimate;
 
   /// Pointer, focus, and semantics settings of the tap surface; see
-  /// [StratumInteraction].
-  final StratumInteraction? interaction;
+  /// [Interaction].
+  final Interaction? interaction;
 
   /// Scrolls the padding and content inside the box along
-  /// [StratumScroll.direction], else [scrollDirection], while fill, border,
+  /// [Scroll.direction], else [scrollDirection], while fill, border,
   /// radius, and shadow stay in place. Null does not scroll. On web and
   /// desktop a scrolling box is a Tab stop whose arrows, Page Up, Page
   /// Down, Home, and End scroll it.
-  final StratumScroll? scroll;
+  final Scroll? scroll;
 
   @nonVirtual
   @override
   Widget build(BuildContext context) {
     var current = _isBare ? _buildBare(context) : _buildBox(context);
     if (repaintBoundary) current = RepaintBoundary(child: current);
-    if (debug) current = WidgetPerformanceMonitor(child: current);
     if (keepAlive) current = _KeepAlive(child: current);
     return current;
   }
@@ -98,7 +95,7 @@ abstract class BoxLayout extends StatelessWidget {
   @protected
   Widget buildContent(BuildContext context);
 
-  /// The axis that [scroll] scrolls along when [StratumScroll.direction]
+  /// The axis that [scroll] scrolls along when [Scroll.direction]
   /// is null.
   @protected
   Axis get scrollDirection => Axis.vertical;
@@ -173,7 +170,7 @@ abstract class BoxLayout extends StatelessWidget {
 
   StyledBoxBuilder? get _boxBuilder {
     final interaction = this.interaction;
-    if (interaction != null && _needsTapSurface(interaction)) {
+    if (interaction != null && interactionNeedsTapSurface(interaction)) {
       return (style, box) => _buildInkWell(interaction, style, box);
     }
     if (semantics != null) return _buildSemantics;
@@ -185,9 +182,9 @@ abstract class BoxLayout extends StatelessWidget {
   /// surface's node when the surface can take focus, else [ScrollFocus]'s
   /// own, also around a hover-only, focus-change-only, highlight-only, or
   /// disabled surface. [ScrollFocus] builds the same widgets either way,
-  /// so toggling [StratumInteraction.disabled] or a callback keeps the
+  /// so toggling [Interaction.disabled] or a callback keeps the
   /// content's State and the scroll offset.
-  StyledBoxBuilder _focusBuilder(StratumScroll scroll) {
+  StyledBoxBuilder _focusBuilder(Scroll scroll) {
     final inner = _boxBuilder;
     final interaction = this.interaction;
     final surfaceFocus =
@@ -209,29 +206,16 @@ abstract class BoxLayout extends StatelessWidget {
       primary: scroll.primary,
       borderRadius: style.borderRadius,
       ownsFocus: !surfaceFocus,
+      customStyle: scroll.scrollFocusStyle,
       child: inner == null ? box : inner(style, box),
     );
   }
-
-  static bool _needsTapSurface(StratumInteraction interaction) =>
-      interaction.onTap != null ||
-      interaction.onDoubleTap != null ||
-      interaction.onLongPress != null ||
-      interaction.onSecondaryTap != null ||
-      interaction.onHover != null ||
-      interaction.onHighlightChanged != null ||
-      interaction.onFocusChange != null ||
-      interaction.shortcuts.isNotEmpty;
 
   Widget _buildSemantics(WidgetStyle style, Widget box) {
     return Semantics.fromProperties(properties: semantics!, child: box);
   }
 
-  Widget _buildInkWell(
-    StratumInteraction interaction,
-    WidgetStyle style,
-    Widget box,
-  ) {
+  Widget _buildInkWell(Interaction interaction, WidgetStyle style, Widget box) {
     return StratumInkWell(
       borderRadius: style.borderRadius,
       onTap: interaction.onTap,
@@ -242,6 +226,7 @@ abstract class BoxLayout extends StatelessWidget {
       onHighlightChanged: interaction.onHighlightChanged,
       mouseCursor: interaction.mouseCursor,
       enableFeedback: interaction.enableFeedback,
+      tapTargetSize: interaction.tapTargetSize,
       disabledPressAnimation: interaction.disabledPressAnimation,
       focusNode: interaction.focusNode,
       focusType: interaction.focusType,
@@ -254,6 +239,7 @@ abstract class BoxLayout extends StatelessWidget {
       excludeFromSemantics: interaction.excludeFromSemantics,
       secondaryTapSemanticsLabel: interaction.secondaryTapSemanticsLabel,
       shortcuts: interaction.shortcuts,
+      customStyle: interaction.customStyle,
       semantics: semantics,
       child: box,
     );
@@ -264,11 +250,7 @@ abstract class BoxLayout extends StatelessWidget {
   /// from the [ScrollFocus] that [_focusBuilder] builds, and is one
   /// traversal group, so its items follow the box's Tab stop (see
   /// [ScrollFocus]).
-  Widget _buildScroll(
-    StratumScroll scroll,
-    Widget content, {
-    required bool linked,
-  }) {
+  Widget _buildScroll(Scroll scroll, Widget content, {required bool linked}) {
     final view = ScrollFrame(
       showScrollbar: scroll.showScrollbar,
       child: _BoxScrollView(
@@ -284,7 +266,7 @@ abstract class BoxLayout extends StatelessWidget {
 
 /// The [SingleChildScrollView] of a scrolling box layout.
 ///
-/// With [StratumScroll.fillViewport], content shorter than a finite
+/// With [Scroll.fillViewport], content shorter than a finite
 /// viewport stretches to it through a [LayoutBuilder]; in a parent that is
 /// unbounded along [axis] the content keeps its own size (D17).
 class _BoxScrollView extends StatelessWidget {
@@ -295,7 +277,7 @@ class _BoxScrollView extends StatelessWidget {
     required this.child,
   });
 
-  final StratumScroll scroll;
+  final Scroll scroll;
   final Axis axis;
 
   /// Whether a [ScrollFocus] above hands over the controller.

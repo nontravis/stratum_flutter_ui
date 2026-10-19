@@ -2,7 +2,16 @@
 
 import 'dart:ui' show Color;
 
+import 'package:flutter/painting.dart' show BoxShadow;
+import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
+import 'package:stratum_ui/src/themes/constant/color.dart';
+
+/// A `<group>.color` group that gives its token for a [ColorEnum] name.
+abstract interface class StratumColorEnumTokens {
+  /// The token named [color]; null when this group holds none.
+  Color? operator [](ColorEnum color);
+}
 
 /// The colors of one color set, `color.<set>` without `app`.
 final class StratumColorTokens {
@@ -79,7 +88,7 @@ final class StratumColorBackgroundTokens {
 }
 
 /// The `background.color` group of each color set.
-final class StratumColorBackgroundColorTokens {
+final class StratumColorBackgroundColorTokens implements StratumColorEnumTokens {
   StratumColorBackgroundColorTokens._(Map<String, Color> colors)
     : blue = _color(colors, 'background.color.blue'),
       brand = _color(colors, 'background.color.brand'),
@@ -113,6 +122,16 @@ final class StratumColorBackgroundColorTokens {
 
   /// `background.color.warning`
   final Color warning;
+
+  @override
+  Color? operator [](ColorEnum color) => switch (color) {
+    ColorEnum.brand => brand,
+    ColorEnum.violet => violet,
+    ColorEnum.blue => blue,
+    ColorEnum.teal => teal,
+    ColorEnum.gray => gray,
+    _ => null,
+  };
 }
 
 /// The `background.control` group of each color set.
@@ -298,7 +317,7 @@ final class StratumColorBorderTokens {
 }
 
 /// The `border.color` group of each color set.
-final class StratumColorBorderColorTokens {
+final class StratumColorBorderColorTokens implements StratumColorEnumTokens {
   StratumColorBorderColorTokens._(Map<String, Color> colors)
     : black = _color(colors, 'border.color.black'),
       blue = _color(colors, 'border.color.blue'),
@@ -340,6 +359,16 @@ final class StratumColorBorderColorTokens {
 
   /// `border.color.white`
   final Color white;
+
+  @override
+  Color? operator [](ColorEnum color) => switch (color) {
+    ColorEnum.brand => brand,
+    ColorEnum.violet => violet,
+    ColorEnum.blue => blue,
+    ColorEnum.teal => teal,
+    ColorEnum.gray => gray,
+    _ => null,
+  };
 }
 
 /// The `border.control` group of each color set.
@@ -570,7 +599,7 @@ final class StratumColorIconTokens {
 }
 
 /// The `icon.color` group of each color set.
-final class StratumColorIconColorTokens {
+final class StratumColorIconColorTokens implements StratumColorEnumTokens {
   StratumColorIconColorTokens._(Map<String, Color> colors)
     : blue = _color(colors, 'icon.color.blue'),
       brand = _color(colors, 'icon.color.brand'),
@@ -604,6 +633,15 @@ final class StratumColorIconColorTokens {
 
   /// `icon.color.warning`
   final Color warning;
+
+  @override
+  Color? operator [](ColorEnum color) => switch (color) {
+    ColorEnum.brand => brand,
+    ColorEnum.violet => violet,
+    ColorEnum.blue => blue,
+    ColorEnum.teal => teal,
+    _ => null,
+  };
 }
 
 /// The `icon.default` group of each color set.
@@ -748,7 +786,7 @@ final class StratumColorTextTokens {
 }
 
 /// The `text.color` group of each color set.
-final class StratumColorTextColorTokens {
+final class StratumColorTextColorTokens implements StratumColorEnumTokens {
   StratumColorTextColorTokens._(Map<String, Color> colors)
     : blue = _color(colors, 'text.color.blue'),
       brand = _color(colors, 'text.color.brand'),
@@ -782,6 +820,15 @@ final class StratumColorTextColorTokens {
 
   /// `text.color.warning`
   final Color warning;
+
+  @override
+  Color? operator [](ColorEnum color) => switch (color) {
+    ColorEnum.brand => brand,
+    ColorEnum.violet => violet,
+    ColorEnum.blue => blue,
+    ColorEnum.teal => teal,
+    _ => null,
+  };
 }
 
 /// The `text.default` group of each color set.
@@ -1474,6 +1521,9 @@ final class StratumRadiusTokens {
   /// `radius.samsung`
   double get samsung => _read('samsung');
 
+  /// `radius.sheet`
+  double get sheet => _read('sheet');
+
   /// `radius.sm`
   double get sm => _read('sm');
 
@@ -1528,10 +1578,114 @@ final class StratumAssetTokens {
   final StratumThemeAsset? loading;
 }
 
+/// The `opacity` tokens, each from 0 to 1.
+final class StratumOpacityTokens {
+  StratumOpacityTokens.fromMap(Map<String, double> opacity)
+    : disabled = _opacity(opacity, 'disabled'),
+      scrim = _opacity(opacity, 'scrim');
+
+  /// `opacity.disabled`
+  final double disabled;
+
+  /// `opacity.scrim`
+  final double scrim;
+}
+
+/// The `border` tokens: widths in logical pixels.
+final class StratumBorderTokens {
+  StratumBorderTokens.fromMap(Map<String, double> border)
+    : sm = _token(border, 'border', 'sm'),
+      md = _token(border, 'border', 'md'),
+      lg = _token(border, 'border', 'lg');
+
+  /// `border.sm`
+  final double sm;
+
+  /// `border.md`
+  final double md;
+
+  /// `border.lg`
+  final double lg;
+}
+
+/// The `shadow` tokens: the shadows of each level, in Figma order.
+final class StratumShadowTokens {
+  StratumShadowTokens.fromMap(Map<String, List<BoxShadow>> shadow)
+    : level1 = _token(shadow, 'shadow', '1'),
+      level2 = _token(shadow, 'shadow', '2'),
+      level3 = _token(shadow, 'shadow', '3'),
+      level4 = _token(shadow, 'shadow', '4'),
+      level5 = _token(shadow, 'shadow', '5'),
+      level6 = _token(shadow, 'shadow', '6');
+
+  /// `shadow.1`
+  final List<BoxShadow> level1;
+
+  /// `shadow.2`
+  final List<BoxShadow> level2;
+
+  /// `shadow.3`
+  final List<BoxShadow> level3;
+
+  /// `shadow.4`
+  final List<BoxShadow> level4;
+
+  /// `shadow.5`
+  final List<BoxShadow> level5;
+
+  /// `shadow.6`
+  final List<BoxShadow> level6;
+}
+
+/// The `blur` tokens: background blurs at sigma half the Figma radius.
+final class StratumBlurTokens {
+  StratumBlurTokens.fromMap(Map<String, ImageBlurFilter> blur)
+    : level1 = _token(blur, 'blur', '1'),
+      level2 = _token(blur, 'blur', '2'),
+      level3 = _token(blur, 'blur', '3'),
+      level4 = _token(blur, 'blur', '4'),
+      level5 = _token(blur, 'blur', '5'),
+      level6 = _token(blur, 'blur', '6');
+
+  /// `blur.1`
+  final ImageBlurFilter level1;
+
+  /// `blur.2`
+  final ImageBlurFilter level2;
+
+  /// `blur.3`
+  final ImageBlurFilter level3;
+
+  /// `blur.4`
+  final ImageBlurFilter level4;
+
+  /// `blur.5`
+  final ImageBlurFilter level5;
+
+  /// `blur.6`
+  final ImageBlurFilter level6;
+}
+
 Color _color(Map<String, Color> colors, String path) =>
     colors[path] ??
     (throw ArgumentError.value(
       path,
       'path',
       'no color at this path in the theme config',
+    ));
+
+double _opacity(Map<String, double> opacity, String key) =>
+    opacity[key] ??
+    (throw ArgumentError.value(
+      key,
+      'key',
+      'no opacity at this key in the theme config',
+    ));
+
+T _token<T>(Map<String, T> tokens, String group, String key) =>
+    tokens[key] ??
+    (throw ArgumentError.value(
+      key,
+      'key',
+      'no $group token at this key in the theme config',
     ));

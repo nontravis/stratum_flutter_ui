@@ -51,7 +51,7 @@ void main() {
       expect(typography.types[FontType.header]!.scaleByWindowSize, {
         'desktop': const StratumDimension.fixed(4),
       });
-      expect(typography.scaleByWindowSize.sizes, {
+      expect(typography.scaleByWindowSize!.sizes, {
         'mobile': const StratumDimension.fixed(0),
         'desktop': const StratumDimension.fixed(2),
       });
@@ -75,7 +75,7 @@ void main() {
         WindowSize.desktop: const StratumDimension.fixed(4),
       });
       expect(
-        converted.scaleByWindowSize.valueFor(WindowSize.bigDesktop),
+        converted.scaleByWindowSize!.valueFor(WindowSize.bigDesktop),
         const StratumDimension.fixed(2),
       );
       for (var weight = 100; weight <= 900; weight += 100) {

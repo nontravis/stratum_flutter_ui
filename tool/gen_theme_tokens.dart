@@ -6,6 +6,7 @@
 import 'dart:io';
 
 import 'package:stratum_ui/src/themes/config/transparent.dart';
+import 'package:stratum_ui/src/themes/constant/color.dart';
 import 'package:yaml/yaml.dart';
 
 /// The yaml the generator reads, from the package root.
@@ -33,16 +34,21 @@ final _digitsThenLetters = RegExp(r'^(\d+)([a-z]+)$');
 /// The Dart name of one yaml key [segment] at [path] (spec section 6.2).
 ///
 /// [digitPrefix] is `c` inside a palette ramp and `p` inside a
-/// `transparent` group; a digits-only first part elsewhere stops the
-/// generator, as does any other digit-led first part.
+/// `transparent` group. Elsewhere a key made only of digits gives
+/// `level<N>` (`shadow."2"` gives `level2`; themes s01 "Token generator"),
+/// a first part of digits then lower-case letters swaps them (`5xl` gives
+/// `xl5`), and any other digit-led key stops the generator.
 String dartName(String segment, {required String path, String? digitPrefix}) {
   final parts = segment.split('-');
   final first = parts.first;
   if (_digits.hasMatch(first)) {
-    if (digitPrefix == null) {
+    if (digitPrefix != null) {
+      parts[0] = '$digitPrefix$first';
+    } else if (parts.length == 1) {
+      parts[0] = 'level$first';
+    } else {
       throw FormatException('$path: a digit-led key needs a ramp or step');
     }
-    parts[0] = '$digitPrefix$first';
   } else if (_digitsThenLetters.firstMatch(first) case final match?) {
     parts[0] = '${match[2]}${match[1]}';
   } else if (first.startsWith(RegExp('[0-9]'))) {
@@ -93,9 +99,21 @@ String generateThemeTokens(String yaml) {
     ..writeln()
     ..writeln("import 'dart:ui' show Color;")
     ..writeln()
+    ..writeln("import 'package:flutter/painting.dart' show BoxShadow;")
     ..writeln(
-      "import 'package:stratum_ui/src/themes/config/theme_asset.dart';",
-    );
+      "import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';",
+    )
+    ..writeln("import 'package:stratum_ui/src/themes/config/theme_asset.dart';")
+    ..writeln("import 'package:stratum_ui/src/themes/constant/color.dart';")
+    ..writeln()
+    ..writeln(
+      '/// A `<group>.color` group that gives its token for a [ColorEnum] '
+      'name.',
+    )
+    ..writeln('abstract interface class StratumColorEnumTokens {')
+    ..writeln('  /// The token named [color]; null when this group holds none.')
+    ..writeln('  Color? operator [](ColorEnum color);')
+    ..writeln('}');
   final light = _map(_map(root['color'], 'color')['light'], 'color.light')
     ..remove('app');
   _colorClass(out, light, const []);
@@ -105,6 +123,28 @@ String generateThemeTokens(String yaml) {
     _dimensions(out, group, _map(root[group], group).keys);
   }
   _assets(out, _map(root['assets'], 'assets').keys);
+  _opacityClass(out, _map(root['opacity'], 'opacity').keys);
+  _tokenClass(
+    out,
+    group: 'border',
+    type: 'double',
+    doc: 'The `border` tokens: widths in logical pixels.',
+    keys: _map(root['border'], 'border').keys,
+  );
+  _tokenClass(
+    out,
+    group: 'shadow',
+    type: 'List<BoxShadow>',
+    doc: 'The `shadow` tokens: the shadows of each level, in Figma order.',
+    keys: _map(root['shadow'], 'shadow').keys,
+  );
+  _tokenClass(
+    out,
+    group: 'blur',
+    type: 'ImageBlurFilter',
+    doc: 'The `blur` tokens: background blurs at sigma half the Figma radius.',
+    keys: _map(root['blur'], 'blur').keys,
+  );
   out
     ..writeln()
     ..writeln('Color _color(Map<String, Color> colors, String path) =>')
@@ -113,6 +153,22 @@ String generateThemeTokens(String yaml) {
     ..writeln('      path,')
     ..writeln("      'path',")
     ..writeln("      'no color at this path in the theme config',")
+    ..writeln('    ));')
+    ..writeln()
+    ..writeln('double _opacity(Map<String, double> opacity, String key) =>')
+    ..writeln('    opacity[key] ??')
+    ..writeln('    (throw ArgumentError.value(')
+    ..writeln('      key,')
+    ..writeln("      'key',")
+    ..writeln("      'no opacity at this key in the theme config',")
+    ..writeln('    ));')
+    ..writeln()
+    ..writeln('T _token<T>(Map<String, T> tokens, String group, String key) =>')
+    ..writeln('    tokens[key] ??')
+    ..writeln('    (throw ArgumentError.value(')
+    ..writeln('      key,')
+    ..writeln("      'key',")
+    ..writeln(r"      'no $group token at this key in the theme config',")
     ..writeln('    ));');
   return out.toString();
 }
@@ -129,6 +185,9 @@ void _colorClass(
   final dartPath = [for (final (_, name) in path) name];
   final className = _colorClassName(dartPath);
   final inTransparent = path.length == 1 && path.single.$1 == 'transparent';
+  // A `<group>.color` class (spec FO-03 s03 invariant 33): the one depth
+  // whose classes hold the colors named after the palette.
+  final answersColorEnum = path.length == 2 && path.last.$1 == 'color';
   final names = _names(
     node.keys,
     yamlPath,
@@ -142,7 +201,10 @@ void _colorClass(
           ? '/// The colors of one color set, `color.<set>` without `app`.'
           : '/// The `$yamlPath` group of each color set.',
     )
-    ..writeln('final class $className {')
+    ..writeln(
+      'final class $className'
+      '${answersColorEnum ? ' implements StratumColorEnumTokens' : ''} {',
+    )
     ..writeln(
       path.isEmpty
           ? '  $className.fromMap(Map<String, Color> colors)'
@@ -173,10 +235,44 @@ void _colorClass(
       ..writeln('  /// `$keyPath`')
       ..writeln('  final $type $name;');
   }
+  if (answersColorEnum) _colorEnumLookup(out, node, names);
   out.writeln('}');
   for (final key in children) {
     _colorClass(out, _map(node[key], key), [...path, (key, names[key]!)]);
   }
+}
+
+/// The `operator []` of a `<group>.color` class (spec FO-03 s03
+/// invariant 33): one case per [ColorEnum] value, in enum order, whose
+/// name is the Dart name of a color of [node]; null for every other name.
+/// A semantic key such as `negative` is no [ColorEnum] name, so it never
+/// matches.
+void _colorEnumLookup(
+  StringBuffer out,
+  Map<String, Object?> node,
+  Map<String, String> names,
+) {
+  final colors = {
+    for (final MapEntry(:key, :value) in node.entries)
+      if (value is! YamlMap) names[key]!,
+  };
+  final held = [
+    for (final color in ColorEnum.values)
+      if (colors.contains(color.name)) color.name,
+  ];
+  out
+    ..writeln()
+    ..writeln('  @override');
+  if (held.isEmpty) {
+    out.writeln('  Color? operator [](ColorEnum color) => null;');
+    return;
+  }
+  out.writeln('  Color? operator [](ColorEnum color) => switch (color) {');
+  for (final name in held) {
+    out.writeln('    ColorEnum.$name => $name,');
+  }
+  if (held.length < ColorEnum.values.length) out.writeln('    _ => null,');
+  out.writeln('  };');
 }
 
 void _palette(StringBuffer out, Map<String, Object?> ramps) {
@@ -343,6 +439,59 @@ void _assets(StringBuffer out, Iterable<String> slots) {
       ..writeln()
       ..writeln('  /// `assets.$key`; null when the slot is empty.')
       ..writeln('  final StratumThemeAsset? $name;');
+  }
+  out.writeln('}');
+}
+
+/// The `opacity` group as `StratumOpacityTokens`, one `double` per key
+/// (themes s01 "Token generator"; config s03 invariant 11).
+void _opacityClass(StringBuffer out, Iterable<String> keys) {
+  final names = _names(keys, 'opacity');
+  out
+    ..writeln()
+    ..writeln('/// The `opacity` tokens, each from 0 to 1.')
+    ..writeln('final class StratumOpacityTokens {')
+    ..writeln('  StratumOpacityTokens.fromMap(Map<String, double> opacity)');
+  _initializers(out, [
+    for (final MapEntry(:key, value: name) in names.entries)
+      "$name = _opacity(opacity, '$key')",
+  ]);
+  for (final MapEntry(:key, value: name) in names.entries) {
+    out
+      ..writeln()
+      ..writeln('  /// `opacity.$key`')
+      ..writeln('  final double $name;');
+  }
+  out.writeln('}');
+}
+
+/// A class of one [type] field per key of the yaml group [group], built by
+/// `fromMap` from the theme data's map, which throws an `ArgumentError`
+/// naming a key the map lacks (themes s01 "Token generator"; config s03
+/// invariants 12 to 14). A key made only of digits is named `level<N>`.
+void _tokenClass(
+  StringBuffer out, {
+  required String group,
+  required String type,
+  required String doc,
+  required Iterable<String> keys,
+}) {
+  final className = 'Stratum${_pascal(group)}Tokens';
+  final names = _names(keys, group);
+  out
+    ..writeln()
+    ..writeln('/// $doc')
+    ..writeln('final class $className {')
+    ..writeln('  $className.fromMap(Map<String, $type> $group)');
+  _initializers(out, [
+    for (final MapEntry(:key, value: name) in names.entries)
+      "$name = _token($group, '$group', '$key')",
+  ]);
+  for (final MapEntry(:key, value: name) in names.entries) {
+    out
+      ..writeln()
+      ..writeln('  /// `$group.$key`')
+      ..writeln('  final $type $name;');
   }
   out.writeln('}');
 }

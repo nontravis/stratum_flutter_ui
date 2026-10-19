@@ -20,7 +20,7 @@ class _ProbeState extends State<_Probe> {
 }
 
 typedef _Build = Widget Function({
-  required StratumInteraction interaction,
+  required Interaction interaction,
   WidgetStyle? style,
   Widget child,
 });
@@ -63,7 +63,7 @@ void main() {
       await tester.pumpWidget(
         themedHost(
           const ContainerLayout(
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
             semantics: SemanticsProperties(label: 'card'),
             child: _child,
           ),
@@ -88,7 +88,7 @@ void main() {
       Widget build(GestureTapCallback? onTap) => themedHost(
         ContainerLayout(
           semantics: const SemanticsProperties(label: 'card'),
-          interaction: StratumInteraction(onTap: onTap),
+          interaction: Interaction(onTap: onTap),
           child: const _Probe(),
         ),
       );
@@ -109,7 +109,12 @@ void main() {
               height: 20,
               margin: EdgeInsets.all(8),
             ),
-            interaction: StratumInteraction(onTap: _noop),
+            // shrinkWrap: this test's subject is the margin, not the
+            // platform tap-target padding (NFR-U05).
+            interaction: Interaction(
+              onTap: _noop,
+              tapTargetSize: TapTargetSize.shrinkWrap,
+            ),
             child: SizedBox.expand(),
           ),
         ),
@@ -124,7 +129,7 @@ void main() {
         themedHost(
           const ContainerLayout(
             rotate: 45,
-            interaction: StratumInteraction(onTap: _noop),
+            interaction: Interaction(onTap: _noop),
             child: _child,
           ),
         ),
@@ -148,7 +153,7 @@ void main() {
           const ContainerLayout(
             style: WidgetStyle(borderRadius: radius),
             semantics: SemanticsProperties(label: 'card'),
-            interaction: StratumInteraction(onTap: _noop),
+            interaction: Interaction(onTap: _noop),
             child: _child,
           ),
         ),
@@ -175,9 +180,7 @@ void main() {
         var count = 0;
         await tester.pumpWidget(
           themedHost(
-            build(
-              interaction: StratumInteraction(onSecondaryTap: () => count++),
-            ),
+            build(interaction: Interaction(onSecondaryTap: () => count++)),
           ),
         );
 
@@ -197,12 +200,7 @@ void main() {
         final handle = tester.ensureSemantics();
         await tester.pumpWidget(
           themedHost(
-            build(
-              interaction: const StratumInteraction(
-                onTap: _noop,
-                disabled: true,
-              ),
-            ),
+            build(interaction: const Interaction(onTap: _noop, disabled: true)),
           ),
         );
 
@@ -223,7 +221,7 @@ void main() {
       ) async {
         Widget host(GestureTapCallback? onTap) => themedHost(
           build(
-            interaction: StratumInteraction(onTap: onTap),
+            interaction: Interaction(onTap: onTap),
             child: const _Probe(),
           ),
         );
@@ -239,28 +237,66 @@ void main() {
         expect(tester.state(find.byType(_Probe)), same(before));
       });
 
-      testWidgets(
-        "$name animates a style over the theme's fast level without "
-        'callbacks',
-        (tester) async {
-          await tester.pumpWidget(
-            themedHost(
-              build(
-                interaction: const StratumInteraction(),
-                style: const WidgetStyle(width: 40, height: 20),
-              ),
+      testWidgets("$name animates a style over the theme's fast level without "
+          'callbacks', (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            build(
+              interaction: const Interaction(),
+              style: const WidgetStyle(width: 40, height: 20),
             ),
-          );
+          ),
+        );
 
-          final box = tester.widget<AnimatedStyledBox>(
-            find.byType(AnimatedStyledBox),
-          );
-          expect(
-            box.style?.animationStyle?.duration,
-            const Duration(milliseconds: 125),
-          );
-        },
-      );
+        final box = tester.widget<AnimatedStyledBox>(
+          find.byType(AnimatedStyledBox),
+        );
+        expect(
+          box.style?.animationStyle?.duration,
+          const Duration(milliseconds: 125),
+        );
+      });
     }
+  });
+
+  group('R1: Interaction as a freezed value', () {
+    void tap() {}
+
+    test('R1: equal fields and the same callbacks are equal', () {
+      // Built at run time from a parameter, so the checks read `==`.
+      Interaction make({required bool disabled}) => Interaction(
+        onTap: tap,
+        disabled: disabled,
+        shortcuts: {const SingleActivator(LogicalKeyboardKey.enter): tap},
+      );
+
+      expect(make(disabled: false), make(disabled: false));
+      expect(make(disabled: false).hashCode, make(disabled: false).hashCode);
+      expect(make(disabled: false), isNot(make(disabled: true)));
+    });
+
+    test('R1: callbacks compare by identity', () {
+      expect(Interaction(onTap: () {}), isNot(Interaction(onTap: () {})));
+    });
+
+    test('R1: copyWith changes one field and keeps the callbacks', () {
+      final copy = Interaction(onTap: tap).copyWith(autofocus: true);
+
+      expect(copy.autofocus, isTrue);
+      expect(copy.onTap, tap);
+      expect(copy.tapTargetSize, TapTargetSize.platform);
+    });
+
+    test('5.3: copyWith(onTap: null) clears onTap and keeps the rest', () {
+      final set = Interaction(onTap: tap, autofocus: true);
+      final copy = set.copyWith(onTap: null);
+
+      expect(copy.onTap, isNull);
+      expect(copy.autofocus, isTrue);
+    });
+
+    test("R4 Q2: takes freezed's toString", () {
+      expect(const Interaction().toString(), startsWith('Interaction('));
+    });
   });
 }

@@ -1,6 +1,7 @@
 name: stratum_ui
 description: "Stratum UI design system"
 version: 1.1.0
+publish_to: none
 homepage:
 
 executables:
@@ -8,35 +9,42 @@ executables:
 
 environment:
   sdk: ^3.13.3
-  flutter: ">=3.44.0"
+  flutter: ">=3.47.0"
 
 dependencies:
+  act_thumbhash: ^1.1.0
+  animations: ^3.0.0
+  archive: ^4.5.2
+  badges: ^4.0.1
   country_flags: ^4.1.2
+  crypto: ^3.0.7
   dotted_border: ^3.1.0
+  extended_image: ^10.1.0
   flutter:
     sdk: flutter
+  flutter_animate: ^4.5.2
   flutter_falconx:
     git:
       url: https://github.com/Nextzy/flutter-falconx
       ref: 4.1.0
       path: flutter_falconx
-  measure_size: ^5.0.2
-  freezed_annotation: ^3.1.0
-  json_annotation: ^4.12.0
-  badges: ^4.0.1
-  yaml: ^3.1.4
-  extended_image: ^10.1.0
-  flutter_animate: ^4.5.2
-  animations: ^3.0.0
+  flutter_keyboard_visibility: ^7.0.1
+  flutter_localizations:
+    sdk: flutter
   flutter_svg: ^2.3.0
+  freezed_annotation: ^3.1.0
   gap: ^3.0.1
   google_fonts: ">=9.0.0 <=9.0.0"
+  intl: any # flutter_localizations (SDK) bounds intl; never give this a range.
+  json_annotation: ^4.12.0
   lottie: ^3.6.1
+  measure_size: ^5.0.2
+  multi_split_view: ^3.6.2
   path: ^1.9.1
+  shared_preferences: ^2.5.6
   smooth_page_indicator: ^3.0.0
-  act_thumbhash: ^1.1.0
-  archive: ^4.3.0
-  crypto: ^3.0.7
+  smooth_sheets: ^1.3.0
+  toastification: 3.2.0
   web: ^1.1.1
   webview_all_linux: ^1.4.4
   webview_all_windows: ^1.4.4
@@ -44,6 +52,7 @@ dependencies:
   webview_flutter_android: ^4.14.1
   webview_flutter_wkwebview: ^3.27.0
   webview_platform_interface: ^1.4.4
+  yaml: ^3.1.4
 
 dev_dependencies:
   build_runner: ^2.16.2
@@ -51,8 +60,16 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   freezed: ^4.0.2
+  shared_preferences_platform_interface: ^2.4.2
   very_good_analysis: ^11.0.0
   webview_flutter_platform_interface: ^2.15.1
+
+dependency_overrides:
+  # WORKAROUND: toastification 3.2.0 pins equatable ^2.0.5 while dart_faltool
+  # (through flutter_falconx) needs ^3.0.0; toastification's source compiles
+  # unchanged on 3.0.0. remove when a toastification release accepts
+  # equatable 3 (upstream PR #249).
+  equatable: ^3.0.0
 
 flutter_gen:
   output: lib/generated/
@@ -87,5 +104,4 @@ flutter:
 
   assets:
     - assets/
-    - assets/fonts/
     - assets/themes/default/

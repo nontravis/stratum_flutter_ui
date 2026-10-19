@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/pipeline/load_yaml_text.dart'
+    show yamlPropertyMessage;
 
 import 'theme_fixtures.dart';
 
@@ -15,7 +17,7 @@ StratumThemeFormatException _report(String body) {
 }
 
 void main() {
-  group('fo01 us02/fr01/e05, minor8, r8: yaml-supplied text is escaped', () {
+  group('fo01/us02/fr01/e05, minor8, r8: yaml-supplied text is escaped', () {
     test('a key with control and Thai characters: message and both texts '
         'escaped, the path field raw', () {
       final report = _report('space:\n  "md\\aไทย": 4');
@@ -76,25 +78,24 @@ void main() {
       expect(error.message, r'"{palette.brand.\u00e9}" names no token');
     });
 
-    test('m1-t6 fix-1 f1: a malformed tag escapes the esc and newline it '
-        'injects', () {
+    test('m1-t6 fix-1 f1, rz6 (1): a tag is refused at its "!" before the '
+        'yaml package reads it, so nothing it would inject reaches the '
+        'message', () {
       final report = _report('name: !!%1B%5B2J%0A%20%20forged x');
       final error = report.errors.single;
 
       expect(error.code, StratumThemeErrorCode.yamlSyntax);
-      expect(error.message, contains(r'\u001b'));
-      expect(error.message, contains(r'\u000a'));
-      expect(error.message, isNot(contains('\u001b')));
-      expect(error.message, isNot(contains('\n')));
+      expect(error.message, yamlPropertyMessage);
+      expect((error.line, error.column), (2, 7));
       expect(report.toString().split('\n'), hasLength(2));
     });
 
-    test('m1-t6 fix-1 f2: a malformed percent escape in a tag is '
-        'yaml_syntax, not ArgumentError', () {
+    test('m1-t6 fix-1 f2, rz6 (1): a malformed percent escape in a tag is '
+        'yaml_syntax at its "!", with no ArgumentError path left', () {
       final error = _report('name: !<%ZZ> x').errors.single;
 
       expect(error.code, StratumThemeErrorCode.yamlSyntax);
-      expect(error.message, 'invalid percent escape in a tag');
+      expect(error.message, yamlPropertyMessage);
     });
 
     test('sec f1, us02/fr03/e09: a percent escape that decodes to invalid '

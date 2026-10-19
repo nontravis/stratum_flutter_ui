@@ -174,11 +174,12 @@ mixin _$StratumTypography {
 /// yaml order.
  Map<String, StratumFamilySet> get families;/// The style of every type except `table`, which has no entry here:
 /// its style is `body`'s, read in code.
- Map<FontType, StratumTypeStyle> get types;/// The size each window size adds. A window size the yaml map omits
-/// takes the value of the nearest smaller window size it names, else
-/// of the smallest one it names; a theme without the map adds 0
-/// everywhere.
- StratumByWindowSize<StratumDimension> get scaleByWindowSize;
+ Map<FontType, StratumTypeStyle> get types;/// The size each window size adds, or null when the theme names no
+/// window size. A window size the yaml map omits takes the value of
+/// the nearest smaller window size it names, else of the smallest one
+/// it names; with neither this map nor a type's own map set, the
+/// scale adds 0.
+ StratumByWindowSize<StratumDimension>? get scaleByWindowSize;
 /// Create a copy of StratumTypography
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -214,7 +215,7 @@ abstract mixin class $StratumTypographyCopyWith<$Res>  {
   factory $StratumTypographyCopyWith(StratumTypography value, $Res Function(StratumTypography) _then) = _$StratumTypographyCopyWithImpl;
 @useResult
 $Res call({
- Map<String, StratumFontData> fonts, Map<String, StratumFamilySet> families, Map<FontType, StratumTypeStyle> types, StratumByWindowSize<StratumDimension> scaleByWindowSize
+ Map<String, StratumFontData> fonts, Map<String, StratumFamilySet> families, Map<FontType, StratumTypeStyle> types, StratumByWindowSize<StratumDimension>? scaleByWindowSize
 });
 
 
@@ -231,13 +232,13 @@ class _$StratumTypographyCopyWithImpl<$Res>
 
 /// Create a copy of StratumTypography
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? fonts = null,Object? families = null,Object? types = null,Object? scaleByWindowSize = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? fonts = null,Object? families = null,Object? types = null,Object? scaleByWindowSize = freezed,}) {
   return _then(StratumTypography(
 fonts: null == fonts ? _self.fonts : fonts // ignore: cast_nullable_to_non_nullable
 as Map<String, StratumFontData>,families: null == families ? _self.families : families // ignore: cast_nullable_to_non_nullable
 as Map<String, StratumFamilySet>,types: null == types ? _self.types : types // ignore: cast_nullable_to_non_nullable
-as Map<FontType, StratumTypeStyle>,scaleByWindowSize: null == scaleByWindowSize ? _self.scaleByWindowSize : scaleByWindowSize // ignore: cast_nullable_to_non_nullable
-as StratumByWindowSize<StratumDimension>,
+as Map<FontType, StratumTypeStyle>,scaleByWindowSize: freezed == scaleByWindowSize ? _self.scaleByWindowSize : scaleByWindowSize // ignore: cast_nullable_to_non_nullable
+as StratumByWindowSize<StratumDimension>?,
   ));
 }
 
@@ -249,7 +250,7 @@ as StratumByWindowSize<StratumDimension>,
 
 
 class _StratumTypography implements StratumTypography {
-  const _StratumTypography({required  Map<String, StratumFontData> fonts, required  Map<String, StratumFamilySet> families, required  Map<FontType, StratumTypeStyle> types, this.scaleByWindowSize = const StratumByWindowSize<StratumDimension>.all(StratumDimension.fixed(0))}): _fonts = fonts,_families = families,_types = types;
+  const _StratumTypography({required  Map<String, StratumFontData> fonts, required  Map<String, StratumFamilySet> families, required  Map<FontType, StratumTypeStyle> types, this.scaleByWindowSize}): _fonts = fonts,_families = families,_types = types;
   
 
 /// Each font by its key.
@@ -283,11 +284,12 @@ class _StratumTypography implements StratumTypography {
   return EqualUnmodifiableMapView(_types);
 }
 
-/// The size each window size adds. A window size the yaml map omits
-/// takes the value of the nearest smaller window size it names, else
-/// of the smallest one it names; a theme without the map adds 0
-/// everywhere.
-@override@JsonKey() final  StratumByWindowSize<StratumDimension> scaleByWindowSize;
+/// The size each window size adds, or null when the theme names no
+/// window size. A window size the yaml map omits takes the value of
+/// the nearest smaller window size it names, else of the smallest one
+/// it names; with neither this map nor a type's own map set, the
+/// scale adds 0.
+@override final  StratumByWindowSize<StratumDimension>? scaleByWindowSize;
 
 /// Create a copy of StratumTypography
 /// with the given fields replaced by the non-null parameter values.
@@ -321,7 +323,7 @@ abstract mixin class _$StratumTypographyCopyWith<$Res> implements $StratumTypogr
   factory _$StratumTypographyCopyWith(_StratumTypography value, $Res Function(_StratumTypography) _then) = __$StratumTypographyCopyWithImpl;
 @override @useResult
 $Res call({
- Map<String, StratumFontData> fonts, Map<String, StratumFamilySet> families, Map<FontType, StratumTypeStyle> types, StratumByWindowSize<StratumDimension> scaleByWindowSize
+ Map<String, StratumFontData> fonts, Map<String, StratumFamilySet> families, Map<FontType, StratumTypeStyle> types, StratumByWindowSize<StratumDimension>? scaleByWindowSize
 });
 
 
@@ -338,13 +340,13 @@ class __$StratumTypographyCopyWithImpl<$Res>
 
 /// Create a copy of StratumTypography
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? fonts = null,Object? families = null,Object? types = null,Object? scaleByWindowSize = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? fonts = null,Object? families = null,Object? types = null,Object? scaleByWindowSize = freezed,}) {
   return _then(_StratumTypography(
 fonts: null == fonts ? _self._fonts : fonts // ignore: cast_nullable_to_non_nullable
 as Map<String, StratumFontData>,families: null == families ? _self._families : families // ignore: cast_nullable_to_non_nullable
 as Map<String, StratumFamilySet>,types: null == types ? _self._types : types // ignore: cast_nullable_to_non_nullable
-as Map<FontType, StratumTypeStyle>,scaleByWindowSize: null == scaleByWindowSize ? _self.scaleByWindowSize : scaleByWindowSize // ignore: cast_nullable_to_non_nullable
-as StratumByWindowSize<StratumDimension>,
+as Map<FontType, StratumTypeStyle>,scaleByWindowSize: freezed == scaleByWindowSize ? _self.scaleByWindowSize : scaleByWindowSize // ignore: cast_nullable_to_non_nullable
+as StratumByWindowSize<StratumDimension>?,
   ));
 }
 

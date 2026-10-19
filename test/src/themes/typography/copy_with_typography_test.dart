@@ -66,12 +66,7 @@ void main() {
       expect(() => style.sizes.clear(), throwsUnsupportedError);
       expect(() => typography.types.clear(), throwsUnsupportedError);
       expect(style.copyWith(weight: FontWeight.w400).weight, FontWeight.w400);
-      expect(
-        typography.scaleByWindowSize,
-        const StratumByWindowSize<StratumDimension>.all(
-          StratumDimension.fixed(0),
-        ),
-      );
+      expect(typography.scaleByWindowSize, isNull);
       expect(
         families.toString(),
         'StratumFamilySet(types: {FontType.body: '

@@ -4,7 +4,7 @@ import 'package:stratum_ui/src/themes/remote/remote_theme_error_code.dart';
 
 void main() {
   for (final id in ['brand', 'songkran-2026', 'a_b', '0', 'x-_9']) {
-    test('us01/fr01: "$id" passes the id rule', () {
+    test('fo04/us01/fr01: "$id" passes the id rule', () {
       expect(() => checkRemoteThemeId(id), returnsNormally);
     });
   }
@@ -20,7 +20,7 @@ void main() {
     ' brand',
     '../brand',
   ]) {
-    test('us01/fr01/e02: "$id" is invalid_id naming the id', () {
+    test('fo04/us01/fr01/e02: "$id" is invalid_id naming the id', () {
       expect(
         () => checkRemoteThemeId(id),
         throwsA(
@@ -40,7 +40,7 @@ void main() {
     });
   }
 
-  test('d-m, oq-f, us01/fr01/e02: an off-rule id reaches the invalid_id '
+  test('d-m, oq-f, fo04/us01/fr01/e02: an off-rule id reaches the invalid_id '
       'message escaped', () {
     final id = 'brand${String.fromCharCode(0x0e44)}${String.fromCharCode(7)}';
 
@@ -57,7 +57,7 @@ void main() {
     );
   });
 
-  test('d-m, oq-f, us01/fr01/e02: the default-id message keeps its text, '
+  test('d-m, oq-f, fo04/us01/fr01/e02: the default-id message keeps its text, '
       'escaped by the same rule', () {
     expect(
       () => checkRemoteThemeId('default'),

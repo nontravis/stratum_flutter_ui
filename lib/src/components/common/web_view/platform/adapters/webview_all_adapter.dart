@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/native_bridge_session.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 import 'package:webview_platform_interface/webview_platform_interface.dart'
     as wa;
 

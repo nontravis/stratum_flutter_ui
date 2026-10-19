@@ -112,4 +112,28 @@ void main() {
       isFalse,
     );
   });
+
+  testWidgets('fo03/us07/fr02/e05, NFR-U03: an animated image pauses on its '
+      'first frame too, under the platform reduce-motion flag alone', (
+    tester,
+  ) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(reduceMotion: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await tester.pumpWidget(
+      _view(_withLoading(StratumAssetKind.image, 'themes/app/loading.png')),
+    );
+
+    expect(
+      tester
+          .widget<TickerMode>(
+            find.ancestor(
+              of: find.byType(Image),
+              matching: find.byType(TickerMode),
+            ),
+          )
+          .enabled,
+      isFalse,
+    );
+  });
 }

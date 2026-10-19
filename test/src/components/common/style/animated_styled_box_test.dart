@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
 import 'package:stratum_ui/src/components/common/style/animated_styled_box.dart';
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/components/common/style/style_decoration.dart';
 import 'package:stratum_ui/src/themes/config/animation_config.dart';
 
@@ -209,26 +208,29 @@ void main() {
       expect(find.byType(DecoratedBox), findsNothing);
     });
 
-    testWidgets('us01/fr02/e02: an override with an empty drop shadow list '
-        'builds no decoration', (tester) async {
-      const base = WidgetStyle(
-        dropShadow: [BoxShadow(blurRadius: 4), BoxShadow(blurRadius: 8)],
-      );
-      await tester.pumpWidget(
-        _host(base.merge(const WidgetStyle(dropShadow: []))),
-      );
+    testWidgets(
+      'fo05/us01/fr02/e02: an override with an empty drop shadow list '
+      'builds no decoration',
+      (tester) async {
+        const base = WidgetStyle(
+          dropShadow: [BoxShadow(blurRadius: 4), BoxShadow(blurRadius: 8)],
+        );
+        await tester.pumpWidget(
+          _host(base.merge(const WidgetStyle(dropShadow: []))),
+        );
 
-      expect(find.byType(DecoratedBox), findsNothing);
-    });
+        expect(find.byType(DecoratedBox), findsNothing);
+      },
+    );
 
-    testWidgets('us01/fr02/e02: an empty inner shadow list builds no '
+    testWidgets('fo05/us01/fr02/e02: an empty inner shadow list builds no '
         'decoration', (tester) async {
       await tester.pumpWidget(_host(const WidgetStyle(innerShadow: [])));
 
       expect(find.byType(DecoratedBox), findsNothing);
     });
 
-    testWidgets('us01/fr02/e02: an empty drop shadow list adds no shadow '
+    testWidgets('fo05/us01/fr02/e02: an empty drop shadow list adds no shadow '
         'layer over a blur', (tester) async {
       await tester.pumpWidget(
         _host(const WidgetStyle(backgroundBlur: _blur, dropShadow: [])),
@@ -238,34 +240,31 @@ void main() {
       expect(find.byType(DecoratedBox), findsOneWidget);
     });
 
-    testWidgets(
-      'us01/fr02/e02: the child keeps its State when a shadow list toggles '
-      'empty and back',
-      (tester) async {
-        await tester.pumpWidget(
-          _host(
-            const WidgetStyle(dropShadow: [BoxShadow(blurRadius: 4)]),
-            child: const _Probe(),
-          ),
-        );
-        final before = tester.state(find.byType(_Probe));
+    testWidgets('fo05/us01/fr02/e02: the child keeps its State when a shadow list toggles '
+        'empty and back', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(dropShadow: [BoxShadow(blurRadius: 4)]),
+          child: const _Probe(),
+        ),
+      );
+      final before = tester.state(find.byType(_Probe));
 
-        await tester.pumpWidget(
-          _host(const WidgetStyle(dropShadow: []), child: const _Probe()),
-        );
-        expect(find.byType(DecoratedBox), findsNothing);
-        expect(identical(tester.state(find.byType(_Probe)), before), isTrue);
+      await tester.pumpWidget(
+        _host(const WidgetStyle(dropShadow: []), child: const _Probe()),
+      );
+      expect(find.byType(DecoratedBox), findsNothing);
+      expect(identical(tester.state(find.byType(_Probe)), before), isTrue);
 
-        await tester.pumpWidget(
-          _host(
-            const WidgetStyle(dropShadow: [BoxShadow(blurRadius: 4)]),
-            child: const _Probe(),
-          ),
-        );
-        expect(find.byType(DecoratedBox), findsOneWidget);
-        expect(identical(tester.state(find.byType(_Probe)), before), isTrue);
-      },
-    );
+      await tester.pumpWidget(
+        _host(
+          const WidgetStyle(dropShadow: [BoxShadow(blurRadius: 4)]),
+          child: const _Probe(),
+        ),
+      );
+      expect(find.byType(DecoratedBox), findsOneWidget);
+      expect(identical(tester.state(find.byType(_Probe)), before), isTrue);
+    });
 
     testWidgets('(pin) a fill with empty shadow lists keeps its decoration', (
       tester,
@@ -451,23 +450,28 @@ void main() {
       expect(tester.hasRunningAnimations, isFalse);
     });
 
-    testWidgets('a set duration interpolates half-way', (tester) async {
-      const linear = AnimationStyle(
-        duration: Duration(milliseconds: 100),
-        curve: Curves.linear,
-      );
-      await tester.pumpWidget(
-        _host(const WidgetStyle(backgroundColor: _red, animationStyle: linear)),
-      );
-      await tester.pumpWidget(
-        _host(
-          const WidgetStyle(backgroundColor: _blue, animationStyle: linear),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 50));
+    testWidgets(
+      'fo05/us03/s1, fo05/us03/fr02: a set duration interpolates half-way',
+      (tester) async {
+        const linear = AnimationStyle(
+          duration: Duration(milliseconds: 100),
+          curve: Curves.linear,
+        );
+        await tester.pumpWidget(
+          _host(
+            const WidgetStyle(backgroundColor: _red, animationStyle: linear),
+          ),
+        );
+        await tester.pumpWidget(
+          _host(
+            const WidgetStyle(backgroundColor: _blue, animationStyle: linear),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
 
-      expect(_fillColor(tester), Color.lerp(_red, _blue, 0.5));
-    });
+        expect(_fillColor(tester), Color.lerp(_red, _blue, 0.5));
+      },
+    );
 
     testWidgets('a missing curve defaults to easeInOutSine', (tester) async {
       await tester.pumpWidget(
@@ -709,9 +713,8 @@ void main() {
       expect(tester.getSize(_decorated()), const Size(40, 20));
     });
 
-    testWidgets("the app's MediaQuery disableAnimations makes geometry jump", (
-      tester,
-    ) async {
+    testWidgets("fo05/us03/fr03: the app's MediaQuery disableAnimations makes "
+        'geometry jump', (tester) async {
       Widget build(WidgetStyle style) => MediaQuery(
         data: const MediaQueryData(disableAnimations: true),
         child: _host(style, child: null),
@@ -747,59 +750,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(tester.getSize(_decorated()), const Size(60, 30));
-    });
-  });
-
-  group('reducesMotion', () {
-    void useFeatures(WidgetTester tester, FakeAccessibilityFeatures features) {
-      tester.platformDispatcher.accessibilityFeaturesTestValue = features;
-      addTearDown(
-        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-      );
-    }
-
-    /// The result of [reducesMotion] below [data], or below no
-    /// [MediaQuery] of the test's own when [data] is null.
-    Future<bool> read(WidgetTester tester, {MediaQueryData? data}) async {
-      late bool result;
-      Widget probe = Builder(
-        builder: (context) {
-          result = reducesMotion(context);
-          return const SizedBox();
-        },
-      );
-      if (data != null) probe = MediaQuery(data: data, child: probe);
-      await tester.pumpWidget(probe);
-      return result;
-    }
-
-    testWidgets('is false without a flag', (tester) async {
-      expect(await read(tester), isFalse);
-    });
-
-    testWidgets("is true for the app's MediaQuery disableAnimations", (
-      tester,
-    ) async {
-      expect(
-        await read(tester, data: const MediaQueryData(disableAnimations: true)),
-        isTrue,
-      );
-    });
-
-    testWidgets('is true for the platform reduceMotion', (tester) async {
-      useFeatures(tester, const FakeAccessibilityFeatures(reduceMotion: true));
-
-      expect(await read(tester, data: const MediaQueryData()), isTrue);
-    });
-
-    testWidgets("lets the app's MediaQuery override the platform "
-        'disableAnimations', (tester) async {
-      useFeatures(
-        tester,
-        const FakeAccessibilityFeatures(disableAnimations: true),
-      );
-
-      expect(await read(tester, data: const MediaQueryData()), isFalse);
     });
   });
 
@@ -1045,7 +995,7 @@ void main() {
   });
 
   group('AnimatedStyledBox fading glass', () {
-    testWidgets('us02/fr02: a blurred box at half opacity shows its glass '
+    testWidgets('fo05/us02/fr02: a blurred box at half opacity shows its glass '
         'at half strength', (tester) async {
       const glass = WidgetStyle(
         backgroundBlur: ImageBlurFilter(sigmaX: 8, sigmaY: 8),

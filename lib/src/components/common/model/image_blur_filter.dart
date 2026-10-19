@@ -1,24 +1,22 @@
 import 'dart:ui' show ImageFilter, TileMode, lerpDouble;
 
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/image_blur_filter.freezed.dart';
 
-@freezed
+@valueModel
 abstract class ImageBlurFilter with _$ImageBlurFilter {
-  const factory ImageBlurFilter({
+  const factory({
     @Default(0.0) double sigmaX,
     @Default(0.0) double sigmaY,
     TileMode? tileMode,
   }) = _ImageBlurFilter;
 
-  const ImageBlurFilter._();
+  const new _();
 
-  ImageFilter get blur => ImageFilter.blur(
-        sigmaX: sigmaX,
-        sigmaY: sigmaY,
-        tileMode: tileMode,
-      );
+  ImageFilter get blur =>
+      ImageFilter.blur(sigmaX: sigmaX, sigmaY: sigmaY, tileMode: tileMode);
 
   /// Interpolates the sigmas; a null side counts as sigma 0.
   ///

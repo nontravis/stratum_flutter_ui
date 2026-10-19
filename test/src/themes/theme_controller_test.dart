@@ -22,8 +22,8 @@ void main() {
   setUp(ThemeFontLoader.reset);
   tearDown(ThemeFontLoader.reset);
 
-  group('us01/fr02: discovery', () {
-    test('us01/fr02/e01: default first, then the bundled ids in '
+  group('fo03/us01/fr02: discovery', () {
+    test('fo03/us01/fr02/e01: default first, then the bundled ids in '
         'alphabetical order', () async {
       final (controller, _) = await startController(
         FakeThemeBundle(themes: {'night': appTheme(), 'brand': appTheme()}),
@@ -32,7 +32,7 @@ void main() {
       expect(controller.themeIds, ['default', 'brand', 'night']);
     });
 
-    test('us01/fr02/e03: registration reads no theme file', () async {
+    test('fo03/us01/fr02/e03: registration reads no theme file', () async {
       final bundle = FakeThemeBundle(
         themes: {'night': appTheme(), 'brand': appTheme()},
       );
@@ -41,7 +41,7 @@ void main() {
       expect(bundle.reads.keys, [packageDefaultKey]);
     });
 
-    test("us01/fr02/e04, e05: only the app's own "
+    test("fo03/us01/fr02/e04, e05: only the app's own "
         'assets/themes/<id>/theme.yaml files register', () async {
       final (controller, _) = await startController(
         FakeThemeBundle(
@@ -57,7 +57,7 @@ void main() {
       expect(controller.themeIds, ['default', 'brand']);
     });
 
-    test('us01/s3, us01/fr02/e02: the app default layers over the package '
+    test('fo03/us01/s3, fo03/us01/fr02/e02: the app default layers over the package '
         'default', () async {
       final (controller, _) = await startController(
         FakeThemeBundle(themes: {'default': markTheme('app-mark')}),
@@ -72,8 +72,8 @@ void main() {
     });
   });
 
-  group('us01/fr03, us03/fr01: preload', () {
-    test('us01/s1, us01/fr01/e01: an app with no theme starts on the '
+  group('fo03/us01/fr03, fo03/us03/fr01: preload', () {
+    test('fo03/us01/s1, fo03/us01/fr01/e01: an app with no theme starts on the '
         'package default', () async {
       final (controller, changes) = await startController(FakeThemeBundle());
 
@@ -89,7 +89,7 @@ void main() {
       expect(changes, isEmpty);
     });
 
-    test('us03/s1, us03/fr02/e05: starts on the saved id over both '
+    test('fo03/us03/s1, fo03/us03/fr02/e05: starts on the saved id over both '
         'defaults, with no callback', () async {
       final (controller, changes) = await startController(
         FakeThemeBundle(
@@ -109,7 +109,7 @@ void main() {
       expect(changes, isEmpty);
     });
 
-    test('us03/fr01/e01: no initialThemeId starts on default', () async {
+    test('fo03/us03/fr01/e01: no initialThemeId starts on default', () async {
       final (controller, changes) = await startController(
         FakeThemeBundle(themes: {'brand': appTheme()}),
       );
@@ -118,7 +118,7 @@ void main() {
       expect(changes, isEmpty);
     });
 
-    test('us03/s3, us03/fr01/e02, us03/fr02/e04, us01/fr03/e02: a saved id '
+    test('fo03/us03/s3, fo03/us03/fr01/e02, fo03/us03/fr02/e04, fo03/us01/fr03/e02: a saved id '
         'that names no theme falls back to default, reports it, and logs '
         'the id', () async {
       final logs = captureDebugPrint();
@@ -132,7 +132,7 @@ void main() {
       expect(logs, contains(_fallbackLog));
     });
 
-    test('us03/fr01/e04, us01/s4, us01/fr03/e01: a start theme that fails '
+    test('fo03/us03/fr01/e04, fo03/us01/s4, fo03/us01/fr03/e01: a start theme that fails '
         'to parse throws theme_format, with no fallback and no '
         'callback', () async {
       final changes = <String>[];
@@ -148,7 +148,7 @@ void main() {
       expect(changes, isEmpty);
     });
 
-    test('us01/fr01/e02: a package default that fails to parse throws '
+    test('fo03/us01/fr01/e02: a package default that fails to parse throws '
         'theme_format', () async {
       await expectLater(
         StratumThemeController.preload(
@@ -159,8 +159,8 @@ void main() {
     });
   });
 
-  group('us05/fr01: theme font files', () {
-    test('us05/s1: a theme registers its files under <id>/<family> before '
+  group('fo03/us05/fr01: theme font files', () {
+    test('fo03/us05/s1: a theme registers its files under <id>/<family> before '
         'it is active', () async {
       final loads = recordFontLoads();
       final (controller, _) = await startController(
@@ -178,28 +178,34 @@ void main() {
       );
     });
 
-    test('us05/fr01/e01: a theme with no files registers nothing', () async {
-      final loads = recordFontLoads();
-      await startController(FakeThemeBundle());
+    test(
+      'fo03/us05/fr01/e01: a theme with no files registers nothing',
+      () async {
+        final loads = recordFontLoads();
+        await startController(FakeThemeBundle());
 
-      expect(loads, isEmpty);
-    });
+        expect(loads, isEmpty);
+      },
+    );
 
-    test('us05/fr01/e04: a file the bundle lacks logs the pubspec line, and '
-        'the theme still starts', () async {
-      final loads = recordFontLoads();
-      final logs = captureDebugPrint();
-      final (controller, _) = await startController(
-        FakeThemeBundle(themes: {'brand': fontTheme()}),
-        initialThemeId: 'brand',
-      );
+    test(
+      'fo03/us05/fr01/e04: a file the bundle lacks logs the pubspec line, and '
+      'the theme still starts',
+      () async {
+        final loads = recordFontLoads();
+        final logs = captureDebugPrint();
+        final (controller, _) = await startController(
+          FakeThemeBundle(themes: {'brand': fontTheme()}),
+          initialThemeId: 'brand',
+        );
 
-      expect(controller.activeId, 'brand');
-      expect(loads, isEmpty);
-      expect(logs, contains(_missingFontLog));
-    });
+        expect(controller.activeId, 'brand');
+        expect(loads, isEmpty);
+        expect(logs, contains(_missingFontLog));
+      },
+    );
 
-    test('us05/fr01/e05: a theme that inherits a font uses its source '
+    test('fo03/us05/fr01/e05: a theme that inherits a font uses its source '
         'registration, and no file registers twice', () async {
       final loads = recordFontLoads();
       final bundle = FakeThemeBundle(
@@ -213,7 +219,7 @@ void main() {
       expect(bundle.reads[fontKey('default')], 1);
     });
 
-    test('us05/s4: two themes that ship the same family name register '
+    test('fo03/us05/s4: two themes that ship the same family name register '
         'apart', () async {
       final loads = recordFontLoads();
       final bundle = FakeThemeBundle(
@@ -226,25 +232,28 @@ void main() {
       expect(loads, [('brand/DB Heavent', 1), ('night/DB Heavent', 1)]);
     });
 
-    test('us05/fr01/e08: a font registration that fails logs, and the theme '
-        'still starts', () async {
-      ThemeFontLoader.load = (family, files) async =>
-          throw StateError('bad font bytes');
-      final logs = captureDebugPrint();
-      final (controller, _) = await startController(
-        FakeThemeBundle(
-          themes: {'brand': fontTheme()},
-          fonts: {fontKey('brand')},
-        ),
-        initialThemeId: 'brand',
-      );
+    test(
+      'fo03/us05/fr01/e08: a font registration that fails logs, and the theme '
+      'still starts',
+      () async {
+        ThemeFontLoader.load = (family, files) async =>
+            throw StateError('bad font bytes');
+        final logs = captureDebugPrint();
+        final (controller, _) = await startController(
+          FakeThemeBundle(
+            themes: {'brand': fontTheme()},
+            fonts: {fontKey('brand')},
+          ),
+          initialThemeId: 'brand',
+        );
 
-      expect(controller.activeId, 'brand');
-      expect(
-        logs.where((line) => line.contains('"brand/DB Heavent" failed')),
-        hasLength(1),
-      );
-    });
+        expect(controller.activeId, 'brand');
+        expect(
+          logs.where((line) => line.contains('"brand/DB Heavent" failed')),
+          hasLength(1),
+        );
+      },
+    );
 
     test('a file a theme lists twice registers once', () async {
       final loads = recordFontLoads();
@@ -260,7 +269,7 @@ void main() {
       expect(loads, [('brand/DB Heavent', 1)]);
     });
 
-    test('us05/fr01/e08: a registration that fails, then succeeds once '
+    test('fo03/us05/fr01/e08: a registration that fails, then succeeds once '
         'the theme is needed again, loads and registers it', () async {
       var attempt = 0;
       ThemeFontLoader.load = (family, files) async {
@@ -291,7 +300,7 @@ void main() {
       );
     });
 
-    test('us05/fr01/e08: a registration that keeps failing logs a '
+    test('fo03/us05/fr01/e08: a registration that keeps failing logs a '
         'warning each time the theme is needed again', () async {
       ThemeFontLoader.load = (family, files) async =>
           throw StateError('bad font bytes');
@@ -312,25 +321,28 @@ void main() {
     });
   });
 
-  group('us05/fr02: Google fonts', () {
-    test('us05/s2, us05/fr02: each Google font loads in each weight the '
-        'yaml declares for the types that use it, in normal style', () async {
-      final calls = recordGoogleFonts();
-      await startController(FakeThemeBundle());
+  group('fo03/us05/fr02: Google fonts', () {
+    test(
+      'fo03/us05/s2, fo03/us05/fr02: each Google font loads in each weight the '
+      'yaml declares for the types that use it, in normal style',
+      () async {
+        final calls = recordGoogleFonts();
+        await startController(FakeThemeBundle());
 
-      expect(calls.where((call) => call.$3 == FontStyle.normal).toSet(), {
-        ('Inter', FontWeight.w400, FontStyle.normal),
-        ('Inter', FontWeight.w600, FontStyle.normal),
-        ('Geist', FontWeight.w600, FontStyle.normal),
-        ('Geist Mono', FontWeight.w600, FontStyle.normal),
-        ('Roboto Mono', FontWeight.w400, FontStyle.normal),
-        ('Roboto Mono', FontWeight.w600, FontStyle.normal),
-        ('Kanit', FontWeight.w400, FontStyle.normal),
-        ('Kanit', FontWeight.w600, FontStyle.normal),
-      });
-    });
+        expect(calls.where((call) => call.$3 == FontStyle.normal).toSet(), {
+          ('Inter', FontWeight.w400, FontStyle.normal),
+          ('Inter', FontWeight.w600, FontStyle.normal),
+          ('Geist', FontWeight.w600, FontStyle.normal),
+          ('Geist Mono', FontWeight.w600, FontStyle.normal),
+          ('Roboto Mono', FontWeight.w400, FontStyle.normal),
+          ('Roboto Mono', FontWeight.w600, FontStyle.normal),
+          ('Kanit', FontWeight.w400, FontStyle.normal),
+          ('Kanit', FontWeight.w600, FontStyle.normal),
+        });
+      },
+    );
 
-    test('us05/fr02: a tag that names only its body font still waits for '
+    test('fo03/us05/fr02: a tag that names only its body font still waits for '
         "it at another type's weight, since the resolver draws every "
         "tag's body font as a fallback there", () async {
       final calls = recordGoogleFonts();
@@ -354,7 +366,7 @@ typography:
       expect(calls, contains(('Lato', FontWeight.w600, FontStyle.normal)));
     });
 
-    test('us05/fr02/e05: the wait loads each Google font in exactly the '
+    test('fo03/us05/fr02/e05: the wait loads each Google font in exactly the '
         'weights GoogleFontWeights.of gives, the one rule the resolver '
         'reads', () async {
       final calls = recordGoogleFonts();
@@ -367,7 +379,7 @@ typography:
       });
     });
 
-    test('us05/fr02/e07: the wait asks for no italic face', () async {
+    test('fo03/us05/fr02/e07: the wait asks for no italic face', () async {
       final calls = recordGoogleFonts();
       await startController(FakeThemeBundle());
 
@@ -375,7 +387,7 @@ typography:
       expect(calls.map((call) => call.$3).toSet(), {FontStyle.normal});
     });
 
-    test('us05/s3, us05/fr02/e02: preload goes on when the 3 s limit '
+    test('fo03/us05/s3, fo03/us05/fr02/e02: preload goes on when the 3 s limit '
         'passes', () {
       fakeAsync((async) {
         recordGoogleFonts(pending: () => Completer<void>().future);
@@ -392,7 +404,7 @@ typography:
       });
     });
 
-    test('us01/fr03: googleFontsTimeout sets another limit', () {
+    test('fo03/us01/fr03: googleFontsTimeout sets another limit', () {
       fakeAsync((async) {
         recordGoogleFonts(pending: () => Completer<void>().future);
         StratumThemeController? controller;
@@ -410,7 +422,7 @@ typography:
       });
     });
 
-    test('us05/fr02/e01: preload waits for Google fonts that finish in '
+    test('fo03/us05/fr02/e01: preload waits for Google fonts that finish in '
         'time', () {
       fakeAsync((async) {
         final fonts = Completer<void>();
@@ -429,7 +441,7 @@ typography:
       });
     });
 
-    test('us05/fr02/e04: a Google font that fails lets preload go '
+    test('fo03/us05/fr02/e04: a Google font that fails lets preload go '
         'on', () async {
       recordGoogleFonts(
         pending: () => Future<void>.error(StateError('offline')),
@@ -465,8 +477,8 @@ typography:
     });
   });
 
-  group('us02/fr01: switchTo', () {
-    test('us02/s1, us03/s2, us03/fr02: a switch makes the theme active in '
+  group('fo03/us02/fr01: switchTo', () {
+    test('fo03/us02/s1, fo03/us03/s2, fo03/us03/fr02: a switch makes the theme active in '
         'one step and reports it once, after it is active', () async {
       final seen = <String>[];
       var notified = 0;
@@ -488,7 +500,7 @@ typography:
       expect(seen, ['brand brand']);
     });
 
-    test('us02/fr01/e01: an unknown id throws theme_not_found with the '
+    test('fo03/us02/fr01/e01: an unknown id throws theme_not_found with the '
         'registered ids, and nothing changes', () async {
       final (controller, changes) = await startController(
         FakeThemeBundle(themes: {'brand': appTheme()}),
@@ -512,7 +524,7 @@ typography:
       expect(notified, 0);
     });
 
-    test('us02/s3, us02/fr01/e02, us03/fr02/e01: a theme that fails to '
+    test('fo03/us02/s3, fo03/us02/fr01/e02, fo03/us03/fr02/e01: a theme that fails to '
         'parse throws theme_format, and the active theme stays', () async {
       final (controller, changes) = await startController(
         FakeThemeBundle(themes: {'brand': brokenTheme()}),
@@ -531,44 +543,50 @@ typography:
       expect(notified, 0);
     });
 
-    test('us02/fr01/e04, us03/fr02/e06: a switch to the active id reads '
-        'nothing and reports nothing', () async {
-      final bundle = FakeThemeBundle(themes: {'brand': appTheme()});
-      final (controller, changes) = await startController(
-        bundle,
-        initialThemeId: 'brand',
-      );
-      final reads = Map.of(bundle.reads);
-      var notified = 0;
-      controller.addListener(() => notified++);
+    test(
+      'fo03/us02/fr01/e04, fo03/us03/fr02/e06: a switch to the active id reads '
+      'nothing and reports nothing',
+      () async {
+        final bundle = FakeThemeBundle(themes: {'brand': appTheme()});
+        final (controller, changes) = await startController(
+          bundle,
+          initialThemeId: 'brand',
+        );
+        final reads = Map.of(bundle.reads);
+        var notified = 0;
+        controller.addListener(() => notified++);
 
-      await controller.switchTo('brand');
+        await controller.switchTo('brand');
 
-      expect(bundle.reads, reads);
-      expect(changes, isEmpty);
-      expect(notified, 0);
-    });
+        expect(bundle.reads, reads);
+        expect(changes, isEmpty);
+        expect(notified, 0);
+      },
+    );
 
-    test('us02/fr01/e05, us03/fr02/e06: the latest of two overlapping '
-        'switches wins; the first completes with no error and no '
-        'callback', () async {
-      final bundle = FakeThemeBundle(
-        themes: {'brand': appTheme(), 'night': appTheme()},
-      );
-      final (controller, changes) = await startController(bundle);
-      var notified = 0;
-      controller.addListener(() => notified++);
-      final release = bundle.hold[themeKey('brand')] = Completer<void>();
+    test(
+      'fo03/us02/fr01/e05, fo03/us03/fr02/e06: the latest of two overlapping '
+      'switches wins; the first completes with no error and no '
+      'callback',
+      () async {
+        final bundle = FakeThemeBundle(
+          themes: {'brand': appTheme(), 'night': appTheme()},
+        );
+        final (controller, changes) = await startController(bundle);
+        var notified = 0;
+        controller.addListener(() => notified++);
+        final release = bundle.hold[themeKey('brand')] = Completer<void>();
 
-      final first = controller.switchTo('brand');
-      await controller.switchTo('night');
-      release.complete();
-      await first;
+        final first = controller.switchTo('brand');
+        await controller.switchTo('night');
+        release.complete();
+        await first;
 
-      expect(controller.activeId, 'night');
-      expect(changes, ['night']);
-      expect(notified, 1);
-    });
+        expect(controller.activeId, 'night');
+        expect(changes, ['night']);
+        expect(notified, 1);
+      },
+    );
 
     test('a switch to the active id overtakes a switch in flight', () async {
       final bundle = FakeThemeBundle(themes: {'brand': appTheme()});
@@ -617,7 +635,7 @@ typography:
       expect(changes, isEmpty);
     });
 
-    test('us02/fr01/e05: a switch overtaken while its own theme fails to '
+    test('fo03/us02/fr01/e05: a switch overtaken while its own theme fails to '
         'parse completes with no error', () async {
       final bundle = FakeThemeBundle(
         themes: {'brand': brokenTheme(), 'night': appTheme()},
@@ -641,7 +659,7 @@ typography:
       expect(changes, ['night']);
     });
 
-    test('us02/fr01/e05: a switch that ends after dispose, whose theme '
+    test('fo03/us02/fr01/e05: a switch that ends after dispose, whose theme '
         'fails to parse, completes with no error', () async {
       final bundle = FakeThemeBundle(themes: {'brand': brokenTheme()});
       final (controller, changes) = await startController(bundle);
@@ -662,26 +680,33 @@ typography:
       expect(changes, isEmpty);
     });
 
-    test('us02/fr01/e05: three rapid switches, only the latest wins', () async {
-      final bundle = FakeThemeBundle(
-        themes: {'brand': appTheme(), 'night': appTheme(), 'ocean': appTheme()},
-      );
-      final (controller, changes) = await startController(bundle);
-      final releaseBrand = bundle.hold[themeKey('brand')] = Completer<void>();
-      final releaseNight = bundle.hold[themeKey('night')] = Completer<void>();
+    test(
+      'fo03/us02/fr01/e05: three rapid switches, only the latest wins',
+      () async {
+        final bundle = FakeThemeBundle(
+          themes: {
+            'brand': appTheme(),
+            'night': appTheme(),
+            'ocean': appTheme(),
+          },
+        );
+        final (controller, changes) = await startController(bundle);
+        final releaseBrand = bundle.hold[themeKey('brand')] = Completer<void>();
+        final releaseNight = bundle.hold[themeKey('night')] = Completer<void>();
 
-      final first = controller.switchTo('brand');
-      final second = controller.switchTo('night');
-      final third = controller.switchTo('ocean');
-      releaseBrand.complete();
-      releaseNight.complete();
-      await Future.wait([first, second, third]);
+        final first = controller.switchTo('brand');
+        final second = controller.switchTo('night');
+        final third = controller.switchTo('ocean');
+        releaseBrand.complete();
+        releaseNight.complete();
+        await Future.wait([first, second, third]);
 
-      expect(controller.activeId, 'ocean');
-      expect(changes, ['ocean']);
-    });
+        expect(controller.activeId, 'ocean');
+        expect(changes, ['ocean']);
+      },
+    );
 
-    test('us02/fr01: switchTo called again after dispose, with no switch '
+    test('fo03/us02/fr01: switchTo called again after dispose, with no switch '
         'already in flight, does no work and throws nothing', () async {
       final bundle = FakeThemeBundle(themes: {'brand': appTheme()});
       final (controller, changes) = await startController(bundle);
@@ -692,7 +717,7 @@ typography:
       expect(changes, isEmpty);
     });
 
-    test('us02/fr01/e01 x e05: an unknown-id switch thrown while a '
+    test('fo03/us02/fr01/e01 x e05: an unknown-id switch thrown while a '
         'different switch is in flight does not affect that in-flight '
         'switch', () async {
       final bundle = FakeThemeBundle(
@@ -713,7 +738,7 @@ typography:
       expect(changes, ['brand']);
     });
 
-    test('us03/fr02/e02: switchTo with no onThemeChanged still '
+    test('fo03/us03/fr02/e02: switchTo with no onThemeChanged still '
         'completes', () async {
       final controller = await StratumThemeController.preload(
         bundle: FakeThemeBundle(themes: {'brand': appTheme()}),
@@ -724,7 +749,7 @@ typography:
       expect(controller.activeId, 'brand');
     });
 
-    test('us02/fr01/e06, us05/fr01/e06: a switch back reads the file again '
+    test('fo03/us02/fr01/e06, fo03/us05/fr01/e06: a switch back reads the file again '
         'and registers no font twice', () async {
       final loads = recordFontLoads();
       final bundle = FakeThemeBundle(
@@ -743,27 +768,30 @@ typography:
       expect(changes, ['brand', 'default', 'brand']);
     });
 
-    test('us05/s4: each theme that ships the same family name draws its own '
-        'file after a switch', () async {
-      final loads = recordFontLoads();
-      final (controller, _) = await startController(
-        FakeThemeBundle(
-          themes: {'brand': fontTheme(), 'night': fontTheme()},
-          fonts: {fontKey('brand'), fontKey('night')},
-        ),
-        initialThemeId: 'brand',
-      );
+    test(
+      'fo03/us05/s4: each theme that ships the same family name draws its own '
+      'file after a switch',
+      () async {
+        final loads = recordFontLoads();
+        final (controller, _) = await startController(
+          FakeThemeBundle(
+            themes: {'brand': fontTheme(), 'night': fontTheme()},
+            fonts: {fontKey('brand'), fontKey('night')},
+          ),
+          initialThemeId: 'brand',
+        );
 
-      await controller.switchTo('night');
+        await controller.switchTo('night');
 
-      expect(loads, [('brand/DB Heavent', 1), ('night/DB Heavent', 1)]);
-      expect(
-        controller.themes.light.typography.fonts['brand']!.family,
-        'night/DB Heavent',
-      );
-    });
+        expect(loads, [('brand/DB Heavent', 1), ('night/DB Heavent', 1)]);
+        expect(
+          controller.themes.light.typography.fonts['brand']!.family,
+          'night/DB Heavent',
+        );
+      },
+    );
 
-    test('us02/s2, us05/fr02/e06: a switch waits for its Google fonts up to '
+    test('fo03/us02/s2, fo03/us05/fr02/e06: a switch waits for its Google fonts up to '
         'the limit while the current theme stays', () {
       fakeAsync((async) {
         StratumThemeController? controller;
@@ -786,4 +814,39 @@ typography:
       });
     });
   });
+
+  group(
+    'fo03/us12/fr07/e01, s03/inv29: the package default theme read alone',
+    () {
+      test('reads the package default file and no app theme file', () async {
+        final bundle = FakeThemeBundle(
+          themes: {
+            'default': markTheme('app-mark'),
+            'brand': markTheme('brand-mark'),
+          },
+        );
+
+        final themes = await StratumThemeController.packageDefaultThemes(
+          bundle: bundle,
+        );
+
+        expect(themes.light.typography.fonts.keys, contains('inter'));
+        expect(
+          themes.light.typography.fonts.keys,
+          isNot(anyOf(contains('app-mark'), contains('brand-mark'))),
+        );
+        expect(bundle.reads.keys, [packageDefaultKey]);
+      });
+
+      test('registers no font file', () async {
+        final loads = recordFontLoads();
+
+        await StratumThemeController.packageDefaultThemes(
+          bundle: FakeThemeBundle(themes: {'default': fontTheme()}),
+        );
+
+        expect(loads, isEmpty);
+      });
+    },
+  );
 }

@@ -86,7 +86,10 @@ void main() {
       expect(copy.color, same(data.color));
       expect(copy.physics, same(data.physics));
       expect(copy.animation, same(data.animation));
-      expect(copy.screenBorderRadius, data.screenBorderRadius);
+      expect(copy.opacity, same(data.opacity));
+      expect(copy.border, same(data.border));
+      expect(copy.shadow, same(data.shadow));
+      expect(copy.blur, same(data.blur));
     });
 
     test('covers every field, physics included', () {
@@ -98,23 +101,44 @@ void main() {
         types: {},
       );
       final animation = motionTheme().animation;
+      final opacity = StratumOpacityTokens.fromMap(const {
+        'disabled': 0.3,
+        'scrim': 0.5,
+      });
       const transparent = StratumTransparentTokens.builtIn;
-      const space = {'md': StratumByWindowSize.all(StratumDimension.fixed(1))};
-      const radius = {'md': StratumByWindowSize.all(StratumDimension.fixed(2))};
-      const layouts = {
-        'max': StratumByWindowSize.all(StratumDimension.fixed(3)),
-      };
-      const appColors = {'x': Color(0xFF000001)};
-      const appPalettes = {
-        'y': {'500': Color(0xFF000002)},
-      };
-      const extensions = <String, Object?>{'z': 1};
-      const border = AppBorder();
-      const shadow = AppShadow(baseColor: Color(0xFF000003));
-      const filter = AppFilter();
+      // Wrapped so the generated getter's `_space is EqualUnmodifiableMapView`
+      // check returns this exact view back unchanged, keeping the `same()`
+      // pins below true: freezed wraps an unwrapped Map in a fresh view on
+      // every read, which `same()` would never see as the one passed in.
+      final space = EqualUnmodifiableMapView({
+        'md': const StratumByWindowSize.all(StratumDimension.fixed(1)),
+      });
+      final radius = EqualUnmodifiableMapView({
+        'md': const StratumByWindowSize.all(StratumDimension.fixed(2)),
+      });
+      final layouts = EqualUnmodifiableMapView({
+        'max': const StratumByWindowSize.all(StratumDimension.fixed(3)),
+      });
+      final appColors = EqualUnmodifiableMapView({
+        'x': const Color(0xFF000001),
+      });
+      final appPalettes = EqualUnmodifiableMapView({
+        'y': {'500': const Color(0xFF000002)},
+      });
+      final extensions = EqualUnmodifiableMapView<String, Object?>({'z': 1});
+      final border = StratumBorderTokens.fromMap(const {
+        'sm': 2,
+        'md': 3,
+        'lg': 4,
+      });
+      final shadow = other.shadow;
+      final blur = StratumBlurTokens.fromMap({
+        for (final level in ['1', '2', '3', '4', '5', '6'])
+          level: const ImageBlurFilter(sigmaX: 1, sigmaY: 1),
+      });
+      const systemStyle = SystemStyle(statusBarIcons: SystemBarIcons.dark);
       const scrollBehavior = ScrollBehavior();
       const physics = BouncingScrollPhysics();
-      const screenBorderRadius = BorderRadius.all(Radius.circular(42));
 
       final copy = base.copyWith(
         themeMode: ThemeMode.dark,
@@ -130,16 +154,15 @@ void main() {
         extensions: extensions,
         typography: typography,
         animation: animation,
+        opacity: opacity,
         defaultWidgetSize: WidgetSize.huge,
         border: border,
         shadow: shadow,
-        filter: filter,
-        systemOverlayStyle: AppSystemUI.dark,
-        systemOverlayInverseStyle: AppSystemUI.light,
+        blur: blur,
+        systemStyle: systemStyle,
         splashFactory: InkRipple.splashFactory,
         scrollBehavior: scrollBehavior,
         physics: physics,
-        screenBorderRadius: screenBorderRadius,
       );
 
       expect(copy.themeMode, ThemeMode.dark);
@@ -155,16 +178,49 @@ void main() {
       expect(copy.extensions, same(extensions));
       expect(copy.typography, same(typography));
       expect(copy.animation, same(animation));
+      expect(copy.opacity, same(opacity));
       expect(copy.defaultWidgetSize, WidgetSize.huge);
       expect(copy.border, same(border));
       expect(copy.shadow, same(shadow));
-      expect(copy.filter, same(filter));
-      expect(copy.systemOverlayStyle, AppSystemUI.dark);
-      expect(copy.systemOverlayInverseStyle, AppSystemUI.light);
+      expect(copy.blur, same(blur));
+      expect(copy.systemStyle, systemStyle);
       expect(copy.splashFactory, same(InkRipple.splashFactory));
       expect(copy.scrollBehavior, same(scrollBehavior));
       expect(copy.physics, same(physics));
-      expect(copy.screenBorderRadius, screenBorderRadius);
+    });
+  });
+
+  group('D4: value equality', () {
+    test('D4: a copy with no change equals its source, with the same hash '
+        'code', () {
+      final data = fakeTheme;
+
+      expect(data.copyWith(), data);
+      expect(data.copyWith().hashCode, data.hashCode);
+    });
+
+    test('D4: a copy that changes one field differs', () {
+      final data = fakeTheme;
+
+      expect(
+        data.copyWith(physics: const BouncingScrollPhysics()),
+        isNot(data),
+      );
+      expect(data.copyWith(defaultWidgetSize: WidgetSize.small), isNot(data));
+    });
+
+    test('D4: StratumAppPalette compares by name and shade content', () {
+      StratumAppPalette make(String name) =>
+          StratumAppPalette(name, {'500': const Color(0xFF00FF88)});
+
+      expect(make('mint'), make('mint'));
+      expect(make('mint').hashCode, make('mint').hashCode);
+      expect(make('mint'), isNot(make('sea')));
+      expect(make('mint').copyWith(name: 'sea'), make('sea'));
+    });
+
+    test("R4 Q2: StratumThemeData takes freezed's toString", () {
+      expect(fakeTheme.toString(), startsWith('StratumThemeData('));
     });
   });
 }

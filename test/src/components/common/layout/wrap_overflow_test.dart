@@ -261,7 +261,7 @@ final List<_Config> _configs = [
 void main() {
   group('WrapOverflowFrame', () {
     testWidgets(
-      'us14/fr01/e07, s03/inv36: runs, child order, and alignment follow '
+      'fo06/us14/fr01/e07, s03/inv36: runs, child order, and alignment follow '
       "Flutter's Wrap over the shown children and the overflow child in "
       'every direction',
       (tester) async {
@@ -289,41 +289,38 @@ void main() {
       },
     );
 
-    testWidgets(
-      'us14/s1, us14/fr02, s03/inv38: the overflow child shows the exact '
-      'hidden count in the first frame',
-      (tester) async {
-        final counts = <int>[];
-        await tester.pumpWidget(
-          _host(
-            _frame(
-              maxRuns: 2,
-              builder: (context, count) {
-                counts.add(count);
-                return _more(context, count);
-              },
-              children: _tags(12),
-            ),
+    testWidgets('fo06/us14/s1, fo06/us14/fr02, s03/inv38: the overflow child shows the exact '
+        'hidden count in the first frame', (tester) async {
+      final counts = <int>[];
+      await tester.pumpWidget(
+        _host(
+          _frame(
+            maxRuns: 2,
+            builder: (context, count) {
+              counts.add(count);
+              return _more(context, count);
+            },
+            children: _tags(12),
           ),
-        );
+        ),
+      );
 
-        expect(counts, [4]);
-        expect(find.text('+4'), findsOneWidget);
-        expect(_shownTags(), [0, 1, 2, 3, 4, 5, 6, 7]);
-        expect([for (var i = 8; i < 12; i++) _built(i)], everyElement(isTrue));
-        expect(
-          tester.getTopLeft(find.byKey(const ValueKey('more'))),
-          const Offset(200, 26),
-        );
-        expect(
-          tester.getSize(find.byType(WrapOverflowFrame)),
-          const Size(230, 46),
-        );
-      },
-    );
+      expect(counts, [4]);
+      expect(find.text('+4'), findsOneWidget);
+      expect(_shownTags(), [0, 1, 2, 3, 4, 5, 6, 7]);
+      expect([for (var i = 8; i < 12; i++) _built(i)], everyElement(isTrue));
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('more'))),
+        const Offset(200, 26),
+      );
+      expect(
+        tester.getSize(find.byType(WrapOverflowFrame)),
+        const Size(230, 46),
+      );
+    });
 
     testWidgets(
-      'us14/fr02/e04: at the cap shown children hide from the end, one at '
+      'fo06/us14/fr02/e04: at the cap shown children hide from the end, one at '
       'a time, and the count grows with each',
       (tester) async {
         final counts = <int>[];
@@ -356,7 +353,7 @@ void main() {
     );
 
     testWidgets(
-      'us14/fr02/e04: under maxRuns 1 an oversize first child hides, and '
+      'fo06/us14/fr02/e04: under maxRuns 1 an oversize first child hides, and '
       'the overflow child, alone in the run, counts it',
       (tester) async {
         await tester.pumpWidget(
@@ -382,7 +379,7 @@ void main() {
     );
 
     testWidgets(
-      'us14/fr02/e05, r7: an overflow child wider than a run is capped at '
+      'fo06/us14/fr02/e05, r7: an overflow child wider than a run is capped at '
       'the run extent, as Wrap caps it, and sits alone in the last allowed '
       'run with no clip',
       (tester) async {
@@ -418,64 +415,55 @@ void main() {
       },
     );
 
-    testWidgets(
-      'us14/fr02/e06, us14/fr01/e03: maxChildren 0 shows the overflow '
-      'child alone with every child counted',
-      (tester) async {
-        await tester.pumpWidget(
-          _host(_frame(maxChildren: 0, children: _tags(5))),
-        );
+    testWidgets('fo06/us14/fr02/e06, fo06/us14/fr01/e03: maxChildren 0 shows the overflow '
+        'child alone with every child counted', (tester) async {
+      await tester.pumpWidget(
+        _host(_frame(maxChildren: 0, children: _tags(5))),
+      );
 
-        expect(_shownTags(), isEmpty);
-        expect(find.text('+5'), findsOneWidget);
-        expect(
-          tester.getTopLeft(find.byKey(const ValueKey('more'))),
-          Offset.zero,
-        );
-      },
-    );
+      expect(_shownTags(), isEmpty);
+      expect(find.text('+5'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('more'))),
+        Offset.zero,
+      );
+    });
 
-    testWidgets(
-      'us14/fr02/e01, us14/fr01/e04: with nothing hidden, or both limits '
-      'null, no overflow child is built',
-      (tester) async {
-        final counts = <int>[];
-        Widget logged(BuildContext context, int count) {
-          counts.add(count);
-          return _more(context, count);
-        }
+    testWidgets('fo06/us14/fr02/e01, fo06/us14/fr01/e04: with nothing hidden, or both limits '
+        'null, no overflow child is built', (tester) async {
+      final counts = <int>[];
+      Widget logged(BuildContext context, int count) {
+        counts.add(count);
+        return _more(context, count);
+      }
 
-        await tester.pumpWidget(
-          _host(_frame(maxRuns: 2, builder: logged, children: _tags(4))),
-        );
-        expect(_shownTags(), [0, 1, 2, 3]);
-        expect(find.byKey(const ValueKey('more')), findsNothing);
+      await tester.pumpWidget(
+        _host(_frame(maxRuns: 2, builder: logged, children: _tags(4))),
+      );
+      expect(_shownTags(), [0, 1, 2, 3]);
+      expect(find.byKey(const ValueKey('more')), findsNothing);
 
-        await tester.pumpWidget(
-          _host(_frame(builder: logged, children: _tags(12))),
-        );
-        expect(_shownTags(), [for (var i = 0; i < 12; i++) i]);
-        expect(find.byKey(const ValueKey('more')), findsNothing);
-        expect(counts, isEmpty);
-      },
-    );
+      await tester.pumpWidget(
+        _host(_frame(builder: logged, children: _tags(12))),
+      );
+      expect(_shownTags(), [for (var i = 0; i < 12; i++) i]);
+      expect(find.byKey(const ValueKey('more')), findsNothing);
+      expect(counts, isEmpty);
+    });
 
-    testWidgets(
-      'us14/fr02/e02: with no overflowBuilder the hidden children hide with '
-      'no indicator',
-      (tester) async {
-        await tester.pumpWidget(
-          _host(_frame(maxRuns: 2, counted: false, children: _tags(12))),
-        );
+    testWidgets('fo06/us14/fr02/e02: with no overflowBuilder the hidden children hide with '
+        'no indicator', (tester) async {
+      await tester.pumpWidget(
+        _host(_frame(maxRuns: 2, counted: false, children: _tags(12))),
+      );
 
-        expect(_shownTags(), [0, 1, 2, 3, 4, 5, 6, 7]);
-        expect(find.byKey(const ValueKey('more')), findsNothing);
-        expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 46);
-      },
-    );
+      expect(_shownTags(), [0, 1, 2, 3, 4, 5, 6, 7]);
+      expect(find.byKey(const ValueKey('more')), findsNothing);
+      expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 46);
+    });
 
     testWidgets(
-      'us14/fr02/e08: a change of limits, children, or constraints shows '
+      'fo06/us14/fr02/e08: a change of limits, children, or constraints shows '
       'the new count in that frame',
       (tester) async {
         await tester.pumpWidget(_host(_frame(maxRuns: 2, children: _tags(12))));
@@ -495,7 +483,7 @@ void main() {
     );
 
     testWidgets(
-      'us14/fr02/e07, s03/inv38: intrinsic sizes run the limits at the '
+      'fo06/us14/fr02/e07, s03/inv38: intrinsic sizes run the limits at the '
       'queried extent, leave the overflow child out, and never throw',
       (tester) async {
         await tester.pumpWidget(
@@ -529,127 +517,243 @@ void main() {
       },
     );
 
-    testWidgets(
-      'us14/fr02/e07, s03/inv38, D9: intrinsic sizes over a vertical frame '
-      'run the limits at the queried extent, leave the overflow child '
-      'out, and never throw',
-      (tester) async {
-        // The horizontal fr02/e07 test above with every width and height
-        // swapped: a vertical frame packs by height (the main axis) and
-        // reports width (the cross axis) where the horizontal frame packs
-        // by width and reports height, so every number here is that test's
-        // number unchanged.
-        List<Widget> tags(int count) => [
-          for (var i = 0; i < count; i++)
-            SizedBox(key: ValueKey('v-tag $i'), width: 20, height: 40),
-        ];
-        Widget more(BuildContext context, int count) => SizedBox(
-          key: const ValueKey('v-more'),
-          width: 20,
-          height: 30,
-          child: Text('+$count'),
-        );
-        Widget host(Widget child) => Directionality(
-          textDirection: TextDirection.ltr,
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: SizedBox(height: 230, child: child),
-          ),
-        );
+    testWidgets('fo06/us14/fr02/e07, s03/inv38, D9: intrinsic sizes over a vertical frame '
+        'run the limits at the queried extent, leave the overflow child '
+        'out, and never throw', (tester) async {
+      // The horizontal fr02/e07 test above with every width and height
+      // swapped: a vertical frame packs by height (the main axis) and
+      // reports width (the cross axis) where the horizontal frame packs
+      // by width and reports height, so every number here is that test's
+      // number unchanged.
+      List<Widget> tags(int count) => [
+        for (var i = 0; i < count; i++)
+          SizedBox(key: ValueKey('v-tag $i'), width: 20, height: 40),
+      ];
+      Widget more(BuildContext context, int count) => SizedBox(
+        key: const ValueKey('v-more'),
+        width: 20,
+        height: 30,
+        child: Text('+$count'),
+      );
+      Widget host(Widget child) => Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(height: 230, child: child),
+        ),
+      );
 
-        await tester.pumpWidget(
-          host(
-            IntrinsicWidth(
-              child: WrapOverflowFrame(
-                direction: Axis.vertical,
-                spacing: 10,
-                runSpacing: 6,
-                maxRuns: 2,
-                overflowBuilder: more,
-                children: tags(12),
-              ),
-            ),
-          ),
-        );
-        expect(tester.takeException(), isNull);
-        final box = tester.renderObject<RenderBox>(
-          find.byType(WrapOverflowFrame),
-        );
-
-        expect(box.size.width, 46);
-        expect(box.getMaxIntrinsicWidth(230), 46);
-        expect(box.getMinIntrinsicWidth(230), 46);
-        expect(
-          box.getDryLayout(const BoxConstraints(maxHeight: 230)).width,
-          46,
-        );
-        expect(box.getMinIntrinsicHeight(double.infinity), 40);
-        expect(box.getMaxIntrinsicHeight(double.infinity), 480);
-
-        await tester.pumpWidget(
-          host(
-            WrapOverflowFrame(
+      await tester.pumpWidget(
+        host(
+          IntrinsicWidth(
+            child: WrapOverflowFrame(
               direction: Axis.vertical,
               spacing: 10,
               runSpacing: 6,
-              maxChildren: 5,
+              maxRuns: 2,
               overflowBuilder: more,
               children: tags(12),
             ),
           ),
-        );
-        final five = tester.renderObject<RenderBox>(
-          find.byType(WrapOverflowFrame),
-        );
-        expect(five.getMaxIntrinsicHeight(double.infinity), 200);
-        expect(five.getMaxIntrinsicWidth(230), 46);
-      },
-    );
-
-    testWidgets('us14/fr02/e07, D3: a dry-baseline query never throws, as an '
-        'ancestor such as IntrinsicHeight over a baseline-aligned Row asks '
-        'for it', (tester) async {
-      await tester.pumpWidget(_host(_frame(maxRuns: 2, children: _tags(12))));
+        ),
+      );
+      expect(tester.takeException(), isNull);
       final box = tester.renderObject<RenderBox>(
         find.byType(WrapOverflowFrame),
       );
 
-      expect(
-        () => box.getDryBaseline(
-          const BoxConstraints(maxWidth: 230),
-          TextBaseline.alphabetic,
-        ),
-        returnsNormally,
-      );
-      expect(tester.takeException(), isNull);
-    });
+      expect(box.size.width, 46);
+      expect(box.getMaxIntrinsicWidth(230), 46);
+      expect(box.getMinIntrinsicWidth(230), 46);
+      expect(box.getDryLayout(const BoxConstraints(maxHeight: 230)).width, 46);
+      expect(box.getMinIntrinsicHeight(double.infinity), 40);
+      expect(box.getMaxIntrinsicHeight(double.infinity), 480);
 
-    testWidgets('us14/fr02/e07: an overflow child larger than the tags under '
-        'IntrinsicHeight lays out with no exception', (tester) async {
       await tester.pumpWidget(
-        _host(
-          IntrinsicHeight(
-            child: _frame(
-              maxRuns: 2,
-              builder: (context, count) => SizedBox(
-                key: const ValueKey('more'),
-                width: 30,
-                height: 30,
-                child: Text('+$count'),
-              ),
-              children: _tags(12),
-            ),
+        host(
+          WrapOverflowFrame(
+            direction: Axis.vertical,
+            spacing: 10,
+            runSpacing: 6,
+            maxChildren: 5,
+            overflowBuilder: more,
+            children: tags(12),
           ),
         ),
       );
-
-      expect(tester.takeException(), isNull);
-      expect(find.text('+4'), findsOneWidget);
-      expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 46);
+      final five = tester.renderObject<RenderBox>(
+        find.byType(WrapOverflowFrame),
+      );
+      expect(five.getMaxIntrinsicHeight(double.infinity), 200);
+      expect(five.getMaxIntrinsicWidth(230), 46);
     });
 
     testWidgets(
-      'us14/fr03: hidden children take no hit test and are not painted',
+      'fo06/us14/fr02/e07, D3: a dry-baseline query never throws, as an '
+      'ancestor such as IntrinsicHeight over a baseline-aligned Row asks '
+      'for it',
+      (tester) async {
+        await tester.pumpWidget(_host(_frame(maxRuns: 2, children: _tags(12))));
+        final box = tester.renderObject<RenderBox>(
+          find.byType(WrapOverflowFrame),
+        );
+
+        expect(
+          () => box.getDryBaseline(
+            const BoxConstraints(maxWidth: 230),
+            TextBaseline.alphabetic,
+          ),
+          returnsNormally,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'fo06/us14/fr02/e07: an overflow child larger than the tags under '
+      'IntrinsicHeight lays out with no exception',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            IntrinsicHeight(
+              child: _frame(
+                maxRuns: 2,
+                builder: (context, count) => SizedBox(
+                  key: const ValueKey('more'),
+                  width: 30,
+                  height: 30,
+                  child: Text('+$count'),
+                ),
+                children: _tags(12),
+              ),
+            ),
+          ),
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('+4'), findsOneWidget);
+        expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 46);
+      },
+    );
+
+    /// The "+N" child: 30 by 40, taller than the tags.
+    Widget tallMore(BuildContext context, int count) => SizedBox(
+      key: const ValueKey('more'),
+      width: 30,
+      height: 40,
+      child: Text('+$count'),
+    );
+
+    testWidgets(
+      'fo06/us14/fr02/e07, s03/inv38: under IntrinsicHeight a "+N" taller than '
+      'the tags sizes the parent from the second frame, the first frame '
+      'leaving it out as before, then schedules no more frames',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(
+            IntrinsicHeight(
+              child: _frame(maxRuns: 1, builder: tallMore, children: _tags(12)),
+            ),
+          ),
+        );
+        // No layout measured "+8" yet: the parent sized the frame to the
+        // tags alone.
+        expect(find.text('+8'), findsOneWidget);
+        expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 20);
+
+        await tester.pump();
+
+        expect(tester.getSize(find.byType(WrapOverflowFrame)).height, 40);
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'fo06/us14/fr02/e07, s03/inv38: after a layout, dry layout and the '
+      'cross-axis intrinsics agree with the real size the "+N" child sets',
+      (tester) async {
+        await tester.pumpWidget(
+          _host(_frame(maxRuns: 1, builder: tallMore, children: _tags(12))),
+        );
+        final box = tester.renderObject<RenderBox>(
+          find.byType(WrapOverflowFrame),
+        );
+        expect(box.size, const Size(230, 40));
+
+        expect(box.getDryLayout(box.constraints), box.size);
+        expect(box.getMaxIntrinsicHeight(230), 40);
+        expect(box.getMinIntrinsicHeight(230), 40);
+        // No layout measured "+N" under another width: left out.
+        expect(box.getMaxIntrinsicHeight(150), 20);
+      },
+    );
+
+    testWidgets(
+      'fo06/us14/fr02/e07, s03/inv38: after a layout under an unbounded width, '
+      'the main-axis intrinsics count the "+N" child it measured',
+      (tester) async {
+        Widget wideMore(BuildContext context, int count) => SizedBox(
+          key: const ValueKey('more'),
+          width: 50,
+          height: 20,
+          child: Text('+$count'),
+        );
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: UnconstrainedBox(
+              alignment: Alignment.topLeft,
+              constrainedAxis: Axis.vertical,
+              child: _frame(
+                maxChildren: 3,
+                builder: wideMore,
+                children: _tags(12),
+              ),
+            ),
+          ),
+        );
+        final box = tester.renderObject<RenderBox>(
+          find.byType(WrapOverflowFrame),
+        );
+        expect(box.size.width, 3 * 40 + 3 * 10 + 50);
+
+        // The tags as RenderWrap sums them, with no gap, then "+9".
+        expect(box.getMaxIntrinsicWidth(double.infinity), 3 * 40 + 50);
+        // A tag a run each, then "+9" in a run of its own.
+        expect(box.getMinIntrinsicWidth(double.infinity), 50);
+      },
+    );
+
+    testWidgets(
+      'fo06/us14/fr02/e07: after a layout, the dry baseline counts the baseline '
+      'of the "+N" child the probe measured, as the real baseline does',
+      (tester) async {
+        // Baseline places the frame's real baseline 50 below its top.
+        await tester.pumpWidget(
+          _host(
+            Baseline(
+              baseline: 50,
+              baselineType: TextBaseline.alphabetic,
+              child: _frame(maxRuns: 1, children: _tags(12)),
+            ),
+          ),
+        );
+        final box = tester.renderObject<RenderBox>(
+          find.byType(WrapOverflowFrame),
+        );
+        // The tags have no baseline: only "+8" sets one.
+        final real = 50 - tester.getTopLeft(find.byType(WrapOverflowFrame)).dy;
+
+        expect(
+          box.getDryBaseline(box.constraints, TextBaseline.alphabetic),
+          real,
+        );
+      },
+    );
+
+    testWidgets(
+      'fo06/us14/fr03: hidden children take no hit test and are not painted',
       (tester) async {
         var hiddenTaps = 0;
         await tester.pumpWidget(
@@ -705,7 +809,7 @@ void main() {
     );
 
     testWidgets(
-      'us14/fr02/e09, owner ruling R8 (rca-baseline): a baseline query through a Row '
+      'fo06/us14/fr02/e09, owner ruling R8 (rca-baseline): a baseline query through a Row '
       'around the frame never throws, with or without an IntrinsicHeight '
       'ancestor, and not after a later relayout tries two counts',
       (tester) async {
@@ -756,7 +860,7 @@ void main() {
     );
 
     testWidgets(
-      'us14/fr02/e09, owner ruling R8, review-minor-3: a stateful overflow child sees '
+      'fo06/us14/fr02/e09, owner ruling R8, review-minor-3: a stateful overflow child sees '
       'only the final count in the first frame, and in a later relayout '
       'at the cap that tries two counts, only the new final count',
       (tester) async {
@@ -781,7 +885,7 @@ void main() {
     );
 
     testWidgets(
-      'us14/fr02/e09, owner ruling R8, rereview N1/N2: find.text of the overflow label '
+      'fo06/us14/fr02/e09, owner ruling R8, rereview N1/N2: find.text of the overflow label '
       'finds exactly one widget, onstage or off, since the probe drops '
       'once the cut settles and never lingers as a second, hidden copy',
       (tester) async {
@@ -809,7 +913,7 @@ void main() {
       },
     );
 
-    testWidgets('us14/fr02/e09, owner ruling R8, rereview N1 caveat: an overflowBuilder output '
+    testWidgets('fo06/us14/fr02/e09, owner ruling R8, rereview N1 caveat: an overflowBuilder output '
         'with a GlobalKey reports a duplicate-key error, since the probe '
         'and the live overflow child both inflate it', (tester) async {
       final key = GlobalKey();
@@ -917,7 +1021,7 @@ void main() {
     );
 
     testWidgets(
-      'us14/fr02/e10, owner ruling R9: a "+N" on a FocusNode the app owns reports in each '
+      'fo06/us14/fr02/e10, owner ruling R9: a "+N" on a FocusNode the app owns reports in each '
       'layout, since the probe and the live overflow child both carry it',
       (tester) async {
         final node = FocusNode(debugLabel: 'app +N');
@@ -946,7 +1050,7 @@ void main() {
       },
     );
 
-    testWidgets('us14/fr02/e10, owner ruling R9: a "+N" on a FocusNode its own State creates reports '
+    testWidgets('fo06/us14/fr02/e10, owner ruling R9: a "+N" on a FocusNode its own State creates reports '
         'nothing over two layouts, since the probe and the live child each '
         'create their own', (tester) async {
       final frame = _frame(

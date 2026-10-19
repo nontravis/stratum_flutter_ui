@@ -1,12 +1,14 @@
-// Frozen by tool/perf_freeze.dart from f64627d:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 7a50510:lib/src/components/common/style/animated_styled_box.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
+// The import and call of reducesMotion are patched to the extension form;
+// everything else stays verbatim from 7a50510.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
 import 'baseline.dart';
 
 import 'package:flutter/widgets.dart';
 import 'package:stratum_ui/src/components/common/model/widget_style.dart';
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
+import 'package:stratum_ui/src/extensions/context_extension.dart';
 import 'package:stratum_ui/src/components/common/style/style_decoration.dart';
 import 'package:stratum_ui/src/themes/animation.dart';
 import 'package:stratum_ui/src/themes/theme_application.dart';
@@ -152,7 +154,7 @@ class _AnimatedStyledBoxState extends State<BaselineAnimatedStyledBox>
     final target = _target;
     if (target == _style.end) return;
     var begin = _style.evaluate(_animation);
-    if (reducesMotion(context)) begin = _jumpGeometry(begin, to: target);
+    if (context.reducesMotion) begin = _jumpGeometry(begin, to: target);
     _style
       ..begin = begin
       ..end = target;

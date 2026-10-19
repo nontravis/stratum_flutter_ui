@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:stratum_ui/src/themes/config/plain_by_window_size.dart';
 import 'package:stratum_ui/src/themes/constant/window_size.dart';
 
 part 'generated/by_window_size.freezed.dart';
@@ -41,12 +42,17 @@ class StratumByWindowSize<T> with _$StratumByWindowSize<T> {
   T valueFor(WindowSize size) {
     final values = _values;
     if (values == null) return _all as T;
-    for (var index = size.index; index >= 0; index--) {
-      final candidate = WindowSize.values[index];
-      if (values.containsKey(candidate)) return values[candidate] as T;
-    }
-    return values[WindowSize.values.firstWhere(values.containsKey)] as T;
+    final index = windowSizeEntryIndex(
+      size.index,
+      (index) => values.containsKey(WindowSize.values[index]),
+    );
+    return values[WindowSize.values[index!]] as T;
   }
+
+  /// Whether [size] is one `theme.yaml` names: always true for `.all`, a
+  /// scalar that sets every window size; for a map, whether it declares
+  /// [size] (FO-02 US-04 FR-02, the shared window-size fill).
+  bool names(WindowSize size) => _values?.containsKey(size) ?? true;
 
   /// True when every window size gives the same value: such a token reads
   /// no `WindowSizeScope` (spec G11).

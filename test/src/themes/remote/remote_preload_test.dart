@@ -19,11 +19,13 @@ void main() {
   late List<String> logs;
   late List<String> changes;
   late List<(String, StratumRemoteThemeErrorCode)> errors;
+  late List<FlutterErrorDetails> errorReports;
   setUp(() {
     useSyncParse();
     recordRemoteFontLoads();
     recordRemoteGoogleFonts();
     logs = captureRemoteLogs();
+    errorReports = captureRemoteErrorReports();
     changes = [];
     errors = [];
   });
@@ -50,7 +52,7 @@ void main() {
   Iterable<String> fontKeys(StratumThemeController c) =>
       c.themes.light.typography.fonts.keys;
 
-  test('us01/s3, us01/fr04, us01/fr03/e02: a kept zip installs again at the '
+  test('fo04/us01/s3, fo04/us01/fr04, fo04/us01/fr03/e02: a kept zip installs again at the '
       'next start, before the start theme is picked', () async {
     final controller = await start([
       remoteTheme('brand', body: _mark('zip-mark')),
@@ -62,8 +64,8 @@ void main() {
     expect(changes, isEmpty);
   });
 
-  test('us01/s14, us01/fr04/e01, us01/fr04/e02, fo03 us03/fr01/e03, fo03 '
-      'us01/fr03/e04: a damaged kept zip of an unbundled id is skipped, '
+  test('fo04/us01/s14, fo04/us01/fr04/e01, fo04/us01/fr04/e02, fo03/us03/fr01/e03, '
+      'fo03/us01/fr03/e04: a damaged kept zip of an unbundled id is skipped, '
       'reported, and the start falls back to default', () async {
     final controller = await start([
       _damaged(remoteTheme('songkran')),
@@ -92,19 +94,38 @@ void main() {
     );
   });
 
-  test('us01/fr04/e03: of two kept zips with one id, the later wins', () async {
+  test('fo04/us01/fr04/e01, rz6 (3): a kept zip that breaks a new rule, a name '
+      'outside printable ASCII, is skipped at preload and reported', () async {
     final controller = await start([
-      remoteTheme('brand', body: _mark('first')),
-      remoteTheme('brand', body: _mark('second')),
-    ], initialThemeId: 'brand');
+      remoteTheme(
+        'songkran',
+        files: {
+          'imagés/a.svg': [1],
+        },
+      ),
+    ], initialThemeId: 'songkran');
 
-    expect(fontKeys(controller), contains('second'));
-    expect(fontKeys(controller), isNot(contains('first')));
-    expect(controller.remoteBundle.holds('stratum-remote/brand/1'), isFalse);
+    expect(controller.themeIds, ['default']);
+    expect(controller.activeId, 'default');
+    expect(errors, [('songkran', StratumRemoteThemeErrorCode.unsafeEntryPath)]);
   });
 
   test(
-    'us01/fr04/e04: a kept zip over a bundled id starts with the zip',
+    'fo04/us01/fr04/e03: of two kept zips with one id, the later wins',
+    () async {
+      final controller = await start([
+        remoteTheme('brand', body: _mark('first')),
+        remoteTheme('brand', body: _mark('second')),
+      ], initialThemeId: 'brand');
+
+      expect(fontKeys(controller), contains('second'));
+      expect(fontKeys(controller), isNot(contains('first')));
+      expect(controller.remoteBundle.holds('stratum-remote/brand/1'), isFalse);
+    },
+  );
+
+  test(
+    'fo04/us01/fr04/e04: a kept zip over a bundled id starts with the zip',
     () async {
       final controller = await start(
         [remoteTheme('brand', body: _mark('zip-mark'))],
@@ -117,56 +138,108 @@ void main() {
     },
   );
 
-  test('us01/fr04/e07, r10/oq1: a failed kept zip of a bundled id leaves the '
-      'bundled theme, and the start lands on it', () async {
-    final controller = await start(
-      [_damaged(remoteTheme('brand', body: _mark('zip-mark')))],
-      initialThemeId: 'brand',
-      bundled: {'brand': '$remoteSchemaLine\n${_mark('bundled-mark')}'},
+  test(
+    'fo04/us01/fr04/e07, r10/oq1: a failed kept zip of a bundled id leaves the '
+    'bundled theme, and the start lands on it',
+    () async {
+      final controller = await start(
+        [_damaged(remoteTheme('brand', body: _mark('zip-mark')))],
+        initialThemeId: 'brand',
+        bundled: {'brand': '$remoteSchemaLine\n${_mark('bundled-mark')}'},
+      );
+
+      expect(controller.activeId, 'brand');
+      expect(fontKeys(controller), contains('bundled-mark'));
+      expect(changes, isEmpty);
+      expect(errors, [('brand', StratumRemoteThemeErrorCode.checksumMismatch)]);
+    },
+  );
+
+  test(
+    'fo04/us01/fr04/e05: with no callback, a failed kept zip still skips and '
+    'logs, and preload throws nothing',
+    () async {
+      final controller = await start([
+        _damaged(remoteTheme('songkran')),
+      ], withCallback: false);
+
+      expect(controller.activeId, 'default');
+      expect(
+        logs,
+        contains(
+          'Stratum theme: kept zip "songkran" failed to install '
+          '(checksum_mismatch); skipped',
+        ),
+      );
+    },
+  );
+
+  test('fo04/us01/fr04/e08, s05: with no callback, a failed kept zip reports '
+      'once through FlutterError.reportError, the code key named and the '
+      'id escaped', () async {
+    await start([remoteTheme('bra\u0007nd')], withCallback: false);
+
+    expect(errorReports, hasLength(1));
+    final report = errorReports.single;
+    expect(report.library, 'stratum_ui');
+    expect(report.exception, isA<StratumRemoteThemeException>());
+    expect(
+      (report.exception as StratumRemoteThemeException).code,
+      StratumRemoteThemeErrorCode.invalidId,
     );
-
-    expect(controller.activeId, 'brand');
-    expect(fontKeys(controller), contains('bundled-mark'));
-    expect(changes, isEmpty);
-    expect(errors, [('brand', StratumRemoteThemeErrorCode.checksumMismatch)]);
-  });
-
-  test('us01/fr04/e05: with no callback, a failed kept zip still skips and '
-      'logs, and preload throws nothing', () async {
-    final controller = await start([
-      _damaged(remoteTheme('songkran')),
-    ], withCallback: false);
-
-    expect(controller.activeId, 'default');
+    expect(report.context.toString(), contains('invalid_id'));
+    expect(report.context.toString(), contains(r'bra\u0007nd'));
+    expect(report.context.toString(), isNot(contains('\u0007')));
+    expect(report.exceptionAsString(), contains(r'bra\u0007nd'));
+    expect(report.exceptionAsString(), isNot(contains('\u0007')));
+    expect(report.stack, isNotNull);
     expect(
       logs,
       contains(
-        'Stratum theme: kept zip "songkran" failed to install '
-        '(checksum_mismatch); skipped',
+        r'Stratum theme: kept zip "bra\u0007nd" failed to install '
+        '(invalid_id); skipped',
       ),
     );
+    expect(logs.join(), isNot(contains('\u0007')));
   });
 
-  test('us01/fr04, r12: a kept zip whose theme file is not UTF-8 is skipped '
-      'as theme_format, and the start falls back to default', () async {
-    final controller = await start([
-      latin1Theme('brand'),
-    ], initialThemeId: 'brand');
+  test('fo04/us01/fr04/e09, s05: with a callback, only it gets a failed kept '
+      'zip; preload calls FlutterError.reportError for none of them', () async {
+    final controller = await start([_damaged(remoteTheme('songkran'))]);
 
-    expect(controller.themeIds, ['default']);
     expect(controller.activeId, 'default');
-    expect(changes, ['default']);
-    expect(errors, [('brand', StratumRemoteThemeErrorCode.themeFormat)]);
+    expect(errors, [
+      ('songkran', StratumRemoteThemeErrorCode.checksumMismatch),
+    ]);
+    expect(errorReports, isEmpty);
   });
 
-  test('us01/fr04/e06: no kept zip runs preload as FO-03 states', () async {
-    final controller = await start(
-      const [],
-      bundled: {'brand': '$remoteSchemaLine\nname: brand'},
-    );
+  test(
+    'fo04/us01/fr04, r12: a kept zip whose theme file is not UTF-8 is skipped '
+    'as theme_format, and the start falls back to default',
+    () async {
+      final controller = await start([
+        latin1Theme('brand'),
+      ], initialThemeId: 'brand');
 
-    expect(controller.themeIds, ['default', 'brand']);
-    expect(controller.activeId, 'default');
-    expect(errors, isEmpty);
-  });
+      expect(controller.themeIds, ['default']);
+      expect(controller.activeId, 'default');
+      expect(changes, ['default']);
+      expect(errors, [('brand', StratumRemoteThemeErrorCode.themeFormat)]);
+    },
+  );
+
+  test(
+    'fo04/us01/fr04/e06: no kept zip runs preload as FO-03 states',
+    () async {
+      final controller = await start(
+        const [],
+        bundled: {'brand': '$remoteSchemaLine\nname: brand'},
+      );
+
+      expect(controller.themeIds, ['default', 'brand']);
+      expect(controller.activeId, 'default');
+      expect(errors, isEmpty);
+    },
+  );
 }

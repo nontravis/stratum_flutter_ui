@@ -3,10 +3,11 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/widgets.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/widget_style.freezed.dart';
 
-@freezed
+@valueModel
 class WidgetStyle with _$WidgetStyle {
   const new({
     this.opacity,
@@ -145,11 +146,7 @@ class WidgetStyle with _$WidgetStyle {
         to.borderRadius,
         t,
       ),
-      backgroundColor: Color.lerp(
-        from.backgroundColor,
-        to.backgroundColor,
-        t,
-      ),
+      backgroundColor: Color.lerp(from.backgroundColor, to.backgroundColor, t),
       backgroundGradient: Gradient.lerp(
         from.backgroundGradient,
         to.backgroundGradient,
@@ -165,11 +162,7 @@ class WidgetStyle with _$WidgetStyle {
         to.backgroundBlur,
         t,
       ),
-      foregroundColor: Color.lerp(
-        from.foregroundColor,
-        to.foregroundColor,
-        t,
-      ),
+      foregroundColor: Color.lerp(from.foregroundColor, to.foregroundColor, t),
       foregroundGradient: Gradient.lerp(
         from.foregroundGradient,
         to.foregroundGradient,

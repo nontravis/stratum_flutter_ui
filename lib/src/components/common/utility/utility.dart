@@ -1,6 +1,9 @@
-export 'focus_border.dart' hide focusBorderOutsideReach;
-export 'focus_spread.dart';
+export 'caret.dart' hide CaretPainter;
+export 'focus_border.dart' hide focusBorderOutsideReach, focusStyleOver;
+export 'focus_builder.dart';
+export 'hover_builder.dart';
+export 'show.dart';
 export 'slot.dart';
 export 'space.dart';
 export 'space_directional.dart';
-export 'todo.dart';
+export 'web_zoom.dart';

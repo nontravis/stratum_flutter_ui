@@ -1,53 +1,13 @@
-import 'package:flutter/rendering.dart' show RenderAbstractViewport;
+import 'package:flutter/rendering.dart'
+    show KeepAliveParentDataMixin, RenderAbstractViewport;
+import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart'
+    show movesForward, placeOriginFirst;
 import 'package:stratum_ui/src/src.dart';
-
-/// Makes the focusable children of a [ColumnLayout], [RowLayout], or
-/// [WrapLayout] one roving Tab stop (K3).
-///
-/// * Tab enters the group once and lands on the item that last held focus,
-///   or on the first item; Tab and Shift+Tab then leave it (WCAG 2.1.2).
-///   From a node inside an item, such as an item of a focusable scroller,
-///   they first move among that item and the nodes inside it.
-/// * Arrows along the layout axis move to the next item on screen in the
-///   pressed direction: Left and Right in a row, Up and Down in a column,
-///   also under right-to-left text and [VerticalDirection.up]. In a wrap,
-///   Left and Right move in reading order, and Up and Down move to the
-///   nearest item of the adjacent run.
-/// * Arrows across the axis keep Flutter's default.
-/// * Home and End move to the first and last item in reading order.
-/// * With [loop], moving past either end wraps around, including a wrap's
-///   Up and Down past its first or last run. Without it, an arrow past
-///   either end is swallowed when another item in the group still lies in
-///   that direction on screen, so focus does not bounce to it; otherwise
-///   it keeps Flutter's default: directional focus on desktop, scrolling
-///   on web.
-///
-/// The group binds its own keys, so they work the same on web, and skips
-/// them while focus is inside a text field. It covers built children only;
-/// a lazy list uses Tab and its own keyboard scrolling instead.
-@immutable
-class StratumFocusGroup {
-  const new({this.role, this.loop = false});
-
-  /// The semantics role of the group node.
-  ///
-  /// Flutter's debug checks constrain the items, which take their role
-  /// through their own `semantics:` (`SemanticsProperties(role: ...)`):
-  /// `tabBar` needs at least one item and every item with role `tab`;
-  /// `menu` and `menuBar` need at least one item, and a `menuItem` must sit
-  /// under one of them; `radioGroup` allows at most one checked item;
-  /// `list` has no check. Set `menu`, `menuBar`, or `tabBar` only when
-  /// items exist.
-  final SemanticsRole? role;
-
-  /// Whether arrows wrap from the last item to the first and back.
-  final bool loop;
-}
 
 /// How a [FocusGroupFrame] lays its items out on screen.
 enum FocusGroupAxis { vertical, horizontal, wrap }
 
-/// Builds a [StratumFocusGroup] around a layout's content.
+/// Builds a [FocusGroup] around a layout's content.
 ///
 /// Not exported: [FlexLayout], and so [ColumnLayout] and [RowLayout], and
 /// [WrapLayout] build it from their `focusGroup`.
@@ -60,7 +20,7 @@ class FocusGroupFrame extends StatefulWidget {
     required this.child,
   });
 
-  final StratumFocusGroup group;
+  final FocusGroup group;
   final FocusGroupAxis axis;
 
   /// The layout's own text direction; null reads the ambient
@@ -77,7 +37,7 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
   FocusNode? _last;
   late final _policy = _FocusGroupPolicy(() => _last);
   final _keys = FocusNode(
-    debugLabel: 'StratumFocusGroup',
+    debugLabel: 'FocusGroup',
     canRequestFocus: false,
     skipTraversal: true,
   );
@@ -354,12 +314,37 @@ class _FocusGroupFrameState extends State<FocusGroupFrame> {
 /// in reading order, so Tab moves among them before it leaves the group.
 ///
 /// Tab, Shift+Tab, and Flutter's arrows from an item reveal the newly
-/// focused node by [requestFocusInViewports].
+/// focused node by [requestFocusInViewports]. A move from a node that a
+/// scroll view keeps alive off screen, the app's own `nextFocus()`,
+/// `previousFocus()`, or `focusInDirection()` too, first brings the node
+/// back ([placeOriginFirst]).
 class _FocusGroupPolicy extends ReadingOrderTraversalPolicy {
   new(this.lastFocused) : super(requestFocusCallback: requestFocusInViewports);
 
   /// The node inside the group that last held primary focus.
   final ValueGetter<FocusNode?> lastFocused;
+
+  @override
+  bool next(FocusNode currentNode) => placeOriginFirst(
+    currentNode,
+    () => super.next(currentNode),
+    forward: true,
+  );
+
+  @override
+  bool previous(FocusNode currentNode) => placeOriginFirst(
+    currentNode,
+    () => super.previous(currentNode),
+    forward: false,
+  );
+
+  @override
+  bool inDirection(FocusNode currentNode, TraversalDirection direction) =>
+      placeOriginFirst(
+        currentNode,
+        () => super.inDirection(currentNode, direction),
+        forward: movesForward(direction),
+      );
 
   @override
   Iterable<FocusNode> sortDescendants(
@@ -392,16 +377,16 @@ class _FocusGroupPolicy extends ReadingOrderTraversalPolicy {
   }
 }
 
-/// The first node inside [container] in Tab order, scrolled into view;
-/// null when no node inside can take focus.
+/// The first node inside [container] in Tab order, scrolled into view
+/// unless [reveal] is false; null when no node inside can take focus.
 ///
 /// Sorts each traversal group inside by its own policy, as Tab does, so a
 /// focusable scroll view's Tab stop precedes its items. Layouts that
 /// switch their content focus this node after the switch.
-FocusNode? firstTabStopIn(FocusNode container) {
+FocusNode? firstTabStopIn(FocusNode container, {bool reveal = true}) {
   final first = _tabOrder.first(container);
   if (first == null) return null;
-  revealInViewports(first);
+  if (reveal) revealInViewports(first);
   return first;
 }
 
@@ -432,10 +417,34 @@ void requestFocusInViewports(
 /// scrolls to its end inside a page whose top the row extends past would
 /// stay cut off. The group arrows, [firstTabStopIn], and the traversal of
 /// a focus group or a scroller's content group reveal through this.
-void revealInViewports(FocusNode target) {
+///
+/// With [origin], the level whose [Scrollable] is [origin]'s own
+/// [ScrollPosition.context] jumps to the offset nearest [origin]'s pixels
+/// that shows what that level reveals whole ([_jumpToLeastScroll]) in
+/// place of the edge rule; every other level keeps the edge rule, so a
+/// target behind its own nested scrollable lands at the least scroll only
+/// where [origin] was read, never at the nested scrollable's edge. The
+/// match survives a physics or controller swap mid-reach, which disposes
+/// and replaces [origin]'s own [ScrollPosition] but keeps its
+/// [ScrollableState] (G5). A target kept alive off
+/// screen, whose rect reads NaN, takes that jump, from the current offset
+/// without [origin], at the level that reveals its own render object and
+/// at every level that keeps the box around it alive, as for a field in a
+/// row inside an item scrolled away; every other level leaves it: its box
+/// paints nowhere until the next layout.
+///
+/// With [levels], only the viewports it holds scroll; the walk passes the
+/// others by, as the app's, as for a shown item a reorderable list follows
+/// after a call shifts it, in the viewports that showed it (D28).
+void revealInViewports(
+  FocusNode target, {
+  ({ScrollPosition position, double pixels})? origin,
+  Set<ScrollableState>? levels,
+}) {
   final context = target.context;
   final object = context?.findRenderObject();
   if (context == null || object == null || !object.attached) return;
+  final kept = !target.rect.isFinite;
   // What each level scrolls into view: the target, then the viewport that
   // holds it, as Scrollable.ensureVisible walks the chain.
   RenderObject? shown = object;
@@ -449,17 +458,63 @@ void revealInViewports(FocusNode target) {
     scrollable = Scrollable.maybeOf(scrollable.context)
   ) {
     final reveal = _inViewportOf(shown, scrollable) ? shown : revealed;
-    final policy = _edgePolicy(target.rect, scrollable);
-    if (policy != null) {
-      scrollable.position.ensureVisible(
-        reveal,
-        alignmentPolicy: policy,
-        targetRenderObject: reveal == object ? null : object,
-      );
+    final fromOrigin = origin != null && scrollable == origin.position.context;
+    if (levels != null && !levels.contains(scrollable)) {
+      // Passed by: this viewport is the app's.
+    } else if (fromOrigin ||
+        (kept && (reveal == object || _keptAliveIn(reveal, scrollable)))) {
+      final from = fromOrigin ? origin.pixels : scrollable.position.pixels;
+      _jumpToLeastScroll(reveal, scrollable, from);
+    } else if (!kept) {
+      final policy = _edgePolicy(target.rect, scrollable);
+      if (policy != null) {
+        scrollable.position.ensureVisible(
+          reveal,
+          alignmentPolicy: policy,
+          targetRenderObject: reveal == object ? null : object,
+        );
+      }
     }
     revealed = reveal;
     shown = scrollable.context.findRenderObject();
   }
+}
+
+/// Jumps [scrollable] to the offset nearest [from] that shows [object]
+/// whole, from its viewport's offsets that align the object's leading and
+/// trailing edges (`getOffsetToReveal` at 0 and 1), clamped to the scroll
+/// extent; an object longer than the viewport takes its leading alignment.
+void _jumpToLeastScroll(
+  RenderObject object,
+  ScrollableState scrollable,
+  double from,
+) {
+  final viewport = RenderAbstractViewport.of(object);
+  final lead = viewport.getOffsetToReveal(object, 0).offset;
+  final trail = viewport.getOffsetToReveal(object, 1).offset;
+  final target = trail > lead ? lead : from.clamp(trail, lead);
+  final position = scrollable.position;
+  final offset = target.clamp(
+    position.minScrollExtent,
+    position.maxScrollExtent,
+  );
+  if (offset != position.pixels) position.jumpTo(offset);
+}
+
+/// Whether [object] sits in a box that [scrollable]'s viewport keeps alive
+/// off screen, in the sliver's keep-alive bucket.
+bool _keptAliveIn(RenderObject object, ScrollableState scrollable) {
+  final top = scrollable.context.findRenderObject();
+  for (
+    RenderObject? node = object;
+    node != null && node != top;
+    node = node.parent
+  ) {
+    if (node.parentData case KeepAliveParentDataMixin(keptAlive: true)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /// Whether [object]'s nearest viewport lies below [scrollable].

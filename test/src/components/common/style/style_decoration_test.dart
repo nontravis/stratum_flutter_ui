@@ -151,28 +151,30 @@ void main() {
   });
 
   group('StyleDecoration painting', () {
-    testWidgets('paints the shadow, then the fill, with no clip when opaque', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _box(
-          const StyleDecoration(
-            color: Color(0xFFFFFFFF),
-            borderRadius: _radius,
-            dropShadow: _shadow,
+    testWidgets(
+      'fo05/us02/fr01: paints the shadow, then the fill, with no clip '
+      'when opaque',
+      (tester) async {
+        await tester.pumpWidget(
+          _box(
+            const StyleDecoration(
+              color: Color(0xFFFFFFFF),
+              borderRadius: _radius,
+              dropShadow: _shadow,
+            ),
           ),
-        ),
-      );
+        );
 
-      final box = find.byType(DecoratedBox);
-      expect(
-        box,
-        paints
-          ..rrect(color: _shadowColor)
-          ..rrect(color: const Color(0xFFFFFFFF)),
-      );
-      expect(box, paintsExactlyCountTimes(#clipPath, 0));
-    });
+        final box = find.byType(DecoratedBox);
+        expect(
+          box,
+          paints
+            ..rrect(color: _shadowColor)
+            ..rrect(color: const Color(0xFFFFFFFF)),
+        );
+        expect(box, paintsExactlyCountTimes(#clipPath, 0));
+      },
+    );
 
     testWidgets(
       'clips the shadow to the outside when the fill is translucent',
@@ -217,6 +219,40 @@ void main() {
           find.byType(DecoratedBox),
           paints
             ..rrect(color: const Color(0xFFFFFFFF))
+            ..save()
+            ..clipRRect()
+            ..path(color: _shadowColor, hasMaskFilter: true)
+            ..restore(),
+        );
+      } finally {
+        debugDisableShadows = true;
+      }
+    });
+
+    testWidgets('fo05/us02/s1: a gradient fill with an inner shadow paints the '
+        'shadow inside the box edge, on top of the gradient', (tester) async {
+      debugDisableShadows = false;
+      try {
+        await tester.pumpWidget(
+          _box(
+            const StyleDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFFFFFFF), Color(0xFF000000)],
+              ),
+              borderRadius: _radius,
+              innerShadow: _shadow,
+            ),
+          ),
+        );
+
+        expect(
+          find.byType(DecoratedBox),
+          paints
+            ..something(
+              (method, arguments) =>
+                  method == #drawRRect &&
+                  (arguments[1] as Paint).shader != null,
+            )
             ..save()
             ..clipRRect()
             ..path(color: _shadowColor, hasMaskFilter: true)

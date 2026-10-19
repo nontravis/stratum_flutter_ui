@@ -46,6 +46,7 @@ class PageViewLayout extends StatelessWidget {
     this.showScrollbar,
     this.focusable,
     this.semanticsLabel,
+    this.scrollFocusStyle,
   }) : itemBuilder = null,
        findChildIndexCallback = null,
        itemCount = null;
@@ -72,6 +73,7 @@ class PageViewLayout extends StatelessWidget {
     this.showScrollbar,
     this.focusable,
     this.semanticsLabel,
+    this.scrollFocusStyle,
   }) : children = null;
 
   final WidgetStyle? style;
@@ -117,6 +119,10 @@ class PageViewLayout extends StatelessWidget {
   /// Names the focusable page view for a screen reader.
   final String? semanticsLabel;
 
+  /// The view's focus ring style, level 3 (FO-06 US-07 FR-03), beside
+  /// `style`, which draws the box.
+  final ScrollFocusStyle? scrollFocusStyle;
+
   @override
   Widget build(BuildContext context) {
     final children = this.children;
@@ -129,12 +135,12 @@ class PageViewLayout extends StatelessWidget {
       pageCount: children?.length ?? itemCount,
       semanticsLabel: semanticsLabel,
       showScrollbar: showScrollbar,
+      scrollFocusStyle: scrollFocusStyle,
       scrollsPadding: false,
       builder: (context, controller, padding) {
         // PageView turns scrollbars off unless it receives a behavior.
-        final behavior = ScrollConfiguration.of(
-          context,
-        ).copyWith(scrollbars: showScrollbar ?? false);
+        final behavior = ScrollConfiguration.of(context)
+            .copyWith(scrollbars: showScrollbar ?? false);
         if (children != null) {
           return PageView(
             scrollDirection: scrollDirection,

@@ -13,8 +13,7 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
 
 /**
- * The Android half of the native sender channel of `StratumWebView`
- * (docs/specs/stratum_ui/components/common/web_view/s01_architecture.md).
+ * The Android half of the native sender channel of `StratumWebView`.
  *
  * `attach` installs the page-side `StratumBridge` object on the WebView that
  * `webview_flutter_android` created for `webViewId` through

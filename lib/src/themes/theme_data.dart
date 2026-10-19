@@ -1,77 +1,82 @@
 import 'package:stratum_ui/src/animations/stratum_page_transitions_builder.dart';
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
+
+part 'generated/theme_data.freezed.dart';
 
 /// The theme data of one color set (spec section 7.2). Build it through
-/// [StratumThemeSet.fromConfig]; change a field through [copyWith].
-@immutable
-class StratumThemeData {
-  const new({
-    required this.themeMode,
-    required this.color,
-    required this.palette,
-    required this.space,
-    required this.radius,
-    required this.layouts,
-    required this.appColors,
-    required this.appPalettes,
-    required this.assets,
-    required this.extensions,
-    required this.typography,
-    required this.animation,
-    this.transparent = StratumTransparentTokens.builtIn,
-    this.defaultWidgetSize = WidgetSize.medium,
-    this.border = const AppBorder(),
-    this.shadow = const AppShadow(),
-    this.filter = const AppFilter(),
-    this.systemOverlayStyle = AppSystemUI.light,
-    this.systemOverlayInverseStyle = AppSystemUI.dark,
-    this.splashFactory = NoSplash.splashFactory,
-    this.scrollBehavior = const StratumScrollBehavior(),
-    this.physics = const ClampingScrollPhysics(),
-    this.screenBorderRadius,
-  });
+/// [StratumThemeSet.fromConfig]; change a field through [copyWith]. Every
+/// `copyWith` parameter takes that field's own non-nullable type, so pass a
+/// field only when changing it: there is no "pass null to keep it" form.
+@valueModel
+abstract class StratumThemeData with _$StratumThemeData {
+  const factory({
+    /// `ThemeMode.light` for the light and high-contrast light data,
+    /// `ThemeMode.dark` for the other two.
+    required ThemeMode themeMode,
 
-  /// `ThemeMode.light` for the light and high-contrast light data,
-  /// `ThemeMode.dark` for the other two.
-  final ThemeMode themeMode;
+    /// `color.<set>` without `app`.
+    required StratumColorTokens color,
 
-  /// `color.<set>` without `app`.
-  final StratumColorTokens color;
+    /// `palette` without `app`.
+    required StratumPaletteTokens palette,
+    required Map<String, StratumByWindowSize<StratumDimension>> space,
+    required Map<String, StratumByWindowSize<StratumDimension>> radius,
+    required Map<String, StratumByWindowSize<StratumDimension>> layouts,
 
-  /// `palette` without `app`.
-  final StratumPaletteTokens palette;
+    /// `color.<set>.app`, by name.
+    required Map<String, Color> appColors,
 
-  /// The 64 built-in transparent steps.
-  final StratumTransparentTokens transparent;
+    /// `palette.app`, by ramp, then shade.
+    required Map<String, Map<String, Color>> appPalettes,
+    required StratumAssetTokens assets,
+    required Map<String, Object?> extensions,
+    required StratumTypography typography,
 
-  final Map<String, StratumByWindowSize<StratumDimension>> space;
-  final Map<String, StratumByWindowSize<StratumDimension>> radius;
-  final Map<String, StratumByWindowSize<StratumDimension>> layouts;
+    /// The yaml values; `StratumTheme.animation` returns them unchanged,
+    /// reduced motion included (spec C1).
+    required StratumAnimation animation,
 
-  /// `color.<set>.app`, by name.
-  final Map<String, Color> appColors;
+    /// `opacity`: `disabled`, the opacity of a disabled component, which the
+    /// component base's disabled wrapper paints (FO-08 US-07).
+    required StratumOpacityTokens opacity,
 
-  /// `palette.app`, by ramp, then shade.
-  final Map<String, Map<String, Color>> appPalettes;
+    /// `border`: `sm`, `md`, `lg`, each a width in logical pixels from the
+    /// theme file; a widget that needs the usual width reads `md`.
+    required StratumBorderTokens border,
 
-  final StratumAssetTokens assets;
-  final Map<String, Object?> extensions;
-  final StratumTypography typography;
+    /// `shadow`: `level1` to `level6`, each a list of `BoxShadow` in Figma
+    /// order, colored from this data's own color set.
+    required StratumShadowTokens shadow,
 
-  /// The yaml values; `StratumTheme.animation` returns them unchanged,
-  /// reduced motion included (spec C1).
-  final StratumAnimation animation;
+    /// `blur`: `level1` to `level6`, each a background blur at sigma half
+    /// the Figma radius.
+    required StratumBlurTokens blur,
 
-  final WidgetSize defaultWidgetSize;
-  final AppBorder border;
-  final AppShadow shadow;
-  final AppFilter filter;
-  final SystemUiOverlayStyle systemOverlayStyle;
-  final SystemUiOverlayStyle systemOverlayInverseStyle;
-  final InteractiveInkFeatureFactory splashFactory;
-  final ScrollBehavior scrollBehavior;
-  final ScrollPhysics physics;
-  final BorderRadius? screenBorderRadius;
+    /// `system`: the look of the system bars from the theme file's `system`
+    /// set for this data's mode, a high-contrast set laid over its base; the
+    /// one system bar style the theme exposes and the lowest layer of the
+    /// system style merge (FO-03 US-10 FR-01 E05, US-14 FR-01). Its bar mode,
+    /// rotation lock, and app switcher label stay null: an app sets those in
+    /// code.
+    required SystemStyle systemStyle,
+
+    /// `focus`: the focus ring's level 0 from the theme file's `focus` set
+    /// for this data's mode, a high-contrast set laid over its base, each
+    /// color from this data's own color set (FO-06 US-04 FR-03; themes s03
+    /// invariant 46).
+    required StratumFocusTokens focus,
+
+    /// The 64 built-in transparent steps.
+    @Default(StratumTransparentTokens.builtIn)
+    StratumTransparentTokens transparent,
+    @Default(WidgetSize.medium) WidgetSize defaultWidgetSize,
+    @Default(NoSplash.splashFactory) InteractiveInkFeatureFactory splashFactory,
+    @Default(StratumScrollBehavior()) ScrollBehavior scrollBehavior,
+    @Default(ClampingScrollPhysics()) ScrollPhysics physics,
+  }) = _StratumThemeData;
+
+  const new _();
 
   /// The app color [name]. Throws an [ArgumentError] that lists the names
   /// in [appColors] (spec G13).
@@ -96,15 +101,16 @@ class StratumThemeData {
     return StratumAppPalette(name, shades);
   }
 
-  /// The Material theme of spec section 10: the [ColorScheme] of section
-  /// 10.2, the fields of section 10.3, and the text theme of
-  /// `docs/specs/stratum_ui/themes/s01_architecture.md`
-  /// `### Material text theme`, resolved for [locale], [windowSize], and
-  /// [textScaler]. No slot sets a weight, so each draws its type's yaml
-  /// weight. A null [windowSize] adds no window scale to the text theme.
+  /// The Material theme: the [ColorScheme], its fields, and the text theme,
+  /// resolved for [locale], [windowSize], and [textScaler]. No slot sets a
+  /// weight, so each draws its type's yaml weight. A null [windowSize] adds
+  /// no window scale to the text theme.
   /// Its page transitions install one `StratumPageTransitionsBuilder` of
   /// [animation] for every [TargetPlatform], so every plain Material page
-  /// takes the theme's transition (FO-03 US-08 FR-01 E04).
+  /// takes the theme's transition (FO-03 US-08 FR-01 E04). It sets no
+  /// system bar style for the app bar, so a Material `AppBar` declares the
+  /// style of its own fill, which the system style resolver reads as one
+  /// fill layer (FO-03 US-08 FR-01 E05).
   ThemeData toThemeData({
     required Locale locale,
     required WindowSize? windowSize,
@@ -162,10 +168,9 @@ class StratumThemeData {
         selectionHandleColor: brand,
       ),
       dividerTheme: DividerThemeData(
-        thickness: border.md.maxWidth,
+        thickness: border.md,
         color: color.border.defaults.normal,
       ),
-      appBarTheme: AppBarTheme(systemOverlayStyle: systemOverlayStyle),
       pageTransitionsTheme: PageTransitionsTheme(
         builders: {
           for (final platform in TargetPlatform.values)
@@ -194,71 +199,19 @@ class StratumThemeData {
       ),
     );
   }
-
-  /// Covers every field, `physics` included (FO-03 s03 invariant 8).
-  StratumThemeData copyWith({
-    ThemeMode? themeMode,
-    StratumColorTokens? color,
-    StratumPaletteTokens? palette,
-    StratumTransparentTokens? transparent,
-    Map<String, StratumByWindowSize<StratumDimension>>? space,
-    Map<String, StratumByWindowSize<StratumDimension>>? radius,
-    Map<String, StratumByWindowSize<StratumDimension>>? layouts,
-    Map<String, Color>? appColors,
-    Map<String, Map<String, Color>>? appPalettes,
-    StratumAssetTokens? assets,
-    Map<String, Object?>? extensions,
-    StratumTypography? typography,
-    StratumAnimation? animation,
-    WidgetSize? defaultWidgetSize,
-    AppBorder? border,
-    AppShadow? shadow,
-    AppFilter? filter,
-    SystemUiOverlayStyle? systemOverlayStyle,
-    SystemUiOverlayStyle? systemOverlayInverseStyle,
-    InteractiveInkFeatureFactory? splashFactory,
-    ScrollBehavior? scrollBehavior,
-    ScrollPhysics? physics,
-    BorderRadius? screenBorderRadius,
-  }) {
-    return StratumThemeData(
-      themeMode: themeMode ?? this.themeMode,
-      color: color ?? this.color,
-      palette: palette ?? this.palette,
-      transparent: transparent ?? this.transparent,
-      space: space ?? this.space,
-      radius: radius ?? this.radius,
-      layouts: layouts ?? this.layouts,
-      appColors: appColors ?? this.appColors,
-      appPalettes: appPalettes ?? this.appPalettes,
-      assets: assets ?? this.assets,
-      extensions: extensions ?? this.extensions,
-      typography: typography ?? this.typography,
-      animation: animation ?? this.animation,
-      defaultWidgetSize: defaultWidgetSize ?? this.defaultWidgetSize,
-      border: border ?? this.border,
-      shadow: shadow ?? this.shadow,
-      filter: filter ?? this.filter,
-      systemOverlayStyle: systemOverlayStyle ?? this.systemOverlayStyle,
-      systemOverlayInverseStyle:
-          systemOverlayInverseStyle ?? this.systemOverlayInverseStyle,
-      splashFactory: splashFactory ?? this.splashFactory,
-      scrollBehavior: scrollBehavior ?? this.scrollBehavior,
-      physics: physics ?? this.physics,
-      screenBorderRadius: screenBorderRadius ?? this.screenBorderRadius,
-    );
-  }
 }
 
 /// One app ramp of `palette.app`.
-@immutable
-class StratumAppPalette {
-  const new(this.name, this.shades);
+@valueModel
+abstract class StratumAppPalette with _$StratumAppPalette {
+  const factory(
+    String name,
 
-  final String name;
+    /// Shade name to color, as `palette.app.<name>` writes them.
+    Map<String, Color> shades,
+  ) = _StratumAppPalette;
 
-  /// Shade name to color, as `palette.app.<name>` writes them.
-  final Map<String, Color> shades;
+  const new _();
 
   /// Throws an [ArgumentError] that lists the shade names.
   Color shade(String shade) =>

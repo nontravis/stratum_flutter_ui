@@ -112,4 +112,59 @@ void main() {
       );
     });
   });
+
+  group('allowedOriginProblem (co01_02/us03/nf01: NFR-Sec06)', () {
+    test('names a scheme-less entry by position and its redacted form', () {
+      expect(
+        allowedOriginProblem(2, Uri.parse('app.example.com')),
+        'entry 2 (…) needs an http or https scheme',
+      );
+    });
+
+    test('names a non-http(s) scheme entry by its redacted origin', () {
+      expect(
+        allowedOriginProblem(1, Uri.parse('ftp://app.example.com')),
+        'entry 1 (ftp://app.example.com) needs an http or https scheme',
+      );
+    });
+
+    test('names a host-less entry by its redacted scheme', () {
+      expect(
+        allowedOriginProblem(1, Uri(scheme: 'https')),
+        'entry 1 (https:…) has no host',
+      );
+    });
+
+    test('names a non-ASCII host entry by its redacted, lowercased origin', () {
+      expect(
+        allowedOriginProblem(3, Uri.parse('https://bücher.de')),
+        'entry 3 (https://b%C3%BCcher.de) has a non-ASCII host; use its '
+        'punycode form (xn--…)',
+      );
+    });
+
+    test('a hostile entry never surfaces its user info, path, query, or '
+        'fragment', () {
+      final text = allowedOriginProblem(
+        1,
+        Uri.parse('ftp://user:pw@partner.example/x?token=abc#f'),
+      );
+
+      expect(
+        text,
+        'entry 1 (ftp://partner.example/…) needs an http or '
+        'https scheme',
+      );
+      for (final leak in ['user', 'pw', '/x', 'token=abc', '#f']) {
+        expect(text, isNot(contains(leak)));
+      }
+    });
+
+    test('returns null for a working http or https entry', () {
+      expect(
+        allowedOriginProblem(1, Uri.parse('https://app.example.com')),
+        isNull,
+      );
+    });
+  });
 }

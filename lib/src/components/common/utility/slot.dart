@@ -1,6 +1,6 @@
 import 'package:stratum_ui/src/src.dart';
 
-class Slot extends StatelessWidget {
+class StratumSlot extends StatelessWidget {
   const new({
     super.key,
     this.height,

@@ -23,8 +23,21 @@ typedef CheckedThemes = ({ThemeSchema schema, List<ThemeTree> files});
 final class ThemeSchema {
   new(this.base);
 
-  /// The token groups an alias may name (spec section 7.3).
-  static const tokenGroups = {'space', 'radius', 'layouts', 'palette', 'color'};
+  /// The token groups an alias may name (spec section 7.3); a `border` or
+  /// `blur` alias names a token of its own group (config s03 invariant 4).
+  static const tokenGroups = {
+    'space',
+    'radius',
+    'layouts',
+    'palette',
+    'color',
+    'border',
+    'blur',
+  };
+
+  /// The groups that hold one map per color set: `color`, and `system` and
+  /// `focus`, whose sets mirror it (config s03 invariants 16, 19).
+  static const setGroups = {'color', 'system', 'focus'};
 
   /// Each color set, and the set whose keys it takes.
   static const colorSets = {
@@ -60,8 +73,8 @@ final class ThemeSchema {
   };
 
   /// The map of the package default that lists the keys a layer may write
-  /// at [path]; a high-contrast set reads its base set. Null when the
-  /// package default holds no map there.
+  /// at [path]; a high-contrast set of a [setGroups] group reads its base
+  /// set. Null when the package default holds no map there.
   Map<String, Object?>? keysAt(List<String> path) {
     final node = _baseAt(path);
     return node is Map<String, Object?> ? node : null;
@@ -75,7 +88,7 @@ final class ThemeSchema {
   Object? _baseAt(List<String> path) {
     Object? node = base;
     for (final (index, key) in path.indexed) {
-      final name = index == 1 && path.first == 'color'
+      final name = index == 1 && setGroups.contains(path.first)
           ? colorSets[key] ?? key
           : key;
       if (node is! Map<String, Object?> || !node.containsKey(name)) {

@@ -1,7 +1,6 @@
 import 'package:stratum_ui/src/components/common/layout/focus_group.dart';
-import 'package:stratum_ui/src/components/common/style/reduced_motion.dart';
 import 'package:stratum_ui/src/components/common/utility/focus_border.dart'
-    show focusBorderOutsideReach;
+    show focusBorderOutsideReach, focusStyleOver;
 import 'package:stratum_ui/src/src.dart';
 
 /// The scroll behavior for a layout scroll view at [context].
@@ -115,18 +114,30 @@ AxisDirection? arrowAlong(LogicalKeyboardKey key, Axis axis) {
 /// Jumps [position] to its end. A lazy list only estimates its extent, so
 /// it jumps again after each frame until the extent stops changing, at
 /// most three more times, while [attached] holds.
-void jumpToEnd(ScrollPosition position, {required ValueGetter<bool> attached}) {
+///
+/// - [retry]: runs each later jump; by default at once, in the post-frame
+///   callback that saw the extent change.
+void jumpToEnd(
+  ScrollPosition position, {
+  required ValueGetter<bool> attached,
+  void Function(VoidCallback jump) retry = _jumpNow,
+}) {
   void jump(int retries) {
     final extent = position.maxScrollExtent;
     position.jumpTo(extent);
     if (retries == 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (attached() && position.maxScrollExtent != extent) jump(retries - 1);
+      if (attached() && position.maxScrollExtent != extent) {
+        retry(() => jump(retries - 1));
+      }
     });
   }
 
   jump(3);
 }
+
+/// Runs [jump] at once: [jumpToEnd]'s default retry.
+void _jumpNow(VoidCallback jump) => jump();
 
 /// [style]'s duration, else [Duration.zero] for a hand-built [AnimationStyle]
 /// that sets none (for example [AnimationStyle.noAnimation]).
@@ -159,13 +170,15 @@ enum ScrollFocusMode {
 /// after layout, when its own node gains focus and when the window size
 /// changes.
 ///
-/// A focusable scroll view makes its content, inside the box, one
-/// traversal group through [contentGroup], so Tab order puts the box's Tab
-/// stop before every item inside. Reading order sorts by unclipped rects;
-/// without the group an item scrolled above the viewport sorts before the
-/// Tab stop, and Tab from that item lands on the stop instead of the next
-/// item. The group leaves arrow keys and their history to the group around
-/// the box, so desktop arrows move as if it were not there.
+/// Every layout scroll view, focusable or not, makes its content, inside
+/// the box, one traversal group through [contentGroup], so Tab order puts
+/// a focusable box's Tab stop before every item inside, and a focused node
+/// the view keeps alive off screen comes back into view before a traversal
+/// moves from it. Reading order sorts by unclipped rects; without the group
+/// an item scrolled above the viewport sorts before the Tab stop, and Tab
+/// from that item lands on the stop instead of the next item. The group
+/// leaves arrow keys and their history to the group around the box, so
+/// desktop arrows move as if it were not there.
 ///
 /// With [ownsFocus] false it wraps a tap
 /// surface that takes focus, adds no Tab stop of its own, and acts on keys
@@ -218,6 +231,9 @@ enum ScrollFocusMode {
 /// the body to its end and collapses the header. When the inner controller
 /// holds several positions, as during a tab swipe, the keys move the one
 /// of the scroll view below this widget.
+///
+/// Exported from `layout/layout.dart`, so an app names it as the key of
+/// every scrolling area's app-wide `ScrollFocusStyle`.
 class ScrollFocus extends StatefulWidget {
   const new({
     super.key,
@@ -230,6 +246,7 @@ class ScrollFocus extends StatefulWidget {
     this.semanticsLabel,
     this.borderRadius,
     this.ownsFocus = true,
+    this.customStyle,
     required this.child,
   });
 
@@ -260,6 +277,12 @@ class ScrollFocus extends StatefulWidget {
   /// cannot take focus, such as a disabled or hover-only one, leaves it
   /// true.
   final bool ownsFocus;
+
+  /// This area's own style: its `focus` field restyles this area's focus
+  /// ring, level 3, over the app-wide `ScrollFocusStyle` under `ScrollFocus`
+  /// in `componentPartDefaults`, level 2 (FO-06 US-07 FR-03); every field of
+  /// it takes effect (NFR-E02).
+  final ScrollFocusStyle? customStyle;
   final Widget child;
 
   /// The controller that the scroll view below the nearest [ScrollFocus]
@@ -271,11 +294,15 @@ class ScrollFocus extends StatefulWidget {
         ?.controller;
   }
 
-  /// Wraps [child], the scroll view of a focusable scroller inside its box,
-  /// in the traversal group that keeps the box's Tab stop ahead of the
-  /// items inside.
+  /// Wraps [child], the scroll view of a layout scroller inside its box, in
+  /// the traversal group that keeps the box's Tab stop ahead of the items
+  /// inside and places a focused node kept alive off screen before a
+  /// traversal moves from it, also from inside a group of its own.
   static Widget contentGroup(Widget child) {
-    return FocusTraversalGroup(policy: _contentPolicy, child: child);
+    return FocusTraversalGroup(
+      policy: _contentPolicy,
+      child: _PlaceFirstActions(child: child),
+    );
   }
 
   /// Wraps [child], the page at [index] of the page view below a
@@ -380,6 +407,10 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
   void didUpdateWidget(ScrollFocus oldWidget) {
     super.didUpdateWidget(oldWidget);
     assert(oldWidget.mode == widget.mode, 'ScrollFocus.mode cannot change');
+    if (widget.customStyle != oldWidget.customStyle &&
+        (_node?.hasPrimaryFocus ?? false)) {
+      _placeRingAfterLayout();
+    }
     final owned = oldWidget.ownsFocus;
     final owns = widget.ownsFocus;
     if (!oldWidget.focusable || !widget.focusable || owned == owns) return;
@@ -435,15 +466,28 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
     });
   }
 
-  /// Whether the box grown by the ring's resolved gap and width,
-  /// [focusBorderOutsideReach], lies wholly inside the window (R8).
+  /// Levels 2 and 3 of this area's ring, laid together (PD4).
+  StratumFocusBorderStyle? _ringStyle(BuildContext context) => focusStyleOver(
+    StratumComponentDefaults.partsOf<ScrollFocusStyle>(
+      context,
+      ScrollFocus,
+    )?.focus,
+    widget.customStyle?.focus,
+  );
+
+  /// Whether the box grown by the ring's resolved gap and width, and a
+  /// second ring's width when one is set, [focusBorderOutsideReach], lies
+  /// wholly inside the window (FO-06 US-07 FR-03 E01).
   bool _outerRingFits() {
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return true;
-    final ring = MatrixUtils.transformRect(
-      box.getTransformTo(null),
-      Offset.zero & box.size,
-    ).inflate(focusBorderOutsideReach(context));
+    final ring =
+        MatrixUtils.transformRect(
+          box.getTransformTo(null),
+          Offset.zero & box.size,
+        ).inflate(
+          focusBorderOutsideReach(context, customStyle: _ringStyle(context)),
+        );
     final view = View.of(context);
     final window = view.physicalSize / view.devicePixelRatio;
     return ring.left >= 0 &&
@@ -551,7 +595,7 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
     final amount = page ? 0.8 * position.viewportDimension : 50.0;
     final delta = direction == position.axisDirection ? amount : -amount;
     // A zero duration makes moveTo jump (NFR-U03).
-    final line = reducesMotion(context)
+    final line = context.reducesMotion
         ? AnimationStyle.noAnimation
         : _motion.fast;
     if (nested != null) {
@@ -682,7 +726,7 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
     }
 
     if (jump ||
-        reducesMotion(context) ||
+        context.reducesMotion ||
         _durationOf(_motion.slow) == Duration.zero) {
       _slideTarget = null;
       controller.jumpToPage(page);
@@ -758,6 +802,7 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
         state: _ringVisible ? FullWidgetState.focused : FullWidgetState.normal,
         insideEdge: _ringInside,
         borderRadius: widget.borderRadius,
+        customStyle: _ringStyle(context),
         child: result,
       );
     }
@@ -792,11 +837,25 @@ class _ScrollFocusState extends State<ScrollFocus> with WidgetsBindingObserver {
 /// alignment policy to every viewport, so a page that a scrolled row
 /// extends past would not scroll back to it. An arrow that an enclosing
 /// policy with its own `requestFocusCallback` handles keeps that reveal.
+///
+/// A traversal from a node the view keeps alive off screen, whose rect
+/// reads NaN, first brings that node back into view ([_placeFirst]), so it
+/// starts from the node's own place (R40, invariant 21): the policy does so
+/// for a move it runs itself, and [_PlaceFirstActions] for a Tab,
+/// Shift+Tab, or arrow from a node whose nearest group lies inside, such as
+/// a [FocusGroup] in an item.
 class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   new() : super(requestFocusCallback: requestFocusInViewports);
 
   @override
   bool inDirection(FocusNode currentNode, TraversalDirection direction) {
+    if (currentNode.context != null && !currentNode.rect.isFinite) {
+      return _placeFirst(
+        currentNode,
+        () => inDirection(currentNode, direction),
+        forward: movesForward(direction),
+      );
+    }
     final enclosing = _enclosing(currentNode);
     if (enclosing == null) return super.inDirection(currentNode, direction);
     final moved = enclosing.inDirection(currentNode, direction);
@@ -830,13 +889,129 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
   @override
   bool next(FocusNode currentNode) {
     _clearEnclosingHistory(currentNode);
-    return super.next(currentNode);
+    return _placeFirst(
+      currentNode,
+      () => super.next(currentNode),
+      forward: true,
+    );
   }
 
   @override
   bool previous(FocusNode currentNode) {
     _clearEnclosingHistory(currentNode);
-    return super.previous(currentNode);
+    return _placeFirst(
+      currentNode,
+      () => super.previous(currentNode),
+      forward: false,
+    );
+  }
+
+  /// Runs [move] from [origin]'s own place (R40, invariant 21): an origin
+  /// kept alive off screen reads a NaN rect, so it is brought back first,
+  /// by the nearest [ScrollContentBringBack], else by one jump; an origin
+  /// the view still cannot place, as when the app holds the scroll, moves
+  /// to the first node that shows, the last when not [forward], and with
+  /// none shown leaves the scroll content that way ([_leaveContent]). An
+  /// origin under no scroll view moves at once.
+  bool _placeFirst(
+    FocusNode origin,
+    bool Function() move, {
+    required bool forward,
+  }) {
+    final context = origin.context;
+    if (context == null ||
+        origin.rect.isFinite ||
+        Scrollable.maybeOf(context) == null) {
+      return move();
+    }
+    final bringBack = ScrollContentBringBack.maybeOf(context) ?? _jumpBack;
+    bringBack(origin, () {
+      if (!origin.hasPrimaryFocus) return;
+      if (origin.rect.isFinite) {
+        move();
+        return;
+      }
+      _focusShown(origin, forward: forward);
+    });
+    return true;
+  }
+
+  /// Reveals [node] by its viewport's offsets and runs [then] after the
+  /// frame that lays it out.
+  static void _jumpBack(FocusNode node, VoidCallback then) {
+    revealInViewports(node);
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) => then())
+      ..scheduleFrame();
+  }
+
+  /// Focuses the first node in reading order, or the last when not
+  /// [forward], other than [origin], that shows inside the box of
+  /// [origin]'s own [Scrollable]; with none, leaves the scroll content
+  /// ([_leaveContent]), so the key that asked never keeps focus where the
+  /// EndUser cannot see it (WCAG 2.1.2).
+  void _focusShown(FocusNode origin, {required bool forward}) {
+    final context = origin.context;
+    final scrollable = context == null ? null : Scrollable.maybeOf(context);
+    final box = scrollable?.context.findRenderObject();
+    final scope = origin.nearestScope;
+    if (scrollable == null || box is! RenderBox || scope == null) return;
+    final view = MatrixUtils.transformRect(
+      box.getTransformTo(null),
+      Offset.zero & box.size,
+    );
+    final shown = [
+      for (final node in scope.traversalDescendants)
+        if (node != origin && _showsIn(node, scrollable, view)) node,
+    ];
+    if (shown.isEmpty) {
+      _leaveContent(origin, forward: forward);
+      return;
+    }
+    final sorted = sortDescendants(shown, origin);
+    requestFocusInViewports(forward ? sorted.first : sorted.last);
+  }
+
+  /// Moves focus from [origin] out of the content group around it, where
+  /// no node shows to move to: to the stop after the group, or when not
+  /// [forward] to the stop before it, the box's own Tab stop when the view
+  /// is one.
+  ///
+  /// The group's other nodes skip traversal for the one move, so Flutter's
+  /// own order of the scope, every enclosing policy included, holds the
+  /// group as [origin] alone, where the group sorts; [origin]'s NaN rect
+  /// then decides nothing.
+  void _leaveContent(FocusNode origin, {required bool forward}) {
+    final binding = origin.context
+        ?.findAncestorStateOfType<_PlaceFirstActionsState>();
+    final group = binding == null
+        ? null
+        : Focus.maybeOf(
+            binding.context,
+            scopeOk: true,
+            createDependency: false,
+          );
+    if (group == null) return;
+    final traversable = group.descendantsAreTraversable;
+    group.descendantsAreTraversable = false;
+    try {
+      if (forward) {
+        super.next(origin);
+      } else {
+        super.previous(origin);
+      }
+    } finally {
+      group.descendantsAreTraversable = traversable;
+    }
+  }
+
+  /// Whether [node] has a finite rect, lies under [scrollable], and
+  /// overlaps [view], that scrollable's box on screen.
+  static bool _showsIn(FocusNode node, ScrollableState scrollable, Rect view) {
+    final context = node.context;
+    if (context == null || !node.rect.isFinite) return false;
+    return Scrollable.maybeOf(context) == scrollable &&
+        node.rect.overlaps(view);
   }
 
   /// Flutter calls this on the policy of the group a node moved into; the
@@ -864,6 +1039,126 @@ class _ScrollContentPolicy extends ReadingOrderTraversalPolicy {
     }
     return null;
   }
+}
+
+/// Runs [move] from [origin]'s own place as a scroller's content group
+/// does ([_ScrollContentPolicy._placeFirst]), for a stratum policy of a
+/// group that may sit inside an item, such as a [FocusGroup]'s.
+bool placeOriginFirst(
+  FocusNode origin,
+  bool Function() move, {
+  required bool forward,
+}) => ScrollFocus._contentPolicy._placeFirst(origin, move, forward: forward);
+
+/// Whether [direction] moves forward in reading order, which picks the node
+/// that shows an origin still unplaced moves to ([placeOriginFirst]).
+bool movesForward(TraversalDirection direction) =>
+    direction == TraversalDirection.down ||
+    direction == TraversalDirection.right;
+
+/// Binds Tab, Shift+Tab, and Flutter's arrows inside a content group, so a
+/// move from a node kept alive off screen waits for
+/// [_ScrollContentPolicy._placeFirst] even when a group inside owns the
+/// node's policy (R40, invariant 21). An app's own action for these
+/// intents inside is found first and keeps control.
+class _PlaceFirstActions extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_PlaceFirstActions> createState() => _PlaceFirstActionsState();
+}
+
+class _PlaceFirstActionsState extends State<_PlaceFirstActions> {
+  late final _actions = <Type, Action<Intent>>{
+    NextFocusIntent: _PlaceFirstTraversal<NextFocusIntent>(this, (_) => true),
+    PreviousFocusIntent: _PlaceFirstTraversal<PreviousFocusIntent>(
+      this,
+      (_) => false,
+    ),
+    DirectionalFocusIntent: _PlaceFirstTraversal<DirectionalFocusIntent>(
+      this,
+      (intent) => movesForward(intent.direction),
+    ),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Actions(actions: _actions, child: widget.child);
+  }
+}
+
+/// Runs a traversal [T] through the action above [_PlaceFirstActions], as
+/// with no binding; from a primary focus whose rect reads NaN, only once
+/// [_ScrollContentPolicy._placeFirst] has placed it, and the key reads
+/// handled meanwhile.
+class _PlaceFirstTraversal<T extends Intent> extends ContextAction<T> {
+  new(this._binding, this._forward);
+
+  /// The binding's State, whose context lies above the binding.
+  final State<_PlaceFirstActions> _binding;
+
+  /// Whether [T] moves forward in reading order.
+  final bool Function(T intent) _forward;
+
+  /// The key result of the last [invoke], which [toKeyEventResult] reports.
+  KeyEventResult _keyResult = KeyEventResult.ignored;
+
+  @override
+  Object? invoke(T intent, [BuildContext? context]) {
+    final origin = FocusManager.instance.primaryFocus;
+    if (origin == null || origin.context == null || origin.rect.isFinite) {
+      return _runAbove(intent, context);
+    }
+    final moved = ScrollFocus._contentPolicy._placeFirst(origin, () {
+      _runAbove(intent, context);
+      return true;
+    }, forward: _forward(intent));
+    _keyResult = KeyEventResult.handled;
+    return moved;
+  }
+
+  /// Runs [intent] through the action above the binding, found from the
+  /// binding's own context, and keeps that action's key result.
+  Object? _runAbove(T intent, BuildContext? context) {
+    _keyResult = KeyEventResult.ignored;
+    if (!_binding.mounted) return null;
+    final binding = _binding.context;
+    final above = Actions.maybeFind<Intent>(binding, intent: intent);
+    if (above == null) return null;
+    final (enabled, result) = Actions.of(binding).invokeActionIfEnabled(
+      above,
+      intent,
+      context != null && context.mounted ? context : binding,
+    );
+    if (enabled) _keyResult = above.toKeyEventResult(intent, result);
+    return result;
+  }
+
+  @override
+  KeyEventResult toKeyEventResult(T intent, Object? invokeResult) => _keyResult;
+}
+
+/// How a scroll view brings a focused node it keeps alive off screen back
+/// into view before a traversal moves from it ([_ScrollContentPolicy]).
+/// Internal: `layout.dart` does not export this file.
+class ScrollContentBringBack extends InheritedWidget {
+  const new({super.key, required this.bringBack, required super.child});
+
+  /// Brings `node` back, then runs `then`; `then` may run where `node`
+  /// still stands when the view cannot reach it.
+  final void Function(FocusNode node, VoidCallback then) bringBack;
+
+  /// The hook of the nearest scroll view above [context]; null for none.
+  static void Function(FocusNode node, VoidCallback then)? maybeOf(
+    BuildContext context,
+  ) => context
+      .getInheritedWidgetOfExactType<ScrollContentBringBack>()
+      ?.bringBack;
+
+  @override
+  bool updateShouldNotify(ScrollContentBringBack oldWidget) => false;
 }
 
 /// Hands [ScrollFocus]'s controller to the scroll view below it, and, in
@@ -961,7 +1256,7 @@ typedef ScrollViewBuilder = Widget Function(
 /// The box, keyboard focus, and frame of a layout scroll view.
 ///
 /// Builds [ScrollFocus] around the [ContainerLayout] of [style], when set,
-/// then [ScrollFocus.contentGroup] when [focusable], then [ScrollFrame],
+/// then [ScrollFocus.contentGroup], focusable or not, then [ScrollFrame],
 /// then the view that [builder] makes. Not exported: the six layout scroll
 /// views build through it, [ListViewLayout], [GridViewLayout],
 /// [CustomScrollViewLayout], [PageViewLayout], [ReorderableListViewLayout],
@@ -978,6 +1273,7 @@ class ScrollViewBox extends StatelessWidget {
     this.pageCount,
     this.semanticsLabel,
     this.showScrollbar,
+    this.scrollFocusStyle,
     this.scrollsPadding = true,
     required this.builder,
   });
@@ -1001,6 +1297,10 @@ class ScrollViewBox extends StatelessWidget {
   /// Null keeps the scroll behavior's choice: a scrollbar on desktop.
   final bool? showScrollbar;
 
+  /// The view's ring style, level 3, beside [style], which draws the box;
+  /// handed to [ScrollFocus] as its `customStyle` (FO-06 US-07 FR-03).
+  final ScrollFocusStyle? scrollFocusStyle;
+
   /// Whether `style.padding` scrolls with the content, handed to [builder];
   /// false keeps it on the box, where it insets the viewport.
   final bool scrollsPadding;
@@ -1022,7 +1322,7 @@ class ScrollViewBox extends StatelessWidget {
         ),
       ),
     );
-    if (focusable) view = ScrollFocus.contentGroup(view);
+    view = ScrollFocus.contentGroup(view);
     if (style != null) {
       view = ContainerLayout(
         style: ScrollFrame.boxStyle(style, scrollsPadding: scrollsPadding),
@@ -1038,6 +1338,7 @@ class ScrollViewBox extends StatelessWidget {
       pageCount: pageCount,
       semanticsLabel: semanticsLabel,
       borderRadius: style?.borderRadius,
+      customStyle: scrollFocusStyle,
       child: view,
     );
   }

@@ -1,6 +1,10 @@
-// Frozen by tool/perf_freeze.dart from f64627d:lib/src/components/common/layout/box_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 7a50510:lib/src/components/common/layout/box_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
+// The live names Interaction and Scroll are patched in for StratumInteraction
+// and StratumScroll, and the debug line that wrapped the removed
+// WidgetPerformanceMonitor is dropped; everything else stays verbatim from
+// 7a50510.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
 import 'baseline.dart';
 
@@ -26,14 +30,14 @@ import 'package:stratum_ui/src/src.dart';
 /// between null and a value, when [repaintBoundary], [debug], or
 /// [keepAlive] changes, or, on a bare layout, when [semantics] switches
 /// between null and a value. Pass `const WidgetStyle()` or
-/// `const StratumInteraction()` up front when a value can appear later; a
+/// `const Interaction()` up front when a value can appear later; a
 /// layout that toggles [scroll] passes `const WidgetStyle()` so the toggle
 /// stays inside the box tier.
 ///
 /// Inside the box tier, a scrolling layout's scroll position survives a
-/// [style], [interaction], [semantics], or [StratumScroll] field change;
-/// only a tier change, a new [StratumScroll.controller], or a flip of
-/// [StratumScroll.fillViewport] resets it.
+/// [style], [interaction], [semantics], or [Scroll] field change;
+/// only a tier change, a new [Scroll.controller], or a flip of
+/// [Scroll.fillViewport] resets it.
 abstract class BaselineBoxLayout extends StatelessWidget {
   const new({
     super.key,
@@ -80,22 +84,21 @@ abstract class BaselineBoxLayout extends StatelessWidget {
   final VoidCallback? onEndAnimate;
 
   /// Pointer, focus, and semantics settings of the tap surface; see
-  /// [StratumInteraction].
-  final StratumInteraction? interaction;
+  /// [Interaction].
+  final Interaction? interaction;
 
   /// Scrolls the padding and content inside the box along
-  /// [StratumScroll.direction], else [scrollDirection], while fill, border,
+  /// [Scroll.direction], else [scrollDirection], while fill, border,
   /// radius, and shadow stay in place. Null does not scroll. On web and
   /// desktop a scrolling box is a Tab stop whose arrows, Page Up, Page
   /// Down, Home, and End scroll it.
-  final StratumScroll? scroll;
+  final Scroll? scroll;
 
   @nonVirtual
   @override
   Widget build(BuildContext context) {
     var current = _isBare ? _buildBare(context) : _buildBox(context);
     if (repaintBoundary) current = RepaintBoundary(child: current);
-    if (debug) current = WidgetPerformanceMonitor(child: current);
     if (keepAlive) current = _KeepAlive(child: current);
     return current;
   }
@@ -104,7 +107,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
   @protected
   Widget buildContent(BuildContext context);
 
-  /// The axis that [scroll] scrolls along when [StratumScroll.direction]
+  /// The axis that [scroll] scrolls along when [Scroll.direction]
   /// is null.
   @protected
   Axis get scrollDirection => Axis.vertical;
@@ -191,9 +194,9 @@ abstract class BaselineBoxLayout extends StatelessWidget {
   /// surface's node when the surface can take focus, else [ScrollFocus]'s
   /// own, also around a hover-only, focus-change-only, highlight-only, or
   /// disabled surface. [ScrollFocus] builds the same widgets either way,
-  /// so toggling [StratumInteraction.disabled] or a callback keeps the
+  /// so toggling [Interaction.disabled] or a callback keeps the
   /// content's State and the scroll offset.
-  BaselineStyledBoxBuilder _focusBuilder(StratumScroll scroll) {
+  BaselineStyledBoxBuilder _focusBuilder(Scroll scroll) {
     final inner = _boxBuilder;
     final interaction = this.interaction;
     final surfaceFocus =
@@ -219,7 +222,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
     );
   }
 
-  static bool _needsTapSurface(StratumInteraction interaction) =>
+  static bool _needsTapSurface(Interaction interaction) =>
       interaction.onTap != null ||
       interaction.onDoubleTap != null ||
       interaction.onLongPress != null ||
@@ -234,7 +237,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
   }
 
   Widget _buildInkWell(
-    StratumInteraction interaction,
+    Interaction interaction,
     WidgetStyle style,
     Widget box,
   ) {
@@ -271,7 +274,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
   /// traversal group, so its items follow the box's Tab stop (see
   /// [ScrollFocus]).
   Widget _buildScroll(
-    StratumScroll scroll,
+    Scroll scroll,
     Widget content, {
     required bool linked,
   }) {
@@ -290,7 +293,7 @@ abstract class BaselineBoxLayout extends StatelessWidget {
 
 /// The [SingleChildScrollView] of a scrolling box layout.
 ///
-/// With [StratumScroll.fillViewport], content shorter than a finite
+/// With [Scroll.fillViewport], content shorter than a finite
 /// viewport stretches to it through a [LayoutBuilder]; in a parent that is
 /// unbounded along [axis] the content keeps its own size (D17).
 class _BoxScrollView extends StatelessWidget {
@@ -301,7 +304,7 @@ class _BoxScrollView extends StatelessWidget {
     required this.child,
   });
 
-  final StratumScroll scroll;
+  final Scroll scroll;
   final Axis axis;
 
   /// Whether a [ScrollFocus] above hands over the controller.

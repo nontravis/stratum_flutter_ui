@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 // yet because of errors outside web_view, so the demo imports the web_view
 // barrel directly.
 // ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
+// ignore: implementation_imports
 import 'package:stratum_ui/src/components/common/web_view/web_view.dart';
 import 'package:stratum_ui_example/font_licenses.dart';
 

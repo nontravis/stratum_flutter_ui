@@ -82,4 +82,85 @@ void main() {
       );
     });
   });
+
+  group('us10/fr01: the shadow blur radius (ruling R10) and the blur '
+      'sigma', () {
+    double sigmaOf(double blur) =>
+        BoxShadow(blurRadius: shadowBlurRadius(blur)).blurSigma;
+
+    test('a Figma blur r paints at sigma r / 2 from r = 1 up, at 0.5 below '
+        '1, and at 0 for r = 0', () {
+      expect(shadowBlurRadius(0), 0);
+      expect(sigmaOf(0), 0);
+      expect(shadowBlurRadius(0.25), double.minPositive);
+      expect(sigmaOf(0.25), 0.5);
+      expect(sigmaOf(0.5), 0.5);
+      expect(sigmaOf(1), 0.5);
+      for (final blur in [2.0, 8.0, 16.0, 24.0, 32.0, 64.0]) {
+        expect(sigmaOf(blur), blur / 2, reason: 'r = $blur');
+      }
+      for (final blur in [1.5, 3.0, 4.0, 40.0, 80.0]) {
+        expect(sigmaOf(blur), closeTo(blur / 2, 1e-9), reason: 'r = $blur');
+      }
+    });
+
+    test('convertShadowLayer keeps the offset and the spread and takes a '
+        'fixed color or the set color at its path', () {
+      final fixed = convertShadowLayer(
+        const StratumShadowLayer(
+          x: -2,
+          y: 3,
+          blur: 8,
+          spread: -1,
+          color: StratumFixedLayerColor(0x1F000000),
+        ),
+        const {},
+      );
+      final fromSet = convertShadowLayer(
+        const StratumShadowLayer(
+          x: 0,
+          y: 0,
+          blur: 1,
+          spread: 0,
+          color: StratumSetLayerColor('shadow.primary'),
+        ),
+        const {'shadow.primary': Color(0x26000000)},
+      );
+
+      expect(fixed.offset, const Offset(-2, 3));
+      expect(fixed.spreadRadius, -1);
+      expect(fixed.color, const Color(0x1F000000));
+      expect(fixed.blurSigma, 4);
+      expect(fromSet.color, const Color(0x26000000));
+      expect(fromSet.blurSigma, 0.5);
+    });
+
+    test('convertShadowLayer throws an ArgumentError naming a set path the '
+        'set lacks', () {
+      expect(
+        () => convertShadowLayer(
+          const StratumShadowLayer(
+            x: 0,
+            y: 0,
+            blur: 1,
+            spread: 0,
+            color: StratumSetLayerColor('shadow.tertiary'),
+          ),
+          const {},
+        ),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.invalidValue,
+            'invalidValue',
+            'shadow.tertiary',
+          ),
+        ),
+      );
+    });
+
+    test('convertBlur halves the Figma radius on both axes', () {
+      expect(convertBlur(16), const ImageBlurFilter(sigmaX: 8, sigmaY: 8));
+      expect(convertBlur(0), const ImageBlurFilter());
+    });
+  });
 }

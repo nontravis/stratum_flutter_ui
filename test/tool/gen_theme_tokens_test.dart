@@ -5,6 +5,7 @@ import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/config/transparent.dart';
 
 import '../../tool/gen_theme_tokens.dart';
+import '../src/components/common/fakes/fake_stratum_theme.dart';
 
 /// The smallest yaml the generator reads, with [space] as its space group.
 String _yaml(String space) =>
@@ -19,11 +20,39 @@ $space
 radius: { md: 10 }
 layouts: { max-width-read: 720 }
 assets: { loading: }
+opacity: { disabled: 0.5 }
+border: { md: 1 }
+shadow: { 1: [] }
+blur: { 1: 4 }
 ''';
 
 /// `#RRGGBBAA` as the Dart color `0xAARRGGBB`.
 Color _color(String hex) =>
     Color(int.parse('${hex.substring(7, 9)}${hex.substring(1, 7)}', radix: 16));
+
+/// The smallest yaml whose `color.light.icon.color` group holds [keys],
+/// each `#000000`.
+String _iconColorYaml(Iterable<String> keys) =>
+    '''
+color:
+  light:
+    icon:
+      color: { ${[for (final key in keys) '$key: "#000000"'].join(', ')} }
+palette:
+  brand: { 500: "#000000" }
+space: { md: 4 }
+radius: { md: 10 }
+layouts: { max-width-read: 720 }
+assets: { loading: }
+opacity: { disabled: 0.5 }
+border: { md: 1 }
+shadow: { 1: [] }
+blur: { 1: 4 }
+''';
+
+/// The yaml key whose Dart name is [color]'s name.
+String _keyOf(ColorEnum color) =>
+    color == ColorEnum.blueGray ? 'blue-gray' : color.name;
 
 void main() {
   test('the committed file equals the generator output', () {
@@ -76,6 +105,8 @@ void main() {
         'ratingEmojiParts',
       ),
       ('class', 'misc.class', null, 'classs'),
+      ('2', 'shadow.2', null, 'level2'),
+      ('3', 'blur.3', null, 'level3'),
     ];
     for (final (segment, path, prefix, expected) in cases) {
       test('$path gives $expected', () {
@@ -83,19 +114,21 @@ void main() {
       });
     }
 
-    test('a digit-led key outside a ramp or step stops the generator', () {
+    test('fo03/us10/fr01: a digits-only key outside a ramp or step gives '
+        'level<N>; another digit-led key stops the generator', () {
+      expect(dartName('3', path: 'space.3'), 'level3');
       expect(
-        () => dartName('3', path: 'space.3'),
+        () => dartName('3D', path: 'misc.3D'),
         throwsA(
           isA<FormatException>().having(
             (error) => error.message,
             'message',
-            contains('space.3'),
+            contains('misc.3D'),
           ),
         ),
       );
       expect(
-        () => dartName('3D', path: 'misc.3D'),
+        () => dartName('3-inverse', path: 'misc.3-inverse'),
         throwsA(isA<FormatException>()),
       );
     });
@@ -115,21 +148,22 @@ void main() {
       );
     });
 
-    test('a digit-led space key stops it', () {
+    test('fo03/us10/fr01: a digits-only space key gives level3', () {
       expect(
-        () => generateThemeTokens(_yaml('  3: 1')),
-        throwsA(isA<FormatException>()),
+        generateThemeTokens(_yaml('  3: 1')),
+        contains("  double get level3 => _read('3');\n"),
       );
     });
 
-    test('the package default gives the 38 classes of spec section 6.3', () {
+    test('the package default gives 42 classes: the 38 of spec section 6.3, '
+        'the opacity class, and the border, shadow, and blur classes', () {
       final generated = generateThemeTokens(File(themePath).readAsStringSync());
       final names = RegExp(
         r'^final class (\w+)',
         multiLine: true,
       ).allMatches(generated).map((match) => match[1]!).toList();
 
-      expect(names, hasLength(38));
+      expect(names, hasLength(42));
       expect(
         names.where((name) => name.startsWith('StratumColor')),
         hasLength(30),
@@ -143,28 +177,301 @@ void main() {
         'StratumRadiusTokens',
         'StratumLayoutTokens',
         'StratumAssetTokens',
+        'StratumOpacityTokens',
+        'StratumBorderTokens',
+        'StratumShadowTokens',
+        'StratumBlurTokens',
       ]);
       expect(names, contains('StratumColorTextDefaultsTokens'));
       expect(names, contains('StratumColorBackgroundDefaultsTokens'));
     });
   });
 
-  test('StratumTransparentTokens.builtIn equals transparentColors', () {
-    const builtIn = StratumTransparentTokens.builtIn;
-    final generated = File(tokensPath).readAsStringSync();
+  group('ColorEnum lookup', () {
+    test('fo03/us10/fr01/e04, s03/inv33: the output imports ColorEnum and '
+        'declares StratumColorEnumTokens', () {
+      final generated = generateThemeTokens(_iconColorYaml(['blue']));
 
-    for (final MapEntry(key: ramp, value: steps) in transparentColors.entries) {
-      for (final MapEntry(key: step, value: hex) in steps.entries) {
-        final argb = _color(hex).toARGB32().toRadixString(16).toUpperCase();
+      expect(
+        generated,
+        contains(
+          "import 'package:stratum_ui/src/themes/constant/color.dart';\n",
+        ),
+      );
+      expect(
+        generated,
+        contains(
+          'abstract interface class StratumColorEnumTokens {\n'
+          '  /// The token named [color]; null when this group holds none.\n'
+          '  Color? operator [](ColorEnum color);\n'
+          '}\n',
+        ),
+      );
+    });
+
+    test('fo03/us10/fr01/e03, fo03/us10/fr01/e04, s03/inv33: a <group>.color class '
+        'answers the ColorEnum names it holds, in ColorEnum order, and null '
+        'for the rest; semantic keys stay out', () {
+      final generated = generateThemeTokens(
+        _iconColorYaml([
+          'blue',
+          'negative',
+          'red',
+          'blue-gray',
+          'negative-on-color',
+        ]),
+      );
+
+      expect(
+        generated,
+        contains(
+          'final class StratumColorIconColorTokens '
+          'implements StratumColorEnumTokens {\n',
+        ),
+      );
+      expect(
+        generated,
+        contains(
+          '  @override\n'
+          '  Color? operator [](ColorEnum color) => switch (color) {\n'
+          '    ColorEnum.red => red,\n'
+          '    ColorEnum.blue => blue,\n'
+          '    ColorEnum.blueGray => blueGray,\n'
+          '    _ => null,\n'
+          '  };\n',
+        ),
+      );
+      expect(generated, isNot(contains('=> negative')));
+    });
+
+    test('fo03/us10/fr01/e04: a group that holds all twenty names has no null '
+        'case', () {
+      final generated = generateThemeTokens(
+        _iconColorYaml(ColorEnum.values.map(_keyOf)),
+      );
+
+      for (final color in ColorEnum.values) {
         expect(
           generated,
-          contains('p$step: Color(0x${argb.padLeft(8, '0')}),'),
-          reason: 'transparent.$ramp.$step',
+          contains('    ColorEnum.${color.name} => ${color.name},\n'),
         );
       }
-    }
-    expect(builtIn.black.p3, _color('#00000008'));
-    expect(builtIn.white.p100, _color('#FFFFFFFF'));
-    expect(builtIn.black.p0, const Color(0x00000000));
+      expect(generated, isNot(contains('_ => null')));
+    });
+
+    test(
+      'fo03/us10/fr01/e03: a group that holds no ColorEnum name answers null '
+      'for every name',
+      () {
+        final generated = generateThemeTokens(
+          _iconColorYaml(['negative', 'warning']),
+        );
+
+        expect(
+          generated,
+          contains('  Color? operator [](ColorEnum color) => null;\n'),
+        );
+      },
+    );
+
+    test('s03/inv33: in the package default exactly the four <group>.color '
+        'classes implement StratumColorEnumTokens', () {
+      final generated = generateThemeTokens(File(themePath).readAsStringSync());
+      final names = RegExp(
+        r'^final class (\w+) implements StratumColorEnumTokens \{',
+        multiLine: true,
+      ).allMatches(generated).map((match) => match[1]).toList();
+
+      expect(names, [
+        'StratumColorBackgroundColorTokens',
+        'StratumColorBorderColorTokens',
+        'StratumColorIconColorTokens',
+        'StratumColorTextColorTokens',
+      ]);
+    });
+
+    test('fo03/us10/fr01/e03, fo03/us10/s5: each package default group gives its own '
+        'token for a name it holds and null for every other name', () {
+      final colors = defaultThemeSet.light.color;
+      final background = colors.background.color;
+      final border = colors.border.color;
+      final icon = colors.icon.color;
+      final text = colors.text.color;
+      final groups = <String, (StratumColorEnumTokens, Map<ColorEnum, Color>)>{
+        'background.color': (
+          background,
+          {
+            ColorEnum.blue: background.blue,
+            ColorEnum.brand: background.brand,
+            ColorEnum.gray: background.gray,
+            ColorEnum.teal: background.teal,
+            ColorEnum.violet: background.violet,
+          },
+        ),
+        'border.color': (
+          border,
+          {
+            ColorEnum.blue: border.blue,
+            ColorEnum.brand: border.brand,
+            ColorEnum.gray: border.gray,
+            ColorEnum.teal: border.teal,
+            ColorEnum.violet: border.violet,
+          },
+        ),
+        'icon.color': (
+          icon,
+          {
+            ColorEnum.blue: icon.blue,
+            ColorEnum.brand: icon.brand,
+            ColorEnum.teal: icon.teal,
+            ColorEnum.violet: icon.violet,
+          },
+        ),
+        'text.color': (
+          text,
+          {
+            ColorEnum.blue: text.blue,
+            ColorEnum.brand: text.brand,
+            ColorEnum.teal: text.teal,
+            ColorEnum.violet: text.violet,
+          },
+        ),
+      };
+
+      for (final MapEntry(key: path, value: (group, held)) in groups.entries) {
+        for (final color in ColorEnum.values) {
+          expect(group[color], held[color], reason: '$path[${color.name}]');
+        }
+      }
+    });
+  });
+
+  test(
+    'fo03/us10/fr02: StratumTransparentTokens.builtIn equals transparentColors',
+    () {
+      const builtIn = StratumTransparentTokens.builtIn;
+      final generated = File(tokensPath).readAsStringSync();
+
+      for (final MapEntry(key: ramp, value: steps)
+          in transparentColors.entries) {
+        for (final MapEntry(key: step, value: hex) in steps.entries) {
+          final argb = _color(hex).toARGB32().toRadixString(16).toUpperCase();
+          expect(
+            generated,
+            contains('p$step: Color(0x${argb.padLeft(8, '0')}),'),
+            reason: 'transparent.$ramp.$step',
+          );
+        }
+      }
+      expect(builtIn.black.p3, _color('#00000008'));
+      expect(builtIn.white.p100, _color('#FFFFFFFF'));
+      expect(builtIn.black.p0, const Color(0x00000000));
+    },
+  );
+
+  test('fo01/us01/fr01: StratumOpacityTokens reads opacity.disabled and '
+      'scrim', () {
+    final tokens = StratumOpacityTokens.fromMap(const {
+      'disabled': 0.3,
+      'scrim': 0.4,
+    });
+
+    expect(tokens.disabled, 0.3);
+    expect(tokens.scrim, 0.4);
+    expect(
+      () => StratumOpacityTokens.fromMap(const {'scrim': 0.4}),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => error.invalidValue,
+          'invalidValue',
+          'disabled',
+        ),
+      ),
+    );
+    expect(
+      () => StratumOpacityTokens.fromMap(const {'disabled': 0.3}),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => error.invalidValue,
+          'invalidValue',
+          'scrim',
+        ),
+      ),
+    );
+  });
+
+  test('the opacity class takes its keys from the yaml', () {
+    final generated = generateThemeTokens(_yaml('  md: 1'));
+
+    expect(generated, contains('final class StratumOpacityTokens {'));
+    expect(generated, contains("disabled = _opacity(opacity, 'disabled');"));
+    expect(generated, contains('  final double disabled;'));
+  });
+
+  test('fo03/us10/fr01: the border, shadow, and blur classes take their keys '
+      'from the yaml', () {
+    final generated = generateThemeTokens(_yaml('  md: 1'));
+
+    expect(generated, contains('final class StratumBorderTokens {\n'));
+    expect(
+      generated,
+      contains('  StratumBorderTokens.fromMap(Map<String, double> border)\n'),
+    );
+    expect(generated, contains("    : md = _token(border, 'border', 'md');\n"));
+    expect(generated, contains('  final double md;\n'));
+    expect(generated, contains('final class StratumShadowTokens {\n'));
+    expect(
+      generated,
+      contains("    : level1 = _token(shadow, 'shadow', '1');\n"),
+    );
+    expect(generated, contains('  final List<BoxShadow> level1;\n'));
+    expect(generated, contains('final class StratumBlurTokens {\n'));
+    expect(generated, contains("    : level1 = _token(blur, 'blur', '1');\n"));
+    expect(generated, contains('  final ImageBlurFilter level1;\n'));
+    expect(
+      generated,
+      contains("import 'package:flutter/painting.dart' show BoxShadow;\n"),
+    );
+    expect(
+      generated,
+      contains(
+        "import 'package:stratum_ui/src/components/common/model/image_blur_filter.dart';\n",
+      ),
+    );
+  });
+
+  test('fo03/us10/fr01: the border, shadow, and blur classes read their maps '
+      'and name a key the map lacks', () {
+    const levels = ['1', '2', '3', '4', '5', '6'];
+    const layer = BoxShadow(offset: Offset(0, 1), blurRadius: 2);
+    final border = StratumBorderTokens.fromMap(const {
+      'sm': 0.5,
+      'md': 1,
+      'lg': 1.5,
+    });
+    final shadow = StratumShadowTokens.fromMap({
+      for (final level in levels)
+        level: level == '2' ? const [layer] : const <BoxShadow>[],
+    });
+    final blur = StratumBlurTokens.fromMap({
+      for (final (index, level) in levels.indexed)
+        level: ImageBlurFilter(sigmaX: index + 1.0, sigmaY: index + 1.0),
+    });
+    Matcher namesKey(String key) => throwsA(
+      isA<ArgumentError>().having(
+        (error) => error.invalidValue,
+        'invalidValue',
+        key,
+      ),
+    );
+
+    expect([border.sm, border.md, border.lg], [0.5, 1, 1.5]);
+    expect(shadow.level2, [layer]);
+    expect(shadow.level6, isEmpty);
+    expect(blur.level1, const ImageBlurFilter(sigmaX: 1, sigmaY: 1));
+    expect(blur.level6, const ImageBlurFilter(sigmaX: 6, sigmaY: 6));
+    expect(() => StratumBorderTokens.fromMap(const {}), namesKey('sm'));
+    expect(() => StratumShadowTokens.fromMap(const {}), namesKey('1'));
+    expect(() => StratumBlurTokens.fromMap(const {}), namesKey('1'));
   });
 }

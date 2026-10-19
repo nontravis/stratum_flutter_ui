@@ -6,7 +6,26 @@ import '../fakes/fake_stratum_theme.dart';
 
 const _content = SizedBox(width: 40, height: 20);
 
+/// Smaller than every platform's minimum tap target (NFR-U05).
+const _small = SizedBox(width: 20, height: 20);
+
 void _noop() {}
+
+/// Runs [body] with [defaultTargetPlatform] overridden to [platform],
+/// restored before this returns so the test framework's invariant check,
+/// which runs ahead of a widget test's own `addTearDown` queue, never sees
+/// it still set.
+Future<void> _withTargetPlatform(
+  TargetPlatform platform,
+  Future<void> Function() body,
+) async {
+  debugDefaultTargetPlatformOverride = platform;
+  try {
+    await body();
+  } finally {
+    debugDefaultTargetPlatformOverride = null;
+  }
+}
 
 /// The smallest [BoxLayout]: its content is a fixed box.
 class _Layout extends BoxLayout {
@@ -18,7 +37,6 @@ class _Layout extends BoxLayout {
     super.transformAlignment,
     super.keepAlive,
     super.repaintBoundary,
-    super.debug,
     super.semantics,
     super.onEndAnimate,
     super.interaction,
@@ -54,25 +72,24 @@ void main() {
       expect(tester.getSize(find.byType(_Layout)), const Size(40, 20));
     });
 
-    testWidgets('semantics, repaintBoundary, debug, and keepAlive stay bare', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const _Layout(
-            semantics: SemanticsProperties(label: 'box'),
-            repaintBoundary: true,
-            debug: true,
-            keepAlive: true,
+    testWidgets(
+      'fo06/us01/fr01: semantics, repaintBoundary, and keepAlive stay bare',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              semantics: SemanticsProperties(label: 'box'),
+              repaintBoundary: true,
+              keepAlive: true,
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(find.byType(AnimatedStyledBox), findsNothing);
-      expect(_inLayout(find.byType(RepaintBoundary)), findsOneWidget);
-      expect(_inLayout(find.byType(WidgetPerformanceMonitor)), findsOneWidget);
-      expect(find.bySemanticsLabel('box'), findsOneWidget);
-    });
+        expect(find.byType(AnimatedStyledBox), findsNothing);
+        expect(_inLayout(find.byType(RepaintBoundary)), findsOneWidget);
+        expect(find.bySemanticsLabel('box'), findsOneWidget);
+      },
+    );
   });
 
   group('BoxLayout box tier', () {
@@ -81,8 +98,8 @@ void main() {
       'ratio': const _Layout(ratio: 2),
       'rotate': const _Layout(rotate: 0),
       'transform': _Layout(transform: Matrix4.identity()),
-      'interaction': const _Layout(interaction: StratumInteraction()),
-      'scroll': const _Layout(scroll: StratumScroll()),
+      'interaction': const _Layout(interaction: Interaction()),
+      'scroll': const _Layout(scroll: Scroll()),
     };
     for (final MapEntry(key: name, value: layout) in rules.entries) {
       testWidgets('$name alone builds the box', (tester) async {
@@ -95,7 +112,7 @@ void main() {
     testWidgets('ratio, transform, and transformAlignment reach the box', (
       tester,
     ) async {
-      final matrix = Matrix4.identity()..scale(2.0);
+      final matrix = Matrix4.identity()..scaleByDouble(2.0, 2.0, 2.0, 1.0);
       await tester.pumpWidget(
         themedHost(
           _Layout(
@@ -126,51 +143,73 @@ void main() {
       );
     });
 
-    testWidgets('wraps from outside in: keepAlive, debug, repaint, rotate', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const _Layout(
-            style: WidgetStyle(),
-            rotate: 90,
-            repaintBoundary: true,
-            debug: true,
-            keepAlive: true,
+    testWidgets(
+      'fo06/us01/fr01: wraps from outside in: keepAlive, repaint, rotate',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              style: WidgetStyle(),
+              rotate: 90,
+              repaintBoundary: true,
+              keepAlive: true,
+            ),
           ),
-        ),
-      );
+        );
 
-      final box = find.byType(AnimatedStyledBox);
-      final rotate = find.ancestor(of: box, matching: find.byType(Transform));
-      final repaint = _inLayout(find.byType(RepaintBoundary));
-      final monitor = _inLayout(find.byType(WidgetPerformanceMonitor));
-      expect(rotate, findsOneWidget);
-      expect(repaint, findsOneWidget);
-      expect(find.ancestor(of: rotate, matching: repaint), findsOneWidget);
-      expect(find.ancestor(of: repaint, matching: monitor), findsOneWidget);
-    });
+        final box = find.byType(AnimatedStyledBox);
+        final rotate = find.ancestor(of: box, matching: find.byType(Transform));
+        final repaint = _inLayout(find.byType(RepaintBoundary));
+        expect(rotate, findsOneWidget);
+        expect(repaint, findsOneWidget);
+        expect(find.ancestor(of: rotate, matching: repaint), findsOneWidget);
+      },
+    );
 
-    testWidgets('the semantic rect equals the box and excludes the margin', (
+    testWidgets(
+      'fo06/us01/s3, fo06/us01/fr03/e02: the semantic rect equals the box '
+      'and excludes the margin',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              style: WidgetStyle(
+                width: 40,
+                height: 20,
+                margin: EdgeInsets.all(8),
+              ),
+              semantics: SemanticsProperties(label: 'box'),
+            ),
+          ),
+        );
+
+        expect(tester.getSize(find.byType(_Layout)), const Size(56, 36));
+        final node = tester.getSemantics(find.bySemanticsLabel('box'));
+        expect(node.rect.size, const Size(40, 20));
+        handle.dispose();
+      },
+    );
+
+    testWidgets('fo06/us01/fr03: the semantic rect rotates with the box', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         themedHost(
           const _Layout(
-            style: WidgetStyle(
-              width: 40,
-              height: 20,
-              margin: EdgeInsets.all(8),
-            ),
+            style: WidgetStyle(width: 40, height: 20),
+            rotate: 90,
             semantics: SemanticsProperties(label: 'box'),
           ),
         ),
       );
 
-      expect(tester.getSize(find.byType(_Layout)), const Size(56, 36));
       final node = tester.getSemantics(find.bySemanticsLabel('box'));
-      expect(node.rect.size, const Size(40, 20));
+      final rotated = MatrixUtils.transformRect(node.transform!, node.rect);
+      // A 90-degree rotation swaps width and height; the ambient view scale
+      // cancels out of the ratio, so this holds whatever that scale is.
+      expect(rotated.width / rotated.height, closeTo(20 / 40, 1e-9));
       handle.dispose();
     });
 
@@ -178,21 +217,21 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        themedHost(const _Layout(interaction: StratumInteraction())),
+        themedHost(const _Layout(interaction: Interaction())),
       );
 
       expect(find.byType(StratumInkWell), findsNothing);
     });
 
-    final surfaces = <String, StratumInteraction>{
-      'onTap': const StratumInteraction(onTap: _noop),
-      'onDoubleTap': const StratumInteraction(onDoubleTap: _noop),
-      'onLongPress': const StratumInteraction(onLongPress: _noop),
-      'onSecondaryTap': const StratumInteraction(onSecondaryTap: _noop),
-      'onHover': StratumInteraction(onHover: (_) {}),
-      'onHighlightChanged': StratumInteraction(onHighlightChanged: (_) {}),
-      'onFocusChange': StratumInteraction(onFocusChange: (_) {}),
-      'shortcuts': const StratumInteraction(
+    final surfaces = <String, Interaction>{
+      'onTap': const Interaction(onTap: _noop),
+      'onDoubleTap': const Interaction(onDoubleTap: _noop),
+      'onLongPress': const Interaction(onLongPress: _noop),
+      'onSecondaryTap': const Interaction(onSecondaryTap: _noop),
+      'onHover': Interaction(onHover: (_) {}),
+      'onHighlightChanged': Interaction(onHighlightChanged: (_) {}),
+      'onFocusChange': Interaction(onFocusChange: (_) {}),
+      'shortcuts': const Interaction(
         shortcuts: {SingleActivator(LogicalKeyboardKey.keyA): _noop},
       ),
     };
@@ -218,7 +257,12 @@ void main() {
       void longPress() {}
       void secondaryTap() {}
       const label = SemanticsProperties(label: 'box');
-      const shortcuts = {SingleActivator(LogicalKeyboardKey.keyA): _noop};
+      // Wrapped so freezed's generated getter (`_shortcuts is
+      // EqualUnmodifiableMapView`) hands this exact view back unchanged,
+      // keeping the `same()` pin below true.
+      final shortcuts = EqualUnmodifiableMapView({
+        const SingleActivator(LogicalKeyboardKey.keyA): _noop,
+      });
       await tester.pumpWidget(
         themedHost(
           _Layout(
@@ -226,7 +270,7 @@ void main() {
               borderRadius: BorderRadius.all(Radius.circular(6)),
             ),
             semantics: label,
-            interaction: StratumInteraction(
+            interaction: Interaction(
               onTap: _noop,
               onDoubleTap: doubleTap,
               onLongPress: longPress,
@@ -235,6 +279,7 @@ void main() {
               onHighlightChanged: highlight,
               mouseCursor: SystemMouseCursors.grab,
               enableFeedback: false,
+              tapTargetSize: TapTargetSize.shrinkWrap,
               disabledPressAnimation: true,
               focusNode: node,
               focusType: FocusType.focused,
@@ -261,6 +306,7 @@ void main() {
       expect(ink.onHighlightChanged, highlight);
       expect(ink.mouseCursor, SystemMouseCursors.grab);
       expect(ink.enableFeedback, isFalse);
+      expect(ink.tapTargetSize, TapTargetSize.shrinkWrap);
       expect(ink.disabledPressAnimation, isTrue);
       expect(ink.focusNode, same(node));
       expect(ink.focusType, FocusType.focused);
@@ -277,35 +323,97 @@ void main() {
       expect(ink.borderRadius, const BorderRadius.all(Radius.circular(6)));
     });
 
-    testWidgets("us11/fr01: an interaction animates a style over the theme's "
-        'fast level by default', (tester) async {
+    testWidgets(
+      'NFR-U05: tapTargetSize forwards to the tap surface, growing the '
+      'footprint by default and keeping it with shrinkWrap',
+      (tester) async {
+        await _withTargetPlatform(TargetPlatform.android, () async {
+          await tester.pumpWidget(
+            themedHost(
+              const ContainerLayout(
+                interaction: Interaction(onTap: _noop),
+                child: _small,
+              ),
+            ),
+          );
+
+          expect(
+            tester.getSize(find.byType(StratumInkWell)),
+            const Size(48, 48),
+          );
+
+          await tester.pumpWidget(
+            themedHost(
+              const ContainerLayout(
+                interaction: Interaction(
+                  onTap: _noop,
+                  tapTargetSize: TapTargetSize.shrinkWrap,
+                ),
+                child: _small,
+              ),
+            ),
+          );
+
+          expect(
+            tester.getSize(find.byType(StratumInkWell)),
+            const Size(20, 20),
+          );
+        });
+      },
+    );
+
+    testWidgets('fo06/us04/fr03/e16: interaction.customStyle forwards to the '
+        'tap surface', (tester) async {
+      const style = StratumInkWellStyle(
+        focus: StratumFocusBorderStyle(width: WidgetStatePropertyAll(4)),
+      );
       await tester.pumpWidget(
         themedHost(
-          const _Layout(
-            style: WidgetStyle(width: 40),
-            interaction: StratumInteraction(),
+          const ContainerLayout(
+            interaction: Interaction(onTap: _noop, customStyle: style),
+            child: SizedBox(width: 40, height: 20),
           ),
-          theme: motionTheme(),
         ),
       );
 
-      final style = tester
-          .widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox))
-          .style
-          ?.animationStyle;
-      expect(style?.duration, const Duration(milliseconds: 77));
-      expect(style?.reverseDuration, const Duration(microseconds: 49280));
-      expect(style?.curve, Curves.easeInOutSine);
+      expect(
+        tester.widget<StratumInkWell>(find.byType(StratumInkWell)).customStyle,
+        style,
+      );
     });
 
-    testWidgets('us11/fr01: with no theme above it takes the package '
+    testWidgets(
+      "fo06/us11/fr01: an interaction animates a style over the theme's "
+      'fast level by default',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const _Layout(
+              style: WidgetStyle(width: 40),
+              interaction: Interaction(),
+            ),
+            theme: motionTheme(),
+          ),
+        );
+
+        final style = tester
+            .widget<AnimatedStyledBox>(find.byType(AnimatedStyledBox))
+            .style
+            ?.animationStyle;
+        expect(style?.duration, const Duration(milliseconds: 77));
+        expect(style?.reverseDuration, const Duration(microseconds: 49280));
+        expect(style?.curve, Curves.easeInOutSine);
+      },
+    );
+
+    testWidgets('fo06/us11/fr01: with no theme above it takes the package '
         "default's fast level", (tester) async {
       await tester.pumpWidget(
         const Directionality(
           textDirection: TextDirection.ltr,
           child: _Layout(
             style: WidgetStyle(width: 40),
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
           ),
         ),
       );
@@ -331,7 +439,7 @@ void main() {
         themedHost(
           const _Layout(
             style: WidgetStyle(width: 40),
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
           ),
           theme: motionTheme(),
         ),
@@ -355,7 +463,7 @@ void main() {
         themedHost(
           const _Layout(
             style: WidgetStyle(animationStyle: own),
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
           ),
         ),
       );
@@ -373,7 +481,7 @@ void main() {
       Widget build(Color color) => themedHost(
         _Layout(
           style: WidgetStyle(backgroundColor: color),
-          interaction: const StratumInteraction(),
+          interaction: const Interaction(),
           onEndAnimate: () => ends++,
         ),
       );
@@ -414,12 +522,13 @@ void main() {
   });
 
   group('BoxLayout scroll', () {
-    testWidgets('scrolls inside the box along scrollDirection', (tester) async {
+    testWidgets('fo06/us02/fr01, fo06/us02/s4: scrolls inside the box along '
+        'scrollDirection', (tester) async {
       await tester.pumpWidget(
         themedHost(
           const _Layout(
             style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
-            scroll: StratumScroll(),
+            scroll: Scroll(),
             axis: Axis.horizontal,
           ),
         ),
@@ -447,16 +556,14 @@ void main() {
       expect(find.byType(ScrollFrame), findsNothing);
     });
 
-    testWidgets('every StratumScroll field reaches the scroll view', (
-      tester,
-    ) async {
+    testWidgets('every Scroll field reaches the scroll view', (tester) async {
       final controller = ScrollController();
       addTearDown(controller.dispose);
       const physics = BouncingScrollPhysics();
       await tester.pumpWidget(
         themedHost(
           _Layout(
-            scroll: StratumScroll(
+            scroll: Scroll(
               direction: Axis.horizontal,
               reverse: true,
               controller: controller,
@@ -496,7 +603,7 @@ void main() {
             width: 100,
             height: 100,
             child: ColumnLayout(
-              scroll: StratumScroll(physics: BouncingScrollPhysics()),
+              scroll: Scroll(physics: BouncingScrollPhysics()),
               children: [SizedBox(height: 500)],
             ),
           ),
@@ -522,11 +629,11 @@ void main() {
 
     final horizontal = <String, Widget>{
       'ContainerLayout': const ContainerLayout(
-        scroll: StratumScroll(direction: Axis.horizontal),
+        scroll: Scroll(direction: Axis.horizontal),
         child: SizedBox(width: 500, height: 20),
       ),
       'StackLayout': const StackLayout(
-        scroll: StratumScroll(direction: Axis.horizontal),
+        scroll: Scroll(direction: Axis.horizontal),
         children: [SizedBox(width: 500, height: 20)],
       ),
     };
@@ -556,15 +663,15 @@ void main() {
 
     final dialogs = <String, Widget>{
       'StackLayout': const StackLayout(
-        scroll: StratumScroll(),
+        scroll: Scroll(),
         children: [SizedBox(width: 200, height: 40)],
       ),
       'WrapLayout': const WrapLayout(
-        scroll: StratumScroll(),
+        scroll: Scroll(),
         children: [SizedBox(width: 200, height: 40)],
       ),
       'ColumnLayout': const ColumnLayout(
-        scroll: StratumScroll(),
+        scroll: Scroll(),
         children: [SizedBox(width: 200, height: 40)],
       ),
     };
@@ -581,135 +688,119 @@ void main() {
       });
     }
 
-    testWidgets('ratio with scroll shapes the frame and scrolls the content', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        themedHost(
-          const SizedBox(
-            width: 320,
-            child: ColumnLayout(
-              ratio: 16 / 9,
-              style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
-              scroll: StratumScroll(),
-              children: [SizedBox(height: 600)],
+    testWidgets(
+      'fo06/us02/fr03: ratio with scroll shapes the frame and scrolls the '
+      'content',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const SizedBox(
+              width: 320,
+              child: ColumnLayout(
+                ratio: 16 / 9,
+                style: WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
+                scroll: Scroll(),
+                children: [SizedBox(height: 600)],
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(tester.getSize(find.byType(ColumnLayout)), const Size(320, 180));
-      expect(
-        tester
-            .state<ScrollableState>(find.byType(Scrollable))
-            .position
-            .maxScrollExtent,
-        420,
-      );
-    });
+        expect(tester.getSize(find.byType(ColumnLayout)), const Size(320, 180));
+        expect(
+          tester
+              .state<ScrollableState>(find.byType(Scrollable))
+              .position
+              .maxScrollExtent,
+          420,
+        );
+      },
+    );
 
     // The tap-surface focus rule (us04/fr03): not disabled, canRequestFocus,
     // a focus type other than none, and an activation callback or a
     // shortcut. The box gives up its own Tab stop exactly when it holds.
     const shortcut = {SingleActivator(LogicalKeyboardKey.keyA): _noop};
     for (final (name, surfaceStop, interaction)
-        in <(String, bool, StratumInteraction Function(FocusNode))>[
-          (
-            'onTap',
-            true,
-            (n) => StratumInteraction(onTap: _noop, focusNode: n),
-          ),
+        in <(String, bool, Interaction Function(FocusNode))>[
+          ('onTap', true, (n) => Interaction(onTap: _noop, focusNode: n)),
           (
             'onDoubleTap',
             true,
-            (n) => StratumInteraction(onDoubleTap: _noop, focusNode: n),
+            (n) => Interaction(onDoubleTap: _noop, focusNode: n),
           ),
           (
             'onLongPress',
             true,
-            (n) => StratumInteraction(onLongPress: _noop, focusNode: n),
+            (n) => Interaction(onLongPress: _noop, focusNode: n),
           ),
           (
             'onSecondaryTap',
             true,
-            (n) => StratumInteraction(onSecondaryTap: _noop, focusNode: n),
+            (n) => Interaction(onSecondaryTap: _noop, focusNode: n),
           ),
           (
             'shortcuts only',
             true,
-            (n) => StratumInteraction(shortcuts: shortcut, focusNode: n),
+            (n) => Interaction(shortcuts: shortcut, focusNode: n),
           ),
           (
             'onHover only',
             false,
-            (n) => StratumInteraction(onHover: (_) {}, focusNode: n),
+            (n) => Interaction(onHover: (_) {}, focusNode: n),
           ),
           (
             'disabled',
             false,
-            (n) => StratumInteraction(
-              onTap: _noop,
-              disabled: true,
-              focusNode: n,
-            ),
+            (n) => Interaction(onTap: _noop, disabled: true, focusNode: n),
           ),
           (
             'disabled shortcuts',
             false,
-            (n) => StratumInteraction(
-              shortcuts: shortcut,
-              disabled: true,
-              focusNode: n,
-            ),
+            (n) =>
+                Interaction(shortcuts: shortcut, disabled: true, focusNode: n),
           ),
           (
             'canRequestFocus false',
             false,
-            (n) => StratumInteraction(
-              onTap: _noop,
-              canRequestFocus: false,
-              focusNode: n,
-            ),
+            (n) =>
+                Interaction(onTap: _noop, canRequestFocus: false, focusNode: n),
           ),
           (
             'FocusType.none',
             false,
-            (n) => StratumInteraction(
+            (n) => Interaction(
               onTap: _noop,
               focusType: FocusType.none,
               focusNode: n,
             ),
           ),
         ]) {
-      testWidgets(
-        '(pin) a scrolling box with $name has one Tab stop, the '
-        '${surfaceStop ? 'tap surface' : 'box itself'}',
-        (tester) async {
-          final surface = FocusNode(debugLabel: 'surface');
-          addTearDown(surface.dispose);
-          await tester.pumpWidget(
-            themedHost(
-              _Layout(
-                style: const WidgetStyle(),
-                scroll: const StratumScroll(),
-                interaction: interaction(surface),
-              ),
+      testWidgets('(pin) a scrolling box with $name has one Tab stop, the '
+          '${surfaceStop ? 'tap surface' : 'box itself'}', (tester) async {
+        final surface = FocusNode(debugLabel: 'surface');
+        addTearDown(surface.dispose);
+        await tester.pumpWidget(
+          themedHost(
+            _Layout(
+              style: const WidgetStyle(),
+              scroll: const Scroll(),
+              interaction: interaction(surface),
             ),
-          );
+          ),
+        );
 
-          final stops = [
-            for (final node
-                in FocusManager.instance.rootScope.traversalDescendants)
-              if (node is! FocusScopeNode) node,
-          ];
-          expect(stops, hasLength(1));
-          expect(
-            stops.single.debugLabel,
-            surfaceStop ? 'surface' : 'ScrollFocus',
-          );
-        },
-        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-      );
+        final stops = [
+          for (final node
+              in FocusManager.instance.rootScope.traversalDescendants)
+            if (node is! FocusScopeNode) node,
+        ];
+        expect(stops, hasLength(1));
+        expect(
+          stops.single.debugLabel,
+          surfaceStop ? 'surface' : 'ScrollFocus',
+        );
+      }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
     }
 
     testWidgets('changing reverse or showScrollbar keeps the scroll offset', (
@@ -722,10 +813,7 @@ void main() {
             height: 100,
             child: ColumnLayout(
               style: const WidgetStyle(),
-              scroll: StratumScroll(
-                reverse: reverse,
-                showScrollbar: showScrollbar,
-              ),
+              scroll: Scroll(reverse: reverse, showScrollbar: showScrollbar),
               children: const [SizedBox(height: 500)],
             ),
           ),

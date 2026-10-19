@@ -25,7 +25,7 @@ void main() {
   });
 
   test(
-    'us01/s1: a good zip parses over default under its generation',
+    'fo04/us01/s1: a good zip parses over default under its generation',
     () async {
       final install = await _prepare(
         remoteTheme(
@@ -54,18 +54,21 @@ void main() {
     },
   );
 
-  test('us01/fr03/e03, fo03 us05/fr01/e03: each install of an id takes the '
-      'next generation, and its font family carries it', () async {
-    await _prepare(remoteTheme('brand'));
-    final second = await _prepare(remoteTheme('brand'));
-    final other = await _prepare(remoteTheme('night'));
+  test(
+    'fo04/us01/fr03/e03, fo03/us05/fr01/e03: each install of an id takes the '
+    'next generation, and its font family carries it',
+    () async {
+      await _prepare(remoteTheme('brand'));
+      final second = await _prepare(remoteTheme('brand'));
+      final other = await _prepare(remoteTheme('night'));
 
-    expect(second.generation, 2);
-    expect(second.sourceId, 'brand@2');
-    expect(other.generation, 1);
-  });
+      expect(second.generation, 2);
+      expect(second.sourceId, 'brand@2');
+      expect(other.generation, 1);
+    },
+  );
 
-  test('us01/fr01: a bad id and a bad checksum text give invalid_id '
+  test('fo04/us01/fr01: a bad id and a bad checksum text give invalid_id '
       'first', () {
     final theme = remoteTheme('brand');
     expect(
@@ -76,7 +79,7 @@ void main() {
     );
   });
 
-  test('us01/fr01: a bad checksum text over bytes that would mismatch '
+  test('fo04/us01/fr01: a bad checksum text over bytes that would mismatch '
       'gives invalid_checksum first', () {
     expect(
       _prepare(
@@ -90,7 +93,7 @@ void main() {
     );
   });
 
-  test('us01/fr01: a mismatch over bytes that are no zip gives '
+  test('fo04/us01/fr01: a mismatch over bytes that are no zip gives '
       'checksum_mismatch first, before any entry is read', () {
     final junk = Uint8List.fromList(utf8.encode('not a zip'));
     expect(
@@ -101,14 +104,14 @@ void main() {
     );
   });
 
-  test('us01/s11, us01/fr01/e02: default is invalid_id', () {
+  test('fo04/us01/s11, fo04/us01/fr01/e02: default is invalid_id', () {
     expect(
       _prepare(remoteTheme('default')),
       _fails(StratumRemoteThemeErrorCode.invalidId),
     );
   });
 
-  test('us01/fr01/e03: a bad checksum text is invalid_checksum', () {
+  test('fo04/us01/fr01/e03: a bad checksum text is invalid_checksum', () {
     final theme = remoteTheme('brand');
     expect(
       _prepare(
@@ -122,7 +125,7 @@ void main() {
     );
   });
 
-  test('us01/s4, us01/fr01/e01: a mismatch is checksum_mismatch', () {
+  test('fo04/us01/s4, fo04/us01/fr01/e01: a mismatch is checksum_mismatch', () {
     final theme = remoteTheme('brand');
     expect(
       _prepare(
@@ -136,28 +139,31 @@ void main() {
     );
   });
 
-  test('us01/s12: a zip past maxBytes is archive_too_large with the size', () {
-    expect(
-      _prepare(
-        remoteTheme(
-          'brand',
-          files: {'a.bin': List.filled(5000, 0)},
-          maxBytes: 4096,
+  test(
+    'fo04/us01/s12: a zip past maxBytes is archive_too_large with the size',
+    () {
+      expect(
+        _prepare(
+          remoteTheme(
+            'brand',
+            files: {'a.bin': List.filled(5000, 0)},
+            maxBytes: 4096,
+          ),
         ),
-      ),
-      throwsA(
-        isA<StratumRemoteThemeException>()
-            .having(
-              (e) => e.code,
-              'code',
-              StratumRemoteThemeErrorCode.archiveTooLarge,
-            )
-            .having((e) => e.measured, 'measured', isNotNull),
-      ),
-    );
-  });
+        throwsA(
+          isA<StratumRemoteThemeException>()
+              .having(
+                (e) => e.code,
+                'code',
+                StratumRemoteThemeErrorCode.archiveTooLarge,
+              )
+              .having((e) => e.measured, 'measured', isNotNull),
+        ),
+      );
+    },
+  );
 
-  test('us01/s6, us01/fr03/e01: a theme file with problems is theme_format '
+  test('fo04/us01/s6, fo04/us01/fr03/e01: a theme file with problems is theme_format '
       'wrapping the FO-01 report', () async {
     await expectLater(
       _prepare(remoteTheme('brand', body: 'spcae:\n  md: 12')),
@@ -173,7 +179,7 @@ void main() {
     );
   });
 
-  test('us01/s13, us01/fr03/e09: a named font file the zip lacks is '
+  test('fo04/us01/s13, fo04/us01/fr03/e09: a named font file the zip lacks is '
       'missing_entry with the path', () {
     expect(
       _prepare(remoteTheme('brand', body: _fontBody)),
@@ -189,7 +195,7 @@ void main() {
     );
   });
 
-  test('us01/fr03/e09: a named asset slot file the zip lacks is '
+  test('fo04/us01/fr03/e09: a named asset slot file the zip lacks is '
       'missing_entry with the path', () {
     expect(
       _prepare(
@@ -255,7 +261,7 @@ void main() {
   });
 
   test(
-    'us01/s10: a one-folder zip resolves fonts and assets against it',
+    'fo04/us01/s10: a one-folder zip resolves fonts and assets against it',
     () async {
       final install = await _prepare(
         remoteTheme(
@@ -275,7 +281,7 @@ void main() {
     },
   );
 
-  test('us01/s7, us01/fr03/e10: a Google font in a zip parses as a bundled '
+  test('fo04/us01/s7, fo04/us01/fr03/e10: a Google font in a zip parses as a bundled '
       'theme does', () async {
     recordRemoteGoogleFonts();
     final install = await _prepare(

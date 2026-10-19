@@ -1,4 +1,4 @@
-$schema: stratum-theme/v1.0.0
+$schema: stratum-theme/v1.5.0
 name: stratum-default
 
 assets:
@@ -48,6 +48,7 @@ radius:
   lg: 12
   md: 10
   samsung: 8
+  sheet: 40
   sm: 8
   xl: 14
   xs: 6
@@ -612,8 +613,14 @@ color:
       90: "{transparent.black.90}"
       90-inverse: "{transparent.white.90}"
     app: {}
-  highContrastLight: {}          # overlay on light; {} declares the key
-  highContrastDark: {}           # overlay on dark
+  highContrastLight:              # overlay on light: the focus ring at 3:1
+    border:
+      subtle:
+        blue: "{palette.blue.600}"
+  highContrastDark:               # overlay on dark: the focus ring at 3:1
+    border:
+      subtle:
+        blue: "{palette.blue.400}"
 
 typography:
   fonts:                         # font key: physical family plus its own tuning
@@ -687,7 +694,8 @@ typography:
 animation:
   duration:
     default: fast            # the level animation.defaultStyle takes
-    veryFast: 50             # milliseconds
+    micro: 30                # milliseconds
+    veryFast: 75
     fast: 125
     normal: 200
     slow: 300
@@ -703,5 +711,88 @@ animation:
     standard: easeInOutSine  # forward and reverse of every level
     enter: easeOut           # forward of animation.appear
     exit: easeIn             # reverse of animation.appear
+
+opacity:
+  disabled: 0.5              # a disabled component's opacity, from 0 to 1 (FO-08 US-07)
+  scrim: 0.5                 # a modal layout's background scrim, from 0 to 1 (FO-06 US-20)
+
+border:                      # border widths in logical pixels, the Figma Border collection
+  sm: 0.5
+  md: 1                      # the usual width
+  lg: 1.5
+
+shadow:                      # Figma shadow/<n>: each level's layers in the Figma effects order
+  "1":
+    - {x: 0, y: 1, blur: 2, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+  "2":
+    - {x: 0, y: 4, blur: 8, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+  "3":
+    - {x: 0, y: 8, blur: 16, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+  "4":
+    - {x: 0, y: 12, blur: 24, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+  "5":
+    - {x: 0, y: 24, blur: 32, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+  "6":
+    - {x: 0, y: 40, blur: 64, spread: 0, color: "{color.shadow.secondary}"}
+    - {x: 0, y: 0, blur: 1, spread: 0, color: "{color.shadow.primary}"}
+
+blur:                        # Figma blur/<n>: a background blur radius; sigma is radius / 2
+  "1": 4
+  "2": 8
+  "3": 16
+  "4": 24
+  "5": 40
+  "6": 80
+
+system:                      # the look of the status bar and the navigation bar (FO-03 US-14)
+  light:
+    statusBarIcons: auto     # auto, light, or dark; auto picks against the fill under the bar
+    statusBarColor: "#00000000"            # transparent: the page paints edge to edge
+    statusBarContrast: false               # Android 10+: no scrim behind a transparent status bar
+    navigationBarIcons: auto
+    navigationBarColor: "#00000000"
+    navigationBarDividerColor: "#00000000"
+    navigationBarContrast: true            # Android 10+: the scrim behind the three-button bar
+    appSwitcherColor: "{color.light.background.default.normal}"   # the page background
+  dark:
+    statusBarIcons: auto
+    statusBarColor: "#00000000"
+    statusBarContrast: false
+    navigationBarIcons: auto
+    navigationBarColor: "#00000000"
+    navigationBarDividerColor: "#00000000"
+    navigationBarContrast: true
+    appSwitcherColor: "{color.dark.background.default.normal}"
+  highContrastLight: {}      # partial overlays on light and dark, as in color
+  highContrastDark: {}
+
+focus:                       # the focus ring's level 0 (FO-06 US-04 FR-03), the Figma FocusBorder look
+  light:
+    outside:                 # every interaction the user does not type into
+      color: "{color.light.border.subtle.blue}"
+      width: 3
+      gap: 2
+    inside:                  # form components the user types into; no gap, it never applies inward
+      color: "{color.light.border.default.normal}"
+      width:
+        hovered: 3
+        focused: 2
+  dark:
+    outside:
+      color: "{color.dark.border.subtle.blue}"
+      width: 3
+      gap: 2
+    inside:
+      color: "{color.dark.border.default.normal}"
+      width:
+        hovered: 3
+        focused: 2
+  highContrastLight: {}      # partial overlays on light and dark, as in color
+  highContrastDark: {}
 
 extensions: {}

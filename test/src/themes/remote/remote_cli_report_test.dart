@@ -26,8 +26,8 @@ Future<RemoteInstallCheck> _check(StratumRemoteTheme theme) =>
     );
 
 void main() {
-  group('us02/fr03: the CLI report', () {
-    test('us02/fr03/e07: the defaults line names the package default, and '
+  group('fo04/us02/fr03: the CLI report', () {
+    test('fo04/us02/fr03/e07: the defaults line names the package default, and '
         'the app default when one was read', () {
       expect(
         cliDefaultsLine(packageDefault: '/p/theme.yaml'),
@@ -39,7 +39,7 @@ void main() {
       );
     });
 
-    test('us02/fr03/e03: theme_format gives one line per problem of its '
+    test('fo04/us02/fr03/e03: theme_format gives one line per problem of its '
         'FO-01 report, each with its code', () async {
       try {
         await _check(remoteTheme('brand', body: 'space:\n  a: 1\n  b: 2'));
@@ -55,7 +55,7 @@ void main() {
       }
     });
 
-    test('us02/fr03: another failure gives one line, its code and its '
+    test('fo04/us02/fr03: another failure gives one line, its code and its '
         'message', () {
       const error = StratumRemoteThemeException(
         code: StratumRemoteThemeErrorCode.missingEntry,
@@ -69,7 +69,7 @@ void main() {
       ]);
     });
 
-    test('us02/s5, us02/s6, us02/fr03/e05, us02/fr03/e06, us02/fr02/e08, '
+    test('fo04/us02/s5, fo04/us02/s6, fo04/us02/fr03/e05, fo04/us02/fr03/e06, fo04/us02/fr02/e08, '
         'minor6, d-h: unnamed files and case twins are warnings; the install '
         'accepts the zip', () async {
       final check = await _check(
@@ -90,7 +90,7 @@ void main() {
       ]);
     });
 
-    test('us02/fr03/e05: a file the theme names, and theme.yaml, are no '
+    test('fo04/us02/fr03/e05: a file the theme names, and theme.yaml, are no '
         'warning', () async {
       final check = await _check(
         remoteTheme(
@@ -112,12 +112,15 @@ void main() {
       expect(twinNames(['a', 'b']), isEmpty);
     });
 
-    test('us02/fr03/e06, r15, sec f3: three case variants of one name give '
-        'the two neighbor pairs, in name order', () {
-      expect(twinNames(['AB', 'Ab', 'ab']), [('AB', 'Ab'), ('Ab', 'ab')]);
-    });
+    test(
+      'fo04/us02/fr03/e06, r15, sec f3: three case variants of one name give '
+      'the two neighbor pairs, in name order',
+      () {
+        expect(twinNames(['AB', 'Ab', 'ab']), [('AB', 'Ab'), ('Ab', 'ab')]);
+      },
+    );
 
-    test('us02/fr03/e06, r15, sec f3: n case variants of one name give '
+    test('fo04/us02/fr03/e06, r15, sec f3: n case variants of one name give '
         'n - 1 pairs, so the output grows linearly', () {
       final names = [
         for (var bits = 0; bits < 200; bits++)
@@ -152,19 +155,28 @@ void main() {
       ]);
     });
 
-    test('d4, sec f4: hostile zip-supplied names and yaml text reach the '
-        'CLI escaped', () async {
-      final check = await _check(
-        remoteTheme(
-          'brand',
-          files: {
-            'a\u202Ebé.svg': [1],
-            'A\u202EBé.svg': [2],
-          },
-        ),
+    test('d4, sec f4, rzf3: hostile names and yaml text reach the CLI '
+        'escaped', () async {
+      // The check refuses a name holding '"' (us01/fr02/e01, rzf3), so the
+      // hostile names join a check that passed, to pin the escape itself.
+      final passed = await _check(remoteTheme('brand'));
+      final check = RemoteInstallCheck(
+        id: passed.id,
+        generation: passed.generation,
+        values: passed.values,
+        entries: {
+          ...passed.entries,
+          'a"b.svg': Uint8List.fromList([1]),
+          'A"B.svg': Uint8List.fromList([2]),
+        },
+        namedFiles: passed.namedFiles,
+        unreadEntries: ['x"y.html'],
       );
-      for (final line in cliWarnings(check)) {
+      final lines = cliWarnings(check);
+      expect(lines.where((line) => line.contains(r'\u0022')), isNotEmpty);
+      for (final line in lines) {
         expect(line.codeUnits.every((u) => u >= 0x20 && u <= 0x7E), isTrue);
+        expect(line, isNot(contains('a"b')));
       }
 
       try {
@@ -185,7 +197,7 @@ void main() {
       }
     });
 
-    test('us02/s14, us02/fr03/e13, r15: every entry the install never reads '
+    test('fo04/us02/s14, fo04/us02/fr03/e13, r15: every entry the install never reads '
         'is a warning, by its zip path, in name order', () async {
       final bytes = buildZip([
         ZipEntryFixture('brand/', const [], deflate: false),
@@ -210,7 +222,7 @@ void main() {
       ]);
     });
 
-    test('minor6 edge, us02/fr03/e13: an unread entry is never also an '
+    test('minor6 edge, fo04/us02/fr03/e13: an unread entry is never also an '
         'unnamed-file warning', () async {
       final bytes = buildZip([
         ZipEntryFixture('brand/', const [], deflate: false),
@@ -229,23 +241,101 @@ void main() {
       expect(cliWarnings(check), ['warning: "README.html" $unread']);
     });
 
-    test('minor6 edge, us02/fr03/e13: _unreadWarning escapes a non-ASCII '
-        'letter and a quote in the path', () async {
+    test(
+      'minor6 edge, fo04/us02/fr03/e13: _unreadWarning escapes a quote in the '
+      'path',
+      () async {
+        final passed = await _check(remoteTheme('brand'));
+        final check = RemoteInstallCheck(
+          id: passed.id,
+          generation: passed.generation,
+          values: passed.values,
+          entries: passed.entries,
+          namedFiles: passed.namedFiles,
+          unreadEntries: ['a"b.html'],
+        );
+
+        const unread = 'is in the zip, but the app install never reads it';
+        expect(cliWarnings(check), ['warning: "a\\u0022b.html" $unread']);
+      },
+    );
+
+    test('fo04/us02/fr03/e13, fo04/us01/fr02/e01, rzf3: an entry name holding \'"\' '
+        'never reaches a warning: the check refuses it as the install '
+        'does', () async {
       final bytes = buildZip([
         ZipEntryFixture('brand/', const [], deflate: false),
         ZipEntryFixture('brand/theme.yaml', utf8.encode('$remoteSchemaLine\n')),
-        ZipEntryFixture('a"é.html', [1]),
+        ZipEntryFixture('a"b.html', [1]),
       ]);
-      final check = await _check(
-        StratumRemoteTheme(
-          id: 'brand',
-          bytes: bytes,
-          checksum: checksumOf(bytes),
+
+      await expectLater(
+        _check(
+          StratumRemoteTheme(
+            id: 'brand',
+            bytes: bytes,
+            checksum: checksumOf(bytes),
+          ),
+        ),
+        throwsA(
+          isA<StratumRemoteThemeException>().having(
+            (e) => e.code,
+            'code',
+            StratumRemoteThemeErrorCode.unsafeEntryPath,
+          ),
         ),
       );
-
-      const unread = 'is in the zip, but the app install never reads it';
-      expect(cliWarnings(check), ['warning: "a\\u0022\\u00e9.html" $unread']);
     });
+
+    test(
+      'fo04/us02/fr02/e08, fo04/us02/fr03/e06, rz2: names that differ only in '
+      'Unicode normalization never reach a warning: the check refuses '
+      'them as the install does',
+      () async {
+        await expectLater(
+          _check(
+            remoteTheme(
+              'brand',
+              files: {
+                'cafe\u0301.svg': [1],
+                'café.svg': [2],
+              },
+            ),
+          ),
+          throwsA(
+            isA<StratumRemoteThemeException>().having(
+              (e) => e.code,
+              'code',
+              StratumRemoteThemeErrorCode.unsafeEntryPath,
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'fo04/us02/fr03/e06, rz4, r19 (t28): twin names whose case differs only '
+      'past the cut print distinct ids',
+      () async {
+        final check = await _check(
+          remoteTheme(
+            'brand',
+            files: {
+              '${'b' * 200}X.png': [1],
+              '${'b' * 200}x.png': [2],
+            },
+          ),
+        );
+        final twin = cliWarnings(check)
+            .singleWhere((line) => line.contains('differ only in letter case'));
+        final ids = [
+          for (final match in RegExp(r'id ([0-9a-f]{32})\]').allMatches(twin))
+            match[1],
+        ];
+
+        expect(ids, hasLength(2));
+        expect(ids.toSet(), hasLength(2));
+      },
+    );
   });
 }

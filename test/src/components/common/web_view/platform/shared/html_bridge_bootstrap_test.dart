@@ -101,19 +101,22 @@ void main() {
   });
 
   group('placeBridgeBootstrap', () {
-    test('us02/fr01/e02: one placement for the web and native scripts', () {
-      const html = '<!-- a -->\n<!doctype html><p>Hi</p>';
-      expect(
-        placeBridgeBootstrap(html, 'x'),
-        '<!-- a -->\n<!doctype html><script>${removal}x</script><p>Hi</p>',
-      );
-      expect(
-        placeBridgeBootstrap('<p>Hi</p>', 'x'),
-        '<script>${removal}x</script><p>Hi</p>',
-      );
-    });
+    test(
+      'co01_02/us02/fr01/e02: one placement for the web and native scripts',
+      () {
+        const html = '<!-- a -->\n<!doctype html><p>Hi</p>';
+        expect(
+          placeBridgeBootstrap(html, 'x'),
+          '<!-- a -->\n<!doctype html><script>${removal}x</script><p>Hi</p>',
+        );
+        expect(
+          placeBridgeBootstrap('<p>Hi</p>', 'x'),
+          '<script>${removal}x</script><p>Hi</p>',
+        );
+      },
+    );
 
-    test('us03/fr04/e12, us02/fr01/e02, us03/fr03/e04: a comment the HTML '
+    test('co01_02/us03/fr04/e12, co01_02/us02/fr01/e02, co01_02/us03/fr03/e04: a comment the HTML '
         'tokenizer ends early keeps a later doctype from leading, so the '
         'bootstrap goes first', () {
       for (final html in [
@@ -129,7 +132,7 @@ void main() {
       }
     });
 
-    test('us03/fr04/e12, us02/fr01/e02: every comment end the HTML '
+    test('co01_02/us03/fr04/e12, co01_02/us02/fr01/e02: every comment end the HTML '
         'tokenizer accepts keeps the bootstrap after the doctype', () {
       for (final comment in [
         '<!-- a -->',
@@ -148,18 +151,22 @@ void main() {
       }
     });
 
-    test('us02/fr01/e02: stays linear over 20 000 comments of every end '
-        'form with no doctype', () {
-      final html = '${'<!----><!--><!---><!--a--!>' * 5000}<p>Hi</p>';
-      final stopwatch = Stopwatch()..start();
-      final result = placeBridgeBootstrap(html, 'x');
-      stopwatch.stop();
-      expect(result, '<script>${removal}x</script>$html');
-      expect(stopwatch.elapsedMilliseconds, lessThan(1000));
-    });
+    test(
+      'co01_02/us02/fr01/e02: stays linear over 20 000 comments of every end '
+      'form with no doctype',
+      () {
+        final html = '${'<!----><!--><!---><!--a--!>' * 5000}<p>Hi</p>';
+        final stopwatch = Stopwatch()..start();
+        final result = placeBridgeBootstrap(html, 'x');
+        stopwatch.stop();
+        expect(result, '<script>${removal}x</script>$html');
+        expect(stopwatch.elapsedMilliseconds, lessThan(1000));
+      },
+    );
 
-    test('us03/fr03, us03/fr04/e11, nf01/NFR-Sec03: wraps the source in one '
-        'script element whose first statement removes that element', () {
+    test('co01_02/us03/fr03, co01_02/us03/fr04/e11, nf01/NFR-Sec03: wraps the '
+        'source in one script element whose first statement removes that '
+        'element', () {
       expect(
         placeBridgeBootstrap('<!doctype html><p>Hi</p>', 'x();'),
         '<!doctype html><script>${removal}x();</script><p>Hi</p>',
@@ -174,31 +181,39 @@ void main() {
     String inject(String html) =>
         injectNativeBridgeBootstrap(html, nonce: nonce, token: token);
 
-    test('us02/fr01/e02: goes right after a leading doctype, or first', () {
-      expect(
-        inject('<!DOCTYPE html><p>Hi</p>'),
-        startsWith("<!DOCTYPE html><script>$removal(function(){'use strict';"),
-      );
-      expect(
-        inject('<p>Hi</p>'),
-        startsWith("<script>$removal(function(){'use strict';"),
-      );
-      expect(inject('<p>Hi</p>'), endsWith('})();</script><p>Hi</p>'));
-    });
+    test(
+      'co01_02/us02/fr01/e02: goes right after a leading doctype, or first',
+      () {
+        expect(
+          inject('<!DOCTYPE html><p>Hi</p>'),
+          startsWith(
+            "<!DOCTYPE html><script>$removal(function(){'use strict';",
+          ),
+        );
+        expect(
+          inject('<p>Hi</p>'),
+          startsWith("<script>$removal(function(){'use strict';"),
+        );
+        expect(inject('<p>Hi</p>'), endsWith('})();</script><p>Hi</p>'));
+      },
+    );
 
-    test('us03/fr04/e11, nf01/NFR-Sec03: removes its own script element '
-        'before anything else, so no secret stays in the live DOM', () {
-      expect(
-        inject('<p>Hi</p>'),
-        startsWith(
-          "<script>$removal(function(){'use strict';\n"
-          'var b=window.StratumBridge;\n',
-        ),
-      );
-    });
+    test(
+      'co01_02/us03/fr04/e11, nf01/NFR-Sec03: removes its own script element '
+      'before anything else, so no secret stays in the live DOM',
+      () {
+        expect(
+          inject('<p>Hi</p>'),
+          startsWith(
+            "<script>$removal(function(){'use strict';\n"
+            'var b=window.StratumBridge;\n',
+          ),
+        );
+      },
+    );
 
-    test('us03/fr04/e11: every bootstrap carries the removal once, from '
-        'the placement function', () {
+    test('co01_02/us03/fr04/e11: every bootstrap carries the removal once, '
+        'from the placement function', () {
       final native = inject('<p>Hi</p>');
       final web = injectBridgeBootstrap('<p>Hi</p>', nonce);
       for (final html in [native, web]) {
@@ -210,28 +225,31 @@ void main() {
       }
     });
 
-    test('us03/fr04/e11: binds the platform sender and String once, and '
-        'sends only through those bindings', () {
-      final html = inject('<p>Hi</p>');
-      expect(html, contains('var send=b.postMessage.bind(b),S=String;'));
-      expect(
-        html,
-        contains("send('$nativeBridgeEnvelopeTag$nonce:'+k+':'+d);"),
-      );
-      expect(html, contains("s('message',id+':'+S(d));"));
-      expect(html, isNot(contains('.call(')));
-      expect(html, isNot(contains('.apply(')));
-      expect(RegExp(r'\bString\b').allMatches(html), hasLength(1));
-    });
+    test(
+      'co01_02/us03/fr04/e11: binds the platform sender and String once, and '
+      'sends only through those bindings',
+      () {
+        final html = inject('<p>Hi</p>');
+        expect(html, contains('var send=b.postMessage.bind(b),S=String;'));
+        expect(
+          html,
+          contains("send('$nativeBridgeEnvelopeTag$nonce:'+k+':'+d);"),
+        );
+        expect(html, contains("s('message',id+':'+S(d));"));
+        expect(html, isNot(contains('.call(')));
+        expect(html, isNot(contains('.apply(')));
+        expect(RegExp(r'\bString\b').allMatches(html), hasLength(1));
+      },
+    );
 
-    test("us03/fr04: every message envelope carries the sending document's "
+    test("co01_02/us03/fr04: every message envelope carries the sending document's "
         'id before its text', () {
       final html = inject('<p>Hi</p>');
       expect(html, contains("s('message',id+':'+S(d));"));
       expect(html, isNot(contains("s('message',S(d));")));
     });
 
-    test('us03/fr04/e11: defines StratumBridge as a frozen envelope sender, '
+    test('co01_02/us03/fr04/e11: defines StratumBridge as a frozen envelope sender, '
         'non-writable and non-configurable', () {
       expect(
         inject('<p>Hi</p>'),
@@ -244,31 +262,34 @@ void main() {
       );
     });
 
-    test('us03/fr05/e08: keeps its document id in its own window property '
-        'once drawn, before StratumBridge exists', () {
-      final html = inject('<p>Hi</p>');
-      final afterLoop = html.indexOf(
-        'for(var i=0;i<16;i++)id+=(a[i]|256).toString(16).slice(1);',
-      );
-      final beforeBridge = html.indexOf(
-        "Object.defineProperty(window,'StratumBridge',",
-      );
-      expect(
-        html,
-        contains(
-          "Object.defineProperty(window,'$nativeBridgeDocumentProperty',\n"
-          '{value:id});\n',
-        ),
-      );
-      expect(
-        html.indexOf(
-          "Object.defineProperty(window,'$nativeBridgeDocumentProperty',",
-        ),
-        allOf(greaterThan(afterLoop), lessThan(beforeBridge)),
-      );
-    });
+    test(
+      'co01_02/us03/fr05/e08: keeps its document id in its own window property '
+      'once drawn, before StratumBridge exists',
+      () {
+        final html = inject('<p>Hi</p>');
+        final afterLoop = html.indexOf(
+          'for(var i=0;i<16;i++)id+=(a[i]|256).toString(16).slice(1);',
+        );
+        final beforeBridge = html.indexOf(
+          "Object.defineProperty(window,'StratumBridge',",
+        );
+        expect(
+          html,
+          contains(
+            "Object.defineProperty(window,'$nativeBridgeDocumentProperty',\n"
+            '{value:id});\n',
+          ),
+        );
+        expect(
+          html.indexOf(
+            "Object.defineProperty(window,'$nativeBridgeDocumentProperty',",
+          ),
+          allOf(greaterThan(afterLoop), lessThan(beforeBridge)),
+        );
+      },
+    );
 
-    test('us03/fr04: draws a 16-byte document id from crypto.getRandomValues '
+    test('co01_02/us03/fr04: draws a 16-byte document id from crypto.getRandomValues '
         'in lowercase hex and posts hello with it last', () {
       final html = inject('<p>Hi</p>');
       expect(
@@ -282,21 +303,24 @@ void main() {
       expect(html, endsWith("s('hello',id);\n})();</script><p>Hi</p>"));
     });
 
-    test('us03/fr04/e10: posts bye with its document id on pagehide, in a '
-        'capture listener added before any page script', () {
-      expect(
-        inject('<p>Hi</p>'),
-        contains(
-          "window.addEventListener('pagehide',function(){\n"
-          "s('bye',id);},true);",
-        ),
-      );
-    });
+    test(
+      'co01_02/us03/fr04/e10: posts bye with its document id on pagehide, in a '
+      'capture listener added before any page script',
+      () {
+        expect(
+          inject('<p>Hi</p>'),
+          contains(
+            "window.addEventListener('pagehide',function(){\n"
+            "s('bye',id);},true);",
+          ),
+        );
+      },
+    );
 
-    test('us03/fr04/e14: posts bye once a record shows the document root '
-        'removed, even if put back, reading records through getters bound '
-        'before any page script, and remembers the removal in a closure '
-        'flag', () {
+    test('co01_02/us03/fr04/e14: posts bye once a record shows the document '
+        'root removed, even if put back, reading records through getters '
+        'bound before any page script, and remembers the removal in a '
+        'closure flag', () {
       final html = inject('<p>Hi</p>');
       expect(
         html,
@@ -322,9 +346,9 @@ void main() {
       );
     });
 
-    test('us03/fr04/e03, us03/fr04/e14: posts hello again on a trusted '
-        'pageshow that restores the document, but only while the root it '
-        'removed never set the "gone" flag; a real trusted pageshow event '
+    test('co01_02/us03/fr04/e03, co01_02/us03/fr04/e14: posts hello again on a '
+        'trusted pageshow that restores the document, but only while the root '
+        'it removed never set the "gone" flag; a real trusted pageshow event '
         'cannot be raised outside a browser, so this and the e14 test above '
         'pin the trusted-restore-closed path at the generated-source level, '
         'not by dispatching one', () {
@@ -337,21 +361,24 @@ void main() {
       );
     });
 
-    test('us03/fr04: keeps the outbound token in its own window property, '
-        'never in an envelope', () {
-      final html = inject('<p>Hi</p>');
-      expect(
-        html,
-        contains(
-          "Object.defineProperty(window,'$nativeBridgeTokenProperty',\n"
-          "{value:'$token'});",
-        ),
-      );
-      expect(token.allMatches(html), hasLength(1));
-      expect(nonce.allMatches(html), hasLength(1));
-    });
+    test(
+      'co01_02/us03/fr04: keeps the outbound token in its own window property, '
+      'never in an envelope',
+      () {
+        final html = inject('<p>Hi</p>');
+        expect(
+          html,
+          contains(
+            "Object.defineProperty(window,'$nativeBridgeTokenProperty',\n"
+            "{value:'$token'});",
+          ),
+        );
+        expect(token.allMatches(html), hasLength(1));
+        expect(nonce.allMatches(html), hasLength(1));
+      },
+    );
 
-    test('us03/fr04: does nothing without a platform bridge', () {
+    test('co01_02/us03/fr04: does nothing without a platform bridge', () {
       expect(
         inject('<p>Hi</p>'),
         contains("if(!b||typeof b.postMessage!=='function')return;"),

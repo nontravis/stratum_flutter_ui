@@ -225,7 +225,7 @@ void main() {
           _host(
             FlexLayout(
               direction: direction,
-              scroll: const StratumScroll(),
+              scroll: const Scroll(),
               children: const [_child],
             ),
           ),
@@ -239,11 +239,7 @@ void main() {
     }
 
     for (final (direction, next, previous) in const [
-      (
-        Axis.vertical,
-        LogicalKeyboardKey.arrowDown,
-        LogicalKeyboardKey.arrowUp,
-      ),
+      (Axis.vertical, LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.arrowUp),
       (
         Axis.horizontal,
         LogicalKeyboardKey.arrowRight,
@@ -257,15 +253,12 @@ void main() {
             FlexLayout(
               direction: direction,
               mainAxisSize: MainAxisSize.min,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [
                 for (final item in items)
                   ContainerLayout(
                     style: const WidgetStyle(width: 40, height: 40),
-                    interaction: StratumInteraction(
-                      onTap: _noop,
-                      focusNode: item,
-                    ),
+                    interaction: Interaction(onTap: _noop, focusNode: item),
                   ),
               ],
             ),
@@ -307,7 +300,7 @@ void main() {
     ]) {
       testWidgets('with crossAxisIntrinsic, a direction change keeps a '
           "focused TextField's State, text, focus, and size: $name "
-          '(us08/fr01/e01)', (tester) async {
+          '(fo06/us08/fr01/e01)', (tester) async {
         Widget flex(Axis direction) => MaterialApp(
           home: Material(
             child: Center(
@@ -357,9 +350,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        _host(
-          const FlexLayout(direction: Axis.vertical, children: [_Probe()]),
-        ),
+        _host(const FlexLayout(direction: Axis.vertical, children: [_Probe()])),
       );
       final before = tester.state(find.byType(_Probe));
 

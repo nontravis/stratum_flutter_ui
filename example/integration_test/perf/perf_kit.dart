@@ -28,6 +28,13 @@ abstract interface class PerfKit {
 
   /// A box with [style] around [child].
   Widget container({WidgetStyle? style, Widget? child});
+
+  /// A reorderable list of [itemCount] items [itemBuilder] builds, each
+  /// keyed by the builder, that applies no move.
+  Widget reorderList({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  });
 }
 
 /// The layouts of the code under test.
@@ -43,7 +50,7 @@ class CurrentKit implements PerfKit {
   }) {
     return RowLayout(
       style: style,
-      interaction: onTap == null ? null : StratumInteraction(onTap: onTap),
+      interaction: onTap == null ? null : Interaction(onTap: onTap),
       mainAxisAlignment: mainAxisAlignment,
       children: children,
     );
@@ -68,15 +75,29 @@ class CurrentKit implements PerfKit {
   Widget container({WidgetStyle? style, Widget? child}) {
     return ContainerLayout(style: style, child: child);
   }
+
+  @override
+  Widget reorderList({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  }) {
+    return ReorderableListViewLayout.builder(
+      itemCount: itemCount,
+      onReorderItem: (from, to) {},
+      itemBuilder: itemBuilder,
+    );
+  }
 }
 
 /// The layouts of the frozen baseline (spec section 9.3).
 ///
-/// The focus border's baseline is the commit its branch starts from, which
-/// each frozen file's header names: a tappable row is a
-/// `BaselineRowLayout` on `BaselineFlexLayout`, whose tap surface is
-/// `BaselineStratumInkWell` with its `BaselineFocusSpread` ring, and the
-/// shared `StratumInteraction`, which the focus border does not change.
+/// The baseline is the pre-batch commit `7a50510`; the comparison covers
+/// the perf batch, InkWell `280d77c`, BoxLayout R4 `8a0d26d`, and the
+/// item-root fixes up to this HEAD. A tappable row is a `BaselineRowLayout`
+/// on `BaselineFlexLayout`, whose tap surface is `BaselineStratumInkWell`
+/// with the live `StratumFocusBorder` ring, and the shared `Interaction`.
+/// The reorder list is a `BaselineReorderableListViewLayout`, the list as
+/// of `7a50510`, so S7 covers every reorder change since that commit.
 class BaselineKit implements PerfKit {
   const new();
 
@@ -89,7 +110,7 @@ class BaselineKit implements PerfKit {
   }) {
     return BaselineRowLayout(
       style: style,
-      interaction: onTap == null ? null : StratumInteraction(onTap: onTap),
+      interaction: onTap == null ? null : Interaction(onTap: onTap),
       mainAxisAlignment: mainAxisAlignment,
       children: children,
     );
@@ -113,5 +134,17 @@ class BaselineKit implements PerfKit {
   @override
   Widget container({WidgetStyle? style, Widget? child}) {
     return BaselineContainerLayout(style: style, child: child);
+  }
+
+  @override
+  Widget reorderList({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  }) {
+    return BaselineReorderableListViewLayout.builder(
+      itemCount: itemCount,
+      onReorderItem: (from, to) {},
+      itemBuilder: itemBuilder,
+    );
   }
 }

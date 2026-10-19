@@ -4,7 +4,9 @@ import 'package:stratum_ui/src/src.dart';
 import '../components/common/fakes/fake_stratum_theme.dart';
 
 class _Probe extends StratumStatelessWidget {
-  const new({super.customStyle});
+  const new({this.customStyle});
+
+  final WidgetStyle? customStyle;
 
   @override
   Widget build(BuildContext context) => const SizedBox();
@@ -13,6 +15,16 @@ class _Probe extends StratumStatelessWidget {
 class _SubProbe extends _Probe {
   const new();
 }
+
+/// A stand-in multi-part component type, such as a page or modal layout.
+class _ModalLayout;
+
+/// A second multi-part component type, so a parts map can register under
+/// one type and be queried under another.
+class _OtherLayout;
+
+/// A parts style value with structural equality (spec P22).
+typedef _PartsStyle = ({WidgetStyle header, WidgetStyle body});
 
 const _red = Color(0xFFFF0000);
 const _blue = Color(0xFF0000FF);
@@ -28,13 +40,13 @@ const _own = WidgetStyle(
 /// Resolves [probe] against [_own] in a build under [wrap], when given.
 Future<WidgetStyle> _resolve(
   WidgetTester tester,
-  StratumWidgetProps probe, {
+  _Probe probe, {
   Widget Function(Widget child)? wrap,
 }) async {
   late WidgetStyle style;
   final reader = Builder(
     builder: (context) {
-      style = probe.resolveStyle(context, _own);
+      style = probe.resolveStyle(context, _own, probe.customStyle);
       return const SizedBox();
     },
   );
@@ -45,6 +57,7 @@ Future<WidgetStyle> _resolve(
 Widget Function(Widget child) _app(
   StratumComponentDefaultsBuilder? defaults, {
   ThemeMode themeMode = ThemeMode.light,
+  StratumComponentPartDefaultsBuilder? parts,
 }) =>
     (child) => StratumThemeApplication(
       themes: StratumThemeSet(
@@ -56,6 +69,7 @@ Widget Function(Widget child) _app(
       ),
       themeMode: themeMode,
       componentDefaults: defaults,
+      componentPartDefaults: parts,
       child: child,
     );
 
@@ -188,6 +202,190 @@ void main() {
       );
 
       expect((alone, missing), (null, null));
+    });
+  });
+
+  group('fo03/us06/fr01: parts', () {
+    const headerStyle = WidgetStyle(opacity: 0.9);
+    const bodyStyle = WidgetStyle(opacity: 0.8);
+    const partsValue = (header: headerStyle, body: bodyStyle);
+
+    testWidgets('fr01/e02: partsOf is null with no application, with no '
+        'builder, and with no entry for the type', (tester) async {
+      Object? alone;
+      Object? noBuilder;
+      Object? noEntry;
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) {
+            alone = StratumComponentDefaults.partsOf<_PartsStyle>(
+              context,
+              _ModalLayout,
+            );
+            return const SizedBox();
+          },
+        ),
+      );
+      await tester.pumpWidget(
+        _app(null)(
+          Builder(
+            builder: (context) {
+              noBuilder = StratumComponentDefaults.partsOf<_PartsStyle>(
+                context,
+                _ModalLayout,
+              );
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        _app(null, parts: (theme) => {_OtherLayout: partsValue})(
+          Builder(
+            builder: (context) {
+              noEntry = StratumComponentDefaults.partsOf<_PartsStyle>(
+                context,
+                _ModalLayout,
+              );
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect((alone, noBuilder, noEntry), (null, null, null));
+    });
+
+    testWidgets('partsOf returns the value the builder registers for the '
+        'exact type, and follows the active theme', (tester) async {
+      Map<Type, Object> defaults(StratumTheme theme) => {
+        _ModalLayout: (
+          header: WidgetStyle(backgroundColor: theme.color.brand.normal),
+          body: bodyStyle,
+        ),
+      };
+
+      _PartsStyle? light;
+      _PartsStyle? dark;
+      await tester.pumpWidget(
+        _app(null, parts: defaults)(
+          Builder(
+            builder: (context) {
+              light = StratumComponentDefaults.partsOf<_PartsStyle>(
+                context,
+                _ModalLayout,
+              );
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        _app(null, parts: defaults, themeMode: ThemeMode.dark)(
+          Builder(
+            builder: (context) {
+              dark = StratumComponentDefaults.partsOf<_PartsStyle>(
+                context,
+                _ModalLayout,
+              );
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(light?.header.backgroundColor, fakeTheme.color.brand.normal);
+      expect(
+        dark?.header.backgroundColor,
+        defaultThemeSet.dark!.color.brand.normal,
+      );
+    });
+
+    testWidgets('fr01/e03: a value of another type throws a FlutterError '
+        'naming both types', (tester) async {
+      await tester.pumpWidget(
+        _app(null, parts: (theme) => {_ModalLayout: headerStyle})(
+          Builder(
+            builder: (context) {
+              StratumComponentDefaults.partsOf<_PartsStyle>(
+                context,
+                _ModalLayout,
+              );
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(
+        tester.takeException(),
+        isA<FlutterError>().having(
+          (error) => error.message,
+          'message',
+          allOf(contains('_ModalLayout'), contains('WidgetStyle')),
+        ),
+      );
+    });
+
+    testWidgets('an equal parts map from a new closure rebuilds no reader', (
+      tester,
+    ) async {
+      var builds = 0;
+      final reader = Builder(
+        builder: (context) {
+          builds++;
+          StratumComponentDefaults.partsOf<_PartsStyle>(context, _ModalLayout);
+          return const SizedBox();
+        },
+      );
+      for (var pump = 0; pump < 2; pump++) {
+        await tester.pumpWidget(
+          _app(null, parts: (theme) => {_ModalLayout: partsValue})(reader),
+        );
+      }
+
+      expect(builds, 1);
+    });
+
+    testWidgets('a changed parts map rebuilds the reader', (tester) async {
+      var builds = 0;
+      final reader = Builder(
+        builder: (context) {
+          builds++;
+          StratumComponentDefaults.partsOf<_PartsStyle>(context, _ModalLayout);
+          return const SizedBox();
+        },
+      );
+      await tester.pumpWidget(
+        _app(null, parts: (theme) => {_ModalLayout: partsValue})(reader),
+      );
+      await tester.pumpWidget(
+        _app(
+          null,
+          parts: (theme) => {
+            _ModalLayout: (
+              header: headerStyle,
+              body: const WidgetStyle(opacity: 0.1),
+            ),
+          },
+        )(reader),
+      );
+
+      expect(builds, 2);
+    });
+
+    testWidgets('styles readers keep working while parts is set '
+        '(regression)', (tester) async {
+      final style = await _resolve(
+        tester,
+        const _Probe(),
+        wrap: _app(
+          (theme) => {_Probe: const WidgetStyle(opacity: 0.2)},
+          parts: (theme) => {_ModalLayout: partsValue},
+        ),
+      );
+
+      expect(style.opacity, 0.2);
     });
   });
 }

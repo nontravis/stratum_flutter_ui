@@ -1,5 +1,6 @@
 import 'package:stratum_ui/src/themes/config/animation_config.dart';
 import 'package:stratum_ui/src/themes/config/plain_by_window_size.dart';
+import 'package:stratum_ui/src/themes/config/shadow_layer.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
 import 'package:stratum_ui/src/themes/typography/typography_parser.dart';
 
@@ -19,6 +20,12 @@ final class PlainThemeConfig {
     required this.color,
     required this.typography,
     required this.animation,
+    required this.opacity,
+    required this.border,
+    required this.shadow,
+    required this.blur,
+    required this.system,
+    required this.focus,
     required this.extensions,
   });
 
@@ -35,6 +42,27 @@ final class PlainThemeConfig {
   final PlainColorSets color;
   final PlainTypography typography;
   final StratumAnimationConfig animation;
+
+  /// The `opacity` group, key to a number from 0 to 1.
+  final Map<String, double> opacity;
+
+  /// The `border` group, key to a width of 0 or more.
+  final Map<String, double> border;
+
+  /// The `shadow` group, level to its layers in file order.
+  final Map<String, List<StratumShadowLayer>> shadow;
+
+  /// The `blur` group, level to a Figma blur radius of 0 or more.
+  final Map<String, double> blur;
+
+  /// The four `system` sets by set name, each key to its plain value: an
+  /// icons name, a boolean, or a color as `0xAARRGGBB`.
+  final Map<String, Map<String, Object>> system;
+
+  /// The four `focus` sets by set name, each key of `focusKeys` to its plain
+  /// value: a color as `0xAARRGGBB` or a width or gap in logical pixels; a
+  /// key whose value failed is missing.
+  final Map<String, Map<String, Object>> focus;
 
   /// The merged `extensions` group as plain, unmodifiable Dart values.
   final Map<String, Object?> extensions;

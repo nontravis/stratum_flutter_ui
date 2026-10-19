@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/responsive/screen_radius_scope.dart';
 import 'package:stratum_ui/src/src.dart';
 import 'package:stratum_ui/src/themes/theme_font_loader.dart';
 
@@ -17,13 +18,16 @@ final StratumThemeSet _set = StratumThemeSet(
 );
 
 Map<Type, WidgetStyle> _defaults(StratumTheme theme) => const {};
+Map<Type, Object> _parts(StratumTheme theme) => const {};
+
+const _appWide = SystemStyle(appSwitcherLabel: 'App');
 
 /// A dark platform with high contrast on, then the application, then a
 /// reader that stores what [StratumThemeApplication.maybeOf] gives.
 Widget _host(
   void Function(StratumThemeData? data) found, {
   ThemeMode themeMode = ThemeMode.light,
-  HighContrastMode highContrast = HighContrastMode.system,
+  StratumHighContrastMode highContrast = StratumHighContrastMode.system,
   StratumThemeSet? themes,
   MediaQueryData media = const MediaQueryData(
     platformBrightness: Brightness.dark,
@@ -46,31 +50,34 @@ Widget _host(
 
 void main() {
   group('StratumThemeApplication.maybeOf', () {
-    final cases = <(ThemeMode, HighContrastMode, StratumThemeData)>[
-      (ThemeMode.light, HighContrastMode.off, _light),
-      (ThemeMode.light, HighContrastMode.on, _contrastLight),
-      (ThemeMode.light, HighContrastMode.system, _contrastLight),
-      (ThemeMode.dark, HighContrastMode.off, _dark),
-      (ThemeMode.dark, HighContrastMode.on, _contrastDark),
-      (ThemeMode.dark, HighContrastMode.system, _contrastDark),
-      (ThemeMode.system, HighContrastMode.off, _dark),
-      (ThemeMode.system, HighContrastMode.on, _contrastDark),
-      (ThemeMode.system, HighContrastMode.system, _contrastDark),
+    final cases = <(ThemeMode, StratumHighContrastMode, StratumThemeData)>[
+      (ThemeMode.light, StratumHighContrastMode.off, _light),
+      (ThemeMode.light, StratumHighContrastMode.on, _contrastLight),
+      (ThemeMode.light, StratumHighContrastMode.system, _contrastLight),
+      (ThemeMode.dark, StratumHighContrastMode.off, _dark),
+      (ThemeMode.dark, StratumHighContrastMode.on, _contrastDark),
+      (ThemeMode.dark, StratumHighContrastMode.system, _contrastDark),
+      (ThemeMode.system, StratumHighContrastMode.off, _dark),
+      (ThemeMode.system, StratumHighContrastMode.on, _contrastDark),
+      (ThemeMode.system, StratumHighContrastMode.system, _contrastDark),
     ];
     for (final (themeMode, highContrast, expected) in cases) {
-      testWidgets('fr01: ${themeMode.name} with high contrast '
-          '${highContrast.name} picks its data', (tester) async {
-        StratumThemeData? found;
-        await tester.pumpWidget(
-          _host(
-            (data) => found = data,
-            themeMode: themeMode,
-            highContrast: highContrast,
-          ),
-        );
+      testWidgets(
+        'fo03/us04/s1, fo03/us04/fr01: ${themeMode.name} with high contrast '
+        '${highContrast.name} picks its data',
+        (tester) async {
+          StratumThemeData? found;
+          await tester.pumpWidget(
+            _host(
+              (data) => found = data,
+              themeMode: themeMode,
+              highContrast: highContrast,
+            ),
+          );
 
-        expect(found, same(expected));
-      });
+          expect(found, same(expected));
+        },
+      );
     }
 
     testWidgets('fr01/e01: system and system on a default media query give '
@@ -277,7 +284,9 @@ void main() {
       );
     });
 
-    testWidgets('fr02/e01: a new theme mode rebuilds', (tester) async {
+    testWidgets('fo03/us04/fr02/e01: a new theme mode rebuilds', (
+      tester,
+    ) async {
       expect(
         await rebuilds(
           tester,
@@ -298,7 +307,7 @@ void main() {
           (child) => StratumThemeApplication(
             themes: _set,
             themeMode: ThemeMode.light,
-            highContrast: HighContrastMode.on,
+            highContrast: StratumHighContrastMode.on,
             child: child,
           ),
         ),
@@ -332,13 +341,32 @@ void main() {
         highContrastDark: data,
       ),
     };
+    testWidgets('fo03/us14/fr01: a new app-wide system style rebuilds', (
+      tester,
+    ) async {
+      expect(
+        await rebuilds(
+          tester,
+          (child) => StratumThemeApplication(
+            themes: _set,
+            themeMode: ThemeMode.light,
+            systemStyle: _appWide,
+            child: child,
+          ),
+        ),
+        1,
+      );
+    });
+
     for (final MapEntry(key: name, value: build) in members.entries) {
       testWidgets('a new $name data rebuilds', (tester) async {
         expect(
           await rebuilds(
             tester,
             (child) => StratumThemeApplication(
-              themes: build(fakeTheme.copyWith()),
+              themes: build(
+                fakeTheme.copyWith(physics: const BouncingScrollPhysics()),
+              ),
               themeMode: ThemeMode.light,
               child: child,
             ),
@@ -347,19 +375,41 @@ void main() {
         );
       });
     }
+
+    testWidgets('fr02/e03, D4: a set rebuilt over equal data rebuilds '
+        'nothing', (tester) async {
+      expect(
+        await rebuilds(
+          tester,
+          (child) => StratumThemeApplication(
+            themes: StratumThemeSet(
+              light: _light.copyWith(),
+              dark: _dark,
+              highContrastLight: _contrastLight,
+              highContrastDark: _contrastDark,
+            ),
+            themeMode: ThemeMode.light,
+            child: child,
+          ),
+        ),
+        0,
+      );
+    });
   });
 
-  group('us10/fr05: StratumThemeApplication.wrap', () {
-    testWidgets('copies the theme set, both modes, and the component '
-        'defaults', (tester) async {
+  group('fo03/us10/fr05: StratumThemeApplication.wrap', () {
+    testWidgets('copies the theme set, both modes, the component defaults, '
+        'and the app-wide system style', (tester) async {
       late Widget wrapped;
       const child = SizedBox();
       await tester.pumpWidget(
         StratumThemeApplication(
           themes: _set,
           themeMode: ThemeMode.dark,
-          highContrast: HighContrastMode.on,
+          highContrast: StratumHighContrastMode.on,
           componentDefaults: _defaults,
+          componentPartDefaults: _parts,
+          systemStyle: _appWide,
           child: Builder(
             builder: (context) {
               wrapped = StratumThemeApplication.wrap(context, child: child);
@@ -377,13 +427,19 @@ void main() {
             .having(
               (app) => app.highContrast,
               'highContrast',
-              HighContrastMode.on,
+              StratumHighContrastMode.on,
             )
             .having(
               (app) => app.componentDefaults,
               'componentDefaults',
               same(_defaults),
-            ),
+            )
+            .having(
+              (app) => app.componentPartDefaults,
+              'componentPartDefaults',
+              same(_parts),
+            )
+            .having((app) => app.systemStyle, 'systemStyle', _appWide),
       );
     });
 
@@ -411,7 +467,7 @@ void main() {
       StratumThemeApplication(
         themes: _set,
         themeMode: ThemeMode.light,
-        highContrast: HighContrastMode.off,
+        highContrast: StratumHighContrastMode.off,
         child: Builder(
           builder: (context) {
             found = ThemeMode.dark.theme(context).data;
@@ -431,7 +487,7 @@ void main() {
       child: child,
     );
 
-    testWidgets('us09/fr01/e02: inserts a WindowSizeScope when none is '
+    testWidgets('fo03/us09/fr01/e02: inserts a WindowSizeScope when none is '
         'above', (tester) async {
       WindowSize? found;
       await tester.pumpWidget(
@@ -458,12 +514,94 @@ void main() {
 
       expect(find.byType(WindowSizeScope), findsOneWidget);
     });
+
+    testWidgets('fo07/us04/fr02/e09: inserts a KeyboardVisibilityScope when '
+        'none is above', (tester) async {
+      bool? seen;
+      await tester.pumpWidget(
+        app(
+          Builder(
+            builder: (context) {
+              seen = KeyboardVisibilityScope.of(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(seen, isNotNull);
+      expect(tester.takeException(), isNull);
+      expect(find.byType(KeyboardVisibilityScope), findsOneWidget);
+    });
+
+    testWidgets('fo07/us04/fr02/e09: inserts no KeyboardVisibilityScope '
+        'under a scope or a second application', (tester) async {
+      await tester.pumpWidget(
+        KeyboardVisibilityScope(child: app(app(const SizedBox()))),
+      );
+
+      expect(find.byType(KeyboardVisibilityScope), findsOneWidget);
+    });
+
+    testWidgets('fo07/us04/fr02/e09: the inserted scope publishes a forced '
+        'value', (tester) async {
+      addTearDown(() => KeyboardVisibilityScope.setVisibleForTesting(false));
+      bool? seen;
+      await tester.pumpWidget(
+        app(
+          Builder(
+            builder: (context) {
+              seen = KeyboardVisibilityScope.of(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      KeyboardVisibilityScope.setVisibleForTesting(true);
+      await tester.pump();
+
+      expect(seen, isTrue);
+    });
+
+    testWidgets('fo07/us04/fr02/e09: an application remounted in one frame '
+        'keeps the inserted scope live', (tester) async {
+      addTearDown(() => KeyboardVisibilityScope.setVisibleForTesting(false));
+      bool? seen;
+      final reader = Builder(
+        builder: (context) {
+          seen = KeyboardVisibilityScope.of(context);
+          return const SizedBox();
+        },
+      );
+      await tester.pumpWidget(app(reader));
+      await tester.pump();
+
+      await tester.pumpWidget(
+        KeyedSubtree(key: UniqueKey(), child: app(reader)),
+      );
+      await tester.pump();
+
+      KeyboardVisibilityScope.setVisibleForTesting(true);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(KeyboardVisibilityScope), findsOneWidget);
+      expect(seen, isTrue);
+    });
+
+    testWidgets('fo07/us04/fr02/e09: two nested applications with no outer '
+        'scope yield one KeyboardVisibilityScope', (tester) async {
+      await tester.pumpWidget(app(app(const SizedBox())));
+
+      expect(find.byType(KeyboardVisibilityScope), findsOneWidget);
+    });
   });
 
-  group('us02/fr01: StratumThemeApplication.controlled', () {
+  group('fo03/us02/fr01: StratumThemeApplication.controlled', () {
     setUp(ThemeFontLoader.reset);
 
-    testWidgets('us02/s1: a switch rebuilds each dependent once, with the '
+    testWidgets('fo03/us02/s1: a switch rebuilds each dependent once, with the '
         'new data', (tester) async {
       final controller = await StratumThemeController.preload(
         bundle: FakeThemeBundle(themes: {'brand': markTheme('brand-mark')}),
@@ -635,7 +773,7 @@ void main() {
       expect(found, [null, same(controller)]);
     });
 
-    testWidgets('us10/fr05: wrap keeps the controller and both modes', (
+    testWidgets('fo03/us10/fr05: wrap keeps the controller and both modes', (
       tester,
     ) async {
       final controller = await StratumThemeController.preload(
@@ -646,8 +784,10 @@ void main() {
         StratumThemeApplication.controlled(
           controller: controller,
           themeMode: ThemeMode.dark,
-          highContrast: HighContrastMode.on,
+          highContrast: StratumHighContrastMode.on,
           componentDefaults: _defaults,
+          componentPartDefaults: _parts,
+          systemStyle: _appWide,
           child: Builder(
             builder: (context) {
               wrapped = StratumThemeApplication.wrap(
@@ -669,18 +809,24 @@ void main() {
             .having(
               (app) => app.highContrast,
               'highContrast',
-              HighContrastMode.on,
+              StratumHighContrastMode.on,
             )
             .having(
               (app) => app.componentDefaults,
               'componentDefaults',
               same(_defaults),
-            ),
+            )
+            .having(
+              (app) => app.componentPartDefaults,
+              'componentPartDefaults',
+              same(_parts),
+            )
+            .having((app) => app.systemStyle, 'systemStyle', _appWide),
       );
     });
   });
 
-  group('us05/fr02/e08: a theme with no wait', () {
+  group('fo03/us05/fr02/e08: a theme with no wait', () {
     setUp(ThemeFontLoader.reset);
 
     testWidgets('StratumThemeApplication(themes:) draws the weights a '
@@ -720,5 +866,181 @@ void main() {
         [FontWeight.w600, FontWeight.w600],
       );
     });
+  });
+
+  group('us04/fr03: the screen radius scope', () {
+    const channel = EventChannel('stratum_ui/screen_radius');
+    BorderRadius all(double r) => BorderRadius.all(Radius.circular(r));
+    Map<String, double> corners(double r) => {
+      'topLeft': r,
+      'topRight': r,
+      'bottomLeft': r,
+      'bottomRight': r,
+    };
+
+    late MockStreamHandlerEventSink sink;
+    var listens = 0;
+
+    /// Mocks the native probe: each listen counts and sends 46.
+    void mockProbe(WidgetTester tester) {
+      listens = 0;
+      tester.binding.defaultBinaryMessenger.setMockStreamHandler(
+        channel,
+        MockStreamHandler.inline(
+          onListen: (_, s) {
+            listens++;
+            sink = s..success(corners(46));
+          },
+        ),
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockStreamHandler(
+          channel,
+          null,
+        ),
+      );
+    }
+
+    Widget application(Widget child) => StratumThemeApplication(
+      themes: _set,
+      themeMode: ThemeMode.light,
+      child: child,
+    );
+
+    testWidgets(
+      'e07: with no application above the reader nothing publishes the '
+      'probe radius; e03: under the application it does',
+      (tester) async {
+        mockProbe(tester);
+        BorderRadius? radius = BorderRadius.zero;
+        final reader = Builder(
+          builder: (context) {
+            radius = context.deviceWindow.radius;
+            return const SizedBox();
+          },
+        );
+
+        await tester.pumpWidget(reader);
+        await tester.pump();
+        final bare = radius;
+        await tester.pumpWidget(application(reader));
+        await tester.pump();
+
+        expect(bare, isNull);
+        expect(find.byType(ScreenRadiusScope), findsOneWidget);
+        expect(radius, all(46));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+
+    testWidgets(
+      'e06: nested applications keep one scope, and the radius follows '
+      'every change event, after the inner application leaves too',
+      (tester) async {
+        mockProbe(tester);
+        BorderRadius? radius;
+        var radiusBuilds = 0;
+        final reader = Builder(
+          builder: (context) {
+            radius = context.deviceWindow.radius;
+            radiusBuilds++;
+            return const SizedBox();
+          },
+        );
+        await tester.pumpWidget(application(application(reader)));
+        await tester.pump();
+        expect(find.byType(ScreenRadiusScope), findsOneWidget);
+        expect(radius, all(46));
+
+        radiusBuilds = 0;
+        sink.success(corners(12));
+        await tester.pump();
+        await tester.pump();
+        final changed = radius;
+        final changedBuilds = radiusBuilds;
+        await tester.pumpWidget(application(reader));
+        sink.success(corners(20));
+        await tester.pump();
+        await tester.pump();
+
+        expect(changed, all(12));
+        expect(changedBuilds, 1);
+        expect(radius, all(20));
+        expect(listens, 1);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'e06: an application remounted in one frame keeps following change '
+      'events',
+      (tester) async {
+        mockProbe(tester);
+        BorderRadius? radius;
+        final reader = Builder(
+          builder: (context) {
+            radius = context.deviceWindow.radius;
+            return const SizedBox();
+          },
+        );
+        await tester.pumpWidget(application(reader));
+        await tester.pump();
+
+        await tester.pumpWidget(
+          KeyedSubtree(key: UniqueKey(), child: application(reader)),
+        );
+        await tester.pump();
+        sink.success(corners(20));
+        await tester.pump();
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(radius, all(20));
+        expect(listens, 1);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'e06: when one of two sibling applications leaves, the other keeps '
+      'following change events',
+      (tester) async {
+        mockProbe(tester);
+        BorderRadius? first;
+        BorderRadius? second;
+        Widget reader(void Function(BorderRadius?) onRadius) => Builder(
+          builder: (context) {
+            onRadius(context.deviceWindow.radius);
+            return const SizedBox();
+          },
+        );
+        final firstApp = application(reader((r) => first = r));
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Column(
+              children: [firstApp, application(reader((r) => second = r))],
+            ),
+          ),
+        );
+        await tester.pump();
+        expect([first, second], [all(46), all(46)]);
+
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Column(children: [firstApp]),
+          ),
+        );
+        sink.success(corners(20));
+        await tester.pump();
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(first, all(20));
+        expect(listens, 1);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 }

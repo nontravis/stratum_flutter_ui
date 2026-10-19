@@ -2,9 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/src.dart';
 
 void main() {
-  group('StratumScroll', () {
+  group('Scroll', () {
     test('defaults to the layout axis, no stretch, and no reverse', () {
-      const scroll = StratumScroll();
+      const scroll = Scroll();
 
       expect(scroll.direction, isNull);
       expect(scroll.fillViewport, isFalse);
@@ -18,9 +18,59 @@ void main() {
       addTearDown(controller.dispose);
 
       expect(
-        () => StratumScroll(controller: controller, primary: true),
+        () => Scroll(controller: controller, primary: true),
         throwsAssertionError,
       );
+    });
+
+    test('R1: equal fields and the same controller are equal', () {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      // Built at run time from a parameter, so the checks read `==`.
+      Scroll make({required bool reverse}) =>
+          Scroll(controller: controller, reverse: reverse);
+
+      expect(make(reverse: false), make(reverse: false));
+      expect(make(reverse: false).hashCode, make(reverse: false).hashCode);
+      expect(make(reverse: false), isNot(make(reverse: true)));
+    });
+
+    test('R1: controllers compare by identity', () {
+      final a = ScrollController();
+      final b = ScrollController();
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+
+      expect(Scroll(controller: a), isNot(Scroll(controller: b)));
+    });
+
+    test(
+      'R1, fo06/us02/fr01/e01: copyWith keeps the controller and the primary '
+      'assertion',
+      () {
+        final controller = ScrollController();
+        addTearDown(controller.dispose);
+        final copy = Scroll(controller: controller).copyWith(reverse: true);
+
+        expect(copy.controller, same(controller));
+        expect(copy.reverse, isTrue);
+        expect(() => copy.copyWith(primary: true), throwsAssertionError);
+      },
+    );
+
+    test('5.3: copyWith(controller: null) clears controller and keeps the '
+        'rest', () {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      final scroll = Scroll(controller: controller, reverse: true);
+      final copy = scroll.copyWith(controller: null);
+
+      expect(copy.controller, isNull);
+      expect(copy.reverse, isTrue);
+    });
+
+    test("R4 Q2: takes freezed's toString", () {
+      expect(const Scroll().toString(), startsWith('Scroll('));
     });
   });
 }

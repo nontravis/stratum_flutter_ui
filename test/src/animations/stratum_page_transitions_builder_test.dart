@@ -82,7 +82,7 @@ void main() {
     ),
   );
 
-  testWidgets('us05/s7: a desktop window takes the desktop type', (
+  testWidgets('fo05/us05/s7: a desktop window takes the desktop type', (
     tester,
   ) async {
     _window(tester, const Size(1300, 800));
@@ -94,7 +94,7 @@ void main() {
     expect(_above('page', FadeTransition), findsNothing);
   });
 
-  testWidgets("us05/s11: no scope above takes the window's size and never "
+  testWidgets("fo05/us05/s11: no scope above takes the window's size and never "
       'throws', (tester) async {
     _window(tester, const Size(400, 800));
     final navigator = GlobalKey<NavigatorState>();
@@ -106,7 +106,7 @@ void main() {
     expect(_above('page', SlideTransition), findsNothing);
   });
 
-  testWidgets('us05/fr04: the scope above wins over the window size the '
+  testWidgets('fo05/us05/fr04: the scope above wins over the window size the '
       'route reads', (tester) async {
     _window(tester, const Size(400, 800));
     final navigator = GlobalKey<NavigatorState>();
@@ -127,7 +127,7 @@ void main() {
     expect(_above('page', SlideTransition), findsOneWidget);
   });
 
-  testWidgets("us05/fr04/e02: the durations take the implicit view's "
+  testWidgets("fo05/us05/fr04/e02: the durations take the implicit view's "
       'window size', (tester) async {
     final motion = _motion(
       transitionsOf(
@@ -158,7 +158,7 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr04/e02: platform durations follow the platform the '
+  testWidgets('fo05/us05/fr04/e02: platform durations follow the platform the '
       'builder is installed for', (tester) async {
     final motion = _motion(transitionsOf(ScreenTransitionType.platform));
 
@@ -178,65 +178,71 @@ void main() {
     );
   });
 
-  test('us05/fr01: none takes zero push and pop durations in every route', () {
-    final motion = _motion(transitionsOf(ScreenTransitionType.none));
-    final builder = StratumPageTransitionsBuilder(
-      motion: motion,
-      platform: TargetPlatform.iOS,
-    );
+  test(
+    'fo05/us05/fr01: none takes zero push and pop durations in every route',
+    () {
+      final motion = _motion(transitionsOf(ScreenTransitionType.none));
+      final builder = StratumPageTransitionsBuilder(
+        motion: motion,
+        platform: TargetPlatform.iOS,
+      );
 
-    expect(builder.transitionDuration, Duration.zero);
-    expect(builder.reverseTransitionDuration, Duration.zero);
-  });
+      expect(builder.transitionDuration, Duration.zero);
+      expect(builder.reverseTransitionDuration, Duration.zero);
+    },
+  );
 
-  testWidgets("us05/fr04/e04: platform delegates the Flutter builder's own "
-      'delegated transition, so a route below parallaxes', (tester) async {
-    final motion = _motion(transitionsOf(ScreenTransitionType.platform));
-    final navigator = GlobalKey<NavigatorState>();
-    await tester.pumpWidget(
-      MaterialApp(
-        navigatorKey: navigator,
-        theme: ThemeData(
-          platform: TargetPlatform.iOS,
-          pageTransitionsTheme: PageTransitionsTheme(
-            builders: {
-              TargetPlatform.iOS: StratumPageTransitionsBuilder(
-                motion: motion,
-                platform: TargetPlatform.iOS,
-              ),
-            },
+  testWidgets(
+    "fo05/us05/fr04/e04: platform delegates the Flutter builder's own "
+    'delegated transition, so a route below parallaxes',
+    (tester) async {
+      final motion = _motion(transitionsOf(ScreenTransitionType.platform));
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigator,
+          theme: ThemeData(
+            platform: TargetPlatform.iOS,
+            pageTransitionsTheme: PageTransitionsTheme(
+              builders: {
+                TargetPlatform.iOS: StratumPageTransitionsBuilder(
+                  motion: motion,
+                  platform: TargetPlatform.iOS,
+                ),
+              },
+            ),
           ),
+          home: const SizedBox(key: ValueKey('home')),
         ),
-        home: const SizedBox(key: ValueKey('home')),
-      ),
-    );
-    navigator.currentState!
-        .push(
-          PageTransition<void>(
-            type: ScreenTransitionType.platform,
-            child: const SizedBox(key: ValueKey('lower')),
-          ),
-        )
-        .ignore();
-    await tester.pumpAndSettle();
+      );
+      navigator.currentState!
+          .push(
+            PageTransition<void>(
+              type: ScreenTransitionType.platform,
+              child: const SizedBox(key: ValueKey('lower')),
+            ),
+          )
+          .ignore();
+      await tester.pumpAndSettle();
 
-    navigator.currentState!
-        .push(
-          MaterialPageRoute<void>(
-            builder: (_) => const SizedBox(key: ValueKey('upper')),
-          ),
-        )
-        .ignore();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      navigator.currentState!
+          .push(
+            MaterialPageRoute<void>(
+              builder: (_) => const SizedBox(key: ValueKey('upper')),
+            ),
+          )
+          .ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    final slides = tester
-        .widgetList<SlideTransition>(_above('lower', SlideTransition))
-        .map((slide) => slide.position.value.dx);
-    expect(slides.any((dx) => dx < 0), isTrue);
-  });
+      final slides = tester
+          .widgetList<SlideTransition>(_above('lower', SlideTransition))
+          .map((slide) => slide.position.value.dx);
+      expect(slides.any((dx) => dx < 0), isTrue);
+    },
+  );
 
-  test('us05/fr04/e02 (R5): no view classifies as mobile', () {
+  test('fo05/us05/fr04/e02 (R5): no view classifies as mobile', () {
     expect(windowSizeOfView(null), WindowSize.mobile);
   });
 
@@ -258,46 +264,47 @@ void main() {
     ),
     ('reduceMotion', null),
   ]) {
-    testWidgets('us05/s10: under $signal fadeThrough fades with no scale', (
-      tester,
-    ) async {
-      if (reduce == null) {
-        tester.platformDispatcher.accessibilityFeaturesTestValue =
-            const FakeAccessibilityFeatures(reduceMotion: true);
-        addTearDown(
-          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-        );
-      }
-      final navigator = GlobalKey<NavigatorState>();
-      await tester.pumpWidget(
-        _app(
-          navigator,
-          _motion(
-            transitionsOf(ScreenTransitionType.fadeThrough),
-            curves: {
-              ...defaultThemeConfig.animation.curves,
-              'standard': const StratumNamedCurve('easeIn'),
-            },
+    testWidgets(
+      'fo05/us05/s10: under $signal fadeThrough fades with no scale',
+      (tester) async {
+        if (reduce == null) {
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(reduceMotion: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+        }
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(
+          _app(
+            navigator,
+            _motion(
+              transitionsOf(ScreenTransitionType.fadeThrough),
+              curves: {
+                ...defaultThemeConfig.animation.curves,
+                'standard': const StratumNamedCurve('easeIn'),
+              },
+            ),
+            builder: reduce,
           ),
-          builder: reduce,
-        ),
-      );
-      await _pushPage(
-        tester,
-        navigator,
-        elapsed: const Duration(milliseconds: 150),
-      );
+        );
+        await _pushPage(
+          tester,
+          navigator,
+          elapsed: const Duration(milliseconds: 150),
+        );
 
-      expect(_above('page', FadeThroughTransition), findsNothing);
-      expect(_above('page', ScaleTransition), findsNothing);
-      final fade = tester.widget<FadeTransition>(
-        _above('page', FadeTransition).first,
-      );
-      // easeIn, not easeInOutSine: tells the motion's own standard curve
-      // from curveOf's hardcoded fallback, which the package default's
-      // theme curve can't (both are easeInOutSine).
-      expect(fade.opacity.value, closeTo(Curves.easeIn.transform(0.5), 1e-9));
-    });
+        expect(_above('page', FadeThroughTransition), findsNothing);
+        expect(_above('page', ScaleTransition), findsNothing);
+        final fade = tester.widget<FadeTransition>(
+          _above('page', FadeTransition).first,
+        );
+        // easeIn, not easeInOutSine: tells the motion's own standard curve
+        // from curveOf's hardcoded fallback, which the package default's
+        // theme curve can't (both are easeInOutSine).
+        expect(fade.opacity.value, closeTo(Curves.easeIn.transform(0.5), 1e-9));
+      },
+    );
   }
 
   group('ruling R10: a theme type that needs a caller input', () {
@@ -366,6 +373,33 @@ void main() {
           .map((slide) => slide.position.value.dx);
       expect(home.any((dx) => dx < 0), isTrue);
     });
+
+    testWidgets(
+      'fo05/us05/fr04: a theme naming leftToRightJoined slides the page '
+      'under it out by its own route',
+      (tester) async {
+        final navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(
+          _app(
+            navigator,
+            _motion(transitionsOf(ScreenTransitionType.leftToRightJoined)),
+          ),
+        );
+        await _pushPage(tester, navigator);
+
+        expect(tester.takeException(), isNull);
+        final page = tester
+            .widget<SlideTransition>(_above('page', SlideTransition).first)
+            .position
+            .value
+            .dx;
+        expect(page, lessThan(0));
+        final home = tester
+            .widgetList<SlideTransition>(_above('home', SlideTransition))
+            .map((slide) => slide.position.value.dx);
+        expect(home.any((dx) => dx > 0), isTrue);
+      },
+    );
   });
 
   test('two builders of equal motion and platform are equal', () {

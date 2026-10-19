@@ -15,6 +15,16 @@ StratumThemeConfig _defaultConfig() => StratumThemeConfig.parse(
   ),
 );
 
+/// The package default's six forward durations.
+const _durations = {
+  'micro': Duration(milliseconds: 30),
+  'veryFast': Duration(milliseconds: 75),
+  'fast': Duration(milliseconds: 125),
+  'normal': Duration(milliseconds: 200),
+  'slow': Duration(milliseconds: 300),
+  'verySlow': Duration(milliseconds: 400),
+};
+
 /// An animation config with the package default's values, [defaultLevel],
 /// and [standard] as the standard curve.
 StratumAnimationConfig _config({
@@ -22,15 +32,7 @@ StratumAnimationConfig _config({
   StratumCurve standard = const StratumNamedCurve('easeInOutSine'),
   Map<String, Duration>? durations,
 }) => StratumAnimationConfig(
-  durations:
-      durations ??
-      const {
-        'veryFast': Duration(milliseconds: 50),
-        'fast': Duration(milliseconds: 125),
-        'normal': Duration(milliseconds: 200),
-        'slow': Duration(milliseconds: 300),
-        'verySlow': Duration(milliseconds: 400),
-      },
+  durations: durations ?? _durations,
   defaultLevel: defaultLevel,
   reverseRatio: 0.64,
   curves: {
@@ -42,7 +44,8 @@ StratumAnimationConfig _config({
 
 void main() {
   group('StratumAnimation.fromConfig', () {
-    test('gives the five levels, each reversing at 64% on standard', () {
+    test('fo03/us11/fr01: gives the six levels, each reversing at 64% on '
+        'standard', () {
       final animation = StratumAnimation.fromConfig(_config());
 
       expect(
@@ -54,9 +57,13 @@ void main() {
             ),
         },
         {
+          StratumMotionLevel.micro: (
+            const Duration(milliseconds: 30),
+            const Duration(microseconds: 19200),
+          ),
           StratumMotionLevel.veryFast: (
-            const Duration(milliseconds: 50),
-            const Duration(milliseconds: 32),
+            const Duration(milliseconds: 75),
+            const Duration(milliseconds: 48),
           ),
           StratumMotionLevel.fast: (
             const Duration(milliseconds: 125),
@@ -76,6 +83,8 @@ void main() {
           ),
         },
       );
+      expect(animation.micro.curve, Curves.easeInOutSine);
+      expect(animation.micro.reverseCurve, Curves.easeInOutSine);
       expect(animation.fast.curve, Curves.easeInOutSine);
       expect(animation.fast.reverseCurve, Curves.easeInOutSine);
     });
@@ -100,15 +109,45 @@ void main() {
       expect(normal.defaultStyle, normal.normal);
     });
 
+    test('fo03/us11/fr01: defaultStyle follows a micro default', () {
+      final micro = StratumAnimation.fromConfig(_config(defaultLevel: 'micro'));
+
+      expect(micro.defaultLevel, StratumMotionLevel.micro);
+      expect(micro.defaultStyle, micro.micro);
+      expect(micro.defaultStyle.duration, const Duration(milliseconds: 30));
+    });
+
+    test('fo03/us11/fr01/e01: two animations that differ only in micro '
+        'are not equal', () {
+      const base = StratumAnimation.packageDefault;
+      StratumAnimation withMicro(AnimationStyle micro) => StratumAnimation(
+        micro: micro,
+        veryFast: base.veryFast,
+        fast: base.fast,
+        normal: base.normal,
+        slow: base.slow,
+        verySlow: base.verySlow,
+        appear: base.appear,
+        defaultLevel: base.defaultLevel,
+        transition: base.transition,
+      );
+      final other = withMicro(
+        const AnimationStyle(duration: Duration(milliseconds: 31)),
+      );
+
+      expect(withMicro(base.micro), base);
+      expect(withMicro(base.micro).hashCode, base.hashCode);
+      expect(other, isNot(base));
+      expect(other.hashCode, isNot(base.hashCode));
+      expect(other[StratumMotionLevel.micro], same(other.micro));
+    });
+
     test('a reverse duration rounds to whole microseconds', () {
       final animation = StratumAnimation.fromConfig(
         _config(
-          durations: const {
-            'veryFast': Duration(microseconds: 1),
-            'fast': Duration(milliseconds: 125),
-            'normal': Duration(milliseconds: 200),
-            'slow': Duration(milliseconds: 300),
-            'verySlow': Duration(milliseconds: 400),
+          durations: {
+            ..._durations,
+            'veryFast': const Duration(microseconds: 1),
           },
         ),
       );
@@ -138,7 +177,7 @@ void main() {
           isA<ArgumentError>().having(
             (error) => error.invalidValue,
             'invalidValue',
-            'veryFast',
+            'micro',
           ),
         ),
       );
@@ -169,16 +208,44 @@ void main() {
       );
     });
 
-    test('runs fast at 125 and 80 ms on easeInOutSine', () {
+    test('fo03/us11/s1: a change that animates forward runs 125 ms on '
+        'easeInOutSine', () {
       const fast = StratumAnimation.packageDefault;
 
       expect(fast.defaultStyle.duration, const Duration(milliseconds: 125));
+      expect(fast.defaultStyle.curve, Curves.easeInOutSine);
+    });
+
+    test('fo03/us11/s2: a change that animates back runs 80 ms on '
+        'easeInOutSine', () {
+      const fast = StratumAnimation.packageDefault;
+
       expect(
         fast.defaultStyle.reverseDuration,
         const Duration(milliseconds: 80),
       );
-      expect(fast.defaultStyle.curve, Curves.easeInOutSine);
-      expect(fast.slow.duration, const Duration(milliseconds: 300));
+      expect(fast.defaultStyle.reverseCurve, Curves.easeInOutSine);
+    });
+
+    test('fo03/us11/fr01: carries micro at 30 and 19.2 ms and veryFast at 75 '
+        'and 48 ms', () {
+      const motion = StratumAnimation.packageDefault;
+
+      expect(motion.micro.duration, const Duration(milliseconds: 30));
+      expect(motion.micro.reverseDuration, const Duration(microseconds: 19200));
+      expect(motion.micro.curve, Curves.easeInOutSine);
+      expect(motion.micro.reverseCurve, Curves.easeInOutSine);
+      expect(motion.appear.micro.duration, const Duration(milliseconds: 30));
+      expect(
+        motion.appear.micro.reverseDuration,
+        const Duration(microseconds: 19200),
+      );
+      expect(motion.appear.micro.curve, Curves.easeOut);
+      expect(motion.appear.micro.reverseCurve, Curves.easeIn);
+      expect(motion.veryFast.duration, const Duration(milliseconds: 75));
+      expect(motion.veryFast.reverseDuration, const Duration(milliseconds: 48));
+      expect(motion[StratumMotionLevel.micro], same(motion.micro));
+      expect(motion.defaultLevel, StratumMotionLevel.fast);
     });
   });
 
@@ -217,6 +284,17 @@ void main() {
       expect(data, same(view));
     });
 
+    testWidgets(
+      'fo03/us11/fr01/e02: with disableAnimations StratumAnimation.of '
+      'gives the yaml micro level',
+      (tester) async {
+        final (view, _) = await read(tester, disableAnimations: true);
+
+        expect(view.micro.duration, const Duration(milliseconds: 30));
+        expect(view.micro.reverseDuration, const Duration(microseconds: 19200));
+      },
+    );
+
     testWidgets("fr01: with the platform's reduceMotion both readers give "
         '77 ms', (tester) async {
       tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -248,7 +326,7 @@ void main() {
   });
 
   group('StratumAnimation.fromConfig transition', () {
-    test('us05/fr04: maps each window size name to its type', () {
+    test('fo05/us05/fr04: maps each window size name to its type', () {
       final animation = StratumAnimation.fromConfig(
         _config().copyWith(
           transitions: transitionsOf(
@@ -334,5 +412,70 @@ void main() {
       for (final size in WindowSize.values) size.name,
     ]);
     expect(transition.values.toSet(), {'platform'});
+  });
+
+  group('D2, P3: freezed value', () {
+    // Built at run time from a parameter, so no const canonicalization
+    // makes two values one instance and the checks read `==`.
+    AnimationStyle style(int ms) => AnimationStyle(
+      duration: Duration(milliseconds: ms),
+      curve: Curves.easeInOutSine,
+    );
+    StratumMotionLevels levels(int ms) => StratumMotionLevels(
+      micro: style(ms),
+      veryFast: style(ms),
+      fast: style(ms),
+      normal: style(ms),
+      slow: style(ms),
+      verySlow: style(ms),
+    );
+    StratumAnimation animation(int ms) => StratumAnimation(
+      micro: style(ms),
+      veryFast: style(ms),
+      fast: style(ms),
+      normal: style(ms),
+      slow: style(ms),
+      verySlow: style(ms),
+      appear: levels(ms),
+      defaultLevel: StratumMotionLevel.fast,
+    );
+
+    test('D2: == and hashCode cover the six levels StratumAnimation '
+        'inherits', () {
+      final base = animation(100);
+
+      expect(animation(100), base);
+      expect(animation(100).hashCode, base.hashCode);
+      expect(base.copyWith(micro: style(1)), isNot(base));
+      expect(base.copyWith(veryFast: style(1)), isNot(base));
+      expect(base.copyWith(fast: style(1)), isNot(base));
+      expect(base.copyWith(normal: style(1)), isNot(base));
+      expect(base.copyWith(slow: style(1)), isNot(base));
+      expect(base.copyWith(verySlow: style(1)), isNot(base));
+    });
+
+    test('D2: copyWith replaces one level and keeps every other field', () {
+      final copy = animation(100)
+          .copyWith(fast: style(250), defaultLevel: StratumMotionLevel.slow);
+
+      expect(copy.fast, style(250));
+      expect(copy.normal, style(100));
+      expect(copy.appear, levels(100));
+      expect(copy.defaultLevel, StratumMotionLevel.slow);
+      expect(copy.transition, StratumThemeTransitions.platform);
+      expect(copy, isA<StratumMotionLevels>());
+    });
+
+    test('D2: StratumMotionLevels compares by value and copies', () {
+      expect(levels(100), levels(100));
+      expect(levels(100).hashCode, levels(100).hashCode);
+      expect(levels(100).copyWith(slow: style(9)).slow, style(9));
+      expect(levels(100).copyWith(slow: style(9)), isNot(levels(100)));
+    });
+
+    test("R4 Q2: both take freezed's toString", () {
+      expect(animation(100).toString(), startsWith('StratumAnimation('));
+      expect(levels(100).toString(), startsWith('StratumMotionLevels('));
+    });
   });
 }

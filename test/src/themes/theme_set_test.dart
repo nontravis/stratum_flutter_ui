@@ -25,7 +25,7 @@ extensions:
 
 StratumThemeSet _oceanSet() => StratumThemeSet.fromConfig(
   StratumThemeConfig.parse(
-    base: StratumThemeSource(
+    base: const StratumThemeSource(
       id: 'stratum-default',
       folder: 'packages/stratum_ui/assets/themes/default',
       yaml: defaultThemeSource,
@@ -76,8 +76,8 @@ void main() {
       expect(set.light.transparent.black.p3, const Color(0x08000000));
     });
 
-    test('the empty high-contrast overlays give the light and dark '
-        'colors', () {
+    test('fo03/us10/fr03: the high-contrast overlays keep the light and dark colors '
+        'beyond the focus ring', () {
       final set = defaultThemeSet;
       final pairs = [
         (set.light, set.highContrastLight!),
@@ -108,12 +108,28 @@ void main() {
 
       for (final data in all.skip(1)) {
         expect(data.palette, same(set.light.palette));
-        expect(data.space, same(set.light.space));
-        expect(data.appPalettes, same(set.light.appPalettes));
+        // freezed wraps a Map field in a fresh `EqualUnmodifiableMapView` per
+        // getter read, so `same()` never holds; the view's `==` compares the
+        // wrapped map by identity, so this still proves the shared map.
+        expect(
+          data.space == set.light.space,
+          isTrue,
+          reason: 'space should wrap the one shared config map',
+        );
+        expect(
+          data.appPalettes == set.light.appPalettes,
+          isTrue,
+          reason: 'appPalettes should wrap the one shared config map',
+        );
         expect(data.animation, same(set.light.animation));
         expect(data.typography, same(set.light.typography));
+        expect(data.opacity, same(set.light.opacity));
+        expect(data.border, same(set.light.border));
+        expect(data.blur, same(set.light.blur));
       }
       expect(set.light.animation, StratumAnimation.packageDefault);
+      expect(set.light.opacity.disabled, 0.5);
+      expect(set.light.opacity.scrim, 0.5);
     });
 
     test('app colors per set, app ramps shared, extensions, assets', () {
@@ -146,25 +162,119 @@ void main() {
       expect(defaultThemeSet.light.assets.loading, isNull);
     });
 
-    test('the section 7.10 defaults, the overlay styles swapped for dark', () {
+    test('the section 7.10 defaults', () {
       final set = defaultThemeSet;
       final light = set.light;
 
       expect(light.defaultWidgetSize, WidgetSize.medium);
-      expect(light.border, same(const AppBorder()));
-      expect(light.shadow, same(const AppShadow()));
-      expect(light.filter, same(const AppFilter()));
       expect(light.splashFactory, same(NoSplash.splashFactory));
       expect(light.scrollBehavior, isA<StratumScrollBehavior>());
       expect(light.physics, isA<ClampingScrollPhysics>());
-      expect(light.screenBorderRadius, isNull);
       expect(light.transparent, same(StratumTransparentTokens.builtIn));
-      expect(light.systemOverlayStyle, AppSystemUI.light);
-      expect(light.systemOverlayInverseStyle, AppSystemUI.dark);
-      expect(set.highContrastLight!.systemOverlayStyle, AppSystemUI.light);
-      expect(set.dark!.systemOverlayStyle, AppSystemUI.dark);
-      expect(set.dark!.systemOverlayInverseStyle, AppSystemUI.light);
-      expect(set.highContrastDark!.systemOverlayStyle, AppSystemUI.dark);
+    });
+
+    test(
+      'fo03/us10/fr01/e05: each data carries the system set of its own mode, '
+      'with no bar mode, rotation lock, or label',
+      () {
+        final set = defaultThemeSet;
+        final system = defaultThemeConfig.system;
+
+        expect(set.light.systemStyle, system['light']);
+        expect(set.dark!.systemStyle, system['dark']);
+        expect(set.highContrastLight!.systemStyle, system['highContrastLight']);
+        expect(set.highContrastDark!.systemStyle, system['highContrastDark']);
+        expect(
+          set.dark!.systemStyle.appSwitcherColor,
+          set.dark!.color.background.defaults.normal,
+        );
+        for (final data in [set.light, set.dark!]) {
+          expect(data.systemStyle.barMode, isNull);
+          expect(data.systemStyle.orientations, isNull);
+          expect(data.systemStyle.appSwitcherLabel, isNull);
+        }
+      },
+    );
+
+    test('fo03/us14/fr01/e03: an app theme that sets one high-contrast system '
+        'key changes that data only', () {
+      final set = StratumThemeSet.fromConfig(
+        StratumThemeConfig.parse(
+          base: const StratumThemeSource(
+            id: 'stratum-default',
+            folder: 'packages/stratum_ui/assets/themes/default',
+            yaml: defaultThemeSource,
+          ),
+          layers: const [
+            StratumThemeSource(
+              id: 'bars',
+              folder: 'themes/bars',
+              yaml:
+                  '\$schema: stratum-theme/v1.3.0\n'
+                  'system:\n'
+                  '  highContrastDark:\n'
+                  '    statusBarIcons: light\n',
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        set.highContrastDark!.systemStyle.statusBarIcons,
+        SystemBarIcons.light,
+      );
+      expect(set.dark!.systemStyle.statusBarIcons, SystemBarIcons.auto);
+    });
+
+    test('a config with no system set throws an ArgumentError naming '
+        'it', () {
+      final config = defaultThemeConfig.copyWith(system: const {});
+
+      expect(
+        () => StratumThemeSet.fromConfig(config),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.invalidValue,
+            'invalidValue',
+            'system.light',
+          ),
+        ),
+      );
+    });
+
+    test('fo06/us04/fr03: themes s03 invariant 46, each data takes the '
+        'focus set of its own name', () {
+      final set = defaultThemeSet;
+
+      for (final (name, data) in [
+        ('light', set.light),
+        ('dark', set.dark!),
+        ('highContrastLight', set.highContrastLight!),
+        ('highContrastDark', set.highContrastDark!),
+      ]) {
+        expect(data.focus, defaultThemeConfig.focus[name], reason: name);
+        expect(
+          data.focus.outsideColor,
+          isSameColorAs(data.color.border.subtle.blue),
+          reason: name,
+        );
+      }
+    });
+
+    test('fo06/us04/fr03: a config with no focus set throws an '
+        'ArgumentError naming it', () {
+      final config = defaultThemeConfig.copyWith(focus: const {});
+
+      expect(
+        () => StratumThemeSet.fromConfig(config),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.invalidValue,
+            'invalidValue',
+            'focus.light',
+          ),
+        ),
+      );
     });
 
     test('a config over a small base throws an ArgumentError naming the '
@@ -182,6 +292,196 @@ void main() {
         ),
       );
     });
+
+    test('fo08/us07/fr01/e02: an app theme that sets opacity.disabled to '
+        '0.3 gives every data 0.3', () {
+      final set = StratumThemeSet.fromConfig(
+        StratumThemeConfig.parse(
+          base: const StratumThemeSource(
+            id: 'stratum-default',
+            folder: 'packages/stratum_ui/assets/themes/default',
+            yaml: defaultThemeSource,
+          ),
+          layers: const [
+            StratumThemeSource(
+              id: 'dim',
+              folder: 'themes/dim',
+              yaml:
+                  '\$schema: stratum-theme/v1.1.0\n'
+                  'opacity:\n'
+                  '  disabled: 0.3\n',
+            ),
+          ],
+        ),
+      );
+
+      expect(set.light.opacity.disabled, 0.3);
+      expect(set.dark!.opacity.disabled, 0.3);
+      expect(set.highContrastDark!.opacity.disabled, 0.3);
+    });
+
+    test('fo08/us07/fr01/e03: an app theme that leaves opacity out gives '
+        '0.5', () {
+      expect(_oceanSet().light.opacity.disabled, 0.5);
+    });
+
+    test('fo03/us10/fr01: border, shadow, and blur come from the theme file at '
+        'the Figma values', () {
+      final light = defaultThemeSet.light;
+      final levels = [
+        light.shadow.level1,
+        light.shadow.level2,
+        light.shadow.level3,
+        light.shadow.level4,
+        light.shadow.level5,
+        light.shadow.level6,
+      ];
+      const ambient = [
+        (1.0, 1.0),
+        (4.0, 4.0),
+        (8.0, 8.0),
+        (12.0, 12.0),
+        (24.0, 16.0),
+        (40.0, 32.0),
+      ];
+
+      expect(
+        [light.border.sm, light.border.md, light.border.lg],
+        [0.5, 1, 1.5],
+      );
+      expect(
+        [
+          light.blur.level1,
+          light.blur.level2,
+          light.blur.level3,
+          light.blur.level4,
+          light.blur.level5,
+          light.blur.level6,
+        ],
+        [
+          for (final sigma in [2.0, 4.0, 8.0, 12.0, 20.0, 40.0])
+            ImageBlurFilter(sigmaX: sigma, sigmaY: sigma),
+        ],
+      );
+      for (final (index, layers) in levels.indexed) {
+        final (y, sigma) = ambient[index];
+        final reason = 'level${index + 1}';
+        expect(layers, hasLength(2), reason: reason);
+        expect(layers[0].offset, Offset(0, y), reason: reason);
+        expect(layers[0].spreadRadius, 0, reason: reason);
+        expect(layers[0].blurSigma, sigma, reason: reason);
+        expect(layers[1].offset, Offset.zero, reason: reason);
+        expect(layers[1].blurSigma, 0.5, reason: reason);
+      }
+    });
+
+    test('fo03/us10/fr01: each data colors its shadows from its own set', () {
+      final set = defaultThemeSet;
+      List<Color> colorsOf(StratumThemeData data) => [
+        for (final shadow in data.shadow.level2) shadow.color,
+      ];
+
+      expect(colorsOf(set.light), const [Color(0x1F000000), Color(0x26000000)]);
+      expect(colorsOf(set.dark!), const [Color(0x59000000), Color(0x73000000)]);
+      expect(colorsOf(set.highContrastLight!), colorsOf(set.light));
+      expect(colorsOf(set.highContrastDark!), colorsOf(set.dark!));
+    });
+
+    test(
+      'fo03/us10/fr01: a high-contrast overlay of color.<set>.shadow reaches '
+      "that set's shadows only",
+      () {
+        final set = StratumThemeSet.fromConfig(
+          StratumThemeConfig.parse(
+            base: const StratumThemeSource(
+              id: 'stratum-default',
+              folder: 'packages/stratum_ui/assets/themes/default',
+              yaml: defaultThemeSource,
+            ),
+            layers: const [
+              StratumThemeSource(
+                id: 'contrast',
+                folder: 'themes/contrast',
+                yaml:
+                    '\$schema: stratum-theme/v1.0.0\n'
+                    'color:\n'
+                    '  highContrastDark:\n'
+                    '    shadow:\n'
+                    '      primary: "#FF0000"\n',
+              ),
+            ],
+          ),
+        );
+
+        expect(
+          set.highContrastDark!.shadow.level1[1].color,
+          const Color(0xFFFF0000),
+        );
+        expect(
+          set.highContrastDark!.shadow.level1[0].color,
+          const Color(0x59000000),
+        );
+        expect(set.dark!.shadow.level1[1].color, const Color(0x73000000));
+      },
+    );
+
+    test(
+      'fo03/us10/fr01, fo01/us04/fr01/e05: an app theme that sets a level to '
+      '[] gives that level no shadow',
+      () {
+        final set = StratumThemeSet.fromConfig(
+          StratumThemeConfig.parse(
+            base: const StratumThemeSource(
+              id: 'stratum-default',
+              folder: 'packages/stratum_ui/assets/themes/default',
+              yaml: defaultThemeSource,
+            ),
+            layers: const [
+              StratumThemeSource(
+                id: 'flat',
+                folder: 'themes/flat',
+                yaml: '\$schema: stratum-theme/v1.2.0\nshadow:\n  "3": []\n',
+              ),
+            ],
+          ),
+        );
+
+        expect(set.light.shadow.level3, isEmpty);
+        expect(set.light.shadow.level2, hasLength(2));
+      },
+    );
+
+    test(
+      'fo03/us10/fr01: a hand-built config whose layer names a color its set '
+      'lacks throws an ArgumentError naming the path',
+      () {
+        final config = defaultThemeConfig.copyWith(
+          shadow: {
+            ...defaultThemeConfig.shadow,
+            '1': const [
+              StratumShadowLayer(
+                x: 0,
+                y: 1,
+                blur: 2,
+                spread: 0,
+                color: StratumSetLayerColor('shadow.tertiary'),
+              ),
+            ],
+          },
+        );
+
+        expect(
+          () => StratumThemeSet.fromConfig(config),
+          throwsA(
+            isA<ArgumentError>().having(
+              (error) => error.invalidValue,
+              'invalidValue',
+              'shadow.tertiary',
+            ),
+          ),
+        );
+      },
+    );
   });
 
   group('StratumThemeSet.pick', () {
@@ -228,7 +528,7 @@ void main() {
     });
   });
 
-  test('two sets are equal when each member is the same instance', () {
+  test('D4, 5.4: two sets compare their four data by value', () {
     final light = fakeTheme;
 
     expect(StratumThemeSet(light: light), StratumThemeSet(light: light));
@@ -238,7 +538,24 @@ void main() {
     );
     expect(
       StratumThemeSet(light: light),
-      isNot(StratumThemeSet(light: light.copyWith())),
+      StratumThemeSet(light: light.copyWith()),
+    );
+    expect(
+      StratumThemeSet(light: light),
+      isNot(
+        StratumThemeSet(
+          light: light.copyWith(physics: const BouncingScrollPhysics()),
+        ),
+      ),
+    );
+    expect(StratumThemeSet(light: light).copyWith(dark: light).dark, light);
+  });
+
+  test('Review Focus 1: two parses of one config differ, since the token '
+      'groups compare by identity', () {
+    expect(
+      StratumThemeSet.fromConfig(defaultThemeConfig),
+      isNot(StratumThemeSet.fromConfig(defaultThemeConfig)),
     );
   });
 }

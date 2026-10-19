@@ -50,7 +50,7 @@ Future<PageTransition<void>> _push(
   Curve? curve,
   Widget child = const SizedBox(),
   Widget? childCurrent,
-  Alignment? alignment,
+  Alignment alignment = Alignment.center,
   bool opaque = false,
   bool reducedMotion = false,
 }) async {
@@ -83,6 +83,42 @@ Future<void> _settleHeroOffstage(WidgetTester tester) => tester.pump();
 
 /// The page keyed `page`.
 final Finder _page = find.byKey(const ValueKey('page'));
+
+/// The alignment the drawn transition widget grows [type] from, after a
+/// push whose page is [_page] (US-05 FR-01 E03: `scale`, `rotate`, and
+/// `size` each draw the alignment through a different ancestor widget).
+AlignmentGeometry _drawnAlignmentOf(
+  WidgetTester tester,
+  ScreenTransitionType type,
+) => switch (type) {
+  ScreenTransitionType.scale =>
+    tester
+        .widget<ScaleTransition>(
+          find
+              .ancestor(of: _page, matching: find.byType(ScaleTransition))
+              .first,
+        )
+        .alignment,
+  ScreenTransitionType.rotate =>
+    tester
+        .widget<RotationTransition>(
+          find
+              .ancestor(of: _page, matching: find.byType(RotationTransition))
+              .first,
+        )
+        .alignment,
+  _ =>
+    tester
+        .widget<Align>(
+          find
+              .ancestor(
+                of: find.byType(SizeTransition),
+                matching: find.byType(Align),
+              )
+              .first,
+        )
+        .alignment,
+};
 
 /// The motion widgets between [_page] and its route.
 List<Widget> _transitionsAbove(WidgetTester tester) => tester
@@ -122,7 +158,7 @@ bool _apply(WidgetTester tester, _Reduce signal) {
 }
 
 void main() {
-  testWidgets("us11/fr01: a null duration takes the theme's slow level, "
+  testWidgets("fo03/us11/fr01: a null duration takes the theme's slow level, "
       'the pop at 64%', (tester) async {
     final route = await _push(tester, theme: motionTheme());
 
@@ -133,7 +169,7 @@ void main() {
     );
   });
 
-  testWidgets("us11/fr01: with no theme it takes the package default's "
+  testWidgets("fo03/us11/fr01: with no theme it takes the package default's "
       'slow level: 300 ms push, 192 ms pop', (tester) async {
     final route = await _push(tester);
 
@@ -151,7 +187,7 @@ void main() {
     expect(route.transitionDuration, const Duration(milliseconds: 500));
   });
 
-  testWidgets("us11/fr02: a null curve takes the theme's standard curve", (
+  testWidgets("fo03/us11/fr02: a null curve takes the theme's standard curve", (
     tester,
   ) async {
     const page = SizedBox(key: ValueKey('page'));
@@ -188,97 +224,111 @@ void main() {
     expect(route.transitionDuration, const Duration(milliseconds: 333));
   });
 
-  testWidgets('us11/fr01: a slow level with no fields pushes and pops at zero '
-      'duration', (tester) async {
-    final theme = fakeTheme.copyWith(
-      animation: StratumAnimation(
-        veryFast: StratumAnimation.packageDefault.veryFast,
-        fast: StratumAnimation.packageDefault.fast,
-        normal: StratumAnimation.packageDefault.normal,
-        slow: const AnimationStyle(),
-        verySlow: StratumAnimation.packageDefault.verySlow,
-        appear: StratumAnimation.packageDefault.appear,
-        defaultLevel: StratumMotionLevel.fast,
-      ),
-    );
+  testWidgets(
+    'fo03/us11/fr01: a slow level with no fields pushes and pops at zero '
+    'duration',
+    (tester) async {
+      final theme = fakeTheme.copyWith(
+        animation: StratumAnimation(
+          micro: StratumAnimation.packageDefault.micro,
+          veryFast: StratumAnimation.packageDefault.veryFast,
+          fast: StratumAnimation.packageDefault.fast,
+          normal: StratumAnimation.packageDefault.normal,
+          slow: const AnimationStyle(),
+          verySlow: StratumAnimation.packageDefault.verySlow,
+          appear: StratumAnimation.packageDefault.appear,
+          defaultLevel: StratumMotionLevel.fast,
+        ),
+      );
 
-    final route = await _push(tester, theme: theme);
+      final route = await _push(tester, theme: theme);
 
-    expect(route.transitionDuration, Duration.zero);
-    expect(route.reverseTransitionDuration, Duration.zero);
-  });
+      expect(route.transitionDuration, Duration.zero);
+      expect(route.reverseTransitionDuration, Duration.zero);
+    },
+  );
 
-  testWidgets('us11/fr01: a slow level with a duration and no reverse duration '
-      'or curve keeps that duration for the pop and falls back to '
-      'easeInOutSine', (tester) async {
-    final theme = fakeTheme.copyWith(
-      animation: StratumAnimation(
-        veryFast: StratumAnimation.packageDefault.veryFast,
-        fast: StratumAnimation.packageDefault.fast,
-        normal: StratumAnimation.packageDefault.normal,
-        slow: const AnimationStyle(duration: Duration(milliseconds: 400)),
-        verySlow: StratumAnimation.packageDefault.verySlow,
-        appear: StratumAnimation.packageDefault.appear,
-        defaultLevel: StratumMotionLevel.fast,
-      ),
-    );
-    const page = SizedBox(key: ValueKey('page'));
+  testWidgets(
+    'fo03/us11/fr01: a slow level with a duration and no reverse duration '
+    'or curve keeps that duration for the pop and falls back to '
+    'easeInOutSine',
+    (tester) async {
+      final theme = fakeTheme.copyWith(
+        animation: StratumAnimation(
+          micro: StratumAnimation.packageDefault.micro,
+          veryFast: StratumAnimation.packageDefault.veryFast,
+          fast: StratumAnimation.packageDefault.fast,
+          normal: StratumAnimation.packageDefault.normal,
+          slow: const AnimationStyle(duration: Duration(milliseconds: 400)),
+          verySlow: StratumAnimation.packageDefault.verySlow,
+          appear: StratumAnimation.packageDefault.appear,
+          defaultLevel: StratumMotionLevel.fast,
+        ),
+      );
+      const page = SizedBox(key: ValueKey('page'));
 
-    final route = await _push(
-      tester,
-      theme: theme,
-      type: ScreenTransitionType.rightToLeft,
-      child: page,
-    );
-    expect(route.transitionDuration, const Duration(milliseconds: 400));
-    expect(route.reverseTransitionDuration, const Duration(milliseconds: 400));
-    await tester.pump(const Duration(milliseconds: 200));
+      final route = await _push(
+        tester,
+        theme: theme,
+        type: ScreenTransitionType.rightToLeft,
+        child: page,
+      );
+      expect(route.transitionDuration, const Duration(milliseconds: 400));
+      expect(
+        route.reverseTransitionDuration,
+        const Duration(milliseconds: 400),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
 
-    final slide = tester.widget<SlideTransition>(
-      find
-          .ancestor(
-            of: find.byKey(const ValueKey('page')),
-            matching: find.byType(SlideTransition),
-          )
-          .first,
-    );
-    expect(
-      slide.position.value.dx,
-      closeTo(1 - Curves.easeInOutSine.transform(0.5), 1e-9),
-    );
-  });
+      final slide = tester.widget<SlideTransition>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('page')),
+              matching: find.byType(SlideTransition),
+            )
+            .first,
+      );
+      expect(
+        slide.position.value.dx,
+        closeTo(1 - Curves.easeInOutSine.transform(0.5), 1e-9),
+      );
+    },
+  );
 
-  testWidgets('us05/fr03: a fade plays over the full duration under reduced '
-      'motion', (tester) async {
-    const page = SizedBox(key: ValueKey('page'));
-    await _push(
-      tester,
-      type: ScreenTransitionType.fade,
-      child: page,
-      reducedMotion: true,
-    );
-    await tester.pump(const Duration(milliseconds: 150));
+  testWidgets(
+    'fo05/us05/fr03: a fade plays over the full duration under reduced '
+    'motion',
+    (tester) async {
+      const page = SizedBox(key: ValueKey('page'));
+      await _push(
+        tester,
+        type: ScreenTransitionType.fade,
+        child: page,
+        reducedMotion: true,
+      );
+      await tester.pump(const Duration(milliseconds: 150));
 
-    final fade = tester.widget<FadeTransition>(
-      find
-          .ancestor(
-            of: find.byKey(const ValueKey('page')),
-            matching: find.byType(FadeTransition),
-          )
-          .first,
-    );
-    expect(
-      fade.opacity.value,
-      closeTo(Curves.easeInOutSine.transform(0.5), 1e-9),
-    );
-  });
+      final fade = tester.widget<FadeTransition>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('page')),
+              matching: find.byType(FadeTransition),
+            )
+            .first,
+      );
+      expect(
+        fade.opacity.value,
+        closeTo(Curves.easeInOutSine.transform(0.5), 1e-9),
+      );
+    },
+  );
 
   for (final type in [
     ScreenTransitionType.rightToLeftWithFade,
     ScreenTransitionType.leftToRightWithFade,
   ]) {
     testWidgets(
-      'us05/fr03: ${type.name} fades with no slide under reduced motion',
+      'fo05/us05/fr03: ${type.name} fades with no slide under reduced motion',
       (tester) async {
         const page = SizedBox(key: ValueKey('page'));
         await _push(tester, type: type, child: page, reducedMotion: true);
@@ -314,7 +364,7 @@ void main() {
     ScreenTransitionType.bottomToTop,
   ]) {
     testWidgets(
-      'us05/fr03: ${type.name} shows the new page at once under reduced '
+      'fo05/us05/fr03: ${type.name} shows the new page at once under reduced '
       'motion',
       (tester) async {
         const page = SizedBox(key: ValueKey('page'));
@@ -333,7 +383,7 @@ void main() {
     );
   }
 
-  testWidgets('us05/fr03: scale shows the new page at once under reduced '
+  testWidgets('fo05/us05/fr03: scale shows the new page at once under reduced '
       'motion', (tester) async {
     const page = SizedBox(key: ValueKey('page'));
     await _push(
@@ -355,7 +405,7 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr03: rotate shows the new page at once under reduced '
+  testWidgets('fo05/us05/fr03: rotate shows the new page at once under reduced '
       'motion', (tester) async {
     const page = SizedBox(key: ValueKey('page'));
     await _push(
@@ -377,7 +427,7 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr03: size shows the new page at once under reduced '
+  testWidgets('fo05/us05/fr03: size shows the new page at once under reduced '
       'motion', (tester) async {
     const page = SizedBox(key: ValueKey('page'));
     await _push(
@@ -404,7 +454,7 @@ void main() {
     ScreenTransitionType.rightToLeftJoined,
   ]) {
     testWidgets(
-      'us05/fr03: ${type.name} shows the new page at once under reduced '
+      'fo05/us05/fr03: ${type.name} shows the new page at once under reduced '
       'motion',
       (tester) async {
         const page = SizedBox(key: ValueKey('page'));
@@ -430,7 +480,7 @@ void main() {
     );
   }
 
-  test('us05/fr01/e01: inheritTheme with no ctx fails an assertion naming '
+  test('fo05/us05/fr01/e01: inheritTheme with no ctx fails an assertion naming '
       'ctx', () {
     expect(
       () => PageTransition<void>(
@@ -448,7 +498,7 @@ void main() {
     );
   });
 
-  testWidgets('us05/s5: a joined type with no childCurrent fails an '
+  testWidgets('fo05/us05/s5: a joined type with no childCurrent fails an '
       'assertion naming childCurrent', (tester) async {
     await _push(tester, type: ScreenTransitionType.rightToLeftJoined);
 
@@ -462,14 +512,60 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr01/e03: scale with no alignment fails with a '
-      'null-check error', (tester) async {
-    await _push(tester, type: ScreenTransitionType.scale);
+  testWidgets(
+    'fo05/us05/fr01/e02: leftToRightJoined with no childCurrent fails '
+    'an assertion naming childCurrent',
+    (tester) async {
+      await _push(tester, type: ScreenTransitionType.leftToRightJoined);
 
-    expect(tester.takeException(), isA<TypeError>());
-  });
+      expect(
+        tester.takeException(),
+        isA<AssertionError>().having(
+          (error) => '${error.message}',
+          'message',
+          contains('childCurrent'),
+        ),
+      );
+    },
+  );
 
-  testWidgets('us05/fr01/e04: the page under a pushed route stays '
+  for (final type in const [
+    ScreenTransitionType.scale,
+    ScreenTransitionType.rotate,
+    ScreenTransitionType.size,
+  ]) {
+    testWidgets('fo05/us05/fr01/e03: ${type.name} with no alignment grows '
+        'from the center', (tester) async {
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(_app(navigator));
+      const page = SizedBox(key: ValueKey('page'));
+      final route = PageTransition<void>(type: type, child: page);
+      navigator.currentState!.push(route).ignore();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.takeException(), isNull);
+      expect(route.alignment, Alignment.center);
+      expect(_drawnAlignmentOf(tester, type), Alignment.center);
+    });
+
+    testWidgets('fo05/us05/fr01: ${type.name} with a caller alignment grows '
+        'from it', (tester) async {
+      const page = SizedBox(key: ValueKey('page'));
+      final route = await _push(
+        tester,
+        type: type,
+        child: page,
+        alignment: Alignment.topLeft,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(route.alignment, Alignment.topLeft);
+      expect(_drawnAlignmentOf(tester, type), Alignment.topLeft);
+    });
+  }
+
+  testWidgets('fo05/us05/fr01/e04: the page under a pushed route stays '
       'mounted', (tester) async {
     const page = SizedBox(key: ValueKey('page'));
     final route = await _push(
@@ -490,7 +586,7 @@ void main() {
     );
   });
 
-  testWidgets('us05/s2: rightToLeftJoined slides the current page '
+  testWidgets('fo05/us05/s2: rightToLeftJoined slides the current page '
       'out beside the new one', (tester) async {
     await _push(
       tester,
@@ -520,32 +616,68 @@ void main() {
     expect(dxOf('current'), closeTo(-0.25, 1e-9));
   });
 
-  testWidgets('us05/s1: a right-to-left push slides in from the right edge '
-      'over 300 ms', (tester) async {
-    final route = await _push(
-      tester,
-      type: ScreenTransitionType.rightToLeft,
-      child: const SizedBox(key: ValueKey('page')),
-    );
-    double dx() => tester
-        .widget<SlideTransition>(
-          find
-              .ancestor(of: _page, matching: find.byType(SlideTransition))
-              .first,
-        )
-        .position
-        .value
-        .dx;
+  testWidgets(
+    'fo05/us05/fr01: leftToRightJoined slides the current page out to '
+    'the right beside the new one',
+    (tester) async {
+      await _push(
+        tester,
+        theme: motionTheme(
+          slow: const Duration(milliseconds: 400),
+          standard: const StratumNamedCurve('linear'),
+        ),
+        type: ScreenTransitionType.leftToRightJoined,
+        child: const SizedBox(key: ValueKey('page')),
+        childCurrent: const SizedBox(key: ValueKey('current')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
 
-    expect(route.transitionDuration, const Duration(milliseconds: 300));
-    await tester.pump(const Duration(milliseconds: 150));
-    expect(dx(), closeTo(1 - Curves.easeInOutSine.transform(0.5), 1e-9));
-    await tester.pump(const Duration(milliseconds: 150));
-    expect(dx(), 0);
-  });
+      double dxOf(String key) => tester
+          .widget<SlideTransition>(
+            find
+                .ancestor(
+                  of: find.byKey(ValueKey(key)),
+                  matching: find.byType(SlideTransition),
+                )
+                .first,
+          )
+          .position
+          .value
+          .dx;
+      expect(dxOf('page'), closeTo(-0.75, 1e-9));
+      expect(dxOf('current'), closeTo(0.25, 1e-9));
+    },
+  );
+
+  testWidgets(
+    'fo05/us05/s1: a right-to-left push slides in from the right edge '
+    'over 300 ms',
+    (tester) async {
+      final route = await _push(
+        tester,
+        type: ScreenTransitionType.rightToLeft,
+        child: const SizedBox(key: ValueKey('page')),
+      );
+      double dx() => tester
+          .widget<SlideTransition>(
+            find
+                .ancestor(of: _page, matching: find.byType(SlideTransition))
+                .first,
+          )
+          .position
+          .value
+          .dx;
+
+      expect(route.transitionDuration, const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(dx(), closeTo(1 - Curves.easeInOutSine.transform(0.5), 1e-9));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(dx(), 0);
+    },
+  );
 
   for (final signal in _Reduce.values) {
-    testWidgets('us05/s4: under ${signal.name} a right-to-left push shows '
+    testWidgets('fo05/us05/s4: under ${signal.name} a right-to-left push shows '
         'the new page with no slide', (tester) async {
       await _push(
         tester,
@@ -560,7 +692,7 @@ void main() {
     });
   }
 
-  testWidgets('us05/fr03/e01: a caller curve drives a Stratum type as '
+  testWidgets('fo05/us05/fr03/e01: a caller curve drives a Stratum type as '
       'passed', (tester) async {
     await _push(
       tester,
@@ -583,7 +715,7 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr03/e01: a caller curve drives the Flutter motion of '
+  testWidgets('fo05/us05/fr03/e01: a caller curve drives the Flutter motion of '
       'cupertino too', (tester) async {
     await _push(
       tester,
@@ -611,7 +743,7 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr01: a caller curve steps aside for a Cupertino pop '
+  testWidgets('fo05/us05/fr01: a caller curve steps aside for a Cupertino pop '
       'gesture already in progress', (tester) async {
     final route = await _push(
       tester,
@@ -632,7 +764,7 @@ void main() {
     route.navigator!.didStopUserGesture();
   });
 
-  group('us05/fr01: the seven types of the theme era', () {
+  group('fo05/us05/fr01: the seven types of the theme era', () {
     testWidgets('platform shows the Cupertino slide on iOS and takes its '
         'durations', (tester) async {
       final route = await _push(
@@ -695,7 +827,7 @@ void main() {
       );
     }, variant: TargetPlatformVariant.all());
 
-    testWidgets("us05/fr03/e02: cupertino keeps Flutter's curve, not the "
+    testWidgets("fo05/us05/fr03/e02: cupertino keeps Flutter's curve, not the "
         "theme's standard one", (tester) async {
       await _push(
         tester,
@@ -783,28 +915,32 @@ void main() {
       expect(transition.fillColor, Theme.of(tester.element(_page)).canvasColor);
     });
 
-    testWidgets("us05/fr03: fadeThrough runs on the theme's standard curve", (
-      tester,
-    ) async {
-      await _push(
-        tester,
-        theme: motionTheme(
-          slow: const Duration(milliseconds: 400),
-          standard: const StratumNamedCurve('easeIn'),
-        ),
-        type: ScreenTransitionType.fadeThrough,
-        child: const SizedBox(key: ValueKey('page')),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
+    testWidgets(
+      "fo05/us05/fr03: fadeThrough runs on the theme's standard curve",
+      (tester) async {
+        await _push(
+          tester,
+          theme: motionTheme(
+            slow: const Duration(milliseconds: 400),
+            standard: const StratumNamedCurve('easeIn'),
+          ),
+          type: ScreenTransitionType.fadeThrough,
+          child: const SizedBox(key: ValueKey('page')),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
 
-      final transition = tester.widget<FadeThroughTransition>(
-        find.ancestor(of: _page, matching: find.byType(FadeThroughTransition)),
-      );
-      expect(
-        transition.animation.value,
-        closeTo(Curves.easeIn.transform(0.25), 1e-9),
-      );
-    });
+        final transition = tester.widget<FadeThroughTransition>(
+          find.ancestor(
+            of: _page,
+            matching: find.byType(FadeThroughTransition),
+          ),
+        );
+        expect(
+          transition.animation.value,
+          closeTo(Curves.easeIn.transform(0.25), 1e-9),
+        );
+      },
+    );
 
     for (final (type, axis) in [
       (
@@ -856,7 +992,7 @@ void main() {
     expect(scopes, findsOneWidget);
   });
 
-  group('us05/fr01: the Material home below a new page', () {
+  group('fo05/us05/fr01: the Material home below a new page', () {
     final home = find.byKey(const ValueKey('home'));
 
     testWidgets('an opaque platform on iOS parallaxes it out', (tester) async {
@@ -917,6 +1053,22 @@ void main() {
       );
     });
 
+    testWidgets('leftToRightJoined leaves it in place: its copy moves '
+        'instead', (tester) async {
+      await _push(
+        tester,
+        type: ScreenTransitionType.leftToRightJoined,
+        childCurrent: const SizedBox.expand(key: ValueKey('copy')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.getTopLeft(home).dx, 0);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('copy'))).dx,
+        greaterThan(0),
+      );
+    });
+
     testWidgets('nfr-u03: under reduce motion cupertino leaves it in place '
         'but for a swipe-back, which it tracks', (tester) async {
       _apply(tester, _Reduce.reduceMotion);
@@ -937,7 +1089,7 @@ void main() {
     });
   });
 
-  group('us05/fr01: a page below a translucent route', () {
+  group('fo05/us05/fr01: a page below a translucent route', () {
     final lower = find.byKey(const ValueKey('lower'));
 
     /// The opacity the fades above [lower] leave it.
@@ -1062,7 +1214,7 @@ void main() {
   });
 
   for (final signal in _Reduce.values) {
-    group('us05/fr03, nfr-u03: under ${signal.name}', () {
+    group('fo05/us05/fr03, nfr-u03: under ${signal.name}', () {
       for (final type in [
         ScreenTransitionType.cupertino,
         ScreenTransitionType.none,
@@ -1214,77 +1366,20 @@ void main() {
     });
   }
 
-  group("us05/fr03: the legacy types run on the theme's standard curve", () {
-    final theme = motionTheme(
-      slow: const Duration(milliseconds: 400),
-      standard: const StratumNamedCurve('easeIn'),
-    );
-    final quarter = Curves.easeIn.transform(0.25);
+  group(
+    "fo05/us05/fr03: the legacy types run on the theme's standard curve",
+    () {
+      final theme = motionTheme(
+        slow: const Duration(milliseconds: 400),
+        standard: const StratumNamedCurve('easeIn'),
+      );
+      final quarter = Curves.easeIn.transform(0.25);
 
-    testWidgets('fade', (tester) async {
-      await _push(
-        tester,
-        theme: theme,
-        type: ScreenTransitionType.fade,
-        child: const SizedBox(key: ValueKey('page')),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-
-      final fade = tester.widget<FadeTransition>(
-        find.ancestor(of: _page, matching: find.byType(FadeTransition)).first,
-      );
-      expect(fade.opacity.value, closeTo(quarter, 1e-9));
-    });
-
-    testWidgets('fade under reduced motion', (tester) async {
-      await _push(
-        tester,
-        theme: theme,
-        type: ScreenTransitionType.fade,
-        child: const SizedBox(key: ValueKey('page')),
-        reducedMotion: true,
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-
-      final fade = tester.widget<FadeTransition>(
-        find.ancestor(of: _page, matching: find.byType(FadeTransition)).first,
-      );
-      expect(fade.opacity.value, closeTo(quarter, 1e-9));
-    });
-
-    testWidgets('rotate', (tester) async {
-      await _push(
-        tester,
-        theme: theme,
-        type: ScreenTransitionType.rotate,
-        alignment: Alignment.center,
-        child: const SizedBox(key: ValueKey('page')),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-
-      final rotation = tester.widget<RotationTransition>(
-        find.ancestor(of: _page, matching: find.byType(RotationTransition)),
-      );
-      expect(rotation.turns.value, closeTo(quarter, 1e-9));
-      final scale = tester.widget<ScaleTransition>(
-        find.ancestor(of: _page, matching: find.byType(ScaleTransition)),
-      );
-      expect(scale.scale.value, closeTo(quarter, 1e-9));
-      final fade = tester.widget<FadeTransition>(
-        find.ancestor(of: _page, matching: find.byType(FadeTransition)),
-      );
-      expect(fade.opacity.value, closeTo(quarter, 1e-9));
-    });
-
-    for (final type in [
-      ScreenTransitionType.rightToLeftWithFade,
-      ScreenTransitionType.leftToRightWithFade,
-    ]) {
-      testWidgets('${type.name} fades on the curve', (tester) async {
+      testWidgets('fade', (tester) async {
         await _push(
           tester,
           theme: theme,
-          type: type,
+          type: ScreenTransitionType.fade,
           child: const SizedBox(key: ValueKey('page')),
         );
         await tester.pump(const Duration(milliseconds: 100));
@@ -1294,6 +1389,68 @@ void main() {
         );
         expect(fade.opacity.value, closeTo(quarter, 1e-9));
       });
-    }
-  });
+
+      testWidgets('fade under reduced motion', (tester) async {
+        await _push(
+          tester,
+          theme: theme,
+          type: ScreenTransitionType.fade,
+          child: const SizedBox(key: ValueKey('page')),
+          reducedMotion: true,
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final fade = tester.widget<FadeTransition>(
+          find.ancestor(of: _page, matching: find.byType(FadeTransition)).first,
+        );
+        expect(fade.opacity.value, closeTo(quarter, 1e-9));
+      });
+
+      testWidgets('rotate', (tester) async {
+        await _push(
+          tester,
+          theme: theme,
+          type: ScreenTransitionType.rotate,
+          alignment: Alignment.center,
+          child: const SizedBox(key: ValueKey('page')),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final rotation = tester.widget<RotationTransition>(
+          find.ancestor(of: _page, matching: find.byType(RotationTransition)),
+        );
+        expect(rotation.turns.value, closeTo(quarter, 1e-9));
+        final scale = tester.widget<ScaleTransition>(
+          find.ancestor(of: _page, matching: find.byType(ScaleTransition)),
+        );
+        expect(scale.scale.value, closeTo(quarter, 1e-9));
+        final fade = tester.widget<FadeTransition>(
+          find.ancestor(of: _page, matching: find.byType(FadeTransition)),
+        );
+        expect(fade.opacity.value, closeTo(quarter, 1e-9));
+      });
+
+      for (final type in [
+        ScreenTransitionType.rightToLeftWithFade,
+        ScreenTransitionType.leftToRightWithFade,
+      ]) {
+        testWidgets('${type.name} fades on the curve', (tester) async {
+          await _push(
+            tester,
+            theme: theme,
+            type: type,
+            child: const SizedBox(key: ValueKey('page')),
+          );
+          await tester.pump(const Duration(milliseconds: 100));
+
+          final fade = tester.widget<FadeTransition>(
+            find
+                .ancestor(of: _page, matching: find.byType(FadeTransition))
+                .first,
+          );
+          expect(fade.opacity.value, closeTo(quarter, 1e-9));
+        });
+      }
+    },
+  );
 }

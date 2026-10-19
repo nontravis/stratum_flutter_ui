@@ -29,6 +29,12 @@ class _RefusingKit implements PerfKit {
   @override
   Widget container({WidgetStyle? style, Widget? child}) =>
       throw StateError('container called');
+
+  @override
+  Widget reorderList({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  }) => throw StateError('reorderList called');
 }
 
 void main() {
@@ -50,6 +56,7 @@ void main() {
           'S4',
           'S5',
           'S6-intrinsic',
+          'S7',
         ],
       );
     });

@@ -9,8 +9,7 @@ import WebKit
   #error("Unsupported platform.")
 #endif
 
-/// The iOS and macOS half of the native sender channel of `StratumWebView`
-/// (docs/specs/stratum_ui/components/common/web_view/s01_architecture.md).
+/// The iOS and macOS half of the native sender channel of `StratumWebView`.
 ///
 /// `attach` adds a script message handler named `StratumBridge` and a
 /// document-start alias `window.StratumBridge` to the `WKWebView` that
@@ -25,6 +24,7 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
   private let channel: FlutterMethodChannel
   private let registrar: FlutterPluginRegistrar
   private var handlers: [Int64: BridgeMessageHandler] = [:]
+  private var radiusProbe: StratumRadiusProbe?
 
   init(channel: FlutterMethodChannel, registrar: FlutterPluginRegistrar) {
     self.channel = channel
@@ -40,6 +40,7 @@ public final class StratumUiPlugin: NSObject, FlutterPlugin {
     let channel = FlutterMethodChannel(name: channelName, binaryMessenger: messenger)
     let instance = StratumUiPlugin(channel: channel, registrar: registrar)
     registrar.addMethodCallDelegate(instance, channel: channel)
+    instance.radiusProbe = StratumRadiusProbe.register(with: messenger, registrar: registrar)
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

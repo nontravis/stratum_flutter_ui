@@ -1,11 +1,11 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/theme_source.freezed.dart';
 
 /// One `theme.yaml` file that `StratumThemeConfig.parse` reads.
 @immutable
-@themeModel
+@valueModel
 class StratumThemeSource with _$StratumThemeSource {
   const new({required this.id, required this.folder, required this.yaml});
 

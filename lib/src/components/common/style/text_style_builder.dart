@@ -1,4 +1,7 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
+
+part 'generated/text_style_builder.freezed.dart';
 
 /// An immutable text recipe: a type, a size, a weight, a color, and
 /// optional overrides of the screen environment.
@@ -15,8 +18,14 @@ import 'package:stratum_ui/src/src.dart';
 /// [build] computes the line height and letter spacing for the text scaler
 /// of the nearest [MediaQuery]. A [Text] that sets its own `textScaler`
 /// must pass the same scaler through [textScaler].
-@immutable
-class StratumTextStyle {
+///
+/// `copyWith` sets fields verbatim: `copyWith(fontSize: ...)` leaves
+/// [customSize] in place, and `copyWith(colorRole: ...)` leaves
+/// [customColor] in place, so the override still wins when [build] resolves
+/// the recipe. Change a size or color with [size] or a `color*` getter
+/// instead, which clear the matching override.
+@valueModel
+class StratumTextStyle with _$StratumTextStyle {
   const new _({
     required this.fontType,
     this.fontSize = FontSize.s16,
@@ -32,7 +41,13 @@ class StratumTextStyle {
     this.localeOverride,
     this.windowSizeOverride,
     this.textScalerOverride,
-  });
+  }) : assert(
+         // `customSize.isFinite` is not const-evaluable; comparisons are,
+         // and a NaN comparison is false either way (IEEE 754), which
+         // rejects it along with 0, a negative, or an infinite value.
+         customSize == null || (customSize > 0 && customSize < double.infinity),
+         'StratumTextStyle.size must be a finite number above 0',
+       );
 
   // Type
 
@@ -122,7 +137,8 @@ class StratumTextStyle {
   StratumTextStyle get s56 => _copy(fontSize: FontSize.s56);
 
   /// A size of [size] logical pixels with the metrics of the nearest named
-  /// size.
+  /// size; [size] is a finite number above 0. A release build, which skips
+  /// the assert, draws any other [size] at `s16`.
   StratumTextStyle size(double size) =>
       _copy(fontSize: FontSize.s16, customSize: size);
 
@@ -230,44 +246,6 @@ class StratumTextStyle {
         TextScaler.noScaling,
   );
 
-  // Equality
-
-  @override
-  bool operator ==(Object other) =>
-      other is StratumTextStyle &&
-      other.fontType == fontType &&
-      other.fontSize == fontSize &&
-      other.customSize == customSize &&
-      other.fontWeight == fontWeight &&
-      other.isMono == isMono &&
-      other.fontStyle == fontStyle &&
-      other.textDecoration == textDecoration &&
-      listEquals(other.textShadows, textShadows) &&
-      other.colorRole == colorRole &&
-      other.customColor == customColor &&
-      other.themeModeOverride == themeModeOverride &&
-      other.localeOverride == localeOverride &&
-      other.windowSizeOverride == windowSizeOverride &&
-      other.textScalerOverride == textScalerOverride;
-
-  @override
-  int get hashCode => Object.hash(
-    fontType,
-    fontSize,
-    customSize,
-    fontWeight,
-    isMono,
-    fontStyle,
-    textDecoration,
-    Object.hashAll(textShadows ?? const <Shadow>[]),
-    colorRole,
-    customColor,
-    themeModeOverride,
-    localeOverride,
-    windowSizeOverride,
-    textScalerOverride,
-  );
-
   // Helpers
 
   /// A copy with the given fields. Setting [fontSize] also sets
@@ -287,8 +265,7 @@ class StratumTextStyle {
     Locale? localeOverride,
     WindowSize? windowSizeOverride,
     TextScaler? textScalerOverride,
-  }) => StratumTextStyle._(
-    fontType: fontType,
+  }) => copyWith(
     fontSize: fontSize ?? this.fontSize,
     customSize: fontSize == null ? this.customSize : customSize,
     fontWeight: fontWeight ?? this.fontWeight,

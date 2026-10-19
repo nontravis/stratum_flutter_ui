@@ -4,19 +4,22 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:stratum_ui/src/themes/config/animation_config.dart';
 import 'package:stratum_ui/src/themes/config/by_window_size.dart';
 import 'package:stratum_ui/src/themes/config/pipeline/parse_values.dart';
+import 'package:stratum_ui/src/themes/config/shadow_layer.dart';
 import 'package:stratum_ui/src/themes/config/theme_asset.dart';
 import 'package:stratum_ui/src/themes/config/theme_convert.dart';
-import 'package:stratum_ui/src/themes/config/theme_model.dart';
 import 'package:stratum_ui/src/themes/config/theme_source.dart';
+import 'package:stratum_ui/src/themes/focus_tokens.dart';
+import 'package:stratum_ui/src/themes/system/system_style.dart';
 import 'package:stratum_ui/src/themes/typography/dimension.dart';
 import 'package:stratum_ui/src/themes/typography/google_fonts_lookup.dart';
 import 'package:stratum_ui/src/themes/typography/typography.dart';
+import 'package:stratum_ui/src/themes/value_model.dart';
 
 part 'generated/theme_config.freezed.dart';
 
 /// The typed data of a theme: the package default with every app layer
 /// merged over it, aliases resolved (spec section 8).
-@themeModel
+@valueModel
 abstract class StratumThemeConfig with _$StratumThemeConfig {
   const factory({
     required String name,
@@ -36,6 +39,36 @@ abstract class StratumThemeConfig with _$StratumThemeConfig {
 
     /// The merged `animation` group (spec section 8.1).
     required StratumAnimationConfig animation,
+
+    /// The merged `opacity` group: `disabled`, the opacity of a disabled
+    /// component (FO-08 US-07), and `scrim`, a modal layout's background
+    /// scrim (FO-06 US-20), each from 0 to 1; 0.5 in the package default.
+    required Map<String, double> opacity,
+
+    /// The merged `border` group: `sm`, `md`, `lg`, each a width in logical
+    /// pixels of 0 or more (config s03 invariant 12); 0.5, 1, 1.5 in the
+    /// package default.
+    required Map<String, double> border,
+
+    /// The merged `shadow` group: `"1"` to `"6"`, each a list of layers in
+    /// the Figma effect order (config s03 invariant 13); an empty list is no
+    /// shadow.
+    required Map<String, List<StratumShadowLayer>> shadow,
+
+    /// The merged `blur` group: `"1"` to `"6"`, each a Figma background blur
+    /// radius of 0 or more (config s03 invariant 14).
+    required Map<String, double> blur,
+
+    /// The merged `system` group (config s03 invariant 16): `light`,
+    /// `dark`, `highContrastLight`, and `highContrastDark`, each the look
+    /// of the system bars, a high-contrast set laid over its base set.
+    required Map<String, SystemStyle> system,
+
+    /// The merged `focus` group (config s03 invariant 19): `light`, `dark`,
+    /// `highContrastLight`, and `highContrastDark`, each the focus ring's
+    /// level 0, a high-contrast set laid over its base set; a set the parse
+    /// could not read whole has no entry.
+    required Map<String, StratumFocusTokens> focus,
 
     /// The merged `extensions` group as plain Dart values: maps with string
     /// keys, lists, strings, numbers, booleans, and null. Never
@@ -63,7 +96,7 @@ abstract class StratumThemeConfig with _$StratumThemeConfig {
 
 /// The four color sets of a theme; each maps a token path inside the set
 /// (`brand.normal`, `background.color.brand`, `app.<name>`) to its color.
-@themeModel
+@valueModel
 abstract class StratumColorSets with _$StratumColorSets {
   const factory({
     /// 192 entries for the package default.

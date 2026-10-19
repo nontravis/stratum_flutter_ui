@@ -1,4 +1,5 @@
 import 'package:stratum_ui/src/src.dart';
+import 'package:stratum_ui/src/themes/config/focus_names.dart';
 import 'package:stratum_ui/src/themes/config/plain_by_window_size.dart';
 import 'package:stratum_ui/src/themes/config/plain_theme_config.dart';
 import 'package:stratum_ui/src/themes/config/reader.dart';
@@ -23,7 +24,10 @@ StratumByWindowSize<StratumDimension> convertByWindowSize(
 StratumTypography convertTypography(PlainTypography plain) => StratumTypography(
   fonts: plain.fonts,
   families: plain.families,
-  scaleByWindowSize: convertByWindowSize(plain.scaleByWindowSize),
+  scaleByWindowSize: switch (plain.scaleByWindowSize) {
+    final scale? => convertByWindowSize(scale),
+    null => null,
+  },
   types: frozenMap({
     for (final MapEntry(key: type, value: style) in plain.types.entries)
       type: StratumTypeStyle(
@@ -61,6 +65,18 @@ StratumThemeConfig convertThemeConfig(PlainThemeConfig plain) =>
       ),
       typography: convertTypography(plain.typography),
       animation: plain.animation,
+      opacity: plain.opacity,
+      border: plain.border,
+      shadow: plain.shadow,
+      blur: plain.blur,
+      system: frozenMap({
+        for (final MapEntry(:key, :value) in plain.system.entries)
+          key: convertSystemLook(value),
+      }),
+      focus: frozenMap({
+        for (final MapEntry(:key, :value) in plain.focus.entries)
+          key: ?convertFocusLook(value),
+      }),
       extensions: plain.extensions,
     );
 
@@ -71,6 +87,84 @@ Map<String, StratumByWindowSize<StratumDimension>> _tokens(
     key: convertByWindowSize(value),
 });
 
+/// [plain], one `system` set as stage 5 reads it, as the [SystemStyle] of
+/// its eight look fields (config s03 invariant 16).
+SystemStyle convertSystemLook(Map<String, Object> plain) => SystemStyle(
+  statusBarIcons: _icons(plain['statusBarIcons']),
+  statusBarColor: _color(plain['statusBarColor']),
+  statusBarContrast: plain['statusBarContrast'] as bool?,
+  navigationBarIcons: _icons(plain['navigationBarIcons']),
+  navigationBarColor: _color(plain['navigationBarColor']),
+  navigationBarDividerColor: _color(plain['navigationBarDividerColor']),
+  navigationBarContrast: plain['navigationBarContrast'] as bool?,
+  appSwitcherColor: _color(plain['appSwitcherColor']),
+);
+
+/// [plain], one `focus` set as stage 5 reads it, as the
+/// [StratumFocusTokens] of its six values (config s03 invariant 19); null
+/// when a value failed, so the set is not whole and the parse throws.
+StratumFocusTokens? convertFocusLook(Map<String, Object> plain) {
+  if (!focusKeys.every(plain.containsKey)) return null;
+  return StratumFocusTokens(
+    outsideColor: Color(plain['outside.color']! as int),
+    outsideWidth: plain['outside.width']! as double,
+    outsideGap: plain['outside.gap']! as double,
+    insideColor: Color(plain['inside.color']! as int),
+    insideHoveredWidth: plain['inside.width.hovered']! as double,
+    insideFocusedWidth: plain['inside.width.focused']! as double,
+  );
+}
+
+SystemBarIcons? _icons(Object? name) =>
+    name == null ? null : SystemBarIcons.values.byName(name as String);
+
+Color? _color(Object? argb) => argb == null ? null : Color(argb as int);
+
 Map<String, Color> _colors(Map<String, int> argb) => frozenMap({
   for (final MapEntry(:key, :value) in argb.entries) key: Color(value),
 });
+
+/// The `BoxShadow` of one shadow [layer] (themes s03
+/// `StratumShadowTokens`): its offset and spread as written, its blur by
+/// [shadowBlurRadius], and its color fixed by the layer or, for a
+/// [StratumSetLayerColor], taken from [setColors], one color set's colors
+/// by their path inside the set. Throws an [ArgumentError] naming a set
+/// path [setColors] lacks.
+BoxShadow convertShadowLayer(
+  StratumShadowLayer layer,
+  Map<String, Color> setColors,
+) => BoxShadow(
+  offset: Offset(layer.x, layer.y),
+  blurRadius: shadowBlurRadius(layer.blur),
+  spreadRadius: layer.spread,
+  color: switch (layer.color) {
+    StratumFixedLayerColor(:final argb) => Color(argb),
+    StratumSetLayerColor(:final path) =>
+      setColors[path] ??
+          (throw ArgumentError.value(
+            path,
+            'path',
+            'no color at this path in the theme config',
+          )),
+  },
+);
+
+/// The `blurRadius` that paints a Figma shadow blur [blur] at the Figma
+/// and CSS strength, sigma `blur / 2` (themes s03 `StratumShadowTokens`).
+/// Flutter paints a radius above 0 at sigma `0.57735 * radius + 0.5`
+/// (`Shadow.convertRadiusToSigma`), so a blur above 1 takes
+/// `(blur / 2 - 0.5) / 0.57735`; a blur above 0 up to 1 takes the
+/// smallest positive radius, sigma 0.5, Flutter's floor, which equals
+/// `blur / 2` at 1; and 0 stays 0, no blur. Setting the radius, never a
+/// sigma, keeps `BoxShadow.lerp` correct.
+double shadowBlurRadius(double blur) {
+  if (blur <= 0) return 0;
+  if (blur <= 1) return double.minPositive;
+  return (blur / 2 - 0.5) / 0.57735;
+}
+
+/// The background blur of a Figma blur [radius] (themes s03
+/// `StratumBlurTokens`): sigma `radius / 2` on both axes, since a Figma
+/// radius is twice the CSS and Flutter standard deviation.
+ImageBlurFilter convertBlur(double radius) =>
+    ImageBlurFilter(sigmaX: radius / 2, sigmaY: radius / 2);

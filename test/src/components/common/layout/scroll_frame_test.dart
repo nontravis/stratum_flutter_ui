@@ -1,3 +1,8 @@
+// NFR-U04 n/a: the area paints no text of its own; its content scrolls
+// inside it (US-07 gate block).
+// NFR-U05 n/a: the area takes no tap of its own; the tap surfaces inside it
+// meet US-04 FR-06 (US-07 gate block).
+
 import 'package:flutter/rendering.dart' show ViewportOffset;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/layout/scroll_frame.dart';
@@ -174,12 +179,12 @@ Widget _groupRow(List<FocusNode> items) {
   return RowLayout(
     mainAxisSize: MainAxisSize.min,
     gap: 8,
-    focusGroup: const StratumFocusGroup(),
+    focusGroup: const FocusGroup(),
     children: [
       for (final item in items)
         ContainerLayout(
           style: const WidgetStyle(width: 64, height: 48),
-          interaction: StratumInteraction(onTap: () {}, focusNode: item),
+          interaction: Interaction(onTap: () {}, focusNode: item),
         ),
     ],
   );
@@ -320,6 +325,36 @@ BorderSide? _visibleRing(WidgetTester tester) {
 /// inner edge.
 bool _ringInside(WidgetTester tester) =>
     _visibleRing(tester)!.strokeAlign == BorderSide.strokeAlignInside;
+
+/// A 200 x 200 focusable scrolling area over 2000 px of content, styled at
+/// level 3 by [customStyle], under [parts], in the middle of the window.
+Widget _area({
+  ScrollFocusStyle? customStyle,
+  Map<Type, Object> parts = const {},
+  StratumThemeData? theme,
+}) => themedHost(
+  StratumComponentDefaults(
+    styles: const {},
+    parts: parts,
+    child: SizedBox(
+      width: 200,
+      height: 200,
+      child: ScrollFocus(
+        focusable: true,
+        axis: Axis.vertical,
+        semanticsLabel: 'Items',
+        customStyle: customStyle,
+        child: Builder(
+          builder: (context) => ListView(
+            controller: ScrollFocus.controllerOf(context),
+            children: const [SizedBox(height: 2000)],
+          ),
+        ),
+      ),
+    ),
+  ),
+  theme: theme,
+);
 
 void main() {
   group('ScrollFrame', () {
@@ -486,8 +521,8 @@ void main() {
       expect(received, [isA<ScrollController>(), style.padding]);
     });
 
-    testWidgets('builds no box without a style and no content group when '
-        'not focusable', (tester) async {
+    testWidgets('builds no box without a style, and the content group also '
+        'when not focusable', (tester) async {
       await tester.pumpWidget(themedHost(box(focusable: false)));
 
       expect(find.byType(ContainerLayout), findsNothing);
@@ -496,7 +531,7 @@ void main() {
           of: find.byType(ScrollFocus),
           matching: find.byType(FocusTraversalGroup),
         ),
-        findsNothing,
+        findsOneWidget,
       );
       expect(
         tester.widget<ScrollFocus>(find.byType(ScrollFocus)).focusable,
@@ -585,81 +620,81 @@ void main() {
   });
 
   group('ScrollFocus', () {
-    testWidgets(
-      'us07/fr03/e04: the viewport takes focus, carries its label, and shows '
-      'an unclipped ring',
-      (tester) async {
-        _useTraditionalHighlight();
-        final handle = tester.ensureSemantics();
-        final before = _node();
-        await tester.pumpWidget(
-          themedHost(
-            _keyboardHost(
-              const ListViewLayout.builder(
-                style: WidgetStyle(
-                  backgroundColor: Color(0xFFFFFFFF),
-                  borderRadius: BorderRadius.all(Radius.circular(12)),
-                ),
-                semanticsLabel: 'Results',
-                itemCount: 50,
-                itemBuilder: _item,
-              ),
-              before: before,
-            ),
-          ),
-        );
-
-        await _tabIn(tester, before);
-
-        expect(_viewportFocused(), isTrue);
-        expect(
-          tester
-              .widget<StratumFocusBorder>(find.byType(StratumFocusBorder))
-              .state,
-          FullWidgetState.focused,
-        );
-        expect(
-          find.ancestor(
-            of: find.byType(StratumFocusBorder),
-            matching: find.byType(ClipRRect),
-          ),
-          findsNothing,
-        );
-        expect(
-          tester.getSemantics(find.bySemanticsLabel('Results')),
-          isSemantics(label: 'Results', isFocusable: true, isFocused: true),
-        );
-        handle.dispose();
-      },
-      variant: TargetPlatformVariant.desktop(),
-    );
-
-    testWidgets('us07/s1: arrows, Page Down, Home, and End scroll the focused '
-        'viewport', (tester) async {
+    testWidgets('fo06/us07/fr03/e04: the viewport takes focus, carries its label, and shows '
+        'an unclipped ring', (tester) async {
+      _useTraditionalHighlight();
+      final handle = tester.ensureSemantics();
       final before = _node();
       await tester.pumpWidget(
         themedHost(
           _keyboardHost(
-            const ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
+            const ListViewLayout.builder(
+              style: WidgetStyle(
+                backgroundColor: Color(0xFFFFFFFF),
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+              ),
+              semanticsLabel: 'Results',
+              itemCount: 50,
+              itemBuilder: _item,
+            ),
             before: before,
           ),
         ),
       );
+
       await _tabIn(tester, before);
 
-      await _key(tester, LogicalKeyboardKey.arrowDown);
-      expect(_pixels(tester), 50);
-      await _key(tester, LogicalKeyboardKey.pageDown);
-      expect(_pixels(tester), 50 + 0.8 * 300);
-      await _key(tester, LogicalKeyboardKey.arrowUp);
-      expect(_pixels(tester), 0.8 * 300);
-      await _key(tester, LogicalKeyboardKey.end);
-      expect(_pixels(tester), 50 * 40 - 300);
-      await _key(tester, LogicalKeyboardKey.home);
-      expect(_pixels(tester), 0);
+      expect(_viewportFocused(), isTrue);
+      expect(
+        tester
+            .widget<StratumFocusBorder>(find.byType(StratumFocusBorder))
+            .state,
+        FullWidgetState.focused,
+      );
+      expect(
+        find.ancestor(
+          of: find.byType(StratumFocusBorder),
+          matching: find.byType(ClipRRect),
+        ),
+        findsNothing,
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Results')),
+        isSemantics(label: 'Results', isFocusable: true, isFocused: true),
+      );
+      handle.dispose();
     }, variant: TargetPlatformVariant.desktop());
 
-    testWidgets('us07/s2: Down scrolls a focused list by 50 px', (
+    testWidgets(
+      'fo06/us07/fr02, fo06/us07/s1, fo06/us07/s2, fo06/us07/s3: arrows, '
+      'Page Down, Home, and End scroll the focused viewport',
+      (tester) async {
+        final before = _node();
+        await tester.pumpWidget(
+          themedHost(
+            _keyboardHost(
+              const ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
+              before: before,
+            ),
+          ),
+        );
+        await _tabIn(tester, before);
+
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(_pixels(tester), 50);
+        await _key(tester, LogicalKeyboardKey.pageDown);
+        expect(_pixels(tester), 50 + 0.8 * 300);
+        await _key(tester, LogicalKeyboardKey.arrowUp);
+        expect(_pixels(tester), 0.8 * 300);
+        await _key(tester, LogicalKeyboardKey.end);
+        expect(_pixels(tester), 50 * 40 - 300);
+        await _key(tester, LogicalKeyboardKey.home);
+        expect(_pixels(tester), 0);
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
+
+    testWidgets('fo06/us07/s2: Down scrolls a focused list by 50 px', (
       tester,
     ) async {
       final before = _node();
@@ -703,7 +738,7 @@ void main() {
       expect(find.byKey(const ValueKey(0)), findsOneWidget);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets('us07/s3: End reaches the true end of a lazy list', (
+    testWidgets('fo06/us07/s3: End reaches the true end of a lazy list', (
       tester,
     ) async {
       final before = _node();
@@ -730,70 +765,68 @@ void main() {
       expect(find.byKey(const ValueKey(199)), findsOneWidget);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets('us07/s4: Page Down scrolls while a button item holds focus', (
-      tester,
-    ) async {
-      final before = _node();
-      final button = _node();
-      await tester.pumpWidget(
-        themedHost(
-          _keyboardHost(
-            ListViewLayout.builder(
-              itemCount: 50,
-              itemBuilder: (context, index) => index == 0
-                  ? StratumInkWell(
-                      onTap: () {},
-                      focusNode: button,
-                      child: const SizedBox(height: 40),
-                    )
-                  : _item(context, index),
-            ),
-            before: before,
-          ),
-        ),
-      );
-      button.requestFocus();
-      await tester.pump();
-
-      await _key(tester, LogicalKeyboardKey.pageDown);
-
-      expect(_pixels(tester), 0.8 * 300);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
-
     testWidgets(
-      'us07/s6: Home and End inside a TextField item leave the list where it '
-      'is',
+      'fo06/us07/s4: Page Down scrolls while a button item holds focus',
       (tester) async {
-        final field = _node();
+        final before = _node();
+        final button = _node();
         await tester.pumpWidget(
-          MaterialApp(
-            home: Material(
-              child: themedHost(
-                SizedBox(
-                  width: 200,
-                  height: 300,
-                  child: ListViewLayout.builder(
-                    itemCount: 50,
-                    itemBuilder: (context, index) => index == 0
-                        ? TextField(focusNode: field)
-                        : _item(context, index),
-                  ),
+          themedHost(
+            _keyboardHost(
+              ListViewLayout.builder(
+                itemCount: 50,
+                itemBuilder: (context, index) => index == 0
+                    ? StratumInkWell(
+                        onTap: () {},
+                        focusNode: button,
+                        child: const SizedBox(height: 40),
+                      )
+                    : _item(context, index),
+              ),
+              before: before,
+            ),
+          ),
+        );
+        button.requestFocus();
+        await tester.pump();
+
+        await _key(tester, LogicalKeyboardKey.pageDown);
+
+        expect(_pixels(tester), 0.8 * 300);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets('fo06/us07/s6: Home and End inside a TextField item leave the list where it '
+        'is', (tester) async {
+      final field = _node();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: themedHost(
+              SizedBox(
+                width: 200,
+                height: 300,
+                child: ListViewLayout.builder(
+                  itemCount: 50,
+                  itemBuilder: (context, index) => index == 0
+                      ? TextField(focusNode: field)
+                      : _item(context, index),
                 ),
               ),
             ),
           ),
-        );
-        field.requestFocus();
-        await tester.pump();
+        ),
+      );
+      field.requestFocus();
+      await tester.pump();
 
-        await _key(tester, LogicalKeyboardKey.end);
-        await _key(tester, LogicalKeyboardKey.pageDown);
+      await _key(tester, LogicalKeyboardKey.end);
+      await _key(tester, LogicalKeyboardKey.pageDown);
 
-        expect(_pixels(tester), 0);
-        expect(field.hasPrimaryFocus, isTrue);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(_pixels(tester), 0);
+      expect(field.hasPrimaryFocus, isTrue);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets(
       'a list with primary: null on iOS scrolls the PrimaryScrollController',
@@ -825,7 +858,7 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.iOS),
     );
 
-    testWidgets("a box layout's keys scroll through StratumScroll.controller", (
+    testWidgets("a box layout's keys scroll through Scroll.controller", (
       tester,
     ) async {
       final before = _node();
@@ -835,7 +868,7 @@ void main() {
           _keyboardHost(
             ColumnLayout(
               style: const WidgetStyle(backgroundColor: Color(0xFFFFFFFF)),
-              scroll: StratumScroll(controller: controller),
+              scroll: Scroll(controller: controller),
               children: const [SizedBox(height: 2000)],
             ),
             before: before,
@@ -858,7 +891,7 @@ void main() {
           themedHost(
             _keyboardHost(
               const RowLayout(
-                scroll: StratumScroll(),
+                scroll: Scroll(),
                 children: [SizedBox(width: 2000, height: 20)],
               ),
               before: before,
@@ -887,8 +920,8 @@ void main() {
           _keyboardHost(
             ColumnLayout(
               style: const WidgetStyle(),
-              interaction: StratumInteraction(onTap: () {}, focusNode: surface),
-              scroll: const StratumScroll(),
+              interaction: Interaction(onTap: () {}, focusNode: surface),
+              scroll: const Scroll(),
               children: const [SizedBox(height: 2000)],
             ),
             before: before,
@@ -919,8 +952,8 @@ void main() {
           _keyboardHost(
             ColumnLayout(
               style: const WidgetStyle(),
-              interaction: StratumInteraction(onHover: (_) {}),
-              scroll: const StratumScroll(),
+              interaction: Interaction(onHover: (_) {}),
+              scroll: const Scroll(),
               children: const [SizedBox(height: 2000)],
             ),
             before: before,
@@ -943,8 +976,8 @@ void main() {
           _keyboardHost(
             ColumnLayout(
               style: const WidgetStyle(),
-              interaction: StratumInteraction(onTap: () {}, disabled: true),
-              scroll: const StratumScroll(),
+              interaction: Interaction(onTap: () {}, disabled: true),
+              scroll: const Scroll(),
               children: const [SizedBox(height: 2000)],
             ),
             before: before,
@@ -972,11 +1005,8 @@ void main() {
               height: 300,
               child: ColumnLayout(
                 style: const WidgetStyle(),
-                interaction: StratumInteraction(
-                  onTap: () {},
-                  disabled: disabled,
-                ),
-                scroll: StratumScroll(controller: controller),
+                interaction: Interaction(onTap: () {}, disabled: disabled),
+                scroll: Scroll(controller: controller),
                 children: const [_Probe()],
               ),
             ),
@@ -1015,12 +1045,12 @@ void main() {
             _keyboardHost(
               ColumnLayout(
                 style: const WidgetStyle(),
-                interaction: StratumInteraction(
+                interaction: Interaction(
                   onTap: () => taps++,
                   focusNode: surface,
                   disabled: disabled,
                 ),
-                scroll: const StratumScroll(),
+                scroll: const Scroll(),
                 children: const [SizedBox(height: 2000)],
               ),
               before: before,
@@ -1061,12 +1091,12 @@ void main() {
             _keyboardHost(
               ColumnLayout(
                 style: const WidgetStyle(),
-                interaction: StratumInteraction(
+                interaction: Interaction(
                   onTap: () {},
                   focusNode: surface,
                   disabled: disabled,
                 ),
-                scroll: const StratumScroll(),
+                scroll: const Scroll(),
                 children: [
                   StratumInkWell(
                     onTap: () {},
@@ -1111,7 +1141,7 @@ void main() {
         themedHost(
           _keyboardHost(
             const RowLayout(
-              scroll: StratumScroll(),
+              scroll: Scroll(),
               children: [SizedBox(width: 2000, height: 20)],
             ),
             before: before,
@@ -1126,49 +1156,52 @@ void main() {
       expect(_pixels(tester), 0);
     }, variant: TargetPlatformVariant.desktop());
 
-    testWidgets(
-      'us07/fr03/e03: a desktop list without a theme takes focus and builds '
-      'no ring',
-      (tester) async {
-        final before = _node();
-        await tester.pumpWidget(
-          Directionality(
-            textDirection: TextDirection.ltr,
-            child: Center(
-              child: _keyboardHost(
-                const ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
-                before: before,
-              ),
-            ),
-          ),
-        );
-        await _tabIn(tester, before);
-
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-
-        expect(tester.takeException(), isNull);
-        expect(_viewportFocused(), isTrue);
-        expect(find.byType(StratumFocusBorder), findsNothing);
-        expect(_pixels(tester), 50);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.linux),
-    );
-
-    testWidgets('us07/s7: (pin) a mobile list is no Tab stop and keeps its own '
-        'controller', (tester) async {
+    testWidgets('fo06/us07/fr03/e03: a desktop list without a theme takes focus and builds '
+        'no ring', (tester) async {
+      final before = _node();
       await tester.pumpWidget(
-        themedHost(
-          const SizedBox(
-            width: 200,
-            height: 300,
-            child: ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: _keyboardHost(
+              const ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
+              before: before,
+            ),
           ),
         ),
       );
+      await _tabIn(tester, before);
 
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+
+      expect(tester.takeException(), isNull);
+      expect(_viewportFocused(), isTrue);
       expect(find.byType(StratumFocusBorder), findsNothing);
-      expect(tester.widget<ListView>(find.byType(ListView)).controller, isNull);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+      expect(_pixels(tester), 50);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+    testWidgets(
+      'fo06/us07/s7: (pin) a mobile list is no Tab stop and keeps its own '
+      'controller',
+      (tester) async {
+        await tester.pumpWidget(
+          themedHost(
+            const SizedBox(
+              width: 200,
+              height: 300,
+              child: ListViewLayout.builder(itemCount: 50, itemBuilder: _item),
+            ),
+          ),
+        );
+
+        expect(find.byType(StratumFocusBorder), findsNothing);
+        expect(
+          tester.widget<ListView>(find.byType(ListView)).controller,
+          isNull,
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.android),
+    );
   });
 
   group('ScrollFocus lines mode motion', () {
@@ -1194,7 +1227,7 @@ void main() {
     }
 
     testWidgets(
-      "an arrow jumps 50 px under the app's reduced motion (us07/fr04)",
+      "an arrow jumps 50 px under the app's reduced motion (fo06/us07/fr04)",
       (tester) async {
         await focusList(
           tester,
@@ -1209,26 +1242,28 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
 
-    testWidgets("us07/s8: Page Down jumps under the platform's reduceMotion", (
-      tester,
-    ) async {
-      tester.platformDispatcher.accessibilityFeaturesTestValue =
-          const FakeAccessibilityFeatures(reduceMotion: true);
-      addTearDown(
-        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-      );
-      await focusList(tester);
+    testWidgets(
+      "fo06/us07/s8: Page Down jumps under the platform's reduceMotion",
+      (tester) async {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(reduceMotion: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        await focusList(tester);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-      await tester.pump();
-      expect(_pixels(tester), 50);
-      await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
-      await tester.pump();
-      expect(_pixels(tester), 50 + 0.8 * 300);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        expect(_pixels(tester), 50);
+        await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+        await tester.pump();
+        expect(_pixels(tester), 50 + 0.8 * 300);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
 
     testWidgets(
-      "an arrow moves over the theme's fast level on its curve (us07/fr04)",
+      "an arrow moves over the theme's fast level on its curve (fo06/us07/fr04)",
       (tester) async {
         final theme = motionTheme(
           standard: const StratumNamedCurve('easeInOutQuad'),
@@ -1283,7 +1318,7 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets("us11/fr01: an arrow moves over the theme's fast level", (
+    testWidgets("fo06/us11/fr01: an arrow moves over the theme's fast level", (
       tester,
     ) async {
       await arrowDown(tester, (before) => list(before, theme: motionTheme()));
@@ -1295,15 +1330,19 @@ void main() {
       expect(_pixels(tester), 50);
     }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 
-    testWidgets("us11/fr01: with no theme an arrow takes the package default's "
-        'fast level', (tester) async {
-      await arrowDown(tester, (before) => list(before, themed: false));
+    testWidgets(
+      "fo06/us11/fr01: with no theme an arrow takes the package default's "
+      'fast level',
+      (tester) async {
+        await arrowDown(tester, (before) => list(before, themed: false));
 
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(_pixels(tester), lessThan(50));
-      await tester.pump(const Duration(milliseconds: 26));
-      expect(_pixels(tester), 50);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(_pixels(tester), lessThan(50));
+        await tester.pump(const Duration(milliseconds: 26));
+        expect(_pixels(tester), 50);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.linux),
+    );
   });
 
   group('ScrollFocus pages mode', () {
@@ -1430,7 +1469,7 @@ void main() {
       expect(page(tester), 1);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets("us11/fr01: a page change slides over the theme's slow "
+    testWidgets("fo06/us11/fr01: a page change slides over the theme's slow "
         'level', (tester) async {
       await focusView(tester, themedHost(pages(), theme: motionTheme()));
 
@@ -1447,7 +1486,7 @@ void main() {
       expect(page(tester), 1);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets("us10/fr01/e07: a page change jumps when the theme's slow "
+    testWidgets("fo06/us10/fr01/e07: a page change jumps when the theme's slow "
         'level has no duration', (tester) async {
       await focusView(
         tester,
@@ -1460,26 +1499,31 @@ void main() {
       expect(page(tester), 1);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets('us10/fr01/e07: a page change jumps when the slow level has no '
-        'fields at all', (tester) async {
-      final theme = fakeTheme.copyWith(
-        animation: StratumAnimation(
-          veryFast: StratumAnimation.packageDefault.veryFast,
-          fast: StratumAnimation.packageDefault.fast,
-          normal: StratumAnimation.packageDefault.normal,
-          slow: const AnimationStyle(),
-          verySlow: StratumAnimation.packageDefault.verySlow,
-          appear: StratumAnimation.packageDefault.appear,
-          defaultLevel: StratumMotionLevel.fast,
-        ),
-      );
-      await focusView(tester, themedHost(pages(), theme: theme));
+    testWidgets(
+      'fo06/us10/fr01/e07: a page change jumps when the slow level has no '
+      'fields at all',
+      (tester) async {
+        final theme = fakeTheme.copyWith(
+          animation: StratumAnimation(
+            micro: StratumAnimation.packageDefault.micro,
+            veryFast: StratumAnimation.packageDefault.veryFast,
+            fast: StratumAnimation.packageDefault.fast,
+            normal: StratumAnimation.packageDefault.normal,
+            slow: const AnimationStyle(),
+            verySlow: StratumAnimation.packageDefault.verySlow,
+            appear: StratumAnimation.packageDefault.appear,
+            defaultLevel: StratumMotionLevel.fast,
+          ),
+        );
+        await focusView(tester, themedHost(pages(), theme: theme));
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-      await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
 
-      expect(page(tester), 1);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+        expect(page(tester), 1);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
 
     testWidgets('reduced motion jumps to the page', (tester) async {
       await focusView(
@@ -1586,7 +1630,7 @@ void main() {
           _webHost(
             ColumnLayout(
               style: const WidgetStyle(padding: EdgeInsets.all(24)),
-              scroll: const StratumScroll(),
+              scroll: const Scroll(),
               crossAxisAlignment: CrossAxisAlignment.start,
               gap: 16,
               children: [
@@ -1671,7 +1715,7 @@ void main() {
 
     final scrollers = <String, Widget Function(List<Widget> items)>{
       'ColumnLayout': (items) => ColumnLayout(
-        scroll: const StratumScroll(),
+        scroll: const Scroll(),
         children: [...items, const SizedBox(height: 400)],
       ),
       'ListViewLayout': (items) => ListViewLayout.builder(
@@ -1785,7 +1829,7 @@ void main() {
                         height: 50,
                         child: RowLayout(
                           style: const WidgetStyle(),
-                          scroll: const StratumScroll(),
+                          scroll: const Scroll(),
                           children: [
                             for (final card in cards)
                               Focus(
@@ -1913,7 +1957,7 @@ void main() {
                   width: 200,
                   height: 200,
                   child: ColumnLayout(
-                    scroll: StratumScroll(controller: page),
+                    scroll: Scroll(controller: page),
                     children: [
                       const SizedBox(height: 50),
                       SizedBox(
@@ -1968,7 +2012,7 @@ void main() {
         // scroller of three 60 px chips.
         final scroller = RowLayout(
           style: const WidgetStyle(),
-          scroll: const StratumScroll(),
+          scroll: const Scroll(),
           children: [
             for (final chip in chips)
               Focus(
@@ -1987,7 +2031,7 @@ void main() {
                   width: 200,
                   height: 200,
                   child: ColumnLayout(
-                    scroll: StratumScroll(controller: page),
+                    scroll: Scroll(controller: page),
                     children: [
                       const SizedBox(height: 50),
                       SizedBox(
@@ -2051,7 +2095,7 @@ void main() {
                     width: 200,
                     height: 200,
                     child: ColumnLayout(
-                      scroll: StratumScroll(controller: view),
+                      scroll: Scroll(controller: view),
                       children: [
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2142,7 +2186,7 @@ void main() {
                     width: 200,
                     height: 200,
                     child: ColumnLayout(
-                      scroll: StratumScroll(controller: view),
+                      scroll: Scroll(controller: view),
                       children: [
                         for (final item in items)
                           Focus(
@@ -2235,49 +2279,39 @@ void main() {
 
   group('ScrollFocus ring placement', () {
     const fullWindow = SizedBox.expand(
-      child: ColumnLayout(
-        scroll: StratumScroll(),
-        children: [SizedBox(height: 2000)],
-      ),
+      child: ColumnLayout(scroll: Scroll(), children: [SizedBox(height: 2000)]),
     );
     const smallBox = SizedBox(
       width: 200,
       height: 300,
-      child: ColumnLayout(
-        scroll: StratumScroll(),
-        children: [SizedBox(height: 2000)],
-      ),
+      child: ColumnLayout(scroll: Scroll(), children: [SizedBox(height: 2000)]),
     );
 
-    testWidgets(
-      'us07/s5: a scrolling box that fills the window draws its ring inside '
-      'its edge, over the content and unclipped',
-      (tester) async {
-        _useTraditionalHighlight();
-        await tester.pumpWidget(themedHost(fullWindow));
+    testWidgets('fo06/us07/s5: a scrolling box that fills the window draws its ring inside '
+        'its edge, over the content and unclipped', (tester) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(themedHost(fullWindow));
 
-        _scrollFocusNode(tester).requestFocus();
-        await tester.pumpAndSettle();
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
 
-        final side = _visibleRing(tester)!;
-        expect(side.strokeAlign, BorderSide.strokeAlignInside);
-        expect(side.width, 3);
-        expect(side.color, isSameColorAs(fakeTheme.color.border.subtle.blue));
-        expect(
-          find.ancestor(
-            of: find.byType(StratumFocusBorder),
-            matching: find.byWidgetPredicate(
-              (widget) => widget is ClipRect || widget is ClipRRect,
-            ),
+      final side = _visibleRing(tester)!;
+      expect(side.strokeAlign, BorderSide.strokeAlignInside);
+      expect(side.width, 3);
+      expect(side.color, isSameColorAs(fakeTheme.color.border.subtle.blue));
+      expect(
+        find.ancestor(
+          of: find.byType(StratumFocusBorder),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is ClipRect || widget is ClipRRect,
           ),
-          findsNothing,
-        );
-      },
-      variant: TargetPlatformVariant.desktop(),
-    );
+        ),
+        findsNothing,
+      );
+    }, variant: TargetPlatformVariant.desktop());
 
     testWidgets(
-      'us07/fr03: a small box in the middle of the window keeps its ring '
+      'fo06/us07/fr03: a small box in the middle of the window keeps its ring '
       'around it',
       (tester) async {
         _useTraditionalHighlight();
@@ -2293,28 +2327,24 @@ void main() {
       variant: TargetPlatformVariant.desktop(),
     );
 
-    testWidgets(
-      'us07/fr03/e02: the ring moves inside when the window shrinks to the '
-      'box and back around it when the window grows',
-      (tester) async {
-        _useTraditionalHighlight();
-        addTearDown(tester.view.reset);
-        await tester.pumpWidget(themedHost(smallBox));
-        _scrollFocusNode(tester).requestFocus();
-        await tester.pumpAndSettle();
-        expect(_ringInside(tester), isFalse);
+    testWidgets('fo06/us07/fr03/e02: the ring moves inside when the window shrinks to the '
+        'box and back around it when the window grows', (tester) async {
+      _useTraditionalHighlight();
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(themedHost(smallBox));
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isFalse);
 
-        tester.view.devicePixelRatio = 1;
-        tester.view.physicalSize = const Size(200, 300);
-        await tester.pumpAndSettle();
-        expect(_ringInside(tester), isTrue);
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(200, 300);
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isTrue);
 
-        tester.view.reset();
-        await tester.pumpAndSettle();
-        expect(_ringInside(tester), isFalse);
-      },
-      variant: TargetPlatformVariant.desktop(),
-    );
+      tester.view.reset();
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isFalse);
+    }, variant: TargetPlatformVariant.desktop());
 
     testWidgets(
       'flipping the ring inside keeps the content State and the scroll '
@@ -2329,7 +2359,7 @@ void main() {
               width: 200,
               height: 300,
               child: ColumnLayout(
-                scroll: StratumScroll(controller: controller),
+                scroll: Scroll(controller: controller),
                 children: const [_Probe()],
               ),
             ),
@@ -2353,53 +2383,48 @@ void main() {
       variant: TargetPlatformVariant.desktop(),
     );
 
-    testWidgets(
-      "us07/fr03/e01: the window check grows the box by the ring's 2 px gap "
-      'and 3 px width',
-      (tester) async {
-        _useTraditionalHighlight();
-        // The 800 by 600 test window around a centered box: a 5 px margin
-        // holds the gap and the ring, a 4 px margin does not.
-        for (final (margin, inside) in [(5.0, false), (4.0, true)]) {
-          await tester.pumpWidget(
-            themedHost(
-              SizedBox(
-                key: ValueKey(margin),
-                width: 800 - 2 * margin,
-                height: 600 - 2 * margin,
-                child: const ColumnLayout(
-                  scroll: StratumScroll(),
-                  children: [SizedBox(height: 2000)],
-                ),
+    testWidgets("fo06/us07/fr03/e01: the window check grows the box by the ring's 2 px gap "
+        'and 3 px width', (tester) async {
+      _useTraditionalHighlight();
+      // The 800 by 600 test window around a centered box: a 5 px margin
+      // holds the gap and the ring, a 4 px margin does not.
+      for (final (margin, inside) in [(5.0, false), (4.0, true)]) {
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              key: ValueKey(margin),
+              width: 800 - 2 * margin,
+              height: 600 - 2 * margin,
+              child: const ColumnLayout(
+                scroll: Scroll(),
+                children: [SizedBox(height: 2000)],
               ),
             ),
-          );
-          _scrollFocusNode(tester).requestFocus();
-          await tester.pumpAndSettle();
+          ),
+        );
+        _scrollFocusNode(tester).requestFocus();
+        await tester.pumpAndSettle();
 
-          expect(_ringInside(tester), inside, reason: 'margin $margin');
-        }
-      },
-      variant: TargetPlatformVariant.desktop(),
-    );
+        expect(_ringInside(tester), inside, reason: 'margin $margin');
+      }
+    }, variant: TargetPlatformVariant.desktop());
 
-    testWidgets('us07/fr03/e01: a restyled width moves the window check', (
+    testWidgets('fo06/us07/fr03/e01: a restyled width moves the window check', (
       tester,
     ) async {
       _useTraditionalHighlight();
       // Default 2 px gap + a 5 px restyled width = reach 7: a 7 px margin
-      // holds it, a 6 px margin does not. The layer sets both color and
-      // width, since a layer border side sets the two together.
+      // holds it, a 6 px margin does not.
       const layerColor = Color(0xFF00FF00);
       for (final (margin, inside) in [(7.0, false), (6.0, true)]) {
         await tester.pumpWidget(
           themedHost(
             StratumComponentDefaults(
-              styles: const {
-                StratumFocusBorder: WidgetStyle(
-                  border: Border.fromBorderSide(
-                    BorderSide(color: layerColor, width: 5),
-                  ),
+              styles: const {},
+              parts: const {
+                StratumFocusBorder: StratumFocusBorderStyle(
+                  color: WidgetStatePropertyAll(layerColor),
+                  width: WidgetStatePropertyAll(5),
                 ),
               },
               child: SizedBox(
@@ -2407,7 +2432,7 @@ void main() {
                 width: 800 - 2 * margin,
                 height: 600 - 2 * margin,
                 child: const ColumnLayout(
-                  scroll: StratumScroll(),
+                  scroll: Scroll(),
                   children: [SizedBox(height: 2000)],
                 ),
               ),
@@ -2426,25 +2451,63 @@ void main() {
       }
     }, variant: TargetPlatformVariant.desktop());
 
+    testWidgets('fo06/us07/fr03/e01: the window check re-runs when the same '
+        "instance's scrollFocusStyle changes while focused", (tester) async {
+      _useTraditionalHighlight();
+      Widget host(double? width) => themedHost(
+        SizedBox(
+          width: 800 - 12,
+          height: 600 - 12,
+          child: ColumnLayout(
+            scroll: Scroll(
+              scrollFocusStyle: width == null
+                  ? null
+                  : ScrollFocusStyle(
+                      focus: StratumFocusBorderStyle(
+                        width: WidgetStatePropertyAll(width),
+                      ),
+                    ),
+            ),
+            children: const [SizedBox(height: 2000)],
+          ),
+        ),
+      );
+
+      // Margin 6: the default reach (gap 2 + width 3 = 5) fits outside.
+      await tester.pumpWidget(host(null));
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isFalse);
+
+      // A width-8 restyle on the same ColumnLayout/ScrollFocus instance
+      // (didUpdateWidget, not StratumComponentDefaults) grows the reach
+      // to 10, past the 6 px margin, while the box still holds focus.
+      await tester.pumpWidget(host(8));
+      await tester.pumpAndSettle();
+
+      expect(_ringInside(tester), isTrue);
+    }, variant: TargetPlatformVariant.desktop());
+
     testWidgets(
-      'us07/fr03/e01: the window check re-runs when an app-wide restyle '
+      'fo06/us07/fr03/e01: the window check re-runs when an app-wide restyle '
       'changes while focused',
       (tester) async {
         _useTraditionalHighlight();
         Widget host(double? width) => themedHost(
           StratumComponentDefaults(
-            styles: width == null
+            styles: const {},
+            parts: width == null
                 ? const {}
                 : {
-                    StratumFocusBorder: WidgetStyle(
-                      border: Border.fromBorderSide(BorderSide(width: width)),
+                    StratumFocusBorder: StratumFocusBorderStyle(
+                      width: WidgetStatePropertyAll(width),
                     ),
                   },
             child: const SizedBox(
               width: 800 - 12,
               height: 600 - 12,
               child: ColumnLayout(
-                scroll: StratumScroll(),
+                scroll: Scroll(),
                 children: [SizedBox(height: 2000)],
               ),
             ),
@@ -2467,35 +2530,31 @@ void main() {
       variant: TargetPlatformVariant.desktop(),
     );
 
-    testWidgets(
-      'us07/fr03: an insideEdge flip slides the ring, not a snap, over the '
-      "theme's fast level",
-      (tester) async {
-        _useTraditionalHighlight();
-        addTearDown(tester.view.reset);
-        await tester.pumpWidget(themedHost(smallBox));
-        _scrollFocusNode(tester).requestFocus();
-        await tester.pumpAndSettle();
-        expect(_ringInside(tester), isFalse);
-        final outsideAlign = _visibleRing(tester)!.strokeAlign;
+    testWidgets('fo06/us07/fr03: an insideEdge flip slides the ring, not a snap, over the '
+        "theme's fast level", (tester) async {
+      _useTraditionalHighlight();
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(themedHost(smallBox));
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isFalse);
+      final outsideAlign = _visibleRing(tester)!.strokeAlign;
 
-        tester.view.devicePixelRatio = 1;
-        tester.view.physicalSize = const Size(200, 300);
-        // One frame runs the resized layout and schedules the ring check;
-        // a second applies it and starts the fade over the fast level.
-        await tester.pump();
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 60));
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(200, 300);
+      // One frame runs the resized layout and schedules the ring check;
+      // a second applies it and starts the fade over the fast level.
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
 
-        final mid = _visibleRing(tester)!.strokeAlign;
-        expect(mid, lessThan(outsideAlign));
-        expect(mid, greaterThan(BorderSide.strokeAlignInside));
+      final mid = _visibleRing(tester)!.strokeAlign;
+      expect(mid, lessThan(outsideAlign));
+      expect(mid, greaterThan(BorderSide.strokeAlignInside));
 
-        await tester.pumpAndSettle();
-        expect(_ringInside(tester), isTrue);
-      },
-      variant: TargetPlatformVariant.desktop(),
-    );
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isTrue);
+    }, variant: TargetPlatformVariant.desktop());
 
     testWidgets("us07/nf01: a focused scrolling area's ring paints the theme's "
         'border.subtle.blue, 3 px after a 2 px gap', (tester) async {
@@ -2509,6 +2568,381 @@ void main() {
       expect(side.color, isSameColorAs(fakeTheme.color.border.subtle.blue));
       expect(side.width, 3);
       expect(side.strokeInset, moreOrLessEquals(-2));
+    }, variant: TargetPlatformVariant.desktop());
+  });
+
+  group('ScrollFocus focus style levels', () {
+    const red = Color(0xFFFF0000);
+    const green = Color(0xFF00FF00);
+
+    testWidgets("fo06/us07/fr03/e05: one area's style wins field by field "
+        'over the app-wide area style and the every-ring style', (
+      tester,
+    ) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(
+        _area(
+          parts: const {
+            StratumFocusBorder: StratumFocusBorderStyle(
+              width: WidgetStatePropertyAll(4),
+            ),
+            ScrollFocus: ScrollFocusStyle(
+              focus: StratumFocusBorderStyle(
+                color: WidgetStatePropertyAll(green),
+              ),
+            ),
+          },
+          customStyle: const ScrollFocusStyle(
+            focus: StratumFocusBorderStyle(color: WidgetStatePropertyAll(red)),
+          ),
+        ),
+      );
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+
+      final ring = _visibleRing(tester)!;
+      expect(ring.color, isSameColorAs(red));
+      expect(ring.width, 4);
+    });
+
+    testWidgets('fo06/us07/fr03/e01, Review Focus: a second ring grows the '
+        'window check by its width', (tester) async {
+      _useTraditionalHighlight();
+      // Gap 2 + width 3 + second ring 3 = reach 8: a box 8 px from the
+      // window edge keeps the ring outside, one 7 px from it moves inside.
+      for (final (margin, inside) in [(8.0, false), (7.0, true)]) {
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              key: ValueKey(margin),
+              width: 800 - 2 * margin,
+              height: 600 - 2 * margin,
+              child: ScrollFocus(
+                focusable: true,
+                axis: Axis.vertical,
+                customStyle: const ScrollFocusStyle(
+                  focus: StratumFocusBorderStyle(
+                    secondRing: WidgetStatePropertyAll((
+                      color: green,
+                      width: null,
+                    )),
+                  ),
+                ),
+                child: Builder(
+                  builder: (context) => ListView(
+                    controller: ScrollFocus.controllerOf(context),
+                    children: const [SizedBox(height: 2000)],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        _scrollFocusNode(tester).requestFocus();
+        await tester.pumpAndSettle();
+
+        expect(_ringInside(tester), inside, reason: 'margin $margin');
+      }
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('fo06/us07/fr03/e01: the window check re-runs when the '
+        "area's own style changes while focused", (tester) async {
+      _useTraditionalHighlight();
+      Widget host(double? width) => themedHost(
+        SizedBox(
+          width: 800 - 12,
+          height: 600 - 12,
+          child: ScrollFocus(
+            focusable: true,
+            axis: Axis.vertical,
+            customStyle: width == null
+                ? null
+                : ScrollFocusStyle(
+                    focus: StratumFocusBorderStyle(
+                      width: WidgetStatePropertyAll(width),
+                    ),
+                  ),
+            child: Builder(
+              builder: (context) => ListView(
+                controller: ScrollFocus.controllerOf(context),
+                children: const [SizedBox(height: 2000)],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(host(null));
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isFalse);
+
+      await tester.pumpWidget(host(8));
+      await tester.pumpAndSettle();
+      expect(_ringInside(tester), isTrue);
+    }, variant: TargetPlatformVariant.desktop());
+  });
+
+  group('ScrollFocus accessibility gate', () {
+    testWidgets('NFR-U06: the area is its own focusable node with its '
+        'label, focused while it is the Tab stop', (tester) async {
+      _useTraditionalHighlight();
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(_area());
+      final node = find.bySemanticsLabel('Items');
+      expect(tester.getSemantics(node), isSemantics(isFocusable: true));
+
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(node),
+        isSemantics(isFocusable: true, isFocused: true),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('NFR-U02: focus reaches the area and its focused look '
+        'differs from idle', (tester) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(_area());
+      expect(_visibleRing(tester), isNull);
+
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_visibleRing(tester), isNotNull);
+    });
+
+    testWidgets('NFR-U09: End scrolls the area to its end with no drag', (
+      tester,
+    ) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(_area());
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+
+      await _key(tester, LogicalKeyboardKey.end);
+      await tester.pumpAndSettle();
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position;
+      expect(position.pixels, position.maxScrollExtent);
+    });
+
+    testWidgets('NFR-U03: under disableAnimations the ring takes its look at '
+        'once', (tester) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: _area(),
+        ),
+      );
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pump();
+      expect(_visibleRing(tester)!.color.a, 1);
+    });
+
+    testWidgets('NFR-U01 exception, us07/nf01: the app-wide area style '
+        'replaces the ring token that fails 3:1', (tester) async {
+      _useTraditionalHighlight();
+      const strong = Color(0xFF1D4ED8);
+      await tester.pumpWidget(
+        _area(
+          theme: defaultThemeSet.light,
+          parts: const {
+            ScrollFocus: ScrollFocusStyle(
+              focus: StratumFocusBorderStyle(
+                color: WidgetStatePropertyAll(strong),
+              ),
+            ),
+          },
+        ),
+      );
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_visibleRing(tester)!.color, isSameColorAs(strong));
+    });
+
+    testWidgets('NFR-U07, NFR-U08, us07/nf01: under high contrast the '
+        'focused area shows the ring shape in the high-contrast token', (
+      tester,
+    ) async {
+      _useTraditionalHighlight();
+      await tester.pumpWidget(_area(theme: defaultThemeSet.highContrastLight));
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      final ring = _visibleRing(tester)!;
+      expect(ring.width, 3);
+      expect(
+        ring.color,
+        isSameColorAs(defaultThemeSet.highContrastLight!.focus.outsideColor),
+      );
+    });
+
+    testWidgets("NFR-E01: the area's ring follows the theme's focus group", (
+      tester,
+    ) async {
+      _useTraditionalHighlight();
+      const teal = Color(0xFF0D9488);
+      await tester.pumpWidget(
+        _area(
+          theme: fakeTheme.copyWith(
+            focus: fakeTheme.focus.copyWith(outsideColor: teal),
+          ),
+        ),
+      );
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+      expect(_visibleRing(tester)!.color, isSameColorAs(teal));
+    });
+
+    testWidgets("NFR-E02: focus, the area style's one field, shows on its "
+        'ring, and the ring width keeps the theme default', (tester) async {
+      _useTraditionalHighlight();
+      const red = Color(0xFFFF0000);
+      await tester.pumpWidget(
+        _area(
+          customStyle: const ScrollFocusStyle(
+            focus: StratumFocusBorderStyle(color: WidgetStatePropertyAll(red)),
+          ),
+        ),
+      );
+      _scrollFocusNode(tester).requestFocus();
+      await tester.pumpAndSettle();
+
+      final ring = _visibleRing(tester)!;
+      expect(ring.color, isSameColorAs(red));
+      expect(ring.width, fakeTheme.focus.outsideWidth);
+    });
+  });
+
+  group('scrollFocusStyle on every scroll view', () {
+    const style = ScrollFocusStyle(
+      focus: StratumFocusBorderStyle(width: WidgetStatePropertyAll(4)),
+    );
+    Widget item(BuildContext context, int index) => const SizedBox(height: 40);
+
+    for (final (tag, view) in <(String, Widget)>[
+      (
+        'fo06/us03/fr01',
+        ListViewLayout.builder(
+          itemCount: 3,
+          itemBuilder: item,
+          focusable: true,
+          scrollFocusStyle: style,
+        ),
+      ),
+      (
+        'fo06/us03/fr01',
+        GridViewLayout.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+          ),
+          itemCount: 3,
+          itemBuilder: item,
+          focusable: true,
+          scrollFocusStyle: style,
+        ),
+      ),
+      (
+        'fo06/us03/fr01',
+        const CustomScrollViewLayout(
+          focusable: true,
+          scrollFocusStyle: style,
+          slivers: [SliverToBoxAdapter(child: SizedBox(height: 40))],
+        ),
+      ),
+      (
+        'fo06/us10/fr03',
+        const PageViewLayout(
+          focusable: true,
+          scrollFocusStyle: style,
+          children: [SizedBox(height: 40)],
+        ),
+      ),
+      (
+        'fo06/us10/fr03',
+        PageViewLayout.builder(
+          itemBuilder: item,
+          itemCount: 1,
+          focusable: true,
+          scrollFocusStyle: style,
+        ),
+      ),
+      (
+        'fo06/us11/fr01',
+        ReorderableListViewLayout.builder(
+          itemCount: 2,
+          itemBuilder: (context, index) =>
+              SizedBox(key: ValueKey(index), height: 40),
+          onReorderItem: (from, to) {},
+          focusable: true,
+          scrollFocusStyle: style,
+        ),
+      ),
+      (
+        'fo06/us02/fr01',
+        const ColumnLayout(
+          scroll: Scroll(scrollFocusStyle: style),
+          children: [SizedBox(height: 2000)],
+        ),
+      ),
+    ]) {
+      testWidgets('$tag, fo06/us07/fr03/e05: ${view.runtimeType} hands '
+          'scrollFocusStyle to its ScrollFocus', (tester) async {
+        await tester.pumpWidget(
+          // MaterialApp supplies the Overlay and WidgetsLocalizations that
+          // ReorderableListViewLayout needs; harmless for the other six
+          // views.
+          MaterialApp(
+            home: Material(
+              child: themedHost(SizedBox(width: 300, height: 300, child: view)),
+            ),
+          ),
+        );
+
+        expect(
+          tester.widget<ScrollFocus>(find.byType(ScrollFocus)).customStyle,
+          style,
+        );
+      }, variant: TargetPlatformVariant.desktop());
+    }
+
+    testWidgets("fo06/us07/fr03/e05: one view's scrollFocusStyle restyles its "
+        'ring and no other view', (tester) async {
+      _useTraditionalHighlight();
+      const red = Color(0xFFFF0000);
+      Widget list(Key key, ScrollFocusStyle? style) => SizedBox(
+        key: key,
+        width: 200,
+        height: 100,
+        child: ListViewLayout.builder(
+          itemCount: 20,
+          itemBuilder: item,
+          focusable: true,
+          scrollFocusStyle: style,
+        ),
+      );
+      await tester.pumpWidget(
+        themedHost(
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              list(
+                const ValueKey('mine'),
+                const ScrollFocusStyle(
+                  focus: StratumFocusBorderStyle(
+                    color: WidgetStatePropertyAll(red),
+                  ),
+                ),
+              ),
+              list(const ValueKey('other'), null),
+            ],
+          ),
+        ),
+      );
+      final areas = tester.widgetList<ScrollFocus>(find.byType(ScrollFocus));
+      expect(areas.first.customStyle?.focus?.color, isNotNull);
+      expect(areas.last.customStyle, isNull);
     }, variant: TargetPlatformVariant.desktop());
   });
 }

@@ -1,0 +1,47 @@
+ACTIVITY MANAGER RECENT TASKS (dumpsys activity recents)
+mRecentsUid=-1
+mRecentsComponent=null
+  Recent tasks:
+  * Recent #0: TaskRecord{34224b0 #126 I=dev.stratum.stratum_ui_example/.MainActivity U=0 StackId=3 sz=1}
+    userId=0 effectiveUid=u0a103 mCallingUid=2000 mUserSetupComplete=true mCallingPackage=null
+    intent={act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x30000000 cmp=dev.stratum.stratum_ui_example/.MainActivity}
+    realActivity=dev.stratum.stratum_ui_example/.MainActivity
+    autoRemoveRecents=false isPersistable=true numFullscreen=1 activityType=1
+    rootWasReset=false mNeverRelinquishIdentity=true mReuseTask=false mLockTaskAuth=LOCK_TASK_AUTH_PINNABLE
+    Activities=[ActivityRecord{453a4e2 u0 dev.stratum.stratum_ui_example/.MainActivity t126}]
+    askedCompatMode=false inRecents=true isAvailable=true
+    mRootProcess=ProcessRecord{a776f29 5230:dev.stratum.stratum_ui_example/u0a103}
+    stackId=3
+    hasBeenVisible=true mResizeMode=RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION mSupportsPictureInPicture=false isResizeable=true lastActiveTime=190226 (inactive for 4s)
+  * Recent #1: TaskRecord{1846714 #2 I=com.android.launcher3/.Launcher U=0 StackId=0 sz=1}
+    userId=0 effectiveUid=u0a37 mCallingUid=0 mUserSetupComplete=true mCallingPackage=null
+    intent={act=android.intent.action.MAIN cat=[android.intent.category.HOME] flg=0x10000100 cmp=com.android.launcher3/.Launcher}
+    realActivity=com.android.launcher3/.Launcher
+    autoRemoveRecents=false isPersistable=true numFullscreen=1 activityType=2
+    rootWasReset=false mNeverRelinquishIdentity=true mReuseTask=false mLockTaskAuth=LOCK_TASK_AUTH_PINNABLE
+    Activities=[ActivityRecord{2d9cfd8 u0 com.android.launcher3/.Launcher t2}]
+    askedCompatMode=false inRecents=true isAvailable=true
+    mRootProcess=ProcessRecord{a402bbd 2285:com.android.launcher3/u0a37}
+    stackId=0
+    hasBeenVisible=true mResizeMode=RESIZE_MODE_RESIZEABLE mSupportsPictureInPicture=false isResizeable=true lastActiveTime=189819 (inactive for 5s)
+  * Recent #2: TaskRecord{bd465b2 #1 I=com.android.settings/.FallbackHome U=0 StackId=-1 sz=0}
+    userId=0 effectiveUid=1000 mCallingUid=0 mUserSetupComplete=true mCallingPackage=null
+    intent={act=android.intent.action.MAIN cat=[android.intent.category.HOME] flg=0x10800100 cmp=com.android.settings/.FallbackHome}
+    realActivity=com.android.settings/.FallbackHome
+    autoRemoveRecents=false isPersistable=false numFullscreen=0 activityType=2
+    rootWasReset=false mNeverRelinquishIdentity=true mReuseTask=false mLockTaskAuth=LOCK_TASK_AUTH_PINNABLE
+    Activities=[]
+    askedCompatMode=false inRecents=true isAvailable=true
+    stackId=-1
+    hasBeenVisible=true mResizeMode=RESIZE_MODE_UNRESIZEABLE mSupportsPictureInPicture=false isResizeable=false lastActiveTime=11755 (inactive for 183s)
+  * Recent #3: TaskRecord{a17b903 #123 I=com.google.android.googlequicksearchbox/com.google.android.apps.search.googleapp.activity.GoogleAppActivity U=0 StackId=-1 sz=0}
+    userId=0 effectiveUid=u0a48 mCallingUid=u0a48 mUserSetupComplete=true mCallingPackage=com.google.android.googlequicksearchbox
+    intent={dat=ga:/data?tab_type=2&go_back_to_discover_feed_from_srp=false flg=0x10008000 cmp=com.google.android.googlequicksearchbox/com.google.android.apps.search.googleapp.activity.GoogleAppActivity}
+    origActivity=com.google.android.googlequicksearchbox/.InternalGoogleAppActivityEntrypoint
+    realActivity=com.google.android.googlequicksearchbox/com.google.android.apps.search.googleapp.activity.GoogleAppActivity
+    autoRemoveRecents=false isPersistable=true numFullscreen=0 activityType=0
+    rootWasReset=false mNeverRelinquishIdentity=true mReuseTask=false mLockTaskAuth=LOCK_TASK_AUTH_PINNABLE
+    Activities=[]
+    askedCompatMode=false inRecents=true isAvailable=true
+    stackId=-1
+    hasBeenVisible=false mResizeMode=RESIZE_MODE_RESIZEABLE mSupportsPictureInPicture=false isResizeable=true lastActiveTime=11836 (inactive for 182s)

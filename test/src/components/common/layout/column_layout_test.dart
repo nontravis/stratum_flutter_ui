@@ -110,7 +110,7 @@ void main() {
         _host(
           const ColumnLayout(
             gap: 8,
-            interaction: StratumInteraction(),
+            interaction: Interaction(),
             children: [SizedBox(height: 20), SizedBox(height: 20)],
           ),
         ),
@@ -154,7 +154,7 @@ void main() {
       await tester.pumpWidget(
         _host(
           const ColumnLayout(
-            scroll: StratumScroll(),
+            scroll: Scroll(),
             style: WidgetStyle(height: 200),
             children: [SizedBox(height: 100)],
           ),
@@ -170,7 +170,7 @@ void main() {
         const Size(100, 100),
         ColumnLayout(
           style: const WidgetStyle(),
-          scroll: scrolls ? const StratumScroll() : null,
+          scroll: scrolls ? const Scroll() : null,
           children: const [_Probe()],
         ),
       );
@@ -185,14 +185,13 @@ void main() {
       expect(tester.state(find.byType(_Probe)), same(before));
     });
 
-    testWidgets('fillViewport stretches short content to the viewport', (
-      tester,
-    ) async {
+    testWidgets('fo06/us02/fr02: fillViewport stretches short content to the '
+        'viewport', (tester) async {
       await tester.pumpWidget(
         _sized(
           const Size(100, 300),
           const ColumnLayout(
-            scroll: StratumScroll(fillViewport: true),
+            scroll: Scroll(fillViewport: true),
             style: WidgetStyle(padding: EdgeInsets.all(10)),
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -216,7 +215,7 @@ void main() {
           const Align(
             alignment: Alignment.topCenter,
             child: ColumnLayout(
-              scroll: StratumScroll(),
+              scroll: Scroll(),
               children: [SizedBox(height: 50)],
             ),
           ),
@@ -235,7 +234,7 @@ void main() {
           child: Column(
             children: [
               ColumnLayout(
-                scroll: StratumScroll(fillViewport: true),
+                scroll: Scroll(fillViewport: true),
                 children: [SizedBox(height: 50)],
               ),
             ],
@@ -254,7 +253,7 @@ void main() {
         _sized(
           const Size(100, 200),
           const ColumnLayout(
-            scroll: StratumScroll(),
+            scroll: Scroll(),
             style: WidgetStyle(
               backgroundColor: Color(0xFFFFFFFF),
               padding: EdgeInsets.all(10),
@@ -279,12 +278,12 @@ void main() {
     testWidgets('the scroll position survives a style or interaction change', (
       tester,
     ) async {
-      Widget build({Border? border, StratumInteraction? interaction}) {
+      Widget build({Border? border, Interaction? interaction}) {
         return themedHost(
           SizedBox.fromSize(
             size: const Size(100, 200),
             child: ColumnLayout(
-              scroll: const StratumScroll(),
+              scroll: const Scroll(),
               style: WidgetStyle(border: border),
               interaction: interaction,
               children: const [SizedBox(height: 500)],
@@ -309,7 +308,7 @@ void main() {
       await tester.pumpWidget(
         build(
           border: Border.all(),
-          interaction: StratumInteraction(onTap: () {}),
+          interaction: Interaction(onTap: () {}),
         ),
       );
       expect(
@@ -325,7 +324,7 @@ void main() {
         _sized(
           const Size(100, 200),
           const ColumnLayout(
-            scroll: StratumScroll(),
+            scroll: Scroll(),
             style: WidgetStyle(
               backgroundColor: Color(0xFFFFFFFF),
               borderRadius: _radius,

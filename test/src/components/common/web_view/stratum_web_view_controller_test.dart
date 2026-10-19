@@ -2,9 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_configuration.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_controller.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 import 'fakes/fake_platform_stratum_web_view.dart';
 
@@ -46,6 +50,39 @@ void main() {
     expect(platform().loads, isEmpty);
   });
 
+  test('co01_02/us01/fr01/e01: the refusal names the redacted address, never '
+      'the script', () async {
+    await expectLater(
+      controller.loadUrl(Uri.parse('javascript:alert(1)')),
+      throwsA(
+        isA<ArgumentError>()
+            .having((e) => e.toString(), 'toString', contains('"javascript:…"'))
+            .having((e) => e.toString(), 'toString', isNot(contains('alert'))),
+      ),
+    );
+  });
+
+  test('co01_02/us01/fr01/e01: the refusal names a host-bearing refused '
+      'scheme, never the path or query', () async {
+    await expectLater(
+      controller.loadUrl(Uri.parse('ftp://attacker.example/secret?token=abc')),
+      throwsA(
+        isA<ArgumentError>()
+            .having(
+              (e) => e.toString(),
+              'toString',
+              contains('"ftp://attacker.example/…"'),
+            )
+            .having((e) => e.toString(), 'toString', isNot(contains('secret')))
+            .having(
+              (e) => e.toString(),
+              'toString',
+              isNot(contains('token=abc')),
+            ),
+      ),
+    );
+  });
+
   test('navigation methods forward to the platform', () async {
     platform()
       ..canGoBackValue = true
@@ -80,7 +117,7 @@ void main() {
     expect(platform().sentTargets, [null]);
   });
 
-  test('us03/fr02/e14: a named target is compared as an origin and passed on '
+  test('co01_02/us03/fr02/e14: a named target is compared as an origin and passed on '
       'as one', () async {
     controller.configure(
       StratumWebViewConfiguration(allowedOrigins: {appOrigin}),
@@ -93,7 +130,7 @@ void main() {
     expect(platform().sentMessages, ['x']);
   });
 
-  test('us03/fr02/e15, nf01/NFR-Sec02: a named send whose target matches no '
+  test('co01_02/us03/fr02/e15, nf01/NFR-Sec02: a named send whose target matches no '
       'allowed entry, a host-less one included, throws before the platform '
       'runs', () async {
     controller.configure(
@@ -136,7 +173,8 @@ void main() {
     await expectLater(controller.postMessage('x'), throwsStateError);
   });
 
-  test('postMessage throws while javaScriptEnabled is false', () async {
+  test('co01_02/us02/s2, co01_02/us02/fr02: postMessage throws while '
+      'javaScriptEnabled is false', () async {
     controller.configure(
       StratumWebViewConfiguration(
         allowedOrigins: {appOrigin},
@@ -148,7 +186,7 @@ void main() {
   });
 
   group('reply', () {
-    test('us03/fr05/e01: reply throws ArgumentError for a message this '
+    test('co01_02/us03/fr05/e01: reply throws ArgumentError for a message this '
         'controller did not deliver', () async {
       controller.configure(
         StratumWebViewConfiguration(
@@ -211,7 +249,37 @@ void main() {
       expect(platforms.last.documentReplies, isEmpty);
     });
 
-    test('us03/fr05/e02: reply checks dispose first, then the message, then '
+    test('co01_02/us03/fr05/e01: reply(delivered.copyWith()) finds no '
+        'sender and fails closed', () async {
+      controller.configure(
+        StratumWebViewConfiguration(
+          allowedOrigins: {appOrigin},
+          onMessage: (_) {},
+        ),
+      );
+      final message = StratumWebViewMessage(data: 'ready', origin: appOrigin);
+      platform().listener.onMessage(message, PlatformUrlPageSender(appOrigin));
+
+      // copyWith builds a new _StratumWebViewMessage, value-equal to the
+      // delivered message but with no Expando entry (P3): this guards
+      // against a future freezed version ever returning `this` unchanged.
+      await expectLater(
+        controller.reply(message.copyWith(), 'x'),
+        throwsA(
+          isA<ArgumentError>()
+              .having(
+                (e) => e.message,
+                'message',
+                'The message was not delivered by this controller.',
+              )
+              .having((e) => e.name, 'name', 'message'),
+        ),
+      );
+      expect(platform().sentMessages, isEmpty);
+      expect(platform().documentReplies, isEmpty);
+    });
+
+    test('co01_02/us03/fr05/e02: reply checks dispose first, then the message, then '
         'the bridge gate', () async {
       final disposed = StratumWebViewController()..dispose();
       await expectLater(
@@ -294,7 +362,7 @@ void main() {
       );
     });
 
-    test('us03/fr05/e03, us03/fr05/e04, us03/s8: a reply to a URL page is a '
+    test('co01_02/us03/fr05/e03, co01_02/us03/fr05/e04, co01_02/us03/s8: a reply to a URL page is a '
         "send naming the message's origin, and the platform's refusal "
         'surfaces', () async {
       controller.configure(
@@ -317,7 +385,7 @@ void main() {
       );
     });
 
-    test('us03/fr05/e05: a reply to a URL page whose origin left the allowlist '
+    test('co01_02/us03/fr05/e05: a reply to a URL page whose origin left the allowlist '
         'throws before the platform runs', () async {
       controller.configure(
         StratumWebViewConfiguration(
@@ -351,7 +419,7 @@ void main() {
       expect(platform().sentMessages, isEmpty);
     });
 
-    test('us03/fr05/e06, us03/fr05/e08: a reply to own HTML goes to the '
+    test('co01_02/us03/fr05/e06, co01_02/us03/fr05/e08: a reply to own HTML goes to the '
         'platform with the document that sent the message', () async {
       controller.configure(
         StratumWebViewConfiguration(
@@ -377,7 +445,7 @@ void main() {
     });
 
     test(
-      'us03/fr05: a reply from inside onMessage reaches its sender',
+      'co01_02/us03/fr05: a reply from inside onMessage reaches its sender',
       () async {
         controller.configure(
           StratumWebViewConfiguration(
@@ -395,26 +463,29 @@ void main() {
       },
     );
 
-    test('G4 us03/fr05: two replies to the same still-valid sender both '
-        'land', () async {
-      controller.configure(
-        StratumWebViewConfiguration(
-          allowedOrigins: {appOrigin},
-          onMessage: (_) {},
-        ),
-      );
-      final message = StratumWebViewMessage(data: 'ready:${appOrigin.host}');
-      platform().listener.onMessage(message, const FakeHtmlDocumentSender());
+    test(
+      'G4 co01_02/us03/fr05: two replies to the same still-valid sender both '
+      'land',
+      () async {
+        controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {appOrigin},
+            onMessage: (_) {},
+          ),
+        );
+        final message = StratumWebViewMessage(data: 'ready:${appOrigin.host}');
+        platform().listener.onMessage(message, const FakeHtmlDocumentSender());
 
-      await controller.reply(message, 'first');
-      await controller.reply(message, 'second');
-      expect(platform().documentReplies, [
-        (const FakeHtmlDocumentSender(), 'first'),
-        (const FakeHtmlDocumentSender(), 'second'),
-      ]);
-    });
+        await controller.reply(message, 'first');
+        await controller.reply(message, 'second');
+        expect(platform().documentReplies, [
+          (const FakeHtmlDocumentSender(), 'first'),
+          (const FakeHtmlDocumentSender(), 'second'),
+        ]);
+      },
+    );
 
-    test('us03/fr05: a reply to one of two HTML messages uses that '
+    test('co01_02/us03/fr05: a reply to one of two HTML messages uses that '
         "message's own sender, never the other's", () async {
       controller.configure(
         StratumWebViewConfiguration(
@@ -447,7 +518,7 @@ void main() {
     });
 
     test(
-      'G5 us03/fr05: an empty-string reply reaches the sender whole',
+      'G5 co01_02/us03/fr05: an empty-string reply reaches the sender whole',
       () async {
         controller.configure(
           StratumWebViewConfiguration(
@@ -531,6 +602,52 @@ void main() {
           ),
         ),
         returnsNormally,
+      );
+    });
+
+    test('co01_02/us03/nf01: NFR-Sec06: names each hostile entry by '
+        'position and redacted origin, never its user info, path, query, '
+        'or fragment', () {
+      final userInfoEntry = Uri.parse(
+        'ftp://user:pw@partner.example/x?token=abc#f',
+      );
+      final pathlessEntry = Uri.parse('partner.example/embed?key=sk_live_123');
+
+      expect(
+        () => controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {userInfoEntry, pathlessEntry},
+          ),
+        ),
+        throwsA(
+          isA<AssertionError>()
+              .having(
+                (e) => e.toString(),
+                'toString',
+                contains(
+                  'entry 1 (ftp://partner.example/…) needs an http or '
+                  'https scheme',
+                ),
+              )
+              .having(
+                (e) => e.toString(),
+                'toString',
+                contains('entry 2 (…) needs an http or https scheme'),
+              )
+              .having(
+                (e) => e.toString(),
+                'toString',
+                allOf(
+                  isNot(contains('user')),
+                  isNot(contains('pw')),
+                  isNot(contains('/x')),
+                  isNot(contains('token=abc')),
+                  isNot(contains('#f')),
+                  isNot(contains('embed')),
+                  isNot(contains('key=sk_live_123')),
+                ),
+              ),
+        ),
       );
     });
   });
@@ -624,25 +741,29 @@ void main() {
       expect(messages, isEmpty);
     });
 
-    test('reports a throwing callback without rethrowing', () {
-      final reported = <FlutterErrorDetails>[];
-      final previous = FlutterError.onError;
-      FlutterError.onError = reported.add;
-      addTearDown(() => FlutterError.onError = previous);
-      controller.configure(
-        StratumWebViewConfiguration(
-          allowedOrigins: {appOrigin},
-          onMessage: (_) => throw StateError('boom'),
-        ),
-      );
-      platform().listener.onMessage(
-        const StratumWebViewMessage(data: 'x'),
-        const FakeHtmlDocumentSender(),
-      );
-      expect(reported.single.exception, isStateError);
-    });
+    test(
+      'co01_02/us04/fr03: reports a throwing callback without rethrowing',
+      () {
+        final reported = <FlutterErrorDetails>[];
+        final previous = FlutterError.onError;
+        FlutterError.onError = reported.add;
+        addTearDown(() => FlutterError.onError = previous);
+        controller.configure(
+          StratumWebViewConfiguration(
+            allowedOrigins: {appOrigin},
+            onMessage: (_) => throw StateError('boom'),
+          ),
+        );
+        platform().listener.onMessage(
+          const StratumWebViewMessage(data: 'x'),
+          const FakeHtmlDocumentSender(),
+        );
+        expect(reported.single.exception, isStateError);
+      },
+    );
 
-    test('navigation defaults to navigate and fails closed on errors', () {
+    test('co01_02/us04/s4, co01_02/us04/fr02: navigation defaults to navigate '
+        'and fails closed on errors', () {
       final reported = <FlutterErrorDetails>[];
       final previous = FlutterError.onError;
       FlutterError.onError = reported.add;

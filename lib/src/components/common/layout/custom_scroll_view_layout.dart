@@ -25,6 +25,7 @@ class CustomScrollViewLayout extends StatelessWidget {
     this.showScrollbar,
     this.focusable,
     this.semanticsLabel,
+    this.scrollFocusStyle,
   }) : assert(
          (slivers == null) != (children == null),
          'Pass exactly one of slivers and children',
@@ -49,6 +50,10 @@ class CustomScrollViewLayout extends StatelessWidget {
   /// Names the focusable view for a screen reader.
   final String? semanticsLabel;
 
+  /// The view's focus ring style, level 3 (FO-06 US-07 FR-03), beside
+  /// `style`, which draws the box.
+  final ScrollFocusStyle? scrollFocusStyle;
+
   @override
   Widget build(BuildContext context) {
     final style = this.style;
@@ -65,6 +70,7 @@ class CustomScrollViewLayout extends StatelessWidget {
       controller: controller,
       semanticsLabel: semanticsLabel,
       showScrollbar: showScrollbar,
+      scrollFocusStyle: scrollFocusStyle,
       builder: (context, controller, padding) => CustomScrollView(
         controller: controller,
         scrollDirection: scrollDirection,

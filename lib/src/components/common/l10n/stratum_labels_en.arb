@@ -1,0 +1,98 @@
+{
+  "@@locale": "en",
+  "closeButtonLabel": "Close",
+  "@closeButtonLabel": {
+    "description": "Close button label."
+  },
+  "expanded": "Expanded",
+  "@expanded": {
+    "description": "Announced when a section expands."
+  },
+  "collapsed": "Collapsed",
+  "@collapsed": {
+    "description": "Announced when a section collapses."
+  },
+  "removeTagLabel": "Remove",
+  "@removeTagLabel": {
+    "description": "Remove tag label."
+  },
+  "loadingLabel": "Loading",
+  "@loadingLabel": {
+    "description": "Loading label."
+  },
+  "requiredMarker": "Required",
+  "@requiredMarker": {
+    "description": "Required marker."
+  },
+  "showMenuLabel": "Show menu",
+  "@showMenuLabel": {
+    "description": "Show menu label: the last fallback of the tap surface's menu action label."
+  },
+  "retryLabel": "Retry",
+  "@retryLabel": {
+    "description": "Retry label."
+  },
+  "placeholderPageTitle": "Coming soon",
+  "@placeholderPageTitle": {
+    "description": "Placeholder page title."
+  },
+  "reorderMoveAnnouncement": "Moved to position {position} of {count}",
+  "@reorderMoveAnnouncement": {
+    "description": "Announced after the user moves a list item: its new position, counted from 1, and the item count.",
+    "placeholders": {
+      "position": {"type": "int"},
+      "count": {"type": "int"}
+    }
+  },
+  "reorderAtStartAnnouncement": "Already at the start of the list",
+  "@reorderAtStartAnnouncement": {
+    "description": "Announced when a reorder key would move the first list item before the start."
+  },
+  "reorderAtEndAnnouncement": "Already at the end of the list",
+  "@reorderAtEndAnnouncement": {
+    "description": "Announced when a reorder key would move the last list item past the end."
+  },
+  "drawerLabel": "Navigation menu",
+  "@drawerLabel": {
+    "description": "Drawer label: a page drawer's screen-reader name."
+  },
+  "dismissLabel": "Dismiss",
+  "@dismissLabel": {
+    "description": "Dismiss label: the modal layout's scrim-closing control fallback."
+  },
+  "dialogLabel": "Dialog",
+  "@dialogLabel": {
+    "description": "Dialog label: the modal layout's screen-reader name when it opens as a dialog."
+  },
+  "sheetLabel": "Sheet",
+  "@sheetLabel": {
+    "description": "Sheet label: the modal layout's screen-reader name when it opens as a sheet."
+  },
+  "dividerLabel": "Resize panes",
+  "@dividerLabel": {
+    "description": "Divider label: a resizable split's divider."
+  },
+  "noticePositiveLabel": "Success",
+  "@noticePositiveLabel": {
+    "description": "Notice kind name: the notice host's announcement and the icon's accessible name for the positive kind."
+  },
+  "noticeInfoLabel": "Information",
+  "@noticeInfoLabel": {
+    "description": "Notice kind name: the notice host's announcement and the icon's accessible name for the info kind."
+  },
+  "noticeWarningLabel": "Warning",
+  "@noticeWarningLabel": {
+    "description": "Notice kind name: the notice host's announcement and the icon's accessible name for the warning kind."
+  },
+  "noticeNegativeLabel": "Error",
+  "@noticeNegativeLabel": {
+    "description": "Notice kind name: the notice host's announcement and the icon's accessible name for the negative kind."
+  },
+  "noticeShortcutHint": "Press {key} to reach it",
+  "@noticeShortcutHint": {
+    "description": "Notice shortcut hint: the end of the notice host's announcement, naming the first key of the host's shortcut into the newest notice.",
+    "placeholders": {
+      "key": {"type": "String"}
+    }
+  }
+}

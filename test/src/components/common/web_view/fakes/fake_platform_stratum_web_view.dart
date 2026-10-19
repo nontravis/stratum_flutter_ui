@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_controller.dart';
-import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_types.dart';
 
 /// Key of the widget that [FakePlatformStratumWebView.buildView] returns.
 const Key fakePlatformViewKey = ValueKey<String>('fake-platform-web-view');

@@ -1,4 +1,7 @@
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/src/components/common/layout/focus_group.dart'
+    show firstTabStopIn, revealInViewports;
 import 'package:stratum_ui/src/src.dart';
 
 import '../fakes/fake_stratum_theme.dart';
@@ -19,11 +22,22 @@ List<FocusNode> _nodes([int count = 3]) {
 }
 
 /// A 40 px tappable item on [node].
-Widget _item(FocusNode node, {SemanticsProperties? semantics}) {
+///
+/// [tapTargetSize] defaults to the platform minimum (NFR-U05); a geometry
+/// test that hardcodes this item's own 40 px bounds passes `shrinkWrap`.
+Widget _item(
+  FocusNode node, {
+  SemanticsProperties? semantics,
+  TapTargetSize tapTargetSize = TapTargetSize.platform,
+}) {
   return ContainerLayout(
     style: const WidgetStyle(width: 40, height: 40),
     semantics: semantics,
-    interaction: StratumInteraction(onTap: _noop, focusNode: node),
+    interaction: Interaction(
+      onTap: _noop,
+      focusNode: node,
+      tapTargetSize: tapTargetSize,
+    ),
   );
 }
 
@@ -99,7 +113,7 @@ class _Toolbar {
       _host(
         RowLayout(
           mainAxisSize: MainAxisSize.min,
-          focusGroup: const StratumFocusGroup(),
+          focusGroup: const FocusGroup(),
           children: [
             _item(bold),
             _item(italic),
@@ -147,8 +161,8 @@ Future<List<FocusNode>> _scrollingRow(
         height: 50,
         child: RowLayout(
           style: const WidgetStyle(),
-          scroll: const StratumScroll(),
-          focusGroup: const StratumFocusGroup(),
+          scroll: const Scroll(),
+          focusGroup: const FocusGroup(),
           children: [
             for (final node in items)
               Focus(
@@ -220,14 +234,11 @@ Widget _scrollingCards(List<FocusNode> cards) {
     height: 50,
     child: RowLayout(
       style: const WidgetStyle(),
-      scroll: const StratumScroll(),
-      focusGroup: const StratumFocusGroup(),
+      scroll: const Scroll(),
+      focusGroup: const FocusGroup(),
       children: [
         for (final card in cards)
-          Focus(
-            focusNode: card,
-            child: const SizedBox(width: 100, height: 50),
-          ),
+          Focus(focusNode: card, child: const SizedBox(width: 100, height: 50)),
       ],
     ),
   );
@@ -278,8 +289,30 @@ void _expectInRow(WidgetTester tester, FocusNode node) {
   );
 }
 
+/// [child], kept alive when it leaves its list's built range.
+class _KeptAlive extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeptAlive> createState() => _KeptAliveState();
+}
+
+class _KeptAliveState extends State<_KeptAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 void main() {
-  group('StratumFocusGroup Tab', () {
+  group('FocusGroup Tab', () {
     testWidgets('Tab enters the group once, on the first item', (tester) async {
       final before = _node();
       final after = _node();
@@ -288,7 +321,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -312,7 +345,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -341,7 +374,7 @@ void main() {
         _host(
           ColumnLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -359,32 +392,33 @@ void main() {
     });
   });
 
-  group('StratumFocusGroup arrows', () {
-    testWidgets('Left and Right move by screen position in a row', (
-      tester,
-    ) async {
-      final before = _node();
-      final items = _nodes();
-      await tester.pumpWidget(
-        _host(
-          RowLayout(
-            mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
-            children: [for (final node in items) _item(node)],
+  group('FocusGroup arrows', () {
+    testWidgets(
+      'fo06/us06/s1: Left and Right move by screen position in a row',
+      (tester) async {
+        final before = _node();
+        final items = _nodes();
+        await tester.pumpWidget(
+          _host(
+            RowLayout(
+              mainAxisSize: MainAxisSize.min,
+              focusGroup: const FocusGroup(),
+              children: [for (final node in items) _item(node)],
+            ),
+            before: before,
           ),
-          before: before,
-        ),
-      );
-      await _focus(tester, items[0]);
+        );
+        await _focus(tester, items[0]);
 
-      expect(await _key(tester, LogicalKeyboardKey.arrowRight), isTrue);
-      expect(items[1].hasPrimaryFocus, isTrue);
-      await _key(tester, LogicalKeyboardKey.arrowRight);
-      await _key(tester, LogicalKeyboardKey.arrowRight);
-      expect(items[2].hasPrimaryFocus, isTrue);
-      await _key(tester, LogicalKeyboardKey.arrowLeft);
-      expect(items[1].hasPrimaryFocus, isTrue);
-    });
+        expect(await _key(tester, LogicalKeyboardKey.arrowRight), isTrue);
+        expect(items[1].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        await _key(tester, LogicalKeyboardKey.arrowRight);
+        expect(items[2].hasPrimaryFocus, isTrue);
+        await _key(tester, LogicalKeyboardKey.arrowLeft);
+        expect(items[1].hasPrimaryFocus, isTrue);
+      },
+    );
 
     testWidgets('Left moves to the item on the left in a row under RTL', (
       tester,
@@ -396,7 +430,7 @@ void main() {
           RowLayout(
             mainAxisSize: MainAxisSize.min,
             textDirection: TextDirection.rtl,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -420,7 +454,7 @@ void main() {
           ColumnLayout(
             mainAxisSize: MainAxisSize.min,
             verticalDirection: VerticalDirection.up,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -441,7 +475,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -465,7 +499,7 @@ void main() {
             width: 100,
             child: WrapLayout(
               gap: 4,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [for (final node in items) _item(node)],
             ),
           ),
@@ -494,7 +528,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
+            focusGroup: const FocusGroup(),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -519,7 +553,7 @@ void main() {
           children: [
             RowLayout(
               mainAxisSize: MainAxisSize.min,
-              focusGroup: StratumFocusGroup(loop: loop),
+              focusGroup: FocusGroup(loop: loop),
               children: [for (final node in items) _item(node)],
             ),
             Focus(focusNode: right, child: _dot),
@@ -553,7 +587,7 @@ void main() {
             width: 100,
             child: WrapLayout(
               gap: 4,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [for (final node in items) _item(node)],
             ),
           ),
@@ -569,7 +603,9 @@ void main() {
       expect(before.hasPrimaryFocus, isTrue);
     });
 
-    testWidgets('group keys are skipped inside a TextField', (tester) async {
+    testWidgets('fo06/us05/fr03: group keys are skipped inside a TextField', (
+      tester,
+    ) async {
       final field = _node();
       final items = _nodes(1);
       await tester.pumpWidget(
@@ -578,7 +614,7 @@ void main() {
             child: themedHost(
               ColumnLayout(
                 mainAxisSize: MainAxisSize.min,
-                focusGroup: const StratumFocusGroup(),
+                focusGroup: const FocusGroup(),
                 children: [
                   SizedBox(width: 200, child: TextField(focusNode: field)),
                   _item(items[0]),
@@ -597,7 +633,7 @@ void main() {
     });
   });
 
-  group('StratumFocusGroup fix round 1', () {
+  group('FocusGroup fix round 1', () {
     testWidgets(
       'Right at the wrap end stays when another item lies right on screen',
       (tester) async {
@@ -609,7 +645,7 @@ void main() {
               width: 100,
               child: WrapLayout(
                 gap: 4,
-                focusGroup: const StratumFocusGroup(),
+                focusGroup: const FocusGroup(),
                 children: [for (final node in items) _item(node)],
               ),
             ),
@@ -628,38 +664,35 @@ void main() {
       },
     );
 
-    testWidgets(
-      'Down in a column reaches the last item then after, without '
-      'bouncing on stale directional history',
-      (tester) async {
-        final before = _node();
-        final after = _node();
-        final items = _nodes();
-        await tester.pumpWidget(
-          _host(
-            ColumnLayout(
-              mainAxisSize: MainAxisSize.min,
-              focusGroup: const StratumFocusGroup(),
-              children: [for (final node in items) _item(node)],
-            ),
-            before: before,
-            after: after,
+    testWidgets('Down in a column reaches the last item then after, without '
+        'bouncing on stale directional history', (tester) async {
+      final before = _node();
+      final after = _node();
+      final items = _nodes();
+      await tester.pumpWidget(
+        _host(
+          ColumnLayout(
+            mainAxisSize: MainAxisSize.min,
+            focusGroup: const FocusGroup(),
+            children: [for (final node in items) _item(node)],
           ),
-        );
-        await _focus(tester, items[0]);
+          before: before,
+          after: after,
+        ),
+      );
+      await _focus(tester, items[0]);
 
-        await _key(tester, LogicalKeyboardKey.arrowUp);
-        expect(before.hasPrimaryFocus, isTrue);
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(items[0].hasPrimaryFocus, isTrue);
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(items[1].hasPrimaryFocus, isTrue);
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(items[2].hasPrimaryFocus, isTrue);
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(after.hasPrimaryFocus, isTrue);
-      },
-    );
+      await _key(tester, LogicalKeyboardKey.arrowUp);
+      expect(before.hasPrimaryFocus, isTrue);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(items[0].hasPrimaryFocus, isTrue);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(items[1].hasPrimaryFocus, isTrue);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(items[2].hasPrimaryFocus, isTrue);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(after.hasPrimaryFocus, isTrue);
+    });
 
     testWidgets(
       'Up then Right then Down in a row reaches after, without bouncing '
@@ -672,7 +705,7 @@ void main() {
           _host(
             RowLayout(
               mainAxisSize: MainAxisSize.min,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [for (final node in items) _item(node)],
             ),
             before: before,
@@ -692,34 +725,33 @@ void main() {
       },
     );
 
-    testWidgets(
-      'loop contains wrap Up and Down past the first and last run',
-      (tester) async {
-        final before = _node();
-        final items = _nodes(5);
-        await tester.pumpWidget(
-          _host(
-            SizedBox(
-              width: 100,
-              child: WrapLayout(
-                gap: 4,
-                focusGroup: const StratumFocusGroup(loop: true),
-                children: [for (final node in items) _item(node)],
-              ),
+    testWidgets('loop contains wrap Up and Down past the first and last run', (
+      tester,
+    ) async {
+      final before = _node();
+      final items = _nodes(5);
+      await tester.pumpWidget(
+        _host(
+          SizedBox(
+            width: 100,
+            child: WrapLayout(
+              gap: 4,
+              focusGroup: const FocusGroup(loop: true),
+              children: [for (final node in items) _item(node)],
             ),
-            before: before,
           ),
-        );
-        // Runs: items 0 and 1, items 2 and 3, item 4.
-        await _focus(tester, items[1]);
-        await _key(tester, LogicalKeyboardKey.arrowUp);
-        expect(items[4].hasPrimaryFocus, isTrue);
+          before: before,
+        ),
+      );
+      // Runs: items 0 and 1, items 2 and 3, item 4.
+      await _focus(tester, items[1]);
+      await _key(tester, LogicalKeyboardKey.arrowUp);
+      expect(items[4].hasPrimaryFocus, isTrue);
 
-        await _focus(tester, items[4]);
-        await _key(tester, LogicalKeyboardKey.arrowDown);
-        expect(items[0].hasPrimaryFocus, isTrue);
-      },
-    );
+      await _focus(tester, items[4]);
+      await _key(tester, LogicalKeyboardKey.arrowDown);
+      expect(items[0].hasPrimaryFocus, isTrue);
+    });
 
     testWidgets(
       'Down from the last item in a column without loop reaches after',
@@ -731,7 +763,7 @@ void main() {
           _host(
             ColumnLayout(
               mainAxisSize: MainAxisSize.min,
-              focusGroup: const StratumFocusGroup(),
+              focusGroup: const FocusGroup(),
               children: [for (final node in items) _item(node)],
             ),
             before: before,
@@ -745,34 +777,31 @@ void main() {
       },
     );
 
-    testWidgets(
-      'Home and End in a row under RTL move to the rightmost and '
-      'leftmost item',
-      (tester) async {
-        final before = _node();
-        final items = _nodes();
-        await tester.pumpWidget(
-          _host(
-            RowLayout(
-              mainAxisSize: MainAxisSize.min,
-              textDirection: TextDirection.rtl,
-              focusGroup: const StratumFocusGroup(),
-              children: [for (final node in items) _item(node)],
-            ),
-            before: before,
+    testWidgets('Home and End in a row under RTL move to the rightmost and '
+        'leftmost item', (tester) async {
+      final before = _node();
+      final items = _nodes();
+      await tester.pumpWidget(
+        _host(
+          RowLayout(
+            mainAxisSize: MainAxisSize.min,
+            textDirection: TextDirection.rtl,
+            focusGroup: const FocusGroup(),
+            children: [for (final node in items) _item(node)],
           ),
-        );
-        await _focus(tester, items[1]);
+          before: before,
+        ),
+      );
+      await _focus(tester, items[1]);
 
-        await _key(tester, LogicalKeyboardKey.home);
-        expect(items[0].hasPrimaryFocus, isTrue);
-        await _key(tester, LogicalKeyboardKey.end);
-        expect(items[2].hasPrimaryFocus, isTrue);
-      },
-    );
+      await _key(tester, LogicalKeyboardKey.home);
+      expect(items[0].hasPrimaryFocus, isTrue);
+      await _key(tester, LogicalKeyboardKey.end);
+      expect(items[2].hasPrimaryFocus, isTrue);
+    });
   });
 
-  group('StratumFocusGroup in a horizontal scroll', () {
+  group('FocusGroup in a horizontal scroll', () {
     testWidgets(
       'Right reveals each item under left-to-right text, then End and Home',
       (tester) async {
@@ -812,7 +841,7 @@ void main() {
     );
   });
 
-  group('StratumFocusGroup past the viewport', () {
+  group('FocusGroup past the viewport', () {
     testWidgets('Right reveals a row group below a vertical viewport', (
       tester,
     ) async {
@@ -822,8 +851,13 @@ void main() {
         _belowAndAbove(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
-            children: [for (final node in items) _item(node)],
+            focusGroup: const FocusGroup(),
+            // Sub-minimum 40 px items: this test's subject is reveal
+            // geometry, not tap-target size (NFR-U05).
+            children: [
+              for (final node in items)
+                _item(node, tapTargetSize: TapTargetSize.shrinkWrap),
+            ],
           ),
           controller,
         ),
@@ -845,8 +879,13 @@ void main() {
         _belowAndAbove(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(),
-            children: [for (final node in items) _item(node)],
+            focusGroup: const FocusGroup(),
+            // Sub-minimum 40 px items: this test's subject is reveal
+            // geometry, not tap-target size (NFR-U05).
+            children: [
+              for (final node in items)
+                _item(node, tapTargetSize: TapTargetSize.shrinkWrap),
+            ],
           ),
           controller,
         ),
@@ -874,8 +913,8 @@ void main() {
               height: 50,
               child: RowLayout(
                 style: const WidgetStyle(),
-                scroll: const StratumScroll(),
-                focusGroup: const StratumFocusGroup(),
+                scroll: const Scroll(),
+                focusGroup: const FocusGroup(),
                 children: [
                   for (final node in items)
                     Focus(
@@ -912,8 +951,8 @@ void main() {
               height: 50,
               child: RowLayout(
                 style: const WidgetStyle(),
-                scroll: const StratumScroll(),
-                focusGroup: const StratumFocusGroup(),
+                scroll: const Scroll(),
+                focusGroup: const FocusGroup(),
                 children: [
                   for (final node in items)
                     Focus(
@@ -943,61 +982,57 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
 
-    testWidgets(
-      'Left reveals the next card by the edge of each viewport under '
-      'right-to-left text: the end of the row and the start of the page',
-      (tester) async {
-        final controller = _controller();
-        final items = _nodes(10);
-        await tester.pumpWidget(
-          _belowAndAbove(
-            _scrollingCards(items),
-            controller,
-            textDirection: TextDirection.rtl,
-          ),
-        );
-        await _focus(tester, items[3]);
-        // The row shows cards 2 and 3 from its right edge, so card 4 lies
-        // past its end on the left; the page shows 320 to 520, so the row,
-        // at 300 to 350, extends past the page's top.
-        _rowPosition(tester).jumpTo(200);
-        controller.jumpTo(320);
-        await tester.pump();
+    testWidgets('Left reveals the next card by the edge of each viewport under '
+        'right-to-left text: the end of the row and the start of the page', (
+      tester,
+    ) async {
+      final controller = _controller();
+      final items = _nodes(10);
+      await tester.pumpWidget(
+        _belowAndAbove(
+          _scrollingCards(items),
+          controller,
+          textDirection: TextDirection.rtl,
+        ),
+      );
+      await _focus(tester, items[3]);
+      // The row shows cards 2 and 3 from its right edge, so card 4 lies
+      // past its end on the left; the page shows 320 to 520, so the row,
+      // at 300 to 350, extends past the page's top.
+      _rowPosition(tester).jumpTo(200);
+      controller.jumpTo(320);
+      await tester.pump();
 
-        await _key(tester, LogicalKeyboardKey.arrowLeft);
+      await _key(tester, LogicalKeyboardKey.arrowLeft);
 
-        expect(_rowPosition(tester).pixels, 300);
-        _expectInRow(tester, items[4]);
-        _expectInPage(tester, items[4], controller, 300);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(_rowPosition(tester).pixels, 300);
+      _expectInRow(tester, items[4]);
+      _expectInPage(tester, items[4], controller, 300);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets(
-      'Right reveals the next card by the edge of each viewport in a '
-      'reversed page: the end of the row and the top of the page',
-      (tester) async {
-        final controller = _controller();
-        final items = _nodes(10);
-        await tester.pumpWidget(
-          _belowAndAbove(_scrollingCards(items), controller, reverse: true),
-        );
-        await _focus(tester, items[3]);
-        // The reversed page counts from the bottom of its 650 px content:
-        // at 130 it shows 320 to 520, so the row, at 300 to 350, extends
-        // past the page's top.
-        _rowPosition(tester).jumpTo(200);
-        controller.jumpTo(130);
-        await tester.pump();
+    testWidgets('Right reveals the next card by the edge of each viewport in a '
+        'reversed page: the end of the row and the top of the page', (
+      tester,
+    ) async {
+      final controller = _controller();
+      final items = _nodes(10);
+      await tester.pumpWidget(
+        _belowAndAbove(_scrollingCards(items), controller, reverse: true),
+      );
+      await _focus(tester, items[3]);
+      // The reversed page counts from the bottom of its 650 px content:
+      // at 130 it shows 320 to 520, so the row, at 300 to 350, extends
+      // past the page's top.
+      _rowPosition(tester).jumpTo(200);
+      controller.jumpTo(130);
+      await tester.pump();
 
-        await _key(tester, LogicalKeyboardKey.arrowRight);
+      await _key(tester, LogicalKeyboardKey.arrowRight);
 
-        expect(_rowPosition(tester).pixels, 300);
-        _expectInRow(tester, items[4]);
-        _expectInPage(tester, items[4], controller, 650 - 200 - 300);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(_rowPosition(tester).pixels, 300);
+      _expectInRow(tester, items[4]);
+      _expectInPage(tester, items[4], controller, 650 - 200 - 300);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets(
       'Tab from a group item to the stop after the group reveals it by the '
@@ -1029,11 +1064,11 @@ void main() {
                           height: 50,
                           child: RowLayout(
                             style: const WidgetStyle(),
-                            scroll: const StratumScroll(),
+                            scroll: const Scroll(),
                             children: [
                               RowLayout(
                                 mainAxisSize: MainAxisSize.min,
-                                focusGroup: const StratumFocusGroup(),
+                                focusGroup: const FocusGroup(),
                                 children: [for (final card in cards) box(card)],
                               ),
                               box(after),
@@ -1067,10 +1102,10 @@ void main() {
     );
   });
 
-  group('StratumFocusGroup with a focusable scroller member', () {
+  group('FocusGroup with a focusable scroller member', () {
     final scrollers = <String, Widget Function(List<Widget> items)>{
       'ColumnLayout': (items) =>
-          ColumnLayout(scroll: const StratumScroll(), children: items),
+          ColumnLayout(scroll: const Scroll(), children: items),
       'ListViewLayout': (items) => ListViewLayout.builder(
         itemCount: items.length,
         itemBuilder: (context, index) => items[index],
@@ -1107,53 +1142,53 @@ void main() {
         variant: TargetPlatformVariant.desktop(),
       );
 
-      testWidgets(
-        'Tab from a member beside a $name member leaves the group',
-        (tester) async {
-          final toolbar = _Toolbar();
-          await toolbar.pump(tester, scroller);
-          await _focus(tester, toolbar.bold);
+      testWidgets('Tab from a member beside a $name member leaves the group', (
+        tester,
+      ) async {
+        final toolbar = _Toolbar();
+        await toolbar.pump(tester, scroller);
+        await _focus(tester, toolbar.bold);
 
-          final path = await toolbar.press(tester, [_tab]);
+        final path = await toolbar.press(tester, [_tab]);
 
-          expect(path, ['after']);
-        },
-        variant: TargetPlatformVariant.desktop(),
-      );
+        expect(path, ['after']);
+      }, variant: TargetPlatformVariant.desktop());
     }
   });
 
-  group('StratumFocusGroup role', () {
-    testWidgets('tabBar over items with role tab passes the debug check', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      final before = _node();
-      final items = _nodes(2);
-      await tester.pumpWidget(
-        _host(
-          RowLayout(
-            mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(role: SemanticsRole.tabBar),
-            children: [
-              for (var i = 0; i < items.length; i++)
-                _item(
-                  items[i],
-                  semantics: SemanticsProperties(
-                    role: SemanticsRole.tab,
-                    selected: i == 0,
-                    label: 'Tab $i',
+  group('FocusGroup role', () {
+    testWidgets(
+      'fo06/us06/fr02: tabBar over items with role tab passes the debug '
+      'check',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        final before = _node();
+        final items = _nodes(2);
+        await tester.pumpWidget(
+          _host(
+            RowLayout(
+              mainAxisSize: MainAxisSize.min,
+              focusGroup: const FocusGroup(role: SemanticsRole.tabBar),
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  _item(
+                    items[i],
+                    semantics: SemanticsProperties(
+                      role: SemanticsRole.tab,
+                      selected: i == 0,
+                      label: 'Tab $i',
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
+            before: before,
           ),
-          before: before,
-        ),
-      );
+        );
 
-      expect(tester.takeException(), isNull);
-      handle.dispose();
-    });
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      },
+    );
 
     testWidgets('tabBar over items without role tab fails the debug check', (
       tester,
@@ -1165,7 +1200,7 @@ void main() {
         _host(
           RowLayout(
             mainAxisSize: MainAxisSize.min,
-            focusGroup: const StratumFocusGroup(role: SemanticsRole.tabBar),
+            focusGroup: const FocusGroup(role: SemanticsRole.tabBar),
             children: [for (final node in items) _item(node)],
           ),
           before: before,
@@ -1177,6 +1212,276 @@ void main() {
         contains('Children of TabBar must have the tab role'),
       );
       handle.dispose();
+    });
+  });
+
+  group('firstTabStopIn', () {
+    testWidgets(
+      'finds the first Tab stop below the viewport and scrolls to it only '
+      'when reveal is true',
+      (tester) async {
+        final controller = _controller();
+        final container = _node('container');
+        final item = _node('item');
+        await tester.pumpWidget(
+          _belowAndAbove(
+            Focus(
+              focusNode: container,
+              skipTraversal: true,
+              child: Focus(focusNode: item, child: _dot),
+            ),
+            controller,
+          ),
+        );
+
+        expect(firstTabStopIn(container, reveal: false), same(item));
+        await tester.pump();
+        expect(controller.offset, 0);
+
+        expect(firstTabStopIn(container), same(item));
+        await tester.pump();
+        expect(controller.offset, 310 - 200);
+      },
+    );
+  });
+
+  group('revealInViewports', () {
+    testWidgets(
+      'with an origin away from the current offset, lands the target at '
+      'the offset nearest the origin that shows it whole, clamped to the '
+      'scroll extent',
+      (tester) async {
+        final controller = _controller();
+        final boxes = _nodes(30);
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              height: 300,
+              child: ListView(
+                controller: controller,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+                children: [
+                  for (final node in boxes)
+                    Focus(focusNode: node, child: const SizedBox(height: 40)),
+                ],
+              ),
+            ),
+          ),
+        );
+        controller.jumpTo(1000);
+        await tester.pump();
+
+        revealInViewports(
+          boxes[20],
+          origin: (position: controller.position, pixels: 0),
+        );
+        // Box 20's trailing edge, 540, the least scroll from 0: the edge
+        // rule from the current offset, 1000, would give its leading
+        // edge, 800.
+        expect(controller.offset, 540);
+
+        revealInViewports(
+          boxes[29],
+          origin: (position: controller.position, pixels: 5000),
+        );
+        // Box 29's leading edge, 1160, clamped to this Scrollable's
+        // maxScrollExtent, 900: an origin past the extent never lands
+        // past it either.
+        expect(controller.offset, 900);
+      },
+    );
+
+    testWidgets(
+      'with an object taller than the viewport, lands its leading edge '
+      'whatever the origin',
+      (tester) async {
+        final controller = _controller();
+        final boxes = _nodes(31);
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              height: 300,
+              child: ListView(
+                controller: controller,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+                children: [
+                  for (final node in boxes.take(30))
+                    Focus(focusNode: node, child: const SizedBox(height: 40)),
+                  Focus(
+                    focusNode: boxes[30],
+                    child: const SizedBox(height: 400),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        controller.jumpTo(0);
+        await tester.pump();
+
+        revealInViewports(
+          boxes[30],
+          origin: (position: controller.position, pixels: 50),
+        );
+        // Box 30 is 400 px tall, past the 300 px viewport: its leading
+        // edge, 1200, not an offset the origin, 50, would clamp to.
+        expect(controller.offset, 1200);
+      },
+    );
+
+    testWidgets(
+      "with an origin, jumps only the level it was read from: a target's "
+      'own nested scrollable keeps the edge rule',
+      (tester) async {
+        final controller = _controller();
+        final inner = _controller();
+        final boxes = _nodes(30);
+        final nested = _node('nested');
+        await tester.pumpWidget(
+          themedHost(
+            SizedBox(
+              height: 300,
+              child: ListView(
+                controller: controller,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+                children: [
+                  for (var i = 0; i < 20; i++)
+                    Focus(
+                      focusNode: boxes[i],
+                      child: const SizedBox(height: 40),
+                    ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: 100,
+                      height: 40,
+                      child: ListView(
+                        controller: inner,
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          const SizedBox(width: 40, height: 40),
+                          const SizedBox(width: 40, height: 40),
+                          Focus(
+                            focusNode: nested,
+                            child: const SizedBox(width: 40, height: 40),
+                          ),
+                          const SizedBox(width: 40, height: 40),
+                        ],
+                      ),
+                    ),
+                  ),
+                  for (var i = 21; i < 30; i++)
+                    Focus(
+                      focusNode: boxes[i],
+                      child: const SizedBox(height: 40),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+        controller.jumpTo(1000);
+        // Box 2 of the nested row, 80 to 120 of its own 100 px viewport,
+        // already shows whole at 50: the edge rule asks nothing of it.
+        inner.jumpTo(50);
+        await tester.pump();
+
+        revealInViewports(
+          nested,
+          origin: (position: controller.position, pixels: 0),
+        );
+
+        // The target's row, slot 20: its trailing edge, 540, the least
+        // scroll from the origin the outer list was read at (G5).
+        expect(controller.offset, 540);
+        // The origin was read from the outer list, not this nested one:
+        // it keeps the edge rule, and the target already shows whole, so
+        // it never moves to where the origin, misread as its own, would
+        // clamp it, 20.
+        expect(inner.offset, 50);
+      },
+    );
+
+    testWidgets(
+      'with an origin whose own ScrollPosition a physics swap disposes, '
+      'still jumps the level the Scrollable it survives on was read from, '
+      'not the stale position (G5)',
+      (tester) async {
+        final controller = _controller();
+        final boxes = _nodes(30);
+        Widget list(ScrollPhysics? physics) => themedHost(
+          SizedBox(
+            height: 300,
+            child: ListView(
+              controller: controller,
+              physics: physics,
+              scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+              children: [
+                for (final node in boxes)
+                  Focus(focusNode: node, child: const SizedBox(height: 40)),
+              ],
+            ),
+          ),
+        );
+        await tester.pumpWidget(list(null));
+        controller.jumpTo(1000);
+        await tester.pump();
+        final origin = (position: controller.position, pixels: 0.0);
+
+        // A physics the Scrollable tells apart from the default by type
+        // makes it dispose and replace the position [origin] still holds;
+        // the Scrollable itself, the level [origin] was read from, survives
+        // the swap.
+        await tester.pumpWidget(list(const NeverScrollableScrollPhysics()));
+
+        revealInViewports(boxes[20], origin: origin);
+
+        // Box 20's trailing edge, 540, the least scroll from the origin's
+        // 0 (G5): the edge rule from the current offset, 1000, would give
+        // its leading edge, 800, instead, the level's loss when the match
+        // reads the stale position identity rather than the surviving
+        // Scrollable.
+        expect(controller.offset, 540);
+      },
+    );
+
+    testWidgets('shows a target kept alive off screen with the least scroll', (
+      tester,
+    ) async {
+      final boxes = _nodes(1000);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Material(
+            child: themedHost(
+              SizedBox(
+                width: 200,
+                height: 300,
+                child: ListViewLayout.builder(
+                  itemCount: 1000,
+                  itemBuilder: (context, index) => _KeptAlive(
+                    child: Focus(
+                      focusNode: boxes[index],
+                      child: const SizedBox(height: 40),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final position =
+          tester.state<ScrollableState>(find.byType(Scrollable)).position
+            ..jumpTo(4000);
+      await tester.pump();
+      position.jumpTo(20000);
+      await tester.pump();
+
+      revealInViewports(boxes[103]);
+
+      // Box 103's leading edge: the least scroll from 20000 that shows it
+      // whole.
+      expect(position.pixels, 4120);
     });
   });
 }

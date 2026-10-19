@@ -66,7 +66,7 @@ void main() {
     transitions: transitionsOf(ScreenTransitionType.fade),
   );
 
-  testWidgets("us05/s9: the page shows its own type over the theme's", (
+  testWidgets("fo05/us05/s9: the page shows its own type over the theme's", (
     tester,
   ) async {
     await _open(tester, fadeTheme, ScreenTransitionType.rightToLeft);
@@ -75,7 +75,7 @@ void main() {
     expect(_above(FadeTransition), findsNothing);
   });
 
-  testWidgets("us05/fr05: the route takes the theme's slow level", (
+  testWidgets("fo05/us05/fr05: the route takes the theme's slow level", (
     tester,
   ) async {
     await _open(tester, fadeTheme, ScreenTransitionType.rightToLeft);
@@ -88,7 +88,7 @@ void main() {
     );
   });
 
-  testWidgets('us05/fr05/e02: none shows the page at once, in push and '
+  testWidgets('fo05/us05/fr05/e02: none shows the page at once, in push and '
       'pop', (tester) async {
     await _open(tester, fadeTheme, ScreenTransitionType.none);
 
@@ -102,18 +102,21 @@ void main() {
     expect(_above(SlideTransition), findsNothing);
   });
 
-  testWidgets('us05/fr05/e02: a pop of a none page leaves it gone after one '
-      'pump', (tester) async {
-    await _open(tester, fadeTheme, ScreenTransitionType.none);
+  testWidgets(
+    'fo05/us05/fr05/e02: a pop of a none page leaves it gone after one '
+    'pump',
+    (tester) async {
+      await _open(tester, fadeTheme, ScreenTransitionType.none);
 
-    await tester.pumpWidget(_app(fadeTheme, const [_home]));
-    await tester.pump();
+      await tester.pumpWidget(_app(fadeTheme, const [_home]));
+      await tester.pump();
 
-    expect(_page, findsNothing);
-  });
+      expect(_page, findsNothing);
+    },
+  );
 
   for (final signal in ['disableAnimations', 'reduceMotion']) {
-    testWidgets('us05/fr03, nfr-u03: under $signal rightToLeft shows the '
+    testWidgets('fo05/us05/fr03, nfr-u03: under $signal rightToLeft shows the '
         'page at once', (tester) async {
       if (signal == 'reduceMotion') {
         tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -151,9 +154,52 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(_above(SlideTransition), findsWidgets);
     });
+
+    testWidgets(
+      'fo05/us05/fr05: rotate grows from the center and never throws',
+      (tester) async {
+        await _open(tester, fadeTheme, ScreenTransitionType.rotate);
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester
+              .widget<RotationTransition>(_above(RotationTransition))
+              .alignment,
+          Alignment.center,
+        );
+        expect(
+          tester.widget<ScaleTransition>(_above(ScaleTransition)).alignment,
+          Alignment.center,
+        );
+      },
+    );
+
+    testWidgets('fo05/us05/fr05: size grows from the center and never throws', (
+      tester,
+    ) async {
+      await _open(tester, fadeTheme, ScreenTransitionType.size);
+
+      expect(tester.takeException(), isNull);
+      // The Align nearest above the SizeTransition is the route's own;
+      // SizeTransition wraps its child in an inner Align of its own
+      // (transitions.dart:527@3.47.3).
+      final outer = find
+          .ancestor(of: _above(SizeTransition), matching: find.byType(Align))
+          .first;
+      expect(tester.widget<Align>(outer).alignment, Alignment.center);
+    });
+
+    testWidgets('fo05/us05/fr05: leftToRightJoined never throws', (
+      tester,
+    ) async {
+      await _open(tester, fadeTheme, ScreenTransitionType.leftToRightJoined);
+
+      expect(tester.takeException(), isNull);
+      expect(_above(SlideTransition), findsWidgets);
+    });
   });
 
-  group('us05/fr01: the page below a new page', () {
+  group('fo05/us05/fr01: the page below a new page', () {
     /// The left edge of the page keyed [key].
     double dxOf(WidgetTester tester, String key) =>
         tester.getTopLeft(find.byKey(ValueKey(key))).dx;
@@ -173,6 +219,18 @@ void main() {
       expect(
         dxOf(tester, 'home'),
         closeTo(dxOf(tester, 'page') - tester.getSize(_page).width, 1e-6),
+      );
+    });
+
+    testWidgets('leftToRightJoined slides a MaterialPage out joined to it', (
+      tester,
+    ) async {
+      await _open(tester, fadeTheme, ScreenTransitionType.leftToRightJoined);
+
+      expect(dxOf(tester, 'home'), greaterThan(0));
+      expect(
+        dxOf(tester, 'home'),
+        closeTo(dxOf(tester, 'page') + tester.getSize(_page).width, 1e-6),
       );
     });
 
@@ -231,7 +289,7 @@ void main() {
     });
   });
 
-  group('us05/fr01: a page below a translucent route', () {
+  group('fo05/us05/fr01: a page below a translucent route', () {
     /// Shows [type]'s page settled over the home page, then pushes a
     /// cupertino [PageTransition] of [opaque] over it and pumps 100 ms in.
     Future<void> cover(

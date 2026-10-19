@@ -1,6 +1,8 @@
-// Frozen by tool/perf_freeze.dart from f64627d:lib/src/components/common/layout/flex_layout.dart. Do not edit; run
+// Frozen by tool/perf_freeze.dart from 7a50510:lib/src/components/common/layout/flex_layout.dart. Do not edit; run
 // the tool again. Verbatim except this header, the baseline import,
 // and the Baseline prefix on the names the frozen files declare.
+// The live name FocusGroup is patched in for StratumFocusGroup; everything
+// else stays verbatim from 7a50510.
 // ignore_for_file: type=lint, unused_import, unnecessary_import
 import 'baseline.dart';
 
@@ -68,9 +70,9 @@ class BaselineFlexLayout extends BaselineBoxLayout {
   final double? gap;
 
   /// Makes the focusable children one roving Tab stop with arrow, Home,
-  /// and End keys; see [StratumFocusGroup]. Switching between null and a
+  /// and End keys; see [FocusGroup]. Switching between null and a
   /// value remounts the children.
-  final StratumFocusGroup? focusGroup;
+  final FocusGroup? focusGroup;
   final List<Widget> children;
 
   @override
