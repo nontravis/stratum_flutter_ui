@@ -1020,11 +1020,12 @@ void main() {
         final html = android.willLoadHtml('<p>Hi</p>');
         final nonce = nonceIn(html);
         final load = android.currentLoad;
-        android.acceptMessage(
-          envelope(nonce, 'hello', documentA),
-          sender: sentBy(proxyA),
-        );
-        android.willReload();
+        android
+          ..acceptMessage(
+            envelope(nonce, 'hello', documentA),
+            sender: sentBy(proxyA),
+          )
+          ..willReload();
         expect(android.scriptForMessage('ping'), allowlistOnly('ping'));
         expect(android.replyProxyScriptForMessage('ping', load: load), (
           replyProxy: proxyA,
