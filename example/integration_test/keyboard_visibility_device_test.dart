@@ -754,6 +754,10 @@ Future<void> _attendE07iOS(WidgetTester tester, List<bool> builds) async {
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  // Eager install (support/app_lifecycle.dart's own doc): seeds the
+  // process-wide lifecycle record before this file's first test can hit
+  // flutter_test's per-test reset.
+  installLifecycleObserver();
 
   testWidgets(
     'fo07/us04/fr02: the keyboard-visibility scope proves whichever of '
