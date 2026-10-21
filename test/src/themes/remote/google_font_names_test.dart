@@ -109,9 +109,6 @@ void main() {
         loadYaml(File('pubspec.yaml').readAsStringSync()) as YamlMap;
     final dependencies = pubspec['dependencies']! as YamlMap;
 
-    expect(
-      dependencies['google_fonts'],
-      '>=$googleFontNamesVersion <=$googleFontNamesVersion',
-    );
+    expect(dependencies['google_fonts'], googleFontNamesVersion);
   }, skip: _update ? 'regenerating the list' : false);
 }
