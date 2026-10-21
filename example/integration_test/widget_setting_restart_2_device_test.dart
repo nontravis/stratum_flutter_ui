@@ -34,6 +34,14 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
 
+      // Registered first, so it runs even when an expect below fails: a
+      // stored 400 px left behind would let a later launch 2 pass without
+      // its launch 1.
+      addTearDown(() async {
+        final reset = await StratumWidgetSettingsController.preload();
+        await reset.resetAll();
+        reset.dispose();
+      });
       final pageController = PageLayoutController();
       addTearDown(pageController.dispose);
       StratumSplashState<void>? latestState;
@@ -81,10 +89,6 @@ void main() {
         everyElement(widgetSettingRestartStoredLeftWidth),
         reason: 'a left-pane layout drew another width: $leftWidths',
       );
-
-      final reset = await StratumWidgetSettingsController.preload();
-      await reset.resetAll();
-      reset.dispose();
     },
   );
 }
