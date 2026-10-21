@@ -65,6 +65,22 @@ void _fillLocalStorageToQuota() {
         'keys (env)',
   );
 
+  // A refused chunk can still leave up to one chunk of room, enough for any
+  // small write. Tops the quota off under one tail key: each halving step
+  // keeps the longer value only when the browser accepts it, so less than
+  // one character of room remains.
+  final tailKey = '${_fillerPrefix}tail';
+  fillerKeys.add(tailKey);
+  var tailLength = 0;
+  for (var step = _fillerChunk.length; step > 0; step >>= 1) {
+    try {
+      setLocalStorageItem(tailKey, 'x' * (tailLength + step));
+      tailLength += step;
+    } on Object {
+      // Refused: the tail keeps its last accepted value; try a smaller step.
+    }
+  }
+
   Object? probeError;
   try {
     setLocalStorageItem('${_fillerPrefix}probe', 'x');
@@ -78,14 +94,21 @@ void _fillLocalStorageToQuota() {
   );
 }
 
-/// Captures every `FlutterError.reportError` call made during this test,
-/// restoring the previous handler in [addTearDown] (mirrors
-/// `test/src/components/common/widget_settings/support/captured_reports.dart`,
-/// not importable from this app).
+/// Captures every report library `stratum_ui` makes through
+/// `FlutterError.reportError` during this test, and passes every other
+/// report, a failed `expect` included, to the previous handler: flutter_test
+/// asserts that its own handler saw a failure before it ends the test.
+/// Restores that handler in [addTearDown].
 List<FlutterErrorDetails> _captureErrorReports() {
   final reported = <FlutterErrorDetails>[];
   final previous = FlutterError.onError;
-  FlutterError.onError = reported.add;
+  FlutterError.onError = (details) {
+    if (details.library == 'stratum_ui') {
+      reported.add(details);
+    } else {
+      previous?.call(details);
+    }
+  };
   addTearDown(() => FlutterError.onError = previous);
   return reported;
 }
@@ -192,7 +215,11 @@ void main() {
             'the save to the full localStorage was refused (PD12)',
       );
       expect(reports, hasLength(1));
-      expect(reports.single.library, 'stratum_ui');
+      expect(
+        reports.single.context.toString(),
+        contains('saving a widget setting'),
+        reason: 'the one report must come from the refused save',
+      );
       expect(tester.takeException(), isNull);
     },
     skip: !kIsWeb,
