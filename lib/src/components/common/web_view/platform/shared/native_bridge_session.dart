@@ -99,10 +99,11 @@ typedef AcceptedMessage = ({
 /// A document of the app's own HTML, named by the native bootstrap's
 /// envelope (US-03 FR-05 E09).
 final class NativeHtmlDocumentSender extends PlatformHtmlDocumentSender {
-  const new({required this.loadNonce, required this.documentId});
+  const new({required this.load, required this.documentId});
 
-  /// The inbound nonce of the load whose envelope carried the message.
-  final String loadNonce;
+  /// The count of the `loadHtml` call whose document sent the message,
+  /// unique within its session; it is no secret.
+  final int load;
 
   /// The id the sending document's `hello` carries, 32 lowercase hex
   /// characters.
@@ -143,6 +144,10 @@ final class NativeBridgeSession {
   final bool _namesSenders;
   final bool _bindsSendsToDocument;
   Uri? _pageUrl;
+
+  /// The count of `loadHtml` calls this session has made, so far; the next
+  /// one's load is `_loads + 1`.
+  int _loads = 0;
 
   /// The native HTML proof (US-03 FR-04, `s03_domain.md` `## Lifecycle`).
   /// Only [willLoadHtml], [willLoadUrl], [willDispose], and a `hello` or
@@ -195,7 +200,7 @@ final class NativeBridgeSession {
   /// until a `hello` proves the new one.
   String willLoadHtml(String html) {
     _beginNavigation();
-    final minted = _Minted(_mintSecret(), _mintSecret());
+    final minted = _Minted(_mintSecret(), _mintSecret(), ++_loads);
     _proof = minted;
     return injectNativeBridgeBootstrap(
       html,
@@ -206,8 +211,10 @@ final class NativeBridgeSession {
 
   /// Call right before the adapter reloads the current page.
   ///
-  /// The platform parses the same HTML string again, so the nonce stays;
-  /// the old document's `bye` and the new document's `hello` move the proof.
+  /// Android and Windows parse the same HTML string again, so the nonce
+  /// stays; the old document's `bye` and the new document's `hello` move
+  /// the proof. iOS, macOS, and Linux reload an empty page instead, so the
+  /// bridge stays closed until the next `loadHtml`.
   void willReload() => _beginNavigation();
 
   /// Call right before the adapter is disposed; every candidate is
@@ -306,8 +313,12 @@ final class NativeBridgeSession {
   ///   proves nothing instead, so a send still throws unproven rather than
   ///   trusting the page shown with the token (B2).
   /// - `bye` revokes only a proof whose id it carries (FR-04 E10).
-  /// - `message` passes only while proven, and only while its own document
-  ///   id is 32 lowercase hex characters (FR-04 E05).
+  /// - `message` passes only while proven; through the reply proxy that
+  ///   proved it when the proof holds one, so a `message` another document
+  ///   posted drops whatever id it names (FR-04 E15), and otherwise only on
+  ///   a platform that does not [_bindsSendsToDocument], since a proof
+  ///   there always holds a proxy; and only while its own document id is 32
+  ///   lowercase hex characters (FR-04 E05).
   AcceptedMessage? _receiveEnvelope(String body, BridgeReplyProxy? replyProxy) {
     final proof = _proof;
     if (proof is! _Load) return null;
@@ -315,10 +326,13 @@ final class NativeBridgeSession {
       case ('hello', final id)
           when _documentIdShape.hasMatch(id) &&
               (!_bindsSendsToDocument || replyProxy != null):
-        _proof = _Proven(proof.nonce, proof.token, id, replyProxy);
+        _proof = _Proven(proof.nonce, proof.token, proof.load, id, replyProxy);
       case ('bye', final id) when proof is _Proven && id == proof.documentId:
-        _proof = _Revoked(proof.nonce, proof.token);
-      case ('message', final body) when proof is _Proven:
+        _proof = _Revoked(proof.nonce, proof.token, proof.load);
+      case ('message', final body)
+          when proof is _Proven &&
+              (replyProxy == proof.replyProxy ||
+                  (proof.replyProxy == null && !_bindsSendsToDocument)):
         final id = body.length > _secretLength && body[_secretLength] == ':'
             ? body.substring(0, _secretLength)
             : null;
@@ -327,10 +341,7 @@ final class NativeBridgeSession {
           message: StratumWebViewMessage(
             data: body.substring(_secretLength + 1),
           ),
-          sender: NativeHtmlDocumentSender(
-            loadNonce: proof.nonce,
-            documentId: id,
-          ),
+          sender: NativeHtmlDocumentSender(load: proof.load, documentId: id),
         );
     }
     return null;
@@ -415,15 +426,15 @@ final class NativeBridgeSession {
     );
   }
 
-  /// The nonce of the current HTML load, or `null` while none is current.
+  /// The count of the current HTML load, or `null` while none is current.
   ///
   /// Read it right after [scriptForMessage] returns and pass it to
   /// [replyProxyScriptForMessage], so a reply-proxy run binds to the load
   /// the send began under, not to whichever load is current once the first
   /// script answers (B1).
-  String? get currentLoadNonce {
+  int? get currentLoad {
     final proof = _proof;
-    return proof is _Load ? proof.nonce : null;
+    return proof is _Load ? proof.load : null;
   }
 
   /// Returns the token check of [data] and the reply proxy to run it
@@ -431,21 +442,21 @@ final class NativeBridgeSession {
   /// refused; `null` when no send goes further.
   ///
   /// Only a proof that a `hello` with a reply proxy holds right now, of the
-  /// same load as [loadNonce], has one (Android): the platform runs that
+  /// same load as [load], has one (Android): the platform runs that
   /// script only in the document that sent the `hello`, so neither its
   /// `bye` nor a page start decides delivery, and no other document ever
-  /// gets the token (US-03 FR-02 E13, FR-04 E15). [loadNonce] is
-  /// [currentLoadNonce] read when [scriptForMessage] built the first
+  /// gets the token (US-03 FR-02 E13, FR-04 E15). [load] is
+  /// [currentLoad] read when [scriptForMessage] built the first
   /// script; a later `loadHtml` that proves while that script is pending
   /// gets nothing, even though it is proven once this runs (B1). Ask after
   /// the first script answers, so a `bye` that arrived meanwhile stops the
   /// run.
   ({BridgeReplyProxy replyProxy, String script})? replyProxyScriptForMessage(
     String data, {
-    required String? loadNonce,
+    required int? load,
   }) {
     final proof = _proof;
-    if (proof is! _Proven || proof.nonce != loadNonce) return null;
+    if (proof is! _Proven || proof.load != load) return null;
     final replyProxy = proof.replyProxy;
     if (replyProxy == null) return null;
     return (
@@ -482,7 +493,7 @@ final class NativeBridgeSession {
     final proof = _proof;
     if (proof is! _Proven ||
         document is! NativeHtmlDocumentSender ||
-        proof.nonce != document.loadNonce ||
+        proof.load != document.load ||
         proof.documentId != document.documentId) {
       throw StateError('The HTML document that sent the message is gone.');
     }
@@ -575,23 +586,31 @@ final class _NoNonce extends _Proof {
   const new();
 }
 
-/// A proof state of the current `loadHtml`, holding its two secrets.
+/// A proof state of the current `loadHtml`, holding its two secrets and the
+/// counter of the `loadHtml` call that minted them.
 sealed class _Load extends _Proof {
-  const new(this.nonce, this.token);
+  const new(this.nonce, this.token, this.load);
 
   final String nonce;
   final String token;
+  final int load;
 }
 
 /// Minted by `loadHtml`: no `hello` has proven [nonce] yet.
 final class _Minted extends _Load {
-  const new(super.nonce, super.token);
+  const new(super.nonce, super.token, super.load);
 }
 
 /// Proven by the `hello` of the document with [documentId], which came
 /// with [replyProxy] on Android.
 final class _Proven extends _Load {
-  const new(super.nonce, super.token, this.documentId, this.replyProxy);
+  const new(
+    super.nonce,
+    super.token,
+    super.load,
+    this.documentId,
+    this.replyProxy,
+  );
 
   final String documentId;
   final BridgeReplyProxy? replyProxy;
@@ -600,7 +619,7 @@ final class _Proven extends _Load {
 /// Revoked by the proving document's `bye`: [token] is withheld until a
 /// `hello` proves [nonce] again.
 final class _Revoked extends _Load {
-  const new(super.nonce, super.token);
+  const new(super.nonce, super.token, super.load);
 }
 
 /// [url] in the form a platform reports it: no fragment, and `/` for the

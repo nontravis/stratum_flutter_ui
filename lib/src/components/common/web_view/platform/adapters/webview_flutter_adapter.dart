@@ -34,6 +34,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   final NativeSenderChannel _senderChannel;
   final wf.WebViewController _controller = wf.WebViewController();
   late final Future<void> _ready;
+  var _disposed = false;
 
   Future<void> _configure() async {
     await _controller.setJavaScriptMode(wf.JavaScriptMode.unrestricted);
@@ -63,9 +64,17 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     );
   }
 
+  /// Waits for the platform's configuration; `false` once [dispose] ran, so
+  /// a call started just before it reaches no platform (parity with the web
+  /// view, whose load started before dispose leaves the frame blank).
+  Future<bool> _live() async {
+    await _ready;
+    return !_disposed;
+  }
+
   @override
   Future<void> load(StratumWebViewSource source) async {
-    await _ready;
+    if (!await _live()) return;
     switch (source) {
       case StratumWebViewUrlSource(:final url):
         _session.willLoadUrl();
@@ -77,21 +86,21 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
 
   @override
   Future<void> reload() async {
-    await _ready;
+    if (!await _live()) return;
     _session.willReload();
     await _controller.reload();
   }
 
   @override
   Future<void> goBack() async {
-    await _ready;
+    if (!await _live()) return;
     _session.willNavigate();
     await _controller.goBack();
   }
 
   @override
   Future<void> goForward() async {
-    await _ready;
+    if (!await _live()) return;
     _session.willNavigate();
     await _controller.goForward();
   }
@@ -121,7 +130,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   /// E13). A first script with no answer ends the send.
   ///
   /// The reply-proxy run is bound to the load the first script was built
-  /// for, by the nonce [NativeBridgeSession.currentLoadNonce] reads right
+  /// for, by the counter [NativeBridgeSession.currentLoad] reads right
   /// after [NativeBridgeSession.scriptForMessage] returns: a later
   /// `loadHtml` that proves while the first script is still pending does
   /// not receive this send (B1). A named send never runs the token check
@@ -130,12 +139,12 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
   Future<void> postMessage(String data, {Uri? targetOrigin}) async {
     await _ready;
     final script = _session.scriptForMessage(data, targetOrigin: targetOrigin);
-    final loadNonce = _session.currentLoadNonce;
+    final load = _session.currentLoad;
     final answer = await dispatchScriptAnswer(
       _controller.runJavaScriptReturningResult(script),
     );
     final run = answer == false && targetOrigin == null
-        ? _session.replyProxyScriptForMessage(data, loadNonce: loadNonce)
+        ? _session.replyProxyScriptForMessage(data, load: load)
         : null;
     _session.confirmDelivery(
       run == null
@@ -186,6 +195,7 @@ final class WebviewFlutterAdapter implements PlatformStratumWebView {
     // about:blank first, so audio, video, and timers stop immediately
     // instead of running until the native view is collected (parity with
     // the web implementation, which navigates the iframe away on dispose).
+    _disposed = true;
     _session.willDispose();
     unawaited(_disposeLoad());
   }

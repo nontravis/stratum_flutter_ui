@@ -23,6 +23,8 @@ abstract interface class NativeAdapterHarness {
   List<bool> get javaScriptEnabledStates;
   Set<String> get channelNames;
   int get reloadCount;
+  int get goBackCount;
+  int get goForwardCount;
 
   /// What the platform answers for the next dispatch script.
   set scriptResult(Object value);
@@ -158,8 +160,8 @@ void runNativeAdapterContract(
     });
 
     test(
-      'co01_02/us03/fr05/e11: a reply script with no answer within 5 seconds, '
-      'or a platform error, throws the StateError naming no origin',
+      'co01_02/us03/fr05/e11: a reply script with no answer within 5 seconds '
+      'throws the StateError naming no origin',
       () {
         fakeAsync((async) {
           final zonedHarness = createHarness();
@@ -193,40 +195,42 @@ void runNativeAdapterContract(
           async.elapse(const Duration(milliseconds: 1));
           expect(failure, _unallowedPage);
         });
-        fakeAsync((async) {
-          final zonedHarness = createHarness();
-          final zonedAdapter = zonedHarness.createAdapter(listener);
-          unawaited(
-            zonedAdapter.load(const StratumWebViewSource.html('<p>Hi</p>')),
-          );
-          async.flushMicrotasks();
-          final zonedHtml = zonedHarness.loadedHtml.single;
-          final zonedNonce = nonceIn(zonedHtml);
-          zonedHarness
-            ..sendBridgeMessage(
-              envelope(zonedNonce, 'hello', documentA),
-              senderUrl: 'about:blank',
-            )
-            ..sendBridgeMessage(
-              messageEnvelope(zonedNonce, 'm'),
-              senderUrl: 'about:blank',
-            );
-          final zonedSender =
-              listener.senders.last as PlatformHtmlDocumentSender;
-          zonedHarness.scriptAnswer = () => Future<Object>.error(
-            PlatformException(code: 'evaluateJavaScript'),
-          );
-          Object? failure;
-          unawaited(
-            zonedAdapter
-                .replyToDocument(zonedSender, 'pong')
-                .then((_) {}, onError: (Object error) => failure = error),
-          );
-          async.flushMicrotasks();
-          expect(failure, _unallowedPage);
-        });
       },
     );
+
+    test('co01_02/us03/fr05/e11: a reply script the platform fails throws the '
+        'StateError naming no origin', () {
+      fakeAsync((async) {
+        final zonedHarness = createHarness();
+        final zonedAdapter = zonedHarness.createAdapter(listener);
+        unawaited(
+          zonedAdapter.load(const StratumWebViewSource.html('<p>Hi</p>')),
+        );
+        async.flushMicrotasks();
+        final zonedHtml = zonedHarness.loadedHtml.single;
+        final zonedNonce = nonceIn(zonedHtml);
+        zonedHarness
+          ..sendBridgeMessage(
+            envelope(zonedNonce, 'hello', documentA),
+            senderUrl: 'about:blank',
+          )
+          ..sendBridgeMessage(
+            messageEnvelope(zonedNonce, 'm'),
+            senderUrl: 'about:blank',
+          );
+        final zonedSender = listener.senders.last as PlatformHtmlDocumentSender;
+        zonedHarness.scriptAnswer = () =>
+            Future<Object>.error(PlatformException(code: 'evaluateJavaScript'));
+        Object? failure;
+        unawaited(
+          zonedAdapter
+              .replyToDocument(zonedSender, 'pong')
+              .then((_) {}, onError: (Object error) => failure = error),
+        );
+        async.flushMicrotasks();
+        expect(failure, _unallowedPage);
+      });
+    });
 
     test('enables JavaScript', () {
       expect(harness.javaScriptEnabledStates, [true]);
@@ -1165,6 +1169,56 @@ void runNativeAdapterContract(
       await pumpEventQueue();
       expect(harness.loadedUrls, [Uri.parse('about:blank')]);
     });
+
+    test('a load started just before dispose leaves the view blank', () async {
+      final pending = adapter.load(StratumWebViewSource.url(appPage));
+      adapter.dispose();
+      await pending;
+      await pumpEventQueue();
+      expect(harness.loadedUrls, [Uri.parse('about:blank')]);
+    });
+
+    test('us03/fr04: an HTML load started just before dispose loads nothing '
+        'and leaves no nonce to prove', () async {
+      final pending = adapter.load(
+        const StratumWebViewSource.html('<p>Hi</p>'),
+      );
+      adapter.dispose();
+      await pending;
+      await pumpEventQueue();
+      expect(harness.loadedHtml, isEmpty);
+      expect(harness.loadedUrls, [Uri.parse('about:blank')]);
+    });
+
+    test('a reload started just before dispose reaches no platform', () async {
+      await adapter.load(StratumWebViewSource.url(appPage));
+      final pending = adapter.reload();
+      adapter.dispose();
+      await pending;
+      await pumpEventQueue();
+      expect(harness.reloadCount, 0);
+    });
+
+    test('a goBack started just before dispose reaches no platform', () async {
+      await adapter.load(StratumWebViewSource.url(appPage));
+      final pending = adapter.goBack();
+      adapter.dispose();
+      await pending;
+      await pumpEventQueue();
+      expect(harness.goBackCount, 0);
+    });
+
+    test(
+      'a goForward started just before dispose reaches no platform',
+      () async {
+        await adapter.load(StratumWebViewSource.url(appPage));
+        final pending = adapter.goForward();
+        adapter.dispose();
+        await pending;
+        await pumpEventQueue();
+        expect(harness.goForwardCount, 0);
+      },
+    );
   });
 }
 

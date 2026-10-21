@@ -398,6 +398,23 @@ void main() {
         ),
       ]);
     });
+
+    test('us03/fr04/e15: a message envelope another reply proxy carried '
+        'never reaches the app', () async {
+      harness.sender
+        ..send(
+          messageEnvelope(nonceIn(html), 'forged'),
+          senderUrl: 'about:blank',
+          replyProxy: const BridgeReplyProxy(4),
+        )
+        ..send(
+          messageEnvelope(nonceIn(html), 'real'),
+          senderUrl: 'about:blank',
+          replyProxy: proxy,
+        );
+      await pumpEventQueue();
+      expect(listener.messages, [const StratumWebViewMessage(data: 'real')]);
+    });
   });
 
   group('WebviewFlutterAdapter B2 Android controller binding', () {
@@ -640,6 +657,12 @@ final class _Harness implements NativeAdapterHarness {
 
   @override
   int get reloadCount => _controller.reloadCount;
+
+  @override
+  int get goBackCount => _controller.goBackCount;
+
+  @override
+  int get goForwardCount => _controller.goForwardCount;
 
   @override
   set scriptResult(Object value) => _controller.scriptResult = value;

@@ -39,6 +39,8 @@ final class FakeWebviewAllController extends PlatformWebViewController {
   final List<JavaScriptMode> javaScriptModes = [];
   final Map<String, void Function(JavaScriptMessage)> channels = {};
   int reloadCount = 0;
+  int goBackCount = 0;
+  int goForwardCount = 0;
   String? currentUrlValue;
 
   /// What [runJavaScriptReturningResult] answers: the dispatch script's
@@ -88,10 +90,10 @@ final class FakeWebviewAllController extends PlatformWebViewController {
   Future<void> reload() async => reloadCount++;
 
   @override
-  Future<void> goBack() async {}
+  Future<void> goBack() async => goBackCount++;
 
   @override
-  Future<void> goForward() async {}
+  Future<void> goForward() async => goForwardCount++;
 
   @override
   Future<bool> canGoBack() async => false;

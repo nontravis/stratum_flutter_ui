@@ -336,9 +336,11 @@ final class WebPlatformStratumWebView implements PlatformStratumWebView {
     final text = (data as JSString).toDart;
     final origin = Uri.tryParse(event.origin);
     if (!isAllowedOrigin(origin, _listener.allowedOrigins)) return;
+    // An allowed origin is never null (isAllowedOrigin).
+    final sender = originOf(origin)!;
     _listener.onMessage(
-      StratumWebViewMessage(data: text, origin: originOf(origin)),
-      PlatformUrlPageSender(originOf(origin)!),
+      StratumWebViewMessage(data: text, origin: sender),
+      PlatformUrlPageSender(sender),
     );
   }
 

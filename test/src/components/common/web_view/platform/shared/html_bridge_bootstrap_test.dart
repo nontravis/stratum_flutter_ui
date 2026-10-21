@@ -2,6 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 
 void main() {
+  const removal =
+      '(function(){var e=document.currentScript;if(e)e.remove();})();\n';
+
   group('injectBridgeBootstrap', () {
     test('inserts the script after a leading doctype', () {
       final result = injectBridgeBootstrap(
@@ -87,6 +90,14 @@ void main() {
         html,
       );
     });
+
+    test('us03/fr03, nf01/NFR-Sec03: the web bootstrap removes its own '
+        'element before its handshake script runs', () {
+      expect(
+        injectBridgeBootstrap('<p>Hi</p>', 'n1'),
+        startsWith('<script>$removal(function(){var c=new MessageChannel();\n'),
+      );
+    });
   });
 
   group('placeBridgeBootstrap', () {
@@ -95,12 +106,12 @@ void main() {
       () {
         const html = '<!-- a -->\n<!doctype html><p>Hi</p>';
         expect(
-          placeBridgeBootstrap(html, '<script>x</script>'),
-          '<!-- a -->\n<!doctype html><script>x</script><p>Hi</p>',
+          placeBridgeBootstrap(html, 'x'),
+          '<!-- a -->\n<!doctype html><script>${removal}x</script><p>Hi</p>',
         );
         expect(
-          placeBridgeBootstrap('<p>Hi</p>', '<script>x</script>'),
-          '<script>x</script><p>Hi</p>',
+          placeBridgeBootstrap('<p>Hi</p>', 'x'),
+          '<script>${removal}x</script><p>Hi</p>',
         );
       },
     );
@@ -114,8 +125,8 @@ void main() {
         '<!---><script>A</script><!---->\n<!doctype html><p>Hi</p>',
       ]) {
         expect(
-          placeBridgeBootstrap(html, '<script>x</script>'),
-          '<script>x</script>$html',
+          placeBridgeBootstrap(html, 'x'),
+          '<script>${removal}x</script>$html',
           reason: html,
         );
       }
@@ -133,11 +144,8 @@ void main() {
         '<!-- d --!-->',
       ]) {
         expect(
-          placeBridgeBootstrap(
-            '$comment\n<!doctype html><p>Hi</p>',
-            '<script>x</script>',
-          ),
-          '$comment\n<!doctype html><script>x</script><p>Hi</p>',
+          placeBridgeBootstrap('$comment\n<!doctype html><p>Hi</p>', 'x'),
+          '$comment\n<!doctype html><script>${removal}x</script><p>Hi</p>',
           reason: comment,
         );
       }
@@ -149,12 +157,21 @@ void main() {
       () {
         final html = '${'<!----><!--><!---><!--a--!>' * 5000}<p>Hi</p>';
         final stopwatch = Stopwatch()..start();
-        final result = placeBridgeBootstrap(html, '<script>x</script>');
+        final result = placeBridgeBootstrap(html, 'x');
         stopwatch.stop();
-        expect(result, '<script>x</script>$html');
+        expect(result, '<script>${removal}x</script>$html');
         expect(stopwatch.elapsedMilliseconds, lessThan(1000));
       },
     );
+
+    test('co01_02/us03/fr03, co01_02/us03/fr04/e11, nf01/NFR-Sec03: wraps the '
+        'source in one script element whose first statement removes that '
+        'element', () {
+      expect(
+        placeBridgeBootstrap('<!doctype html><p>Hi</p>', 'x();'),
+        '<!doctype html><script>${removal}x();</script><p>Hi</p>',
+      );
+    });
   });
 
   group('injectNativeBridgeBootstrap', () {
@@ -169,11 +186,13 @@ void main() {
       () {
         expect(
           inject('<!DOCTYPE html><p>Hi</p>'),
-          startsWith("<!DOCTYPE html><script>(function(){'use strict';"),
+          startsWith(
+            "<!DOCTYPE html><script>$removal(function(){'use strict';",
+          ),
         );
         expect(
           inject('<p>Hi</p>'),
-          startsWith("<script>(function(){'use strict';"),
+          startsWith("<script>$removal(function(){'use strict';"),
         );
         expect(inject('<p>Hi</p>'), endsWith('})();</script><p>Hi</p>'));
       },
@@ -186,13 +205,25 @@ void main() {
         expect(
           inject('<p>Hi</p>'),
           startsWith(
-            "<script>(function(){'use strict';\n"
-            'var e=document.currentScript;if(e)e.remove();\n'
+            "<script>$removal(function(){'use strict';\n"
             'var b=window.StratumBridge;\n',
           ),
         );
       },
     );
+
+    test('co01_02/us03/fr04/e11: every bootstrap carries the removal once, '
+        'from the placement function', () {
+      final native = inject('<p>Hi</p>');
+      final web = injectBridgeBootstrap('<p>Hi</p>', nonce);
+      for (final html in [native, web]) {
+        expect(
+          RegExp(r'document\.currentScript').allMatches(html),
+          hasLength(1),
+        );
+        expect(html, startsWith('<script>$removal'));
+      }
+    });
 
     test(
       'co01_02/us03/fr04/e11: binds the platform sender and String once, and '
@@ -286,51 +317,49 @@ void main() {
       },
     );
 
-    test(
-      'co01_02/us03/fr04/e14: posts bye once a record shows the document root '
-      'removed, even if put back, reading records through getters bound '
-      'before any page script',
-      () {
-        final html = inject('<p>Hi</p>');
-        expect(
-          html,
-          contains(
-            'var doc=document,root=doc.documentElement,\n'
-            'removedOf=Function.prototype.call.bind(\n'
-            'Object.getOwnPropertyDescriptor(\n'
-            "MutationRecord.prototype,'removedNodes').get),\n"
-            'countOf=Function.prototype.call.bind(\n'
-            'Object.getOwnPropertyDescriptor(\n'
-            "NodeList.prototype,'length').get);\n"
-            'new MutationObserver(function(rs){\n'
-            'for(var i=0;i<rs.length;i++){var n=removedOf(rs[i]);\n'
-            'for(var j=0;j<countOf(n);j++)\n'
-            "if(n[j]===root){s('bye',id);return;}}})\n"
-            '.observe(doc,{childList:true});\n',
-          ),
-        );
-        expect(html, isNot(contains('parentNode')));
-        expect(
-          html.indexOf('new MutationObserver('),
-          lessThan(html.indexOf("s('hello',id);\n})();")),
-        );
-      },
-    );
+    test('co01_02/us03/fr04/e14: posts bye once a record shows the document '
+        'root removed, even if put back, reading records through getters '
+        'bound before any page script, and remembers the removal in a '
+        'closure flag', () {
+      final html = inject('<p>Hi</p>');
+      expect(
+        html,
+        contains(
+          'var doc=document,root=doc.documentElement,\n'
+          'removedOf=Function.prototype.call.bind(\n'
+          'Object.getOwnPropertyDescriptor(\n'
+          "MutationRecord.prototype,'removedNodes').get),\n"
+          'countOf=Function.prototype.call.bind(\n'
+          'Object.getOwnPropertyDescriptor(\n'
+          "NodeList.prototype,'length').get);\n"
+          'new MutationObserver(function(rs){\n'
+          'for(var i=0;i<rs.length;i++){var n=removedOf(rs[i]);\n'
+          'for(var j=0;j<countOf(n);j++)\n'
+          "if(n[j]===root){gone=true;s('bye',id);return;}}})\n"
+          '.observe(doc,{childList:true});\n',
+        ),
+      );
+      expect(html, isNot(contains('parentNode')));
+      expect(
+        html.indexOf('new MutationObserver('),
+        lessThan(html.indexOf("s('hello',id);\n})();")),
+      );
+    });
 
-    test(
-      'co01_02/us03/fr04/e03: posts hello again with the same document id on a '
-      'pageshow that restores the document from the back-forward '
-      'cache',
-      () {
-        expect(
-          inject('<p>Hi</p>'),
-          contains(
-            "window.addEventListener('pageshow',function(v){\n"
-            "if(v.persisted)s('hello',id);},true);",
-          ),
-        );
-      },
-    );
+    test('co01_02/us03/fr04/e03, co01_02/us03/fr04/e14: posts hello again on a '
+        'trusted pageshow that restores the document, but only while the root '
+        'it removed never set the "gone" flag; a real trusted pageshow event '
+        'cannot be raised outside a browser, so this and the e14 test above '
+        'pin the trusted-restore-closed path at the generated-source level, '
+        'not by dispatching one', () {
+      expect(
+        inject('<p>Hi</p>'),
+        contains(
+          "window.addEventListener('pageshow',function(v){\n"
+          "if(v.isTrusted&&v.persisted&&!gone)s('hello',id);},true);",
+        ),
+      );
+    });
 
     test(
       'co01_02/us03/fr04: keeps the outbound token in its own window property, '

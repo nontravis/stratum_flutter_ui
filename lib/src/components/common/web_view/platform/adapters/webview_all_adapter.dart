@@ -34,6 +34,7 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
   final wa.PlatformWebViewController _controller;
   final wa.PlatformNavigationDelegate _delegate;
   late final Future<void> _ready;
+  var _disposed = false;
 
   Future<void> _configure() async {
     await _delegate.setOnNavigationRequest(_handleNavigationRequest);
@@ -62,9 +63,17 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
     );
   }
 
+  /// Waits for the platform's configuration; `false` once [dispose] ran, so
+  /// a call started just before it reaches no platform (parity with the web
+  /// view, whose load started before dispose leaves the frame blank).
+  Future<bool> _live() async {
+    await _ready;
+    return !_disposed;
+  }
+
   @override
   Future<void> load(StratumWebViewSource source) async {
-    await _ready;
+    if (!await _live()) return;
     switch (source) {
       case StratumWebViewUrlSource(:final url):
         _session.willLoadUrl();
@@ -76,21 +85,21 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
 
   @override
   Future<void> reload() async {
-    await _ready;
+    if (!await _live()) return;
     _session.willReload();
     await _controller.reload();
   }
 
   @override
   Future<void> goBack() async {
-    await _ready;
+    if (!await _live()) return;
     _session.willNavigate();
     await _controller.goBack();
   }
 
   @override
   Future<void> goForward() async {
-    await _ready;
+    if (!await _live()) return;
     _session.willNavigate();
     await _controller.goForward();
   }
@@ -155,6 +164,7 @@ final class WebviewAllAdapter implements PlatformStratumWebView {
     // about:blank first, so audio, video, and timers stop immediately
     // instead of running until the native view is collected (parity with
     // the web implementation, which navigates the iframe away on dispose).
+    _disposed = true;
     _session.willDispose();
     unawaited(_disposeLoad());
   }

@@ -12,6 +12,7 @@ import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigat
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_web.dart';
+import 'package:stratum_ui/src/components/common/web_view/platform/shared/html_bridge_bootstrap.dart';
 import 'package:stratum_ui/src/components/common/web_view/platform/shared/origin_policy.dart';
 import 'package:stratum_ui/src/components/common/web_view/stratum_web_view.dart';
 import 'package:web/web.dart' as web;
@@ -373,6 +374,166 @@ void main() {
       await received.future.timeout(const Duration(seconds: 5)),
       const StratumWebViewMessage(data: 'hi'),
     );
+  });
+
+  test(
+    'us03/fr03, nf01/NFR-Sec03: the render nonce leaves the frame '
+    "document's live DOM once the bootstrap runs, and srcdoc keeps it",
+    () async {
+      final dom = Completer<String>();
+      listener.onMessageCallback = (message) {
+        if (!dom.isCompleted) dom.complete(message.data);
+      };
+      await view.load(
+        const StratumWebViewSource.html(
+          '<p>Hi</p><script>\n'
+          'StratumBridge.postMessage(document.documentElement.outerHTML);\n'
+          '</script>',
+        ),
+      );
+      attach();
+      final live = await dom.future.timeout(const Duration(seconds: 5));
+      final srcdocValue = view.iframe.srcdoc;
+      if (!srcdocValue.isA<JSString>()) fail('expected a string srcdoc');
+      final srcdoc = (srcdocValue as JSString).toDart;
+      final nonce = RegExp('stratum-bridge-handshake:([0-9a-f]{32})')
+          .firstMatch(srcdoc)!
+          .group(1)!;
+      expect(live, contains('<p>Hi</p>'));
+      expect(live, isNot(contains(nonce)));
+      expect(live, isNot(contains('stratum-bridge-handshake')));
+    },
+  );
+
+  test('us03/fr03: a page script after the bootstrap still runs, and the '
+      "document keeps the page's own script element", () async {
+    final counted = Completer<String>();
+    listener.onMessageCallback = (message) {
+      if (!counted.isCompleted) counted.complete(message.data);
+    };
+    await view.load(
+      const StratumWebViewSource.html(
+        '<script id="own">\n'
+        'StratumBridge.postMessage(document.scripts.length + ":" + '
+        '(document.getElementById("own") !== null));\n'
+        '</script>',
+      ),
+    );
+    attach();
+    expect(await counted.future.timeout(const Duration(seconds: 5)), '1:true');
+  });
+
+  test('nf01/NFR-Sec03, us03/fr04/e11: the native bootstrap removes itself and '
+      "its secrets from a real document's live DOM before any native channel "
+      "exists, and keeps the page's own script element", () async {
+    const nonce = '0123456789abcdef0123456789abcdef';
+    const token = 'native-bootstrap-token-secret';
+    final html = injectNativeBridgeBootstrap(
+      '<script id="own">window.__ownRan = true;</script>',
+      nonce: nonce,
+      token: token,
+    );
+    final nativeIframe = web.HTMLIFrameElement()..srcdoc = html.toJS;
+    final loaded = Completer<void>();
+    nativeIframe.addEventListener(
+      'load',
+      ((web.Event _) {
+        if (!loaded.isCompleted) loaded.complete();
+      }).toJS,
+    );
+    // A tear-off of a JS interop member does not compile, so wrap it.
+    // ignore: unnecessary_lambdas
+    addTearDown(() => nativeIframe.remove());
+    web.document.body!.appendChild(nativeIframe);
+    await loaded.future.timeout(const Duration(seconds: 5));
+
+    // No native sender was wired onto `window.StratumBridge`, so the
+    // bootstrap's own guard returns before posting `hello` or defining the
+    // token property: this pins only what runs before that first post.
+    final nativeDocument = nativeIframe.contentDocument;
+    if (nativeDocument == null) fail('expected a same-origin document');
+    final outerHtml = nativeDocument.documentElement!.outerHTML;
+    if (!outerHtml.isA<JSString>()) fail('expected a string outerHTML');
+    final live = (outerHtml as JSString).toDart;
+    expect(live, isNot(contains(nonce)));
+    expect(live, isNot(contains(token)));
+    expect(live, contains('id="own"'));
+  });
+
+  test('us03/fr04/e14: a forged pageshow never reopens the bridge a page '
+      'script closed', () async {
+    const nonce = '0123456789abcdef0123456789abcdef';
+    const token = 'fedcba9876543210fedcba9876543210';
+    final native = injectNativeBridgeBootstrap(
+      '<p>Hi</p>',
+      nonce: nonce,
+      token: token,
+    );
+    // A fake platform sender wired onto `window.StratumBridge` before the
+    // native bootstrap's own script runs, the shape a real native platform
+    // wires; it forwards each envelope to this test window as a real
+    // cross-document message, so the assertions below read no in-frame
+    // state.
+    final srcdoc =
+        '<script>window.StratumBridge={postMessage:function(m){\n'
+        "parent.postMessage('log:'+m,'*');}};</script>$native";
+    final nativeIframe = web.HTMLIFrameElement()..srcdoc = srcdoc.toJS;
+    final loaded = Completer<void>();
+    nativeIframe.addEventListener(
+      'load',
+      ((web.Event _) {
+        if (!loaded.isCompleted) loaded.complete();
+      }).toJS,
+    );
+    // A tear-off of a JS interop member does not compile, so wrap it.
+    // ignore: unnecessary_lambdas
+    addTearDown(() => nativeIframe.remove());
+    web.document.body!.appendChild(nativeIframe);
+    await loaded.future.timeout(const Duration(seconds: 5));
+
+    final log = <String>[];
+    final raw = ((web.MessageEvent event) {
+      final data = event.data;
+      if (data != null && data.isA<JSString>()) {
+        final text = (data as JSString).toDart;
+        if (text.startsWith('log:')) log.add(text.substring(4));
+      }
+    }).toJS;
+    web.window.addEventListener('message', raw);
+    addTearDown(() => web.window.removeEventListener('message', raw));
+
+    Future<void> waitForLog(int count) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (log.length < count) {
+        if (DateTime.now().isAfter(deadline)) fail('log never reached $count');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    }
+
+    await waitForLog(1);
+    expect(log.single, startsWith('$nativeBridgeEnvelopeTag$nonce:hello:'));
+
+    final nativeDocument = nativeIframe.contentDocument;
+    if (nativeDocument == null) fail('expected a same-origin document');
+    final nativeWindow = nativeIframe.contentWindow;
+    if (nativeWindow == null) fail('expected a content window');
+    final root = nativeDocument.documentElement!;
+    nativeDocument
+      ..removeChild(root)
+      ..appendChild(root);
+    await waitForLog(2);
+    expect(log[1], startsWith('$nativeBridgeEnvelopeTag$nonce:bye:'));
+
+    // A forged, untrusted pageshow: real script cannot set `isTrusted`, so
+    // this carries it false even though it sets `persisted`.
+    nativeWindow.dispatchEvent(
+      web.PageTransitionEvent(
+        'pageshow',
+        web.PageTransitionEventInit(persisted: true),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(log, hasLength(2));
   });
 
   test('drops a direct postMessage, keeps the bridge message', () async {

@@ -35,7 +35,11 @@ abstract interface class NativeSenderChannel {
   ///
   /// Call it before the first load. Returns `false` when the platform cannot
   /// carry the bridge (an Android WebView without `WEB_MESSAGE_LISTENER` or
-  /// `JS_INJECTION_IN_FRAME_AND_WORLD`); then no page gets the object.
+  /// `JS_INJECTION_IN_FRAME_AND_WORLD`); then no page gets the object. A
+  /// second `attach()` for the same view's id before the first resolves
+  /// replaces its listener; the first then also returns `false`, even on a
+  /// `true` platform answer, because [onMessage] is no longer the one
+  /// installed.
   /// Throws a [PlatformException] when the platform finds no web view for
   /// [controller], which means the view was used before the platform
   /// created it.
@@ -93,12 +97,27 @@ final class MethodChannelNativeSenderChannel implements NativeSenderChannel {
     NativeSenderListener onMessage,
   ) async {
     final id = _webViewId(controller);
+    // Registered before the answer, so a message the platform sends while
+    // attach is pending still reaches the listener.
     _listeners[id] = onMessage;
-    final attached = await _channel.invokeMethod<bool>(
-      'attach',
-      <String, Object?>{'webViewId': id},
-    );
-    return attached ?? false;
+    var attached = false;
+    try {
+      attached =
+          await _channel.invokeMethod<bool>('attach', <String, Object?>{
+            'webViewId': id,
+          }) ??
+          false;
+    } finally {
+      // A failed attach leaves no listener behind; a later attach of the
+      // same view may already have replaced this one.
+      if (!attached && identical(_listeners[id], onMessage)) {
+        _listeners.remove(id);
+      }
+    }
+    // An overlapped later attach for the same id may have replaced
+    // [onMessage] before the platform answered; only the call whose
+    // listener is still installed may report itself attached.
+    return attached && identical(_listeners[id], onMessage);
   }
 
   @override

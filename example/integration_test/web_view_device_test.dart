@@ -10,9 +10,20 @@ import 'package:stratum_ui/src/components/common/model/web_view/web_view_error.d
 // ignore: implementation_imports
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_message.dart';
 // ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/model/web_view/web_view_navigation_decision.dart';
+// ignore: implementation_imports
 import 'package:stratum_ui/src/components/common/model/web_view/web_view_source.dart';
 // ignore: implementation_imports
 import 'package:stratum_ui/src/components/common/web_view/web_view.dart';
+// Group A's `debugStratumWebViewPlatformFactory` seam (M3-T10, M3-T11): lets
+// the started check read a lasting record of the load callbacks instead of
+// a UI state that may never reach a drawn frame.
+// ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view.dart';
+// ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/web_view/platform/platform_web_view_interface.dart';
+// ignore: implementation_imports
+import 'package:stratum_ui/src/components/common/web_view/stratum_web_view_controller.dart';
 import 'package:stratum_ui_example/main.dart';
 
 import 'support/pump_until.dart';
@@ -31,10 +42,25 @@ const _settle = Duration(seconds: 2);
 /// The URL tab prints a failed load as `<type>: <description>`.
 final _errorLine = RegExp(r'^(network|http): ');
 
+/// Chrome's `URL` tab page: the static page the example's web build serves
+/// at the app's own port under the other loopback host name (`localhost`
+/// and `127.0.0.1` swap), so the page is cross-origin and no public address
+/// loads (F-01 US-08 FR-01 E02).
+Uri _webCrossOriginPage() {
+  final app = Uri.base;
+  return Uri(
+    scheme: app.scheme,
+    host: app.host == 'localhost' ? '127.0.0.1' : 'localhost',
+    port: app.port,
+    path: '/web_view_device_page.html',
+  );
+}
+
 /// Walks the web view demo on every target (group A), with the `URL` tab
-/// pointed at a local page server on Android, iOS, and macOS, and, on those
-/// same native targets, drives StratumWebView against that server directly
-/// (group B). F-01 US-08 FR-01 of `example/docs/`.
+/// pointed at a local page server on Android, iOS, macOS, and Linux, and at
+/// the web build's own page on Chrome; on those same native targets, group B
+/// drives StratumWebView against that server directly. F-01 US-08 FR-01 of
+/// `example/docs/`.
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized()
     ..framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
@@ -44,7 +70,8 @@ void main() {
   // this same server instead of starting a second one, except the
   // `us08/s17` case, which starts a second server, on another ephemeral
   // port, for page B's origin. On the web, where there is no dart:io, this
-  // never runs and group A keeps https://flutter.dev.
+  // never runs, and group A's `URL` tab loads the web build's own page
+  // under the other loopback name instead.
   late _PageServer server;
 
   setUpAll(() async {
@@ -55,65 +82,91 @@ void main() {
   });
 
   group('group A, the demo tabs', () {
-    testWidgets('f01/us08/s1, f01/us08/s8, f01/us08/fr01, f01/us08/fr01/e06: the URL, HTML, and '
-        'Bridge tabs show their content', (tester) async {
-      await tester.pumpWidget(
-        StratumWebViewExampleApp(
-          urlAddress: kIsWeb ? null : server.page('/ok'),
-        ),
-      );
+    // Records the URL tab's own load callbacks so the started and loaded
+    // checks below read a lasting record, not the spinner, which exists
+    // only between onPageStarted and onPageFinished and so can miss every
+    // drawn frame (US-08 scenario 1 on Linux, M3-T10).
+    late _Recorder recorder;
 
-      // The URL tab shows a spinner from onPageStarted to onPageFinished,
-      // and an error line from onError. On the web the page starts at
-      // once and a refused frame finishes within a few frames, so this
-      // polls every frame from the first one on.
-      final spinner = find.byType(CircularProgressIndicator);
-      final started = await pumpUntil(
-        tester,
-        () =>
-            spinner.evaluate().isNotEmpty ||
-            find.textContaining(_errorLine).evaluate().isNotEmpty,
-        timeout: const Duration(seconds: 45),
-        interval: const Duration(milliseconds: 16),
-      );
-      final loaded =
-          started &&
-          await pumpUntil(
-            tester,
-            () => spinner.evaluate().isEmpty,
-            timeout: const Duration(seconds: 45),
-          );
-      await _checkpoint(binding, tester, 'a_url');
-      expect(
-        started,
-        isTrue,
-        reason: 'the URL tab never started loading its address',
-      );
-      expect(
-        loaded,
-        isTrue,
-        reason: 'the URL tab never finished loading its address',
-      );
-      expect(find.textContaining(_errorLine), findsNothing);
-      expect(find.byType(StratumWebView), findsOneWidget);
-
-      await tester.tap(find.text('HTML'));
-      await tester.pump(const Duration(seconds: 2));
-      await _checkpoint(binding, tester, 'a_html');
-      expect(find.byType(StratumWebView), findsOneWidget);
-
-      await tester.tap(find.text('Bridge'));
-      await tester.pump(const Duration(seconds: 3));
-      expect(find.text('No messages yet'), findsOneWidget);
-      await tester.tap(find.text('Send to page'));
-      await tester.pump(const Duration(seconds: 1));
-      await _checkpoint(binding, tester, 'a_bridge');
-      expect(
-        find.byType(SnackBar),
-        findsNothing,
-        reason: 'postMessage threw a StateError: the HTML bridge is closed',
-      );
+    setUp(() {
+      recorder = _Recorder();
+      debugStratumWebViewPlatformFactory = (listener) =>
+          createPlatformStratumWebView(_ListenerRecorder(listener, recorder));
     });
+
+    tearDown(() => debugStratumWebViewPlatformFactory = null);
+
+    testWidgets(
+      'f01/us08/s1, f01/us08/s8, f01/us08/fr01, f01/us08/fr01/e06: the URL, '
+      'HTML, and Bridge tabs show their content',
+      (tester) async {
+        await tester.pumpWidget(
+          StratumWebViewExampleApp(
+            urlAddress: kIsWeb ? _webCrossOriginPage() : server.page('/ok'),
+          ),
+        );
+
+        if (kIsWeb) {
+          expect(
+            _webCrossOriginPage().origin,
+            isNot(Uri.base.origin),
+            reason: 'the URL tab page must be cross-origin to the app',
+          );
+        }
+
+        // `started` and `loaded` read `recorder`, filled through the
+        // platform hook above, not the spinner: the spinner stays below as
+        // a logged observation only, never an assertion (M3-T10 Fix
+        // direction, Option A).
+        final spinner = find.byType(CircularProgressIndicator);
+        final started = await pumpUntil(
+          tester,
+          () => recorder.starts.isNotEmpty || recorder.errors.isNotEmpty,
+          timeout: const Duration(seconds: 45),
+          interval: const Duration(milliseconds: 16),
+        );
+        if (started && spinner.evaluate().isEmpty) {
+          debugPrint('us08/s1: started with no spinner frame drawn');
+        }
+        final loaded =
+            started &&
+            await pumpUntil(
+              tester,
+              () => recorder.starts.isEmpty || recorder.finishes.isNotEmpty,
+              timeout: const Duration(seconds: 45),
+            );
+        await _checkpoint(binding, tester, 'a_url');
+        expect(
+          started,
+          isTrue,
+          reason: 'the URL tab never started loading its address',
+        );
+        expect(
+          loaded,
+          isTrue,
+          reason: 'the URL tab never finished loading its address',
+        );
+        expect(find.textContaining(_errorLine), findsNothing);
+        expect(find.byType(StratumWebView), findsOneWidget);
+
+        await tester.tap(find.text('HTML'));
+        await tester.pump(const Duration(seconds: 2));
+        await _checkpoint(binding, tester, 'a_html');
+        expect(find.byType(StratumWebView), findsOneWidget);
+
+        await tester.tap(find.text('Bridge'));
+        await tester.pump(const Duration(seconds: 3));
+        expect(find.text('No messages yet'), findsOneWidget);
+        await tester.tap(find.text('Send to page'));
+        await tester.pump(const Duration(seconds: 1));
+        await _checkpoint(binding, tester, 'a_bridge');
+        expect(
+          find.byType(SnackBar),
+          findsNothing,
+          reason: 'postMessage threw a StateError: the HTML bridge is closed',
+        );
+      },
+    );
   });
 
   group('f01/us08/s7, f01/us08/fr01/e01, f01/us08/fr01/e02, f01/us08/fr01/e03, '
@@ -219,7 +272,7 @@ void main() {
     testWidgets(
       'f01/us08/s10, f01/us08/s11, f01/us08/fr01/e05: going back to a no-store page '
       'that now answers 404 reports start, one http error, finish on '
-      'Android, and start, finish with no error on iOS and macOS',
+      'Android, and start, finish with no error on iOS, macOS, and Linux',
       (tester) async {
         // CO-01-02 US-01 FR-02 E08 and US-04 FR-01 E07 of the package docs.
         final controller = StratumWebViewController();
@@ -261,12 +314,15 @@ void main() {
     );
 
     testWidgets('f01/us08/s10, f01/us08/s11, f01/us08/fr01/e05: going forward to an entry that '
-        'answered 404 reports start, one http error, finish on Android, and '
-        'start, finish with no error on iOS and macOS', (tester) async {
+        'answered 404 reports start, one http error, finish on Android, '
+        'start, finish with no error on iOS and macOS, and start, the kept '
+        'http error, finish on Linux', (tester) async {
       // CO-01-02 US-01 FR-02 E08: Android replays the 404 from its HTTP
       // cache without a request; WebKit either restores the entry from
-      // its back-forward cache, leaving the load's own error the last
-      // one, or requests the page again (US-08 scenario 11).
+      // its back-forward cache with no request — no error, or, on Linux,
+      // that restored entry's kept 404 reported once — or requests the
+      // page again, leaving the load's own error the last one (US-08
+      // scenario 11).
       final controller = StratumWebViewController();
       final first = server.page('/ok');
       final missing = server.page('/missing', query: 'case=forward');
@@ -458,12 +514,13 @@ void main() {
     );
 
     testWidgets('f01/us08/s14: a reload keeps the app HTML document connected on Android; '
-        'on iOS and macOS the reloaded page is empty and the bridge stays '
-        'closed', (tester) async {
+        'on iOS, macOS, and Linux the reloaded page is empty and the bridge '
+        'stays closed', (tester) async {
       // CO-01-02 US-03 FR-04 E04 of the package docs: Android parses the
       // same HTML string again, so the reloaded document carries the same
-      // nonce; WebKit reloads an empty page, which carries none, so it
-      // never says ready and a send throws.
+      // nonce; WebKit on iOS and macOS, and WebKitGTK on Linux, reload an
+      // empty page, which carries none, so it never says ready and a send
+      // throws.
       final controller = StratumWebViewController();
       final recorder = await _show(
         tester,
@@ -677,27 +734,36 @@ Future<void> _expectLinkAwayRefused(
   expect(refused, isTrue, reason: 'the send reached the away page: no bye');
 }
 
-/// Whether this run's engine is WebKit (iOS, macOS), which restores a
-/// `goBack` or `goForward` entry from its back-forward cache with no
-/// request, so the back and forward cases assert one `onPageStarted`, one
-/// `onPageFinished`, and no error; every other native target reports the
-/// page's current HTTP status, the start, error, finish order (US-08
-/// scenarios 10 and 11).
+/// Whether this run's engine is WebKit: iOS and macOS WebKit, and, on
+/// Linux, WebKitGTK. Each restores a `goBack` or `goForward` entry from its
+/// back-forward cache with no request, so the back and forward cases assert
+/// one `onPageStarted`, one `onPageFinished`, and no error, or the start,
+/// error, finish order when the engine asks the server again; every other
+/// native target reports the page's current HTTP status (US-08 scenarios
+/// 10 and 11).
 bool _isWebKit() =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.macOS);
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux);
 
 /// Whether a `reload` of the app's HTML keeps the document on this engine
-/// (US-08 scenario 14): Android parses the same HTML string again; WebKit
-/// (iOS, macOS) reloads an empty page.
-bool _reloadKeepsHtml() => !_isWebKit();
+/// (US-08 scenario 14): Android and Windows parse the same HTML string
+/// again; WebKit on iOS and macOS and WebKitGTK on Linux reload an empty
+/// `about:blank` document that runs no bootstrap, so the bridge stays
+/// closed.
+bool _reloadKeepsHtml() =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.windows);
 
 /// Asserts the either-outcome contract of one WebKit history move (US-08
-/// scenario 11): WebKit either restores the entry from its back-forward
-/// cache with no request — start, finish, and no new error — or requests
-/// [entry] again, and then the Android order holds with exactly one new
-/// `http` error naming [entry], counted since [mark].
+/// scenario 11): WebKit either restores [entry] from its back-forward
+/// cache with no request — start, finish, and no new error, or, when the
+/// restored entry itself answered 404 (Linux), that kept 404 reported
+/// once — or requests [entry] again, and then the Android order holds
+/// with exactly one new `http` error naming [entry], counted since
+/// [mark].
 void _expectWebKitHistoryMove(_Recorder recorder, int mark, Uri entry) {
   final kinds = recorder.kindsSince(mark);
   final errors = recorder.errorsSince(mark);
@@ -732,8 +798,9 @@ Future<void> _checkpoint(
   await tester.pump(_hold);
 }
 
-/// Serves group B's pages on 127.0.0.1 at a port the system assigns
-/// (FR-01 E02); it runs inside the test and is never a public service.
+/// Serves group A's `URL` tab page and group B's pages on 127.0.0.1 at a
+/// port the system assigns (FR-01 E02); it runs inside the test and is
+/// never a public service.
 class _PageServer {
   _PageServer._(this._server);
 
@@ -776,9 +843,10 @@ class _PageServer {
           ..headers.set(HttpHeaders.locationHeader, page('/ok').toString());
       case '/flip' || '/flip-nostore':
         // 200 on the first request of each address, 404 after it: the back
-        // and reload cases (CO-01-02 US-01 FR-02 E08). The no-store variant
-        // keeps the page out of the back-forward cache, so going back
-        // requests it again.
+        // and reload cases (CO-01-02 US-01 FR-02 E08). Android skips the
+        // back-forward cache for the no-store variant and requests it
+        // again; WebKit restores it from the cache the same as `/flip`, so
+        // going back there reports the kept status with no request.
         if (request.uri.path == '/flip-nostore') {
           response.headers.set(HttpHeaders.cacheControlHeader, 'no-store');
         }
@@ -906,6 +974,47 @@ Future<Uri> _closedPortPage() async {
   final port = socket.port;
   await socket.close();
   return Uri.parse('http://127.0.0.1:$port/');
+}
+
+/// Forwards every callback to [inner], the controller's own listener, and
+/// also feeds the load callbacks to [recorder], so a wrapped
+/// `debugStratumWebViewPlatformFactory` can observe them the way group B
+/// does, with no change to how the wrapped controller behaves (M3-T11,
+/// group A's started check).
+final class _ListenerRecorder implements PlatformStratumWebViewListener {
+  _ListenerRecorder(this.inner, this.recorder);
+
+  final PlatformStratumWebViewListener inner;
+  final _Recorder recorder;
+
+  @override
+  Set<Uri> get allowedOrigins => inner.allowedOrigins;
+
+  @override
+  void onMessage(StratumWebViewMessage message, PlatformMessageSender sender) =>
+      inner.onMessage(message, sender);
+
+  @override
+  StratumNavigationDecision onNavigationRequest(Uri url) =>
+      inner.onNavigationRequest(url);
+
+  @override
+  void onPageStarted(Uri? url) {
+    recorder.onStarted(url);
+    inner.onPageStarted(url);
+  }
+
+  @override
+  void onPageFinished(Uri? url) {
+    recorder.onFinished(url);
+    inner.onPageFinished(url);
+  }
+
+  @override
+  void onError(StratumWebViewError error) {
+    recorder.onError(error);
+    inner.onError(error);
+  }
 }
 
 /// What one web view reported in a group B case, in arrival order.
