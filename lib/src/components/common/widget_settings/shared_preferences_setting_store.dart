@@ -7,9 +7,9 @@ import 'package:stratum_ui/src/components/common/widget_settings/widget_setting_
 ///
 /// `shared_preferences` backs onto six platform stores: Android
 /// `SharedPreferences`, iOS and macOS `NSUserDefaults`, Linux and Windows a
-/// JSON settings file, and the web `window.localStorage`. Private browsing on
-/// the web can refuse a write there; this store neither catches nor reports
-/// that (PD12 is the controller's job).
+/// JSON settings file, and the web `window.localStorage`. A full web
+/// storage quota refuses a write there; this store neither catches nor
+/// reports that (PD12 is the controller's job).
 final class StratumSharedPreferencesSettingStore
     implements StratumWidgetSettingStore {
   new();
