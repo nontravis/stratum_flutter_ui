@@ -40,11 +40,21 @@
 // overrides that same test's earlier assertions in the report, which is why
 // the attended cases never share a test with the automated ones above.
 //
+// Both attended instructions set the device's state (Gboard floating for
+// E06, the Simulator's hardware/software keyboard menu items for E07)
+// before the run starts, not mid-test, and leave it set for the whole
+// process: an attended run launched with E06's preset floating keyboard
+// therefore fails test 1 above by design (owner ruling 2026-10-21; KV-E06
+// `pixel_8` runs 1-2: switching Gboard mid-run instead dropped the app's
+// next `showSoftInput` as "not served" on Android 16), which is expected,
+// not a regression, in that run.
+//
 // On Android and iOS, every case waits for the app window to gain input
 // focus (`support/app_lifecycle.dart`'s `waitForResumed`) before its first
 // keyboard action: a show sent before that is silently dropped and never
 // resent (RCA `rca-kv-pixel8.findings.md` revision 2), which also made
-// E07's and E06's "stays closed" checks meaningless for a run that hit it.
+// E07's "stays closed" check, and E06's now-open check, meaningless for a
+// run that hit it.
 //
 // When E02's open wait times out, this file calls `probe('e02_open_timeout')`
 // before failing, so the device-round skill captures a screenshot and
@@ -320,6 +330,44 @@ Future<void> _assertStaysClosed(WidgetTester tester, List<bool> builds) async {
     reason:
         'this case reads the scope closed even while the field holds '
         'focus (s03 invariant 10)',
+  );
+  FocusManager.instance.primaryFocus?.unfocus();
+}
+
+/// Focuses the field, waits for the scope to read open, then asserts the
+/// keyboard claims no view inset — the open-side counterpart of
+/// [_assertStaysClosed], for a floating keyboard that reads open the same
+/// way E04's stylus toolbar does (owner ruling 2026-10-21, KV-E06
+/// `pixel_8` run 3: floating keeps the inset at 0 and the scope read
+/// `true`).
+///
+/// Unfocuses the field before returning, so a caller that runs another
+/// keyboard case right after always starts that case's `showKeyboard` from
+/// a fresh focus transition, never a no-op on a field that was already
+/// focused.
+Future<void> _assertReadsOpenWithoutInset(
+  WidgetTester tester,
+  List<bool> builds,
+) async {
+  await _requestShowKeyboard(tester);
+  final shown = await pumpUntil(
+    tester,
+    () => builds.last,
+    timeout: _keyboardSettleTimeout,
+  );
+  expect(
+    shown,
+    isTrue,
+    reason:
+        'the scope never read open within '
+        '${_keyboardSettleTimeout.inSeconds}s',
+  );
+  expect(
+    tester.element(find.byKey(_fieldKey)).deviceWindow.keyboardHeight,
+    0,
+    reason:
+        "Gboard's floating keyboard claims no view inset, unlike the "
+        'ordinary soft keyboard (E06, owner ruling 2026-10-21)',
   );
   FocusManager.instance.primaryFocus?.unfocus();
 }
@@ -703,17 +751,25 @@ Future<void> _proveE04(WidgetTester tester, List<bool> builds) async {
   }
 }
 
-/// E06, attended: a human switches Gboard to floating or split mode, which
-/// `attend` skips unless `--attended` launched this run; once confirmed the
-/// scope stays closed while the field holds focus.
+/// E06, attended: Gboard must already be floating when the field is
+/// focused, which `attend` skips unless `--attended` launched this run;
+/// once confirmed the scope reads open while the field holds focus, the
+/// same way E04's stylus toolbar does (owner ruling 2026-10-21).
+///
+/// Switching Gboard to floating mid-run instead of before launch makes
+/// Android 16 drop the app's next `showSoftInput` as "not served" (KV-E06
+/// `pixel_8` runs 1-2), which is why the instruction sets floating mode
+/// before this test ever starts rather than during it.
 Future<void> _attendE06Android(WidgetTester tester, List<bool> builds) async {
   final confirmed = await attend(
     'e06',
-    'switch Gboard to floating mode, then confirm',
+    'before launching this run, set Gboard to floating mode (switching it '
+        'mid-run drops the next show as "not served" on Android 16); then '
+        'confirm',
   );
   if (!confirmed) return;
   debugPrint('fo07/us04/fr02/e06: platform=$hostOSName');
-  await _assertStaysClosed(tester, builds);
+  await _assertReadsOpenWithoutInset(tester, builds);
 }
 
 /// E07, attended on Android: a human connects a physical keyboard so
@@ -722,30 +778,43 @@ Future<void> _attendE06Android(WidgetTester tester, List<bool> builds) async {
 /// while the field holds focus (fix-9 item 3: `_proveHardwareKeyboardState`
 /// only proves E07 automatically on a device whose inset leaves 0 on its
 /// own; DR18 found some never do).
+///
+/// Needs a real phone with a physical keyboard (owner ruling): an emulator
+/// keeps Gboard docked no matter what is attached, so this case can never
+/// confirm on one.
 Future<void> _attendE07Android(WidgetTester tester, List<bool> builds) async {
   final confirmed = await attend(
     'e07_android',
-    'connect a physical keyboard so Android hides the on-screen keyboard, '
-        'then confirm',
+    'on a real phone (not an emulator, which keeps Gboard docked), connect '
+        'a physical keyboard so Android hides the on-screen keyboard, then '
+        'confirm',
   );
   if (!confirmed) return;
   debugPrint('fo07/us04/fr02/e07: platform=$hostOSName');
   await _assertStaysClosed(tester, builds);
 }
 
-/// E07, attended on iOS: a human connects a hardware keyboard to the
-/// Simulator, which `attend` skips unless `--attended` launched this run;
-/// once confirmed the scope stays closed while the field holds focus.
+/// E07, attended on iOS: a human hides the Simulator's software keyboard
+/// while its hardware keyboard is simulated, which `attend` skips unless
+/// `--attended` launched this run; once confirmed the scope stays closed
+/// while the field holds focus.
 ///
-/// The instruction names the next boot resetting the setting (edges review
-/// Important #1): the device-round skill pins the simulator's own hardware
-/// keyboard off at boot, so a human who connects one here must redo it
-/// every run, not just once.
+/// Xcode 27.1 ships no Simulator.app, so the instruction names DeviceHub's
+/// own Device > Keyboard menu instead (owner ruling 2026-10-21, KV-E07IOS
+/// `iphone`): "Simulate Hardware Keyboard" must already be on, and
+/// "Toggle Software Keyboard" (⌥⌘K) on a focused field must hide the
+/// software keyboard, before this run starts — run 3, done that way,
+/// passed; runs 1-2 left the software keyboard showing and failed. Both
+/// menu items are restored after the run, since the device-round skill
+/// pins the simulator's hardware keyboard off at its next boot but never
+/// touches the software-keyboard toggle.
 Future<void> _attendE07iOS(WidgetTester tester, List<bool> builds) async {
   final confirmed = await attend(
     'e07_ios',
-    'press Shift-Cmd-K in Simulator to connect the hardware keyboard, '
-        'then confirm; the next boot turns it off again',
+    'in DeviceHub, before this run: turn on Device > Keyboard > "Simulate '
+        'Hardware Keyboard", then hide the software keyboard with "Toggle '
+        'Software Keyboard" (⌥⌘K) on a focused field; restore '
+        'both after the run; then confirm',
   );
   if (!confirmed) return;
   debugPrint('fo07/us04/fr02/e07: platform=$hostOSName');
@@ -798,8 +867,8 @@ void main() {
   // one above (DR11-r1 `iphone`: e02 passed, then the old inline e07
   // attended-skip turned the whole test "skipped").
   testWidgets(
-    'fo07/us04/fr02/e06 (android, attended): a human switches Gboard to '
-    'floating mode and the scope stays closed',
+    'fo07/us04/fr02/e06 (android, attended): Gboard is already floating '
+    'before launch and the scope reads open',
     (tester) async {
       final builds = await _pumpApp(tester);
       await _attendE06Android(tester, builds);
