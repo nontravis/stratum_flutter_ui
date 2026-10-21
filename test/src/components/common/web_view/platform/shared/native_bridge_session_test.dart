@@ -1012,6 +1012,24 @@ void main() {
       ));
     });
 
+    test('co01_02/us03/fr04/e04, co01_02/us03/fr04/e15: a reload leaves the stale '
+        'reply proxy live, so a send before the next hello still goes '
+        "through the old document's reply proxy", () {
+      final html = android.willLoadHtml('<p>Hi</p>');
+      final nonce = nonceIn(html);
+      final load = android.currentLoad;
+      android.acceptMessage(
+        envelope(nonce, 'hello', documentA),
+        sender: sentBy(proxyA),
+      );
+      android.willReload();
+      expect(android.scriptForMessage('ping'), allowlistOnly('ping'));
+      expect(android.replyProxyScriptForMessage('ping', load: load), (
+        replyProxy: proxyA,
+        script: tokenOnly('ping', html),
+      ));
+    });
+
     test('co01_02/us03/fr04/e15: a hello with another document id replaces the '
         "reply proxy with the id, so an older document's late bye changes "
         'nothing', () {
