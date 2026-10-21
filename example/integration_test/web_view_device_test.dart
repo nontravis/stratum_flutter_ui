@@ -314,8 +314,9 @@ void main() {
     );
 
     testWidgets('f01/us08/s10, f01/us08/s11, f01/us08/fr01/e05: going forward to an entry that '
-        'answered 404 reports start, one http error, finish on Android, and '
-        'start, finish with no error on iOS, macOS, and Linux', (tester) async {
+        'answered 404 reports start, one http error, finish on Android, '
+        'start, finish with no error on iOS and macOS, and start, the kept '
+        'http error, finish on Linux', (tester) async {
       // CO-01-02 US-01 FR-02 E08: Android replays the 404 from its HTTP
       // cache without a request; WebKit either restores the entry from
       // its back-forward cache with no request — no error, or, on Linux,
