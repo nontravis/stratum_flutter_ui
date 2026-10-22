@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'common/page_layout.dart';
 import 'common/reorderable_list_view_layout.dart';
 import 'smoke/semantics_id.dart';
+import 'themes/system_style.dart';
 
 /// Builds one fixture widget.
 typedef FixtureBuilder = Widget Function(BuildContext context);
@@ -13,4 +14,5 @@ final Map<String, FixtureBuilder> fixtures = <String, FixtureBuilder>{
   'common/reorderable_list_view_layout': (context) =>
       const ReorderableListViewLayoutFixture(),
   'smoke/semantics_id': (context) => const SmokeSemanticsIdFixture(),
+  'themes/system_style': (context) => const SystemStyleFixture(),
 };
