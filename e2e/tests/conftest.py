@@ -13,6 +13,8 @@ from appium import webdriver
 from appium.options.android import UiAutomator2Options
 
 from stratum_e2e.android.session import android_capabilities, install_apk
+from stratum_e2e.android.talkback import AVD_NAME, TalkBackLog, TalkBackSession, avd_name
+from stratum_e2e.android.uhid_keyboard import UhidKeyboard
 from stratum_e2e.appium_server import AppiumServer
 from stratum_e2e.selection import skip_reason
 
@@ -56,6 +58,40 @@ def driver(
         yield session
     finally:
         session.quit()
+
+
+@pytest.fixture
+def talkback(request: pytest.FixtureRequest) -> Iterator[TalkBackLog]:
+    """TalkBack freshly restarted on --device for the test, its settings restored afterwards."""
+    serial = _required_option(request.config, "device")
+    with TalkBackSession(serial) as log:
+        yield log
+
+
+@pytest.fixture
+def keyboard(request: pytest.FixtureRequest) -> Iterator[UhidKeyboard]:
+    """A registered uhid USB keyboard on --device, closed afterwards."""
+    serial = _required_option(request.config, "device")
+    with UhidKeyboard(serial) as registered:
+        yield registered
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Skip a `talkback_avd` test unless --device is the AVD named AVD_NAME.
+
+    Runs before the driver fixture, so a shared target never gets an Appium session.
+    """
+    if TESTS_DIR not in Path(str(item.path)).resolve().parents:
+        return
+    if item.get_closest_marker("talkback_avd") is None or item.get_closest_marker("skip"):
+        return
+    device = item.config.getoption("--device")
+    if device is None:
+        pytest.skip("no --device given")
+    name = avd_name(str(device))
+    if name != AVD_NAME:
+        pytest.skip(f"talkback_avd: {device} is AVD {name!r}, not {AVD_NAME!r}")
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
