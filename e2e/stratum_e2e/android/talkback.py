@@ -1,0 +1,149 @@
+"""TalkBack on the e2e AVD: session, logcat speech, page-source focus (design section 8)."""
+
+from __future__ import annotations
+
+import re
+import subprocess
+import time
+import xml.etree.ElementTree as ET
+from types import TracebackType
+
+AVD_NAME = "E2E_TalkBack_API_35"
+TALKBACK_SERVICE = (
+    "com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService"
+)
+
+FIRST_UTTERANCE_TIMEOUT_S = 20
+POLL_INTERVAL_S = 0.5
+
+_SERVICES_SETTING = "enabled_accessibility_services"
+_ENABLED_SETTING = "accessibility_enabled"
+_UNSET = "null"
+_UTTERANCE = re.compile(r'Speaking fragment text="([^"]*)"')
+
+
+class TalkBackSilent(RuntimeError):
+    """TalkBack spoke nothing within the first-utterance timeout."""
+
+
+def avd_name(serial: str) -> str:
+    """Return the AVD name of emulator [serial], or an empty string when it has none."""
+    lines = _adb(serial, "emu", "avd", "name").splitlines()
+    return lines[0].strip() if lines else ""
+
+
+def utterances(logcat: str) -> list[str]:
+    """Return the texts TalkBack spoke in [logcat], in order (Diagnosis mode lines)."""
+    return _UTTERANCE.findall(logcat)
+
+
+def a11y_focused(page_source: str) -> list[str]:
+    """Return the labels of nodes TalkBack holds accessibility focus on in [page_source].
+
+    A label is the node's `text`, else its `content-desc`; unlabeled nodes are skipped.
+    """
+    root = ET.fromstring(page_source.encode("utf-8"))
+    labels = (
+        node.get("text") or node.get("content-desc") or ""
+        for node in root.iter()
+        if node.get("a11y-focused") == "true"
+    )
+    return [label for label in labels if label]
+
+
+class TalkBackLog:
+    """TalkBack speech on device [serial] since the last `mark`."""
+
+    def __init__(self, serial: str) -> None:
+        self._serial = serial
+
+    def mark(self) -> None:
+        """Drop everything logged so far; `since_mark` reads only what follows."""
+        _adb(self._serial, "logcat", "-c")
+
+    def since_mark(self) -> list[str]:
+        """Return the utterances spoken since the last `mark`, in order."""
+        return utterances(_adb(self._serial, "logcat", "-d"))
+
+
+class TalkBackSession:
+    """Turns TalkBack on for the block and restores the accessibility settings on exit.
+
+    `__enter__` returns a TalkBackLog marked after TalkBack's first utterance.
+    Raises ValueError unless [serial] is the AVD named AVD_NAME, and TalkBackSilent
+    when TalkBack speaks nothing in 20 s; both leave the settings unchanged.
+    """
+
+    def __init__(self, serial: str) -> None:
+        self._serial = serial
+        self._saved: dict[str, str] = {}
+
+    def __enter__(self) -> TalkBackLog:
+        name = avd_name(self._serial)
+        if name != AVD_NAME:
+            raise ValueError(
+                f"refusing {self._serial}: AVD is {name!r}, TalkBack runs only on {AVD_NAME!r}"
+            )
+        self._saved = {
+            setting: _get_secure(self._serial, setting)
+            for setting in (_SERVICES_SETTING, _ENABLED_SETTING)
+        }
+        try:
+            return self._enable()
+        except BaseException:
+            self._restore()
+            raise
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self._restore()
+
+    def _enable(self) -> TalkBackLog:
+        log = TalkBackLog(self._serial)
+        log.mark()
+        _put_secure(self._serial, _SERVICES_SETTING, TALKBACK_SERVICE)
+        _put_secure(self._serial, _ENABLED_SETTING, "1")
+        self._wait_first_utterance()
+        log.mark()
+        return log
+
+    def _wait_first_utterance(self) -> None:
+        deadline = time.monotonic() + FIRST_UTTERANCE_TIMEOUT_S
+        while not utterances(_adb(self._serial, "logcat", "-d")):
+            if time.monotonic() >= deadline:
+                raise TalkBackSilent(
+                    f"no TalkBack utterance in {FIRST_UTTERANCE_TIMEOUT_S} s: "
+                    "Diagnosis mode off or TalkBack not running"
+                )
+            time.sleep(POLL_INTERVAL_S)
+
+    def _restore(self) -> None:
+        for setting, value in self._saved.items():
+            if value == _UNSET:
+                _adb(self._serial, "shell", "settings", "delete", "secure", setting)
+            else:
+                _put_secure(self._serial, setting, value)
+
+
+def _get_secure(serial: str, setting: str) -> str:
+    return _adb(serial, "shell", "settings", "get", "secure", setting).strip()
+
+
+def _put_secure(serial: str, setting: str, value: str) -> None:
+    _adb(serial, "shell", "settings", "put", "secure", setting, value)
+
+
+def _adb(serial: str, *args: str) -> str:
+    result = subprocess.run(
+        ["adb", "-s", serial, *args],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return result.stdout
