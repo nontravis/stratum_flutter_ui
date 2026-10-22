@@ -1,0 +1,194 @@
+## ios_fail_dark_header ios
+PROBE FAIL dark_header: expected light, got dark: png icon sample dark (USER_STORY.md:32-35 Scenario 3; fr02_pick_bar_icons_against_the_fill.md:9,40)
+PROBE FAIL white_page: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/ios_fail_dark_header/white_page.png'
+PROBE FAIL dark_statusbar: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/ios_fail_dark_header/dark_statusbar.png'
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/ios_fail_dark_header/dark_statusbar.png'
+# exit=1
+## ios_fail_island ios
+PROBE FAIL dark_header: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/ios_fail_island/dark_header.png'
+PROBE FAIL white_page: no visible status-bar icons (USER_STORY.md:42-45 Scenario 5; fr02_pick_bar_icons_against_the_fill.md:9,42)
+PROBE FAIL dark_statusbar: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/ios_fail_island/dark_statusbar.png'
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/ios_fail_island/dark_statusbar.png'
+# exit=1
+## ios_pass ios
+PROBE PASS dark_header: expected light, got light: png icon sample light (USER_STORY.md:32-35 Scenario 3; fr02_pick_bar_icons_against_the_fill.md:9,40)
+PROBE PASS white_page: expected dark, got dark: png icon sample dark (USER_STORY.md:42-45 Scenario 5; fr02_pick_bar_icons_against_the_fill.md:9,42)
+PROBE PASS dark_statusbar: expected light, got light: png icon sample light (USER_STORY.md:97-100 Scenario 16; fr02_pick_bar_icons_against_the_fill.md:46)
+PROBE PASS dark_statusbar_fill: expected dark fill, got dark fill (16, 24, 40) (USER_STORY.md:97-100 Scenario 16; fr01_merge_the_system_bar_style.md (statusBarColor painted as the topmost fill))
+# exit=0
+## ios_pass_island ios
+PROBE FAIL dark_header: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/ios_pass_island/dark_header.png'
+PROBE PASS white_page: expected dark, got dark: png icon sample dark (USER_STORY.md:42-45 Scenario 5; fr02_pick_bar_icons_against_the_fill.md:9,42)
+PROBE FAIL dark_statusbar: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/ios_pass_island/dark_statusbar.png'
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/ios_pass_island/dark_statusbar.png'
+# exit=1
+## pixel_2_real android
+PROBE PASS dark_header: expected light, got light: LIGHT_STATUS_BARS unset -> light icons (USER_STORY.md:32-35 Scenario 3; fr02_pick_bar_icons_against_the_fill.md:9,40)
+PROBE PASS white_page: expected dark, got dark: LIGHT_STATUS_BARS set -> dark icons (USER_STORY.md:42-45 Scenario 5; fr02_pick_bar_icons_against_the_fill.md:9,42)
+PROBE PASS dark_statusbar: expected light, got light: LIGHT_STATUS_BARS unset -> light icons (USER_STORY.md:97-100 Scenario 16; fr02_pick_bar_icons_against_the_fill.md:46)
+PROBE PASS dark_statusbar_fill: expected dark fill, got dark fill (16, 24, 40) (USER_STORY.md:97-100 Scenario 16; fr01_merge_the_system_bar_style.md (statusBarColor painted as the topmost fill))
+PROBE PASS video_bars_hidden: expected both hidden, got statusBars=False navigationBars=False (USER_STORY.md:52-55 Scenario 7; fr03_apply_bar_mode_and_rotation_lock.md:41 E05)
+PROBE FAIL video_bars_shown: expected both visible, got statusBars=False navigationBars=False (USER_STORY.md:57-60 Scenario 8; fr03_apply_bar_mode_and_rotation_lock.md:38 E02)
+PROBE PASS video_back: expected both hidden, got statusBars=False navigationBars=False (USER_STORY.md:62-65 Scenario 9; fr03_apply_bar_mode_and_rotation_lock.md:39 E03,41 E05)
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2_real/recents_label.activities.txt
+# exit=1
+## pixel_2/fail_dark_header android
+PROBE FAIL dark_header: expected light, got dark: LIGHT_STATUS_BARS set -> dark icons (USER_STORY.md:32-35 Scenario 3; fr02_pick_bar_icons_against_the_fill.md:9,40)
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_header/white_page.window.txt
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_header/dark_statusbar.window.txt
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_header/dark_statusbar.png'
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_header/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_header/video_bars_shown.window.txt
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_header/video_back.window.txt
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_header/recents_label.activities.txt
+# exit=1
+## pixel_2/fail_dark_statusbar android
+PROBE FAIL dark_header: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar/dark_header.window.txt
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar/white_page.window.txt
+PROBE FAIL dark_statusbar: expected light, got dark: LIGHT_STATUS_BARS set -> dark icons (USER_STORY.md:97-100 Scenario 16; fr02_pick_bar_icons_against_the_fill.md:46)
+PROBE PASS dark_statusbar_fill: expected dark fill, got dark fill (16, 24, 40) (USER_STORY.md:97-100 Scenario 16; fr01_merge_the_system_bar_style.md (statusBarColor painted as the topmost fill))
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar/video_bars_shown.window.txt
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar/video_back.window.txt
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar/recents_label.activities.txt
+# exit=1
+## pixel_2/fail_dark_statusbar_fill android
+PROBE FAIL dark_header: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar_fill/dark_header.window.txt
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar_fill/white_page.window.txt
+PROBE PASS dark_statusbar: expected light, got light: LIGHT_STATUS_BARS unset -> light icons (USER_STORY.md:97-100 Scenario 16; fr02_pick_bar_icons_against_the_fill.md:46)
+PROBE FAIL dark_statusbar_fill: expected dark fill, got light fill (255, 255, 255) (USER_STORY.md:97-100 Scenario 16; fr01_merge_the_system_bar_style.md (statusBarColor painted as the topmost fill))
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar_fill/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar_fill/video_bars_shown.window.txt
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar_fill/video_back.window.txt
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_dark_statusbar_fill/recents_label.activities.txt
+# exit=1
+## pixel_2/fail_missing_device_info android
+PROBE FAIL dark_header: device.txt missing (USER_STORY.md:32-35 Scenario 3; fr02_pick_bar_icons_against_the_fill.md:9,40)
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_missing_device_info/white_page.window.txt
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_missing_device_info/dark_statusbar.window.txt
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/pixel_2/fail_missing_device_info/dark_statusbar.png'
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_missing_device_info/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_missing_device_info/video_bars_shown.window.txt
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_missing_device_info/video_back.window.txt
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_missing_device_info/recents_label.activities.txt
+# exit=1
+## pixel_2/fail_recents_label android
+PROBE FAIL dark_header: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label/dark_header.window.txt
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label/white_page.window.txt
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label/dark_statusbar.window.txt
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label/dark_statusbar.png'
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label/video_bars_shown.window.txt
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label/video_back.window.txt
+PROBE FAIL recents_label: expected label='Video', got 'Stratum' (fr04_show_the_page_label_in_the_app_switcher.md:9,22)
+# exit=1
+## pixel_2/fail_recents_label_missing_block android
+PROBE FAIL dark_header: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label_missing_block/dark_header.window.txt
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label_missing_block/white_page.window.txt
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label_missing_block/dark_statusbar.window.txt
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label_missing_block/dark_statusbar.png'
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label_missing_block/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label_missing_block/video_bars_shown.window.txt
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_recents_label_missing_block/video_back.window.txt
+PROBE FAIL recents_label: could not parse taskDescription label in recents_label.activities.txt (fr04_show_the_page_label_in_the_app_switcher.md:9,22)
+# exit=1
+## pixel_2/fail_video_back android
+PROBE FAIL dark_header: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_back/dark_header.window.txt
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_back/white_page.window.txt
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_back/dark_statusbar.window.txt
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_back/dark_statusbar.png'
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_back/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_back/video_bars_shown.window.txt
+PROBE FAIL video_back: expected both hidden, got statusBars=True navigationBars=True (USER_STORY.md:62-65 Scenario 9; fr03_apply_bar_mode_and_rotation_lock.md:39 E03,41 E05)
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_back/recents_label.activities.txt
+# exit=1
+## pixel_2/fail_video_bars_hidden android
+PROBE FAIL dark_header: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_hidden/dark_header.window.txt
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_hidden/white_page.window.txt
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_hidden/dark_statusbar.window.txt
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_hidden/dark_statusbar.png'
+PROBE FAIL video_bars_hidden: expected both hidden, got statusBars=True navigationBars=True (USER_STORY.md:52-55 Scenario 7; fr03_apply_bar_mode_and_rotation_lock.md:41 E05)
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_hidden/video_bars_shown.window.txt
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_hidden/video_back.window.txt
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_hidden/recents_label.activities.txt
+# exit=1
+## pixel_2/fail_video_bars_shown android
+PROBE FAIL dark_header: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_shown/dark_header.window.txt
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_shown/white_page.window.txt
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_shown/dark_statusbar.window.txt
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_shown/dark_statusbar.png'
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_shown/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: expected both visible, got statusBars=False navigationBars=True (USER_STORY.md:57-60 Scenario 8; fr03_apply_bar_mode_and_rotation_lock.md:38 E02)
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_shown/video_back.window.txt
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_video_bars_shown/recents_label.activities.txt
+# exit=1
+## pixel_2/fail_white_page android
+PROBE FAIL dark_header: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_white_page/dark_header.window.txt
+PROBE FAIL white_page: expected dark, got light: LIGHT_STATUS_BARS unset -> light icons (USER_STORY.md:42-45 Scenario 5; fr02_pick_bar_icons_against_the_fill.md:9,42)
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_white_page/dark_statusbar.window.txt
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/pixel_2/fail_white_page/dark_statusbar.png'
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_white_page/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_white_page/video_bars_shown.window.txt
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_white_page/video_back.window.txt
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_2/fail_white_page/recents_label.activities.txt
+# exit=1
+## pixel_2/pass android
+PROBE PASS dark_header: expected light, got light: LIGHT_STATUS_BARS unset -> light icons (USER_STORY.md:32-35 Scenario 3; fr02_pick_bar_icons_against_the_fill.md:9,40)
+PROBE PASS white_page: expected dark, got dark: LIGHT_STATUS_BARS set -> dark icons (USER_STORY.md:42-45 Scenario 5; fr02_pick_bar_icons_against_the_fill.md:9,42)
+PROBE PASS dark_statusbar: expected light, got light: LIGHT_STATUS_BARS unset -> light icons (USER_STORY.md:97-100 Scenario 16; fr02_pick_bar_icons_against_the_fill.md:46)
+PROBE PASS dark_statusbar_fill: expected dark fill, got dark fill (16, 24, 40) (USER_STORY.md:97-100 Scenario 16; fr01_merge_the_system_bar_style.md (statusBarColor painted as the topmost fill))
+PROBE PASS video_bars_hidden: expected both hidden, got statusBars=False navigationBars=False (USER_STORY.md:52-55 Scenario 7; fr03_apply_bar_mode_and_rotation_lock.md:41 E05)
+PROBE PASS video_bars_shown: expected both visible, got statusBars=True navigationBars=True (USER_STORY.md:57-60 Scenario 8; fr03_apply_bar_mode_and_rotation_lock.md:38 E02)
+PROBE PASS video_back: expected both hidden, got statusBars=False navigationBars=False (USER_STORY.md:62-65 Scenario 9; fr03_apply_bar_mode_and_rotation_lock.md:39 E03,41 E05)
+PROBE PASS recents_label: expected label='Video', got 'Video' (fr04_show_the_page_label_in_the_app_switcher.md:9,22)
+# exit=0
+## pixel_8_real android
+PROBE FAIL dark_header: focus not app: Application Not Responding: com.google.android.apps.messaging
+PROBE FAIL white_page: focus not app: Application Not Responding: com.google.android.apps.messaging
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8_real/dark_statusbar.window.txt
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/pixel_8_real/dark_statusbar.png'
+PROBE PASS video_bars_hidden: expected both hidden, got statusBars=False navigationBars=False (USER_STORY.md:52-55 Scenario 7; fr03_apply_bar_mode_and_rotation_lock.md:41 E05)
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8_real/video_bars_shown.window.txt
+PROBE PASS video_back: expected both hidden, got statusBars=False navigationBars=False (USER_STORY.md:62-65 Scenario 9; fr03_apply_bar_mode_and_rotation_lock.md:39 E03,41 E05)
+PROBE PASS recents_label: expected label='Video', got 'Video' (fr04_show_the_page_label_in_the_app_switcher.md:9,22)
+# exit=1
+## pixel_8/fail_punch_hole android
+PROBE FAIL dark_header: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/fail_punch_hole/dark_header.window.txt
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/fail_punch_hole/white_page.window.txt
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/fail_punch_hole/dark_statusbar.window.txt
+PROBE FAIL dark_statusbar_fill: expected dark fill, got light fill (255, 255, 255) (USER_STORY.md:97-100 Scenario 16; fr01_merge_the_system_bar_style.md (statusBarColor painted as the topmost fill))
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/fail_punch_hole/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/fail_punch_hole/video_bars_shown.window.txt
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/fail_punch_hole/video_back.window.txt
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/fail_punch_hole/recents_label.activities.txt
+# exit=1
+## pixel_8/pass android
+PROBE PASS dark_header: expected light, got light: LIGHT_STATUS_BARS unset -> light icons (USER_STORY.md:32-35 Scenario 3; fr02_pick_bar_icons_against_the_fill.md:9,40)
+PROBE PASS white_page: expected dark, got dark: LIGHT_STATUS_BARS set -> dark icons (USER_STORY.md:42-45 Scenario 5; fr02_pick_bar_icons_against_the_fill.md:9,42)
+PROBE PASS dark_statusbar: expected light, got light: LIGHT_STATUS_BARS unset -> light icons (USER_STORY.md:97-100 Scenario 16; fr02_pick_bar_icons_against_the_fill.md:46)
+PROBE PASS dark_statusbar_fill: expected dark fill, got dark fill (16, 24, 40) (USER_STORY.md:97-100 Scenario 16; fr01_merge_the_system_bar_style.md (statusBarColor painted as the topmost fill))
+PROBE PASS video_bars_hidden: expected both hidden, got statusBars=False navigationBars=False (USER_STORY.md:52-55 Scenario 7; fr03_apply_bar_mode_and_rotation_lock.md:41 E05)
+PROBE PASS video_bars_shown: expected both visible, got statusBars=True navigationBars=True (USER_STORY.md:57-60 Scenario 8; fr03_apply_bar_mode_and_rotation_lock.md:38 E02)
+PROBE PASS video_back: expected both hidden, got statusBars=False navigationBars=False (USER_STORY.md:62-65 Scenario 9; fr03_apply_bar_mode_and_rotation_lock.md:39 E03,41 E05)
+PROBE PASS recents_label: expected label='Video', got 'Video' (fr04_show_the_page_label_in_the_app_switcher.md:9,22)
+# exit=0
+## pixel_8/pass_punch_hole android
+PROBE FAIL dark_header: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/pass_punch_hole/dark_header.window.txt
+PROBE FAIL white_page: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/pass_punch_hole/white_page.window.txt
+PROBE FAIL dark_statusbar: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/pass_punch_hole/dark_statusbar.window.txt
+PROBE PASS dark_statusbar_fill: expected dark fill, got dark fill (16, 24, 40) (USER_STORY.md:97-100 Scenario 16; fr01_merge_the_system_bar_style.md (statusBarColor painted as the topmost fill))
+PROBE FAIL video_bars_hidden: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/pass_punch_hole/video_bars_hidden.window.txt
+PROBE FAIL video_bars_shown: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/pass_punch_hole/video_bars_shown.window.txt
+PROBE FAIL video_back: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/pass_punch_hole/video_back.window.txt
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/pixel_8/pass_punch_hole/recents_label.activities.txt
+# exit=1
+## tablet_real_app_anr android
+PROBE PASS dark_header: expected light, got light: LIGHT_STATUS_BARS unset -> light icons (USER_STORY.md:32-35 Scenario 3; fr02_pick_bar_icons_against_the_fill.md:9,40)
+PROBE FAIL white_page: focus not app: Application Not Responding: dev.stratum.stratum_ui_example
+PROBE FAIL dark_statusbar: focus not app: Application Not Responding: dev.stratum.stratum_ui_example
+PROBE FAIL dark_statusbar_fill: missing capture: [Errno 2] No such file or directory: 'example/integration_test/probe_fixtures/system_style/tablet_real_app_anr/dark_statusbar.png'
+PROBE FAIL video_bars_hidden: focus not app: Application Not Responding: dev.stratum.stratum_ui_example
+PROBE FAIL video_bars_shown: focus not app: Application Not Responding: dev.stratum.stratum_ui_example
+PROBE FAIL video_back: focus not app: Application Not Responding: dev.stratum.stratum_ui_example
+PROBE FAIL recents_label: missing capture: example/integration_test/probe_fixtures/system_style/tablet_real_app_anr/recents_label.activities.txt
+# exit=1
