@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stratum_ui/stratum_ui.dart'
+    show StratumThemeApplication, StratumThemeController;
 import 'package:stratum_ui_test_app/fixture_app.dart';
 import 'package:stratum_ui_test_app/fixtures/fixtures.dart';
 
@@ -52,5 +54,21 @@ void main() {
 
   testWidgets('the fixtures map keys the smoke fixture', (tester) async {
     expect(fixtures.containsKey('smoke/semantics_id'), isTrue);
+  });
+
+  testWidgets('a themeController publishes the Stratum theme to a fixture', (
+    tester,
+  ) async {
+    final controller = await tester.runAsync(
+      () => StratumThemeController.preload(googleFontsTimeout: Duration.zero),
+    );
+    addTearDown(controller!.dispose);
+
+    await tester.pumpWidget(
+      FixtureApp(fixtureId: 'smoke/semantics_id', themeController: controller),
+    );
+
+    expect(find.byType(StratumThemeApplication), findsOneWidget);
+    expect(find.bySemanticsIdentifier('smoke.button'), findsOneWidget);
   });
 }

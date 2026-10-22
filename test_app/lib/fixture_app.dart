@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:stratum_ui/stratum_ui.dart';
 
 import 'fixtures/fixtures.dart';
 
@@ -7,16 +7,31 @@ import 'fixtures/fixtures.dart';
 /// The Navigator builds exactly one route from [fixtureId] and ignores the
 /// platform `defaultRouteName`, which `WidgetsApp` would otherwise split into
 /// stacked routes ahead of `initialRoute`.
+///
+/// With a [themeController], every fixture renders under that Stratum theme
+/// in light mode; without one, no Stratum theme is published.
 class FixtureApp extends StatelessWidget {
-  const FixtureApp({required this.fixtureId, super.key});
+  const FixtureApp({required this.fixtureId, this.themeController, super.key});
 
   /// The `<category>/<widget>` fixture to open, or null for the unknown page.
   final String? fixtureId;
+
+  /// The preloaded theme every fixture renders under, or null for none.
+  final StratumThemeController? themeController;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Stratum UI Test App',
+      builder: (context, child) {
+        final controller = themeController;
+        if (controller == null) return child!;
+        return StratumThemeApplication.controlled(
+          controller: controller,
+          themeMode: ThemeMode.light,
+          child: child!,
+        );
+      },
       onGenerateInitialRoutes: (_) => [_pageRoute()],
       onGenerateRoute: (_) => _pageRoute(),
     );
