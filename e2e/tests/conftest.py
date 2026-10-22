@@ -40,18 +40,31 @@ def app_id(request: pytest.FixtureRequest) -> str:
     return _required_option(request.config, "app_id")
 
 
+@pytest.fixture(scope="session")
+def installed_app(request: pytest.FixtureRequest, platform: str) -> None:
+    """Install --app on --device once per session (--device and --app are fixed per session).
+
+    A streamed `install -r` of a debug APK plus Flutter's asset copy after it filled a 5.8 GB
+    /data within 8 tests, and with `noReset` a reinstall per test buys no isolation.
+    """
+    if platform != "android":
+        pytest.fail(f"no driver for platform {platform!r} yet", pytrace=False)
+    install_apk(
+        _required_option(request.config, "device"),
+        Path(_required_option(request.config, "app")),
+    )
+
+
 @pytest.fixture
 def driver(
     request: pytest.FixtureRequest,
     platform: str,
     app_id: str,
     appium_server: AppiumServer,
+    installed_app: None,
 ) -> Iterator[Any]:
     """An Appium session on --device with --app installed; always quit afterwards."""
-    if platform != "android":
-        pytest.fail(f"no driver for platform {platform!r} yet", pytrace=False)
     serial = _required_option(request.config, "device")
-    install_apk(serial, Path(_required_option(request.config, "app")))
     options = UiAutomator2Options().load_capabilities(android_capabilities(serial, app_id))
     session = webdriver.Remote(appium_server.url, options=options)
     try:

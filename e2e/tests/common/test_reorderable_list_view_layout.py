@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 import time
 import xml.etree.ElementTree as ET
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 from appium.webdriver.common.appiumby import AppiumBy
@@ -23,6 +23,7 @@ from stratum_e2e.android.talkback import TalkBackLog, a11y_focused
 from stratum_e2e.android.uhid_keyboard import KEY_UP, MOD_LALT, UhidKeyboard
 from stratum_e2e.fixtures import open_fixture
 from stratum_e2e.locate import by_id
+from stratum_e2e.waits import wait_until
 
 FIXTURE_ID = "common/reorderable_list_view_layout"
 LOG_ID = "reorder.log"
@@ -77,18 +78,14 @@ def _app_log(driver: Any) -> str:
     return str(by_id(driver, "android", LOG_ID).get_attribute("content-desc"))
 
 
-def _wait_until(condition: Callable[[], bool], what: str) -> None:
-    deadline = time.monotonic() + WAIT_TIMEOUT_S
-    while not condition():
-        if time.monotonic() > deadline:
-            raise AssertionError(f"timed out after {WAIT_TIMEOUT_S}s waiting for {what}")
-        time.sleep(POLL_INTERVAL_S)
-
-
 def _open(driver: Any, platform: str, app_id: str) -> None:
     """Cold-start the fixture and wait until all six items are on screen."""
     open_fixture(driver, platform, app_id, FIXTURE_ID)
-    _wait_until(lambda: _order(driver) == INITIAL_ORDER, "the six items on screen")
+    wait_until(
+        lambda: _order(driver) == INITIAL_ORDER,
+        "the six items on screen",
+        timeout_s=WAIT_TIMEOUT_S,
+    )
 
 
 def _focus_by_touch(driver: Any, label: str) -> None:
@@ -96,7 +93,11 @@ def _focus_by_touch(driver: Any, label: str) -> None:
     serial = _serial(driver)
     x, y = emu_mouse.center(driver.find_element(AppiumBy.ACCESSIBILITY_ID, label).rect)
     emu_mouse.tap(serial, x, y)
-    _wait_until(lambda: a11y_focused(driver.page_source) == [label], f"TalkBack focus on {label}")
+    wait_until(
+        lambda: a11y_focused(driver.page_source) == [label],
+        f"TalkBack focus on {label}",
+        timeout_s=WAIT_TIMEOUT_S,
+    )
 
 
 def _entry_name(utterance: str) -> str:
@@ -163,9 +164,10 @@ def _close_actions(
         heard = _press_and_hear(keyboard, talkback, KEY_RIGHT, MOD_LALT)
         if any(_entry_name(text) == MENU_CANCEL for text in heard):
             keyboard.press(KEY_ENTER, MOD_LALT)
-            _wait_until(
+            wait_until(
                 lambda: a11y_focused(driver.page_source) == [returns_to],
                 f"the menu to close with TalkBack focus back on {returns_to}",
+                timeout_s=WAIT_TIMEOUT_S,
             )
             return
     raise AssertionError(f"{MENU_CANCEL!r} was not offered in {MENU_STEPS} steps")
@@ -195,7 +197,11 @@ def test_talkback_takes_alt_up_before_the_app(
 
     talkback.mark()
     keyboard.press(KEY_UP, MOD_LALT)
-    _wait_until(lambda: a11y_focused(driver.page_source) == ["Item 2"], "TalkBack focus on Item 2")
+    wait_until(
+        lambda: a11y_focused(driver.page_source) == ["Item 2"],
+        "TalkBack focus on Item 2",
+        timeout_s=WAIT_TIMEOUT_S,
+    )
 
     spoken = talkback.since_mark()
     assert spoken[0].startswith("Item 2"), spoken
@@ -236,10 +242,15 @@ def test_talkback_move_up_moves_item_and_speaks_position(
     _focus_by_touch(driver, "Item 3")
 
     _run_move(keyboard, talkback, MOVE_UP)
-    _wait_until(lambda: _order(driver)[1] == "Item 3", "Item 3 in the second slot")
-    _wait_until(
+    wait_until(
+        lambda: _order(driver)[1] == "Item 3",
+        "Item 3 in the second slot",
+        timeout_s=WAIT_TIMEOUT_S,
+    )
+    wait_until(
         lambda: any("Moved to position 2 of 6" in text for text in talkback.since_mark()),
         "TalkBack to speak the new position",
+        timeout_s=WAIT_TIMEOUT_S,
     )
 
     assert _order(driver) == ["Item 1", "Item 3", "Item 2", "Item 4", "Item 5", "Item 6"]
