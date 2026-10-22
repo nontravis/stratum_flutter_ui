@@ -12,6 +12,7 @@ from stratum_e2e.android.talkback import (
     TalkBackLog,
     TalkBackSession,
     TalkBackSilent,
+    TalkBackStuck,
     a11y_focused,
     avd_name,
     utterances,
@@ -49,7 +50,11 @@ class FakeClock:
 
 
 class FakeAdb:
-    """In-memory device: settings, the AVD name, and a logcat buffer."""
+    """In-memory device: settings, the AVD name, a logcat buffer, and TalkBack's bind state.
+
+    TalkBack speaks only after a fresh start (settings turn it on while it is unbound),
+    `speak_after_polls` logcat reads later; `None` means it never speaks.
+    """
 
     def __init__(self) -> None:
         self.avd = AVD_NAME
@@ -57,14 +62,24 @@ class FakeAdb:
         self.logcat = ""
         self.calls: list[list[str]] = []
         self.speak_after_polls: int | None = None
+        self.unbind_after_polls = 0
+        self.never_unbinds = False
         self.speech = ITEM_1_LINE
-        self._polls = 0
-        self._spoke = False
+        self.bound = False
+        self.bound_polls = 0
+        self._log_polls = 0
+        self._unbind_countdown = 0
+        self._speech_pending = False
 
     def __call__(self, argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
         assert argv[:3] == ["adb", "-s", SERIAL]
         self.calls.append(argv[3:])
         return subprocess.CompletedProcess(argv, 0, self._answer(argv[3:]), "")
+
+    def start_bound(self) -> None:
+        """Put the device in the resting state: TalkBack on and bound."""
+        self.settings.update({SERVICES: TALKBACK_SERVICE, ENABLED: "1"})
+        self.bound = True
 
     def writes(self) -> list[list[str]]:
         """Return every settings put or delete the code issued."""
@@ -78,18 +93,41 @@ class FakeAdb:
             return self.settings.get(args[4], "null") + "\n"
         if args[:4] == ["shell", "settings", "put", "secure"]:
             self.settings[args[4]] = args[5]
+            self._apply_settings()
         elif args[:4] == ["shell", "settings", "delete", "secure"]:
             self.settings.pop(args[4], None)
+            self._apply_settings()
         elif args == ["logcat", "-c"]:
             self.logcat = ""
         elif args == ["logcat", "-d"]:
-            self._polls += 1
-            due = self.speak_after_polls is not None and self._polls >= self.speak_after_polls
-            if due and not self._spoke:
-                self.logcat += self.speech
-                self._spoke = True
-            return self.logcat
+            return self._read_logcat()
+        elif args == ["shell", "dumpsys", "accessibility"]:
+            return self._dump_accessibility()
         return ""
+
+    def _apply_settings(self) -> None:
+        running = self.settings.get(SERVICES) == TALKBACK_SERVICE and self.settings.get(ENABLED) == "1"
+        if running and not self.bound:
+            self.bound = True
+            self._log_polls = 0
+            self._speech_pending = True
+        elif not running and self.bound:
+            self.bound = False
+            self._unbind_countdown = self.unbind_after_polls
+
+    def _read_logcat(self) -> str:
+        self._log_polls += 1
+        due = self.speak_after_polls is not None and self._log_polls >= self.speak_after_polls
+        if self._speech_pending and due:
+            self.logcat += self.speech
+            self._speech_pending = False
+        return self.logcat
+
+    def _dump_accessibility(self) -> str:
+        self.bound_polls += 1
+        still_bound = self.bound or self.never_unbinds or self._unbind_countdown > 0
+        self._unbind_countdown = max(0, self._unbind_countdown - 1)
+        return "label=TalkBack" if still_bound else "no services"
 
 
 @pytest.fixture
@@ -218,3 +256,56 @@ def test_a11y_focused_accepts_the_uiautomator_xml_declaration() -> None:
     )
 
     assert a11y_focused(source) == ["รายการ"]
+
+
+def test_session_restarts_talkback_that_is_already_on(fake_adb: FakeAdb) -> None:
+    fake_adb.start_bound()
+    fake_adb.unbind_after_polls = 2
+    fake_adb.speak_after_polls = 2
+
+    with TalkBackSession(SERIAL) as log:
+        assert fake_adb.bound
+        assert fake_adb.bound_polls == 3
+        assert log.since_mark() == []
+
+    assert fake_adb.writes().count(["shell", "settings", "put", "secure", ENABLED, "0"]) == 1
+
+
+def test_session_turns_talkback_off_and_waits_for_unbind_before_turning_it_on(fake_adb: FakeAdb) -> None:
+    fake_adb.start_bound()
+    fake_adb.unbind_after_polls = 1
+    fake_adb.speak_after_polls = 1
+
+    with TalkBackSession(SERIAL):
+        pass
+
+    calls = fake_adb.calls
+    off = calls.index(["shell", "settings", "put", "secure", ENABLED, "0"])
+    delete = calls.index(["shell", "settings", "delete", "secure", SERVICES])
+    unbound = [i for i, c in enumerate(calls) if c == ["shell", "dumpsys", "accessibility"]]
+    on = calls.index(["shell", "settings", "put", "secure", SERVICES, TALKBACK_SERVICE])
+    assert off < delete < unbound[0] < unbound[-1] < on
+
+
+def test_session_restores_talkback_that_was_on(fake_adb: FakeAdb) -> None:
+    fake_adb.start_bound()
+    fake_adb.speak_after_polls = 1
+
+    with TalkBackSession(SERIAL):
+        pass
+
+    assert fake_adb.settings == {SERVICES: TALKBACK_SERVICE, ENABLED: "1"}
+
+
+def test_session_raises_stuck_when_talkback_never_unbinds_and_restores(
+    fake_adb: FakeAdb, clock: FakeClock
+) -> None:
+    fake_adb.start_bound()
+    fake_adb.never_unbinds = True
+
+    with pytest.raises(TalkBackStuck, match="still bound") as raised, TalkBackSession(SERIAL):
+        pytest.fail("the body must not run")
+
+    assert isinstance(raised.value, RuntimeError)
+    assert 10 <= clock.now < 11
+    assert fake_adb.settings == {SERVICES: TALKBACK_SERVICE, ENABLED: "1"}

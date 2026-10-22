@@ -14,6 +14,7 @@ TALKBACK_SERVICE = (
 )
 
 FIRST_UTTERANCE_TIMEOUT_S = 20
+UNBIND_TIMEOUT_S = 10
 POLL_INTERVAL_S = 0.5
 
 _SERVICES_SETTING = "enabled_accessibility_services"
@@ -24,6 +25,10 @@ _UTTERANCE = re.compile(r'Speaking fragment text="([^"]*)"')
 
 class TalkBackSilent(RuntimeError):
     """TalkBack spoke nothing within the first-utterance timeout."""
+
+
+class TalkBackStuck(RuntimeError):
+    """TalkBack stayed bound after the session turned it off."""
 
 
 def avd_name(serial: str) -> str:
@@ -67,11 +72,13 @@ class TalkBackLog:
 
 
 class TalkBackSession:
-    """Turns TalkBack on for the block and restores the accessibility settings on exit.
+    """Restarts TalkBack for the block and restores the accessibility settings on exit.
 
-    `__enter__` returns a TalkBackLog marked after TalkBack's first utterance.
-    Raises ValueError unless [serial] is the AVD named AVD_NAME, and TalkBackSilent
-    when TalkBack speaks nothing in 20 s; both leave the settings unchanged.
+    TalkBack speaks a first utterance only on a fresh start, so entry turns it off, waits
+    until it unbinds, then turns it on. `__enter__` returns a TalkBackLog marked after
+    that first utterance. Raises ValueError unless [serial] is the AVD named AVD_NAME,
+    TalkBackStuck when TalkBack stays bound for 10 s, and TalkBackSilent when it speaks
+    nothing in 20 s; the last two restore the settings first.
     """
 
     def __init__(self, serial: str) -> None:
@@ -103,6 +110,7 @@ class TalkBackSession:
         self._restore()
 
     def _enable(self) -> TalkBackLog:
+        self._stop()
         log = TalkBackLog(self._serial)
         log.mark()
         _put_secure(self._serial, _SERVICES_SETTING, TALKBACK_SERVICE)
@@ -110,6 +118,17 @@ class TalkBackSession:
         self._wait_first_utterance()
         log.mark()
         return log
+
+    def _stop(self) -> None:
+        _put_secure(self._serial, _ENABLED_SETTING, "0")
+        _adb(self._serial, "shell", "settings", "delete", "secure", _SERVICES_SETTING)
+        deadline = time.monotonic() + UNBIND_TIMEOUT_S
+        while _talkback_bound(self._serial):
+            if time.monotonic() >= deadline:
+                raise TalkBackStuck(
+                    f"TalkBack still bound on {self._serial} after {UNBIND_TIMEOUT_S} s"
+                )
+            time.sleep(POLL_INTERVAL_S)
 
     def _wait_first_utterance(self) -> None:
         deadline = time.monotonic() + FIRST_UTTERANCE_TIMEOUT_S
@@ -127,6 +146,10 @@ class TalkBackSession:
                 _adb(self._serial, "shell", "settings", "delete", "secure", setting)
             else:
                 _put_secure(self._serial, setting, value)
+
+
+def _talkback_bound(serial: str) -> bool:
+    return "label=TalkBack" in _adb(serial, "shell", "dumpsys", "accessibility")
 
 
 def _get_secure(serial: str, setting: str) -> str:
