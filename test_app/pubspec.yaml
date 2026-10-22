@@ -1,0 +1,33 @@
+name: stratum_ui_test_app
+description: "Route-opened widget fixtures that host the integration and e2e legs."
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev.
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  stratum_ui:
+    path: ../
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+dependency_overrides:
+  # WORKAROUND: toastification 3.2.0 pins equatable ^2.0.5 while dart_faltool
+  # (through flutter_falconx) needs ^3.0.0; toastification's source compiles
+  # unchanged on 3.0.0. remove when a toastification release accepts
+  # equatable 3 (upstream PR #249).
+  equatable: ^3.0.0
+
+flutter:
+  uses-material-design: true
