@@ -1,0 +1,11 @@
+{
+  "name": "stratum-ui-e2e-tools",
+  "private": true,
+  "description": "Pinned Appium toolchain for the stratum_ui e2e suite; installed by e2e/tools/setup.sh, nothing global.",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "appium": "3.8.0"
+  }
+}
