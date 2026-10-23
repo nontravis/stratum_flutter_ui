@@ -5,7 +5,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stratum_ui/src/components/common/ink_well.dart'
-    show semanticsWithoutHeading, tapSurfaceHeadingLevel;
+    show tapSurfaceCallerSemantics, tapSurfaceHeadingLevel;
 import 'package:stratum_ui/src/src.dart';
 
 import 'fakes/fake_stratum_theme.dart';
@@ -1462,6 +1462,91 @@ void main() {
       expect(find.bySemanticsLabel('Open settings'), findsOneWidget);
       handle.dispose();
     });
+
+    testWidgets("fo06/us04/fr02: a caller identifier sits on the surface's one "
+        'node', (tester) async {
+      tester.platformDispatcher.localeTestValue = const Locale('en');
+      addTearDown(tester.platformDispatcher.clearLocaleTestValue);
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            onSecondaryTap: _noop,
+            semantics: SemanticsProperties(
+              identifier: 'surface',
+              label: 'Open',
+            ),
+            child: _box,
+          ),
+        ),
+      );
+
+      final node = tester.getSemantics(find.byType(StratumInkWell));
+      expect(
+        node,
+        isSemantics(
+          identifier: 'surface',
+          label: 'Open',
+          isButton: true,
+          hasTapAction: true,
+          customActions: [const CustomSemanticsAction(label: 'Show menu')],
+        ),
+      );
+      expect(node.childrenCount, 0);
+      handle.dispose();
+    });
+
+    testWidgets('fo06/us04/fr02: a caller identifier set after the first build '
+        "still sits on the surface's one node", (tester) async {
+      final handle = tester.ensureSemantics();
+      Widget host(String? identifier) => themedHost(
+        StratumInkWell(
+          onTap: _noop,
+          semantics: SemanticsProperties(identifier: identifier, label: 'Open'),
+          child: _box,
+        ),
+      );
+      await tester.pumpWidget(host(null));
+      await tester.pumpWidget(host('surface'));
+
+      final node = tester.getSemantics(find.byType(StratumInkWell));
+      expect(
+        node,
+        isSemantics(
+          identifier: 'surface',
+          label: 'Open',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+      expect(node.childrenCount, 0);
+      handle.dispose();
+    });
+
+    testWidgets('fo06/us04/fr02/e03: with excludeFromSemantics a caller '
+        'identifier keeps its own node', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        themedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            onSecondaryTap: _noop,
+            excludeFromSemantics: true,
+            semantics: SemanticsProperties(
+              identifier: 'surface',
+              label: 'Open',
+            ),
+            child: _box,
+          ),
+        ),
+      );
+
+      final node = tester.getSemantics(find.byType(StratumInkWell));
+      expect(node, isSemantics(identifier: 'surface', label: 'Open'));
+      expect(node.rect.size, tester.getSize(find.byType(StratumInkWell)));
+      handle.dispose();
+    });
   });
 
   group('fo06/us04/fr02, s03/inv8: tapSurfaceHeadingLevel', () {
@@ -1590,7 +1675,7 @@ void main() {
     });
   });
 
-  group('fo06/us04/fr02, s03/inv8: semanticsWithoutHeading', () {
+  group('fo06/us04/fr02, s03/inv8: tapSurfaceCallerSemantics', () {
     /// A caller semantics with many fields set besides `header` and
     /// `headingLevel`, so the tripwire sees any field the subclass drops.
     SemanticsProperties properties({
@@ -1644,7 +1729,9 @@ void main() {
         );
         final stripped = await dataOf(
           tester,
-          semanticsWithoutHeading(
+          tapSurfaceCallerSemantics(
+            withoutHeading: true,
+            underSurface: false,
             properties: properties(header: true, headingLevel: 3),
             child: _box,
           ),
@@ -1669,7 +1756,9 @@ void main() {
         final handle = tester.ensureSemantics();
         final stripped = await dataOf(
           tester,
-          semanticsWithoutHeading(
+          tapSurfaceCallerSemantics(
+            withoutHeading: true,
+            underSurface: false,
             properties: properties(
               header: true,
               headingLevel: 3,
@@ -1700,14 +1789,18 @@ void main() {
         final handle = tester.ensureSemantics();
         await dataOf(
           tester,
-          semanticsWithoutHeading(
+          tapSurfaceCallerSemantics(
+            withoutHeading: true,
+            underSurface: false,
             properties: const SemanticsProperties(header: true, label: 'Old'),
             child: _box,
           ),
         );
         final updated = await dataOf(
           tester,
-          semanticsWithoutHeading(
+          tapSurfaceCallerSemantics(
+            withoutHeading: true,
+            underSurface: false,
             properties: const SemanticsProperties(
               headingLevel: 4,
               label: 'New',

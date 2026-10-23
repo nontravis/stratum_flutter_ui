@@ -191,6 +191,42 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('us04/fr02/e09: an identifier on a heading button stays on the '
+        'one button node', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        webThemedHost(
+          const StratumInkWell(
+            onTap: _noop,
+            semantics: SemanticsProperties(
+              identifier: 'x',
+              header: true,
+              headingLevel: 3,
+              label: 'L',
+            ),
+            child: _box,
+          ),
+        ),
+      );
+
+      final heading = tester.getSemantics(find.byType(StratumInkWell));
+      expect(heading.getSemanticsData().headingLevel, 3);
+      final button = _onlyChild(heading);
+      expect(button.getSemanticsData().headingLevel, 0);
+      expect(button.childrenCount, 0);
+      expect(
+        button,
+        isSemantics(
+          identifier: 'x',
+          label: 'L',
+          isHeader: false,
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
     testWidgets('us04/fr02/e07: a right-to-left header button splits like '
         'left-to-right', (tester) async {
       final handle = tester.ensureSemantics();

@@ -18269,6 +18269,25 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R1 a root '
+        'StratumInkWell with a caller identifier joins the item node', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await _expectJoined(
+        tester,
+        (id) => StratumInkWell(
+          onTap: _tapRow,
+          semantics: SemanticsProperties(identifier: 'item-$id'),
+          child: Text('Item $id'),
+        ),
+      );
+      final data = _rootNode(tester, 'Item 2').getSemanticsData();
+      expect(data.identifier, 'item-2');
+      expect(_rootMoves(data), hasLength(4));
+      handle.dispose();
+    });
+
     testWidgets('fo06/us04/fr02/e11, fo06/us11/fr03/e03, s03/inv81: R2 a root '
         'ContainerLayout interaction joins', (tester) async {
       final handle = tester.ensureSemantics();

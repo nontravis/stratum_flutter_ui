@@ -107,17 +107,26 @@ int? tapSurfaceHeadingLevel({
   return semantics.header == true ? 2 : null;
 }
 
-/// A [Semantics.fromProperties] whose node carries every field of
-/// [properties] but `header` and `headingLevel`.
+/// The one way [StratumInkWell] builds the caller's semantics node, exposed as
+/// a seam a VM test drives.
 ///
-/// [StratumInkWell] builds the caller's node through it when
-/// [tapSurfaceHeadingLevel] gives a level, so that on web the button node
-/// under the heading node renders as a button. Not exported:
-/// `common/common.dart` hides it.
-Widget semanticsWithoutHeading({
+/// The node carries every field of [properties], but `header` and
+/// `headingLevel` when [withoutHeading] is set (on web, so the button node
+/// under the heading node renders as a button). With [underSurface] it merges
+/// into the surface node above it, identifier included; without, it stays a
+/// boundary where it carries an identifier. Not exported: `common/common.dart`
+/// hides it.
+Widget tapSurfaceCallerSemantics({
   required SemanticsProperties properties,
+  required bool withoutHeading,
+  required bool underSurface,
   required Widget child,
-}) => _SemanticsWithoutHeading(properties: properties, child: child);
+}) => _CallerSemantics(
+  properties: properties,
+  withoutHeading: withoutHeading,
+  underSurface: underSurface,
+  child: child,
+);
 
 /// How far [StratumInkWell] pads its layout and hit area toward the
 /// platform's minimum tap target (NFR-U05).
@@ -665,6 +674,8 @@ class _StratumInkWellState extends State<StratumInkWell>
     );
     // A caller's semantics apply even with excludeFromSemantics, the usual
     // way to replace the gesture semantics with a custom label and actions.
+    // Under the surface they merge into its one node; with
+    // excludeFromSemantics there is no surface, so they keep their own.
     final properties = widget.semantics;
     final headingLevel = tapSurfaceHeadingLevel(
       isWeb: kIsWeb,
@@ -673,9 +684,12 @@ class _StratumInkWellState extends State<StratumInkWell>
       semantics: properties,
     );
     if (properties != null) {
-      result = headingLevel == null
-          ? Semantics.fromProperties(properties: properties, child: result)
-          : semanticsWithoutHeading(properties: properties, child: result);
+      result = tapSurfaceCallerSemantics(
+        properties: properties,
+        withoutHeading: headingLevel != null,
+        underSurface: !widget.excludeFromSemantics,
+        child: result,
+      );
     }
     if (!widget.excludeFromSemantics) {
       final hasActivation = _hasActivation;
@@ -756,17 +770,33 @@ bool _setsRole(SemanticsProperties? properties) =>
         properties.toggled != null ||
         (properties.role != null && properties.role != SemanticsRole.none));
 
-/// A [Semantics] whose node carries neither `header` nor `headingLevel`.
+/// A [Semantics.fromProperties] for a caller's node that can drop `header`
+/// and `headingLevel` ([withoutHeading]) and merge into the surface node
+/// above it ([underSurface]).
 ///
-/// [SemanticsProperties] has no `copyWith`, so the render object clears the
-/// two fields after the inherited configuration copies them in; any field
-/// a later Flutter adds passes through unchanged.
-class _SemanticsWithoutHeading extends Semantics {
-  const new({required super.properties, super.child}) : super.fromProperties();
+/// [SemanticsProperties] has no `copyWith`, so the render object adjusts the
+/// configuration after the inherited one copies the fields in; any field a
+/// later Flutter adds passes through unchanged.
+class _CallerSemantics extends Semantics {
+  const new({
+    required super.properties,
+    required this.withoutHeading,
+    required this.underSurface,
+    super.child,
+  }) : super.fromProperties();
+
+  /// Whether the node carries neither `header` nor `headingLevel`.
+  final bool withoutHeading;
+
+  /// Whether the node merges into the surface node above it, identifier
+  /// included, instead of splitting off as its own.
+  final bool underSurface;
 
   @override
   RenderSemanticsAnnotations createRenderObject(BuildContext context) {
-    final renderObject = _RenderSemanticsWithoutHeading(
+    final renderObject = _RenderCallerSemantics(
+      withoutHeading: withoutHeading,
+      underSurface: underSurface,
       container: container,
       explicitChildNodes: explicitChildNodes,
       excludeSemantics: excludeSemantics,
@@ -779,28 +809,64 @@ class _SemanticsWithoutHeading extends Semantics {
     updateRenderObject(context, renderObject);
     return renderObject;
   }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderSemanticsAnnotations renderObject,
+  ) {
+    super.updateRenderObject(context, renderObject);
+    (renderObject as _RenderCallerSemantics)
+      ..withoutHeading = withoutHeading
+      ..underSurface = underSurface;
+  }
 }
 
-/// Clears `header` and `headingLevel` after the inherited configuration,
-/// only when it set them, so a config that would contribute no node
-/// still contributes none.
-class _RenderSemanticsWithoutHeading extends RenderSemanticsAnnotations {
+/// Adjusts the inherited configuration for [_CallerSemantics]: clears
+/// `header` and `headingLevel` only when it set them, so a config that
+/// would contribute no node still contributes none.
+class _RenderCallerSemantics extends RenderSemanticsAnnotations {
   new({
+    required bool withoutHeading,
+    required bool underSurface,
     required super.properties,
     super.container,
     super.explicitChildNodes,
     super.excludeSemantics,
     super.blockUserActions,
     super.localeForSubtree,
-  });
+  }) : _withoutHeading = withoutHeading,
+       _underSurface = underSurface;
+
+  bool _withoutHeading;
+  bool _underSurface;
+
+  set withoutHeading(bool value) {
+    if (_withoutHeading == value) return;
+    _withoutHeading = value;
+    markNeedsSemanticsUpdate();
+  }
+
+  set underSurface(bool value) {
+    if (_underSurface == value) return;
+    _underSurface = value;
+    markNeedsSemanticsUpdate();
+  }
 
   @override
   void describeSemanticsConfiguration(SemanticsConfiguration config) {
     super.describeSemanticsConfiguration(config);
-    if (config.isHeader) config.isHeader = false;
-    // Skips the write when the level is already 0, so a config with no
-    // level stays unannotated; otherwise it clears the copied level.
-    config.headingLevel = 0;
+    if (_withoutHeading) {
+      if (config.isHeader) config.isHeader = false;
+      // Skips the write when the level is already 0, so a config with no
+      // level stays unannotated; otherwise it clears the copied level.
+      config.headingLevel = 0;
+    }
+    // `rendering/object.dart:4941@3.47.7` makes a non-null `identifier` a
+    // semantic boundary, which would split this node off the surface's
+    // container; resetting it to `container` lets the caller's fields,
+    // identifier included, merge into the surface's one node (US-04 FR-02).
+    if (_underSurface) config.isSemanticBoundary = container;
   }
 }
 

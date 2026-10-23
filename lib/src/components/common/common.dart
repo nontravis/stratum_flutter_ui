@@ -4,7 +4,7 @@ export 'ink_well.dart'
         ItemRootPassSemantics,
         ReorderItemRoot,
         interactionNeedsTapSurface,
-        semanticsWithoutHeading,
+        tapSurfaceCallerSemantics,
         tapSurfaceHeadingLevel,
         tapSurfaceStateOf,
         tapSurfaceTakesFocus;
