@@ -397,11 +397,28 @@ beside `style`, which draws the box.
   `onHover(true)` once. `customStyle: StratumInkWellStyle(focus: StratumFocusBorderStyle(...))` restyles this
   surface's focus ring, over `componentPartDefaults: (theme) => {StratumInkWell: StratumInkWellStyle(focus: ...)}`
   for every tap surface, which sits over the every-ring `StratumFocusBorder` style; `Interaction.customStyle`
-  carries it to every `BoxLayout` with a tap surface. Pass an automation id or extra screen-reader actions in
-  `semantics: SemanticsProperties(identifier: ..., customSemanticsActions: ...)`: they land on the surface's one node
-  beside its role, label, tap, and `onSecondaryTap` action, and a caller action with the secondary action's label
-  replaces it. Never wrap the surface in `Semantics(identifier: ...)`: an identifier gives its node a boundary of its
-  own, so the id and the tap split into two screen-reader stops.
+  carries it to every `BoxLayout` with a tap surface.
+- **Ids and screen-reader actions on a tap surface** — pass them in the surface's own
+  `semantics: SemanticsProperties(identifier: ..., customSemanticsActions: ...)`, or a `BoxLayout`'s `semantics:`,
+  which reaches it unchanged. The surface puts them on its one node beside its role, label, tap, and `onSecondaryTap`
+  action, and a caller action with the secondary action's label replaces it. Never add a `Semantics` of your own for
+  them: one with custom actions inside `child` splits the label and tap away from the button role, since a node takes
+  custom actions from one source only, and one with an `identifier` around the surface leaves the id on a node of its
+  own with no tap.
+
+  ```dart
+  // One stop: "Row, Button", with the actions Pin and Show menu.
+  StratumInkWell(
+    onTap: openRow,
+    onSecondaryTap: showRowMenu,
+    semantics: SemanticsProperties(
+      identifier: 'row.1',
+      customSemanticsActions: {const CustomSemanticsAction(label: 'Pin'): pinRow},
+    ),
+    child: const Text('Row'),
+  )
+  ```
+
 ## Disabled components
 
 - **`disabled: true`** — on any component built on `StratumStatelessWidget` or `StratumStatefulWidget`, the
