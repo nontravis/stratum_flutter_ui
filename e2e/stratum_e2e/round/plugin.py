@@ -32,7 +32,7 @@ from stratum_e2e.android.talkback import AVD_NAME
 from stratum_e2e.paths import E2E_ROOT
 from stratum_e2e.round.android_boot import AndroidBooter
 from stratum_e2e.round.android_host import port_directory, sdk_root
-from stratum_e2e.round.app_build import AppBuild, build_argv, ensure_app_build
+from stratum_e2e.round.app_build import AppBuild, build_argv, ensure_app_build, resolve_app_packages
 from stratum_e2e.round.boot import Booter, BootRecord
 from stratum_e2e.round.capture import save_device_log, save_screenshot
 from stratum_e2e.round.catalog import (
@@ -78,6 +78,7 @@ _RESOLVED: Final = ("platform", "device", "app_id")
 _BOOT_KEY: Final = "boot"
 _BOOT_DIR: Final = "boot"
 _BUILD_DIR: Final = "app build"
+_RESOLVE_DIR: Final = "pub get"
 _ITEM_LOG: Final = "pytest.log"
 _DEVICE_LOG: Final = "device.log"
 _SCREENSHOT: Final = "screenshot.png"
@@ -103,13 +104,14 @@ class RoundTarget:
 class Backends:
     """Everything a round does to the host, so a unit test swaps all of it for fakes by overriding `round_backends`.
 
-    `booter_for` hands back one booter per platform for the whole round: the instance that boots a target is the one
-    that ends it. `port_dir` holds the port reservations of the Android console and chromedriver (pre-flight F18).
+    `resolve` resolves an app folder's packages before the round's first host build or run of it. `booter_for` hands
+    back one booter per platform for the whole round: the instance that boots a target is the one that ends it. `port_dir` holds the port reservations of the Android console and chromedriver (pre-flight F18).
     `sleep` paces the lane and memory-gate polls.
     """
 
     runner: Runner
     booter_for: Callable[[Target], Booter]
+    resolve: Callable[[Path, Runner, Path], None]
     build: Callable[..., AppBuild]
     run_plan: Callable[..., RunOutcome]
     memory_reasons: Callable[[], list[str]]
@@ -145,6 +147,7 @@ class _RoundState:
         self.down: set[str] = set()
         self.live: dict[str, RoundTarget] = {}
         self.app_builds: dict[tuple[str, bool], Path] = {}
+        self.resolved = False
         self.outcomes: dict[str, dict[str, FileResult]] = {}
         self.run_dirs: dict[tuple[str, str], Path] = {}
         self.flutter_version: str | None = None
@@ -577,11 +580,24 @@ def _app_id(catalog: Catalog, target: Target) -> str:
     return app.android_id if target.platform == "android" else app.apple_id
 
 
+def _resolve_app(state: _RoundState, backends: Backends, target: Target) -> None:
+    """Resolve the e2e app's packages before the round's first host build or run; a failure raises `RoundEnvError`.
+
+    Once per round: a later call returns at once, and a failed resolve is tried again by the next caller.
+    """
+    if state.resolved:
+        return
+    log = state.open_round_dir(backends.now).item_dir(target.name, _RESOLVE_DIR) / "pub_get.log"
+    backends.resolve(state.app_dir, backends.runner, log)
+    state.resolved = True
+
+
 def _app_build(state: _RoundState, backends: Backends, target: Target) -> Path:
     """The e2e app build of the target's platform; the first target of a platform builds it for the rest."""
     key = (target.platform, target.wasm)
     path = state.app_builds.get(key)
     if path is None:
+        _resolve_app(state, backends, target)
         round_dir = state.open_round_dir(backends.now)
         log = round_dir.item_dir(target.name, _BUILD_DIR) / "build.log"
         build = backends.build(state.app_dir, E2E_ROOT.parent, target.platform, target.wasm, backends.runner, log)
@@ -612,7 +628,12 @@ def _run_once(
     for file in plan.files:
         state.run_dirs[(target.name, file)] = run_dir
     try:
-        version = _flutter_version(state, backends.runner) if target.platform == "linux" else None
+        # A Linux run resolves inside its container, against the container's own paths.
+        if target.platform == "linux":
+            version = _flutter_version(state, backends.runner)
+        else:
+            version = None
+            _resolve_app(state, backends, target)
     except RoundEnvError as error:
         return _env_files(plan, error.reason)
     since = backends.now()
@@ -771,6 +792,7 @@ def _real_backends(config: pytest.Config) -> Backends:
     return Backends(
         runner=runner,
         booter_for=booter_for,
+        resolve=resolve_app_packages,
         build=ensure_app_build,
         run_plan=run_plan,
         memory_reasons=lambda: host_memory_reasons(runner, lane()),

@@ -9,6 +9,7 @@ Appium server, install, or session failure raises `RoundEnvError`, so the round 
 from __future__ import annotations
 
 import contextlib
+import re
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -34,10 +35,13 @@ from stratum_e2e.macos.session import mac_capabilities
 from stratum_e2e.ports import free_port
 from stratum_e2e.round.errors import RoundEnvError
 from stratum_e2e.round.plugin import ROUND_KEY, RoundTarget, item_target
+from stratum_e2e.round.runner import Runner
 from stratum_e2e.selection import skip_reason
 from stratum_e2e.web.server import StaticServer
 
 TESTS_DIR = Path(__file__).resolve().parent
+_CONSOLE_LOCKED = re.compile(r'"CGSSessionScreenIsLocked"\s*=\s*Yes')
+_IOREG_TIMEOUT_S = 30.0
 
 
 def _required_option(config: pytest.Config, name: str) -> str:
@@ -159,6 +163,8 @@ def driver(request: pytest.FixtureRequest, platform: str, app_id: str) -> Iterat
         finally:
             page.close()
         return
+    if platform == "macos" and item_target(request.node) is not None:
+        _require_unlocked_console(request.getfixturevalue("round_backends").runner)
     appium_server = _appium_server(request)
     request.getfixturevalue("installed_app")
     options = _session_options(request.config, platform, app_id, request.getfixturevalue("round_app"))
@@ -170,6 +176,17 @@ def driver(request: pytest.FixtureRequest, platform: str, app_id: str) -> Iterat
         yield session
     finally:
         session.quit()
+
+
+def _require_unlocked_console(runner: Runner) -> None:
+    """Raise `RoundEnvError` while the macOS console is locked.
+
+    XCTest lists the app and its menu bar but no window of a locked session, so the Flutter tree never appears and
+    the item would wait out its timeout and read `fail`. An `ioreg` that answers nothing readable leaves the item to run.
+    """
+    done = runner.run(["ioreg", "-n", "Root", "-d1"], timeout_s=_IOREG_TIMEOUT_S)
+    if done.status == 0 and _CONSOLE_LOCKED.search(done.stdout):
+        raise RoundEnvError("macOS console locked: XCTest lists no app windows; unlock the Mac and run again")
 
 
 def _appium_server(request: pytest.FixtureRequest) -> AppiumServer:

@@ -134,6 +134,9 @@ class FakeRunner:
             stdout = f"{SCENARIO['real_android']}\r\nOK\r\n"
         elif "ping" in call:
             stdout = "64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=12.3 ms\n"
+        elif call[:3] == ("ioreg", "-n", "Root"):
+            locked = "Yes" if SCENARIO.get("console_locked") else "No"
+            stdout = f'    | {{\n    "CGSSessionScreenIsLocked"={locked}\n    }}\n'
         elif call[:2] == ("dart", "run"):
             status = SCENARIO.get("perf_status", 0)
         elif call[0] == "screencapture":
@@ -183,6 +186,16 @@ class FakeBooter:
             record.setting_failures.append(failures[count - 1])
 
 
+_resolve_failures = [SCENARIO.get("resolve_fail", 0)]
+
+
+def resolve(app_dir, runner, log):
+    event(f"resolve {app_dir.name}")
+    if _resolve_failures[0]:
+        _resolve_failures[0] -= 1
+        raise RoundEnvError("flutter pub get failed (exit 1): Could not resolve host pub.dev")
+
+
 _build_failures = dict(SCENARIO.get("build_fail", {}))
 
 
@@ -229,6 +242,7 @@ def round_backends(request):
     return plugin.Backends(
         runner=runner,
         booter_for=booter_for,
+        resolve=resolve,
         build=build,
         run_plan=run_plan,
         memory_reasons=lambda: host_memory_reasons(runner, request.config.stash[plugin.CATALOG_KEY].lane),
@@ -866,3 +880,85 @@ def test_legacy_appium_start_failure_is_kept_for_the_session(
     result.assert_outcomes(passed=1, skipped=1, errors=2)  # the integration item has no platform marker
     assert _events(root, "appium start") == ["appium start"]
     assert not _round_dirs(pytester)
+
+
+MAC_APP = """\
+@pytest.mark.macos
+def test_mac_app(round_app):
+    event(f"app {round_app.name}")
+"""
+
+
+def test_packages_resolve_once_before_the_first_build_and_the_first_run(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, MAC_APP + MAC_A)
+    _round(pytester, "--target", "mac").assert_outcomes(passed=4)
+    events = _events(root, "resolve ", "build ", "run_plan ")
+    assert events[0] == "resolve test_app"
+    assert sorted(events[1:]) == ["build macos", "run_plan mac entry"]
+
+
+def test_failed_resolve_is_env_for_the_integration_files_and_retried_once(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, MAC_A, {"resolve_fail": 1})
+    _round(pytester, "--target", "mac").assert_outcomes(passed=3)
+    assert _events(root, "resolve ", "run_plan ") == ["resolve test_app", "resolve test_app", "run_plan mac entry"]
+    assert _cells(_summary(pytester))[FILE_A]["mac"]["class"] == "pass"
+
+
+def test_resolve_failing_twice_blocks_the_target_as_env_without_a_run(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, MAC_A + WEB_A, {"resolve_fail": 2})
+    _round(pytester, "--target", "mac,chrome")
+    assert _events(root, "resolve ", "run_plan ") == [
+        "resolve test_app", "resolve test_app", "resolve test_app", "run_plan chrome entry"
+    ]
+    cells = _cells(_summary(pytester))
+    for test in (FILE_A, FILE_B):
+        assert (cells[test]["mac"]["class"], cells[test]["mac"]["reason"]) == ("env", "target blocked")
+    assert cells[FILE_A]["chrome"]["class"] == "pass"
+
+
+def test_failed_resolve_before_an_app_build_is_env_and_the_rerun_builds(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, MAC_APP, {"resolve_fail": 1})
+    _round(pytester, "--target", "mac").assert_outcomes(passed=3)
+    assert _events(root, "resolve ", "build ", "app ") == ["resolve test_app", "resolve test_app", "build macos",
+                                                           "app app-macos"]
+
+
+def test_locked_console_is_env_before_any_appium_session(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, DRIVER_TESTS + WEB_A, {"console_locked": True})
+    _round(pytester, "--target", "mac,chrome")
+    assert _events(root, "remote", "item mac driver") == []
+    cells = _cells(_summary(pytester))
+    first = cells["test_e2e.py::test_mac_driver_a"]["mac"]
+    assert first["class"] == "env"
+    assert first["reason"].startswith("macOS console locked")
+    assert cells["test_e2e.py::test_mac_plain"]["mac"]["class"] == "env"
+    assert cells["test_e2e.py::test_web_a"]["chrome"]["class"] == "pass"
+
+
+def test_unlocked_console_reaches_the_appium_session(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_tree(pytester, monkeypatch, DRIVER_TESTS, {"console_locked": False})
+    _round(pytester, "--target", "mac").assert_outcomes(passed=5)
+    assert _events(root, "remote") == ["remote", "remote"]
+    assert len(_events(root, "run ioreg")) == 2
+
+
+def test_legacy_run_never_reads_the_console_lock(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = _make_tree(pytester, monkeypatch, DRIVER_TESTS, {"console_locked": True})
+    app = pytester.path / "app.app"
+    app.mkdir()
+    result = _round(pytester, "--platform", "macos", "--device", "mac", "--app", str(app), "--app-id", MAC_APP_ID)
+    result.assert_outcomes(passed=3, skipped=1)
+    assert _events(root, "remote") == ["remote", "remote"]
+    assert _events(root, "run ioreg") == []

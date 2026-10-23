@@ -4,6 +4,9 @@ A `flutter test integration_test` run on the same platform rebuilds into the sam
 is copied to `build/e2e/<platform>[-wasm]/` and that copy is what the Appium legs install or serve. A `.digest` stamp
 beside the copy says which authored sources and which toolchain it came from. Every command, `git` included, goes
 through a `Runner`.
+
+`resolve_app_packages` comes first: the host `flutter build` and `flutter test --no-pub` runs of a round read the app's
+`.dart_tool`, so a fresh worktree resolves it once before either.
 """
 
 from __future__ import annotations
@@ -23,6 +26,9 @@ from stratum_e2e.round.runner import Runner
 _BUILD_TIMEOUT_S: Final = 3600.0
 _QUERY_TIMEOUT_S: Final = 120.0
 _STAMP: Final = ".digest"
+_RESOLVE_TIMEOUT_S: Final = 600.0
+_LOCK_KEY: Final = ".dart_tool/.dt-lock-hash"
+_PACKAGE_CONFIG: Final = ".dart_tool/package_config.json"
 _ERROR_TAIL_LINES: Final = 3
 
 _BUILD_ARGV: Final[dict[tuple[str, bool], tuple[str, ...]]] = {
@@ -104,6 +110,41 @@ def source_digest(
             digest.update(f"\0{label}\0{file.relative_to(root).as_posix()}\0".encode())
             digest.update(hashlib.sha256(file.read_bytes()).digest())
     return digest.hexdigest()
+
+
+def resolve_app_packages(app_dir: Path, runner: Runner, log: Path) -> None:
+    """Resolve `app_dir`'s packages with `flutter pub get --offline`, then online, unless the last resolve is current.
+
+    `flutter test --no-pub` finds no package config of the app in a fresh worktree and walks up to the enclosing
+    checkout's, so a round resolves before its first host run. Current means a package config exists and
+    `.dart_tool/.dt-lock-hash` holds this lock's hash and this folder: the Linux container writes the bare hash beside
+    a config of its own paths, which therefore reads as stale here. A resolve that fails both ways raises
+    `RoundEnvError`.
+    """
+    key_file = app_dir / _LOCK_KEY
+    if (app_dir / _PACKAGE_CONFIG).is_file() and _read_key(key_file) == _lock_key(app_dir):
+        return
+    key_file.unlink(missing_ok=True)
+    offline = ("flutter", "pub", "get", "--offline")
+    done = runner.run(offline, timeout_s=_RESOLVE_TIMEOUT_S, cwd=app_dir, log=log)
+    if done.status != 0:
+        online = ("flutter", "pub", "get")
+        done = runner.run(online, timeout_s=_RESOLVE_TIMEOUT_S, cwd=app_dir, log=log)
+    if done.status != 0:
+        reason = "timed out" if done.timed_out else f"exit {done.status}"
+        raise RoundEnvError(f"flutter pub get failed ({reason}): {_error_tail(done.stderr or done.stdout)}")
+    key_file.parent.mkdir(parents=True, exist_ok=True)
+    key_file.write_text(_lock_key(app_dir), encoding="utf-8")
+
+
+def _lock_key(app_dir: Path) -> str:
+    lock = app_dir / "pubspec.lock"
+    content = lock.read_bytes() if lock.is_file() else b""
+    return f"{hashlib.sha256(content).hexdigest()} {app_dir.resolve()}"
+
+
+def _read_key(path: Path) -> str | None:
+    return path.read_text(encoding="utf-8") if path.is_file() else None
 
 
 def ensure_app_build(
