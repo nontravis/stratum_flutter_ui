@@ -7,6 +7,7 @@ import json
 import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -504,26 +505,27 @@ def test_build_without_an_artifact_is_env(tmp_path: Path) -> None:
         ensure_app_build(app, package, "android", False, runner, tmp_path / "build.log")
 
 
-def _lock_key(app: Path) -> str:
-    """The stamp `resolve_app_packages` writes: the lock's sha256, then the app folder it was resolved in."""
-    return f"{hashlib.sha256((app / 'pubspec.lock').read_bytes()).hexdigest()} {app.resolve()}"
+VERSION = "3.99.0"
 
 
-def _mark_resolved(app: Path) -> None:
+def _resolve(app: Path, runner: Runner, tmp_path: Path, version: str = VERSION) -> None:
+    resolve_app_packages(app, app.parent, version, runner, tmp_path / "pub_get.log")
+
+
+def _mark_resolved(app: Path, tmp_path: Path) -> None:
     """Leave the `.dart_tool` of a finished host resolve: a package config and the current key."""
-    (app / ".dart_tool").mkdir(exist_ok=True)
+    _resolve(app, FakeRunner([(("flutter", "pub", "get", "--offline"), OK)]), tmp_path)
     (app / ".dart_tool" / "package_config.json").write_text("{}", encoding="utf-8")
-    (app / ".dart_tool" / ".dt-lock-hash").write_text(_lock_key(app), encoding="utf-8")
 
 
-def test_resolve_runs_pub_get_offline_in_the_app_folder_and_stamps_the_lock(tmp_path: Path) -> None:
+def test_resolve_runs_pub_get_offline_in_the_app_folder_and_stamps_the_key(tmp_path: Path) -> None:
     app, _ = make_tree(tmp_path)
     runner = FakeRunner([(("flutter", "pub", "get", "--offline"), OK)])
 
-    resolve_app_packages(app, runner, tmp_path / "pub_get.log")
+    _resolve(app, runner, tmp_path)
 
     assert runner.calls == [("flutter", "pub", "get", "--offline")]
-    assert (app / ".dart_tool" / ".dt-lock-hash").read_text(encoding="utf-8") == _lock_key(app)
+    assert (app / ".dart_tool" / ".dt-lock-hash").read_text(encoding="utf-8").endswith(f" {app.resolve()}")
 
 
 def test_resolve_falls_back_to_online_when_offline_fails(tmp_path: Path) -> None:
@@ -531,19 +533,37 @@ def test_resolve_falls_back_to_online_when_offline_fails(tmp_path: Path) -> None
     offline = Completed(("flutter",), 1, "", "Because x was not found in the cache\n", False)
     runner = FakeRunner([(("flutter", "pub", "get", "--offline"), offline), (("flutter", "pub", "get"), OK)])
 
-    resolve_app_packages(app, runner, tmp_path / "pub_get.log")
+    _resolve(app, runner, tmp_path)
 
     assert runner.calls == [("flutter", "pub", "get", "--offline"), ("flutter", "pub", "get")]
     assert (app / ".dart_tool" / ".dt-lock-hash").is_file()
 
 
-def test_resolve_that_fails_online_too_is_env_and_leaves_no_stamp(tmp_path: Path) -> None:
+def test_each_resolve_attempt_writes_its_own_log(tmp_path: Path) -> None:
     app, _ = make_tree(tmp_path)
-    failed = Completed(("flutter",), 69, "", "Could not resolve host pub.dev\n", False)
-    runner = FakeRunner([(("flutter", "pub", "get", "--offline"), failed), (("flutter", "pub", "get"), failed)])
+    logs: list[Path | None] = []
 
-    with pytest.raises(RoundEnvError, match=r"flutter pub get failed \(exit 69\)") as raised:
-        resolve_app_packages(app, runner, tmp_path / "pub_get.log")
+    class LoggingRunner(FakeRunner):
+        def run(self, argv: Sequence[str], **kwargs: Any) -> Completed:
+            logs.append(kwargs.get("log"))
+            return super().run(argv, **kwargs)
+
+    offline = Completed(("flutter",), 1, "", "cache miss\n", False)
+    runner = LoggingRunner([(("flutter", "pub", "get", "--offline"), offline), (("flutter", "pub", "get"), OK)])
+
+    _resolve(app, runner, tmp_path)
+
+    assert logs == [tmp_path / "pub_get_offline.log", tmp_path / "pub_get.log"]
+
+
+def test_resolve_that_fails_online_too_is_env_names_both_exits_and_leaves_no_stamp(tmp_path: Path) -> None:
+    app, _ = make_tree(tmp_path)
+    offline = Completed(("flutter",), 66, "", "cache miss\n", False)
+    online = Completed(("flutter",), 69, "", "Could not resolve host pub.dev\n", False)
+    runner = FakeRunner([(("flutter", "pub", "get", "--offline"), offline), (("flutter", "pub", "get"), online)])
+
+    with pytest.raises(RoundEnvError, match=r"offline exit 66, online exit 69") as raised:
+        _resolve(app, runner, tmp_path)
 
     assert "Could not resolve host pub.dev" in raised.value.reason
     assert not (app / ".dart_tool" / ".dt-lock-hash").exists()
@@ -551,44 +571,73 @@ def test_resolve_that_fails_online_too_is_env_and_leaves_no_stamp(tmp_path: Path
 
 def test_resolve_is_skipped_while_the_key_and_the_package_config_are_current(tmp_path: Path) -> None:
     app, _ = make_tree(tmp_path)
-    _mark_resolved(app)
+    _mark_resolved(app, tmp_path)
     runner = FakeRunner([])
 
-    resolve_app_packages(app, runner, tmp_path / "pub_get.log")
+    _resolve(app, runner, tmp_path)
 
     assert runner.calls == []
 
 
+def _assert_resolves_again(app: Path, tmp_path: Path, version: str = VERSION) -> None:
+    runner = FakeRunner([(("flutter", "pub", "get", "--offline"), OK)])
+    _resolve(app, runner, tmp_path, version)
+    assert runner.calls == [("flutter", "pub", "get", "--offline")]
+
+
 def test_resolve_runs_again_when_the_lock_changed(tmp_path: Path) -> None:
     app, _ = make_tree(tmp_path)
-    _mark_resolved(app)
+    _mark_resolved(app, tmp_path)
     (app / "pubspec.lock").write_text("packages: {a: 1}", encoding="utf-8")
-    runner = FakeRunner([(("flutter", "pub", "get", "--offline"), OK)])
 
-    resolve_app_packages(app, runner, tmp_path / "pub_get.log")
+    _assert_resolves_again(app, tmp_path)
 
-    assert runner.calls == [("flutter", "pub", "get", "--offline")]
+
+def test_resolve_runs_again_when_the_app_pubspec_changed(tmp_path: Path) -> None:
+    app, _ = make_tree(tmp_path)
+    _mark_resolved(app, tmp_path)
+    (app / "pubspec.yaml").write_text("name: app\ndependencies: {webview: any}", encoding="utf-8")
+
+    _assert_resolves_again(app, tmp_path)
+
+
+def test_resolve_runs_again_when_the_package_roots_pubspec_changed(tmp_path: Path) -> None:
+    app, package = make_tree(tmp_path)
+    (package / "pubspec.yaml").write_text("name: root", encoding="utf-8")
+    _mark_resolved(app, tmp_path)
+    (package / "pubspec.yaml").write_text("name: root\ndependencies: {plugin: any}", encoding="utf-8")
+
+    _assert_resolves_again(app, tmp_path)
+
+
+def test_resolve_runs_again_when_overrides_were_added(tmp_path: Path) -> None:
+    app, _ = make_tree(tmp_path)
+    _mark_resolved(app, tmp_path)
+    (app / "pubspec_overrides.yaml").write_text("dependency_overrides: {}", encoding="utf-8")
+
+    _assert_resolves_again(app, tmp_path)
+
+
+def test_resolve_runs_again_when_the_flutter_version_changed(tmp_path: Path) -> None:
+    app, _ = make_tree(tmp_path)
+    _mark_resolved(app, tmp_path)
+
+    _assert_resolves_again(app, tmp_path, version="3.100.0")
 
 
 def test_resolve_runs_again_when_the_package_config_is_gone(tmp_path: Path) -> None:
     app, _ = make_tree(tmp_path)
-    _mark_resolved(app)
+    _mark_resolved(app, tmp_path)
     (app / ".dart_tool" / "package_config.json").unlink()
-    runner = FakeRunner([(("flutter", "pub", "get", "--offline"), OK)])
 
-    resolve_app_packages(app, runner, tmp_path / "pub_get.log")
-
-    assert runner.calls == [("flutter", "pub", "get", "--offline")]
+    _assert_resolves_again(app, tmp_path)
 
 
 def test_resolve_runs_again_when_the_stamp_is_the_containers_bare_hash(tmp_path: Path) -> None:
     """The Linux container writes the bare lock hash beside a package config of its own paths."""
     app, _ = make_tree(tmp_path)
-    _mark_resolved(app)
+    _mark_resolved(app, tmp_path)
     bare = hashlib.sha256((app / "pubspec.lock").read_bytes()).hexdigest()
     (app / ".dart_tool" / ".dt-lock-hash").write_text(bare, encoding="utf-8")
-    runner = FakeRunner([(("flutter", "pub", "get", "--offline"), OK)])
 
-    resolve_app_packages(app, runner, tmp_path / "pub_get.log")
-
-    assert runner.calls == [("flutter", "pub", "get", "--offline")]
+    _assert_resolves_again(app, tmp_path)

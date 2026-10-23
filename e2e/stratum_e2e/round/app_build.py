@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Final
 
 from stratum_e2e.round.errors import RoundEnvError
-from stratum_e2e.round.runner import Runner
+from stratum_e2e.round.runner import Completed, Runner
 
 _BUILD_TIMEOUT_S: Final = 3600.0
 _QUERY_TIMEOUT_S: Final = 120.0
@@ -29,6 +29,7 @@ _STAMP: Final = ".digest"
 _RESOLVE_TIMEOUT_S: Final = 600.0
 _LOCK_KEY: Final = ".dart_tool/.dt-lock-hash"
 _PACKAGE_CONFIG: Final = ".dart_tool/package_config.json"
+_PUBSPEC_FILES: Final = ("pubspec.yaml", "pubspec.lock", "pubspec_overrides.yaml")
 _ERROR_TAIL_LINES: Final = 3
 
 _BUILD_ARGV: Final[dict[tuple[str, bool], tuple[str, ...]]] = {
@@ -112,35 +113,57 @@ def source_digest(
     return digest.hexdigest()
 
 
-def resolve_app_packages(app_dir: Path, runner: Runner, log: Path) -> None:
+def resolve_app_packages(app_dir: Path, package_root: Path, flutter_version: str, runner: Runner, log: Path) -> None:
     """Resolve `app_dir`'s packages with `flutter pub get --offline`, then online, unless the last resolve is current.
 
     `flutter test --no-pub` finds no package config of the app in a fresh worktree and walks up to the enclosing
     checkout's, so a round resolves before its first host run. Current means a package config exists and
-    `.dart_tool/.dt-lock-hash` holds this lock's hash and this folder: the Linux container writes the bare hash beside
-    a config of its own paths, which therefore reads as stale here. A resolve that fails both ways raises
-    `RoundEnvError`.
+    `.dart_tool/.dt-lock-hash` holds the key of `_resolution_key`: the `pubspec.yaml`, `pubspec.lock`, and
+    `pubspec_overrides.yaml` of the app and of `package_root` (the package it path-depends on), `flutter_version`, and
+    this folder. The Linux container writes a bare hash beside a config of its own paths, which therefore reads as
+    stale here. The online attempt writes `log`; the offline one writes `<stem>_offline<suffix>` beside it. A resolve
+    that fails both ways raises `RoundEnvError` naming both exits.
     """
     key_file = app_dir / _LOCK_KEY
-    if (app_dir / _PACKAGE_CONFIG).is_file() and _read_key(key_file) == _lock_key(app_dir):
+    key = _resolution_key(app_dir, package_root, flutter_version)
+    if (app_dir / _PACKAGE_CONFIG).is_file() and _read_key(key_file) == key:
         return
     key_file.unlink(missing_ok=True)
-    offline = ("flutter", "pub", "get", "--offline")
-    done = runner.run(offline, timeout_s=_RESOLVE_TIMEOUT_S, cwd=app_dir, log=log)
-    if done.status != 0:
-        online = ("flutter", "pub", "get")
-        done = runner.run(online, timeout_s=_RESOLVE_TIMEOUT_S, cwd=app_dir, log=log)
-    if done.status != 0:
-        reason = "timed out" if done.timed_out else f"exit {done.status}"
-        raise RoundEnvError(f"flutter pub get failed ({reason}): {_error_tail(done.stderr or done.stdout)}")
+    offline = runner.run(
+        ("flutter", "pub", "get", "--offline"),
+        timeout_s=_RESOLVE_TIMEOUT_S,
+        cwd=app_dir,
+        log=log.with_name(f"{log.stem}_offline{log.suffix}"),
+    )
+    if offline.status != 0:
+        online = runner.run(("flutter", "pub", "get"), timeout_s=_RESOLVE_TIMEOUT_S, cwd=app_dir, log=log)
+        if online.status != 0:
+            raise RoundEnvError(
+                f"flutter pub get failed (offline {_exit_text(offline)}, online {_exit_text(online)}): "
+                f"{_error_tail(online.stderr or online.stdout)}"
+            )
     key_file.parent.mkdir(parents=True, exist_ok=True)
-    key_file.write_text(_lock_key(app_dir), encoding="utf-8")
+    key_file.write_text(_resolution_key(app_dir, package_root, flutter_version), encoding="utf-8")
 
 
-def _lock_key(app_dir: Path) -> str:
-    lock = app_dir / "pubspec.lock"
-    content = lock.read_bytes() if lock.is_file() else b""
-    return f"{hashlib.sha256(content).hexdigest()} {app_dir.resolve()}"
+def _resolution_key(app_dir: Path, package_root: Path, flutter_version: str) -> str:
+    """One hash over what `pub get` reads, then the app folder, so a stamp from another folder never matches.
+
+    The pubspec files are read from the working tree (`pubspec_overrides.yaml` is usually git-ignored).
+    """
+    digest = hashlib.sha256()
+    digest.update(f"flutter\0{flutter_version}\0".encode())
+    for label, root in (("app", app_dir), ("package", package_root)):
+        for name in _PUBSPEC_FILES:
+            file = root / name
+            if file.is_file():
+                digest.update(f"\0{label}\0{name}\0".encode())
+                digest.update(hashlib.sha256(file.read_bytes()).digest())
+    return f"{digest.hexdigest()} {app_dir.resolve()}"
+
+
+def _exit_text(done: Completed) -> str:
+    return "timed out" if done.timed_out else f"exit {done.status}"
 
 
 def _read_key(path: Path) -> str | None:

@@ -105,13 +105,14 @@ class Backends:
     """Everything a round does to the host, so a unit test swaps all of it for fakes by overriding `round_backends`.
 
     `resolve` resolves an app folder's packages before the round's first host build or run of it. `booter_for` hands
-    back one booter per platform for the whole round: the instance that boots a target is the one that ends it. `port_dir` holds the port reservations of the Android console and chromedriver (pre-flight F18).
-    `sleep` paces the lane and memory-gate polls.
+    back one booter per platform for the whole round: the instance that boots a target is the one that ends it.
+    `port_dir` holds the port reservations of the Android console and chromedriver (pre-flight F18). `sleep` paces the
+    lane and memory-gate polls.
     """
 
     runner: Runner
     booter_for: Callable[[Target], Booter]
-    resolve: Callable[[Path, Runner, Path], None]
+    resolve: Callable[[Path, Path, str, Runner, Path], None]
     build: Callable[..., AppBuild]
     run_plan: Callable[..., RunOutcome]
     memory_reasons: Callable[[], list[str]]
@@ -588,7 +589,8 @@ def _resolve_app(state: _RoundState, backends: Backends, target: Target) -> None
     if state.resolved:
         return
     log = state.open_round_dir(backends.now).item_dir(target.name, _RESOLVE_DIR) / "pub_get.log"
-    backends.resolve(state.app_dir, backends.runner, log)
+    version = _flutter_version(state, backends.runner)
+    backends.resolve(state.app_dir, E2E_ROOT.parent, version, backends.runner, log)
     state.resolved = True
 
 

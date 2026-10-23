@@ -134,6 +134,8 @@ class FakeRunner:
             stdout = f"{SCENARIO['real_android']}\r\nOK\r\n"
         elif "ping" in call:
             stdout = "64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=12.3 ms\n"
+        elif call[:3] == ("flutter", "--version", "--machine"):
+            stdout = '{"frameworkVersion": "3.99.0"}'
         elif call[:3] == ("ioreg", "-n", "Root"):
             locked = "Yes" if SCENARIO.get("console_locked") else "No"
             stdout = f'    | {{\n    "CGSSessionScreenIsLocked"={locked}\n    }}\n'
@@ -189,7 +191,7 @@ class FakeBooter:
 _resolve_failures = [SCENARIO.get("resolve_fail", 0)]
 
 
-def resolve(app_dir, runner, log):
+def resolve(app_dir, package_root, flutter_version, runner, log):
     event(f"resolve {app_dir.name}")
     if _resolve_failures[0]:
         _resolve_failures[0] -= 1
