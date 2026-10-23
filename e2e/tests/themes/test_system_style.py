@@ -1,5 +1,10 @@
 """System-bar e2e (FO-03 US-14): the probe checks, driven live; Android, and iOS for the painted fill.
 
+Two checks run on macOS and the web (design section 11): a page with a rotation lock shows in
+the window with no error, which the desktop and web targets of `system_style_device_test.dart`
+named, and, on the web only, the browser tab title follows the page label, which the file left
+to the eye (`system_style_device_test.dart:18-20`).
+
 The iOS legs stop at the painted fill: the iPhone Duo simulator (iOS 27.1) draws no status bar
 in its framebuffer, so an icon's brightness cannot be read from a screenshot there, and the
 sampler would read the debug banner instead.
@@ -23,7 +28,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from selenium.common.exceptions import WebDriverException
 
 from stratum_e2e.android.dumps import activities_dump, sdk_level, window_dump
 from stratum_e2e.android.immersive import (
@@ -31,7 +35,8 @@ from stratum_e2e.android.immersive import (
     dismiss_immersive_confirmation,
 )
 from stratum_e2e.fixtures import open_fixture
-from stratum_e2e.locate import by_label
+from stratum_e2e.locate import NODE_NOT_FOUND, by_label, click, is_displayed
+from stratum_e2e.macos import tree as mac_tree
 from stratum_e2e.system_bars import (
     Brightness,
     SystemBarsError,
@@ -42,6 +47,8 @@ from stratum_e2e.system_bars import (
     recents_label,
 )
 from stratum_e2e.waits import wait_until, wait_until_held
+from stratum_e2e.web import snapshot as web_snapshot
+from stratum_e2e.web.session import accessibility_snapshot
 
 FIXTURE_ID = "themes/system_style"
 
@@ -51,6 +58,10 @@ OPEN_DARK_HEADER = "Open dark header"
 OPEN_WHITE_PAGE = "Open white page"
 OPEN_DARK_STATUSBAR = "Open dark status bar"
 OPEN_VIDEO = "Open video"
+
+# The labels the browser tab shows: the menu's app-wide label, then the video page's own.
+APP_LABEL = "Stratum"
+VIDEO_LABEL = "Video"
 
 # The route push and the OS's answer to the SystemChrome write land a beat after the click.
 SETTLE_TIMEOUT_S = 25
@@ -66,8 +77,8 @@ def _menu_displayed(driver: Any, platform: str) -> bool:
     A page pushed over the menu removes it.
     """
     try:
-        return bool(by_label(driver, platform, OPEN_DARK_HEADER).is_displayed())
-    except WebDriverException:
+        return is_displayed(by_label(driver, platform, OPEN_DARK_HEADER), platform)
+    except NODE_NOT_FOUND:
         return False
 
 
@@ -91,8 +102,8 @@ def _open_page(driver: Any, platform: str, label: str) -> None:
 
     def clicked() -> bool:
         try:
-            by_label(driver, platform, label).click()
-        except WebDriverException:
+            click(by_label(driver, platform, label), platform)
+        except NODE_NOT_FOUND:
             return False
         return True
 
@@ -287,5 +298,76 @@ def test_the_app_switcher_labels_the_page(
     wait_until_held(
         lambda: recents_label(activities_dump(serial), package=app_id) == "Video",
         "the per-page switcher label Video on the video page",
+        timeout_s=SETTLE_TIMEOUT_S,
+    )
+
+
+def _page_texts(driver: Any, platform: str) -> list[str]:
+    """The texts the OS tree exposes right now: the Mac2 source, or the web snapshot."""
+    if platform == "macos":
+        return mac_tree.texts(driver.page_source)
+    return web_snapshot.texts(accessibility_snapshot(driver))
+
+
+def _window_size(driver: Any, platform: str) -> tuple[int, int] | None:
+    """The window's size as the OS exposes it: from the Mac2 source, or the page's viewport.
+
+    The viewport is the fixed size Playwright created the page with, so on web the size hold
+    below cannot fail; the `Video` text carries the web check and the size hold carries macOS.
+    """
+    if platform == "macos":
+        return mac_tree.window_size(driver.page_source)
+    viewport = driver.viewport_size
+    return None if viewport is None else (viewport["width"], viewport["height"])
+
+
+@pytest.mark.macos
+@pytest.mark.web
+@pytest.mark.req("fo03/us14/s12")
+@pytest.mark.req("fo03/us14/fr03/e05")
+def test_a_page_that_locks_the_rotation_shows_in_the_window_with_no_error(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    """The video page asks for portraitUp (dart:31-35); a desktop window or a browser ignores it.
+
+    The page must show, and on macOS the window must keep the shape it had, held across the
+    settle window so a late resize would fail it (the web viewport is fixed; see `_window_size`).
+    """
+    _open(driver, platform, app_id)
+    before = _window_size(driver, platform)
+    assert before is not None
+
+    _open_page(driver, platform, OPEN_VIDEO)
+
+    wait_until_held(
+        lambda: VIDEO_LABEL in _page_texts(driver, platform)
+        and _window_size(driver, platform) == before,
+        f"the video page showing in the window's current shape {before}",
+        timeout_s=SETTLE_TIMEOUT_S,
+        catch=NODE_NOT_FOUND,
+    )
+
+
+@pytest.mark.web
+@pytest.mark.req("fo03/us14/s13")
+@pytest.mark.req("fo03/us14/s14")
+@pytest.mark.req("fo03/us14/fr04")
+def test_tab_title_follows_the_page_label(driver: Any, platform: str, app_id: str) -> None:
+    """The tab title reads the page label after the push and the app label after back (dart:18-20)."""
+    _open(driver, platform, app_id)
+    wait_until(lambda: driver.title() == APP_LABEL, f"the tab title {APP_LABEL!r} on the menu")
+
+    _open_page(driver, platform, OPEN_VIDEO)
+    wait_until_held(
+        lambda: driver.title() == VIDEO_LABEL,
+        f"the tab title {VIDEO_LABEL!r} on the video page",
+        timeout_s=SETTLE_TIMEOUT_S,
+    )
+
+    driver.go_back()  # the browser's own Back, as the EndUser presses it
+    _wait_menu_up(driver, platform)
+    wait_until_held(
+        lambda: driver.title() == APP_LABEL,
+        f"the tab title {APP_LABEL!r} back on the menu",
         timeout_s=SETTLE_TIMEOUT_S,
     )

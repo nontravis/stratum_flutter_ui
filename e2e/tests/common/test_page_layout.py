@@ -11,10 +11,9 @@ import re
 from typing import Any
 
 import pytest
-from selenium.common.exceptions import WebDriverException
 
 from stratum_e2e.app_restart import restart_app
-from stratum_e2e.locate import by_id, by_label, label_of
+from stratum_e2e.locate import NODE_NOT_FOUND, by_label, by_static_text, click, label_of
 from stratum_e2e.waits import wait_until
 
 FIXTURE_ID = "common/page_layout"
@@ -25,14 +24,22 @@ RESET_LABEL = "Reset settings"
 # The first frame's width is a layout constraint divided by the device pixel ratio, so a
 # stored 300 can read 299.99999999999994 (measured on Pixel_2_API_28); compare as a number.
 WIDTH_TOLERANCE_DP = 0.01
+STORED_ID = "page_layout.stored"
+FIRST_FRAME_ID = "page_layout.first_frame_width"
+# What each text reads before its number, for the macOS find by value.
+MAC_TEXT_START = {STORED_ID: "stored left width", FIRST_FRAME_ID: "first frame left width"}
 _FIRST_FRAME_WIDTH = re.compile(r"first frame left width: (\d+(?:\.\d+)?)")
 
 
 def _text(driver: Any, platform: str, identifier: str) -> str | None:
-    """The node's text, or None while the node is not on screen yet."""
+    """The node's text, or None while the node is not on screen yet.
+
+    macOS has no id locator, so it finds the text by the words that open it.
+    """
     try:
-        return label_of(by_id(driver, platform, identifier), platform)
-    except WebDriverException:
+        node = by_static_text(driver, platform, identifier, MAC_TEXT_START[identifier])
+        return label_of(node, platform)
+    except NODE_NOT_FOUND:
         return None
 
 
@@ -45,7 +52,7 @@ def _wait_for_text(driver: Any, platform: str, identifier: str, expected: str) -
 
 def _first_frame_width(driver: Any, platform: str) -> float | None:
     """The width the first-frame text reports, or None while it is absent or not a width."""
-    match = _FIRST_FRAME_WIDTH.fullmatch(_text(driver, platform, "page_layout.first_frame_width") or "")
+    match = _FIRST_FRAME_WIDTH.fullmatch(_text(driver, platform, FIRST_FRAME_ID) or "")
     return float(match.group(1)) if match else None
 
 
@@ -54,8 +61,8 @@ def _click_when_present(driver: Any, platform: str, label: str) -> None:
 
     def clicked() -> bool:
         try:
-            by_label(driver, platform, label).click()
-        except WebDriverException:
+            click(by_label(driver, platform, label), platform)
+        except NODE_NOT_FOUND:
             return False
         return True
 
@@ -64,6 +71,8 @@ def _click_when_present(driver: Any, platform: str, label: str) -> None:
 
 @pytest.mark.android
 @pytest.mark.ios
+@pytest.mark.macos
+@pytest.mark.web
 @pytest.mark.req("fo10/us01/s2")
 def test_left_pane_width_survives_a_real_restart(
     driver: Any, platform: str, app_id: str
@@ -71,13 +80,13 @@ def test_left_pane_width_survives_a_real_restart(
     # reset: start from an empty store, whatever an earlier run left on the device.
     driver = restart_app(driver, platform, app_id, FIXTURE_ID)
     _click_when_present(driver, platform, RESET_LABEL)
-    _wait_for_text(driver, platform, "page_layout.stored", "stored left width: none")
+    _wait_for_text(driver, platform, STORED_ID, "stored left width: none")
 
     # first run: store the width, and wait for the write to land before the process dies.
     driver = restart_app(driver, platform, app_id, FIXTURE_ID)
     _click_when_present(driver, platform, SET_WIDTH_LABEL)
     _wait_for_text(
-        driver, platform, "page_layout.stored", f"stored left width: {STORED_LEFT_WIDTH}"
+        driver, platform, STORED_ID, f"stored left width: {STORED_LEFT_WIDTH}"
     )
 
     # second run: the pane must open at the stored width on its very first frame.

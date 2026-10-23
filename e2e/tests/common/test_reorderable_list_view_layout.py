@@ -40,7 +40,10 @@ from stratum_e2e.ios import tree as ios_tree
 from stratum_e2e.ios.focus_order import focus_order, matches_order
 from stratum_e2e.ios.voiceover import VoiceOver
 from stratum_e2e.locate import by_id
+from stratum_e2e.macos import tree as mac_tree
 from stratum_e2e.waits import wait_until
+from stratum_e2e.web import snapshot as web_snapshot
+from stratum_e2e.web.session import accessibility_snapshot
 
 FIXTURE_ID = "common/reorderable_list_view_layout"
 LOG_ID = "reorder.log"
@@ -90,9 +93,31 @@ def _ios_items(driver: Any) -> dict[str, ios_tree.Node]:
     return dict(sorted(found.items(), key=lambda entry: entry[1].y))
 
 
+def _mac_items(driver: Any) -> dict[str, mac_tree.Node]:
+    """Return the distinct `Item <n>` buttons by label, top to bottom."""
+    found: dict[str, mac_tree.Node] = {}
+    for node in mac_tree.nodes(driver.page_source):
+        if node.kind == "Button" and _ITEM_LABEL.fullmatch(node.label):
+            found.setdefault(node.label, node)
+    return dict(sorted(found.items(), key=lambda entry: entry[1].y))
+
+
+def _web_items(driver: Any) -> dict[str, web_snapshot.SnapshotNode]:
+    """Return the distinct `Item <n>` buttons by name, in the snapshot's order."""
+    found: dict[str, web_snapshot.SnapshotNode] = {}
+    for node in web_snapshot.nodes(accessibility_snapshot(driver)):
+        if node.role == "button" and _ITEM_LABEL.fullmatch(node.name):
+            found.setdefault(node.name, node)
+    return found
+
+
 def _order(driver: Any, platform: str) -> list[str]:
     if platform == "ios":
         return list(_ios_items(driver))
+    if platform == "macos":
+        return list(_mac_items(driver))
+    if platform == "web":
+        return list(_web_items(driver))
     return [label for label, _, _ in _item_nodes(driver)]
 
 
@@ -268,3 +293,52 @@ def test_voiceover_reads_each_item_at_one_stop(
         spoken = focus_order(driver, voiceover)
 
     assert matches_order(spoken, IOS_FOCUS_ORDER), spoken
+
+
+@pytest.mark.macos
+@pytest.mark.level1
+@pytest.mark.req("fo06/us11/fr03/e03")
+def test_macos_tree_exposes_the_six_items_as_buttons(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open(driver, platform, app_id)
+
+    items = _mac_items(driver)
+
+    assert list(items) == INITIAL_ORDER
+    assert {label for label, node in items.items() if node.enabled} >= set(INITIAL_ORDER[:-1])
+
+
+# WORKAROUND: Flutter 3.47.7's desktop accessibility bridge (engine
+# shell/platform/common/accessibility_bridge.cc) maps no enabled state, so Mac2 reads the
+# disabled Item 6 as enabled="true". Remove when the Flutter SDK floor includes 30c289b8cde
+# (flutter#190353, in 3.48.0-0.1.pre); strict=True fails the run once the fix lands.
+@pytest.mark.macos
+@pytest.mark.level1
+@pytest.mark.req("fo06/us11/fr03/e03")
+@pytest.mark.xfail(
+    strict=True,
+    reason="Flutter desktop < 3.48 maps no disabled state to the AX node (flutter#190353)",
+)
+def test_macos_tree_exposes_item_6_as_disabled(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open(driver, platform, app_id)
+
+    items = _mac_items(driver)
+
+    assert {label for label, node in items.items() if not node.enabled} == {INITIAL_ORDER[-1]}
+
+
+@pytest.mark.web
+@pytest.mark.level1
+@pytest.mark.req("fo06/us11/fr03/e03")
+def test_web_snapshot_exposes_items_and_disabled_item_6(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open(driver, platform, app_id)
+
+    items = _web_items(driver)
+
+    assert list(items) == INITIAL_ORDER
+    assert {label for label, node in items.items() if "disabled" in node.flags} == {INITIAL_ORDER[-1]}

@@ -8,7 +8,12 @@ import pytest
 
 from stratum_e2e import fixtures, locate
 from stratum_e2e.web import session
-from stratum_e2e.web.session import accessibility_snapshot, requested_resources, web_page
+from stratum_e2e.web.session import (
+    accessibility_snapshot,
+    requested_resources,
+    slider_value_text,
+    web_page,
+)
 
 BASE_URL = "http://127.0.0.1:8123"
 
@@ -21,7 +26,12 @@ class FakeLocator:
     def aria_snapshot(self) -> str:
         return f"snapshot of {self.selector}"
 
-    def text_content(self) -> str:
+    def get_attribute(self, name: str, **options: Any) -> str | None:
+        self.page.calls.append(("get_attribute", (self.selector, name, options)))
+        return "30%"
+
+    def text_content(self, **options: Any) -> str:
+        self.page.calls.append(("text_content", options))
         return f"text of {self.selector}"
 
 
@@ -131,3 +141,22 @@ def test_label_of_on_web_reads_the_text_of_the_semantics_node() -> None:
     locator = FakeLocator("x", FakePage())
 
     assert locate.label_of(locator, "web") == "text of x"
+
+
+def test_label_of_on_web_gives_up_on_a_missing_node_within_a_poll_not_the_page_timeout() -> None:
+    page = FakePage()
+
+    locate.label_of(page.locator("x"), "web")
+
+    assert ("text_content", {"timeout": locate.WEB_READ_TIMEOUT_MS}) in page.calls
+
+
+def test_slider_value_text_reads_aria_valuetext_of_the_slider_input() -> None:
+    page = FakePage()
+
+    assert slider_value_text(page) == "30%"  # type: ignore[arg-type]  # stub, not a Page
+    assert ("locator", 'flt-semantics input[role="slider"]') in page.calls
+    assert (
+        "get_attribute",
+        ('flt-semantics input[role="slider"]', "aria-valuetext", {"timeout": session.READ_TIMEOUT_MS}),
+    ) in page.calls

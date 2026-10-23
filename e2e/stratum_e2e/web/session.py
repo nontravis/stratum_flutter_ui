@@ -6,6 +6,9 @@ from playwright.sync_api import Browser, Page
 
 SEMANTICS_NODE = "flt-semantics"
 READY_TIMEOUT_MS = 30_000
+# A read of a node that is not there waits this long, so a poll loop turns over at its own pace.
+READ_TIMEOUT_MS = 1_000
+SLIDER_INPUT = 'flt-semantics input[role="slider"]'
 _BLANK_PAGE = "about:blank"
 
 
@@ -38,3 +41,13 @@ def requested_resources(page: Page) -> list[str]:
     """Return the URL of every resource [page] fetched, in the order the browser timed them."""
     urls: list[str] = page.evaluate("performance.getEntriesByType('resource').map(e => e.name)")
     return urls
+
+
+def slider_value_text(page: Page) -> str | None:
+    """Return the `aria-valuetext` of [page]'s slider input, the words Chrome hands the platform API.
+
+    Neither the ARIA snapshot's text nor the CDP `valuetext` reads it (they print the input's
+    number), so a slider's spoken value is read from the attribute. Raises playwright's
+    TimeoutError when no slider input is on the page.
+    """
+    return page.locator(SLIDER_INPUT).get_attribute("aria-valuetext", timeout=READ_TIMEOUT_MS)

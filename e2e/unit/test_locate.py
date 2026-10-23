@@ -7,7 +7,8 @@ from typing import Any
 import pytest
 from appium.webdriver.common.appiumby import AppiumBy
 
-from stratum_e2e.locate import by_id, by_label, label_of
+from stratum_e2e import locate
+from stratum_e2e.locate import by_id, by_label, by_static_text, click, label_of
 
 
 class RecordingDriver:
@@ -101,3 +102,88 @@ def test_label_of_reads_the_platforms_label_attribute(platform: str, attribute: 
 def test_label_of_refuses_a_platform_without_a_driver_yet() -> None:
     with pytest.raises(ValueError, match="does not support platform 'linux'"):
         label_of(RecordingNode(), "linux")
+
+
+class RecordingPage:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
+
+    def get_by_role(self, role: str, **options: Any) -> str:
+        self.calls.append(("get_by_role", (role,), options))
+        return "locator"
+
+    def locator(self, selector: str) -> str:
+        self.calls.append(("locator", (selector,), {}))
+        return "locator"
+
+
+def test_by_label_on_web_matches_the_button_by_its_accessible_name() -> None:
+    page = RecordingPage()
+
+    assert by_label(page, "web", "Open modal") == "locator"
+    assert page.calls == [("get_by_role", ("button",), {"name": "Open modal", "exact": False})]
+
+
+def test_by_label_on_web_exact_matches_the_whole_name() -> None:
+    page = RecordingPage()
+
+    by_label(page, "web", "Item 3", exact=True)
+
+    assert page.calls == [("get_by_role", ("button",), {"name": "Item 3", "exact": True})]
+
+
+def test_by_static_text_uses_the_id_where_the_platform_has_one() -> None:
+    android, web = RecordingDriver(), RecordingPage()
+
+    by_static_text(android, "android", "ink_well.log", "Log:")
+    by_static_text(web, "web", "ink_well.log", "Log:")
+
+    assert android.calls == [
+        (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("ink_well.log")')
+    ]
+    assert web.calls == [("locator", ('[flt-semantics-identifier="ink_well.log"]',), {})]
+
+
+def test_by_static_text_on_macos_matches_the_value_that_holds_the_text() -> None:
+    driver = RecordingDriver()
+
+    assert by_static_text(driver, "macos", "ink_well.log", "Log:") == "element"
+    assert driver.calls == [(AppiumBy.IOS_PREDICATE, 'value CONTAINS "Log:"')]
+
+
+def test_node_not_found_covers_an_appium_miss_and_a_playwright_timeout() -> None:
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+    from selenium.common.exceptions import NoSuchElementException
+
+    assert issubclass(NoSuchElementException, locate.NODE_NOT_FOUND)
+    assert issubclass(PlaywrightTimeout, locate.NODE_NOT_FOUND)
+
+
+class ClickableNode:
+    def __init__(self) -> None:
+        self.clicks: list[dict[str, Any]] = []
+
+    def click(self, **options: Any) -> None:
+        self.clicks.append(options)
+
+
+def test_click_on_web_gives_up_on_a_missing_button_within_a_poll() -> None:
+    node = ClickableNode()
+
+    click(node, "web")
+
+    assert node.clicks == [{"timeout": locate.WEB_READ_TIMEOUT_MS}]
+
+
+@pytest.mark.parametrize("platform", ["android", "ios", "macos"])
+def test_click_on_a_driver_platform_is_the_elements_own_click(platform: str) -> None:
+    node = ClickableNode()
+
+    click(node, platform)
+
+    assert node.clicks == [{}]
+
+
+def test_click_refuses_a_platform_without_a_driver_yet() -> None:
+    with pytest.raises(ValueError, match="does not support platform 'linux'"):
+        click(ClickableNode(), "linux")

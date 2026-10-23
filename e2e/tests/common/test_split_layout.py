@@ -2,7 +2,7 @@
 
 Drives the `common/split_layout` fixture (FO-06 US-21 FR-04). The divider has no semantics
 identifier, so every step finds it by its label "Resize panes"; Android merges the value in
-front of the label, so the node reads "30%, Resize panes", while iOS keeps the label
+front of the label, so the node reads "30%, Resize panes", while iOS and macOS keep the label
 "Resize panes" and the value "30%" apart. Appium cannot swipe VoiceOver's adjustable (a touch
 does not reach the app while VoiceOver is on), so iOS level 2 reads order and speech only.
 """
@@ -21,8 +21,11 @@ from stratum_e2e.fixtures import open_fixture
 from stratum_e2e.ios import tree as ios_tree
 from stratum_e2e.ios.focus_order import focus_order, matches_order
 from stratum_e2e.ios.voiceover import VoiceOver
-from stratum_e2e.locate import by_id, by_label
+from stratum_e2e.locate import NODE_NOT_FOUND, by_id, by_label
+from stratum_e2e.macos import tree as mac_tree
 from stratum_e2e.waits import wait_until
+from stratum_e2e.web import snapshot as web_snapshot
+from stratum_e2e.web.session import accessibility_snapshot, slider_value_text
 
 FIXTURE_ID = "common/split_layout"
 LIST_PANE_ID = "split.list_pane"
@@ -51,7 +54,7 @@ def _divider(driver: Any, platform: str) -> Any:
 def _divider_desc(driver: Any, platform: str) -> str:
     """The divider's spoken value and label as `<percent>%, Resize panes`, whichever the platform splits."""
     divider = _divider(driver, platform)
-    if platform == "ios":
+    if platform in ("ios", "macos"):
         return f"{divider.get_attribute('value')}, {divider.get_attribute('label')}"
     return str(divider.get_attribute("content-desc"))
 
@@ -71,6 +74,20 @@ def _open(driver: Any, platform: str, app_id: str) -> None:
     wait_until(
         lambda: _percent(driver, platform) == START_PERCENT,
         f"the divider to read {START_PERCENT}%",
+        timeout_s=WAIT_TIMEOUT_S,
+    )
+
+
+def _open_web(driver: Any, platform: str, app_id: str) -> None:
+    """Cold-load the fixture and wait until the snapshot holds the divider's slider.
+
+    The web snapshot shows the slider's number, not its percent, so the percent wait of
+    `_open` cannot run here.
+    """
+    open_fixture(driver, platform, app_id, FIXTURE_ID)
+    wait_until(
+        lambda: "slider" in [node.role for node in web_snapshot.nodes(accessibility_snapshot(driver))],
+        "the divider's slider node in the snapshot",
         timeout_s=WAIT_TIMEOUT_S,
     )
 
@@ -207,3 +224,70 @@ def test_voiceover_reads_the_list_the_divider_label_slider_and_percent_then_the_
         order = focus_order(driver, voiceover)
 
     assert matches_order(order, IOS_FOCUS_ORDER), order
+
+
+@pytest.mark.macos
+@pytest.mark.level1
+@pytest.mark.req("fo06/us21/fr04/e01")
+def test_macos_tree_exposes_the_divider_as_an_enabled_slider_between_the_panes(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open(driver, platform, app_id)
+
+    nodes = mac_tree.nodes(driver.page_source)
+    divider = next((node for node in nodes if node.label == DIVIDER_LABEL), None)
+    list_pane = next((node for node in nodes if node.value == "List"), None)
+    detail_pane = next((node for node in nodes if node.value == "Detail"), None)
+
+    assert divider is not None and list_pane is not None and detail_pane is not None
+    assert divider.kind == "Slider"
+    assert divider.value == f"{START_PERCENT}%"
+    assert divider.enabled
+    assert list_pane.x < divider.x <= detail_pane.x
+
+
+@pytest.mark.web
+@pytest.mark.level1
+@pytest.mark.req("fo06/us21/fr04/e01")
+def test_web_snapshot_places_the_divider_slider_between_the_panes_at_the_percent(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open_web(driver, platform, app_id)
+
+    nodes = web_snapshot.nodes(accessibility_snapshot(driver))
+    order = [node.text if node.role == "text" else node.role for node in nodes if node.role in ("text", "slider")]
+    divider = next(node for node in nodes if node.role == "slider")
+
+    assert order == ["List", "slider", "Detail"]
+    assert "disabled" not in divider.flags
+    # The snapshot prints the input's number ("1" of 0..2); the spoken value is aria-valuetext.
+    wait_until(
+        lambda: slider_value_text(driver) == f"{START_PERCENT}%",
+        f"the slider's aria-valuetext to read {START_PERCENT}%",
+        timeout_s=WAIT_TIMEOUT_S,
+        catch=NODE_NOT_FOUND,
+    )
+
+
+# WORKAROUND: Flutter 3.47.7's web engine puts the slider's aria-label on the role-less parent
+# flt-semantics, not on the input that has role=slider (incrementable.dart:31-35,
+# label_and_value.dart:123), so Chrome names the slider ''; any Semantics slider reads the same,
+# so SplitLayout is not the cause. Remove when the Flutter SDK floor includes f1a05499
+# (flutter#192964, in 3.50.0-0.1.pre); strict=True fails the run once the fix lands.
+@pytest.mark.web
+@pytest.mark.level1
+@pytest.mark.req("fo06/us21/fr04/e01")
+@pytest.mark.xfail(
+    strict=True,
+    reason="Flutter web < 3.50 labels the slider's parent, not the slider (flutter#192964)",
+)
+def test_web_snapshot_names_the_divider_slider_with_its_label(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open_web(driver, platform, app_id)
+
+    divider = next(
+        node for node in web_snapshot.nodes(accessibility_snapshot(driver)) if node.role == "slider"
+    )
+
+    assert divider.name == DIVIDER_LABEL

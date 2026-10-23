@@ -22,8 +22,11 @@ from stratum_e2e.fixtures import open_fixture
 from stratum_e2e.ios import tree as ios_tree
 from stratum_e2e.ios.focus_order import focus_order, matches_order
 from stratum_e2e.ios.voiceover import VoiceOver
-from stratum_e2e.locate import by_label
+from stratum_e2e.locate import by_label, click
+from stratum_e2e.macos import tree as mac_tree
 from stratum_e2e.waits import wait_until
+from stratum_e2e.web import snapshot as web_snapshot
+from stratum_e2e.web.session import accessibility_snapshot
 
 FIXTURE_ID = "common/modal_layout"
 OPEN_MODAL = "Open modal"
@@ -47,6 +50,10 @@ def _labels(driver: Any, platform: str) -> list[str]:
     """The labels the OS tree exposes right now, in tree order."""
     if platform == "ios":
         return ios_tree.labels(driver.page_source)
+    if platform == "macos":
+        return mac_tree.texts(driver.page_source)
+    if platform == "web":
+        return web_snapshot.texts(accessibility_snapshot(driver))
     return android_labels(driver.page_source)
 
 
@@ -58,7 +65,7 @@ def _open_modal(driver: Any, platform: str, app_id: str) -> None:
         "the page's Open modal button",
         timeout_s=WAIT_TIMEOUT_S,
     )
-    by_label(driver, platform, OPEN_MODAL).click()
+    click(by_label(driver, platform, OPEN_MODAL), platform)
     wait_until(
         lambda: CHOOSE_A in _labels(driver, platform),
         "the modal's Choose A button",
@@ -165,3 +172,36 @@ def test_voiceover_walks_the_modal_controls_and_never_reads_the_page(
 
     assert not [stop for stop in order if stop.startswith(PAGE_WORDS)], order
     assert matches_order(order, IOS_FOCUS_ORDER), order
+
+
+@pytest.mark.macos
+@pytest.mark.level1
+@pytest.mark.req("fo06/us20/fr02/e04")
+def test_macos_tree_holds_only_the_modal_controls_while_the_modal_is_open(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open_modal(driver, platform, app_id)
+
+    page_labels = [label for label in _labels(driver, platform) if label.startswith(PAGE_WORDS)]
+    assert not page_labels, f"page nodes still in the tree: {page_labels}"
+    for label in (CHOOSE_A, CHOOSE_B):
+        found = [node for node in mac_tree.nodes(driver.page_source) if node.label == label]
+        assert len(found) == 1, found
+        assert found[0].kind == "Button" and found[0].enabled
+
+
+@pytest.mark.web
+@pytest.mark.level1
+@pytest.mark.req("fo06/us20/fr02/e04")
+def test_web_snapshot_holds_only_the_modal_controls_while_the_modal_is_open(
+    driver: Any, platform: str, app_id: str
+) -> None:
+    _open_modal(driver, platform, app_id)
+
+    page_labels = [label for label in _labels(driver, platform) if label.startswith(PAGE_WORDS)]
+    assert not page_labels, f"page nodes still in the tree: {page_labels}"
+    snapshot = web_snapshot.nodes(accessibility_snapshot(driver))
+    for label in (CHOOSE_A, CHOOSE_B):
+        found = [node for node in snapshot if node.name == label]
+        assert len(found) == 1, found
+        assert found[0].role == "button" and "disabled" not in found[0].flags
