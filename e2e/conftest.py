@@ -15,7 +15,7 @@ from stratum_e2e.appium_server import AppiumServer, default_android_home
 from stratum_e2e.paths import APPIUM_BIN, APPIUM_HOME
 from stratum_e2e.ports import free_port
 
-pytest_plugins = ["pytester"]  # unit/test_conftest_hook.py runs the hook in a sandbox
+pytest_plugins = ["pytester", "stratum_e2e.round.plugin"]  # pytester: unit/ tests run the hooks in a sandbox
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
